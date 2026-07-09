@@ -23,25 +23,34 @@ public class BoardVehicleGoal extends Goal {
     }
 
     @Override
-    public boolean canUse() {
-    boolean boarding = this.boarder.tacz_sewv$isBoarding();
-    int mountId = this.boarder.tacz_sewv$getMountTargetId();
-    System.out.println("[TACZ_SEWV] canUse check — boarding: " + boarding + ", mountId: " + mountId + ", vehicle: " + this.unit.getVehicle());
-
-    if (!boarding) return false;
+public boolean canUse() {
+    if (!this.boarder.tacz_sewv$isBoarding()) return false;
     if (this.unit.getVehicle() != null) return false;
+
+    int mountId = this.boarder.tacz_sewv$getMountTargetId();
     if (mountId == -1) return false;
 
     Entity e = this.unit.level().getEntity(mountId);
-    System.out.println("[TACZ_SEWV] resolved entity: " + e);
 
-    if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck() && v.getFirstPassenger() == null) {
+    if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck()) {
+        // Vehicle full and I'm not already on it? Give up gracefully — free the surplus unit.
+        if (v.getPassengers().size() >= v.getMaxPassengers()) {
+            this.cancelBoarding();
+            return false;
+        }
         this.targetVehicle = v;
-        System.out.println("[TACZ_SEWV] canUse TRUE — target locked");
         return true;
     }
-    System.out.println("[TACZ_SEWV] canUse FALSE — vehicle check failed");
+
+    // Target vehicle gone/dead/wreck — cancel
+    this.cancelBoarding();
     return false;
+}
+
+private void cancelBoarding() {
+    this.boarder.tacz_sewv$setBoarding(false);
+    this.boarder.tacz_sewv$setMountTargetId(-1);
+    this.targetVehicle = null;
 }
 
     @Override

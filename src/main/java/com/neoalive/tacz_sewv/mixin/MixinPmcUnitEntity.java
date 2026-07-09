@@ -10,6 +10,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.entity.ai.VehicleMinRangeGoal;
+import com.neoalive.tacz_sewv.entity.ai.DriveVehicleGoal;
 
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
@@ -42,9 +44,9 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
     private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
-    System.out.println("[TACZ_SEWV] ===== INJECT FIRED =====");
     PmcUnitEntity self = (PmcUnitEntity) (Object) this;
-    ((Mob) self).goalSelector.addGoal(0, new BoardVehicleGoal(self));
-    System.out.println("[TACZ_SEWV] Goal added, selector size now: " + ((Mob) self).goalSelector.getAvailableGoals().size());
-}
+    ((Mob) self).goalSelector.addGoal(3, new BoardVehicleGoal(self));
+    ((Mob) self).goalSelector.addGoal(2, new DriveVehicleGoal(self)); // driving, higher priority than boarding
+    ((Mob) self).goalSelector.addGoal(1, new VehicleMinRangeGoal(self));
+    }
 }

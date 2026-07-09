@@ -20,9 +20,12 @@ public class DriveVehicleGoal extends Goal {
     private static final double MIN_DISTANCE = 2.0;
     private static final double MAX_DISTANCE = 20.0;
     private static final double STOP_DISTANCE = 8.0;
+    private static final int WEAPON_CANNON = 0; // verify in-game
+    private static final int WEAPON_MG = 1;      // verify in-game
 
     private final PmcUnitEntity unit;
     private VehicleEntity vehicle;
+    private int weaponSwitchCooldown = 0;
 
     public DriveVehicleGoal(PmcUnitEntity unit) {
         this.unit = unit;
@@ -56,6 +59,7 @@ public class DriveVehicleGoal extends Goal {
 
     @Override
 public void tick() {
+    if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
     BlockPos targetPos = getTargetPos();
     if (targetPos == null) {
         stopVehicleMovement();
@@ -64,19 +68,37 @@ public void tick() {
 
     double distanceSq = this.vehicle.distanceToSqr(targetPos.getX(), targetPos.getY(), targetPos.getZ());
 
-    // Combat orders → keep a firing standoff; move orders → get close
     boolean isCombat = (this.unit.getOrder() == OrderType.ATTACK_THAT_TARGET
                      || this.unit.getOrder() == OrderType.FREE_FIRE)
                      && this.unit.getTarget() != null;
 
-    double stopDistance = isCombat
-            ? 16.0
-            : this.vehicle.getBbWidth() - 1 + STOP_DISTANCE;
+    if (isCombat) {
+        // Standoff band: back off if too close, approach if too far, hold in between
+        double tooClose = 10.0;   // inside this → reverse away
+        double tooFar = 20.0;     // beyond this → advance
 
-    if (distanceSq > stopDistance * stopDistance) {
-        driveGroundVehicle(targetPos, distanceSq);
+        double dist = Math.sqrt(distanceSq);
+
+        int seatIndex = this.vehicle.getSeatIndex(this.unit);
+
+        if (dist < tooClose) {
+            selectWeapon(seatIndex, WEAPON_MG);     
+            reverseFromTarget(targetPos, distanceSq);
+        } else if (dist > tooFar) {
+            selectWeapon(seatIndex, WEAPON_CANNON);  
+            driveGroundVehicle(targetPos, distanceSq);
+        } else {
+            selectWeapon(seatIndex, WEAPON_MG);
+            stopVehicleMovement(); // in the firing sweet spot — hold and let the turret work
+        }
     } else {
-        stopVehicleMovement();
+        // Move orders — just get there
+        double stopDistance = this.vehicle.getBbWidth() - 1 + STOP_DISTANCE;
+        if (distanceSq > stopDistance * stopDistance) {
+            driveGroundVehicle(targetPos, distanceSq);
+        } else {
+            stopVehicleMovement();
+        }
     }
 }
 
@@ -103,6 +125,33 @@ public void tick() {
     }
 }
 
+private void reverseFromTarget(BlockPos targetPos, double distanceSq) {
+    // Keep facing the target (so turret stays on it), but drive in REVERSE to open distance
+    Vec3 toTarget = new Vec3(
+            targetPos.getX() - this.vehicle.getX(),
+            0,
+            targetPos.getZ() - this.vehicle.getZ()
+    ).normalize();
+
+    Vector3f forward = this.vehicle.getForwardDirection().normalize();
+    double angle = getAngleBetween(forward, toTarget);
+    double angleThreshold = getRotationStopAngle(distanceSq);
+
+    if (Math.abs(angle) < angleThreshold) {
+        // Facing target — reverse straight back
+        this.vehicle.setForwardInputDown(false);
+        this.vehicle.setBackInputDown(true);
+        this.vehicle.setLeftInputDown(false);
+        this.vehicle.setRightInputDown(false);
+    } else {
+        // Turn to face target while backing — steer + reverse
+        this.vehicle.setLeftInputDown(angle > 0);
+        this.vehicle.setRightInputDown(angle < 0);
+        this.vehicle.setForwardInputDown(false);
+        this.vehicle.setBackInputDown(true);
+    }
+}
+
 private boolean isTrackedVehicle() {
     try {
         var data = this.vehicle.data().compute();
@@ -126,6 +175,13 @@ private boolean isTrackedVehicle() {
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
+    }
+
+    private void selectWeapon(int seatIndex, int weaponIndex) {
+    if (seatIndex < 0) return;
+    if (this.weaponSwitchCooldown > 0) return;
+    this.vehicle.setWeaponIndex(seatIndex, weaponIndex);
+    this.weaponSwitchCooldown = 40;
     }
 
     // YOUR order system → drive destination

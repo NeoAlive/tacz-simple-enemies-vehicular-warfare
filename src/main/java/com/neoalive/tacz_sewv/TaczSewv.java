@@ -27,6 +27,9 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.config.ModConfig;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import org.slf4j.Logger;
 
 @Mod(TaczSewv.MODID)
@@ -38,6 +41,7 @@ public class TaczSewv {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::commonSetup);
         MinecraftForge.EVENT_BUS.register(this);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SewvConfig.SPEC);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

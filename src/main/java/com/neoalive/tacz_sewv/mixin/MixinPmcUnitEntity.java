@@ -42,8 +42,9 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
     private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
-        // 'this' IS the PmcUnitEntity — cast through Object, then reach goalSelector as a Mob
-        PmcUnitEntity self = (PmcUnitEntity) (Object) this;
-        ((Mob) self).goalSelector.addGoal(3, new BoardVehicleGoal(self));
-    }
+    System.out.println("[TACZ_SEWV] ===== INJECT FIRED =====");
+    PmcUnitEntity self = (PmcUnitEntity) (Object) this;
+    ((Mob) self).goalSelector.addGoal(0, new BoardVehicleGoal(self));
+    System.out.println("[TACZ_SEWV] Goal added, selector size now: " + ((Mob) self).goalSelector.getAvailableGoals().size());
+}
 }

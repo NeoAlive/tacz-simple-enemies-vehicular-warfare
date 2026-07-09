@@ -10,7 +10,7 @@ import java.util.EnumSet;
 
 public class BoardVehicleGoal extends Goal {
 
-    private static final double MOUNT_DISTANCE = 3.0;
+    private static final double MOUNT_DISTANCE = 5.0;
 
     private final PmcUnitEntity unit;
     private final IVehicleBoarder boarder;
@@ -24,17 +24,25 @@ public class BoardVehicleGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (!this.boarder.tacz_sewv$isBoarding()) return false;
-        if (this.unit.getVehicle() != null) return false;
-        if (this.boarder.tacz_sewv$getMountTargetId() == -1) return false;
+    boolean boarding = this.boarder.tacz_sewv$isBoarding();
+    int mountId = this.boarder.tacz_sewv$getMountTargetId();
+    System.out.println("[TACZ_SEWV] canUse check — boarding: " + boarding + ", mountId: " + mountId + ", vehicle: " + this.unit.getVehicle());
 
-        Entity e = this.unit.level().getEntity(this.boarder.tacz_sewv$getMountTargetId());
-        if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck() && v.getFirstPassenger() == null) {
-            this.targetVehicle = v;
-            return true;
-        }
-        return false;
+    if (!boarding) return false;
+    if (this.unit.getVehicle() != null) return false;
+    if (mountId == -1) return false;
+
+    Entity e = this.unit.level().getEntity(mountId);
+    System.out.println("[TACZ_SEWV] resolved entity: " + e);
+
+    if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck() && v.getFirstPassenger() == null) {
+        this.targetVehicle = v;
+        System.out.println("[TACZ_SEWV] canUse TRUE — target locked");
+        return true;
     }
+    System.out.println("[TACZ_SEWV] canUse FALSE — vehicle check failed");
+    return false;
+}
 
     @Override
     public boolean canContinueToUse() {
@@ -52,20 +60,24 @@ public class BoardVehicleGoal extends Goal {
     }
 
     @Override
-    public void tick() {
-        if (this.targetVehicle == null) return;
+public void tick() {
+    if (this.targetVehicle == null) return;
 
-        this.unit.getLookControl().setLookAt(this.targetVehicle, 30F, 30F);
+    this.unit.getLookControl().setLookAt(this.targetVehicle, 30F, 30F);
 
-        if (this.unit.distanceToSqr(this.targetVehicle) <= MOUNT_DISTANCE * MOUNT_DISTANCE) {
-            if (!this.unit.level().isClientSide) {
-                this.unit.startRiding(this.targetVehicle);
-            }
-            this.unit.getNavigation().stop();
-        } else if (this.unit.getNavigation().isDone()) {
-            this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
+    double distSq = this.unit.distanceToSqr(this.targetVehicle);
+    boolean closeEnough = distSq <= MOUNT_DISTANCE * MOUNT_DISTANCE;
+    boolean navStuck = this.unit.getNavigation().isDone() && distSq <= 36.0; // within 6 blocks but nav gave up on the hitbox
+
+    if (closeEnough || navStuck) {
+        if (!this.unit.level().isClientSide) {
+            this.unit.startRiding(this.targetVehicle);
         }
+        this.unit.getNavigation().stop();
+    } else if (this.unit.getNavigation().isDone()) {
+        this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
     }
+}
 
     @Override
     public void stop() {

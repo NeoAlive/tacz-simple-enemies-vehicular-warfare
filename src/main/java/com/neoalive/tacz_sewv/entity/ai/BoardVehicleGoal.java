@@ -54,29 +54,47 @@ private void cancelBoarding() {
 }
 
     @Override
-    public boolean canContinueToUse() {
-        return this.boarder.tacz_sewv$isBoarding()
-                && this.unit.getVehicle() == null
-                && this.targetVehicle != null
-                && this.targetVehicle.isAlive()
-                && !this.targetVehicle.isWreck()
-                && this.targetVehicle.getFirstPassenger() == null;
-    }
+public boolean canContinueToUse() {
+    if (!this.boarder.tacz_sewv$isBoarding()) return false;   // order cancelled → stop
+    if (this.unit.getVehicle() != null) return false;         // mounted → stop (success)
+    if (this.targetVehicle == null) return false;
+    if (!this.targetVehicle.isAlive() || this.targetVehicle.isWreck()) return false;
+    // Don't stop just because it's full — let tick() handle that with cancelBoarding
+    return true;
+}
 
     @Override
-    public void start() {
-        this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
-    }
+public void start() {
+    this.boardingTicks = 0;
+    this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
+}
 
-    @Override
+    private int boardingTicks = 0;
+private static final int MAX_BOARDING_TICKS = 200; // 10 seconds to reach the vehicle
+
+@Override
 public void tick() {
     if (this.targetVehicle == null) return;
+
+    this.boardingTicks++;
+
+    // Been trying too long? Probably stuck in a crowd or can't reach — give up.
+    if (this.boardingTicks > MAX_BOARDING_TICKS) {
+        this.cancelBoarding();
+        return;
+    }
+
+    // If the vehicle filled up while I was walking over, bail now
+    if (this.targetVehicle.getPassengers().size() >= this.targetVehicle.getMaxPassengers()) {
+        this.cancelBoarding();
+        return;
+    }
 
     this.unit.getLookControl().setLookAt(this.targetVehicle, 30F, 30F);
 
     double distSq = this.unit.distanceToSqr(this.targetVehicle);
     boolean closeEnough = distSq <= MOUNT_DISTANCE * MOUNT_DISTANCE;
-    boolean navStuck = this.unit.getNavigation().isDone() && distSq <= 36.0; // within 6 blocks but nav gave up on the hitbox
+    boolean navStuck = this.unit.getNavigation().isDone() && distSq <= 36.0;
 
     if (closeEnough || navStuck) {
         if (!this.unit.level().isClientSide) {
@@ -89,10 +107,11 @@ public void tick() {
 }
 
     @Override
-    public void stop() {
-        this.boarder.tacz_sewv$setBoarding(false);
-        this.boarder.tacz_sewv$setMountTargetId(-1);
-        this.targetVehicle = null;
-        this.unit.getNavigation().stop();
-    }
+public void stop() {
+    // DON'T cancel boarding here — the unit might still want to board,
+    // this could just be a temporary goal interruption.
+    // Only stop the current navigation.
+    this.unit.getNavigation().stop();
+    this.boardingTicks = 0; // reset the timeout counter for next attempt
+}
 }

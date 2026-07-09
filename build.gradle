@@ -72,6 +72,11 @@ minecraft {
     }
 }
 
+mixin {
+    add sourceSets.main, "tacz_sewv.refmap.json"
+    config "tacz_sewv.mixins.json"
+}
+
 repositories {
     flatDir {
         dirs 'libs'
@@ -101,6 +106,7 @@ dependencies {
     implementation fg.deobf("blank:kotlin:1.0")
     implementation fg.deobf("blank:simpleenemymod:1.0")
     implementation fg.deobf("blank:tacz:1.0")
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

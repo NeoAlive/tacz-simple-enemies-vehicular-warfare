@@ -1,9 +1,9 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import java.util.EnumSet;
@@ -13,20 +13,22 @@ public class BoardVehicleGoal extends Goal {
     private static final double MOUNT_DISTANCE = 3.0;
 
     private final PmcUnitEntity unit;
+    private final IVehicleBoarder boarder;
     private VehicleEntity targetVehicle;
 
     public BoardVehicleGoal(PmcUnitEntity unit) {
         this.unit = unit;
+        this.boarder = (IVehicleBoarder) unit; // safe — mixin makes PMC implement it
         this.setFlags(EnumSet.of(Flag.MOVE));
     }
 
     @Override
     public boolean canUse() {
-        if (this.unit.getOrder() != OrderType.MOUNT_VEHICLE) return false;
-        if (this.unit.getVehicle() != null) return false;           // already aboard
-        if (this.unit.getMountTargetId() == -1) return false;       // no vehicle assigned
+        if (!this.boarder.tacz_sewv$isBoarding()) return false;
+        if (this.unit.getVehicle() != null) return false;
+        if (this.boarder.tacz_sewv$getMountTargetId() == -1) return false;
 
-        Entity e = this.unit.level().getEntity(this.unit.getMountTargetId());
+        Entity e = this.unit.level().getEntity(this.boarder.tacz_sewv$getMountTargetId());
         if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck() && v.getFirstPassenger() == null) {
             this.targetVehicle = v;
             return true;
@@ -36,7 +38,7 @@ public class BoardVehicleGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return this.unit.getOrder() == OrderType.MOUNT_VEHICLE
+        return this.boarder.tacz_sewv$isBoarding()
                 && this.unit.getVehicle() == null
                 && this.targetVehicle != null
                 && this.targetVehicle.isAlive()
@@ -67,11 +69,8 @@ public class BoardVehicleGoal extends Goal {
 
     @Override
     public void stop() {
-        // Once aboard (or aborted), clear the order so it doesn't loop
-        if (this.unit.getVehicle() != null) {
-            this.unit.setOrder(OrderType.FREE_FIRE);
-        }
-        this.unit.setMountTargetId(-1);
+        this.boarder.tacz_sewv$setBoarding(false);
+        this.boarder.tacz_sewv$setMountTargetId(-1);
         this.targetVehicle = null;
         this.unit.getNavigation().stop();
     }

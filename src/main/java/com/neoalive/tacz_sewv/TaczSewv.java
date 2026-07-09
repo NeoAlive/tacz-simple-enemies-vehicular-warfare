@@ -40,6 +40,9 @@ public class TaczSewv {
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
-        LOGGER.info("SEM<->SW vehicle bridge loading");
+    event.enqueueWork(() -> {
+        NetworkHandler.register();
+    });
+    LOGGER.info("SEM<->SW vehicle bridge loading");
     }
 }

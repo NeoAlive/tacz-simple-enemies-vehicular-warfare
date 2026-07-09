@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv;
 
+import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.Registries;

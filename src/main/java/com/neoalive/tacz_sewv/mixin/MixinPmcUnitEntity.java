@@ -2,12 +2,14 @@ package com.neoalive.tacz_sewv.mixin;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.BoardVehicleGoal;
+import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
 
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
@@ -40,7 +42,8 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
     private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
+        // 'this' IS the PmcUnitEntity — cast through Object, then reach goalSelector as a Mob
         PmcUnitEntity self = (PmcUnitEntity) (Object) this;
-        self.goalSelector.addGoal(3, new BoardVehicleGoal(self));
+        ((Mob) self).goalSelector.addGoal(3, new BoardVehicleGoal(self));
     }
 }

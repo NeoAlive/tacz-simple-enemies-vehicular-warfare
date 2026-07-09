@@ -7,7 +7,9 @@
   "mixins": [
     "MixinPmcUnitEntity"
   ],
-  "client": [],
+  "client": [
+    "client.MixinPmcUnitRenderer"
+  ],
   "server": [],
   "injectors": {
     "defaultRequire": 1

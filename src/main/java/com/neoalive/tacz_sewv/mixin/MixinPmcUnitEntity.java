@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.mixin;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.BoardVehicleGoal;
+import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -9,9 +10,6 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.entity.ai.VehicleMinRangeGoal;
-import com.neoalive.tacz_sewv.entity.ai.DriveVehicleGoal;
 
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
@@ -46,7 +44,6 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
 private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
     PmcUnitEntity self = (PmcUnitEntity) (Object) this;
     ((Mob) self).goalSelector.addGoal(1, new BoardVehicleGoal(self));
-    ((Mob) self).goalSelector.addGoal(1, new DriveVehicleGoal(self));
-    ((Mob) self).goalSelector.addGoal(1, new VehicleMinRangeGoal(self));
+    VehicleAiGoals.addDriveGoals(self);
 }
 }

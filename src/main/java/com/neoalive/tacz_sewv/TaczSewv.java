@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv;
 
+import com.neoalive.tacz_sewv.command.SewvCommand;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
@@ -16,6 +17,7 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -49,5 +51,10 @@ public class TaczSewv {
         NetworkHandler.register();
     });
     LOGGER.info("SEM<->SW vehicle bridge loading");
+    }
+
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        SewvCommand.register(event.getDispatcher());
     }
 }

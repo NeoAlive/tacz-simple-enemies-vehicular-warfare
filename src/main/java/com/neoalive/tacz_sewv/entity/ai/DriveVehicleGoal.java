@@ -1,12 +1,17 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.minecraft.world.level.pathfinder.PathFinder;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.PathNavigationRegion;
@@ -24,22 +29,33 @@ public class DriveVehicleGoal extends Goal {
     private static final double MIN_DISTANCE = 2.0;
     private static final double MAX_DISTANCE = 20.0;
     private static final double STOP_DISTANCE = 8.0;
-    private static final int WEAPON_CANNON = 0; // verify in-game
-    private static final int WEAPON_MG = 1;      // verify in-game
+    // Infantry standoff band — MG's effective engagement range.
+    private static final double INFANTRY_TOO_CLOSE = 10.0;
+    private static final double INFANTRY_TOO_FAR = 20.0;
+    // Vehicle standoff band — MG can't hurt armor and cannon/TOW work at range,
+    // so hold much further back instead of closing to point-blank tank-on-tank.
+    private static final double VEHICLE_TOO_CLOSE = 20.0;
+    private static final double VEHICLE_TOO_FAR = 40.0;
+    private static final int WEAPON_CANNON = 0;
+    private static final int WEAPON_MG = 1;
+    private static final int WEAPON_SPECIAL = 2; // TOW / heavy anti-vehicle ordnance
+    private static final int WEAPON_COUNT = 3;
 
     private final GroundVehicleNodeEvaluator nodeEvaluator = new GroundVehicleNodeEvaluator();
     private final PathFinder pathFinder = new PathFinder(this.nodeEvaluator, 1024);
     private Path currentPath = null;
     private int pathRecalcCooldown = 0;
 
-    private final PmcUnitEntity unit;
+    private final AbstractUnit unit;
     private VehicleEntity vehicle;
     private int weaponSwitchCooldown = 0;
 
     private VehicleEntity trackedCacheVehicle;
     private boolean trackedCacheValue;
 
-    public DriveVehicleGoal(PmcUnitEntity unit) {
+    // Only PmcUnitEntity (player-commandable units) has an order queue via ICommandableMob;
+    // RUunitEntity/USunitEntity are plain hostile units with no order system.
+    public DriveVehicleGoal(AbstractUnit unit) {
         this.unit = unit;
         this.setFlags(EnumSet.noneOf(Flag.class)); // driving doesn't need to lock move/look flags
     }
@@ -104,19 +120,26 @@ public void tick() {
     boolean isCombat = this.unit.getTarget() != null;
 
     if (isCombat) {
-        double tooClose = 10.0;
-        double tooFar = 20.0;
+        LivingEntity target = this.unit.getTarget();
+        TargetCategory category = classifyTarget(target);
+        boolean isVehicleTarget = category == TargetCategory.VEHICLE;
+
+        // Vehicle targets get a much wider standoff band — no point charging
+        // point-blank when the MG can't hurt armor and cannon/TOW reach further.
+        double tooCloseThreshold = isVehicleTarget ? VEHICLE_TOO_CLOSE : INFANTRY_TOO_CLOSE;
+        double tooFarThreshold = isVehicleTarget ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR;
+
         double dist = Math.sqrt(distanceSq); // distance to REAL target, for band
         int seatIndex = this.vehicle.getSeatIndex(this.unit);
 
-        if (dist < tooClose) {
-            selectWeapon(seatIndex, WEAPON_MG);
+        boolean tooFar = dist > tooFarThreshold;
+        selectWeaponForTarget(seatIndex, category, tooFar);
+
+        if (dist < tooCloseThreshold) {
             reverseFromTarget(targetPos, distanceSq); // reverse relative to real target
-        } else if (dist > tooFar) {
-            selectWeapon(seatIndex, WEAPON_CANNON);
+        } else if (tooFar) {
             driveGroundVehicle(steerTarget, distanceSq); // STEER toward path waypoint
         } else {
-            selectWeapon(seatIndex, WEAPON_MG);
             stopVehicleMovement();
         }
     } else {
@@ -230,6 +253,51 @@ private boolean computeIsTrackedVehicle() {
         this.vehicle.setRightInputDown(false);
     }
 
+    private enum TargetCategory { VEHICLE, MONSTER, PMC_UNIT }
+
+    private TargetCategory classifyTarget(LivingEntity target) {
+        // A VehicleEntity isn't a LivingEntity, so it can never be the target itself —
+        // the AI targets the crew riding inside; armor makes the MG useless against them.
+        if (target.getVehicle() instanceof VehicleEntity) return TargetCategory.VEHICLE;
+        if (target instanceof RUunitEntity || target instanceof USunitEntity) return TargetCategory.PMC_UNIT;
+        return TargetCategory.MONSTER; // vanilla hostiles + fallback default
+    }
+
+    // Weighted pick: each category excludes the weapon(s) that can't/shouldn't
+    // engage it, then prefers one of what's left based on range.
+    private void selectWeaponForTarget(int seatIndex, TargetCategory category, boolean tooFar) {
+        double[] weight = new double[WEAPON_COUNT];
+
+        switch (category) {
+            case VEHICLE:
+                weight[WEAPON_MG] = Double.NEGATIVE_INFINITY; // small arms can't hurt armor
+                weight[tooFar ? WEAPON_SPECIAL : WEAPON_CANNON] = 1.0;
+                break;
+            case MONSTER:
+            case PMC_UNIT: // same doctrine as monsters — don't burn heavy ordnance on infantry
+                weight[WEAPON_SPECIAL] = Double.NEGATIVE_INFINITY;
+                weight[tooFar ? WEAPON_CANNON : WEAPON_MG] = 1.0;
+                break;
+        }
+
+        // Not every vehicle has a 3rd weapon slot — setWeaponIndex() doesn't
+        // bounds-check, so an invalid index silently leaves the seat unarmed.
+        SeatInfo seat = this.vehicle.getSeat(seatIndex);
+        if (seat == null || seat.weapons().size() <= WEAPON_SPECIAL) {
+            weight[WEAPON_SPECIAL] = Double.NEGATIVE_INFINITY;
+        }
+
+        selectWeapon(seatIndex, argmax(weight));
+    }
+
+    private static int argmax(double[] weight) {
+        int best = 0;
+        for (int i = 1; i < weight.length; i++) {
+            if (weight[i] > weight[best]) best = i;
+        }
+        return best;
+    }
+
     private void selectWeapon(int seatIndex, int weaponIndex) {
     if (seatIndex < 0) return;
     if (this.weaponSwitchCooldown > 0) return;
@@ -237,30 +305,37 @@ private boolean computeIsTrackedVehicle() {
     this.weaponSwitchCooldown = 40;
     }
 
-    // YOUR order system → drive destination
+    // Player-commandable units (PmcUnitEntity) use the order queue for their drive
+    // destination. RU/US crews have no order system — they just engage whatever
+    // they're currently targeting, same as vanilla hostile-mob AI.
     private BlockPos getTargetPos() {
-        OrderType order = this.unit.getOrder();
+        if (!(this.unit instanceof PmcUnitEntity pmc)) {
+            LivingEntity target = this.unit.getTarget();
+            return target != null ? target.blockPosition() : null;
+        }
+
+        OrderType order = pmc.getOrder();
 
         switch (order) {
             case HOLD_POSITION:
                 return null;
 
             case MOVE_TO_POSITION:
-                Vec3 moveTarget = this.unit.getMoveToTarget();
+                Vec3 moveTarget = pmc.getMoveToTarget();
                 return (moveTarget != null && !moveTarget.equals(Vec3.ZERO))
                         ? BlockPos.containing(moveTarget) : null;
 
             case ATTACK_THAT_TARGET:
             case FREE_FIRE:
-                if (this.unit.getTarget() != null) {
-                    return this.unit.getTarget().blockPosition();
+                if (pmc.getTarget() != null) {
+                    return pmc.getTarget().blockPosition();
                 }
                 return null;
 
             case FOLLOW_COMMANDER:
-                UUID ownerId = this.unit.getOwnerUUID();
+                UUID ownerId = pmc.getOwnerUUID();
                 if (ownerId != null) {
-                    Player owner = this.unit.level().getPlayerByUUID(ownerId);
+                    Player owner = pmc.level().getPlayerByUUID(ownerId);
                     if (owner != null) return owner.blockPosition();
                 }
                 return null;

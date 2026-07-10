@@ -3,7 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import java.util.EnumSet;
 
@@ -17,10 +17,10 @@ public class VehicleMinRangeGoal extends Goal {
     // Minimum engagement distance from the VEHICLE — inside this, the vehicle can't aim, so drop the target.
     private static final double MIN_ENGAGE_DISTANCE_SQ = 25.0; // 5 blocks
 
-    private final PmcUnitEntity unit;
+    private final AbstractUnit unit;
     private VehicleEntity vehicle;
 
-    public VehicleMinRangeGoal(PmcUnitEntity unit) {
+    public VehicleMinRangeGoal(AbstractUnit unit) {
         this.unit = unit;
         this.setFlags(EnumSet.noneOf(Flag.class)); // just a monitor, claims no flags
     }

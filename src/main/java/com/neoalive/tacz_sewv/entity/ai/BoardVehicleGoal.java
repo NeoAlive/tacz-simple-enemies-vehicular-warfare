@@ -27,27 +27,22 @@ public class BoardVehicleGoal extends Goal {
 
 @Override
 public boolean canUse() {
-    if (this.unit.level().isClientSide()) return false;  // keep this guard
+    if (this.unit.level().isClientSide()) return false;
 
     boolean boarding = boarder().tacz_sewv$isBoarding();
     int mountId = boarder().tacz_sewv$getMountTargetId();
+
     if (!boarding) return false;
     if (this.unit.getVehicle() != null) return false;
     if (mountId == -1) return false;
 
     Entity e = this.unit.level().getEntity(mountId);
-System.out.println("[TACZ_SEWV] canUse: mountId=" + mountId + " resolvedVehicle=" + e);
-if (e instanceof VehicleEntity v) {
-    System.out.println("[TACZ_SEWV] vehicle alive=" + v.isAlive() + " wreck=" + v.isWreck() 
-        + " seats=" + v.getPassengers().size() + "/" + v.getMaxPassengers());
-    if (v.isAlive() && !v.isWreck() && v.getPassengers().size() < v.getMaxPassengers()) {
+    if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck() 
+            && v.getPassengers().size() < v.getMaxPassengers()) {
         this.targetVehicle = v;
-        System.out.println("[TACZ_SEWV] canUse TRUE");
         return true;
     }
-}
-System.out.println("[TACZ_SEWV] canUse FALSE — vehicle check failed, mountId=" + mountId);
-return false;
+    return false;
 }
 
 private void cancelBoarding() {
@@ -100,13 +95,16 @@ public void tick() {
     boolean navStuck = this.unit.getNavigation().isDone() && distSq <= 36.0;
 
     if (closeEnough || navStuck) {
-        if (!this.unit.level().isClientSide) {
-            this.unit.startRiding(this.targetVehicle);
-        }
-        this.unit.getNavigation().stop();
-    } else if (this.unit.getNavigation().isDone()) {
-        this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
+    if (!this.unit.level().isClientSide) {
+        this.unit.startRiding(this.targetVehicle);
+        // Boarded successfully — clear the order so it doesn't loop or re-board after dismount
+        boarder().tacz_sewv$setBoarding(false);
+        boarder().tacz_sewv$setMountTargetId(-1);
     }
+    this.unit.getNavigation().stop();
+} else if (this.unit.getNavigation().isDone()) {
+    this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
+}
 }
 
     @Override

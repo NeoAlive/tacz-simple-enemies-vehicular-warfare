@@ -54,8 +54,7 @@ public boolean tacz_sewv$isBoarding() {
 private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
     PmcUnitEntity self = (PmcUnitEntity) (Object) this;
     ((Mob) self).goalSelector.addGoal(1, new BoardVehicleGoal(self));
-    System.out.println("[TACZ_SEWV] INJECT FIRED — added board goal to " + self.getId() 
-        + ", selector now has " + ((Mob) self).goalSelector.getAvailableGoals().size() + " goals");
+    ((Mob) self).goalSelector.addGoal(1, new DriveVehicleGoal(self));  // <-- ADD THIS BACK
 }
 
     @Inject(method = "<init>", at = @At("RETURN"))

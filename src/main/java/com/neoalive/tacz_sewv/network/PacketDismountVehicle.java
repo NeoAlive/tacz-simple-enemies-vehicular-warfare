@@ -5,6 +5,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.minecraftforge.network.NetworkEvent;
+import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,19 +31,25 @@ public class PacketDismountVehicle {
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            Player player = ctx.get().getSender();
-            if (player == null) return;
+    ctx.get().enqueueWork(() -> {
+        Player player = ctx.get().getSender();
+        if (player == null) return;
 
-            for (int unitId : this.unitIds) {
-                Entity e = player.level().getEntity(unitId);
-                if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
-                    if (pmc.getVehicle() != null) {
-                        pmc.stopRiding(); // vanilla dismount
-                    }
+        for (int unitId : this.unitIds) {
+            Entity e = player.level().getEntity(unitId);
+
+            // ===== THIS is fix 1b — it sits INSIDE the loop =====
+            if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
+                if (pmc.getVehicle() != null) {
+                    pmc.stopRiding();
                 }
+                IVehicleBoarder boarder = (IVehicleBoarder) pmc;
+                boarder.tacz_sewv$setBoarding(false);
+                boarder.tacz_sewv$setMountTargetId(-1);
             }
-        });
-        ctx.get().setPacketHandled(true);
-    }
+            // ====================================================
+        }
+    });
+    ctx.get().setPacketHandled(true);
+}
 }

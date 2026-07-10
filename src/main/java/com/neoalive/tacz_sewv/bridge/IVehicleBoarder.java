@@ -6,3 +6,4 @@ public interface IVehicleBoarder {
     void tacz_sewv$setBoarding(boolean boarding);
     boolean tacz_sewv$isBoarding();
 }
+

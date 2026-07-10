@@ -33,19 +33,26 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
     }
 
     @Override
-    public void tacz_sewv$setBoarding(boolean boarding) {
-        this.tacz_sewv$boarding = boarding;
-    }
+public void tacz_sewv$setBoarding(boolean boarding) {
+    System.out.println("[TACZ_SEWV] setBoarding(" + boarding + ") on entity " 
+        + ((net.minecraft.world.entity.Entity)(Object)this).getId() 
+        + " identityHash=" + System.identityHashCode(this));
+    this.tacz_sewv$boarding = boarding;
+}
 
     @Override
-    public boolean tacz_sewv$isBoarding() {
-        return this.tacz_sewv$boarding;
-    }
+public boolean tacz_sewv$isBoarding() {
+    System.out.println("[TACZ_SEWV] isBoarding READ=" + this.tacz_sewv$boarding 
+        + " on entity " + ((net.minecraft.world.entity.Entity)(Object)this).getId() 
+        + " identityHash=" + System.identityHashCode(this));
+    return this.tacz_sewv$boarding;
+}
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
     private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
     PmcUnitEntity self = (PmcUnitEntity) (Object) this;
     ((Mob) self).goalSelector.addGoal(3, new BoardVehicleGoal(self));
+    System.out.println("[TACZ_SEWV] BoardVehicleGoal ADDED to " + self.getId() + ", selector size: " + ((Mob) self).goalSelector.getAvailableGoals().size());
     ((Mob) self).goalSelector.addGoal(2, new DriveVehicleGoal(self)); // driving, higher priority than boarding
     ((Mob) self).goalSelector.addGoal(1, new VehicleMinRangeGoal(self));
     }

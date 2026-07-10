@@ -13,49 +13,48 @@ public class BoardVehicleGoal extends Goal {
     private static final double MOUNT_DISTANCE = 5.0;
 
     private final PmcUnitEntity unit;
-    private final IVehicleBoarder boarder;
     private VehicleEntity targetVehicle;
 
+    // THIS is what's missing — add it back:
     public BoardVehicleGoal(PmcUnitEntity unit) {
         this.unit = unit;
-        this.boarder = (IVehicleBoarder) unit; // safe — mixin makes PMC implement it
         this.setFlags(EnumSet.of(Flag.MOVE));
+    }
+
+    private IVehicleBoarder boarder() {
+        return (IVehicleBoarder) this.unit;
     }
 
     @Override
 public boolean canUse() {
-    if (!this.boarder.tacz_sewv$isBoarding()) return false;
+    boolean boarding = boarder().tacz_sewv$isBoarding();
+    int mountId = boarder().tacz_sewv$getMountTargetId();
+    System.out.println("[TACZ_SEWV] BoardGoal.canUse — boarding:" + boarding + " mountId:" + mountId + " inVehicle:" + (this.unit.getVehicle() != null));
+    
+    if (!boarding) return false;
     if (this.unit.getVehicle() != null) return false;
-
-    int mountId = this.boarder.tacz_sewv$getMountTargetId();
     if (mountId == -1) return false;
 
     Entity e = this.unit.level().getEntity(mountId);
-
-    if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck()) {
-        // Vehicle full and I'm not already on it? Give up gracefully — free the surplus unit.
-        if (v.getPassengers().size() >= v.getMaxPassengers()) {
-            this.cancelBoarding();
-            return false;
-        }
+    System.out.println("[TACZ_SEWV] BoardGoal resolved vehicle: " + e);
+    if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck() && v.getPassengers().size() < v.getMaxPassengers()) {
         this.targetVehicle = v;
+        System.out.println("[TACZ_SEWV] BoardGoal canUse TRUE");
         return true;
     }
-
-    // Target vehicle gone/dead/wreck — cancel
-    this.cancelBoarding();
+    System.out.println("[TACZ_SEWV] BoardGoal canUse FALSE - vehicle check failed");
     return false;
 }
 
 private void cancelBoarding() {
-    this.boarder.tacz_sewv$setBoarding(false);
-    this.boarder.tacz_sewv$setMountTargetId(-1);
+    boarder().tacz_sewv$setBoarding(false);
+    boarder().tacz_sewv$setMountTargetId(-1);
     this.targetVehicle = null;
 }
 
     @Override
 public boolean canContinueToUse() {
-    if (!this.boarder.tacz_sewv$isBoarding()) return false;   // order cancelled → stop
+    if (!boarder().tacz_sewv$isBoarding()) return false;   // order cancelled → stop
     if (this.unit.getVehicle() != null) return false;         // mounted → stop (success)
     if (this.targetVehicle == null) return false;
     if (!this.targetVehicle.isAlive() || this.targetVehicle.isWreck()) return false;

@@ -35,19 +35,27 @@ public class PacketBoardVehicle {
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            Player player = ctx.get().getSender();
-            if (player == null) return;
+    ctx.get().enqueueWork(() -> {
+        Player player = ctx.get().getSender();
+        if (player == null) return;
+        System.out.println("[TACZ_SEWV] BOARD packet received for " + this.unitIds.size() + " units");
 
-            for (int unitId : this.unitIds) {
-                Entity e = player.level().getEntity(unitId);
-                if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
+        for (int unitId : this.unitIds) {
+            Entity e = player.level().getEntity(unitId);
+            System.out.println("[TACZ_SEWV] unit " + unitId + " = " + e + ", ownedBy=" + 
+                (e instanceof PmcUnitEntity p ? p.isOwnedBy(player) : "not a PMC"));
+            if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
+                try {
                     IVehicleBoarder boarder = (IVehicleBoarder) pmc;
                     boarder.tacz_sewv$setMountTargetId(this.vehicleId);
                     boarder.tacz_sewv$setBoarding(true);
+                    System.out.println("[TACZ_SEWV] state set on " + unitId);
+                } catch (Exception ex) {
+                    System.out.println("[TACZ_SEWV] CAST FAILED: " + ex);
                 }
             }
-        });
-        ctx.get().setPacketHandled(true);
-    }
+        }
+    });
+    ctx.get().setPacketHandled(true);
+}
 }

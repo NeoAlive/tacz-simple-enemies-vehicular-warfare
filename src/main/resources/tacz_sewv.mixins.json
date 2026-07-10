@@ -6,7 +6,9 @@
   "refmap": "tacz_sewv.refmap.json",
   "mixins": [
     "MixinPmcUnitEntity",
-    "MixinCombatEvent"
+    "MixinCombatEvent",
+    "MixinVehicleFireCooldown",
+    "MixinVehicleInteractLock"
   ],
   "client": [
     "client.MixinPmcUnitRenderer"

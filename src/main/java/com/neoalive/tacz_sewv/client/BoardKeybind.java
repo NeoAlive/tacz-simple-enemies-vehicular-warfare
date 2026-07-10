@@ -12,6 +12,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.lwjgl.glfw.GLFW;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketBoardVehicle;
+import com.neoalive.tacz_sewv.network.PacketDismountVehicle;
+import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,34 +28,36 @@ public class BoardKeybind {
     );
 
     public static void onKeyPressed() {
-        Minecraft mc = Minecraft.getInstance();
-        Player player = mc.player;
-        if (player == null || mc.level == null) return;
+    Minecraft mc = Minecraft.getInstance();
+    Player player = mc.player;
+    if (player == null || mc.level == null) return;
 
-        // What's the player looking at?
+    // Gather owned PMCs (your existing logic, works for both board and dismount)
+    List<Integer> unitIds = new ArrayList<>();
+    List<PmcUnitEntity> units = mc.level.getEntitiesOfClass(
+            PmcUnitEntity.class, player.getBoundingBox().inflate(64.0));
+    for (PmcUnitEntity pmc : units) {
+        if (pmc.isOwnedBy(player)) unitIds.add(pmc.getId());
+    }
+    if (unitIds.isEmpty()) return;
+
+    boolean ctrlHeld = InputConstants.isKeyDown(
+            mc.getWindow().getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL);
+
+    if (ctrlHeld) {
+        // CTRL+K → dismount all
+        NetworkHandler.CHANNEL.sendToServer(new PacketDismountVehicle(unitIds));
+        player.displayClientMessage(
+                Component.literal("§eDismount order sent to " + unitIds.size() + " units."), true);
+    } else {
+        // Plain K → board the looked-at vehicle (your existing logic)
         HitResult hit = mc.hitResult;
         if (!(hit instanceof EntityHitResult ehr)) return;
         if (!(ehr.getEntity() instanceof VehicleEntity vehicle)) return;
 
-        // Gather owned PMCs nearby (simple first pass: all owned within 64)
-        List<Integer> unitIds = new ArrayList<>();
-        List<PmcUnitEntity> units = mc.level.getEntitiesOfClass(
-                PmcUnitEntity.class,
-                player.getBoundingBox().inflate(64.0)
-        );
-        for (PmcUnitEntity pmc : units) {
-            if (pmc.isOwnedBy(player)) {
-                unitIds.add(pmc.getId());
-            }
-        }
-
-        if (!unitIds.isEmpty()) {
-            // ModNetworking is your bridge's network channel — wire it up
-            NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId()));
-            player.displayClientMessage(
-                    net.minecraft.network.chat.Component.literal("§aBoarding order sent to " + unitIds.size() + " units."),
-                    true
-            );
-        }
+        NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId()));
+        player.displayClientMessage(
+                Component.literal("§aBoarding order sent to " + unitIds.size() + " units."), true);
     }
+}
 }

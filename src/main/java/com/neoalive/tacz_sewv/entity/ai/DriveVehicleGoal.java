@@ -7,6 +7,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.minecraft.world.level.pathfinder.PathFinder;
+import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.level.PathNavigationRegion;
+import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import org.joml.Vector3f;
 
 import java.util.EnumSet;
@@ -22,6 +26,10 @@ public class DriveVehicleGoal extends Goal {
     private static final double STOP_DISTANCE = 8.0;
     private static final int WEAPON_CANNON = 0; // verify in-game
     private static final int WEAPON_MG = 1;      // verify in-game
+
+    private final GroundVehicleNodeEvaluator nodeEvaluator = new GroundVehicleNodeEvaluator();
+    private Path currentPath = null;
+    private int pathRecalcCooldown = 0;
 
     private final PmcUnitEntity unit;
     private VehicleEntity vehicle;
@@ -68,9 +76,7 @@ public void tick() {
 
     double distanceSq = this.vehicle.distanceToSqr(targetPos.getX(), targetPos.getY(), targetPos.getZ());
 
-    boolean isCombat = (this.unit.getOrder() == OrderType.ATTACK_THAT_TARGET
-                     || this.unit.getOrder() == OrderType.FREE_FIRE)
-                     && this.unit.getTarget() != null;
+    boolean isCombat = this.unit.getTarget() != null;
 
     if (isCombat) {
         // Standoff band: back off if too close, approach if too far, hold in between
@@ -150,6 +156,24 @@ private void reverseFromTarget(BlockPos targetPos, double distanceSq) {
         this.vehicle.setForwardInputDown(false);
         this.vehicle.setBackInputDown(true);
     }
+}
+
+private void recomputePath(BlockPos target) {
+    // Pathfinding is expensive — build a region around tank + target
+    int range = 128;
+    PathNavigationRegion region = new PathNavigationRegion(
+        this.unit.level(),
+        this.vehicle.blockPosition().offset(-range, -range, -range),
+        this.vehicle.blockPosition().offset(range, range, range)
+    );
+
+    this.nodeEvaluator.prepare(region, this.unit); // reads vehicle from unit.getVehicle()
+    PathFinder finder = new PathFinder(this.nodeEvaluator, 1024);
+
+    float followRange = (float) range;
+    java.util.Set<BlockPos> targets = java.util.Set.of(target);
+    this.currentPath = finder.findPath(region, this.unit, targets, followRange, 1, 1.0F);
+    this.nodeEvaluator.done();
 }
 
 private boolean isTrackedVehicle() {

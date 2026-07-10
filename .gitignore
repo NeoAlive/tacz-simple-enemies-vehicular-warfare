@@ -1,26 +1,30 @@
-# eclipse
-bin
-*.launch
-.settings
-.metadata
-.classpath
-.project
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
 
-# idea
-out
+# IDE
+.idea/
+.vscode/
+*.iml
 *.ipr
 *.iws
-*.iml
-.idea
 
-# gradle
-build
-.gradle
+# Eclipse
+.classpath
+.project
+.settings/
 
-# other
-eclipse
-run
-.vscode/
+# Minecraft
+run/
+runs/
 
-# Files from Forge MDK
-forge*changelog.txt
+# Generated files
+out/
+classes/
+
+# Logs
+*.log
+
+# Local dependencies
+libs/*.jar

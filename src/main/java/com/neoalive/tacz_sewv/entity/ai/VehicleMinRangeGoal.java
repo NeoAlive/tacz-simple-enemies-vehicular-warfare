@@ -14,10 +14,11 @@ import java.util.EnumSet;
  */
 public class VehicleMinRangeGoal extends Goal {
 
-    // Minimum engagement distance — inside this, the vehicle can't aim, so ignore.
-    private static final double MIN_ENGAGE_DISTANCE_SQ = 9.0; // 3 blocks, tune to taste
+    // Minimum engagement distance from the VEHICLE — inside this, the vehicle can't aim, so drop the target.
+    private static final double MIN_ENGAGE_DISTANCE_SQ = 25.0; // 5 blocks
 
     private final PmcUnitEntity unit;
+    private VehicleEntity vehicle;
 
     public VehicleMinRangeGoal(PmcUnitEntity unit) {
         this.unit = unit;
@@ -27,8 +28,9 @@ public class VehicleMinRangeGoal extends Goal {
     @Override
     public boolean canUse() {
         // Only relevant while mounted with a target
-        return this.unit.getVehicle() instanceof VehicleEntity
-                && this.unit.getTarget() != null;
+        if (!(this.unit.getVehicle() instanceof VehicleEntity v)) return false;
+        this.vehicle = v;
+        return this.unit.getTarget() != null;
     }
 
     @Override
@@ -39,9 +41,9 @@ public class VehicleMinRangeGoal extends Goal {
     @Override
     public void tick() {
         LivingEntity target = this.unit.getTarget();
-        if (target == null) return;
+        if (target == null || this.vehicle == null) return;
 
-        double distSq = this.unit.distanceToSqr(target);
+        double distSq = this.vehicle.distanceToSqr(target);
         if (distSq < MIN_ENGAGE_DISTANCE_SQ) {
             // Too close for the vehicle to aim — drop it so targeting picks something else
             this.unit.setTarget(null);

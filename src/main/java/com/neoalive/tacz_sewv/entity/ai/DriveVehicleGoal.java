@@ -28,12 +28,16 @@ public class DriveVehicleGoal extends Goal {
     private static final int WEAPON_MG = 1;      // verify in-game
 
     private final GroundVehicleNodeEvaluator nodeEvaluator = new GroundVehicleNodeEvaluator();
+    private final PathFinder pathFinder = new PathFinder(this.nodeEvaluator, 1024);
     private Path currentPath = null;
     private int pathRecalcCooldown = 0;
 
     private final PmcUnitEntity unit;
     private VehicleEntity vehicle;
     private int weaponSwitchCooldown = 0;
+
+    private VehicleEntity trackedCacheVehicle;
+    private boolean trackedCacheValue;
 
     public DriveVehicleGoal(PmcUnitEntity unit) {
         this.unit = unit;
@@ -183,17 +187,25 @@ private void recomputePath(BlockPos target) {
             this.vehicle.blockPosition().offset(-range, -range, -range),
             this.vehicle.blockPosition().offset(range, range, range)
         );
-        this.nodeEvaluator.prepare(region, this.unit);
-        PathFinder finder = new PathFinder(this.nodeEvaluator, 1024);
+        // PathFinder.findPath() calls nodeEvaluator.prepare()/done() internally — don't call them here too
         java.util.Set<BlockPos> targets = java.util.Set.of(target);
-        this.currentPath = finder.findPath(region, this.unit, targets, (float) range, 1, 1.0F);
-        // DON'T call this.nodeEvaluator.done() — findPath already does it internally
+        this.currentPath = this.pathFinder.findPath(region, this.unit, targets, (float) range, 1, 1.0F);
     } catch (Exception e) {
         this.currentPath = null;
     }
 }
 
+// Cached per vehicle instance — the track/wheel drivetrain doesn't change mid-drive,
+// and vehicle.data().compute() is too expensive to call every tick.
 private boolean isTrackedVehicle() {
+    if (this.vehicle != this.trackedCacheVehicle) {
+        this.trackedCacheVehicle = this.vehicle;
+        this.trackedCacheValue = computeIsTrackedVehicle();
+    }
+    return this.trackedCacheValue;
+}
+
+private boolean computeIsTrackedVehicle() {
     try {
         var data = this.vehicle.data().compute();
         if (data != null) {

@@ -12,7 +12,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.entity.ai.VehicleMinRangeGoal;
 import com.neoalive.tacz_sewv.entity.ai.DriveVehicleGoal;
-import net.minecraft.world.entity.Entity;
 
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
@@ -24,11 +23,9 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
     private boolean tacz_sewv$boarding = false;
 
     @Override
-public void tacz_sewv$setMountTargetId(int id) {
-    System.out.println("SET MOUNT " + id);
-    Thread.dumpStack();
-    this.tacz_sewv$mountTargetId = id;
-}
+    public void tacz_sewv$setMountTargetId(int id) {
+        this.tacz_sewv$mountTargetId = id;
+    }
 
     @Override
     public int tacz_sewv$getMountTargetId() {
@@ -36,34 +33,20 @@ public void tacz_sewv$setMountTargetId(int id) {
     }
 
     @Override
-public void tacz_sewv$setBoarding(boolean boarding) {
-    System.out.println("SET BOARDING " + boarding);
-    Thread.dumpStack();
-    this.tacz_sewv$boarding = boarding;
-}
+    public void tacz_sewv$setBoarding(boolean boarding) {
+        this.tacz_sewv$boarding = boarding;
+    }
 
     @Override
-public boolean tacz_sewv$isBoarding() {
-    System.out.println("[TACZ_SEWV] isBoarding READ=" + this.tacz_sewv$boarding 
-        + " on entity " + ((net.minecraft.world.entity.Entity)(Object)this).getId() 
-        + " identityHash=" + System.identityHashCode(this));
-    return this.tacz_sewv$boarding;
-}
+    public boolean tacz_sewv$isBoarding() {
+        return this.tacz_sewv$boarding;
+    }
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
 private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
     PmcUnitEntity self = (PmcUnitEntity) (Object) this;
     ((Mob) self).goalSelector.addGoal(1, new BoardVehicleGoal(self));
-    ((Mob) self).goalSelector.addGoal(1, new DriveVehicleGoal(self));  // <-- ADD THIS BACK
-}
-
-    @Inject(method = "<init>", at = @At("RETURN"))
-private void ctor(CallbackInfo ci) {
-    System.out.println(
-        "PMC CREATED id=" +
-        ((Entity)(Object)this).getId() +
-        " hash=" +
-        System.identityHashCode(this)
-    );
+    ((Mob) self).goalSelector.addGoal(1, new DriveVehicleGoal(self));
+    ((Mob) self).goalSelector.addGoal(1, new VehicleMinRangeGoal(self));
 }
 }

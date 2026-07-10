@@ -44,11 +44,13 @@ public class GroundVehicleNodeEvaluator extends NodeEvaluator {
     }
 
     public void done() {
+    if (this.mob != null) {
         this.mob.onPathfindingDone();
-        this.pathTypesByPosCache.clear();
-        this.collisionCache.clear();
-        super.done();
     }
+    this.pathTypesByPosCache.clear();
+    this.collisionCache.clear();
+    super.done();
+}
 
     public Node getStart() {
         BlockPos.MutableBlockPos blockpos$mutableblockpos = new BlockPos.MutableBlockPos();

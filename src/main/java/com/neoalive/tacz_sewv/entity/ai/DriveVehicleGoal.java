@@ -68,40 +68,57 @@ public class DriveVehicleGoal extends Goal {
     @Override
 public void tick() {
     if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
+    if (this.pathRecalcCooldown > 0) this.pathRecalcCooldown--;
+
     BlockPos targetPos = getTargetPos();
     if (targetPos == null) {
         stopVehicleMovement();
         return;
     }
 
+    // Distance to the REAL target — used for standoff band and firing range
     double distanceSq = this.vehicle.distanceToSqr(targetPos.getX(), targetPos.getY(), targetPos.getZ());
+
+    // --- PATHFINDING: compute a route around obstacles, throttled ---
+    if (this.pathRecalcCooldown <= 0) {
+        recomputePath(targetPos);
+        this.pathRecalcCooldown = 20; // recompute once per second
+    }
+
+    // Work out what to STEER toward — the next path waypoint, or the raw target as fallback
+    BlockPos steerTarget = targetPos;
+    if (this.currentPath != null && !this.currentPath.isDone()) {
+        BlockPos next = this.currentPath.getNextNodePos();
+        steerTarget = next;
+        // Advance to the next node once we're close to the current one
+        double nodeDistSq = this.vehicle.distanceToSqr(next.getX() + 0.5, this.vehicle.getY(), next.getZ() + 0.5);
+        if (nodeDistSq < 9.0) {
+            this.currentPath.advance();
+        }
+    }
 
     boolean isCombat = this.unit.getTarget() != null;
 
     if (isCombat) {
-        // Standoff band: back off if too close, approach if too far, hold in between
-        double tooClose = 10.0;   // inside this → reverse away
-        double tooFar = 20.0;     // beyond this → advance
-
-        double dist = Math.sqrt(distanceSq);
-
+        double tooClose = 10.0;
+        double tooFar = 20.0;
+        double dist = Math.sqrt(distanceSq); // distance to REAL target, for band
         int seatIndex = this.vehicle.getSeatIndex(this.unit);
 
         if (dist < tooClose) {
-            selectWeapon(seatIndex, WEAPON_MG);     
-            reverseFromTarget(targetPos, distanceSq);
+            selectWeapon(seatIndex, WEAPON_MG);
+            reverseFromTarget(targetPos, distanceSq); // reverse relative to real target
         } else if (dist > tooFar) {
-            selectWeapon(seatIndex, WEAPON_CANNON);  
-            driveGroundVehicle(targetPos, distanceSq);
+            selectWeapon(seatIndex, WEAPON_CANNON);
+            driveGroundVehicle(steerTarget, distanceSq); // STEER toward path waypoint
         } else {
             selectWeapon(seatIndex, WEAPON_MG);
-            stopVehicleMovement(); // in the firing sweet spot — hold and let the turret work
+            stopVehicleMovement();
         }
     } else {
-        // Move orders — just get there
         double stopDistance = this.vehicle.getBbWidth() - 1 + STOP_DISTANCE;
         if (distanceSq > stopDistance * stopDistance) {
-            driveGroundVehicle(targetPos, distanceSq);
+            driveGroundVehicle(steerTarget, distanceSq); // STEER toward path waypoint
         } else {
             stopVehicleMovement();
         }
@@ -159,21 +176,21 @@ private void reverseFromTarget(BlockPos targetPos, double distanceSq) {
 }
 
 private void recomputePath(BlockPos target) {
-    // Pathfinding is expensive — build a region around tank + target
-    int range = 128;
-    PathNavigationRegion region = new PathNavigationRegion(
-        this.unit.level(),
-        this.vehicle.blockPosition().offset(-range, -range, -range),
-        this.vehicle.blockPosition().offset(range, range, range)
-    );
-
-    this.nodeEvaluator.prepare(region, this.unit); // reads vehicle from unit.getVehicle()
-    PathFinder finder = new PathFinder(this.nodeEvaluator, 1024);
-
-    float followRange = (float) range;
-    java.util.Set<BlockPos> targets = java.util.Set.of(target);
-    this.currentPath = finder.findPath(region, this.unit, targets, followRange, 1, 1.0F);
-    this.nodeEvaluator.done();
+    try {
+        int range = 64;
+        PathNavigationRegion region = new PathNavigationRegion(
+            this.unit.level(),
+            this.vehicle.blockPosition().offset(-range, -range, -range),
+            this.vehicle.blockPosition().offset(range, range, range)
+        );
+        this.nodeEvaluator.prepare(region, this.unit);
+        PathFinder finder = new PathFinder(this.nodeEvaluator, 1024);
+        java.util.Set<BlockPos> targets = java.util.Set.of(target);
+        this.currentPath = finder.findPath(region, this.unit, targets, (float) range, 1, 1.0F);
+        // DON'T call this.nodeEvaluator.done() — findPath already does it internally
+    } catch (Exception e) {
+        this.currentPath = null;
+    }
 }
 
 private boolean isTrackedVehicle() {

@@ -6,6 +6,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.world.entity.Entity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,6 +50,12 @@ public class PacketBoardVehicle {
                     IVehicleBoarder boarder = (IVehicleBoarder) pmc;
                     boarder.tacz_sewv$setMountTargetId(this.vehicleId);
                     boarder.tacz_sewv$setBoarding(true);
+
+                    System.out.println(
+    "[TACZ_SEWV] AFTER WRITE entity=" + unitId +
+    " mount=" + boarder.tacz_sewv$getMountTargetId() +
+    " boarding=" + boarder.tacz_sewv$isBoarding()
+                    );
                     System.out.println("[TACZ_SEWV] state set on " + unitId);
                 } catch (Exception ex) {
                     System.out.println("[TACZ_SEWV] CAST FAILED: " + ex);

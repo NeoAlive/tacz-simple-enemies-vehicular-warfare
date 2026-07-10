@@ -18,32 +18,36 @@ public class BoardVehicleGoal extends Goal {
     // THIS is what's missing — add it back:
     public BoardVehicleGoal(PmcUnitEntity unit) {
         this.unit = unit;
-        this.setFlags(EnumSet.of(Flag.MOVE));
+        this.setFlags(EnumSet.noneOf(Flag.class)); // no flags = canUse ALWAYS evaluated
     }
 
     private IVehicleBoarder boarder() {
         return (IVehicleBoarder) this.unit;
     }
 
-    @Override
+@Override
 public boolean canUse() {
+    if (this.unit.level().isClientSide()) return false;  // keep this guard
+
     boolean boarding = boarder().tacz_sewv$isBoarding();
     int mountId = boarder().tacz_sewv$getMountTargetId();
-    System.out.println("[TACZ_SEWV] BoardGoal.canUse — boarding:" + boarding + " mountId:" + mountId + " inVehicle:" + (this.unit.getVehicle() != null));
-    
     if (!boarding) return false;
     if (this.unit.getVehicle() != null) return false;
     if (mountId == -1) return false;
 
     Entity e = this.unit.level().getEntity(mountId);
-    System.out.println("[TACZ_SEWV] BoardGoal resolved vehicle: " + e);
-    if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck() && v.getPassengers().size() < v.getMaxPassengers()) {
+System.out.println("[TACZ_SEWV] canUse: mountId=" + mountId + " resolvedVehicle=" + e);
+if (e instanceof VehicleEntity v) {
+    System.out.println("[TACZ_SEWV] vehicle alive=" + v.isAlive() + " wreck=" + v.isWreck() 
+        + " seats=" + v.getPassengers().size() + "/" + v.getMaxPassengers());
+    if (v.isAlive() && !v.isWreck() && v.getPassengers().size() < v.getMaxPassengers()) {
         this.targetVehicle = v;
-        System.out.println("[TACZ_SEWV] BoardGoal canUse TRUE");
+        System.out.println("[TACZ_SEWV] canUse TRUE");
         return true;
     }
-    System.out.println("[TACZ_SEWV] BoardGoal canUse FALSE - vehicle check failed");
-    return false;
+}
+System.out.println("[TACZ_SEWV] canUse FALSE — vehicle check failed, mountId=" + mountId);
+return false;
 }
 
 private void cancelBoarding() {

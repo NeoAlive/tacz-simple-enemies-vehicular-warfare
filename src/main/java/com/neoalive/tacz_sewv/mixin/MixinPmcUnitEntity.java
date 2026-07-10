@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.entity.ai.VehicleMinRangeGoal;
 import com.neoalive.tacz_sewv.entity.ai.DriveVehicleGoal;
+import net.minecraft.world.entity.Entity;
 
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
@@ -23,9 +24,11 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
     private boolean tacz_sewv$boarding = false;
 
     @Override
-    public void tacz_sewv$setMountTargetId(int id) {
-        this.tacz_sewv$mountTargetId = id;
-    }
+public void tacz_sewv$setMountTargetId(int id) {
+    System.out.println("SET MOUNT " + id);
+    Thread.dumpStack();
+    this.tacz_sewv$mountTargetId = id;
+}
 
     @Override
     public int tacz_sewv$getMountTargetId() {
@@ -34,9 +37,8 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
 
     @Override
 public void tacz_sewv$setBoarding(boolean boarding) {
-    System.out.println("[TACZ_SEWV] setBoarding(" + boarding + ") on entity " 
-        + ((net.minecraft.world.entity.Entity)(Object)this).getId() 
-        + " identityHash=" + System.identityHashCode(this));
+    System.out.println("SET BOARDING " + boarding);
+    Thread.dumpStack();
     this.tacz_sewv$boarding = boarding;
 }
 
@@ -49,11 +51,20 @@ public boolean tacz_sewv$isBoarding() {
 }
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
-    private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
+private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
     PmcUnitEntity self = (PmcUnitEntity) (Object) this;
-    ((Mob) self).goalSelector.addGoal(3, new BoardVehicleGoal(self));
-    System.out.println("[TACZ_SEWV] BoardVehicleGoal ADDED to " + self.getId() + ", selector size: " + ((Mob) self).goalSelector.getAvailableGoals().size());
-    ((Mob) self).goalSelector.addGoal(2, new DriveVehicleGoal(self)); // driving, higher priority than boarding
-    ((Mob) self).goalSelector.addGoal(1, new VehicleMinRangeGoal(self));
-    }
+    ((Mob) self).goalSelector.addGoal(1, new BoardVehicleGoal(self));
+    System.out.println("[TACZ_SEWV] INJECT FIRED — added board goal to " + self.getId() 
+        + ", selector now has " + ((Mob) self).goalSelector.getAvailableGoals().size() + " goals");
+}
+
+    @Inject(method = "<init>", at = @At("RETURN"))
+private void ctor(CallbackInfo ci) {
+    System.out.println(
+        "PMC CREATED id=" +
+        ((Entity)(Object)this).getId() +
+        " hash=" +
+        System.identityHashCode(this)
+    );
+}
 }

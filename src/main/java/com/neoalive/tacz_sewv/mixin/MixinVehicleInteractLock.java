@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
 public abstract class MixinVehicleInteractLock {
 
-    @Inject(method = "interact", at = @At("HEAD"), cancellable = true, remap = false)
+    @Inject(method = "interact", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$blockEnemyVehicleInteract(
             Player player, InteractionHand hand,
             CallbackInfoReturnable<InteractionResult> cir) {

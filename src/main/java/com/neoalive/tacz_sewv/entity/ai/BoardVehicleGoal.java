@@ -102,7 +102,9 @@ public void tick() {
         boarder().tacz_sewv$setMountTargetId(-1);
     }
     this.unit.getNavigation().stop();
-} else if (this.unit.getNavigation().isDone()) {
+} else if (this.unit.getNavigation().isDone() && this.boardingTicks % 10 == 0) {
+    // Throttled: an unreachable vehicle leaves navigation "done" every tick,
+    // which would otherwise trigger a full repath every tick for 10 seconds.
     this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
 }
 }

@@ -13,7 +13,9 @@
     "MixinVehicleInteractLock"
   ],
   "client": [
-    "client.MixinPmcUnitRenderer"
+    "client.MixinPmcUnitRenderer",
+    "client.MixinRUunitRenderer",
+    "client.MixinUSunitRenderer"
   ],
   "server": [],
   "injectors": {

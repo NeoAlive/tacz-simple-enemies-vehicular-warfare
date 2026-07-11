@@ -41,10 +41,20 @@ public class DriveVehicleGoal extends Goal {
     private static final int WEAPON_SPECIAL = 2; // TOW / heavy anti-vehicle ordnance
     private static final int WEAPON_COUNT = 3;
 
+    // Pathfinding throttles — A* over the vehicle's block volume is the most
+    // expensive thing this goal does, so a still-valid path is reused instead
+    // of recomputed on a fixed timer.
+    private static final int PATH_RECALC_COOLDOWN = 20;      // min ticks between searches
+    private static final int PATH_FAIL_COOLDOWN = 60;        // back off after a failed search
+    private static final int MAX_PATH_AGE_TICKS = 100;       // force a refresh even if "valid"
+    private static final double PATH_TARGET_DRIFT_SQ = 9.0;  // target moved >3 blocks → stale
+
     private final GroundVehicleNodeEvaluator nodeEvaluator = new GroundVehicleNodeEvaluator();
-    private final PathFinder pathFinder = new PathFinder(this.nodeEvaluator, 1024);
+    private final PathFinder pathFinder = new PathFinder(this.nodeEvaluator, 512);
     private Path currentPath = null;
     private int pathRecalcCooldown = 0;
+    private int pathAge = 0;
+    private BlockPos lastPathTarget = null;
 
     private final AbstractUnit unit;
     private VehicleEntity vehicle;
@@ -83,12 +93,16 @@ public class DriveVehicleGoal extends Goal {
         // Release all inputs so the tank coasts to a stop when we're done
         stopVehicleMovement();
         this.vehicle = null;
+        this.currentPath = null;
+        this.lastPathTarget = null;
+        this.pathRecalcCooldown = 0;
     }
 
     @Override
 public void tick() {
     if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
     if (this.pathRecalcCooldown > 0) this.pathRecalcCooldown--;
+    this.pathAge++;
 
     BlockPos targetPos = getTargetPos();
     if (targetPos == null) {
@@ -98,24 +112,6 @@ public void tick() {
 
     // Distance to the REAL target — used for standoff band and firing range
     double distanceSq = this.vehicle.distanceToSqr(targetPos.getX(), targetPos.getY(), targetPos.getZ());
-
-    // --- PATHFINDING: compute a route around obstacles, throttled ---
-    if (this.pathRecalcCooldown <= 0) {
-        recomputePath(targetPos);
-        this.pathRecalcCooldown = 20; // recompute once per second
-    }
-
-    // Work out what to STEER toward — the next path waypoint, or the raw target as fallback
-    BlockPos steerTarget = targetPos;
-    if (this.currentPath != null && !this.currentPath.isDone()) {
-        BlockPos next = this.currentPath.getNextNodePos();
-        steerTarget = next;
-        // Advance to the next node once we're close to the current one
-        double nodeDistSq = this.vehicle.distanceToSqr(next.getX() + 0.5, this.vehicle.getY(), next.getZ() + 0.5);
-        if (nodeDistSq < 9.0) {
-            this.currentPath.advance();
-        }
-    }
 
     boolean isCombat = this.unit.getTarget() != null;
 
@@ -130,26 +126,59 @@ public void tick() {
         double tooFarThreshold = isVehicleTarget ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR;
 
         double dist = Math.sqrt(distanceSq); // distance to REAL target, for band
-        int seatIndex = this.vehicle.getSeatIndex(this.unit);
 
         boolean tooFar = dist > tooFarThreshold;
-        selectWeaponForTarget(seatIndex, category, tooFar);
+        if (this.weaponSwitchCooldown <= 0) {
+            selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), category, tooFar);
+        }
 
         if (dist < tooCloseThreshold) {
             reverseFromTarget(targetPos, distanceSq); // reverse relative to real target
         } else if (tooFar) {
-            driveGroundVehicle(steerTarget, distanceSq); // STEER toward path waypoint
+            driveGroundVehicle(getSteerTarget(targetPos), distanceSq); // STEER toward path waypoint
         } else {
             stopVehicleMovement();
         }
     } else {
         double stopDistance = this.vehicle.getBbWidth() - 1 + STOP_DISTANCE;
         if (distanceSq > stopDistance * stopDistance) {
-            driveGroundVehicle(steerTarget, distanceSq); // STEER toward path waypoint
+            driveGroundVehicle(getSteerTarget(targetPos), distanceSq); // STEER toward path waypoint
         } else {
             stopVehicleMovement();
         }
     }
+}
+
+// Only called from the branches that actually drive — a vehicle holding its
+// standoff band or parked at its destination never pays for pathfinding.
+private BlockPos getSteerTarget(BlockPos targetPos) {
+    boolean pathStale = this.currentPath == null
+            || this.currentPath.isDone()
+            || this.pathAge > MAX_PATH_AGE_TICKS
+            || this.lastPathTarget == null
+            || this.lastPathTarget.distSqr(targetPos) > PATH_TARGET_DRIFT_SQ;
+
+    if (pathStale && this.pathRecalcCooldown <= 0) {
+        recomputePath(targetPos);
+        this.lastPathTarget = targetPos;
+        this.pathAge = 0;
+        // Terrain won't have changed next tick — back off harder after a failed search
+        this.pathRecalcCooldown = this.currentPath == null ? PATH_FAIL_COOLDOWN : PATH_RECALC_COOLDOWN;
+    }
+
+    if (this.currentPath != null && !this.currentPath.isDone()) {
+        BlockPos next = this.currentPath.getNextNodePos();
+        // Advance to the next node once we're close to the current one
+        double nodeDistSq = this.vehicle.distanceToSqr(next.getX() + 0.5, this.vehicle.getY(), next.getZ() + 0.5);
+        if (nodeDistSq < 9.0) {
+            this.currentPath.advance();
+            if (!this.currentPath.isDone()) {
+                next = this.currentPath.getNextNodePos();
+            }
+        }
+        return next;
+    }
+    return targetPos; // no usable path — steer straight at the target as fallback
 }
 
     private void driveGroundVehicle(BlockPos targetPos, double distanceSq) {
@@ -204,11 +233,16 @@ private void reverseFromTarget(BlockPos targetPos, double distanceSq) {
 
 private void recomputePath(BlockPos target) {
     try {
-        int range = 64;
+        // 32 horizontal keeps the chunk snapshot at 5×5 chunks instead of 9×9;
+        // targets beyond it still get a partial path that walks us closer.
+        // Ground vehicles never need a 64-block-tall search volume either.
+        int range = 32;
+        int vertical = 16;
+        BlockPos origin = this.vehicle.blockPosition();
         PathNavigationRegion region = new PathNavigationRegion(
             this.unit.level(),
-            this.vehicle.blockPosition().offset(-range, -range, -range),
-            this.vehicle.blockPosition().offset(range, range, range)
+            origin.offset(-range, -vertical, -range),
+            origin.offset(range, vertical, range)
         );
         // PathFinder.findPath() calls nodeEvaluator.prepare()/done() internally — don't call them here too
         java.util.Set<BlockPos> targets = java.util.Set.of(target);

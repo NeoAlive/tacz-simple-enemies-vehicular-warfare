@@ -23,11 +23,15 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 import javax.annotation.Nullable;
-import java.util.EnumSet;
 
 public class GroundVehicleNodeEvaluator extends NodeEvaluator {
     public static final double SPACE_BETWEEN_WALL_POSTS = 0.5D;
     private static final double DEFAULT_MOB_JUMP_HEIGHT = 1.125D;
+    // Required clear distance (in blocks) between any drivable node and water.
+    // Ground vehicles bog/sink in water, and the units have no negative water
+    // malus by default, so a route will otherwise cut straight through a lake
+    // whenever the dry detour is longer. This enforces a hard standoff instead.
+    private static final int WATER_MARGIN = 3;
     private final Long2ObjectMap<BlockPathTypes> pathTypesByPosCache = new Long2ObjectOpenHashMap<>();
     private final Object2BooleanMap<AABB> collisionCache = new Object2BooleanOpenHashMap<>();
     private VehicleEntity vehicle;
@@ -312,44 +316,66 @@ public class GroundVehicleNodeEvaluator extends NodeEvaluator {
     }
 
     public BlockPathTypes getBlockPathType(BlockGetter p_265141_, int p_265661_, int p_265757_, int p_265716_, Mob p_265398_) {
-        EnumSet<BlockPathTypes> enumset = EnumSet.noneOf(BlockPathTypes.class);
-        BlockPathTypes blockpathtypes = BlockPathTypes.BLOCKED;
-        blockpathtypes = this.getBlockPathTypes(p_265141_, p_265661_, p_265757_, p_265716_, enumset, blockpathtypes, p_265398_.blockPosition());
-        if (enumset.contains(BlockPathTypes.FENCE)) {
-            return BlockPathTypes.FENCE;
-        } else if (enumset.contains(BlockPathTypes.UNPASSABLE_RAIL)) {
-            return BlockPathTypes.UNPASSABLE_RAIL;
-        } else {
-            BlockPathTypes blockpathtypes1 = BlockPathTypes.BLOCKED;
-            for (BlockPathTypes blockpathtypes2 : enumset) {
-                if (p_265398_.getPathfindingMalus(blockpathtypes2) < 0.0F) {
-                    return blockpathtypes2;
-                }
-                if (p_265398_.getPathfindingMalus(blockpathtypes2) >= p_265398_.getPathfindingMalus(blockpathtypes1)) {
-                    blockpathtypes1 = blockpathtypes2;
-                }
-            }
-            return blockpathtypes == BlockPathTypes.OPEN && p_265398_.getPathfindingMalus(blockpathtypes1) == 0.0F && this.entityWidth <= 1 ? BlockPathTypes.OPEN : blockpathtypes1;
+        // Water standoff: reject any node whose footprint sits within WATER_MARGIN
+        // blocks of water, so routes keep clear of shorelines instead of driving in.
+        // Done before the volume scan — a blocked node needs no further classifying.
+        if (this.hasWaterWithinMargin(p_265141_, p_265661_, p_265757_, p_265716_)) {
+            return BlockPathTypes.BLOCKED;
         }
-    }
 
-    public BlockPathTypes getBlockPathTypes(BlockGetter p_265227_, int p_265066_, int p_265537_, int p_265771_, EnumSet<BlockPathTypes> p_265263_, BlockPathTypes p_265458_, BlockPos p_265515_) {
+        // Scans the vehicle's full W×H×D volume like vanilla, but bails out on the
+        // first block that rejects the node (fence/rail/negative malus) instead of
+        // classifying the entire volume first — a tank footprint is 100+ blocks, so
+        // hitting a wall face early saves almost the whole scan.
+        BlockPathTypes center = BlockPathTypes.BLOCKED;
+        BlockPathTypes worst = BlockPathTypes.BLOCKED;
+        float worstMalus = p_265398_.getPathfindingMalus(BlockPathTypes.BLOCKED);
+        BlockPos mobPos = p_265398_.blockPosition();
         for (int i = 0; i < this.entityWidth; ++i) {
             for (int j = 0; j < this.entityHeight; ++j) {
                 for (int k = 0; k < this.entityDepth; ++k) {
-                    int l = i + p_265066_;
-                    int i1 = j + p_265537_;
-                    int j1 = k + p_265771_;
-                    BlockPathTypes blockpathtypes = this.getBlockPathType(p_265227_, l, i1, j1);
-                    blockpathtypes = this.evaluateBlockPathType(p_265227_, p_265515_, blockpathtypes);
+                    BlockPathTypes blockpathtypes = this.getBlockPathType(p_265141_, i + p_265661_, j + p_265757_, k + p_265716_);
+                    blockpathtypes = this.evaluateBlockPathType(p_265141_, mobPos, blockpathtypes);
                     if (i == 0 && j == 0 && k == 0) {
-                        p_265458_ = blockpathtypes;
+                        center = blockpathtypes;
                     }
-                    p_265263_.add(blockpathtypes);
+                    if (blockpathtypes == BlockPathTypes.FENCE || blockpathtypes == BlockPathTypes.UNPASSABLE_RAIL) {
+                        return blockpathtypes;
+                    }
+                    float malus = p_265398_.getPathfindingMalus(blockpathtypes);
+                    if (malus < 0.0F) {
+                        return blockpathtypes;
+                    }
+                    if (malus >= worstMalus) {
+                        worst = blockpathtypes;
+                        worstMalus = malus;
+                    }
                 }
             }
         }
-        return p_265458_;
+        return center == BlockPathTypes.OPEN && worstMalus == 0.0F && this.entityWidth <= 1 ? BlockPathTypes.OPEN : worst;
+    }
+
+    // True if any block within WATER_MARGIN of the node footprint (horizontally, at
+    // the driving level and one below to catch water under a shoreline ledge) is
+    // water. The whole aggregate result is cached per node in pathTypesByPosCache,
+    // so this scan runs at most once per unique node per search — bounded far below
+    // the vanilla 26-neighbour scan this evaluator otherwise skips.
+    private boolean hasWaterWithinMargin(BlockGetter level, int x, int y, int z) {
+        int minX = x - WATER_MARGIN;
+        int maxX = x + this.entityDepth - 1 + WATER_MARGIN;
+        int minZ = z - WATER_MARGIN;
+        int maxZ = z + this.entityDepth - 1 + WATER_MARGIN;
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int cx = minX; cx <= maxX; ++cx) {
+            for (int cz = minZ; cz <= maxZ; ++cz) {
+                if (level.getFluidState(pos.set(cx, y, cz)).is(FluidTags.WATER)
+                        || level.getFluidState(pos.set(cx, y - 1, cz)).is(FluidTags.WATER)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     protected BlockPathTypes evaluateBlockPathType(BlockGetter p_265305_, BlockPos p_265350_, BlockPathTypes p_265551_) {
@@ -377,7 +403,32 @@ public class GroundVehicleNodeEvaluator extends NodeEvaluator {
     }
 
     public BlockPathTypes getBlockPathType(BlockGetter p_77576_, int p_77577_, int p_77578_, int p_77579_) {
-        return getBlockPathTypeStatic(p_77576_, new BlockPos.MutableBlockPos(p_77577_, p_77578_, p_77579_));
+        // Same block classification as getBlockPathTypeStatic, minus vanilla's
+        // 26-neighbour hazard scan (checkNeighbourBlocks): an armored vehicle
+        // doesn't route around cactus, fire, or water borders, and that scan is
+        // the single most expensive part of evaluating each block in the volume.
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(p_77577_, p_77578_, p_77579_);
+        BlockPathTypes blockpathtypes = getBlockPathTypeRaw(p_77576_, pos);
+        if (blockpathtypes == BlockPathTypes.OPEN && p_77578_ >= p_77576_.getMinBuildHeight() + 1) {
+            BlockPathTypes below = getBlockPathTypeRaw(p_77576_, pos.set(p_77577_, p_77578_ - 1, p_77579_));
+            blockpathtypes = below != BlockPathTypes.WALKABLE && below != BlockPathTypes.OPEN && below != BlockPathTypes.WATER && below != BlockPathTypes.LAVA ? BlockPathTypes.WALKABLE : BlockPathTypes.OPEN;
+            if (below == BlockPathTypes.DAMAGE_FIRE) {
+                blockpathtypes = BlockPathTypes.DAMAGE_FIRE;
+            }
+            if (below == BlockPathTypes.DAMAGE_OTHER) {
+                blockpathtypes = BlockPathTypes.DAMAGE_OTHER;
+            }
+            if (below == BlockPathTypes.STICKY_HONEY) {
+                blockpathtypes = BlockPathTypes.STICKY_HONEY;
+            }
+            if (below == BlockPathTypes.POWDER_SNOW) {
+                blockpathtypes = BlockPathTypes.DANGER_POWDER_SNOW;
+            }
+            if (below == BlockPathTypes.DAMAGE_CAUTIOUS) {
+                blockpathtypes = BlockPathTypes.DAMAGE_CAUTIOUS;
+            }
+        }
+        return blockpathtypes;
     }
 
     public static BlockPathTypes getBlockPathTypeStatic(BlockGetter p_77605_, BlockPos.MutableBlockPos p_77606_) {

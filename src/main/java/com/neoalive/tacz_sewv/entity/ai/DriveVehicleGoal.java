@@ -34,10 +34,18 @@ public class DriveVehicleGoal extends Goal {
     // Infantry standoff band, MG's effective engagement range.
     private static final double INFANTRY_TOO_CLOSE = 10.0;
     private static final double INFANTRY_TOO_FAR = 20.0;
-    // Vehicle standoff band, MG can't hurt armor and cannon/TOW work at range,
-    // so hold much further back instead of closing to point-blank tank-on-tank.
-    private static final double VEHICLE_TOO_CLOSE = 20.0;
+    // Vehicle standoff, MG can't hurt armor and cannon/TOW work at range, so armor
+    // actively holds the FAR ring (VEHICLE_TOO_FAR) rather than sitting anywhere in a
+    // band — a tank duel that collapses to point-blank is a tank duel getting lost.
+    // A deadband around the ring keeps the hull from jittering forward/back over it.
     private static final double VEHICLE_TOO_FAR = 40.0;
+    private static final double VEHICLE_RING_DEADBAND = 4.0;
+
+    // Self-preservation: a crew that has lost most of its health breaks contact
+    // rather than trading to the death — pop smoke toward the threat and fall back
+    // past the standoff ring, then hold at range instead of charging back in.
+    private static final float PRESERVE_HEALTH_FRACTION = 0.25F; // retreat below 1/4 health
+    private static final double PRESERVE_RETREAT_MARGIN = 8.0;   // fall back this far BEYOND the ring
     private static final int WEAPON_CANNON = 0;
     private static final int WEAPON_MG = 1;
     private static final int WEAPON_SPECIAL = 2; // TOW / heavy anti-vehicle ordnance
@@ -49,7 +57,21 @@ public class DriveVehicleGoal extends Goal {
     private static final int PATH_RECALC_COOLDOWN = 20;      // min ticks between searches
     private static final int PATH_FAIL_COOLDOWN = 60;        // back off after a failed search
     private static final int MAX_PATH_AGE_TICKS = 100;       // force a refresh even if "valid"
-    private static final double PATH_TARGET_DRIFT_SQ = 9.0;  // target moved >3 blocks → stale
+    private static final double PATH_TARGET_DRIFT_SQ = 9.0;  // target moved >3 blocks → refresh path
+    private static final double PATH_ABANDON_DRIFT_SQ = 256.0; // dest jumped >16 blocks → repath now, don't coast on the old route
+    // How close (squared) the hull must be to a waypoint to treat it as reached and
+    // aim at the next one. Re-evaluated from the live position every tick, so the
+    // aimed waypoint stays put while the hull turns in place instead of jittering.
+    private static final double NODE_REACHED_SQ = 9.0;
+
+    // Stuck recovery: if the hull neither moves nor turns for this long while it is
+    // being told to drive, it is wedged on terrain — reverse and swing the tail out
+    // for a moment, then repath. Rotation counts as progress so a slow turn-in-place
+    // is never mistaken for being stuck.
+    private static final int STUCK_TICKS_THRESHOLD = 40;      // 2s of no movement AND no rotation
+    private static final double STUCK_MOVE_EPSILON_SQ = 0.04; // <0.2 block moved = no headway
+    private static final float STUCK_YAW_EPSILON_DEG = 1.0F;  // <1° turned = no rotation
+    private static final int UNSTICK_DURATION = 16;           // reverse-and-swing for ~0.8s
 
     private final GroundVehicleNodeEvaluator nodeEvaluator = new GroundVehicleNodeEvaluator();
     private final PathFinder pathFinder = new PathFinder(this.nodeEvaluator, 512);
@@ -57,6 +79,12 @@ public class DriveVehicleGoal extends Goal {
     private int pathRecalcCooldown = 0;
     private int pathAge = 0;
     private BlockPos lastPathTarget = null;
+
+    private Vec3 lastStuckPos = null;
+    private float lastStuckYaw = 0.0F;
+    private int stuckTicks = 0;
+    private int unstickTicksLeft = 0;
+    private boolean unstickSwingLeft = false;
 
     private final AbstractUnit unit;
     private VehicleEntity vehicle;
@@ -98,6 +126,7 @@ public class DriveVehicleGoal extends Goal {
         this.currentPath = null;
         this.lastPathTarget = null;
         this.pathRecalcCooldown = 0;
+        clearRecovery();
     }
 
     @Override
@@ -109,6 +138,7 @@ public void tick() {
     BlockPos targetPos = getTargetPos();
     if (targetPos == null) {
         stopVehicleMovement();
+        clearRecovery(); // no task — nothing to be stuck against
         return;
     }
 
@@ -122,71 +152,145 @@ public void tick() {
         TargetCategory category = classifyTarget(target);
         boolean isVehicleTarget = category == TargetCategory.VEHICLE;
 
-        // Vehicle targets get a much wider standoff band, no point charging
-        // point-blank when the MG can't hurt armor and cannon/TOW reach further.
-        double tooCloseThreshold = isVehicleTarget ? VEHICLE_TOO_CLOSE : INFANTRY_TOO_CLOSE;
-        double tooFarThreshold = isVehicleTarget ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR;
+        double dist = Math.sqrt(distanceSq); // distance to REAL target
 
-        double dist = Math.sqrt(distanceSq); // distance to REAL target, for band
-
-        boolean tooFar = dist > tooFarThreshold;
+        boolean tooFar = dist > (isVehicleTarget ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR);
         if (this.weaponSwitchCooldown <= 0) {
             selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), category, tooFar);
         }
 
-        if (dist < tooCloseThreshold) {
-            retreatFromTarget(targetPos, category, distanceSq);
+        if (isLowHealth()) {
+            // Badly hurt — abandon the standoff, screen with smoke and break off.
+            preserveRetreat(target, category);
+        } else if (isVehicleTarget) {
+            // Armor holds the far ring: close in if beyond it, back off if inside it.
+            maintainVehicleStandoff(targetPos, distanceSq, dist);
+        } else if (dist < INFANTRY_TOO_CLOSE) {
+            // Infantry: a wide comfortable band inside the MG's effective range.
+            retreatFromTarget(targetPos, (INFANTRY_TOO_CLOSE + INFANTRY_TOO_FAR) / 2.0, distanceSq);
         } else if (tooFar) {
-            driveGroundVehicle(getSteerTarget(targetPos), distanceSq);
+            navigateTo(targetPos, distanceSq);
         } else {
             stopVehicleMovement();
+            clearRecovery(); // holding the band on purpose — not stuck
         }
     } else {
         double stopDistance = this.vehicle.getBbWidth() - 1 + STOP_DISTANCE;
         if (distanceSq > stopDistance * stopDistance) {
-            driveGroundVehicle(getSteerTarget(targetPos), distanceSq);
+            navigateTo(targetPos, distanceSq);
         } else {
             stopVehicleMovement();
+            clearRecovery(); // parked at destination
         }
     }
 }
 
-// Only called from the branches that actually drive, a vehicle holding its
-// standoff band or parked at its destination never pays for pathfinding.
-private BlockPos getSteerTarget(BlockPos targetPos) {
+// All order-driven movement funnels through here (approach, MOVE_TO_POSITION,
+// FOLLOW/formations, retreat's drive branch).
+//
+// The governing rule, learned the hard way: while there is somewhere to go, drive
+// EVERY tick and never release the steering inputs. SuperbWarfare ramps a tracked
+// hull's turn rate only while left/right stays held (holdTick); the instant the
+// inputs are released the rate collapses back to a crawl. The old path-authoritative
+// version stopped the hull on any tick the pathfinder had no fresh route, which
+// reset that ramp constantly and left the tank pivoting in place forever. So the
+// pathfinder is now purely advisory: we steer toward its next waypoint when it has
+// one, and straight at the destination when it doesn't — but we always steer.
+private void navigateTo(BlockPos dest, double distanceSq) {
+    // Wedged on terrain: back up and swing the tail for a moment, then repath.
+    // Inputs stay engaged throughout, so this never stalls the steering ramp.
+    if (this.unstickTicksLeft > 0) {
+        this.unstickTicksLeft--;
+        this.vehicle.setForwardInputDown(false);
+        this.vehicle.setBackInputDown(true);
+        this.vehicle.setLeftInputDown(this.unstickSwingLeft);
+        this.vehicle.setRightInputDown(!this.unstickSwingLeft);
+        return;
+    }
+
+    if (updateStuck()) {
+        // Alternate the swing direction each time so we don't wedge the same way.
+        this.unstickSwingLeft = !this.unstickSwingLeft;
+        this.unstickTicksLeft = UNSTICK_DURATION;
+        this.stuckTicks = 0;
+        this.currentPath = null;      // the route we were on led into the wall
+        this.pathRecalcCooldown = 0;  // let it repath the instant we're free
+        return;
+    }
+
+    driveGroundVehicle(getSteerTarget(dest), distanceSq);
+}
+
+// The waypoint to steer at: the pathfinder's next reachable node when it has a
+// usable route, otherwise the destination itself. Never returns null — a missing
+// path means "steer straight," not "stop," because stopping kills the turn ramp.
+private BlockPos getSteerTarget(BlockPos dest) {
+    double targetDriftSq = this.lastPathTarget == null
+            ? Double.MAX_VALUE
+            : this.lastPathTarget.distSqr(dest);
     boolean pathStale = this.currentPath == null
             || this.currentPath.isDone()
             || this.pathAge > MAX_PATH_AGE_TICKS
-            || this.lastPathTarget == null
-            || this.lastPathTarget.distSqr(targetPos) > PATH_TARGET_DRIFT_SQ;
+            || targetDriftSq > PATH_TARGET_DRIFT_SQ;
+    // A far jump in destination (order change, retreat flip) means the route in
+    // hand points somewhere we no longer want to go, so ignore the throttle and
+    // repath immediately rather than coast toward the stale goal for ~20 ticks.
+    boolean destJumped = targetDriftSq > PATH_ABANDON_DRIFT_SQ;
 
-    if (pathStale) {
-        if (this.pathRecalcCooldown > 0) {
-            // Can't recompute yet — steer straight at the destination rather than
-            // follow a path laid to somewhere else (e.g. an approach path right
-            // after flipping into retreat, which would drive us AT the enemy).
-            return targetPos;
-        }
-        recomputePath(targetPos);
-        this.lastPathTarget = targetPos;
+    // Refresh on the throttle only; between refreshes keep following the path in
+    // hand (a route to where the target was a few blocks ago is still a fine
+    // approximation) so steering stays continuous.
+    if (pathStale && (this.pathRecalcCooldown <= 0 || destJumped)) {
+        recomputePath(dest); // replaces currentPath with the fresh route (or null on failure)
+        this.lastPathTarget = dest;
         this.pathAge = 0;
         // Terrain won't have changed next tick, back off harder after a failed search
         this.pathRecalcCooldown = this.currentPath == null ? PATH_FAIL_COOLDOWN : PATH_RECALC_COOLDOWN;
     }
 
     if (this.currentPath != null && !this.currentPath.isDone()) {
-        BlockPos next = this.currentPath.getNextNodePos();
-        // Advance to the next node once we're close to the current one
-        double nodeDistSq = this.vehicle.distanceToSqr(next.getX() + 0.5, this.vehicle.getY(), next.getZ() + 0.5);
-        if (nodeDistSq < 9.0) {
-            this.currentPath.advance();
-            if (!this.currentPath.isDone()) {
-                next = this.currentPath.getNextNodePos();
+        // Consume every node we've already reached (measured from the LIVE hull
+        // position), then aim at the first one still ahead. Re-deriving this from
+        // position each tick — instead of advancing once per tick unconditionally —
+        // is what keeps the aimed waypoint fixed while the hull turns in place,
+        // rather than marching down the path and swinging the steer angle around.
+        while (!this.currentPath.isDone()) {
+            BlockPos node = this.currentPath.getNextNodePos();
+            double nodeDistSq = this.vehicle.distanceToSqr(node.getX() + 0.5, this.vehicle.getY(), node.getZ() + 0.5);
+            if (nodeDistSq < NODE_REACHED_SQ) {
+                this.currentPath.advance();
+            } else {
+                return node;
             }
         }
-        return next;
     }
-    return targetPos; // no usable path, steer straight at the target as fallback
+    return dest; // no usable path (or path exhausted) — steer straight at the goal
+}
+
+// True once the hull has gone STUCK_TICKS_THRESHOLD ticks without either moving or
+// turning while being told to drive. Rotation counts as progress, so a legitimate
+// (even slow) turn-in-place is never flagged — only a hull truly pinned on terrain.
+private boolean updateStuck() {
+    Vec3 pos = this.vehicle.position();
+    float yaw = this.vehicle.getYRot();
+    boolean moved = this.lastStuckPos == null
+            || pos.distanceToSqr(this.lastStuckPos) > STUCK_MOVE_EPSILON_SQ
+            || Math.abs(Mth.degreesDifference(yaw, this.lastStuckYaw)) > STUCK_YAW_EPSILON_DEG;
+    if (moved) {
+        this.lastStuckPos = pos;
+        this.lastStuckYaw = yaw;
+        this.stuckTicks = 0;
+        return false;
+    }
+    return ++this.stuckTicks > STUCK_TICKS_THRESHOLD;
+}
+
+// Drop stuck/unstick state. Called whenever the goal isn't actively driving (no
+// task, holding the standoff band, parked) so a fresh drive starts clean.
+private void clearRecovery() {
+    this.stuckTicks = 0;
+    this.unstickTicksLeft = 0;
+    this.lastStuckPos = null;
 }
 
     private void driveGroundVehicle(BlockPos targetPos, double distanceSq) {
@@ -212,15 +316,65 @@ private BlockPos getSteerTarget(BlockPos targetPos) {
     }
 }
 
+// Hold an armored target at the far standoff ring (VEHICLE_TOO_FAR): close in when
+// beyond it, open the distance back out when inside it, and hold when on it. This is
+// what stops two SuperbWarfare vehicles from creeping into a point-blank standstill
+// where the cannon/TOW can't be brought to bear — the deadband gives the ring width
+// so the hull settles instead of dithering forward and back across the exact radius.
+private void maintainVehicleStandoff(BlockPos targetPos, double distanceSq, double dist) {
+    if (dist > VEHICLE_TOO_FAR + VEHICLE_RING_DEADBAND) {
+        navigateTo(targetPos, distanceSq);            // beyond the ring — close in
+    } else if (dist < VEHICLE_TOO_FAR - VEHICLE_RING_DEADBAND) {
+        retreatFromTarget(targetPos, VEHICLE_TOO_FAR, distanceSq); // inside the ring — back out to it
+    } else {
+        stopVehicleMovement();                        // on the ring — hold and let the turret work
+        clearRecovery();
+    }
+}
+
+// True once the hull is below the self-preservation health threshold. Vehicle health
+// only falls in combat (repairs happen out of contact), so this is monotonic — no
+// flicker around the threshold to guard against.
+private boolean isLowHealth() {
+    float max = this.vehicle.getMaxHealth();
+    return max > 0.0F && this.vehicle.getHealth() < max * PRESERVE_HEALTH_FRACTION;
+}
+
+// Self-preservation once badly hurt: screen with smoke toward the threat and fall
+// back past the standoff ring, then hold at range rather than re-engaging. The
+// smoke is fired by raising the decoy input — the vehicle's own tick launches it
+// along the turret vector (already tracking the threat), and the launcher's ready/
+// reload gating means holding the input just fires each volley as it comes back up.
+private void preserveRetreat(LivingEntity threat, TargetCategory category) {
+    if (this.vehicle.hasDecoy()) {
+        this.vehicle.setDecoyInputDown(true);
+    }
+
+    BlockPos threatPos = threat.blockPosition();
+    double distanceSq = this.vehicle.distanceToSqr(threatPos.getX(), threatPos.getY(), threatPos.getZ());
+    double dist = Math.sqrt(distanceSq);
+    double ringRadius = category == TargetCategory.VEHICLE ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR;
+    double breakDistance = ringRadius + PRESERVE_RETREAT_MARGIN;
+
+    if (dist > breakDistance) {
+        // Clear of the ring — far enough to be safe. Hold here (still smoking) so we
+        // neither sprint away forever nor charge back into the standoff.
+        stopVehicleMovement();
+        clearRecovery();
+        return;
+    }
+    retreatFromTarget(threatPos, breakDistance, distanceSq);
+}
+
 // Reversing only opens distance while the target sits inside this frontal cone;
 // beyond it, backing up moves the hull sideways or INTO the target.
 private static final double REVERSE_FACING_CONE_RAD = Math.toRadians(75.0);
 
-// Too close — open distance back out to the standoff band. Only reverse when the
-// target is actually in front (gun and front armor stay on it while distance
-// grows). Anywhere else, reversing is wrong — e.g. target behind the hull after
-// driving past it — so pathfind forward to a retreat point on the ring instead.
-private void retreatFromTarget(BlockPos targetPos, TargetCategory category, double distanceSq) {
+// Open distance back out to retreatRadius. Only reverse when the target is actually
+// in front (gun and front armor stay on it while distance grows). Anywhere else,
+// reversing is wrong — e.g. target behind the hull after driving past it — so
+// pathfind forward to a standoff point at retreatRadius instead.
+private void retreatFromTarget(BlockPos targetPos, double retreatRadius, double distanceSq) {
     Vec3 toTarget = new Vec3(
             targetPos.getX() + 0.5 - this.vehicle.getX(),
             0,
@@ -232,18 +386,15 @@ private void retreatFromTarget(BlockPos targetPos, TargetCategory category, doub
     if (Math.abs(angleToTarget) <= REVERSE_FACING_CONE_RAD) {
         reverseFromTarget(angleToTarget, distanceSq);
     } else {
-        driveGroundVehicle(getSteerTarget(computeRetreatPos(targetPos, category)), distanceSq);
+        navigateTo(computeStandoffPoint(targetPos, retreatRadius), distanceSq);
     }
 }
 
-// Point on the standoff ring, straight out from the target through the vehicle:
-// the comfortable mid-band for soft targets, the far ring for armored ones
-// (cannon/TOW range, where the enemy vehicle's own guns are least dangerous).
-private BlockPos computeRetreatPos(BlockPos targetPos, TargetCategory category) {
-    double radius = category == TargetCategory.VEHICLE
-            ? VEHICLE_TOO_FAR
-            : (INFANTRY_TOO_CLOSE + INFANTRY_TOO_FAR) / 2.0;
-
+// Point at `radius` straight out from the target through the vehicle — the ring the
+// hull should fall back to (mid-band for soft targets, the far ring for armor, or
+// beyond it when breaking contact). Pathfound to via the node evaluator, so it
+// still respects hazards like the water margin.
+private BlockPos computeStandoffPoint(BlockPos targetPos, double radius) {
     double cx = targetPos.getX() + 0.5;
     double cz = targetPos.getZ() + 0.5;
     double dx = this.vehicle.getX() - cx;

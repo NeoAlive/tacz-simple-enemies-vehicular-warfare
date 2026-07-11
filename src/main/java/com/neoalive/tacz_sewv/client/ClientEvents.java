@@ -15,6 +15,7 @@ public class ClientEvents {
     @SubscribeEvent
     public static void registerKeys(RegisterKeyMappingsEvent event) {
         event.register(BoardKeybind.BOARD_KEY);
+        event.register(BoardKeybind.DISMOUNT_KEY);
     }
 
     // Separate subscriber on the FORGE bus for the actual key polling
@@ -27,7 +28,10 @@ public class ClientEvents {
 
             // consumeClick() returns true once per press, drains the queue
             while (BoardKeybind.BOARD_KEY.consumeClick()) {
-                BoardKeybind.onKeyPressed();
+                BoardKeybind.onBoardPressed();
+            }
+            while (BoardKeybind.DISMOUNT_KEY.consumeClick()) {
+                BoardKeybind.onDismountPressed();
             }
         }
     }

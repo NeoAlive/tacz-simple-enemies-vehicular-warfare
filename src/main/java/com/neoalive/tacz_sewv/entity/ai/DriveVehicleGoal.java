@@ -2,7 +2,9 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
@@ -133,7 +135,7 @@ public void tick() {
         }
 
         if (dist < tooCloseThreshold) {
-            reverseFromTarget(targetPos, distanceSq); // reverse relative to real target
+            retreatFromTarget(targetPos, category, distanceSq);
         } else if (tooFar) {
             driveGroundVehicle(getSteerTarget(targetPos), distanceSq);
         } else {
@@ -158,7 +160,13 @@ private BlockPos getSteerTarget(BlockPos targetPos) {
             || this.lastPathTarget == null
             || this.lastPathTarget.distSqr(targetPos) > PATH_TARGET_DRIFT_SQ;
 
-    if (pathStale && this.pathRecalcCooldown <= 0) {
+    if (pathStale) {
+        if (this.pathRecalcCooldown > 0) {
+            // Can't recompute yet — steer straight at the destination rather than
+            // follow a path laid to somewhere else (e.g. an approach path right
+            // after flipping into retreat, which would drive us AT the enemy).
+            return targetPos;
+        }
         recomputePath(targetPos);
         this.lastPathTarget = targetPos;
         this.pathAge = 0;
@@ -204,16 +212,56 @@ private BlockPos getSteerTarget(BlockPos targetPos) {
     }
 }
 
-private void reverseFromTarget(BlockPos targetPos, double distanceSq) {
-    // Keep facing the target (so turret stays on it), but drive in REVERSE to open distance
-    Vec3 toTarget = new Vec3(
-            targetPos.getX() - this.vehicle.getX(),
-            0,
-            targetPos.getZ() - this.vehicle.getZ()
-    ).normalize();
+// Reversing only opens distance while the target sits inside this frontal cone;
+// beyond it, backing up moves the hull sideways or INTO the target.
+private static final double REVERSE_FACING_CONE_RAD = Math.toRadians(75.0);
 
+// Too close — open distance back out to the standoff band. Only reverse when the
+// target is actually in front (gun and front armor stay on it while distance
+// grows). Anywhere else, reversing is wrong — e.g. target behind the hull after
+// driving past it — so pathfind forward to a retreat point on the ring instead.
+private void retreatFromTarget(BlockPos targetPos, TargetCategory category, double distanceSq) {
+    Vec3 toTarget = new Vec3(
+            targetPos.getX() + 0.5 - this.vehicle.getX(),
+            0,
+            targetPos.getZ() + 0.5 - this.vehicle.getZ()
+    ).normalize();
     Vector3f forward = this.vehicle.getForwardDirection().normalize();
-    double angle = getAngleBetween(forward, toTarget);
+    double angleToTarget = getAngleBetween(forward, toTarget);
+
+    if (Math.abs(angleToTarget) <= REVERSE_FACING_CONE_RAD) {
+        reverseFromTarget(angleToTarget, distanceSq);
+    } else {
+        driveGroundVehicle(getSteerTarget(computeRetreatPos(targetPos, category)), distanceSq);
+    }
+}
+
+// Point on the standoff ring, straight out from the target through the vehicle:
+// the comfortable mid-band for soft targets, the far ring for armored ones
+// (cannon/TOW range, where the enemy vehicle's own guns are least dangerous).
+private BlockPos computeRetreatPos(BlockPos targetPos, TargetCategory category) {
+    double radius = category == TargetCategory.VEHICLE
+            ? VEHICLE_TOO_FAR
+            : (INFANTRY_TOO_CLOSE + INFANTRY_TOO_FAR) / 2.0;
+
+    double cx = targetPos.getX() + 0.5;
+    double cz = targetPos.getZ() + 0.5;
+    double dx = this.vehicle.getX() - cx;
+    double dz = this.vehicle.getZ() - cz;
+    double len = Math.sqrt(dx * dx + dz * dz);
+    if (len < 1.0E-3) {
+        // Practically on top of the target — flee along the current facing
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        dx = forward.x;
+        dz = forward.z;
+        len = 1.0;
+    }
+    double scale = radius / len;
+    return BlockPos.containing(cx + dx * scale, this.vehicle.getY(), cz + dz * scale);
+}
+
+private void reverseFromTarget(double angle, double distanceSq) {
+    // Keep facing the target (so turret stays on it), but drive in REVERSE to open distance
     double angleThreshold = getRotationStopAngle(distanceSq);
 
     if (Math.abs(angle) < angleThreshold) {
@@ -336,7 +384,37 @@ private boolean computeIsTrackedVehicle() {
     if (seatIndex < 0) return;
     if (this.weaponSwitchCooldown > 0) return;
     this.vehicle.setWeaponIndex(seatIndex, weaponIndex);
-    this.weaponSwitchCooldown = 40;
+    this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
+    }
+
+    // Formation spacing between successive slots, in blocks.
+    private static final double FORMATION_SPACING = 5.0;
+
+    // Drive-to point for a formation slot behind the commander. COLUMN files units
+    // directly astern; WEDGE fans them out to alternating flanks stepping back each
+    // rank. Slot is derived from the unit's SEM-assigned formation index.
+    private BlockPos formationTarget(Player owner, OrderType order, int index) {
+        float yawRad = owner.getYRot() * Mth.DEG_TO_RAD;
+        double forwardX = -Mth.sin(yawRad);
+        double forwardZ = Mth.cos(yawRad);
+        double rightX = Mth.cos(yawRad);
+        double rightZ = Mth.sin(yawRad);
+
+        double back;
+        double side;
+        if (order == OrderType.FORM_COLUMN) {
+            back = (index + 1) * FORMATION_SPACING;
+            side = 0.0;
+        } else { // FORM_WEDGE
+            int rank = (index / 2) + 1;
+            int sign = (index % 2 == 0) ? -1 : 1;
+            back = rank * FORMATION_SPACING;
+            side = sign * rank * FORMATION_SPACING;
+        }
+
+        double x = owner.getX() - forwardX * back + rightX * side;
+        double z = owner.getZ() - forwardZ * back + rightZ * side;
+        return BlockPos.containing(x, owner.getY(), z);
     }
 
     // Player-commandable units (PmcUnitEntity) use the order queue for their drive
@@ -352,6 +430,9 @@ private boolean computeIsTrackedVehicle() {
 
         switch (order) {
             case HOLD_POSITION:
+            case CEASE_FIRE:
+                // CEASE_FIRE holds ground too; firing is suppressed separately in
+                // MixinVehicleFireCooldown so the crew simply sits and doesn't shoot.
                 return null;
 
             case MOVE_TO_POSITION:
@@ -367,16 +448,23 @@ private boolean computeIsTrackedVehicle() {
                 return null;
 
             case FOLLOW_COMMANDER:
-                UUID ownerId = pmc.getOwnerUUID();
-                if (ownerId != null) {
-                    Player owner = pmc.level().getPlayerByUUID(ownerId);
-                    if (owner != null) return owner.blockPosition();
-                }
-                return null;
+                Player follows = commander(pmc);
+                return follows != null ? follows.blockPosition() : null;
+
+            case FORM_WEDGE:
+            case FORM_COLUMN:
+                Player leader = commander(pmc);
+                return leader != null
+                        ? formationTarget(leader, order, pmc.getFormationIndex()) : null;
 
             default:
                 return null;
         }
+    }
+
+    private Player commander(PmcUnitEntity pmc) {
+        UUID ownerId = pmc.getOwnerUUID();
+        return ownerId != null ? pmc.level().getPlayerByUUID(ownerId) : null;
     }
 
     private double getAngleBetween(Vector3f forward, Vec3 target) {

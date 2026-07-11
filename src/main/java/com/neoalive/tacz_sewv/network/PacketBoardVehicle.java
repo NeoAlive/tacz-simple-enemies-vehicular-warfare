@@ -1,12 +1,14 @@
 package com.neoalive.tacz_sewv.network;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.minecraftforge.network.NetworkEvent;
-import net.minecraft.world.entity.Entity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,13 +42,29 @@ public class PacketBoardVehicle {
         Player player = ctx.get().getSender();
         if (player == null) return;
 
+        int ordered = 0;
         for (int unitId : this.unitIds) {
             Entity e = player.level().getEntity(unitId);
             if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
                 IVehicleBoarder boarder = (IVehicleBoarder) pmc;
                 boarder.tacz_sewv$setMountTargetId(this.vehicleId);
                 boarder.tacz_sewv$setBoarding(true);
+                ordered++;
             }
+        }
+
+        // Server-authoritative feedback — reflects the units the server actually
+        // accepted, not the optimistic client count.
+        if (SewvConfig.SHOW_ORDER_FEEDBACK.get()) {
+            Component msg;
+            if (ordered == 0) {
+                msg = Component.translatable("message.tacz_sewv.board.ordered.none");
+            } else if (ordered == 1) {
+                msg = Component.translatable("message.tacz_sewv.board.ordered.single", ordered);
+            } else {
+                msg = Component.translatable("message.tacz_sewv.board.ordered.multiple", ordered);
+            }
+            player.displayClientMessage(msg.copy().withStyle(ChatFormatting.GREEN), true);
         }
     });
     ctx.get().setPacketHandled(true);

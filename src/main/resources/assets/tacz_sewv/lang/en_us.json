@@ -1,0 +1,18 @@
+{
+  "key.categories.tacz_sewv": "SBW: Combined Arms",
+  "key.tacz_sewv.board": "Board Vehicle",
+  "key.tacz_sewv.dismount": "Dismount Vehicle",
+
+  "message.tacz_sewv.board.ordered.single": "%s unit ordered to board.",
+  "message.tacz_sewv.board.ordered.multiple": "%s units ordered to board.",
+  "message.tacz_sewv.board.ordered.none": "No eligible units to board.",
+  "message.tacz_sewv.board.no_units": "No owned units nearby.",
+  "message.tacz_sewv.board.no_vehicle": "Look at a vehicle to board.",
+
+  "message.tacz_sewv.dismount.single": "%s unit dismounted.",
+  "message.tacz_sewv.dismount.multiple": "%s units dismounted.",
+  "message.tacz_sewv.dismount.none": "No units to dismount.",
+
+  "command.tacz_sewv.spawn.success": "Spawned %s vehicle at %s",
+  "command.tacz_sewv.spawn.fail": "Couldn't spawn the vehicle — no space here, no valid vehicle id in the config pool, or SuperbWarfare isn't loaded."
+}

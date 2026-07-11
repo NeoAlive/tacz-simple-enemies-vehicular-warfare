@@ -22,6 +22,7 @@ public class SewvConfig {
     // Crew AI behavior
     public static final ForgeConfigSpec.IntValue AI_FIRE_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue WEAPON_SWITCH_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
 
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -74,6 +75,11 @@ public class SewvConfig {
         WEAPON_SWITCH_COOLDOWN_TICKS = builder
                 .comment("Minimum ticks between AI weapon switches, prevents rapid cannon/MG flip-flopping.")
                 .defineInRange("weaponSwitchCooldownTicks", 40, 1, 200);
+
+        SMOKE_BLOCK_RADIUS = builder
+                .comment("How close (in blocks) a smoke decoy must be to an AI crew's line of fire to block the shot.",
+                         "Larger = smoke screens are wider and more protective. Only affects AI-crewed vehicles.")
+                .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
 
         builder.pop();
 

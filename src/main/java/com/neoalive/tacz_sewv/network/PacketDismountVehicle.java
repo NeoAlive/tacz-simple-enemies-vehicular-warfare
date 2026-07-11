@@ -38,7 +38,8 @@ public class PacketDismountVehicle {
         for (int unitId : this.unitIds) {
             Entity e = player.level().getEntity(unitId);
 
-            // ===== THIS is fix 1b — it sits INSIDE the loop =====
+            // Ownership-check each unit individually so a spoofed packet can't
+            // dismount another player's units by id.
             if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
                 if (pmc.getVehicle() != null) {
                     pmc.stopRiding();
@@ -47,7 +48,6 @@ public class PacketDismountVehicle {
                 boarder.tacz_sewv$setBoarding(false);
                 boarder.tacz_sewv$setMountTargetId(-1);
             }
-            // ====================================================
         }
     });
     ctx.get().setPacketHandled(true);

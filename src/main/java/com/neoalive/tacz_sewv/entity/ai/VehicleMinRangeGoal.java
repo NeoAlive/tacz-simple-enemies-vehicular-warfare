@@ -14,7 +14,7 @@ import java.util.EnumSet;
  */
 public class VehicleMinRangeGoal extends Goal {
 
-    // Minimum engagement distance from the VEHICLE — inside this, the vehicle can't aim, so drop the target.
+    // Minimum engagement distance from the VEHICLE, inside this the vehicle can't aim so drop the target.
     private static final double MIN_ENGAGE_DISTANCE_SQ = 25.0; // 5 blocks
 
     private final AbstractUnit unit;
@@ -45,7 +45,7 @@ public class VehicleMinRangeGoal extends Goal {
 
         double distSq = this.vehicle.distanceToSqr(target);
         if (distSq < MIN_ENGAGE_DISTANCE_SQ) {
-            // Too close for the vehicle to aim — drop it so targeting picks something else
+            // Too close for the vehicle to aim, drop it so targeting picks something else
             this.unit.setTarget(null);
         }
     }

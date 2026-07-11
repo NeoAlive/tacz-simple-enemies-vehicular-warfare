@@ -318,14 +318,14 @@ public class GroundVehicleNodeEvaluator extends NodeEvaluator {
     public BlockPathTypes getBlockPathType(BlockGetter p_265141_, int p_265661_, int p_265757_, int p_265716_, Mob p_265398_) {
         // Water standoff: reject any node whose footprint sits within WATER_MARGIN
         // blocks of water, so routes keep clear of shorelines instead of driving in.
-        // Done before the volume scan — a blocked node needs no further classifying.
+        // Done before the volume scan, a blocked node needs no further classifying.
         if (this.hasWaterWithinMargin(p_265141_, p_265661_, p_265757_, p_265716_)) {
             return BlockPathTypes.BLOCKED;
         }
 
         // Scans the vehicle's full W×H×D volume like vanilla, but bails out on the
         // first block that rejects the node (fence/rail/negative malus) instead of
-        // classifying the entire volume first — a tank footprint is 100+ blocks, so
+        // classifying the entire volume first, a tank footprint is 100+ blocks, so
         // hitting a wall face early saves almost the whole scan.
         BlockPathTypes center = BlockPathTypes.BLOCKED;
         BlockPathTypes worst = BlockPathTypes.BLOCKED;
@@ -359,7 +359,7 @@ public class GroundVehicleNodeEvaluator extends NodeEvaluator {
     // True if any block within WATER_MARGIN of the node footprint (horizontally, at
     // the driving level and one below to catch water under a shoreline ledge) is
     // water. The whole aggregate result is cached per node in pathTypesByPosCache,
-    // so this scan runs at most once per unique node per search — bounded far below
+    // so this scan runs at most once per unique node per search  bounded far below
     // the vanilla 26-neighbour scan this evaluator otherwise skips.
     private boolean hasWaterWithinMargin(BlockGetter level, int x, int y, int z) {
         int minX = x - WATER_MARGIN;

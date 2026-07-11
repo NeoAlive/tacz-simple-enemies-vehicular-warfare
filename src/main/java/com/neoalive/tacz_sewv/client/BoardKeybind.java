@@ -32,7 +32,8 @@ public class BoardKeybind {
     Player player = mc.player;
     if (player == null || mc.level == null) return;
 
-    // Gather owned PMCs (your existing logic, works for both board and dismount)
+    // Collect this player's units within 64 blocks, the same set is used for
+    // both the board and dismount orders below. The server re-checks ownership.
     List<Integer> unitIds = new ArrayList<>();
     List<PmcUnitEntity> units = mc.level.getEntitiesOfClass(
             PmcUnitEntity.class, player.getBoundingBox().inflate(64.0));
@@ -45,12 +46,12 @@ public class BoardKeybind {
             mc.getWindow().getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL);
 
     if (ctrlHeld) {
-        // CTRL+K → dismount all
+        // CTRL+K -> dismount all
         NetworkHandler.CHANNEL.sendToServer(new PacketDismountVehicle(unitIds));
         player.displayClientMessage(
                 Component.literal("§eDismount order sent to " + unitIds.size() + " units."), true);
     } else {
-        // Plain K → board the looked-at vehicle (your existing logic)
+        // Plain K -> board the vehicle the player is looking at
         HitResult hit = mc.hitResult;
         if (!(hit instanceof EntityHitResult ehr)) return;
         if (!(ehr.getEntity() instanceof VehicleEntity vehicle)) return;

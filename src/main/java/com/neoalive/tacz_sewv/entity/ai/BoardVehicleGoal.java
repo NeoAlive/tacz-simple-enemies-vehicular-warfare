@@ -11,14 +11,16 @@ import java.util.EnumSet;
 public class BoardVehicleGoal extends Goal {
 
     private static final double MOUNT_DISTANCE = 5.0;
+    private static final double NAV_STUCK_DISTANCE_SQ = 36.0; // 6 blocks²
 
     private final PmcUnitEntity unit;
     private VehicleEntity targetVehicle;
 
-    // THIS is what's missing — add it back:
     public BoardVehicleGoal(PmcUnitEntity unit) {
         this.unit = unit;
-        this.setFlags(EnumSet.noneOf(Flag.class)); // no flags = canUse ALWAYS evaluated
+        // Claim no flags so the goal selector never gates canUse() behind MOVE/LOOK
+        // contention, boarding must stay evaluable even while other goals run.
+        this.setFlags(EnumSet.noneOf(Flag.class));
     }
 
     private IVehicleBoarder boarder() {
@@ -53,11 +55,11 @@ private void cancelBoarding() {
 
     @Override
 public boolean canContinueToUse() {
-    if (!boarder().tacz_sewv$isBoarding()) return false;   // order cancelled → stop
-    if (this.unit.getVehicle() != null) return false;         // mounted → stop (success)
+    if (!boarder().tacz_sewv$isBoarding()) return false;   // order cancelled -> stop
+    if (this.unit.getVehicle() != null) return false;         // mounted -> stop (success)
     if (this.targetVehicle == null) return false;
     if (!this.targetVehicle.isAlive() || this.targetVehicle.isWreck()) return false;
-    // Don't stop just because it's full — let tick() handle that with cancelBoarding
+    // Don't stop just because it's full, let tick() handle that with cancelBoarding
     return true;
 }
 
@@ -76,7 +78,7 @@ public void tick() {
 
     this.boardingTicks++;
 
-    // Been trying too long? Probably stuck in a crowd or can't reach — give up.
+    // Been trying too long? Probably stuck in a crowd or can't reach, give up.
     if (this.boardingTicks > MAX_BOARDING_TICKS) {
         this.cancelBoarding();
         return;
@@ -92,12 +94,14 @@ public void tick() {
 
     double distSq = this.unit.distanceToSqr(this.targetVehicle);
     boolean closeEnough = distSq <= MOUNT_DISTANCE * MOUNT_DISTANCE;
-    boolean navStuck = this.unit.getNavigation().isDone() && distSq <= 36.0;
+    // Navigation can finish just short of a large vehicle's hull; treat "path done
+    // and already within 6 blocks" as close enough to board rather than stalling.
+    boolean navStuck = this.unit.getNavigation().isDone() && distSq <= NAV_STUCK_DISTANCE_SQ;
 
     if (closeEnough || navStuck) {
     if (!this.unit.level().isClientSide) {
         this.unit.startRiding(this.targetVehicle);
-        // Boarded successfully — clear the order so it doesn't loop or re-board after dismount
+        // Boarded successfully, clear the order so it doesn't loop or re-board after dismount
         boarder().tacz_sewv$setBoarding(false);
         boarder().tacz_sewv$setMountTargetId(-1);
     }
@@ -111,7 +115,7 @@ public void tick() {
 
     @Override
 public void stop() {
-    // DON'T cancel boarding here — the unit might still want to board,
+    // DON'T cancel boarding here, the unit might still want to board,
     // this could just be a temporary goal interruption.
     // Only stop the current navigation.
     this.unit.getNavigation().stop();

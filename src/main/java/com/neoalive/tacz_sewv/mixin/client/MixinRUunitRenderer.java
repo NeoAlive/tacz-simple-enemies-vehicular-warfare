@@ -21,7 +21,7 @@ public abstract class MixinRUunitRenderer {
         if (entity.getVehicle() instanceof VehicleEntity vehicle) {
             SeatInfo seat = vehicle.getSeat(entity);
             if (seat != null && seat.getHidePassenger()) {
-                cir.setReturnValue(false); // enclosed seat — skip rendering entirely
+                cir.setReturnValue(false); // enclosed seat, skip rendering entirely
             }
         }
     }

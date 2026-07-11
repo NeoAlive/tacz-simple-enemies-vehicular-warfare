@@ -29,25 +29,22 @@ public final class TankSpawner {
      */
     @Nullable
     public static VehicleEntity spawnTankWithDriver(ServerLevel level, BlockPos pos, boolean isRu) {
-        // Pick the faction's tank
         ResourceLocation tankId = isRu
                 ? new ResourceLocation("superbwarfare", "t_90a")
                 : new ResourceLocation("superbwarfare", "m_1a_2");
 
         EntityType<?> tankType = ForgeRegistries.ENTITY_TYPES.getValue(tankId);
-        if (tankType == null) return null; // SW not loaded or ID wrong — bail safely
+        if (tankType == null) return null; // SW not loaded or ID wrong  bail safely
 
-        // Space check — will the tank physically fit here?
         if (!hasSpace(level, pos, tankType)) return null;
 
-        // Spawn the tank
         Entity tankEntity = tankType.create(level);
         if (!(tankEntity instanceof VehicleEntity tank)) return null;
 
         tank.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
         level.addFreshEntity(tank);
 
-        // Freshly-created vehicles start with 0 energy and an empty inventory — an AI
+        // Freshly-created vehicles start with 0 energy and an empty inventory
         // driver can't refuel/rearm itself, so fully charge it and stock a creative
         // ammo box (rather than hardcoding per-vehicle ammo items) so it can move and fire.
         if (tank.hasEnergyStorage()) {
@@ -57,7 +54,6 @@ public final class TankSpawner {
             tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
         }
 
-        // Spawn ONE driver of the matching faction
         AbstractUnit driver = isRu
                 ? new RUunitEntity(ModEntities.RUUNIT.get(), level)
                 : new USunitEntity(ModEntities.USUNIT.get(), level);
@@ -73,7 +69,6 @@ public final class TankSpawner {
     }
 
     public static boolean hasSpace(ServerLevel level, BlockPos pos, EntityType<?> type) {
-        // Simple check: is the vehicle's bounding box area free of solid blocks?
         var aabb = type.getDimensions().makeBoundingBox(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
         return level.noCollision(aabb);
     }

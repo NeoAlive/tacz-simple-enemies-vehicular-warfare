@@ -10,7 +10,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-// Target the concrete event class
 @Mixin(targets = "net.nekoyuni.SimpleEnemyMod.procedural.events.type.CombatEvent")
 public abstract class MixinCombatEvent {
 

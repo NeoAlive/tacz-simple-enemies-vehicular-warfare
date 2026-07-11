@@ -25,7 +25,7 @@ public abstract class MixinVehicleInteractLock {
         // If any passenger is an enemy RU/US unit, deny interaction entirely
         for (Entity passenger : self.getPassengers()) {
             if (passenger instanceof RUunitEntity || passenger instanceof USunitEntity) {
-                cir.setReturnValue(InteractionResult.FAIL); // enemy vehicle — hands off
+                cir.setReturnValue(InteractionResult.FAIL); // enemy vehicle, hands off
                 return;
             }
         }

@@ -28,7 +28,7 @@ public class SewvCommand {
         VehicleEntity tank = TankSpawner.spawnTankWithDriver(level, pos, isRu);
 
         if (tank == null) {
-            source.sendFailure(Component.literal("Couldn't spawn the tank — no space here, or SuperbWarfare isn't loaded."));
+            source.sendFailure(Component.literal("Couldn't spawn the tank, no space here, or SuperbWarfare isn't loaded."));
             return 0;
         }
 

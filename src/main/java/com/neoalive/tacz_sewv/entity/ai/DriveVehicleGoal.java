@@ -23,16 +23,16 @@ import java.util.UUID;
 
 public class DriveVehicleGoal extends Goal {
 
-    // Angle thresholds — tight when close, laxer when far (from SuperbRecruitz)
+    // Angle thresholds, tight when close, laxer when far (from SuperbRecruitz)
     private static final double MIN_ANGLE_RAD = Math.toRadians(3.0);
     private static final double MAX_ANGLE_RAD = Math.toRadians(22.5);
     private static final double MIN_DISTANCE = 2.0;
     private static final double MAX_DISTANCE = 20.0;
     private static final double STOP_DISTANCE = 8.0;
-    // Infantry standoff band — MG's effective engagement range.
+    // Infantry standoff band, MG's effective engagement range.
     private static final double INFANTRY_TOO_CLOSE = 10.0;
     private static final double INFANTRY_TOO_FAR = 20.0;
-    // Vehicle standoff band — MG can't hurt armor and cannon/TOW work at range,
+    // Vehicle standoff band, MG can't hurt armor and cannon/TOW work at range,
     // so hold much further back instead of closing to point-blank tank-on-tank.
     private static final double VEHICLE_TOO_CLOSE = 20.0;
     private static final double VEHICLE_TOO_FAR = 40.0;
@@ -41,7 +41,7 @@ public class DriveVehicleGoal extends Goal {
     private static final int WEAPON_SPECIAL = 2; // TOW / heavy anti-vehicle ordnance
     private static final int WEAPON_COUNT = 3;
 
-    // Pathfinding throttles — A* over the vehicle's block volume is the most
+    // Pathfinding throttles, A* over the vehicle's block volume is the most
     // expensive thing this goal does, so a still-valid path is reused instead
     // of recomputed on a fixed timer.
     private static final int PATH_RECALC_COOLDOWN = 20;      // min ticks between searches
@@ -73,7 +73,7 @@ public class DriveVehicleGoal extends Goal {
     @Override
     public boolean canUse() {
         if (!(this.unit.getVehicle() instanceof VehicleEntity v)) return false;
-        // ONLY the driver (seat 0) drives — enforces your driver-commander model
+        // ONLY the driver (seat 0) drives, enforces your driver-commander model
         if (v.getFirstPassenger() != this.unit) return false;
         this.vehicle = v;
         return getTargetPos() != null; // only drive if there's somewhere to go
@@ -110,7 +110,7 @@ public void tick() {
         return;
     }
 
-    // Distance to the REAL target — used for standoff band and firing range
+    // Distance to the REAL target, used for standoff band and firing range
     double distanceSq = this.vehicle.distanceToSqr(targetPos.getX(), targetPos.getY(), targetPos.getZ());
 
     boolean isCombat = this.unit.getTarget() != null;
@@ -120,7 +120,7 @@ public void tick() {
         TargetCategory category = classifyTarget(target);
         boolean isVehicleTarget = category == TargetCategory.VEHICLE;
 
-        // Vehicle targets get a much wider standoff band — no point charging
+        // Vehicle targets get a much wider standoff band, no point charging
         // point-blank when the MG can't hurt armor and cannon/TOW reach further.
         double tooCloseThreshold = isVehicleTarget ? VEHICLE_TOO_CLOSE : INFANTRY_TOO_CLOSE;
         double tooFarThreshold = isVehicleTarget ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR;
@@ -135,21 +135,21 @@ public void tick() {
         if (dist < tooCloseThreshold) {
             reverseFromTarget(targetPos, distanceSq); // reverse relative to real target
         } else if (tooFar) {
-            driveGroundVehicle(getSteerTarget(targetPos), distanceSq); // STEER toward path waypoint
+            driveGroundVehicle(getSteerTarget(targetPos), distanceSq);
         } else {
             stopVehicleMovement();
         }
     } else {
         double stopDistance = this.vehicle.getBbWidth() - 1 + STOP_DISTANCE;
         if (distanceSq > stopDistance * stopDistance) {
-            driveGroundVehicle(getSteerTarget(targetPos), distanceSq); // STEER toward path waypoint
+            driveGroundVehicle(getSteerTarget(targetPos), distanceSq);
         } else {
             stopVehicleMovement();
         }
     }
 }
 
-// Only called from the branches that actually drive — a vehicle holding its
+// Only called from the branches that actually drive, a vehicle holding its
 // standoff band or parked at its destination never pays for pathfinding.
 private BlockPos getSteerTarget(BlockPos targetPos) {
     boolean pathStale = this.currentPath == null
@@ -162,7 +162,7 @@ private BlockPos getSteerTarget(BlockPos targetPos) {
         recomputePath(targetPos);
         this.lastPathTarget = targetPos;
         this.pathAge = 0;
-        // Terrain won't have changed next tick — back off harder after a failed search
+        // Terrain won't have changed next tick, back off harder after a failed search
         this.pathRecalcCooldown = this.currentPath == null ? PATH_FAIL_COOLDOWN : PATH_RECALC_COOLDOWN;
     }
 
@@ -178,7 +178,7 @@ private BlockPos getSteerTarget(BlockPos targetPos) {
         }
         return next;
     }
-    return targetPos; // no usable path — steer straight at the target as fallback
+    return targetPos; // no usable path, steer straight at the target as fallback
 }
 
     private void driveGroundVehicle(BlockPos targetPos, double distanceSq) {
@@ -217,13 +217,13 @@ private void reverseFromTarget(BlockPos targetPos, double distanceSq) {
     double angleThreshold = getRotationStopAngle(distanceSq);
 
     if (Math.abs(angle) < angleThreshold) {
-        // Facing target — reverse straight back
+        // Facing target, reverse straight back
         this.vehicle.setForwardInputDown(false);
         this.vehicle.setBackInputDown(true);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
     } else {
-        // Turn to face target while backing — steer + reverse
+        // Turn to face target while backing, steer + reverse
         this.vehicle.setLeftInputDown(angle > 0);
         this.vehicle.setRightInputDown(angle < 0);
         this.vehicle.setForwardInputDown(false);
@@ -244,7 +244,7 @@ private void recomputePath(BlockPos target) {
             origin.offset(-range, -vertical, -range),
             origin.offset(range, vertical, range)
         );
-        // PathFinder.findPath() calls nodeEvaluator.prepare()/done() internally — don't call them here too
+        // PathFinder.findPath() calls nodeEvaluator.prepare()/done() internally, don't call them here too
         java.util.Set<BlockPos> targets = java.util.Set.of(target);
         this.currentPath = this.pathFinder.findPath(region, this.unit, targets, (float) range, 1, 1.0F);
     } catch (Exception e) {
@@ -252,7 +252,7 @@ private void recomputePath(BlockPos target) {
     }
 }
 
-// Cached per vehicle instance — the track/wheel drivetrain doesn't change mid-drive,
+// Cached per vehicle instance, the track/wheel drivetrain doesn't change mid-drive,
 // and vehicle.data().compute() is too expensive to call every tick.
 private boolean isTrackedVehicle() {
     if (this.vehicle != this.trackedCacheVehicle) {
@@ -290,7 +290,7 @@ private boolean computeIsTrackedVehicle() {
     private enum TargetCategory { VEHICLE, MONSTER, PMC_UNIT }
 
     private TargetCategory classifyTarget(LivingEntity target) {
-        // A VehicleEntity isn't a LivingEntity, so it can never be the target itself —
+        // A VehicleEntity isn't a LivingEntity, so it can never be the target itself
         // the AI targets the crew riding inside; armor makes the MG useless against them.
         if (target.getVehicle() instanceof VehicleEntity) return TargetCategory.VEHICLE;
         if (target instanceof RUunitEntity || target instanceof USunitEntity) return TargetCategory.PMC_UNIT;
@@ -308,13 +308,13 @@ private boolean computeIsTrackedVehicle() {
                 weight[tooFar ? WEAPON_SPECIAL : WEAPON_CANNON] = 1.0;
                 break;
             case MONSTER:
-            case PMC_UNIT: // same doctrine as monsters — don't burn heavy ordnance on infantry
+            case PMC_UNIT: // same doctrine as monsters, don't burn heavy ordnance on infantry
                 weight[WEAPON_SPECIAL] = Double.NEGATIVE_INFINITY;
                 weight[tooFar ? WEAPON_CANNON : WEAPON_MG] = 1.0;
                 break;
         }
 
-        // Not every vehicle has a 3rd weapon slot — setWeaponIndex() doesn't
+        // Not every vehicle has a 3rd weapon slot, setWeaponIndex() doesn't
         // bounds-check, so an invalid index silently leaves the seat unarmed.
         SeatInfo seat = this.vehicle.getSeat(seatIndex);
         if (seat == null || seat.weapons().size() <= WEAPON_SPECIAL) {
@@ -340,7 +340,7 @@ private boolean computeIsTrackedVehicle() {
     }
 
     // Player-commandable units (PmcUnitEntity) use the order queue for their drive
-    // destination. RU/US crews have no order system — they just engage whatever
+    // destination. RU/US crews have no order system, they just engage whatever
     // they're currently targeting, same as vanilla hostile-mob AI.
     private BlockPos getTargetPos() {
         if (!(this.unit instanceof PmcUnitEntity pmc)) {

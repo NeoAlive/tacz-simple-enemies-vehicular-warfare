@@ -29,6 +29,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_HEIGHT;
     public static final ForgeConfigSpec.IntValue VEHICLE_TARGET_SCAN_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TARGET_REQUIRE_LOS;
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_ALLY_ASSIST_RANGE;
 
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -108,6 +109,12 @@ public class SewvConfig {
                 .comment("Require line of sight before a mounted crew locks a scanned target.",
                          "Disabling skips the visibility raycasts (cheaper) but lets crews acquire enemies through cover.")
                 .define("vehicleTargetRequireLineOfSight", true);
+
+        VEHICLE_ALLY_ASSIST_RANGE = builder
+                .comment("Range (in blocks) within which an idle AI vehicle crew notices an allied vehicle in combat",
+                         "and drives to support it, stopping once inside the ally's comfortable ring. 0 disables it.",
+                         "The check runs on the vehicleTargetScanIntervalTicks cadence, so it shares that perf knob.")
+                .defineInRange("vehicleAllyAssistRange", 64.0, 0.0, 256.0);
 
         builder.pop();
 

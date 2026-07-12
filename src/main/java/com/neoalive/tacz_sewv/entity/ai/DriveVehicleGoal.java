@@ -8,6 +8,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -46,6 +47,7 @@ public class DriveVehicleGoal extends Goal {
     // past the standoff ring, then hold at range instead of charging back in.
     private static final float PRESERVE_HEALTH_FRACTION = 0.25F; // retreat below 1/4 health
     private static final double PRESERVE_RETREAT_MARGIN = 8.0;   // fall back this far BEYOND the ring
+    private static final float PRESERVE_SMOKE_CHANCE = 0.5F;     // coin-flip, per retreat, whether to screen with smoke
     private static final int WEAPON_CANNON = 0;
     private static final int WEAPON_MG = 1;
     private static final int WEAPON_SPECIAL = 2; // TOW / heavy anti-vehicle ordnance
@@ -126,6 +128,7 @@ public class DriveVehicleGoal extends Goal {
         this.currentPath = null;
         this.lastPathTarget = null;
         this.pathRecalcCooldown = 0;
+        this.assistAlly = null;
         clearRecovery();
     }
 
@@ -345,8 +348,21 @@ private boolean isLowHealth() {
 // smoke is fired by raising the decoy input — the vehicle's own tick launches it
 // along the turret vector (already tracking the threat), and the launcher's ready/
 // reload gating means holding the input just fires each volley as it comes back up.
+private long lastRetreatTick = Long.MIN_VALUE;
+private boolean deploySmokeThisRetreat = false;
+
 private void preserveRetreat(LivingEntity threat, TargetCategory category) {
-    if (this.vehicle.hasDecoy()) {
+    // preserveRetreat runs every tick while low on health, so rolling the dice here
+    // would just stutter the held decoy input. Instead decide ONCE per retreat: a
+    // gap in consecutive ticks marks a fresh episode and re-rolls the coin flip, so
+    // about half of retreating crews screen with smoke and half break contact silent.
+    long now = this.unit.level().getGameTime();
+    if (now - this.lastRetreatTick > 1) {
+        this.deploySmokeThisRetreat = this.unit.getRandom().nextFloat() < PRESERVE_SMOKE_CHANCE;
+    }
+    this.lastRetreatTick = now;
+
+    if (this.deploySmokeThisRetreat && this.vehicle.hasDecoy()) {
         this.vehicle.setDecoyInputDown(true);
     }
 
@@ -574,7 +590,9 @@ private boolean computeIsTrackedVehicle() {
     private BlockPos getTargetPos() {
         if (!(this.unit instanceof PmcUnitEntity pmc)) {
             LivingEntity target = this.unit.getTarget();
-            return target != null ? target.blockPosition() : null;
+            if (target != null) return target.blockPosition();
+            // No fight of our own — reinforce a nearby allied crew that has one.
+            return assistTargetPos();
         }
 
         OrderType order = pmc.getOrder();
@@ -592,11 +610,15 @@ private boolean computeIsTrackedVehicle() {
                         ? BlockPos.containing(moveTarget) : null;
 
             case ATTACK_THAT_TARGET:
+                // Player designated the target — no freelancing off to help allies.
+                return pmc.getTarget() != null ? pmc.getTarget().blockPosition() : null;
+
             case FREE_FIRE:
                 if (pmc.getTarget() != null) {
                     return pmc.getTarget().blockPosition();
                 }
-                return null;
+                // Free-firing with nothing to shoot — reinforce an allied crew in combat.
+                return assistTargetPos();
 
             case FOLLOW_COMMANDER:
                 Player follows = commander(pmc);
@@ -616,6 +638,93 @@ private boolean computeIsTrackedVehicle() {
     private Player commander(PmcUnitEntity pmc) {
         UUID ownerId = pmc.getOwnerUUID();
         return ownerId != null ? pmc.level().getPlayerByUUID(ownerId) : null;
+    }
+
+    // Mutual support: an idle crew that notices an allied vehicle in combat drives
+    // to it and settles inside this ring around the ally — close enough to bring
+    // its own guns into the same fight (the cylinder target scan takes over from
+    // there), far enough to not park on the ally's tracks.
+    private static final double ASSIST_RING_RADIUS = 16.0;
+
+    private VehicleEntity assistAlly;
+    private long lastAssistScanTime = Long.MIN_VALUE;
+
+    // Drive-to point for reinforcing an ally, or null when there is nothing to
+    // reinforce (or we're already inside the ally's ring — arrival, not failure).
+    // The ring point goes through navigateTo like every destination, so the route
+    // still respects the node evaluator's hazards (water margin etc.).
+    private BlockPos assistTargetPos() {
+        VehicleEntity ally = findAllyInCombat();
+        if (ally == null) return null;
+
+        double dx = ally.getX() - this.vehicle.getX();
+        double dz = ally.getZ() - this.vehicle.getZ();
+        double arrive = ASSIST_RING_RADIUS + VEHICLE_RING_DEADBAND;
+        if (dx * dx + dz * dz <= arrive * arrive) return null; // inside the ring — done
+
+        return computeStandoffPoint(ally.blockPosition(), ASSIST_RING_RADIUS);
+    }
+
+    // Nearest allied crewed vehicle in combat within the configured assist range.
+    // The world scan is the expensive part, so it reruns only on the target-scan
+    // cadence ("each scan"); between scans the cached ally is just revalidated.
+    private VehicleEntity findAllyInCombat() {
+        double range = SewvConfig.VEHICLE_ALLY_ASSIST_RANGE.get();
+        if (range <= 0.0) return null; // mutual support disabled
+
+        long now = this.unit.level().getGameTime();
+        if (now - this.lastAssistScanTime < SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get()) {
+            return validateAssistAlly(range);
+        }
+        this.lastAssistScanTime = now;
+
+        // Same flat-cylinder shape as the target scan: full horizontal reach,
+        // capped vertical extent, corners rounded off by the distance filter.
+        double halfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
+        AABB bounds = new AABB(
+                this.vehicle.getX() - range, this.vehicle.getY() - halfHeight, this.vehicle.getZ() - range,
+                this.vehicle.getX() + range, this.vehicle.getY() + halfHeight, this.vehicle.getZ() + range);
+
+        VehicleEntity best = null;
+        double bestDistSq = range * range;
+        for (VehicleEntity ally : this.unit.level().getEntitiesOfClass(VehicleEntity.class, bounds,
+                v -> v != this.vehicle && !v.isWreck())) {
+            if (!isAlliedCrewInCombat(ally)) continue;
+            double dx = ally.getX() - this.vehicle.getX();
+            double dz = ally.getZ() - this.vehicle.getZ();
+            double distSq = dx * dx + dz * dz;
+            if (distSq <= bestDistSq) {
+                best = ally;
+                bestDistSq = distSq;
+            }
+        }
+        this.assistAlly = best;
+        return best;
+    }
+
+    // Between scans: keep the cached ally only while it still needs the help.
+    private VehicleEntity validateAssistAlly(double range) {
+        VehicleEntity ally = this.assistAlly;
+        if (ally == null) return null;
+        if (ally.isRemoved() || ally.isWreck() || !isAlliedCrewInCombat(ally)
+                || this.vehicle.distanceToSqr(ally) > range * range * 2.25) { // >1.5x range — chase abandoned
+            this.assistAlly = null;
+            return null;
+        }
+        return ally;
+    }
+
+    private boolean isAlliedCrewInCombat(VehicleEntity ally) {
+        if (!(ally.getFirstPassenger() instanceof AbstractUnit driver)) return false;
+        if (!isSameFaction(driver)) return false;
+        LivingEntity target = driver.getTarget();
+        return target != null && target.isAlive();
+    }
+
+    private boolean isSameFaction(AbstractUnit other) {
+        if (this.unit instanceof RUunitEntity) return other instanceof RUunitEntity;
+        if (this.unit instanceof USunitEntity) return other instanceof USunitEntity;
+        return this.unit instanceof PmcUnitEntity && other instanceof PmcUnitEntity;
     }
 
     private double getAngleBetween(Vector3f forward, Vec3 target) {

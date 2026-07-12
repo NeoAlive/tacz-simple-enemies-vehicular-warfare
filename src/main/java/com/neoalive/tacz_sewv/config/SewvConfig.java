@@ -40,6 +40,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_ALTITUDE;
     public static final ForgeConfigSpec.DoubleValue HELI_ORBIT_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HELI_ALT_DEADBAND;
+    public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_SPEED;
 
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -164,6 +165,12 @@ public class SewvConfig {
                          "collective when it is more than this far off its target height, so it settles into",
                          "a stable hover instead of hunting up and down. Smaller = tighter but twitchier.")
                 .defineInRange("heliAltDeadband", 2.5, 0.5, 8.0);
+
+        HELI_CRUISE_SPEED = builder
+                .comment("Target horizontal cruise speed (blocks/tick) an AI helicopter flies a leg at.",
+                         "The pilot brakes toward this as a ceiling and eases below it on approach so it",
+                         "decelerates onto the destination instead of overshooting. Lower = gentler, safer.")
+                .defineInRange("heliCruiseSpeed", 0.6, 0.1, 2.0);
 
         builder.pop();
 

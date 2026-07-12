@@ -1,8 +1,10 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.BoardVehicleGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,13 +14,19 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(PmcUnitEntity.class)
-public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
+public abstract class MixinPmcUnitEntity implements IVehicleBoarder, IHelicopterPilot {
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
 
     @Unique
     private boolean tacz_sewv$boarding = false;
+
+    @Unique
+    private int tacz_sewv$heliCommand = IHelicopterPilot.HELI_CMD_NONE;
+
+    @Unique
+    private BlockPos tacz_sewv$heliLandPos = null;
 
     @Override
     public void tacz_sewv$setMountTargetId(int id) {
@@ -38,6 +46,26 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder {
     @Override
     public boolean tacz_sewv$isBoarding() {
         return this.tacz_sewv$boarding;
+    }
+
+    @Override
+    public void sewv$setHeliCommand(int command) {
+        this.tacz_sewv$heliCommand = command;
+    }
+
+    @Override
+    public int sewv$getHeliCommand() {
+        return this.tacz_sewv$heliCommand;
+    }
+
+    @Override
+    public void sewv$setHeliLandPos(BlockPos pos) {
+        this.tacz_sewv$heliLandPos = pos;
+    }
+
+    @Override
+    public BlockPos sewv$getHeliLandPos() {
+        return this.tacz_sewv$heliLandPos;
     }
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)

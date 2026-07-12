@@ -16,6 +16,8 @@ public class ClientEvents {
     public static void registerKeys(RegisterKeyMappingsEvent event) {
         event.register(BoardKeybind.BOARD_KEY);
         event.register(BoardKeybind.DISMOUNT_KEY);
+        event.register(HelicopterKeybind.TAKEOFF_KEY);
+        event.register(HelicopterKeybind.LAND_KEY);
     }
 
     // Separate subscriber on the FORGE bus for the actual key polling
@@ -32,6 +34,12 @@ public class ClientEvents {
             }
             while (BoardKeybind.DISMOUNT_KEY.consumeClick()) {
                 BoardKeybind.onDismountPressed();
+            }
+            while (HelicopterKeybind.TAKEOFF_KEY.consumeClick()) {
+                HelicopterKeybind.onTakeoffPressed();
+            }
+            while (HelicopterKeybind.LAND_KEY.consumeClick()) {
+                HelicopterKeybind.onLandPressed();
             }
         }
     }

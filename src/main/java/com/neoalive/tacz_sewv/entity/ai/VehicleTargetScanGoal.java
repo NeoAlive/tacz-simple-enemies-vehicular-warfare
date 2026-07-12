@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.world.entity.LivingEntity;
@@ -7,6 +8,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -84,8 +86,12 @@ public class VehicleTargetScanGoal extends Goal {
 
         double dropRadius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get() * DROP_MULT;
         double dropHalfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0 * DROP_MULT;
+        // A flying vehicle keeps its lock on targets all the way down to the ground —
+        // without the slack, climbing to cruise altitude would drop the very target
+        // the crew is engaging (the cylinder is centered on the hull).
         return horizontalDistSq(this.vehicle, target) <= dropRadius * dropRadius
-                && Math.abs(target.getY() - this.vehicle.getY()) <= dropHalfHeight;
+                && target.getY() - this.vehicle.getY() <= dropHalfHeight
+                && this.vehicle.getY() - target.getY() <= dropHalfHeight + altitudeSlack(this.vehicle);
     }
 
     @Override
@@ -106,8 +112,11 @@ public class VehicleTargetScanGoal extends Goal {
         double halfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
         double radiusSq = radius * radius;
 
+        // Aircraft extend the cylinder down to the terrain: centered on the hull, a
+        // helicopter at cruise altitude would otherwise scan nothing but sky while
+        // every actual target sits on the ground below the bottom face.
         AABB bounds = new AABB(
-                v.getX() - radius, v.getY() - halfHeight, v.getZ() - radius,
+                v.getX() - radius, v.getY() - halfHeight - altitudeSlack(v), v.getZ() - radius,
                 v.getX() + radius, v.getY() + halfHeight, v.getZ() + radius);
 
         List<LivingEntity> candidates = this.unit.level().getEntitiesOfClass(LivingEntity.class, bounds, e -> {
@@ -155,6 +164,20 @@ public class VehicleTargetScanGoal extends Goal {
         if (!(this.unit instanceof PmcUnitEntity pmc)) return true;
         OrderType order = pmc.getOrder();
         return order != OrderType.CEASE_FIRE && order != OrderType.ATTACK_THAT_TARGET;
+    }
+
+    // Extra downward reach for flying vehicles: their height above the terrain
+    // surface. Zero for ground vehicles (hull sits on the surface) and for a heli
+    // parked on the ground, growing exactly as fast as the aircraft climbs, so the
+    // cylinder's bottom face stays pinned to the ground where the targets are.
+    private static double altitudeSlack(VehicleEntity v) {
+        try {
+            if (!(v.getEngineInfo() instanceof EngineInfo.Helicopter)) return 0.0;
+        } catch (Exception ignored) {
+            return 0.0;
+        }
+        int surface = v.level().getHeight(Heightmap.Types.WORLD_SURFACE, v.getBlockX(), v.getBlockZ());
+        return Math.max(0.0, v.getY() - surface);
     }
 
     private static double horizontalDistSq(VehicleEntity v, LivingEntity e) {

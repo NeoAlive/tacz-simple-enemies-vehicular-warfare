@@ -39,5 +39,13 @@ public class NetworkHandler {
         PacketDismountVehicle::new,
         PacketDismountVehicle::handle
         );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketHelicopterCommand.class,
+                PacketHelicopterCommand::encode,
+                PacketHelicopterCommand::new,
+                PacketHelicopterCommand::handle
+        );
     }
 }

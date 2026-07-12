@@ -2,6 +2,16 @@
   "key.categories.tacz_sewv": "SBW: Combined Arms",
   "key.tacz_sewv.board": "Board Vehicle",
   "key.tacz_sewv.dismount": "Dismount Vehicle",
+  "key.tacz_sewv.heli_takeoff": "Helicopter Takeoff",
+  "key.tacz_sewv.heli_land": "Helicopter Land (look at pad)",
+
+  "message.tacz_sewv.heli.takeoff.single": "%s helicopter taking off.",
+  "message.tacz_sewv.heli.takeoff.multiple": "%s helicopters taking off.",
+  "message.tacz_sewv.heli.takeoff.none": "No eligible helicopters.",
+  "message.tacz_sewv.heli.land.single": "%s helicopter landing.",
+  "message.tacz_sewv.heli.land.multiple": "%s helicopters landing.",
+  "message.tacz_sewv.heli.land.none": "No eligible helicopters.",
+  "message.tacz_sewv.heli.no_pad": "Look at a block to land on.",
 
   "message.tacz_sewv.board.ordered.single": "%s unit ordered to board.",
   "message.tacz_sewv.board.ordered.multiple": "%s units ordered to board.",

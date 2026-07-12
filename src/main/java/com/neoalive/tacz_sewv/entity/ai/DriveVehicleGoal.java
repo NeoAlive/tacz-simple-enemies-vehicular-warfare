@@ -1,13 +1,16 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
@@ -297,26 +300,141 @@ private void clearRecovery() {
 }
 
     private void driveGroundVehicle(BlockPos targetPos, double distanceSq) {
-    Vec3 toTarget = new Vec3(
+    Vec3 desired = new Vec3(
             targetPos.getX() - this.vehicle.getX(),
             0,
             targetPos.getZ() - this.vehicle.getZ()
     ).normalize();
 
+    boolean avoidance = SewvConfig.VEHICLE_TERRAIN_AVOIDANCE.get();
+    Vec3 steer = desired;
+    if (avoidance) {
+        steer = chooseClearBearing(desired);
+        if (steer == null) {
+            // Boxed in by water/cliffs on every probed bearing — hold at the edge,
+            // turning in place toward the goal rather than ploughing in. Keeping a
+            // turn input held preserves the tracked turn ramp and stops updateStuck
+            // (rotation counts as progress) from triggering a blind unstick reverse.
+            holdAtEdge(desired);
+            return;
+        }
+    }
+
     Vector3f forward = this.vehicle.getForwardDirection().normalize();
-    double angle = getAngleBetween(forward, toTarget);
+    double angle = getAngleBetween(forward, steer);
     double angleThreshold = getRotationStopAngle(distanceSq);
+    // Only translate when the direction the hull would actually move (its facing)
+    // is itself clear — while it is still swinging toward the chosen detour bearing
+    // the nose may still point at the hazard.
+    boolean facingClear = !avoidance || headingClear(horizontalFacing(forward), lookaheadDistance());
 
     if (Math.abs(angle) < angleThreshold) {
-        moveVehicleForward();
+        if (facingClear) {
+            moveVehicleForward();
+        } else {
+            holdAtEdge(steer);
+        }
     } else {
         this.vehicle.setLeftInputDown(angle > 0);
         this.vehicle.setRightInputDown(angle < 0);
 
         boolean turnInPlace = isTrackedVehicle();
-        this.vehicle.setForwardInputDown(!turnInPlace);
+        this.vehicle.setForwardInputDown(!turnInPlace && facingClear);
         this.vehicle.setBackInputDown(false);
     }
+}
+
+// The performance knob and the safe-drop tolerance, read per call so config edits
+// take effect live.
+private double lookaheadDistance() {
+    return SewvConfig.VEHICLE_LOOKAHEAD_DISTANCE.get();
+}
+
+private static Vec3 horizontalFacing(Vector3f forward) {
+    return new Vec3(forward.x, 0, forward.z).normalize();
+}
+
+// Whisker scan: prefer the goal bearing, then fan out to alternating flanks. Returns
+// the smallest-offset bearing whose look-ahead probe is clear, or null if the whole
+// forward cone is blocked.
+private static final double[] WHISKER_OFFSETS_DEG = {0.0, 25.0, -25.0, 50.0, -50.0, 75.0, -75.0};
+
+private Vec3 chooseClearBearing(Vec3 desired) {
+    double dist = lookaheadDistance();
+    for (double offDeg : WHISKER_OFFSETS_DEG) {
+        Vec3 cand = rotateY(desired, Math.toRadians(offDeg));
+        if (headingClear(cand, dist)) return cand;
+    }
+    return null;
+}
+
+// Rotate a horizontal (y=0) direction about the vertical axis.
+private static Vec3 rotateY(Vec3 dir, double angleRad) {
+    double cos = Math.cos(angleRad);
+    double sin = Math.sin(angleRad);
+    return new Vec3(dir.x * cos - dir.z * sin, 0.0, dir.x * sin + dir.z * cos);
+}
+
+// Turn in place toward `dir` with no forward/back input. When already nearly aligned
+// (the hazard is dead ahead), force a consistent turn so the hull keeps rotating —
+// this both scans for an opening and prevents the stuck timer from firing.
+private void holdAtEdge(Vec3 dir) {
+    Vector3f forward = this.vehicle.getForwardDirection().normalize();
+    double angle = getAngleBetween(forward, dir);
+    boolean left = Math.abs(angle) < 0.05 || angle > 0;
+    this.vehicle.setForwardInputDown(false);
+    this.vehicle.setBackInputDown(false);
+    this.vehicle.setLeftInputDown(left);
+    this.vehicle.setRightInputDown(!left);
+}
+
+// True if driving `distance` blocks along `dir` from the hull crosses no hazard:
+// water (unless amphibious), lava, or a drop deeper than the safe-drop tolerance.
+private boolean headingClear(Vec3 dir, double distance) {
+    boolean avoidWater = !isAmphibiousVehicle();
+    int maxDrop = SewvConfig.VEHICLE_MAX_SAFE_DROP.get();
+    Level level = this.unit.level();
+    double startX = this.vehicle.getX();
+    double startZ = this.vehicle.getZ();
+    int baseY = this.vehicle.getBlockY();
+    double half = this.vehicle.getBbWidth() / 2.0;
+    BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+    // Step ~1 block at a time from just past the hull edge out to the look-ahead range.
+    for (double d = half + 0.5; d <= half + distance; d += 1.0) {
+        int px = Mth.floor(startX + dir.x * d);
+        int pz = Mth.floor(startZ + dir.z * d);
+        if (isHazardColumn(level, pos, px, pz, baseY, avoidWater, maxDrop)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A column is hazardous if the surface the hull would drive onto is water/lava, or
+// if there is no footing within `maxDrop` blocks below the driving level (a cliff).
+// An uphill wall is NOT a hazard here — footing is found immediately, and walls are
+// the pathfinder's / stuck-recovery's job, not the terrain sensor's.
+private boolean isHazardColumn(Level level, BlockPos.MutableBlockPos pos, int x, int z,
+                               int baseY, boolean avoidWater, int maxDrop) {
+    // Fluid at the driving cell or the cell the tracks rest in.
+    for (int dy = 0; dy >= -1; dy--) {
+        var fluid = level.getFluidState(pos.set(x, baseY + dy, z));
+        if (fluid.is(FluidTags.LAVA)) return true;
+        if (avoidWater && fluid.is(FluidTags.WATER)) return true;
+    }
+    // Look for solid footing from the normal floor (baseY-1) down. Drop depth = k-1,
+    // so k up to maxDrop+1 permits drops of exactly maxDrop; none found → cliff.
+    for (int k = 1; k <= maxDrop + 1; k++) {
+        int y = baseY - k;
+        var state = level.getBlockState(pos.set(x, y, z));
+        var fluid = state.getFluidState();
+        if (fluid.is(FluidTags.LAVA)) return true;
+        if (avoidWater && fluid.is(FluidTags.WATER)) return true;
+        if (!state.getCollisionShape(level, pos).isEmpty()) {
+            return false; // footing within tolerance — safe column
+        }
+    }
+    return true; // no ground within maxDrop → cliff
 }
 
 // Hold an armored target at the far standoff ring (VEHICLE_TOO_FAR): close in when
@@ -399,7 +517,15 @@ private void retreatFromTarget(BlockPos targetPos, double retreatRadius, double 
     Vector3f forward = this.vehicle.getForwardDirection().normalize();
     double angleToTarget = getAngleBetween(forward, toTarget);
 
-    if (Math.abs(angleToTarget) <= REVERSE_FACING_CONE_RAD) {
+    boolean canReverse = Math.abs(angleToTarget) <= REVERSE_FACING_CONE_RAD;
+    // Don't back off a cliff or into water. If the ground behind the hull is a hazard,
+    // pathfind forward to a standoff point instead of reversing blindly.
+    if (canReverse && SewvConfig.VEHICLE_TERRAIN_AVOIDANCE.get()) {
+        Vec3 behind = new Vec3(-forward.x, 0, -forward.z).normalize();
+        if (!headingClear(behind, lookaheadDistance())) canReverse = false;
+    }
+
+    if (canReverse) {
         reverseFromTarget(angleToTarget, distanceSq);
     } else {
         navigateTo(computeStandoffPoint(targetPos, retreatRadius), distanceSq);
@@ -484,6 +610,32 @@ private boolean computeIsTrackedVehicle() {
             var trackRotSpeed = data.getEngineInfo().get("TrackRotSpeed");
             return trackRotSpeed != null && trackRotSpeed.getAsInt() > 0;
         }
+    } catch (Exception ignored) {}
+    return false;
+}
+
+// Cached like isTrackedVehicle: the hull's buoyancy doesn't change mid-drive.
+private VehicleEntity amphibiousCacheVehicle;
+private boolean amphibiousCacheValue;
+
+// Amphibious/floating hulls (boats, or any vehicle with positive buoyancy) are
+// exempt from the water half of the terrain sensor — cliffs and lava still apply.
+private boolean isAmphibiousVehicle() {
+    if (this.vehicle != this.amphibiousCacheVehicle) {
+        this.amphibiousCacheVehicle = this.vehicle;
+        this.amphibiousCacheValue = computeIsAmphibiousVehicle();
+    }
+    return this.amphibiousCacheValue;
+}
+
+private boolean computeIsAmphibiousVehicle() {
+    try {
+        EngineInfo engine = this.vehicle.getEngineInfo();
+        if (engine == null) return false;
+        // Any positive buoyancy means it floats rather than sinking; Ship engines are
+        // amphibious by construction. On any error, default to non-amphibious so the
+        // safe behavior (avoid water) is the fallback.
+        return engine instanceof EngineInfo.Ship || engine.getBuoyancy() > 0.0;
     } catch (Exception ignored) {}
     return false;
 }

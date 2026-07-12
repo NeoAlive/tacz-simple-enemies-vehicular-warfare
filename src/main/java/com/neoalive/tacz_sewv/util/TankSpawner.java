@@ -33,7 +33,7 @@ public final class TankSpawner {
     public enum TankFaction {
         RU, US, PMC;
 
-        List<? extends String> vehiclePool() {
+        public List<? extends String> vehiclePool() {
             return switch (this) {
                 case RU -> SewvConfig.RU_VEHICLE_POOL.get();
                 case US -> SewvConfig.US_VEHICLE_POOL.get();
@@ -43,17 +43,30 @@ public final class TankSpawner {
     }
 
     /**
-     * Spawns a faction vehicle (picked at random from the faction's configured pool)
-     * with a full crew of the matching faction: one unit per seat the vehicle
-     * exposes, mounted in seat order (seat 0 becomes the driver).
-     * For PMC, {@code ownerId} (when non-null) makes the crew commandable by that player.
-     * Returns the spawned vehicle, or null if it couldn't be spawned (no space,
-     * no valid vehicle id in the pool, or SW not loaded).
+     * Spawns a faction vehicle picked at random from the faction's configured pool.
+     * Equivalent to {@link #spawnTankWithCrew(ServerLevel, BlockPos, TankFaction, UUID, String)}
+     * with no specific vehicle requested.
      */
     @Nullable
     public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos pos, TankFaction faction, @Nullable UUID ownerId) {
-        EntityType<?> tankType = pickVehicleType(faction.vehiclePool(), level.random);
-        if (tankType == null) return null; // nothing valid configured — bail safely
+        return spawnTankWithCrew(level, pos, faction, ownerId, null);
+    }
+
+    /**
+     * Spawns a faction vehicle with a full crew of the matching faction: one unit per
+     * seat the vehicle exposes, mounted in seat order (seat 0 becomes the driver).
+     * When {@code vehicleId} is non-null it must be one of the faction's configured
+     * pool entries and that exact vehicle is used; when null, one is picked at random
+     * from the pool. For PMC, {@code ownerId} (when non-null) makes the crew
+     * commandable by that player. Returns the spawned vehicle, or null if it couldn't
+     * be spawned (no space, the requested id isn't a valid pooled SW vehicle, the pool
+     * is empty, or SW isn't loaded).
+     */
+    @Nullable
+    public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos pos, TankFaction faction,
+                                                  @Nullable UUID ownerId, @Nullable String vehicleId) {
+        EntityType<?> tankType = selectVehicleType(faction.vehiclePool(), vehicleId, level.random);
+        if (tankType == null) return null; // nothing valid configured/requested — bail safely
 
         if (!hasSpace(level, pos, tankType)) return null;
 
@@ -114,6 +127,19 @@ public final class TankSpawner {
                 return unit;
             }
         }
+    }
+
+    // Resolve the vehicle to spawn: a specific pooled id when one is requested,
+    // otherwise a random pick from the pool. A requested id that isn't actually in
+    // the configured pool is rejected (returns null) — the command must only spawn
+    // what the config allows.
+    @Nullable
+    private static EntityType<?> selectVehicleType(List<? extends String> pool, @Nullable String requestedId, RandomSource random) {
+        if (requestedId == null) return pickVehicleType(pool, random);
+        if (!pool.contains(requestedId)) return null; // not a configured pool entry
+        ResourceLocation rl = ResourceLocation.tryParse(requestedId);
+        if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) return null;
+        return ForgeRegistries.ENTITY_TYPES.getValue(rl);
     }
 
     // Random pick among the pool entries that resolve to a real entity type.

@@ -14,5 +14,6 @@
   "message.tacz_sewv.dismount.none": "No units to dismount.",
 
   "command.tacz_sewv.spawn.success": "Spawned %s vehicle at %s",
-  "command.tacz_sewv.spawn.fail": "Couldn't spawn the vehicle — no space here, no valid vehicle id in the config pool, or SuperbWarfare isn't loaded."
+  "command.tacz_sewv.spawn.fail": "Couldn't spawn the vehicle — no space here, no valid vehicle id in the config pool, or SuperbWarfare isn't loaded.",
+  "command.tacz_sewv.spawn.not_in_pool": "\"%s\" is not in the %s vehicle pool — add it to the config or pick one of the pool's ids."
 }

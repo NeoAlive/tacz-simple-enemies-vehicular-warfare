@@ -31,6 +31,11 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TARGET_REQUIRE_LOS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_ALLY_ASSIST_RANGE;
 
+    // Terrain avoidance (look-ahead sensor while driving)
+    public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_LOOKAHEAD_DISTANCE;
+    public static final ForgeConfigSpec.IntValue VEHICLE_MAX_SAFE_DROP;
+
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.BooleanValue SHOW_ORDER_FEEDBACK;
@@ -115,6 +120,24 @@ public class SewvConfig {
                          "and drives to support it, stopping once inside the ally's comfortable ring. 0 disables it.",
                          "The check runs on the vehicleTargetScanIntervalTicks cadence, so it shares that perf knob.")
                 .defineInRange("vehicleAllyAssistRange", 64.0, 0.0, 256.0);
+
+        VEHICLE_TERRAIN_AVOIDANCE = builder
+                .comment("Look ahead while driving and steer AI vehicles around water, deep drops (ravines/cliffs)",
+                         "and lava instead of ploughing straight into them. Disabling restores the old behavior",
+                         "of driving in a straight line at the destination.")
+                .define("vehicleTerrainAvoidance", true);
+
+        VEHICLE_LOOKAHEAD_DISTANCE = builder
+                .comment("How far ahead (in blocks) the terrain sensor probes for hazards.",
+                         "This is the performance knob: shorter = cheaper but reacts later (may clip a hazard at speed),",
+                         "longer = earlier, wider avoidance at more block lookups per driving tick.")
+                .defineInRange("vehicleLookaheadDistance", 5.0, 1.0, 16.0);
+
+        VEHICLE_MAX_SAFE_DROP = builder
+                .comment("Vertical drop (in blocks) an AI vehicle will still drive down. Drops deeper than this are",
+                         "treated as a cliff and avoided. Matches the pathfinder's fall tolerance (vanilla default 3),",
+                         "so ordinary small step-downs are not mistaken for ravines.")
+                .defineInRange("vehicleMaxSafeDrop", 3, 1, 16);
 
         builder.pop();
 

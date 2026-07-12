@@ -69,18 +69,21 @@ public class SewvConfig {
 
         RU_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids RU crews can spawn with (e.g. \"superbwarfare:t_90a\").",
-                         "List several to have one picked at random per spawn.")
-                .defineList("ruVehiclePool", List.of("superbwarfare:t_90a"), SewvConfig::isValidVehicleId);
+                         "List several to have one picked at random per spawn. Helicopters are allowed too",
+                         "(e.g. \"superbwarfare:mi_28\")")
+                .defineList("ruVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:bmp_2", "superbwarfare:mi_28"), SewvConfig::isValidVehicleId);
 
         US_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids US crews can spawn with (e.g. \"superbwarfare:m_1a_2\").",
-                         "List several to have one picked at random per spawn.")
-                .defineList("usVehiclePool", List.of("superbwarfare:m_1a_2"), SewvConfig::isValidVehicleId);
+                         "List several to have one picked at random per spawn. Helicopters are allowed too",
+                         "(e.g. \"superbwarfare:ah_6\")")
+                .defineList("usVehiclePool", List.of("superbwarfare:m_1a_2", "superbwarfare:bradley", "superbwarfare:ah_6"), SewvConfig::isValidVehicleId);
 
         PMC_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids for /sewv spawn pmctank (player-commandable crew).",
-                         "List several to have one picked at random per spawn.")
-                .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a"), SewvConfig::isValidVehicleId);
+                         "List several to have one picked at random per spawn. Helicopters are allowed too",
+                         "(e.g. \"superbwarfare:ah_6\")")
+                .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:ah_6"), SewvConfig::isValidVehicleId);
 
         builder.pop();
 
@@ -103,13 +106,13 @@ public class SewvConfig {
                 .comment("Horizontal radius (in blocks) of the cylindrical target scan used by mounted AI crews.",
                          "Replaces the vanilla follow-range scan, which is far too short for vehicle engagement ranges.",
                          "Larger = crews spot enemies farther out, but each scan touches more of the world (perf cost).")
-                .defineInRange("vehicleTargetScanRadius", 48.0, 8.0, 128.0);
+                .defineInRange("vehicleTargetScanRadius", 128.0, 8.0, 128.0);
 
         VEHICLE_TARGET_SCAN_HEIGHT = builder
                 .comment("Total height (in blocks) of the target-scan cylinder, centered on the vehicle.",
                          "Keeping it flat is the cheap-and-effective shape for ground vehicles: wide reach without",
                          "paying to scan sky and caves. Raise it if enemies on tall cliffs should be engaged.")
-                .defineInRange("vehicleTargetScanHeight", 24.0, 4.0, 128.0);
+                .defineInRange("vehicleTargetScanHeight", 128.0, 4.0, 128.0);
 
         VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder
                 .comment("Ticks between target scans per crew member (20 = 1 second).",
@@ -125,7 +128,7 @@ public class SewvConfig {
                 .comment("Range (in blocks) within which an idle AI vehicle crew notices an allied vehicle in combat",
                          "and drives to support it, stopping once inside the ally's comfortable ring. 0 disables it.",
                          "The check runs on the vehicleTargetScanIntervalTicks cadence, so it shares that perf knob.")
-                .defineInRange("vehicleAllyAssistRange", 64.0, 0.0, 256.0);
+                .defineInRange("vehicleAllyAssistRange", 256.0, 0.0, 256.0);
 
         VEHICLE_TERRAIN_AVOIDANCE = builder
                 .comment("Look ahead while driving and steer AI vehicles around water, deep drops (ravines/cliffs)",
@@ -143,7 +146,7 @@ public class SewvConfig {
                 .comment("Vertical drop (in blocks) an AI vehicle will still drive down. Drops deeper than this are",
                          "treated as a cliff and avoided. Matches the pathfinder's fall tolerance (vanilla default 3),",
                          "so ordinary small step-downs are not mistaken for ravines.")
-                .defineInRange("vehicleMaxSafeDrop", 3, 1, 16);
+                .defineInRange("vehicleMaxSafeDrop", 16, 1, 16);
 
         builder.pop();
 

@@ -56,6 +56,9 @@ public class PacketHelicopterCommand {
             int ordered = 0;
             for (int unitId : this.unitIds) {
                 Entity e = player.level().getEntity(unitId);
+                // Intentionally PMC-only: RU/US crews also implement IHelicopterPilot,
+                // but they are hostile and unowned — they fly autonomously (TankSpawner
+                // issues their takeoff on spawn) and take no player flight orders.
                 if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
                     IHelicopterPilot pilot = (IHelicopterPilot) pmc;
                     pilot.sewv$setHeliCommand(this.command);

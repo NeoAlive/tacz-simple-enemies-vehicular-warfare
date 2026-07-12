@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.util;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -101,6 +103,17 @@ public final class TankSpawner {
                 crew.discard();
                 break;
             }
+        }
+
+        // Helicopters spawn on the ground, so order the pilot (seat 0) to take off:
+        // the crew climbs straight up to cruise altitude before transiting, rather
+        // than skimming terrain toward its first objective. Every crew type now
+        // implements IHelicopterPilot, so this drives RU/US autonomous crews the
+        // same as owned PMC ones; ground vehicles ignore it (the goal only reads
+        // the command while mounted in a helicopter).
+        if (tank.getEngineInfo() instanceof EngineInfo.Helicopter
+                && tank.getFirstPassenger() instanceof IHelicopterPilot pilot) {
+            pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_TAKEOFF);
         }
 
         return tank;

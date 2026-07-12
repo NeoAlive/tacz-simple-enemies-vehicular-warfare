@@ -94,10 +94,12 @@ public class DriveHelicopterGoal extends Goal {
     // for targets above the flight level.
     private static final float MAX_COMBAT_DIVE_DEG = 60.0F;
     private static final float MAX_CLIMB_AIM_DEG = 15.0F;
-    // Aiming runs under hover mode (drift damped, auto-level active), which scales
-    // pitch authority to 0.2× — the aim sticks are proportionally stronger.
-    private static final double AIM_STICK_PER_DEG = 2.0;
-    private static final float MAX_AIM_PITCH_STICK = 90.0F;
+    // Aiming flies with FULL control authority (no hover mode — its 0.2× pitch
+    // scaling and auto-level are what kept the nose level instead of on target)
+    // and drives both axes together through mouseInput, like a player tracking
+    // a target with the mouse.
+    private static final double AIM_STICK_PER_DEG = 1.0;
+    private static final float MAX_AIM_PITCH_STICK = 30.0F;
     private static final float MAX_AIM_YAW_STICK = 40.0F;
 
     // --- Arrival ---
@@ -260,36 +262,37 @@ public class DriveHelicopterGoal extends Goal {
         aimAtTarget(target, horizDist);
     }
 
-    // Stationary aim platform: hover mode damps the drift the aim tilt causes and
-    // auto-levels roll, the collective holds the flight level, and the sticks put
-    // the nose on the target — yaw to its bearing, pitch to its depression angle.
+    // Aim platform: two-axis mouse aim that puts the NOSE on the target entity —
+    // yaw to its bearing and pitch to its depression angle SIMULTANEOUSLY, driven
+    // through mouseInput like a player tracking with the mouse. No hover mode here:
+    // its 0.2× pitch scaling plus auto-level meant the hull only ever aligned in
+    // yaw while the nose stayed level — guns never bore on anything below. The
+    // forward drift the aim tilt causes is accepted; the BREAK_RANGE backout in
+    // combatTick opens the distance again, and the collective (fed every tick)
+    // compensates the lift lost to the tilt.
     private void aimAtTarget(LivingEntity target, double horizDist) {
         applyCollective(flightLevel());
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
-        this.vehicle.setHoverMode(true);
+        this.vehicle.setHoverMode(false);
 
         Vec3 dir = new Vec3(target.getX() - this.vehicle.getX(), 0, target.getZ() - this.vehicle.getZ());
         if (dir.lengthSqr() > 1.0E-6) dir = dir.normalize();
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double yawErrDeg = Math.toDegrees(getAngleBetween(forward, dir));
-        // Hover mode halves yaw authority — the aim yaw stick is stronger for it.
-        this.vehicle.setMouseMoveSpeedX(
-                (float) Mth.clamp(-YAW_STICK_PER_DEG * 2.0 * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK));
 
         // Depression to the target's center (positive = below us = nose down, the
-        // same sign as xRot). Only pitch over once roughly on bearing.
+        // same sign as xRot). Tracked regardless of yaw error — both axes converge
+        // together instead of pitch waiting for yaw.
         double targetCenterY = target.getY() + target.getBbHeight() * 0.5;
         double depressionDeg = Math.toDegrees(Math.atan2(this.vehicle.getY() - targetCenterY, horizDist));
-        float aimAttitude = Math.abs(yawErrDeg) < ALIGN_THRESHOLD_DEG
-                ? (float) Mth.clamp(depressionDeg, -MAX_CLIMB_AIM_DEG, MAX_COMBAT_DIVE_DEG)
-                : 0.0F;
+        float aimAttitude = (float) Mth.clamp(depressionDeg, -MAX_CLIMB_AIM_DEG, MAX_COMBAT_DIVE_DEG);
         float attitudeErr = aimAttitude - this.vehicle.getXRot();
-        // Hover mode scales pitch authority to 0.2× and auto-levels against us, so
-        // the aim stick runs at mouse-flick magnitudes.
-        this.vehicle.setMouseMoveSpeedY(
-                (float) Mth.clamp(attitudeErr * AIM_STICK_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK));
+
+        float mouseX = (float) Mth.clamp(-YAW_STICK_PER_DEG * 2.0 * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK);
+        float mouseY = (float) Mth.clamp(attitudeErr * AIM_STICK_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK);
+        this.vehicle.mouseInput(mouseX, mouseY);
     }
 
     // Land on the chosen pad: fly over it at a safe level, then descend straight

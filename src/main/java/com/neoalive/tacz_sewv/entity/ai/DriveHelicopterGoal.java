@@ -106,6 +106,12 @@ public class DriveHelicopterGoal extends Goal {
     private static final double ARRIVE_RADIUS = 4.0;
     private static final double LAND_OVER_RADIUS = 3.5;
 
+    // --- Self-preservation decoys (flares — cosmetic; the flight profile doesn't
+    // change). Same per-episode coin flip as the ground goal's smoke screen, but
+    // helicopters flare earlier: from half health down, whenever airborne. ---
+    private static final float DECOY_HEALTH_FRACTION = 0.5F;
+    private static final float PRESERVE_DECOY_CHANCE = 0.5F;
+
     private final AbstractUnit unit;
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
 
@@ -115,6 +121,12 @@ public class DriveHelicopterGoal extends Goal {
     private double flightY = Double.NaN;
     // Temporary extra floor raised by the vertical whisker; decays back down.
     private double avoidFloorY = Double.NaN;
+
+    private int weaponSwitchCooldown = 0;
+    // Decoy episode state (cf. the ground goal's retreat smoke): a gap in
+    // consecutive low-health ticks marks a fresh episode and re-rolls the coin.
+    private long lastDecoyTick = Long.MIN_VALUE;
+    private boolean deployDecoyThisEpisode = false;
 
     private VehicleEntity helicopterCacheVehicle;
     private boolean helicopterCacheValue;
@@ -146,7 +158,12 @@ public class DriveHelicopterGoal extends Goal {
 
     @Override
     public void stop() {
-        if (this.vehicle != null) releaseInputs();
+        if (this.vehicle != null) {
+            releaseInputs();
+            // releaseInputs leaves the decoy latch alone (crash-spin flares must
+            // survive its per-tick calls) — but a crew leaving the seat lets go.
+            this.vehicle.setDecoyInputDown(false);
+        }
         this.vehicle = null;
         this.flightY = Double.NaN;
         this.avoidFloorY = Double.NaN;
@@ -155,6 +172,11 @@ public class DriveHelicopterGoal extends Goal {
 
     @Override
     public void tick() {
+        if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
+        // Before the crash guard on purpose: a burning airframe spiraling in keeps
+        // popping flares all the way down.
+        updateDecoy();
+
         // Sub-10% health: the engine flies it into the ground on its own. Let go.
         float max = this.vehicle.getMaxHealth();
         if (max > 0.0F && this.vehicle.getHealth() < max * CRASH_HEALTH_FRACTION) {
@@ -246,6 +268,15 @@ public class DriveHelicopterGoal extends Goal {
         double dz = target.getZ() - this.vehicle.getZ();
         double horizDist = Math.sqrt(dx * dx + dz * dz);
         double engage = SewvConfig.HELI_ENGAGE_RADIUS.get();
+
+        // Same weapon doctrine as the ground crews (shared via VehicleWeapons):
+        // category picks the slot family, range picks between them, and the switch
+        // cooldown stops cannon/MG flip-flopping.
+        if (this.weaponSwitchCooldown <= 0) {
+            VehicleWeapons.selectWeaponForTarget(this.vehicle, this.vehicle.getSeatIndex(this.unit),
+                    VehicleWeapons.classifyTarget(target), horizDist > engage + ENGAGE_DEADBAND);
+            this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
+        }
 
         if (horizDist > engage + ENGAGE_DEADBAND) {
             flyToward(target.getX(), target.getZ(),
@@ -492,6 +523,30 @@ public class DriveHelicopterGoal extends Goal {
         float attitudeErr = targetAttitudeDeg - this.vehicle.getXRot();
         this.vehicle.setMouseMoveSpeedY(
                 (float) Mth.clamp(attitudeErr * PITCH_STICK_PER_DEG, -MAX_PITCH_STICK, MAX_PITCH_STICK));
+    }
+
+    // Cosmetic self-preservation flares (cf. the ground goal's retreat smoke, which
+    // this deliberately leaves untouched): from half health down, an airborne hull
+    // holds the decoy input — the launcher's own ready/reload gating turns that
+    // into a volley per reload. The coin flip is rolled once per episode (a gap in
+    // consecutive low-health ticks = a fresh episode), so about half of damaged
+    // airframes flare and half don't. Flight behavior is not altered here.
+    private void updateDecoy() {
+        float max = this.vehicle.getMaxHealth();
+        boolean low = max > 0.0F && this.vehicle.getHealth() <= max * DECOY_HEALTH_FRACTION;
+        if (!low || this.vehicle.onGround()) {
+            this.vehicle.setDecoyInputDown(false); // unlatch once healed/repaired or parked
+            return;
+        }
+        long now = this.unit.level().getGameTime();
+        if (now - this.lastDecoyTick > 1) {
+            this.deployDecoyThisEpisode = this.unit.getRandom().nextFloat() < PRESERVE_DECOY_CHANCE;
+        }
+        this.lastDecoyTick = now;
+
+        if (this.deployDecoyThisEpisode && this.vehicle.hasDecoy()) {
+            this.vehicle.setDecoyInputDown(true);
+        }
     }
 
     private void releaseInputs() {

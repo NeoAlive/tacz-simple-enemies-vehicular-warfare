@@ -1,9 +1,9 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
-import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
@@ -12,8 +12,6 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.minecraft.world.level.pathfinder.PathFinder;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.PathNavigationRegion;
@@ -46,10 +44,6 @@ public class DriveVehicleGoal extends Goal {
     private static final float PRESERVE_HEALTH_FRACTION = 0.25F; // retreat below 1/4 health
     private static final double PRESERVE_RETREAT_MARGIN = 8.0;   // fall back this far BEYOND the ring
     private static final float PRESERVE_SMOKE_CHANCE = 0.5F;     // coin-flip, per retreat, whether to screen with smoke
-    private static final int WEAPON_CANNON = 0;
-    private static final int WEAPON_MG = 1;
-    private static final int WEAPON_SPECIAL = 2; // TOW / heavy anti-vehicle ordnance
-    private static final int WEAPON_COUNT = 3;
 
     // Pathfinding throttles, A* over the vehicle's block volume is the most
     // expensive thing this goal does, so a still-valid path is reused instead
@@ -152,7 +146,7 @@ public void tick() {
 
     if (isCombat) {
         LivingEntity target = this.unit.getTarget();
-        TargetCategory category = classifyTarget(target);
+        TargetCategory category = VehicleWeapons.classifyTarget(target);
         boolean isVehicleTarget = category == TargetCategory.VEHICLE;
 
         double dist = Math.sqrt(distanceSq); // distance to REAL target
@@ -646,56 +640,12 @@ private boolean isHelicopter() {
         this.vehicle.setRightInputDown(false);
     }
 
-    private enum TargetCategory { VEHICLE, MONSTER, PMC_UNIT }
-
-    private TargetCategory classifyTarget(LivingEntity target) {
-        // A VehicleEntity isn't a LivingEntity, so it can never be the target itself
-        // the AI targets the crew riding inside; armor makes the MG useless against them.
-        if (target.getVehicle() instanceof VehicleEntity) return TargetCategory.VEHICLE;
-        if (target instanceof RUunitEntity || target instanceof USunitEntity) return TargetCategory.PMC_UNIT;
-        return TargetCategory.MONSTER; // vanilla hostiles + fallback default
-    }
-
-    // Weighted pick: each category excludes the weapon(s) that can't/shouldn't
-    // engage it, then prefers one of what's left based on range.
+    // Doctrine itself (classification, weights, slot guard) is shared with the
+    // flight goal via VehicleWeapons; only the switch cooldown lives here.
     private void selectWeaponForTarget(int seatIndex, TargetCategory category, boolean tooFar) {
-        double[] weight = new double[WEAPON_COUNT];
-
-        switch (category) {
-            case VEHICLE:
-                weight[WEAPON_MG] = Double.NEGATIVE_INFINITY; // small arms can't hurt armor
-                weight[tooFar ? WEAPON_SPECIAL : WEAPON_CANNON] = 1.0;
-                break;
-            case MONSTER:
-            case PMC_UNIT: // same doctrine as monsters, don't burn heavy ordnance on infantry
-                weight[WEAPON_SPECIAL] = Double.NEGATIVE_INFINITY;
-                weight[tooFar ? WEAPON_CANNON : WEAPON_MG] = 1.0;
-                break;
-        }
-
-        // Not every vehicle has a 3rd weapon slot, setWeaponIndex() doesn't
-        // bounds-check, so an invalid index silently leaves the seat unarmed.
-        SeatInfo seat = this.vehicle.getSeat(seatIndex);
-        if (seat == null || seat.weapons().size() <= WEAPON_SPECIAL) {
-            weight[WEAPON_SPECIAL] = Double.NEGATIVE_INFINITY;
-        }
-
-        selectWeapon(seatIndex, argmax(weight));
-    }
-
-    private static int argmax(double[] weight) {
-        int best = 0;
-        for (int i = 1; i < weight.length; i++) {
-            if (weight[i] > weight[best]) best = i;
-        }
-        return best;
-    }
-
-    private void selectWeapon(int seatIndex, int weaponIndex) {
-    if (seatIndex < 0) return;
-    if (this.weaponSwitchCooldown > 0) return;
-    this.vehicle.setWeaponIndex(seatIndex, weaponIndex);
-    this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
+        if (seatIndex < 0 || this.weaponSwitchCooldown > 0) return;
+        VehicleWeapons.selectWeaponForTarget(this.vehicle, seatIndex, category, tooFar);
+        this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
     }
 
     // Mutual support scanner (idle crew reinforces an allied crew in combat), shared

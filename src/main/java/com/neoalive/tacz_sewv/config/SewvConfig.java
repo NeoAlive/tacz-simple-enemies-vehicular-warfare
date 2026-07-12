@@ -120,8 +120,10 @@ public class SewvConfig {
                 .defineInRange("vehicleTargetScanIntervalTicks", 20, 1, 200);
 
         VEHICLE_TARGET_REQUIRE_LOS = builder
-                .comment("Require line of sight before a mounted crew locks a scanned target.",
-                         "Disabling skips the visibility raycasts (cheaper) but lets crews acquire enemies through cover.")
+                .comment("Require line of sight for mounted AI crews: a scanned target is only locked when visible,",
+                         "an existing lock is dropped after a few seconds without visibility, and the guns hold fire",
+                         "while terrain blocks the muzzle-to-target line (whatever set the target).",
+                         "Disabling skips all these raycasts (cheaper) but lets crews acquire and shoot through cover.")
                 .define("vehicleTargetRequireLineOfSight", true);
 
         VEHICLE_ALLY_ASSIST_RANGE = builder

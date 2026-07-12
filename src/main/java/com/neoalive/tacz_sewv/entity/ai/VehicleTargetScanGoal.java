@@ -39,10 +39,18 @@ public class VehicleTargetScanGoal extends Goal {
     // maneuvering along the cylinder's edge doesn't flicker in and out of lock.
     private static final double DROP_MULT = 1.5;
 
+    // A lock whose target breaks line of sight is held through a short grace period
+    // (aim stays on the corner it vanished behind) and then dropped, so the crew
+    // rescans for someone it can actually shoot instead of staring at a wall.
+    // Firing during the grace is separately suppressed in MixinVehicleFireCooldown,
+    // so nothing leaks through the wall while the lock lingers.
+    private static final int LOS_GRACE_TICKS = 60;
+
     private final AbstractUnit unit;
     private VehicleEntity vehicle;
     private LivingEntity pendingTarget;
     private int scanCooldown;
+    private int ticksWithoutLos;
 
     public VehicleTargetScanGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -74,6 +82,7 @@ public class VehicleTargetScanGoal extends Goal {
     public void start() {
         this.unit.setTarget(this.pendingTarget);
         this.pendingTarget = null;
+        this.ticksWithoutLos = 0;
     }
 
     @Override
@@ -83,6 +92,17 @@ public class VehicleTargetScanGoal extends Goal {
 
         LivingEntity target = this.unit.getTarget();
         if (target == null || !target.isAlive() || !isValidTarget(this.vehicle, target)) return false;
+
+        // LOS is re-checked for the whole life of the lock, not just at acquisition —
+        // otherwise a target stepping behind a wall stays locked forever. Sensing
+        // caches the raycast per tick, so this costs one clip per crew per tick.
+        if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()) {
+            if (this.unit.getSensing().hasLineOfSight(target)) {
+                this.ticksWithoutLos = 0;
+            } else if (++this.ticksWithoutLos > LOS_GRACE_TICKS) {
+                return false; // hidden too long — release the lock and rescan
+            }
+        }
 
         double dropRadius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get() * DROP_MULT;
         double dropHalfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0 * DROP_MULT;
@@ -101,6 +121,7 @@ public class VehicleTargetScanGoal extends Goal {
         this.unit.setTarget(null);
         this.vehicle = null;
         this.pendingTarget = null;
+        this.ticksWithoutLos = 0;
     }
 
     // Nearest valid enemy inside the cylinder: AABB query for the bounding box,

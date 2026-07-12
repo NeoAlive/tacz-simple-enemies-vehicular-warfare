@@ -38,7 +38,7 @@ public class SewvConfig {
 
     // Helicopter/flight AI
     public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_ALTITUDE;
-    public static final ForgeConfigSpec.DoubleValue HELI_ORBIT_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HELI_ALT_DEADBAND;
     public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_SPEED;
 
@@ -150,15 +150,16 @@ public class SewvConfig {
         builder.push("flight_ai");
 
         HELI_CRUISE_ALTITUDE = builder
-                .comment("Height (in blocks) above the terrain surface an AI helicopter climbs to and holds",
-                         "while flying to a destination or orbiting a target. Higher = safer terrain clearance,",
-                         "but a bigger climb before it can move out.")
-                .defineInRange("heliCruiseAltitude", 20.0, 6.0, 64.0);
+                .comment("Flight level (in blocks) above the TAKEOFF ORIGIN that an AI helicopter climbs to",
+                         "and then holds as a consistent Y level for the whole flight. Constrained to 30-50",
+                         "so the aircraft always clears trees/buildings but stays in engagement reach.")
+                .defineInRange("heliCruiseAltitude", 35.0, 30.0, 50.0);
 
-        HELI_ORBIT_RADIUS = builder
-                .comment("Horizontal standoff (in blocks) at which an AI helicopter circles a combat target",
-                         "instead of flying onto it, keeping its guns on the target while staying mobile.")
-                .defineInRange("heliOrbitRadius", 24.0, 8.0, 96.0);
+        HELI_ENGAGE_RADIUS = builder
+                .comment("Horizontal standoff (in blocks) an AI helicopter holds from a combat target while",
+                         "aiming: beyond it the aircraft closes in, inside it the aircraft holds and pitches",
+                         "its nose down onto the target so its weapons bear.")
+                .defineInRange("heliEngageRadius", 28.0, 12.0, 64.0);
 
         HELI_ALT_DEADBAND = builder
                 .comment("Altitude-hold tolerance (in blocks). The helicopter only applies climb/descend",

@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -16,27 +17,34 @@ import org.joml.Vector3f;
 import java.util.EnumSet;
 
 /**
- * Autopilot for SuperbWarfare helicopters (and, incidentally, fixed-wing — both
- * report {@link EngineInfo.Helicopter}). It takes off, flies to a destination in
- * 3D with active braking so it settles instead of overshooting, orbits a combat
- * target at standoff, lands on command, and hovers in place when idle. The
- * companion {@link DriveVehicleGoal} declines helicopters, so exactly one of the
- * two drives any given hull.
+ * Autopilot for SuperbWarfare helicopters. Flight model, deliberately simple:
  *
- * <p><b>Control model (from SBW's {@code helicopterEngine}).</b> A helicopter's
- * {@code forwardInputDown} is the <i>collective</i> — it builds rotor power to
- * climb; {@code downInputDown} descends. Horizontal translation comes from
- * <i>pitch</i>: {@code mouseMoveSpeedY} noses the hull over so its lift vector
- * tilts and drags it that way (positive = nose-down = forward). Heading comes from
- * {@code mouseMoveSpeedX} (yaw). The analog inputs decay ×0.95 each tick and every
- * boolean input is force-cleared while there is no controlling passenger, so
- * <b>every input is re-asserted every tick.</b> The physics only responds while
- * airborne, with energy, and above ~10% health.
+ * <ul>
+ * <li><b>Consistent flight level.</b> Takeoff (L) captures a flight Y from the
+ *     takeoff origin's ground + the configured cruise altitude (clamped 30-50) and
+ *     the aircraft holds THAT level everywhere — idle hover, transits, combat. No
+ *     terrain-following; obstacles are handled by the whiskers instead.</li>
+ * <li><b>Whisker avoidance.</b> Every lateral leg probes actual blocks at hull
+ *     height along the desired bearing and fans out to alternate bearings when
+ *     blocked (yaw avoidance, same pattern as DriveVehicleGoal's ground whiskers);
+ *     a fully-blocked forward cone answers with a climb (vertical avoidance).</li>
+ * <li><b>Combat = aim platform, no revolution.</b> Close to the engage radius,
+ *     hold there, and pitch the nose down onto the target — SBW's AI fire loop
+ *     shoots a fixed-gun seat only when the weapon bears within 4°, and pitching
+ *     is what brings it to bear. Aim-pitching happens EXCLUSIVELY in combat;
+ *     everywhere else the hull flies gentle, bounded attitudes.</li>
+ * <li><b>FOLLOW_COMMANDER</b> parks the aircraft over the commander's X/Z at the
+ *     nearest level above them (never below flight level, never closer than a
+ *     fixed clearance over their head).</li>
+ * <li><b>Landing (CTRL+L)</b> flies to the designated block, descends on top of
+ *     it, and enters the sticky LANDED state until a new takeoff.</li>
+ * </ul>
  *
- * <p><b>Command modes</b> (player-issued via the L / CTRL+L keybinds, carried on
- * {@link IHelicopterPilot}): LANDING overrides everything and sets the hull down on
- * the chosen block; TAKEOFF climbs to cruise altitude then clears itself; NONE
- * follows the SEM order queue (transit / orbit / hover).
+ * <p>Control plumbing (from SBW's {@code helicopterEngine}): {@code forwardInput}
+ * is the collective (climb), {@code downInput} descends, {@code mouseMoveSpeedY}
+ * pitches (positive = nose down), {@code mouseMoveSpeedX} yaws (positive = yaw
+ * increases). Analog sticks decay ×0.95/tick and are raw mouse-delta scale (tens,
+ * not ±1), so every input is re-asserted every tick at realistic magnitudes.
  */
 public class DriveHelicopterGoal extends Goal {
 
@@ -44,95 +52,73 @@ public class DriveHelicopterGoal extends Goal {
     // nothing the pilot inputs matters, so we stop fighting it.
     private static final float CRASH_HEALTH_FRACTION = 0.10F;
 
-    // Stick magnitudes. SBW's mouseMoveSpeedX/Y are raw mouse deltas — a player's
-    // flick is tens of units, and the physics scales them way down (yaw rate =
-    // 2.0 * mouseX * propellerRot(≈0.055) deg/tick; pitch rate = 1.5 * mouseY * prop).
-    // Sticks clamped to ±1 (the first attempt) give ~0.1°/tick — the hull can't
-    // meaningfully steer and momentum carries it off ("strays away"). These gains
-    // produce a few degrees per tick at saturation, matching brisk player input.
-    private static final double YAW_STICK_PER_DEG = 0.5;  // mouseX per degree of heading error
-    private static final float MAX_YAW_STICK = 20.0F;     // ≈2.2°/tick yaw at saturation
-    // Only pitch over toward the steer point once roughly pointed at it; while the
-    // nose is still swinging, hold the hull level so it doesn't accelerate off-line.
+    // --- Transit sticks (gentle, bounded — non-combat flight never dives) ---
+    private static final double YAW_STICK_PER_DEG = 0.5;
+    private static final float MAX_YAW_STICK = 20.0F;      // ≈2.2°/tick yaw at saturation
     private static final double ALIGN_THRESHOLD_DEG = 35.0;
-    // Outer loop: commanded nose-down attitude per (block/tick) of closing-speed
-    // error, capped. Inner loop: pitch stick per degree of attitude error. Driving
-    // ATTITUDE rather than raw stick self-limits the tilt and gives real braking
-    // (nose-UP attitude when closing too fast).
     private static final double PITCH_DEG_PER_SPEED_ERR = 40.0;
-    private static final float MAX_ATTITUDE_DEG = 20.0F;
+    private static final float MAX_ATTITUDE_DEG = 20.0F;   // transit tilt ceiling
     private static final double PITCH_STICK_PER_DEG = 0.8;
     private static final float MAX_PITCH_STICK = 15.0F;
-    // Approach: desired closing speed = min(cruise, distance * APPROACH_GAIN), so the
-    // hull eases to a stop over the last several blocks instead of barrelling through.
+    // Velocity-error guidance: desired closing speed tapers with distance so the
+    // hull brakes onto the point; error behind the nose is answered with nose-up
+    // reverse thrust, which is what kills tangential drift (no circling).
     private static final double APPROACH_GAIN = 0.1;
-    // Below this velocity error (blocks/tick) the hull is flying the profile we asked
-    // for — hold level and just keep the nose on the destination.
     private static final double VEL_ERR_DEADBAND = 0.03;
-    // When the velocity error points more than this far behind the nose, don't swing
-    // the hull around — pitch nose-UP and thrust backward instead. This is what kills
-    // tangential drift (and with it the endless circling around a destination).
     private static final double ERR_BEHIND_DEG = 100.0;
 
-    // Vertical-rate caps that stop the bang-bang collective from hunting up and down:
-    // don't add climb while already rising this fast, nor descend while already sinking.
+    // --- Collective (vertical) ---
     private static final double CLIMB_RATE_CAP = 0.22;
     private static final double DESCEND_RATE_CAP = 0.22;
 
-    // Look-ahead distances (blocks along the velocity vector) for terrain sampling:
-    // cruise altitude tracks the highest ground AHEAD, not just under the hull, so a
-    // hill is climbed before the hull reaches it instead of being flown into.
-    private static final double[] TERRAIN_LOOKAHEAD = {6.0, 12.0, 18.0};
+    // --- Flight level ---
+    // The takeoff-origin offset is the config value hard-clamped to this band.
+    private static final double MIN_FLIGHT_ALT = 30.0;
+    private static final double MAX_FLIGHT_ALT = 50.0;
+    // Never fly a leg below destination + this (e.g. stay above the followed player).
+    private static final double MIN_OVER_DEST = 12.0;
 
-    // Orbit (turreted airframes): steer toward a point this far ahead (radians) along
-    // the standoff circle so the yaw+thrust loop traces a smooth circle, flown at a
-    // target-relative height so the turret's depression stays within its limits.
-    private static final double ORBIT_LEAD_RAD = Math.toRadians(25.0);
-    private static final double ORBIT_HEIGHT_ABOVE_TARGET = 12.0;
+    // --- Whiskers (block avoidance at hull height, cf. DriveVehicleGoal) ---
+    private static final double[] WHISKER_OFFSETS_DEG = {0.0, 25.0, -25.0, 50.0, -50.0, 75.0, -75.0};
+    private static final double WHISKER_DISTANCE = 12.0;
+    // Fully boxed in: pop up this far above the obstacle line and try again. The
+    // avoidance floor decays ~1 block/s afterwards so surplus altitude is given
+    // back gradually (and re-triggers cleanly if the obstacle is tall).
+    private static final double AVOID_CLIMB_STEP = 4.0;
+    private static final double AVOID_FLOOR_DECAY = 0.05;
 
-    // Attack runs (hull-fixed guns): SBW's AI fire loop only shoots when the weapon
-    // bears within 4° of the target, and fixed guns shoot along the NOSE — so combat
-    // dives the nose onto the target until the break range, then extends back out and
-    // turns in again. The dive is aim-only; the collective still enforces a floor.
-    private static final double ATTACK_BREAK_RANGE = 16.0;
-    private static final double ATTACK_REENGAGE_RANGE = 48.0;
-    private static final double ATTACK_HEIGHT_ABOVE_TARGET = 10.0;
-    private static final float MAX_DIVE_DEG = 35.0F;
-    private static final float MAX_CLIMB_AIM_DEG = 10.0F;
+    // --- Combat aim band ---
+    private static final double ENGAGE_DEADBAND = 4.0;
+    private static final double BREAK_RANGE = 14.0;
+    // Aim attitude limits: deep dives allowed (target far below), slight nose-up
+    // for targets above the flight level.
+    private static final float MAX_COMBAT_DIVE_DEG = 60.0F;
+    private static final float MAX_CLIMB_AIM_DEG = 15.0F;
+    // Aiming runs under hover mode (drift damped, auto-level active), which scales
+    // pitch authority to 0.2× — the aim sticks are proportionally stronger.
+    private static final double AIM_STICK_PER_DEG = 2.0;
+    private static final float MAX_AIM_PITCH_STICK = 90.0F;
+    private static final float MAX_AIM_YAW_STICK = 40.0F;
 
-    // Minimum height above terrain in combat profiles, whatever the target-relative
-    // height works out to.
-    private static final double MIN_COMBAT_AGL = 8.0;
-
-    // Horizontal distance at which a plain move is "arrived" and switches to a hover.
+    // --- Arrival ---
     private static final double ARRIVE_RADIUS = 4.0;
-    // Landing: within this horizontal distance of the pad we're over it and descend.
     private static final double LAND_OVER_RADIUS = 3.5;
 
     private final AbstractUnit unit;
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
-    // Fixed per-goal orbit direction so a flight of helicopters doesn't all circle the
-    // same way and pile up on one arc.
-    private final int orbitDir;
 
     private VehicleEntity vehicle;
-    // Altitude to hold while hovering, captured on entry so an idle helicopter neither
-    // sinks nor spontaneously climbs. NaN = not currently hovering.
-    private double hoverTargetY = Double.NaN;
-    // Attack-run phase: true while breaking off and extending back out to re-engage range.
-    private boolean extending = false;
+    // The consistent Y level flown after takeoff. NaN until a takeoff (or first
+    // airborne need) establishes it; cleared on landing/dismount.
+    private double flightY = Double.NaN;
+    // Temporary extra floor raised by the vertical whisker; decays back down.
+    private double avoidFloorY = Double.NaN;
 
     private VehicleEntity helicopterCacheVehicle;
     private boolean helicopterCacheValue;
 
-    // Cached like isHelicopter: whether the hull has a turret decides the combat
-    // profile (orbit lets the turret aim; fixed guns need nose-on attack runs).
-    private VehicleEntity turretCacheVehicle;
-    private boolean turretCacheValue;
-
     public DriveHelicopterGoal(AbstractUnit unit) {
         this.unit = unit;
-        this.orbitDir = unit.getRandom().nextBoolean() ? 1 : -1;
         this.setFlags(EnumSet.noneOf(Flag.class)); // flying doesn't need to lock move/look flags
     }
 
@@ -160,8 +146,8 @@ public class DriveHelicopterGoal extends Goal {
     public void stop() {
         if (this.vehicle != null) releaseInputs();
         this.vehicle = null;
-        this.hoverTargetY = Double.NaN;
-        this.extending = false;
+        this.flightY = Double.NaN;
+        this.avoidFloorY = Double.NaN;
         this.allyAssist.clear();
     }
 
@@ -184,12 +170,10 @@ public class DriveHelicopterGoal extends Goal {
 
         // LANDED is sticky: stay shut down on the ground — no hover, no order-driven
         // flying — until the player issues a new takeoff (L) or landing (CTRL+L).
-        // Without this, a still-active FOLLOW/MOVE order would lift the hull right
-        // back off the instant the landing sequence finished.
         if (command == IHelicopterPilot.HELI_CMD_LANDED) {
             releaseInputs();
             this.vehicle.setHoverMode(false);
-            this.hoverTargetY = Double.NaN;
+            this.flightY = Double.NaN;
             return;
         }
 
@@ -203,150 +187,143 @@ public class DriveHelicopterGoal extends Goal {
             pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE); // nothing to land on — drop the order
         }
 
-        // TAKEOFF: climb to cruise altitude, then clear the order and fall through to
-        // normal behaviour so the crew is immediately ready for orders.
+        // TAKEOFF: capture the flight level from the takeoff origin, climb straight
+        // up to it, then clear the order and fall through to normal duty. On the
+        // ground the origin is the hull's own Y (correct even on rooftops); mid-air
+        // re-anchor off the terrain below instead.
         if (command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
-            double cruiseY = cruiseAltitude();
-            if (this.vehicle.getY() >= cruiseY - SewvConfig.HELI_ALT_DEADBAND.get()) {
+            if (Double.isNaN(this.flightY) || this.vehicle.onGround()) {
+                double originY = this.vehicle.onGround() ? this.vehicle.getY() : surfaceBelow();
+                this.flightY = originY + flightAltitude();
+            }
+            if (this.vehicle.getY() >= this.flightY - SewvConfig.HELI_ALT_DEADBAND.get()) {
                 pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
             } else {
-                climbVertically(cruiseY);
+                climbVertically(this.flightY);
                 return;
             }
         }
 
-        // Combat: profile depends on where the guns are. A turreted airframe circles
-        // the target and lets the turret do the aiming; hull-fixed guns only bear
-        // where the nose points, so those airframes fly nose-on attack runs.
+        // Airborne with no established level (autonomous RU/US crews, world reload):
+        // anchor the flight level off the ground currently below.
+        if (Double.isNaN(this.flightY)) {
+            this.flightY = surfaceBelow() + flightAltitude();
+        }
+
+        // Combat: no revolution — close to the engage ring and become an aim
+        // platform. The ONLY place the nose is pitched onto something.
         LivingEntity combatTarget = this.unit.getTarget();
         if (combatTarget != null) {
-            if (hasTurret()) {
-                orbit(combatTarget);
-            } else {
-                attackRun(combatTarget);
-            }
+            combatTick(combatTarget);
             return;
         }
-        this.extending = false; // out of combat — next fight starts with a fresh run-in
 
         // Order-driven movement (move-to, follow, formation, ally assist) or idle hover.
         BlockPos dest = VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
         if (dest == null) {
-            holdHover();
+            holdHover(flightLevel());
             return;
         }
-        double horizDistSq = horizDistSqTo(dest.getX() + 0.5, dest.getZ() + 0.5);
-        if (horizDistSq <= ARRIVE_RADIUS * ARRIVE_RADIUS) {
-            holdHover(); // arrived — loiter here
+        double dx = dest.getX() + 0.5 - this.vehicle.getX();
+        double dz = dest.getZ() + 0.5 - this.vehicle.getZ();
+        if (dx * dx + dz * dz <= ARRIVE_RADIUS * ARRIVE_RADIUS) {
+            // Arrived — hold overhead. For FOLLOW this is "the nearest level above
+            // the commander": never below flight level, never on top of their head.
+            holdHover(Math.max(flightLevel(), dest.getY() + MIN_OVER_DEST));
         } else {
-            this.hoverTargetY = Double.NaN;
-            flyToward(dest.getX() + 0.5, dest.getZ() + 0.5, cruiseAltitude());
+            flyToward(dest.getX() + 0.5, dest.getZ() + 0.5,
+                    Math.max(flightLevel(), dest.getY() + MIN_OVER_DEST));
         }
     }
 
-    // Circle the target: aim at a point a fixed angle ahead of the hull's current
-    // bearing around it, on the standoff ring. Steering toward a point always slightly
-    // ahead traces a smooth orbit using the same yaw+thrust loop as a straight leg, so
-    // the hull continuously yaws around the target while holding range. Flown at a
-    // height relative to the TARGET (not cruise) to keep the turret's depression
-    // angle shallow enough to actually bear on it.
-    private void orbit(LivingEntity target) {
-        this.hoverTargetY = Double.NaN;
-        double cx = target.getX();
-        double cz = target.getZ();
-        double bearing = Math.atan2(this.vehicle.getZ() - cz, this.vehicle.getX() - cx);
-        double lead = bearing + this.orbitDir * ORBIT_LEAD_RAD;
-        double radius = SewvConfig.HELI_ORBIT_RADIUS.get();
-        double steerX = cx + Math.cos(lead) * radius;
-        double steerZ = cz + Math.sin(lead) * radius;
-        flyToward(steerX, steerZ, combatAltitude(target.getY() + ORBIT_HEIGHT_ABOVE_TARGET));
-    }
-
-    // Attack run for hull-fixed guns: dive the nose onto the target (which is also
-    // what makes SBW's 4°-bearing fire gate open) until the break range, then extend
-    // back out beyond re-engage range and turn in again — a racetrack pattern. The
-    // dive attitude is aim-only; the collective keeps the hull at its combat floor.
-    private void attackRun(LivingEntity target) {
-        this.hoverTargetY = Double.NaN;
-        double tx = target.getX();
-        double tz = target.getZ();
-        double dx = tx - this.vehicle.getX();
-        double dz = tz - this.vehicle.getZ();
+    // Combat: outside the ring close in; inside the break range back out; in the
+    // band, hold position and pitch the nose onto the target so the guns bear
+    // (SBW's AI fire loop shoots once the weapon is within 4° of the target).
+    private void combatTick(LivingEntity target) {
+        double dx = target.getX() - this.vehicle.getX();
+        double dz = target.getZ() - this.vehicle.getZ();
         double horizDist = Math.sqrt(dx * dx + dz * dz);
+        double engage = SewvConfig.HELI_ENGAGE_RADIUS.get();
 
-        if (this.extending) {
-            if (horizDist >= ATTACK_REENGAGE_RANGE) {
-                this.extending = false; // far enough out — wheel around for another pass
-            } else {
-                // Fly the break-off leg away from the target through our own position.
-                BlockPos out = VehicleTargeting.computeStandoffPoint(
-                        this.vehicle, target.blockPosition(), ATTACK_REENGAGE_RANGE + 8.0);
-                flyToward(out.getX() + 0.5, out.getZ() + 0.5,
-                        combatAltitude(target.getY() + ATTACK_HEIGHT_ABOVE_TARGET));
-                return;
-            }
+        if (horizDist > engage + ENGAGE_DEADBAND) {
+            flyToward(target.getX(), target.getZ(),
+                    Math.max(flightLevel(), target.getY() + MIN_OVER_DEST));
+            return;
         }
-        if (horizDist < ATTACK_BREAK_RANGE) {
-            this.extending = true;
-            return; // next tick flies the break-off leg
+        if (horizDist < BREAK_RANGE) {
+            // Aim drift carried us too close — open back out to the ring.
+            BlockPos out = VehicleTargeting.computeStandoffPoint(
+                    this.vehicle, target.blockPosition(), engage);
+            flyToward(out.getX() + 0.5, out.getZ() + 0.5, flightLevel());
+            return;
         }
+        aimAtTarget(target, horizDist);
+    }
 
-        // Run-in: hold the combat floor with the collective, yaw the nose onto the
-        // target's bearing, and command the dive attitude that points the nose at it.
-        applyCollective(combatAltitude(target.getY() + ATTACK_HEIGHT_ABOVE_TARGET));
+    // Stationary aim platform: hover mode damps the drift the aim tilt causes and
+    // auto-levels roll, the collective holds the flight level, and the sticks put
+    // the nose on the target — yaw to its bearing, pitch to its depression angle.
+    private void aimAtTarget(LivingEntity target, double horizDist) {
+        applyCollective(flightLevel());
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
-        this.vehicle.setHoverMode(false);
+        this.vehicle.setHoverMode(true);
 
-        Vec3 dir = new Vec3(dx / horizDist, 0, dz / horizDist);
+        Vec3 dir = new Vec3(target.getX() - this.vehicle.getX(), 0, target.getZ() - this.vehicle.getZ());
+        if (dir.lengthSqr() > 1.0E-6) dir = dir.normalize();
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double yawErrDeg = Math.toDegrees(getAngleBetween(forward, dir));
+        // Hover mode halves yaw authority — the aim yaw stick is stronger for it.
+        this.vehicle.setMouseMoveSpeedX(
+                (float) Mth.clamp(-YAW_STICK_PER_DEG * 2.0 * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK));
 
-        // Depression angle from hull to the target's center (positive = target below
-        // = nose down, matching positive xRot). Only dive once roughly on bearing.
+        // Depression to the target's center (positive = below us = nose down, the
+        // same sign as xRot). Only pitch over once roughly on bearing.
         double targetCenterY = target.getY() + target.getBbHeight() * 0.5;
         double depressionDeg = Math.toDegrees(Math.atan2(this.vehicle.getY() - targetCenterY, horizDist));
-        float targetAttitudeDeg = Math.abs(yawErrDeg) < ALIGN_THRESHOLD_DEG
-                ? (float) Mth.clamp(depressionDeg, -MAX_CLIMB_AIM_DEG, MAX_DIVE_DEG)
+        float aimAttitude = Math.abs(yawErrDeg) < ALIGN_THRESHOLD_DEG
+                ? (float) Mth.clamp(depressionDeg, -MAX_CLIMB_AIM_DEG, MAX_COMBAT_DIVE_DEG)
                 : 0.0F;
-        steerNose(forward, dir, targetAttitudeDeg);
+        float attitudeErr = aimAttitude - this.vehicle.getXRot();
+        // Hover mode scales pitch authority to 0.2× and auto-levels against us, so
+        // the aim stick runs at mouse-flick magnitudes.
+        this.vehicle.setMouseMoveSpeedY(
+                (float) Mth.clamp(attitudeErr * AIM_STICK_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK));
     }
 
-    // Combat altitude: the requested target-relative height, but never below the
-    // combat floor above the terrain ahead (hills don't care about the fight).
-    private double combatAltitude(double desiredY) {
-        return Math.max(desiredY, terrainAhead() + MIN_COMBAT_AGL);
-    }
-
-    // Land on the chosen pad: fly over it at cruise altitude, then descend straight
-    // down (hover mode damping the lateral drift) until settled, and clear the order.
+    // Land on the chosen pad: fly over it at a safe level, then descend straight
+    // down (hover mode damping the lateral drift) until settled → sticky LANDED.
     private void doLanding(IHelicopterPilot pilot, BlockPos pad) {
         double px = pad.getX() + 0.5;
         double pz = pad.getZ() + 0.5;
-        double padTopY = pad.getY() + 1.0; // set down on top of the looked-at block
+        double padTopY = pad.getY() + 1.0;
 
-        if (horizDistSqTo(px, pz) > LAND_OVER_RADIUS * LAND_OVER_RADIUS) {
-            // Not over the pad yet — approach it at a safe height.
-            this.hoverTargetY = Double.NaN;
-            flyToward(px, pz, Math.max(cruiseAltitude(), padTopY + SewvConfig.HELI_CRUISE_ALTITUDE.get()));
+        double dx = px - this.vehicle.getX();
+        double dz = pz - this.vehicle.getZ();
+        if (dx * dx + dz * dz > LAND_OVER_RADIUS * LAND_OVER_RADIUS) {
+            // Not over the pad yet — approach at the flight level (or a safe height
+            // above the pad if it sits higher than the flight level).
+            double approachY = Math.max(
+                    Double.isNaN(this.flightY) ? padTopY + flightAltitude() : this.flightY,
+                    padTopY + MIN_OVER_DEST);
+            flyToward(px, pz, approachY);
             return;
         }
 
-        // Over the pad. Touchdown when on the ground or essentially on the block top.
-        // Transition to the sticky LANDED state — the hull stays down until the
-        // player orders a new takeoff, rather than immediately resuming its orders.
+        // Over the pad. Touchdown → sticky LANDED; the hull stays down until a new
+        // takeoff order rather than immediately resuming FOLLOW/MOVE orders.
         if (this.vehicle.onGround() || this.vehicle.getY() <= padTopY + 0.35) {
             releaseInputs();
             this.vehicle.setHoverMode(false);
             pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
             pilot.sewv$setHeliLandPos(null);
-            this.hoverTargetY = Double.NaN;
+            this.flightY = Double.NaN;
+            this.avoidFloorY = Double.NaN;
             return;
         }
 
-        // Controlled vertical descent, hover mode killing sideways drift so it stays
-        // over the pad on the way down.
+        // Controlled vertical descent over the pad.
         this.vehicle.setForwardInputDown(false);
         this.vehicle.setDownInputDown(true);
         this.vehicle.setBackInputDown(false);
@@ -357,55 +334,59 @@ public class DriveHelicopterGoal extends Goal {
         this.vehicle.setHoverMode(true);
     }
 
-    // The one horizontal control primitive: hold altitude with the collective and fly
-    // VELOCITY-ERROR guidance toward the steer point. The desired velocity is a
-    // distance-tapered vector at the point; the controller steers the nose at the
-    // *difference* between that and the actual velocity, so tangential drift gets
-    // actively braked instead of ignored. (Regulating only the closing speed — the
-    // first attempt — leaves sideways velocity untouched, and the hull settles into
-    // an endless circle around the destination at its minimum turn radius.)
+    // The one lateral primitive: whisker-check the bearing, then fly velocity-error
+    // guidance along the clear direction while the collective holds desiredY.
+    // Desired velocity tapers with distance so the hull decelerates onto the point;
+    // steering at the velocity ERROR (not the point) actively brakes sideways drift,
+    // which is what prevents endless circling around a destination.
     private void flyToward(double steerX, double steerZ, double desiredY) {
-        applyCollective(desiredY);
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
-        this.vehicle.setHoverMode(false); // need full control authority while moving
 
         double dx = steerX - this.vehicle.getX();
         double dz = steerZ - this.vehicle.getZ();
         double dist = Math.sqrt(dx * dx + dz * dz);
-        Vec3 dir = dist > 1.0E-4 ? new Vec3(dx / dist, 0, dz / dist) : Vec3.ZERO;
+        Vec3 dirToDest = dist > 1.0E-4 ? new Vec3(dx / dist, 0, dz / dist) : Vec3.ZERO;
+
+        // Whiskers: fly the nearest clear bearing to the desired one. A fully
+        // blocked cone means terrain taller than the flight level dead ahead —
+        // answer vertically: hold and pop above it (the "pitch" whisker).
+        Vec3 travelDir = chooseClearBearing(dirToDest);
+        if (travelDir == null) {
+            this.avoidFloorY = this.vehicle.getY() + AVOID_CLIMB_STEP;
+            holdHover(this.avoidFloorY);
+            return;
+        }
+
+        applyCollective(withAvoidFloor(desiredY));
+        this.vehicle.setHoverMode(false); // full control authority while moving
 
         double desiredSpeed = Math.min(SewvConfig.HELI_CRUISE_SPEED.get(), dist * APPROACH_GAIN);
         Vec3 vel = this.vehicle.getDeltaMovement();
-        double evx = dir.x * desiredSpeed - vel.x;
-        double evz = dir.z * desiredSpeed - vel.z;
+        double evx = travelDir.x * desiredSpeed - vel.x;
+        double evz = travelDir.z * desiredSpeed - vel.z;
         double errMag = Math.sqrt(evx * evx + evz * evz);
 
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
 
-        // Flying the requested profile — keep the nose on the destination and level out.
+        // Flying the requested profile — keep the nose on the way ahead, level out.
         if (errMag < VEL_ERR_DEADBAND) {
-            steerNose(forward, dir, 0.0F);
+            steerNose(forward, travelDir, 0.0F);
             return;
         }
 
         Vec3 errDir = new Vec3(evx / errMag, 0, evz / errMag);
-        // Yaw sign note: positive mouseMoveSpeedX INCREASES yaw, and getAngleBetween
-        // is signed the other way — hence the negation inside steerNose.
         double yawErrDeg = Math.toDegrees(getAngleBetween(forward, errDir));
-
-        // Commanded attitude magnitude from how badly the velocity is off. Attitude
-        // (not raw stick) is the outer loop, so tilt stays bounded on any leg length.
         float attitudeMag = (float) Mth.clamp(errMag * PITCH_DEG_PER_SPEED_ERR, 0.0, MAX_ATTITUDE_DEG);
 
         if (Math.abs(yawErrDeg) <= ERR_BEHIND_DEG) {
-            // Error ahead: nose toward it, pitch DOWN into it once roughly aligned.
+            // Error ahead: nose toward it, gentle pitch into it once roughly aligned.
             steerNose(forward, errDir,
                     Math.abs(yawErrDeg) < ALIGN_THRESHOLD_DEG ? attitudeMag : 0.0F);
         } else {
-            // Error behind the hull (braking / killing tangential drift): keep the
-            // nose where it points and pitch UP to thrust backward — no 180° pirouette.
+            // Error behind the hull (braking / killing sideways drift): keep the nose
+            // where it is and pitch UP to thrust backward — no 180° pirouette.
             Vec3 back = new Vec3(-errDir.x, 0, -errDir.z);
             double backErrDeg = Math.toDegrees(getAngleBetween(forward, back));
             steerNose(forward, back,
@@ -413,9 +394,90 @@ public class DriveHelicopterGoal extends Goal {
         }
     }
 
-    // Inner loops shared by every flight profile: yaw stick proportional to the
-    // heading error onto `aim`, pitch stick closed against the hull's actual xRot
-    // toward the commanded attitude (positive = nose down).
+    // Whisker fan (cf. DriveVehicleGoal.chooseClearBearing): prefer the goal bearing,
+    // fan out to alternating flanks, null when the whole forward cone is blocked.
+    private Vec3 chooseClearBearing(Vec3 desired) {
+        if (desired.lengthSqr() < 1.0E-8) return desired;
+        for (double offDeg : WHISKER_OFFSETS_DEG) {
+            Vec3 cand = rotateY(desired, Math.toRadians(offDeg));
+            if (headingClear(cand, WHISKER_DISTANCE)) return cand;
+        }
+        return null;
+    }
+
+    // True if flying `distance` blocks along `dir` keeps the hull slab (its height,
+    // with a 1-block margin above and below) free of collidable blocks. This is the
+    // airborne analogue of the ground goal's headingClear — actual block probes, not
+    // heightmaps, so overhangs, arches and interiors are judged correctly.
+    private boolean headingClear(Vec3 dir, double distance) {
+        Level level = this.unit.level();
+        double sx = this.vehicle.getX();
+        double sz = this.vehicle.getZ();
+        int yBottom = Mth.floor(this.vehicle.getY()) - 1;
+        int yTop = Mth.floor(this.vehicle.getY() + this.vehicle.getBbHeight()) + 1;
+        double half = this.vehicle.getBbWidth() / 2.0;
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (double d = half + 1.0; d <= half + distance; d += 1.0) {
+            int px = Mth.floor(sx + dir.x * d);
+            int pz = Mth.floor(sz + dir.z * d);
+            for (int y = yBottom; y <= yTop; y++) {
+                if (!level.getBlockState(pos.set(px, y, pz)).getCollisionShape(level, pos).isEmpty()) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // Rotate a horizontal (y=0) direction about the vertical axis.
+    private static Vec3 rotateY(Vec3 dir, double angleRad) {
+        double cos = Math.cos(angleRad);
+        double sin = Math.sin(angleRad);
+        return new Vec3(dir.x * cos - dir.z * sin, 0.0, dir.x * sin + dir.z * cos);
+    }
+
+    // Hold a stationary hover at targetY: hover mode auto-levels and damps drift,
+    // the collective trims the height, sticks stay centered.
+    private void holdHover(double targetY) {
+        applyCollective(withAvoidFloor(targetY));
+        this.vehicle.setBackInputDown(false);
+        this.vehicle.setLeftInputDown(false);
+        this.vehicle.setRightInputDown(false);
+        this.vehicle.setMouseMoveSpeedX(0.0F);
+        this.vehicle.setMouseMoveSpeedY(0.0F);
+        this.vehicle.setHoverMode(true);
+    }
+
+    // Pure vertical climb (takeoff): collective only, hover mode keeping it level
+    // and drift-free so it goes straight up from the origin.
+    private void climbVertically(double desiredY) {
+        applyCollective(desiredY);
+        this.vehicle.setBackInputDown(false);
+        this.vehicle.setLeftInputDown(false);
+        this.vehicle.setRightInputDown(false);
+        this.vehicle.setMouseMoveSpeedX(0.0F);
+        this.vehicle.setMouseMoveSpeedY(0.0F);
+        this.vehicle.setHoverMode(true);
+    }
+
+    // Collective: climb toward desiredY, descend away from it, coast within the
+    // deadband. Rate caps stop the bang-bang inputs from hunting up and down.
+    // forwardInputDown is the collective on a helicopter, NOT translation.
+    private void applyCollective(double desiredY) {
+        double dy = desiredY - this.vehicle.getY();
+        double deadband = SewvConfig.HELI_ALT_DEADBAND.get();
+        double vy = this.vehicle.getDeltaMovement().y;
+        boolean climb = dy > deadband && vy < CLIMB_RATE_CAP;
+        boolean descend = dy < -deadband && vy > -DESCEND_RATE_CAP;
+        this.vehicle.setForwardInputDown(climb);
+        this.vehicle.setDownInputDown(descend);
+    }
+
+    // Inner loops shared by every profile: yaw stick proportional to the heading
+    // error onto `aim`, pitch stick closed against the hull's actual xRot toward
+    // the commanded attitude (positive = nose down). Yaw sign note: positive
+    // mouseMoveSpeedX INCREASES yaw and getAngleBetween is signed the other way,
+    // hence the negation — verified against SBW's helicopterEngine yaw update.
     private void steerNose(Vector3f forward, Vec3 aim, float targetAttitudeDeg) {
         if (aim.lengthSqr() > 1.0E-8) {
             double yawErrDeg = Math.toDegrees(getAngleBetween(forward, aim));
@@ -429,45 +491,6 @@ public class DriveHelicopterGoal extends Goal {
                 (float) Mth.clamp(attitudeErr * PITCH_STICK_PER_DEG, -MAX_PITCH_STICK, MAX_PITCH_STICK));
     }
 
-    // Hold a fixed hover: capture the altitude on entry, let hover mode auto-level and
-    // damp drift, and keep the collective trimming toward the captured height.
-    private void holdHover() {
-        if (Double.isNaN(this.hoverTargetY)) this.hoverTargetY = this.vehicle.getY();
-        applyCollective(this.hoverTargetY);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        this.vehicle.setMouseMoveSpeedX(0.0F);
-        this.vehicle.setMouseMoveSpeedY(0.0F);
-        this.vehicle.setHoverMode(true);
-    }
-
-    // Pure vertical climb to a target altitude (takeoff): collective only, hover mode
-    // on to auto-level and damp any lateral drift so it goes straight up.
-    private void climbVertically(double desiredY) {
-        applyCollective(desiredY);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        this.vehicle.setMouseMoveSpeedX(0.0F);
-        this.vehicle.setMouseMoveSpeedY(0.0F);
-        this.vehicle.setHoverMode(true);
-    }
-
-    // Collective: climb toward desiredY, descend away from it, coast within the
-    // deadband. Rate caps keep it from hunting up and down. This is also the takeoff
-    // path — on the ground it just climbs until airborne. forwardInputDown is the
-    // collective here, NOT translation.
-    private void applyCollective(double desiredY) {
-        double dy = desiredY - this.vehicle.getY();
-        double deadband = SewvConfig.HELI_ALT_DEADBAND.get();
-        double vy = this.vehicle.getDeltaMovement().y;
-        boolean climb = dy > deadband && vy < CLIMB_RATE_CAP;
-        boolean descend = dy < -deadband && vy > -DESCEND_RATE_CAP;
-        this.vehicle.setForwardInputDown(climb);
-        this.vehicle.setDownInputDown(descend);
-    }
-
     private void releaseInputs() {
         this.vehicle.setForwardInputDown(false);
         this.vehicle.setBackInputDown(false);
@@ -478,57 +501,36 @@ public class DriveHelicopterGoal extends Goal {
         this.vehicle.setMouseMoveSpeedY(0.0F);
     }
 
-    private double horizDistSqTo(double x, double z) {
-        double dx = x - this.vehicle.getX();
-        double dz = z - this.vehicle.getZ();
-        return dx * dx + dz * dz;
+    // The established flight level (callers guarantee it was anchored in tick()).
+    private double flightLevel() {
+        return this.flightY;
     }
 
-    // Target hold altitude = highest terrain surface AHEAD + configured clearance.
-    private double cruiseAltitude() {
-        return terrainAhead() + SewvConfig.HELI_CRUISE_ALTITUDE.get();
-    }
-
-    // Highest terrain surface under the hull and at several points ahead along the
-    // velocity vector. Sampling ahead makes the collective start a climb BEFORE a
-    // hill arrives — sampling only under the hull reacts when the slope is already
-    // filling the windscreen, which at cruise speed means flying into it.
-    private double terrainAhead() {
-        double x = this.vehicle.getX();
-        double z = this.vehicle.getZ();
-        int highest = surfaceAt(x, z);
-        Vec3 vel = this.vehicle.getDeltaMovement();
-        double speed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
-        if (speed > 0.05) {
-            double ux = vel.x / speed;
-            double uz = vel.z / speed;
-            for (double d : TERRAIN_LOOKAHEAD) {
-                highest = Math.max(highest, surfaceAt(x + ux * d, z + uz * d));
-            }
+    // The active hold height including the whisker climb floor, which decays about
+    // a block per second so surplus avoidance altitude is given back gently.
+    private double withAvoidFloor(double desiredY) {
+        if (Double.isNaN(this.avoidFloorY)) return desiredY;
+        this.avoidFloorY -= AVOID_FLOOR_DECAY;
+        if (this.avoidFloorY <= desiredY) {
+            this.avoidFloorY = Double.NaN;
+            return desiredY;
         }
-        return highest;
+        return this.avoidFloorY;
     }
 
-    private int surfaceAt(double x, double z) {
-        return this.unit.level().getHeight(Heightmap.Types.WORLD_SURFACE, Mth.floor(x), Mth.floor(z));
+    // Takeoff-origin offset: the configured cruise altitude, hard-clamped to the
+    // 30-50 band the flight model is designed around.
+    private double flightAltitude() {
+        return Mth.clamp(SewvConfig.HELI_CRUISE_ALTITUDE.get(), MIN_FLIGHT_ALT, MAX_FLIGHT_ALT);
     }
 
-    private boolean hasTurret() {
-        if (this.vehicle != this.turretCacheVehicle) {
-            this.turretCacheVehicle = this.vehicle;
-            boolean turret;
-            try {
-                turret = this.vehicle.hasTurret();
-            } catch (Exception ignored) {
-                turret = false; // unknown → assume fixed guns; attack runs aim either way
-            }
-            this.turretCacheValue = turret;
-        }
-        return this.turretCacheValue;
+    private int surfaceBelow() {
+        return this.unit.level().getHeight(
+                Heightmap.Types.WORLD_SURFACE, this.vehicle.getBlockX(), this.vehicle.getBlockZ());
     }
 
     // Signed horizontal angle (radians) to rotate `forward` onto `target`; same
-    // convention as DriveVehicleGoal so the yaw sign matches the ground goal's steering.
+    // convention as DriveVehicleGoal so the steering signs match across goals.
     private double getAngleBetween(Vector3f forward, Vec3 target) {
         double cross = forward.x * target.z - forward.z * target.x;
         double dot = forward.x * target.x + forward.z * target.z;

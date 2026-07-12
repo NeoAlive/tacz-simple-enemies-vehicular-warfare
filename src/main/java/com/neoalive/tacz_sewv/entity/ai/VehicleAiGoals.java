@@ -14,7 +14,11 @@ public final class VehicleAiGoals {
     private VehicleAiGoals() {}
 
     public static void addDriveGoals(AbstractUnit unit) {
+        // DriveVehicleGoal (ground/ship) and DriveHelicopterGoal (flight) are both
+        // registered on every crew; each gates on the mounted vehicle's engine type,
+        // so exactly one activates for whatever hull the unit ends up in.
         unit.goalSelector.addGoal(1, new DriveVehicleGoal(unit));
+        unit.goalSelector.addGoal(1, new DriveHelicopterGoal(unit));
         unit.goalSelector.addGoal(1, new VehicleMinRangeGoal(unit));
         // Priority 2: while mounted this owns the TARGET flag over SEM's short
         // vanilla scans (also priority 2+, but strictly less reach), while SEM's

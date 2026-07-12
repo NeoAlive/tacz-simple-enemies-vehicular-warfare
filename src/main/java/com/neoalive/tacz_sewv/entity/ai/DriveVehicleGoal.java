@@ -9,13 +9,9 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.minecraft.world.level.pathfinder.PathFinder;
@@ -25,7 +21,6 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import org.joml.Vector3f;
 
 import java.util.EnumSet;
-import java.util.UUID;
 
 public class DriveVehicleGoal extends Goal {
 
@@ -111,6 +106,8 @@ public class DriveVehicleGoal extends Goal {
         // ONLY the driver (seat 0) drives, enforces your driver-commander model
         if (v.getFirstPassenger() != this.unit) return false;
         this.vehicle = v;
+        // Flight is DriveHelicopterGoal's job — this goal only steers ground/ship hulls.
+        if (isHelicopter()) return false;
         return getTargetPos() != null; // only drive if there's somewhere to go
     }
 
@@ -131,7 +128,7 @@ public class DriveVehicleGoal extends Goal {
         this.currentPath = null;
         this.lastPathTarget = null;
         this.pathRecalcCooldown = 0;
-        this.assistAlly = null;
+        this.allyAssist.clear();
         clearRecovery();
     }
 
@@ -528,29 +525,10 @@ private void retreatFromTarget(BlockPos targetPos, double retreatRadius, double 
     if (canReverse) {
         reverseFromTarget(angleToTarget, distanceSq);
     } else {
-        navigateTo(computeStandoffPoint(targetPos, retreatRadius), distanceSq);
+        // Standoff point is pathfound to via the node evaluator, so it still respects
+        // hazards like the water margin. Ring math is shared with the flight goal.
+        navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, targetPos, retreatRadius), distanceSq);
     }
-}
-
-// Point at `radius` straight out from the target through the vehicle — the ring the
-// hull should fall back to (mid-band for soft targets, the far ring for armor, or
-// beyond it when breaking contact). Pathfound to via the node evaluator, so it
-// still respects hazards like the water margin.
-private BlockPos computeStandoffPoint(BlockPos targetPos, double radius) {
-    double cx = targetPos.getX() + 0.5;
-    double cz = targetPos.getZ() + 0.5;
-    double dx = this.vehicle.getX() - cx;
-    double dz = this.vehicle.getZ() - cz;
-    double len = Math.sqrt(dx * dx + dz * dz);
-    if (len < 1.0E-3) {
-        // Practically on top of the target — flee along the current facing
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
-        dx = forward.x;
-        dz = forward.z;
-        len = 1.0;
-    }
-    double scale = radius / len;
-    return BlockPos.containing(cx + dx * scale, this.vehicle.getY(), cz + dz * scale);
 }
 
 private void reverseFromTarget(double angle, double distanceSq) {
@@ -640,6 +618,20 @@ private boolean computeIsAmphibiousVehicle() {
     return false;
 }
 
+// Cached like the others: the engine type doesn't change mid-drive. Helicopters
+// (and fixed-wing, which subclass EngineInfo.Helicopter) are flown by
+// DriveHelicopterGoal instead — this goal declines them in canUse.
+private VehicleEntity helicopterCacheVehicle;
+private boolean helicopterCacheValue;
+
+private boolean isHelicopter() {
+    if (this.vehicle != this.helicopterCacheVehicle) {
+        this.helicopterCacheVehicle = this.vehicle;
+        this.helicopterCacheValue = this.vehicle.getEngineInfo() instanceof EngineInfo.Helicopter;
+    }
+    return this.helicopterCacheValue;
+}
+
     private void moveVehicleForward() {
         this.vehicle.setForwardInputDown(true);
         this.vehicle.setBackInputDown(false);
@@ -706,177 +698,14 @@ private boolean computeIsAmphibiousVehicle() {
     this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
     }
 
-    // Formation spacing between successive slots, in blocks.
-    private static final double FORMATION_SPACING = 5.0;
+    // Mutual support scanner (idle crew reinforces an allied crew in combat), shared
+    // with DriveHelicopterGoal via VehicleTargeting.
+    private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
 
-    // Drive-to point for a formation slot behind the commander. COLUMN files units
-    // directly astern; WEDGE fans them out to alternating flanks stepping back each
-    // rank. Slot is derived from the unit's SEM-assigned formation index.
-    private BlockPos formationTarget(Player owner, OrderType order, int index) {
-        float yawRad = owner.getYRot() * Mth.DEG_TO_RAD;
-        double forwardX = -Mth.sin(yawRad);
-        double forwardZ = Mth.cos(yawRad);
-        double rightX = Mth.cos(yawRad);
-        double rightZ = Mth.sin(yawRad);
-
-        double back;
-        double side;
-        if (order == OrderType.FORM_COLUMN) {
-            back = (index + 1) * FORMATION_SPACING;
-            side = 0.0;
-        } else { // FORM_WEDGE
-            int rank = (index / 2) + 1;
-            int sign = (index % 2 == 0) ? -1 : 1;
-            back = rank * FORMATION_SPACING;
-            side = sign * rank * FORMATION_SPACING;
-        }
-
-        double x = owner.getX() - forwardX * back + rightX * side;
-        double z = owner.getZ() - forwardZ * back + rightZ * side;
-        return BlockPos.containing(x, owner.getY(), z);
-    }
-
-    // Player-commandable units (PmcUnitEntity) use the order queue for their drive
-    // destination. RU/US crews have no order system, they just engage whatever
-    // they're currently targeting, same as vanilla hostile-mob AI.
+    // Destination resolution — SEM order queue for PMC, current target / ally-assist
+    // for RU/US — is shared with DriveHelicopterGoal. See VehicleTargeting.
     private BlockPos getTargetPos() {
-        if (!(this.unit instanceof PmcUnitEntity pmc)) {
-            LivingEntity target = this.unit.getTarget();
-            if (target != null) return target.blockPosition();
-            // No fight of our own — reinforce a nearby allied crew that has one.
-            return assistTargetPos();
-        }
-
-        OrderType order = pmc.getOrder();
-
-        switch (order) {
-            case HOLD_POSITION:
-            case CEASE_FIRE:
-                // CEASE_FIRE holds ground too; firing is suppressed separately in
-                // MixinVehicleFireCooldown so the crew simply sits and doesn't shoot.
-                return null;
-
-            case MOVE_TO_POSITION:
-                Vec3 moveTarget = pmc.getMoveToTarget();
-                return (moveTarget != null && !moveTarget.equals(Vec3.ZERO))
-                        ? BlockPos.containing(moveTarget) : null;
-
-            case ATTACK_THAT_TARGET:
-                // Player designated the target — no freelancing off to help allies.
-                return pmc.getTarget() != null ? pmc.getTarget().blockPosition() : null;
-
-            case FREE_FIRE:
-                if (pmc.getTarget() != null) {
-                    return pmc.getTarget().blockPosition();
-                }
-                // Free-firing with nothing to shoot — reinforce an allied crew in combat.
-                return assistTargetPos();
-
-            case FOLLOW_COMMANDER:
-                Player follows = commander(pmc);
-                return follows != null ? follows.blockPosition() : null;
-
-            case FORM_WEDGE:
-            case FORM_COLUMN:
-                Player leader = commander(pmc);
-                return leader != null
-                        ? formationTarget(leader, order, pmc.getFormationIndex()) : null;
-
-            default:
-                return null;
-        }
-    }
-
-    private Player commander(PmcUnitEntity pmc) {
-        UUID ownerId = pmc.getOwnerUUID();
-        return ownerId != null ? pmc.level().getPlayerByUUID(ownerId) : null;
-    }
-
-    // Mutual support: an idle crew that notices an allied vehicle in combat drives
-    // to it and settles inside this ring around the ally — close enough to bring
-    // its own guns into the same fight (the cylinder target scan takes over from
-    // there), far enough to not park on the ally's tracks.
-    private static final double ASSIST_RING_RADIUS = 16.0;
-
-    private VehicleEntity assistAlly;
-    private long lastAssistScanTime = Long.MIN_VALUE;
-
-    // Drive-to point for reinforcing an ally, or null when there is nothing to
-    // reinforce (or we're already inside the ally's ring — arrival, not failure).
-    // The ring point goes through navigateTo like every destination, so the route
-    // still respects the node evaluator's hazards (water margin etc.).
-    private BlockPos assistTargetPos() {
-        VehicleEntity ally = findAllyInCombat();
-        if (ally == null) return null;
-
-        double dx = ally.getX() - this.vehicle.getX();
-        double dz = ally.getZ() - this.vehicle.getZ();
-        double arrive = ASSIST_RING_RADIUS + VEHICLE_RING_DEADBAND;
-        if (dx * dx + dz * dz <= arrive * arrive) return null; // inside the ring — done
-
-        return computeStandoffPoint(ally.blockPosition(), ASSIST_RING_RADIUS);
-    }
-
-    // Nearest allied crewed vehicle in combat within the configured assist range.
-    // The world scan is the expensive part, so it reruns only on the target-scan
-    // cadence ("each scan"); between scans the cached ally is just revalidated.
-    private VehicleEntity findAllyInCombat() {
-        double range = SewvConfig.VEHICLE_ALLY_ASSIST_RANGE.get();
-        if (range <= 0.0) return null; // mutual support disabled
-
-        long now = this.unit.level().getGameTime();
-        if (now - this.lastAssistScanTime < SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get()) {
-            return validateAssistAlly(range);
-        }
-        this.lastAssistScanTime = now;
-
-        // Same flat-cylinder shape as the target scan: full horizontal reach,
-        // capped vertical extent, corners rounded off by the distance filter.
-        double halfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
-        AABB bounds = new AABB(
-                this.vehicle.getX() - range, this.vehicle.getY() - halfHeight, this.vehicle.getZ() - range,
-                this.vehicle.getX() + range, this.vehicle.getY() + halfHeight, this.vehicle.getZ() + range);
-
-        VehicleEntity best = null;
-        double bestDistSq = range * range;
-        for (VehicleEntity ally : this.unit.level().getEntitiesOfClass(VehicleEntity.class, bounds,
-                v -> v != this.vehicle && !v.isWreck())) {
-            if (!isAlliedCrewInCombat(ally)) continue;
-            double dx = ally.getX() - this.vehicle.getX();
-            double dz = ally.getZ() - this.vehicle.getZ();
-            double distSq = dx * dx + dz * dz;
-            if (distSq <= bestDistSq) {
-                best = ally;
-                bestDistSq = distSq;
-            }
-        }
-        this.assistAlly = best;
-        return best;
-    }
-
-    // Between scans: keep the cached ally only while it still needs the help.
-    private VehicleEntity validateAssistAlly(double range) {
-        VehicleEntity ally = this.assistAlly;
-        if (ally == null) return null;
-        if (ally.isRemoved() || ally.isWreck() || !isAlliedCrewInCombat(ally)
-                || this.vehicle.distanceToSqr(ally) > range * range * 2.25) { // >1.5x range — chase abandoned
-            this.assistAlly = null;
-            return null;
-        }
-        return ally;
-    }
-
-    private boolean isAlliedCrewInCombat(VehicleEntity ally) {
-        if (!(ally.getFirstPassenger() instanceof AbstractUnit driver)) return false;
-        if (!isSameFaction(driver)) return false;
-        LivingEntity target = driver.getTarget();
-        return target != null && target.isAlive();
-    }
-
-    private boolean isSameFaction(AbstractUnit other) {
-        if (this.unit instanceof RUunitEntity) return other instanceof RUunitEntity;
-        if (this.unit instanceof USunitEntity) return other instanceof USunitEntity;
-        return this.unit instanceof PmcUnitEntity && other instanceof PmcUnitEntity;
+        return VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
     }
 
     private double getAngleBetween(Vector3f forward, Vec3 target) {

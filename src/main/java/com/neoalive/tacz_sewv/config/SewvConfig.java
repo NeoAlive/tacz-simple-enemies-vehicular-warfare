@@ -36,6 +36,11 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue VEHICLE_LOOKAHEAD_DISTANCE;
     public static final ForgeConfigSpec.IntValue VEHICLE_MAX_SAFE_DROP;
 
+    // Helicopter/flight AI
+    public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_ALTITUDE;
+    public static final ForgeConfigSpec.DoubleValue HELI_ORBIT_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue HELI_ALT_DEADBAND;
+
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.BooleanValue SHOW_ORDER_FEEDBACK;
@@ -138,6 +143,27 @@ public class SewvConfig {
                          "treated as a cliff and avoided. Matches the pathfinder's fall tolerance (vanilla default 3),",
                          "so ordinary small step-downs are not mistaken for ravines.")
                 .defineInRange("vehicleMaxSafeDrop", 3, 1, 16);
+
+        builder.pop();
+
+        builder.push("flight_ai");
+
+        HELI_CRUISE_ALTITUDE = builder
+                .comment("Height (in blocks) above the terrain surface an AI helicopter climbs to and holds",
+                         "while flying to a destination or orbiting a target. Higher = safer terrain clearance,",
+                         "but a bigger climb before it can move out.")
+                .defineInRange("heliCruiseAltitude", 20.0, 6.0, 64.0);
+
+        HELI_ORBIT_RADIUS = builder
+                .comment("Horizontal standoff (in blocks) at which an AI helicopter circles a combat target",
+                         "instead of flying onto it, keeping its guns on the target while staying mobile.")
+                .defineInRange("heliOrbitRadius", 24.0, 8.0, 96.0);
+
+        HELI_ALT_DEADBAND = builder
+                .comment("Altitude-hold tolerance (in blocks). The helicopter only applies climb/descend",
+                         "collective when it is more than this far off its target height, so it settles into",
+                         "a stable hover instead of hunting up and down. Smaller = tighter but twitchier.")
+                .defineInRange("heliAltDeadband", 2.5, 0.5, 8.0);
 
         builder.pop();
 

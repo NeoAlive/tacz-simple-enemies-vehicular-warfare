@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
@@ -23,6 +24,23 @@ public final class VehicleWeapons {
     public enum TargetCategory { VEHICLE, MONSTER, PMC_UNIT }
 
     private VehicleWeapons() {}
+
+    /**
+     * True when {@code mob} is crewing an SBW vehicle in a role that fires a VEHICLE
+     * weapon — the driver (seat 0, who works the hull's main armament) or any gunner
+     * whose seat has weapons assigned. A pure passenger seat (no weapons) returns
+     * false, so those units are excluded and keep their own behaviour.
+     *
+     * <p>Used to suppress a crew member's hand-held gun goal: without this a mounted
+     * unit with a rifle in hand and a target in range fires the rifle instead of (or
+     * alongside) the vehicle's guns.
+     */
+    public static boolean controlsVehicleWeapon(Mob mob) {
+        if (!(mob.getVehicle() instanceof VehicleEntity vehicle)) return false;
+        if (vehicle.getFirstPassenger() == mob) return true; // driver — always busy driving
+        SeatInfo seat = vehicle.getSeat(mob);
+        return seat != null && !seat.weapons().isEmpty();     // gunner; passenger → false
+    }
 
     public static TargetCategory classifyTarget(LivingEntity target) {
         // A VehicleEntity isn't a LivingEntity, so it can never be the target itself

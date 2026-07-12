@@ -10,7 +10,8 @@
     "MixinUSunitEntity",
     "MixinCombatEvent",
     "MixinVehicleFireCooldown",
-    "MixinVehicleInteractLock"
+    "MixinVehicleInteractLock",
+    "MixinRangedGunAttackGoal"
   ],
   "client": [
     "client.MixinPmcUnitRenderer",

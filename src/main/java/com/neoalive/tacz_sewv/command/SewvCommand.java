@@ -35,7 +35,7 @@ public class SewvCommand {
                 ? player.getUUID() : null;
 
         BlockPos pos = TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
-        VehicleEntity tank = TankSpawner.spawnTankWithDriver(level, pos, faction, ownerId);
+        VehicleEntity tank = TankSpawner.spawnTankWithCrew(level, pos, faction, ownerId);
 
         if (tank == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));

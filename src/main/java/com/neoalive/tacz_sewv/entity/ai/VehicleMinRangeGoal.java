@@ -14,8 +14,12 @@ import java.util.EnumSet;
  */
 public class VehicleMinRangeGoal extends Goal {
 
-    // Minimum engagement distance from the VEHICLE, inside this the vehicle can't aim so drop the target.
-    private static final double MIN_ENGAGE_DISTANCE_SQ = 25.0; // 5 blocks
+    // Minimum HORIZONTAL engagement distance from the VEHICLE, inside this the
+    // vehicle can't aim so drop the target. Horizontal (cylinder-style, matching
+    // VehicleTargetScanGoal's scan shape) so a mob perched on the turret is inside
+    // the dead zone no matter how far above the hull it sits. Shared with the scan
+    // goal so acquisition never picks what this goal is about to drop.
+    public static final double MIN_ENGAGE_DISTANCE_SQ = 25.0; // 5 blocks
 
     private final AbstractUnit unit;
     private VehicleEntity vehicle;
@@ -43,7 +47,9 @@ public class VehicleMinRangeGoal extends Goal {
         LivingEntity target = this.unit.getTarget();
         if (target == null || this.vehicle == null) return;
 
-        double distSq = this.vehicle.distanceToSqr(target);
+        double dx = target.getX() - this.vehicle.getX();
+        double dz = target.getZ() - this.vehicle.getZ();
+        double distSq = dx * dx + dz * dz;
         if (distSq < MIN_ENGAGE_DISTANCE_SQ) {
             // Too close for the vehicle to aim, drop it so targeting picks something else
             this.unit.setTarget(null);

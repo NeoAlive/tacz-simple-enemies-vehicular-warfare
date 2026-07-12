@@ -29,13 +29,13 @@ public abstract class MixinCombatEvent {
         // Roll for RU tank (extremely low chance)
         if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_RU.get()) {
             BlockPos posRu = TankSpawner.adjustHeight(level, centerPos.offset(separation, 0, 0));
-            TankSpawner.spawnTankWithDriver(level, posRu, TankSpawner.TankFaction.RU, null);
+            TankSpawner.spawnTankWithCrew(level, posRu, TankSpawner.TankFaction.RU, null);
         }
 
         // Roll for US tank (independent roll)
         if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_US.get()) {
             BlockPos posUs = TankSpawner.adjustHeight(level, centerPos.offset(-separation, 0, 0));
-            TankSpawner.spawnTankWithDriver(level, posUs, TankSpawner.TankFaction.US, null);
+            TankSpawner.spawnTankWithCrew(level, posUs, TankSpawner.TankFaction.US, null);
         }
     }
 }

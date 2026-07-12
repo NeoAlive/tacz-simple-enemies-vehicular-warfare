@@ -44,13 +44,14 @@ public final class TankSpawner {
 
     /**
      * Spawns a faction vehicle (picked at random from the faction's configured pool)
-     * with a driver of the matching faction already mounted in seat 0.
+     * with a full crew of the matching faction: one unit per seat the vehicle
+     * exposes, mounted in seat order (seat 0 becomes the driver).
      * For PMC, {@code ownerId} (when non-null) makes the crew commandable by that player.
      * Returns the spawned vehicle, or null if it couldn't be spawned (no space,
      * no valid vehicle id in the pool, or SW not loaded).
      */
     @Nullable
-    public static VehicleEntity spawnTankWithDriver(ServerLevel level, BlockPos pos, TankFaction faction, @Nullable UUID ownerId) {
+    public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos pos, TankFaction faction, @Nullable UUID ownerId) {
         EntityType<?> tankType = pickVehicleType(faction.vehiclePool(), level.random);
         if (tankType == null) return null; // nothing valid configured — bail safely
 
@@ -72,36 +73,45 @@ public final class TankSpawner {
             tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
         }
 
-        AbstractUnit driver = createDriver(level, faction, ownerId);
-        driver.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-        driver.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null, null);
-        level.addFreshEntity(driver);
-
-        // Put the driver straight into the tank (seat 0 → the drive AI takes over)
-        driver.startRiding(tank);
+        // One unit per seat, mounted in join order: SW's VehicleEntity assigns
+        // seats sequentially, so the first rider lands in seat 0 (driver) and
+        // the rest man the remaining weapon/passenger stations.
+        int seats = Math.max(1, tank.getMaxPassengers());
+        for (int i = 0; i < seats; i++) {
+            AbstractUnit crew = createCrewUnit(level, faction, ownerId);
+            crew.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+            crew.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null, null);
+            level.addFreshEntity(crew);
+            if (!crew.startRiding(tank)) {
+                // Seat refused the rider (vehicle full despite getMaxPassengers, or
+                // a mod cancelled the mount) — don't leave the unit standing around.
+                crew.discard();
+                break;
+            }
+        }
 
         return tank;
     }
 
-    private static AbstractUnit createDriver(ServerLevel level, TankFaction faction, @Nullable UUID ownerId) {
+    private static AbstractUnit createCrewUnit(ServerLevel level, TankFaction faction, @Nullable UUID ownerId) {
         switch (faction) {
             case RU: {
-                RUunitEntity driver = new RUunitEntity(ModEntities.RUUNIT.get(), level);
-                driver.setRole(UnitRole.DEFAULT);
-                return driver;
+                RUunitEntity unit = new RUunitEntity(ModEntities.RUUNIT.get(), level);
+                unit.setRole(UnitRole.DEFAULT);
+                return unit;
             }
             case US: {
-                USunitEntity driver = new USunitEntity(ModEntities.USUNIT.get(), level);
-                driver.setRole(UnitRole.DEFAULT);
-                return driver;
+                USunitEntity unit = new USunitEntity(ModEntities.USUNIT.get(), level);
+                unit.setRole(UnitRole.DEFAULT);
+                return unit;
             }
             default: {
                 // FRIENDLY_DEFAULT mirrors SEM's plain PMC spawn egg; the owner makes
                 // the crew respond to that player's SEM command menu.
-                PmcUnitEntity driver = new PmcUnitEntity(ModEntities.PMCUNIT.get(), level);
-                driver.setRole(UnitRole.FRIENDLY_DEFAULT);
-                if (ownerId != null) driver.setOwner(ownerId);
-                return driver;
+                PmcUnitEntity unit = new PmcUnitEntity(ModEntities.PMCUNIT.get(), level);
+                unit.setRole(UnitRole.FRIENDLY_DEFAULT);
+                if (ownerId != null) unit.setOwner(ownerId);
+                return unit;
             }
         }
     }

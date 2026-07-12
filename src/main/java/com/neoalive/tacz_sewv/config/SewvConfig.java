@@ -24,6 +24,12 @@ public class SewvConfig {
     public static final ForgeConfigSpec.IntValue WEAPON_SWITCH_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
 
+    // Mounted-crew target scan (cylinder around the vehicle)
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_HEIGHT;
+    public static final ForgeConfigSpec.IntValue VEHICLE_TARGET_SCAN_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.BooleanValue VEHICLE_TARGET_REQUIRE_LOS;
+
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.BooleanValue SHOW_ORDER_FEEDBACK;
@@ -80,6 +86,28 @@ public class SewvConfig {
                 .comment("How close (in blocks) a smoke decoy must be to an AI crew's line of fire to block the shot.",
                          "Larger = smoke screens are wider and more protective. Only affects AI-crewed vehicles.")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
+
+        VEHICLE_TARGET_SCAN_RADIUS = builder
+                .comment("Horizontal radius (in blocks) of the cylindrical target scan used by mounted AI crews.",
+                         "Replaces the vanilla follow-range scan, which is far too short for vehicle engagement ranges.",
+                         "Larger = crews spot enemies farther out, but each scan touches more of the world (perf cost).")
+                .defineInRange("vehicleTargetScanRadius", 48.0, 8.0, 128.0);
+
+        VEHICLE_TARGET_SCAN_HEIGHT = builder
+                .comment("Total height (in blocks) of the target-scan cylinder, centered on the vehicle.",
+                         "Keeping it flat is the cheap-and-effective shape for ground vehicles: wide reach without",
+                         "paying to scan sky and caves. Raise it if enemies on tall cliffs should be engaged.")
+                .defineInRange("vehicleTargetScanHeight", 24.0, 4.0, 128.0);
+
+        VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder
+                .comment("Ticks between target scans per crew member (20 = 1 second).",
+                         "Larger = cheaper, but crews react slower to new threats.")
+                .defineInRange("vehicleTargetScanIntervalTicks", 20, 1, 200);
+
+        VEHICLE_TARGET_REQUIRE_LOS = builder
+                .comment("Require line of sight before a mounted crew locks a scanned target.",
+                         "Disabling skips the visibility raycasts (cheaper) but lets crews acquire enemies through cover.")
+                .define("vehicleTargetRequireLineOfSight", true);
 
         builder.pop();
 

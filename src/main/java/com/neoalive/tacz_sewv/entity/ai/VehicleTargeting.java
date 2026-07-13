@@ -171,8 +171,12 @@ public final class VehicleTargeting {
             double range = SewvConfig.VEHICLE_ALLY_ASSIST_RANGE.get();
             if (range <= 0.0) return null; // mutual support disabled
 
+            // The sentinel must be tested explicitly: now - Long.MIN_VALUE overflows
+            // negative, which would make the throttle permanently "too soon" and the
+            // scan would never run at all.
             long now = unit.level().getGameTime();
-            if (now - this.lastAssistScanTime < SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get()) {
+            if (this.lastAssistScanTime != Long.MIN_VALUE
+                    && now - this.lastAssistScanTime < SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get()) {
                 return validateAssistAlly(unit, vehicle, range);
             }
             this.lastAssistScanTime = now;

@@ -84,8 +84,19 @@ public class DriveVehicleGoal extends Goal {
     private VehicleEntity vehicle;
     private int weaponSwitchCooldown = 0;
 
+    // Self-preservation smoke episode state (see preserveRetreat).
+    private long lastRetreatTick = Long.MIN_VALUE;
+    private boolean deploySmokeThisRetreat = false;
+
+    // Per-vehicle drivetrain caches: track/wheel type, buoyancy and engine type
+    // don't change mid-drive, and vehicle.data().compute() is too expensive to
+    // call every tick.
     private VehicleEntity trackedCacheVehicle;
     private boolean trackedCacheValue;
+    private VehicleEntity amphibiousCacheVehicle;
+    private boolean amphibiousCacheValue;
+    private VehicleEntity helicopterCacheVehicle;
+    private boolean helicopterCacheValue;
 
     // Only PmcUnitEntity (player-commandable units) has an order queue via ICommandableMob;
     // RUunitEntity/USunitEntity are plain hostile units with no order system.
@@ -114,10 +125,22 @@ public class DriveVehicleGoal extends Goal {
                 && getTargetPos() != null;
     }
 
+    // The stuck detector, retreat-episode detection and the steering ramp all
+    // assume one tick() per game tick; vanilla only ticks running goals every
+    // OTHER tick unless this is overridden.
+    @Override
+    public boolean requiresUpdateEveryTick() {
+        return true;
+    }
+
     @Override
     public void stop() {
-        // Release all inputs so the tank coasts to a stop when we're done
+        // Release all inputs so the tank coasts to a stop when we're done.
+        // The decoy input is latched vehicle state (stopVehicleMovement doesn't
+        // touch it), so a crew leaving mid-retreat must let go of it here or the
+        // launcher keeps volleying smoke forever.
         stopVehicleMovement();
+        this.vehicle.setDecoyInputDown(false);
         this.vehicle = null;
         this.currentPath = null;
         this.lastPathTarget = null;
@@ -132,6 +155,16 @@ public void tick() {
     if (this.pathRecalcCooldown > 0) this.pathRecalcCooldown--;
     this.pathAge++;
 
+    LivingEntity target = this.unit.getTarget();
+
+    // The decoy input is latched vehicle state: release it on every tick that is
+    // not part of a smoking retreat (preserveRetreat re-asserts it right after
+    // when the episode calls for smoke), otherwise one retreat would leave the
+    // launcher volleying a fresh smoke salvo every reload, forever.
+    if (target == null || !isLowHealth() || !this.deploySmokeThisRetreat) {
+        this.vehicle.setDecoyInputDown(false);
+    }
+
     BlockPos targetPos = getTargetPos();
     if (targetPos == null) {
         stopVehicleMovement();
@@ -139,17 +172,19 @@ public void tick() {
         return;
     }
 
-    // Distance to the REAL target, used for standoff band and firing range
-    double distanceSq = this.vehicle.distanceToSqr(targetPos.getX(), targetPos.getY(), targetPos.getZ());
+    if (target != null) {
+        // Combat maneuvering is anchored to the TARGET, not the resolved order
+        // destination — under FOLLOW/MOVE_TO/formation orders those differ, and
+        // holding a standoff ring around the own commander (while weapon choice
+        // tracks the actual enemy) is exactly the bug this distinction avoids.
+        // Once the fight ends, the next tick resumes driving on the order.
+        BlockPos combatPos = target.blockPosition();
+        double distanceSq = this.vehicle.distanceToSqr(
+                combatPos.getX() + 0.5, combatPos.getY(), combatPos.getZ() + 0.5);
+        double dist = Math.sqrt(distanceSq);
 
-    boolean isCombat = this.unit.getTarget() != null;
-
-    if (isCombat) {
-        LivingEntity target = this.unit.getTarget();
         TargetCategory category = VehicleWeapons.classifyTarget(target);
         boolean isVehicleTarget = category == TargetCategory.VEHICLE;
-
-        double dist = Math.sqrt(distanceSq); // distance to REAL target
 
         boolean tooFar = dist > (isVehicleTarget ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR);
         if (this.weaponSwitchCooldown <= 0) {
@@ -161,17 +196,19 @@ public void tick() {
             preserveRetreat(target, category);
         } else if (isVehicleTarget) {
             // Armor holds the far ring: close in if beyond it, back off if inside it.
-            maintainVehicleStandoff(targetPos, distanceSq, dist);
+            maintainVehicleStandoff(combatPos, distanceSq, dist);
         } else if (dist < INFANTRY_TOO_CLOSE) {
             // Infantry: a wide comfortable band inside the MG's effective range.
-            retreatFromTarget(targetPos, (INFANTRY_TOO_CLOSE + INFANTRY_TOO_FAR) / 2.0, distanceSq);
+            retreatFromTarget(combatPos, (INFANTRY_TOO_CLOSE + INFANTRY_TOO_FAR) / 2.0, distanceSq);
         } else if (tooFar) {
-            navigateTo(targetPos, distanceSq);
+            navigateTo(combatPos, distanceSq);
         } else {
             stopVehicleMovement();
             clearRecovery(); // holding the band on purpose — not stuck
         }
     } else {
+        double distanceSq = this.vehicle.distanceToSqr(
+                targetPos.getX() + 0.5, targetPos.getY(), targetPos.getZ() + 0.5);
         double stopDistance = this.vehicle.getBbWidth() - 1 + STOP_DISTANCE;
         if (distanceSq > stopDistance * stopDistance) {
             navigateTo(targetPos, distanceSq);
@@ -457,16 +494,15 @@ private boolean isLowHealth() {
 // smoke is fired by raising the decoy input — the vehicle's own tick launches it
 // along the turret vector (already tracking the threat), and the launcher's ready/
 // reload gating means holding the input just fires each volley as it comes back up.
-private long lastRetreatTick = Long.MIN_VALUE;
-private boolean deploySmokeThisRetreat = false;
-
 private void preserveRetreat(LivingEntity threat, TargetCategory category) {
     // preserveRetreat runs every tick while low on health, so rolling the dice here
     // would just stutter the held decoy input. Instead decide ONCE per retreat: a
     // gap in consecutive ticks marks a fresh episode and re-rolls the coin flip, so
     // about half of retreating crews screen with smoke and half break contact silent.
+    // The sentinel is tested explicitly — now - Long.MIN_VALUE overflows negative,
+    // which would silently skip the roll for the first-ever episode.
     long now = this.unit.level().getGameTime();
-    if (now - this.lastRetreatTick > 1) {
+    if (this.lastRetreatTick == Long.MIN_VALUE || now - this.lastRetreatTick > 1) {
         this.deploySmokeThisRetreat = this.unit.getRandom().nextFloat() < PRESERVE_SMOKE_CHANCE;
     }
     this.lastRetreatTick = now;
@@ -586,10 +622,6 @@ private boolean computeIsTrackedVehicle() {
     return false;
 }
 
-// Cached like isTrackedVehicle: the hull's buoyancy doesn't change mid-drive.
-private VehicleEntity amphibiousCacheVehicle;
-private boolean amphibiousCacheValue;
-
 // Amphibious/floating hulls (boats, or any vehicle with positive buoyancy) are
 // exempt from the water half of the terrain sensor — cliffs and lava still apply.
 private boolean isAmphibiousVehicle() {
@@ -612,12 +644,8 @@ private boolean computeIsAmphibiousVehicle() {
     return false;
 }
 
-// Cached like the others: the engine type doesn't change mid-drive. Helicopters
-// (and fixed-wing, which subclass EngineInfo.Helicopter) are flown by
-// DriveHelicopterGoal instead — this goal declines them in canUse.
-private VehicleEntity helicopterCacheVehicle;
-private boolean helicopterCacheValue;
-
+// Helicopters (and fixed-wing, which subclass EngineInfo.Helicopter) are flown
+// by DriveHelicopterGoal instead — this goal declines them in canUse.
 private boolean isHelicopter() {
     if (this.vehicle != this.helicopterCacheVehicle) {
         this.helicopterCacheVehicle = this.vehicle;

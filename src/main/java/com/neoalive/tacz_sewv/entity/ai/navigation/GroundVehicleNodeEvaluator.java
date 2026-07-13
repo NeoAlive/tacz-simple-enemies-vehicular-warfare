@@ -25,7 +25,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import javax.annotation.Nullable;
 
 public class GroundVehicleNodeEvaluator extends NodeEvaluator {
-    public static final double SPACE_BETWEEN_WALL_POSTS = 0.5D;
     private static final double DEFAULT_MOB_JUMP_HEIGHT = 1.125D;
     // Required clear distance (in blocks) between any drivable node and water.
     // Ground vehicles bog/sink in water, and the units have no negative water
@@ -53,6 +52,7 @@ public class GroundVehicleNodeEvaluator extends NodeEvaluator {
     }
     this.pathTypesByPosCache.clear();
     this.collisionCache.clear();
+    this.vehicle = null; // don't retain the hull entity between searches
     super.done();
 }
 
@@ -292,7 +292,7 @@ public class GroundVehicleNodeEvaluator extends NodeEvaluator {
     }
 
     private double getMobJumpHeight() {
-        return Math.max(1.125D, (double) this.vehicle.getStepHeight());
+        return Math.max(DEFAULT_MOB_JUMP_HEIGHT, (double) this.vehicle.getStepHeight());
     }
 
     private Node getNodeAndUpdateCostToMax(int p_230620_, int p_230621_, int p_230622_, BlockPathTypes p_230623_, float p_230624_) {
@@ -363,7 +363,7 @@ public class GroundVehicleNodeEvaluator extends NodeEvaluator {
     // the vanilla 26-neighbour scan this evaluator otherwise skips.
     private boolean hasWaterWithinMargin(BlockGetter level, int x, int y, int z) {
         int minX = x - WATER_MARGIN;
-        int maxX = x + this.entityDepth - 1 + WATER_MARGIN;
+        int maxX = x + this.entityWidth - 1 + WATER_MARGIN;
         int minZ = z - WATER_MARGIN;
         int maxZ = z + this.entityDepth - 1 + WATER_MARGIN;
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -429,70 +429,6 @@ public class GroundVehicleNodeEvaluator extends NodeEvaluator {
             }
         }
         return blockpathtypes;
-    }
-
-    public static BlockPathTypes getBlockPathTypeStatic(BlockGetter p_77605_, BlockPos.MutableBlockPos p_77606_) {
-        int i = p_77606_.getX();
-        int j = p_77606_.getY();
-        int k = p_77606_.getZ();
-        BlockPathTypes blockpathtypes = getBlockPathTypeRaw(p_77605_, p_77606_);
-        if (blockpathtypes == BlockPathTypes.OPEN && j >= p_77605_.getMinBuildHeight() + 1) {
-            BlockPathTypes blockpathtypes1 = getBlockPathTypeRaw(p_77605_, p_77606_.set(i, j - 1, k));
-            blockpathtypes = blockpathtypes1 != BlockPathTypes.WALKABLE && blockpathtypes1 != BlockPathTypes.OPEN && blockpathtypes1 != BlockPathTypes.WATER && blockpathtypes1 != BlockPathTypes.LAVA ? BlockPathTypes.WALKABLE : BlockPathTypes.OPEN;
-            if (blockpathtypes1 == BlockPathTypes.DAMAGE_FIRE) {
-                blockpathtypes = BlockPathTypes.DAMAGE_FIRE;
-            }
-            if (blockpathtypes1 == BlockPathTypes.DAMAGE_OTHER) {
-                blockpathtypes = BlockPathTypes.DAMAGE_OTHER;
-            }
-            if (blockpathtypes1 == BlockPathTypes.STICKY_HONEY) {
-                blockpathtypes = BlockPathTypes.STICKY_HONEY;
-            }
-            if (blockpathtypes1 == BlockPathTypes.POWDER_SNOW) {
-                blockpathtypes = BlockPathTypes.DANGER_POWDER_SNOW;
-            }
-            if (blockpathtypes1 == BlockPathTypes.DAMAGE_CAUTIOUS) {
-                blockpathtypes = BlockPathTypes.DAMAGE_CAUTIOUS;
-            }
-        }
-        if (blockpathtypes == BlockPathTypes.WALKABLE) {
-            blockpathtypes = checkNeighbourBlocks(p_77605_, p_77606_.set(i, j, k), blockpathtypes);
-        }
-        return blockpathtypes;
-    }
-
-    public static BlockPathTypes checkNeighbourBlocks(BlockGetter p_77608_, BlockPos.MutableBlockPos p_77609_, BlockPathTypes p_77610_) {
-        int i = p_77609_.getX();
-        int j = p_77609_.getY();
-        int k = p_77609_.getZ();
-        for (int l = -1; l <= 1; ++l) {
-            for (int i1 = -1; i1 <= 1; ++i1) {
-                for (int j1 = -1; j1 <= 1; ++j1) {
-                    if (l != 0 || j1 != 0) {
-                        p_77609_.set(i + l, j + i1, k + j1);
-                        BlockState blockstate = p_77608_.getBlockState(p_77609_);
-                        BlockPathTypes blockPathType = blockstate.getAdjacentBlockPathType(p_77608_, p_77609_, null, p_77610_);
-                        if (blockPathType != null) return blockPathType;
-                        FluidState fluidState = blockstate.getFluidState();
-                        BlockPathTypes fluidPathType = fluidState.getAdjacentBlockPathType(p_77608_, p_77609_, null, p_77610_);
-                        if (fluidPathType != null) return fluidPathType;
-                        if (blockstate.is(Blocks.CACTUS) || blockstate.is(Blocks.SWEET_BERRY_BUSH)) {
-                            return BlockPathTypes.DANGER_OTHER;
-                        }
-                        if (isBurningBlock(blockstate)) {
-                            return BlockPathTypes.DANGER_FIRE;
-                        }
-                        if (p_77608_.getFluidState(p_77609_).is(FluidTags.WATER)) {
-                            return BlockPathTypes.WATER_BORDER;
-                        }
-                        if (blockstate.is(Blocks.WITHER_ROSE) || blockstate.is(Blocks.POINTED_DRIPSTONE)) {
-                            return BlockPathTypes.DAMAGE_CAUTIOUS;
-                        }
-                    }
-                }
-            }
-        }
-        return p_77610_;
     }
 
     protected static BlockPathTypes getBlockPathTypeRaw(BlockGetter p_77644_, BlockPos p_77645_) {

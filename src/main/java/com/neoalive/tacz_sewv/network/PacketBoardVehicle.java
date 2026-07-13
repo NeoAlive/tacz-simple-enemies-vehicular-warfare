@@ -25,16 +25,16 @@ public class PacketBoardVehicle {
     }
 
     public PacketBoardVehicle(FriendlyByteBuf buf) {
-        int size = buf.readInt();
+        int size = buf.readVarInt();
         this.unitIds = new ArrayList<>();
-        for (int i = 0; i < size; i++) this.unitIds.add(buf.readInt());
-        this.vehicleId = buf.readInt();
+        for (int i = 0; i < size; i++) this.unitIds.add(buf.readVarInt());
+        this.vehicleId = buf.readVarInt();
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeInt(this.unitIds.size());
-        for (int id : this.unitIds) buf.writeInt(id);
-        buf.writeInt(this.vehicleId);
+        buf.writeVarInt(this.unitIds.size());
+        for (int id : this.unitIds) buf.writeVarInt(id);
+        buf.writeVarInt(this.vehicleId);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {

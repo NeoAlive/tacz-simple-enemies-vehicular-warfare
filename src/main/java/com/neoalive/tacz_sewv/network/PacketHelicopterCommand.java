@@ -33,17 +33,17 @@ public class PacketHelicopterCommand {
     }
 
     public PacketHelicopterCommand(FriendlyByteBuf buf) {
-        int size = buf.readInt();
+        int size = buf.readVarInt();
         this.unitIds = new ArrayList<>();
-        for (int i = 0; i < size; i++) this.unitIds.add(buf.readInt());
-        this.command = buf.readInt();
+        for (int i = 0; i < size; i++) this.unitIds.add(buf.readVarInt());
+        this.command = buf.readVarInt();
         this.landPos = buf.readBoolean() ? buf.readBlockPos() : null;
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeInt(this.unitIds.size());
-        for (int id : this.unitIds) buf.writeInt(id);
-        buf.writeInt(this.command);
+        buf.writeVarInt(this.unitIds.size());
+        for (int id : this.unitIds) buf.writeVarInt(id);
+        buf.writeVarInt(this.command);
         buf.writeBoolean(this.landPos != null);
         if (this.landPos != null) buf.writeBlockPos(this.landPos);
     }

@@ -41,6 +41,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HELI_ALT_DEADBAND;
     public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_SPEED;
+    public static final ForgeConfigSpec.IntValue HELI_WEAPON_SWITCH_INTERVAL_TICKS;
 
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -91,11 +92,11 @@ public class SewvConfig {
 
         AI_FIRE_COOLDOWN_TICKS = builder
                 .comment("Minimum ticks between shots for an AI-crewed vehicle weapon (20 ticks = 1 second).")
-                .defineInRange("aiFireCooldownTicks", 25, 1, 200);
+                .defineInRange("aiFireCooldownTicks", 5, 1, 200);
 
         WEAPON_SWITCH_COOLDOWN_TICKS = builder
                 .comment("Minimum ticks between AI weapon switches, prevents rapid cannon/MG flip-flopping.")
-                .defineInRange("weaponSwitchCooldownTicks", 40, 1, 200);
+                .defineInRange("weaponSwitchCooldownTicks", 5, 1, 200);
 
         SMOKE_BLOCK_RADIUS = builder
                 .comment("How close (in blocks) a smoke decoy must be to an AI crew's line of fire to block the shot.",
@@ -106,13 +107,13 @@ public class SewvConfig {
                 .comment("Horizontal radius (in blocks) of the cylindrical target scan used by mounted AI crews.",
                          "Replaces the vanilla follow-range scan, which is far too short for vehicle engagement ranges.",
                          "Larger = crews spot enemies farther out, but each scan touches more of the world (perf cost).")
-                .defineInRange("vehicleTargetScanRadius", 128.0, 8.0, 128.0);
+                .defineInRange("vehicleTargetScanRadius", 96.0, 8.0, 128.0);
 
         VEHICLE_TARGET_SCAN_HEIGHT = builder
                 .comment("Total height (in blocks) of the target-scan cylinder, centered on the vehicle.",
                          "Keeping it flat is the cheap-and-effective shape for ground vehicles: wide reach without",
                          "paying to scan sky and caves. Raise it if enemies on tall cliffs should be engaged.")
-                .defineInRange("vehicleTargetScanHeight", 128.0, 4.0, 128.0);
+                .defineInRange("vehicleTargetScanHeight", 128, 4.0, 128.0);
 
         VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder
                 .comment("Ticks between target scans per crew member (20 = 1 second).",
@@ -148,7 +149,7 @@ public class SewvConfig {
                 .comment("Vertical drop (in blocks) an AI vehicle will still drive down. Drops deeper than this are",
                          "treated as a cliff and avoided. Matches the pathfinder's fall tolerance (vanilla default 3),",
                          "so ordinary small step-downs are not mistaken for ravines.")
-                .defineInRange("vehicleMaxSafeDrop", 16, 1, 16);
+                .defineInRange("vehicleMaxSafeDrop", 8, 1, 16);
 
         builder.pop();
 
@@ -164,7 +165,7 @@ public class SewvConfig {
                 .comment("Horizontal standoff (in blocks) an AI helicopter holds from a combat target while",
                          "aiming: beyond it the aircraft closes in, inside it the aircraft holds and pitches",
                          "its nose down onto the target so its weapons bear.")
-                .defineInRange("heliEngageRadius", 28.0, 12.0, 64.0);
+                .defineInRange("heliEngageRadius", 32.0, 12.0, 64.0);
 
         HELI_ALT_DEADBAND = builder
                 .comment("Altitude-hold tolerance (in blocks). The helicopter only applies climb/descend",
@@ -177,6 +178,12 @@ public class SewvConfig {
                          "The pilot brakes toward this as a ceiling and eases below it on approach so it",
                          "decelerates onto the destination instead of overshooting. Lower = gentler, safer.")
                 .defineInRange("heliCruiseSpeed", 0.6, 0.1, 2.0);
+
+        HELI_WEAPON_SWITCH_INTERVAL_TICKS = builder
+                .comment("Ticks between weapon switches for an AI helicopter crew in combat (20 = 1 second).",
+                         "Gunships cycle to a RANDOM valid weapon slot on this interval, regardless of the",
+                         "target's type — unlike ground crews, which pick a weapon by target category.")
+                .defineInRange("heliWeaponSwitchIntervalTicks", 60, 1, 1200);
 
         builder.pop();
 

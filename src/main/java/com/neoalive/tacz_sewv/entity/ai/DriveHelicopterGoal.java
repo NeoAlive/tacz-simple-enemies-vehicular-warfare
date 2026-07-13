@@ -12,6 +12,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.joml.Vector3f;
 
 import java.util.EnumSet;
@@ -156,6 +157,31 @@ public class DriveHelicopterGoal extends Goal {
                 && isHelicopter();
     }
 
+    // The flight model re-asserts analog stick inputs against their ×0.95/tick
+    // decay and closes control loops against live velocity; vanilla only ticks
+    // running goals every OTHER tick unless this is overridden.
+    @Override
+    public boolean requiresUpdateEveryTick() {
+        return true;
+    }
+
+    @Override
+    public void start() {
+        // A freshly boarded PMC helicopter sitting on the ground stays parked
+        // (sticky LANDED) until an explicit takeoff order — without this, mounting
+        // a parked hull auto-launched it to cruise altitude, making the takeoff
+        // key ceremonial. ONLY player-owned crews park: RU/US crews take no player
+        // flight orders and lift off immediately instead (see the normalization in
+        // tick()). Spawned PMC crews are unaffected: TankSpawner issues TAKEOFF
+        // before their first AI tick, so their command is never NONE here.
+        if (this.vehicle != null && this.vehicle.onGround()
+                && this.unit instanceof PmcUnitEntity
+                && this.unit instanceof IHelicopterPilot pilot
+                && pilot.sewv$getHeliCommand() == IHelicopterPilot.HELI_CMD_NONE) {
+            pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
+        }
+    }
+
     @Override
     public void stop() {
         if (this.vehicle != null) {
@@ -191,6 +217,17 @@ public class DriveHelicopterGoal extends Goal {
 
         IHelicopterPilot pilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
         int command = pilot != null ? pilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
+
+        // Hostile RU/US crews take no player flight orders and never idle parked:
+        // any grounded resting state (spawn edge cases, world reload, a survived
+        // crash-spin) resolves to an immediate takeoff.
+        if (pilot != null && !(this.unit instanceof PmcUnitEntity)
+                && this.vehicle.onGround()
+                && (command == IHelicopterPilot.HELI_CMD_NONE
+                    || command == IHelicopterPilot.HELI_CMD_LANDED)) {
+            command = IHelicopterPilot.HELI_CMD_TAKEOFF;
+            pilot.sewv$setHeliCommand(command);
+        }
 
         // LANDED is sticky: stay shut down on the ground — no hover, no order-driven
         // flying — until the player issues a new takeoff (L) or landing (CTRL+L).
@@ -269,13 +306,13 @@ public class DriveHelicopterGoal extends Goal {
         double horizDist = Math.sqrt(dx * dx + dz * dz);
         double engage = SewvConfig.HELI_ENGAGE_RADIUS.get();
 
-        // Same weapon doctrine as the ground crews (shared via VehicleWeapons):
-        // category picks the slot family, range picks between them, and the switch
-        // cooldown stops cannon/MG flip-flopping.
+        // Gunship weapon doctrine, deliberately DIFFERENT from the ground crews':
+        // cycle to a random valid weapon slot on a fixed interval, regardless of
+        // what the target is — rockets, cannon and MG all get their turn.
         if (this.weaponSwitchCooldown <= 0) {
-            VehicleWeapons.selectWeaponForTarget(this.vehicle, this.vehicle.getSeatIndex(this.unit),
-                    VehicleWeapons.classifyTarget(target), horizDist > engage + ENGAGE_DEADBAND);
-            this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
+            VehicleWeapons.selectRandomWeapon(
+                    this.vehicle, this.vehicle.getSeatIndex(this.unit), this.unit.getRandom());
+            this.weaponSwitchCooldown = SewvConfig.HELI_WEAPON_SWITCH_INTERVAL_TICKS.get();
         }
 
         if (horizDist > engage + ENGAGE_DEADBAND) {
@@ -538,8 +575,10 @@ public class DriveHelicopterGoal extends Goal {
             this.vehicle.setDecoyInputDown(false); // unlatch once healed/repaired or parked
             return;
         }
+        // Sentinel tested explicitly: now - Long.MIN_VALUE overflows negative and
+        // would silently skip the roll for the first-ever episode.
         long now = this.unit.level().getGameTime();
-        if (now - this.lastDecoyTick > 1) {
+        if (this.lastDecoyTick == Long.MIN_VALUE || now - this.lastDecoyTick > 1) {
             this.deployDecoyThisEpisode = this.unit.getRandom().nextFloat() < PRESERVE_DECOY_CHANCE;
         }
         this.lastDecoyTick = now;

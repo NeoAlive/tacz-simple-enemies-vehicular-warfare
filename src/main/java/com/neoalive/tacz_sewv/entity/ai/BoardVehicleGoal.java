@@ -39,12 +39,19 @@ public boolean canUse() {
     if (mountId == -1) return false;
 
     Entity e = this.unit.level().getEntity(mountId);
-    if (e instanceof VehicleEntity v && v.isAlive() && !v.isWreck() 
-            && v.getPassengers().size() < v.getMaxPassengers()) {
-        this.targetVehicle = v;
-        return true;
+    if (e == null) return false; // not resolvable right now — keep the order pending
+
+    // The target resolved but can't be boarded (destroyed, wrecked, or full):
+    // drop the order instead of leaving the boarding flag latched — otherwise the
+    // unit would spontaneously walk off to board whenever a seat frees up later.
+    if (!(e instanceof VehicleEntity v) || !v.isAlive() || v.isWreck()
+            || v.getPassengers().size() >= v.getMaxPassengers()) {
+        cancelBoarding();
+        return false;
     }
-    return false;
+
+    this.targetVehicle = v;
+    return true;
 }
 
 private void cancelBoarding() {
@@ -70,7 +77,8 @@ public void start() {
 }
 
     private int boardingTicks = 0;
-private static final int MAX_BOARDING_TICKS = 200; // 10 seconds to reach the vehicle
+// 200 goal ticks ≈ 20 s wall clock: goals tick every other game tick.
+private static final int MAX_BOARDING_TICKS = 200;
 
 @Override
 public void tick() {
@@ -99,13 +107,14 @@ public void tick() {
     boolean navStuck = this.unit.getNavigation().isDone() && distSq <= NAV_STUCK_DISTANCE_SQ;
 
     if (closeEnough || navStuck) {
-    if (!this.unit.level().isClientSide) {
-        this.unit.startRiding(this.targetVehicle);
+    if (this.unit.startRiding(this.targetVehicle)) {
         // Boarded successfully, clear the order so it doesn't loop or re-board after dismount
         boarder().tacz_sewv$setBoarding(false);
         boarder().tacz_sewv$setMountTargetId(-1);
+        this.unit.getNavigation().stop();
     }
-    this.unit.getNavigation().stop();
+    // A refused mount (seat raced away, another mod cancelled it) keeps the order:
+    // the full-vehicle check above and the timeout still bound the retries.
 } else if (this.unit.getNavigation().isDone() && this.boardingTicks % 10 == 0) {
     // Throttled: an unreachable vehicle leaves navigation "done" every tick,
     // which would otherwise trigger a full repath every tick for 10 seconds.

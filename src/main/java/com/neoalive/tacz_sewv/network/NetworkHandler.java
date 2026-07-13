@@ -4,11 +4,12 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
-import com.neoalive.tacz_sewv.client.BoardKeybind;
 
 public class NetworkHandler {
 
-    private static final String PROTOCOL_VERSION = "1";
+    // Bumped when the wire format changes (2: list sizes/ids became VarInts) so a
+    // mismatched client/server pair is rejected at handshake instead of misparsing.
+    private static final String PROTOCOL_VERSION = "2";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

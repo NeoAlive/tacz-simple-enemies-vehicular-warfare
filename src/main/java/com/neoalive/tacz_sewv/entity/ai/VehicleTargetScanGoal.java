@@ -44,6 +44,7 @@ public class VehicleTargetScanGoal extends Goal {
     // rescans for someone it can actually shoot instead of staring at a wall.
     // Firing during the grace is separately suppressed in MixinVehicleFireCooldown,
     // so nothing leaks through the wall while the lock lingers.
+    // 60 goal ticks ≈ 6 s wall clock: goals tick every other game tick.
     private static final int LOS_GRACE_TICKS = 60;
 
     private final AbstractUnit unit;
@@ -148,11 +149,24 @@ public class VehicleTargetScanGoal extends Goal {
             return distSq <= radiusSq && distSq >= VehicleMinRangeGoal.MIN_ENGAGE_DISTANCE_SQ;
         });
 
-        candidates.sort(Comparator.comparingDouble(e -> horizontalDistSq(v, e)));
+        // Without LOS, "nearest" is a single min-pass; the sort is only needed when
+        // LOS raycasts must probe candidates in nearest-first order.
+        if (!SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()) {
+            LivingEntity best = null;
+            double bestDistSq = Double.MAX_VALUE;
+            for (LivingEntity candidate : candidates) {
+                double distSq = horizontalDistSq(v, candidate);
+                if (distSq < bestDistSq) {
+                    best = candidate;
+                    bestDistSq = distSq;
+                }
+            }
+            return best;
+        }
 
-        boolean needLineOfSight = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get();
+        candidates.sort(Comparator.comparingDouble(e -> horizontalDistSq(v, e)));
         for (LivingEntity candidate : candidates) {
-            if (!needLineOfSight || this.unit.getSensing().hasLineOfSight(candidate)) {
+            if (this.unit.getSensing().hasLineOfSight(candidate)) {
                 return candidate;
             }
         }

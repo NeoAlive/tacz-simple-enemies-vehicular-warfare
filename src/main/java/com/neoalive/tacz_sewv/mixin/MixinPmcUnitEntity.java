@@ -4,7 +4,6 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.BoardVehicleGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,6 +12,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+// IHelicopterPilot needs no method bodies here — its default methods store the
+// flight state in the entity's persistent NBT (so it survives world reloads).
+// The boarding order below is deliberately transient: it targets an entity by
+// network id, which is not stable across sessions, so persisting it would be
+// wrong — a pending board order is simply dropped on reload.
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity implements IVehicleBoarder, IHelicopterPilot {
 
@@ -21,12 +25,6 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder, IHelicopter
 
     @Unique
     private boolean tacz_sewv$boarding = false;
-
-    @Unique
-    private int tacz_sewv$heliCommand = IHelicopterPilot.HELI_CMD_NONE;
-
-    @Unique
-    private BlockPos tacz_sewv$heliLandPos = null;
 
     @Override
     public void tacz_sewv$setMountTargetId(int id) {
@@ -48,30 +46,10 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder, IHelicopter
         return this.tacz_sewv$boarding;
     }
 
-    @Override
-    public void sewv$setHeliCommand(int command) {
-        this.tacz_sewv$heliCommand = command;
-    }
-
-    @Override
-    public int sewv$getHeliCommand() {
-        return this.tacz_sewv$heliCommand;
-    }
-
-    @Override
-    public void sewv$setHeliLandPos(BlockPos pos) {
-        this.tacz_sewv$heliLandPos = pos;
-    }
-
-    @Override
-    public BlockPos sewv$getHeliLandPos() {
-        return this.tacz_sewv$heliLandPos;
-    }
-
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
-private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
-    PmcUnitEntity self = (PmcUnitEntity) (Object) this;
-    ((Mob) self).goalSelector.addGoal(1, new BoardVehicleGoal(self));
-    VehicleAiGoals.addDriveGoals(self);
-}
+    private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
+        PmcUnitEntity self = (PmcUnitEntity) (Object) this;
+        ((Mob) self).goalSelector.addGoal(1, new BoardVehicleGoal(self));
+        VehicleAiGoals.addDriveGoals(self);
+    }
 }

@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
@@ -21,7 +22,9 @@ public final class VehicleWeapons {
     public static final int WEAPON_SPECIAL = 2; // TOW / heavy anti-vehicle ordnance
     private static final int WEAPON_COUNT = 3;
 
-    public enum TargetCategory { VEHICLE, MONSTER, PMC_UNIT }
+    // FACTION_UNIT = SEM's RU/US faction infantry. (An actual PmcUnitEntity target
+    // deliberately falls through to MONSTER — identical doctrine either way.)
+    public enum TargetCategory { VEHICLE, MONSTER, FACTION_UNIT }
 
     private VehicleWeapons() {}
 
@@ -46,7 +49,7 @@ public final class VehicleWeapons {
         // A VehicleEntity isn't a LivingEntity, so it can never be the target itself
         // the AI targets the crew riding inside; armor makes the MG useless against them.
         if (target.getVehicle() instanceof VehicleEntity) return TargetCategory.VEHICLE;
-        if (target instanceof RUunitEntity || target instanceof USunitEntity) return TargetCategory.PMC_UNIT;
+        if (target instanceof RUunitEntity || target instanceof USunitEntity) return TargetCategory.FACTION_UNIT;
         return TargetCategory.MONSTER; // vanilla hostiles + fallback default
     }
 
@@ -63,20 +66,42 @@ public final class VehicleWeapons {
                 weight[tooFar ? WEAPON_SPECIAL : WEAPON_CANNON] = 1.0;
                 break;
             case MONSTER:
-            case PMC_UNIT: // same doctrine as monsters, don't burn heavy ordnance on infantry
+            case FACTION_UNIT: // same doctrine as monsters, don't burn heavy ordnance on infantry
                 weight[WEAPON_SPECIAL] = Double.NEGATIVE_INFINITY;
                 weight[tooFar ? WEAPON_CANNON : WEAPON_MG] = 1.0;
                 break;
         }
 
-        // Not every vehicle has a 3rd weapon slot, setWeaponIndex() doesn't
-        // bounds-check, so an invalid index silently leaves the seat unarmed.
+        // Not every seat has all 3 slots, and setWeaponIndex() doesn't bounds-check —
+        // an invalid index silently leaves the seat unarmed. Exclude every slot the
+        // seat doesn't actually have (a single-weapon hull would otherwise deselect
+        // its only working gun when doctrine asks for the MG), and don't touch the
+        // selection at all on a weaponless seat.
         SeatInfo seat = vehicle.getSeat(seatIndex);
-        if (seat == null || seat.weapons().size() <= WEAPON_SPECIAL) {
+        int weaponCount = seat == null ? 0 : seat.weapons().size();
+        if (weaponCount == 0) return;
+        if (weaponCount <= WEAPON_SPECIAL) {
             weight[WEAPON_SPECIAL] = Double.NEGATIVE_INFINITY;
+        }
+        if (weaponCount <= WEAPON_MG) {
+            weight[WEAPON_MG] = Double.NEGATIVE_INFINITY;
         }
 
         vehicle.setWeaponIndex(seatIndex, argmax(weight));
+    }
+
+    /**
+     * Gunship doctrine ({@link DriveHelicopterGoal}): pick a RANDOM slot among the
+     * weapons the seat actually has, regardless of the target's type. Bounded by
+     * the seat's real weapon count for the same reason as above — setWeaponIndex()
+     * doesn't bounds-check and an invalid index silently disarms the seat.
+     */
+    public static void selectRandomWeapon(VehicleEntity vehicle, int seatIndex, RandomSource random) {
+        if (seatIndex < 0) return;
+        SeatInfo seat = vehicle.getSeat(seatIndex);
+        int weaponCount = seat == null ? 0 : seat.weapons().size();
+        if (weaponCount <= 0) return;
+        vehicle.setWeaponIndex(seatIndex, random.nextInt(weaponCount));
     }
 
     private static int argmax(double[] weight) {

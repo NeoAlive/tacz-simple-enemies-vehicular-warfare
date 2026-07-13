@@ -2,15 +2,19 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.common.world.ForgeChunkManager;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.joml.Vector3f;
@@ -118,6 +122,11 @@ public class DriveHelicopterGoal extends Goal {
     private VehicleEntity helicopterCacheVehicle;
     private boolean helicopterCacheValue;
 
+    // The chunk currently force-loaded on this aircraft's behalf, or null when the
+    // option is off / nothing is held. Only ever one at a time — it hands off as the
+    // hull crosses chunk boundaries (see updateChunkLoading).
+    private ChunkPos forcedChunk;
+
     public DriveHelicopterGoal(AbstractUnit unit) {
         this.unit = unit;
         this.setFlags(EnumSet.noneOf(Flag.class)); // flying doesn't need to lock move/look flags
@@ -175,6 +184,9 @@ public class DriveHelicopterGoal extends Goal {
             // releaseInputs leaves the decoy latch alone (crash-spin flares must
             // survive its per-tick calls) — but a crew leaving the seat lets go.
             this.vehicle.setDecoyInputDown(false);
+            // Hand the chunk back before we drop the vehicle reference the release
+            // ticket is keyed to.
+            releaseForcedChunk();
         }
         this.vehicle = null;
         this.flightY = Double.NaN;
@@ -184,6 +196,10 @@ public class DriveHelicopterGoal extends Goal {
 
     @Override
     public void tick() {
+        // Independent of flight state: hold the airframe's chunk loaded (if enabled)
+        // whether it is cruising, fighting, spiraling in, or parked.
+        updateChunkLoading();
+
         if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
         // Before the crash guard on purpose: a burning airframe spiraling in keeps
         // popping flares all the way down.
@@ -635,6 +651,45 @@ public class DriveHelicopterGoal extends Goal {
         double cross = forward.x * target.z - forward.z * target.x;
         double dot = forward.x * target.x + forward.z * target.z;
         return -Math.atan2(cross, dot);
+    }
+
+    // Optional force-loading (config-gated, default off): keep the single chunk the
+    // airframe is currently over loaded and ticking so the aircraft keeps flying when
+    // no player is nearby. Called every tick — the held chunk is only re-issued when
+    // the hull crosses a chunk boundary, and is dropped immediately if the option is
+    // switched off at runtime. Entity-owned tickets are self-cleaning: they are not
+    // restored across a world reload without a validation callback (fine — this is a
+    // live-flight aid, not persistent world state).
+    //
+    // TEMP: the System.out lines report the airframe name so force-loading can be
+    // eyeballed in the server console. Remove once the behavior is verified.
+    private void updateChunkLoading() {
+        if (!SewvConfig.HELI_CHUNK_LOADING.get()) {
+            releaseForcedChunk(); // option turned off — give any held chunk back
+            return;
+        }
+        if (!(this.unit.level() instanceof ServerLevel serverLevel)) return;
+
+        ChunkPos current = new ChunkPos(this.vehicle.blockPosition());
+        if (current.equals(this.forcedChunk)) return; // still over the chunk we hold
+
+        releaseForcedChunk(); // crossed a boundary — drop the previous chunk first
+        ForgeChunkManager.forceChunk(serverLevel, TaczSewv.MODID, this.vehicle,
+                current.x, current.z, true, true);
+        this.forcedChunk = current;
+        System.out.println("[SEWV chunkload] " + this.vehicle.getName().getString()
+                + " force-loading chunk [" + current.x + ", " + current.z + "]");
+    }
+
+    private void releaseForcedChunk() {
+        if (this.forcedChunk == null) return;
+        if (this.unit.level() instanceof ServerLevel serverLevel) {
+            ForgeChunkManager.forceChunk(serverLevel, TaczSewv.MODID, this.vehicle,
+                    this.forcedChunk.x, this.forcedChunk.z, false, true);
+            System.out.println("[SEWV chunkload] " + this.vehicle.getName().getString()
+                    + " released chunk [" + this.forcedChunk.x + ", " + this.forcedChunk.z + "]");
+        }
+        this.forcedChunk = null;
     }
 
     private boolean isHelicopter() {

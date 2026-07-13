@@ -44,6 +44,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_SPEED;
     public static final ForgeConfigSpec.IntValue HELI_WEAPON_SWITCH_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue HELI_ATTACK_HEIGHT;
+    public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
 
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -186,6 +187,10 @@ public class SewvConfig {
                          "reliably) but a more exposed, terrain-hugging attack profile. Outside the engage",
                          "ring the aircraft still transits at its normal cruise flight level.")
                 .defineInRange("heliAttackHeight", 15.0, 8.0, 40.0);
+
+        HELI_CHUNK_LOADING = builder
+                .comment("If enabled, helicopters will keep flying even if chunks are unloaded. Can cause performance issues if many helicopters are flying at once.")
+                .define("heliChunkLoading", false);
 
         builder.pop();
 

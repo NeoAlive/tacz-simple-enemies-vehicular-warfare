@@ -10,6 +10,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.minecraft.world.level.pathfinder.PathFinder;
@@ -19,6 +20,7 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import org.joml.Vector3f;
 
 import java.util.EnumSet;
+import java.util.List;
 
 public class DriveVehicleGoal extends Goal {
 
@@ -98,6 +100,12 @@ public class DriveVehicleGoal extends Goal {
     private VehicleEntity helicopterCacheVehicle;
     private boolean helicopterCacheValue;
 
+    // Per-game-tick cache of nearby vehicle obstacles (wrecks, allied hulls), each
+    // box pre-inflated by our half-width. The whisker fan probes up to 9 headings a
+    // tick and every probe consults this list — only the first builds it.
+    private long vehicleObstacleCacheTime = Long.MIN_VALUE;
+    private List<AABB> vehicleObstacles = List.of();
+
     // Only PmcUnitEntity (player-commandable units) has an order queue via ICommandableMob;
     // RUunitEntity/USunitEntity are plain hostile units with no order system.
     public DriveVehicleGoal(AbstractUnit unit) {
@@ -145,6 +153,8 @@ public class DriveVehicleGoal extends Goal {
         this.currentPath = null;
         this.lastPathTarget = null;
         this.pathRecalcCooldown = 0;
+        this.vehicleObstacles = List.of();
+        this.vehicleObstacleCacheTime = Long.MIN_VALUE;
         this.allyAssist.clear();
         clearRecovery();
     }
@@ -349,7 +359,8 @@ private void clearRecovery() {
     if (avoidance) {
         steer = chooseClearBearing(desired);
         if (steer == null) {
-            // Boxed in by water/cliffs on every probed bearing — hold at the edge,
+            // Boxed in by water/cliffs/vehicle obstacles on every probed bearing —
+            // hold at the edge,
             // turning in place toward the goal rather than ploughing in. Keeping a
             // turn input held preserves the tracked turn ramp and stops updateStuck
             // (rotation counts as progress) from triggering a blind unstick reverse.
@@ -427,7 +438,8 @@ private void holdAtEdge(Vec3 dir) {
 }
 
 // True if driving `distance` blocks along `dir` from the hull crosses no hazard:
-// water (unless amphibious), lava, or a drop deeper than the safe-drop tolerance.
+// water (unless amphibious), lava, a drop deeper than the safe-drop tolerance, or
+// a vehicle obstacle (wreck or allied hull) the block sensor can't see.
 private boolean headingClear(Vec3 dir, double distance) {
     boolean avoidWater = !isAmphibiousVehicle();
     int maxDrop = SewvConfig.VEHICLE_MAX_SAFE_DROP.get();
@@ -436,12 +448,14 @@ private boolean headingClear(Vec3 dir, double distance) {
     double startZ = this.vehicle.getZ();
     int baseY = this.vehicle.getBlockY();
     double half = this.vehicle.getBbWidth() / 2.0;
+    List<AABB> obstacles = vehicleObstacles();
     BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
     // Step ~1 block at a time from just past the hull edge out to the look-ahead range.
     for (double d = half + 0.5; d <= half + distance; d += 1.0) {
-        int px = Mth.floor(startX + dir.x * d);
-        int pz = Mth.floor(startZ + dir.z * d);
-        if (isHazardColumn(level, pos, px, pz, baseY, avoidWater, maxDrop)) {
+        double sampleX = startX + dir.x * d;
+        double sampleZ = startZ + dir.z * d;
+        if (isBlockedByVehicle(obstacles, sampleX, sampleZ)) return false;
+        if (isHazardColumn(level, pos, Mth.floor(sampleX), Mth.floor(sampleZ), baseY, avoidWater, maxDrop)) {
             return false;
         }
     }
@@ -473,6 +487,46 @@ private boolean isHazardColumn(Level level, BlockPos.MutableBlockPos pos, int x,
         }
     }
     return true; // no ground within maxDrop → cliff
+}
+
+// Vehicle obstacles are entities, so the block-based hazard sensor can't see them:
+// wrecks (dead hulls linger as scenery) and allied crewed vehicles must not be
+// driven through, while enemy hulls stay fair game — the standoff ring keeps the
+// distance, and refusing to close on an enemy "obstacle" would fight it. Our own
+// hull is excluded explicitly: probes start just past our edge, so with boxes
+// inflated by our half-width a self-match would flag every bearing as blocked.
+private List<AABB> vehicleObstacles() {
+    long now = this.unit.level().getGameTime();
+    if (now != this.vehicleObstacleCacheTime) {
+        this.vehicleObstacleCacheTime = now;
+        double half = this.vehicle.getBbWidth() / 2.0;
+        double reach = lookaheadDistance() + half + 1.0;
+        // ±2 vertically: an obstacle on a drivable slope still counts, one far below
+        // a cliff edge doesn't (the drop check already rejects that bearing).
+        AABB search = this.vehicle.getBoundingBox().inflate(reach, 2.0, reach);
+        // Inflating each box by our half-width lets the centerline point probes in
+        // headingClear stand in for sweeping the full hull width along the bearing.
+        this.vehicleObstacles = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
+                        v -> v != this.vehicle && isVehicleObstacle(v)).stream()
+                .map(v -> v.getBoundingBox().inflate(half, 0.0, half))
+                .toList();
+    }
+    return this.vehicleObstacles;
+}
+
+private boolean isVehicleObstacle(VehicleEntity other) {
+    if (other.isWreck()) return true;
+    return other.getFirstPassenger() instanceof AbstractUnit driver
+            && VehicleTargeting.isSameFaction(this.unit, driver);
+}
+
+private static boolean isBlockedByVehicle(List<AABB> obstacles, double x, double z) {
+    for (AABB box : obstacles) {
+        if (x >= box.minX && x <= box.maxX && z >= box.minZ && z <= box.maxZ) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Hold an armored target at the far standoff ring (VEHICLE_TOO_FAR): close in when

@@ -229,7 +229,9 @@ public final class VehicleTargeting {
         return target != null && target.isAlive();
     }
 
-    private static boolean isSameFaction(AbstractUnit unit, AbstractUnit other) {
+    // Package-visible: DriveVehicleGoal's vehicle-obstacle filter defines "ally"
+    // with this same test, so assist doctrine and collision doctrine can't diverge.
+    static boolean isSameFaction(AbstractUnit unit, AbstractUnit other) {
         if (unit instanceof RUunitEntity) return other instanceof RUunitEntity;
         if (unit instanceof USunitEntity) return other instanceof USunitEntity;
         return unit instanceof PmcUnitEntity && other instanceof PmcUnitEntity;

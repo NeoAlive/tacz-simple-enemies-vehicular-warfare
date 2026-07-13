@@ -22,6 +22,7 @@ public class SewvConfig {
     // Crew AI behavior
     public static final ForgeConfigSpec.IntValue AI_FIRE_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue WEAPON_SWITCH_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.DoubleValue AI_FIRE_ASSIST_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
 
     // Mounted-crew target scan (cylinder around the vehicle)
@@ -42,6 +43,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue HELI_ALT_DEADBAND;
     public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_SPEED;
     public static final ForgeConfigSpec.IntValue HELI_WEAPON_SWITCH_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.DoubleValue HELI_ATTACK_HEIGHT;
 
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -53,15 +55,15 @@ public class SewvConfig {
         builder.push("event_vehicles");
 
         TANKS_IN_EVENTS = builder
-                .comment("Allow RU/US tanks to (very rarely) spawn in combat events.")
+                .comment("Allow RU/US tanks to (by default very rarely) spawn in combat events.")
                 .define("tanksInEvents", true);
 
         TANK_SPAWN_CHANCE_RU = builder
-                .comment("Chance (0.0-1.0) for an RU tank to spawn when a combat event fires. Keep it LOW for rarity.")
+                .comment("Chance (0.0-1.0) for an RU tank to spawn when a combat event occours. Keep it LOW for rarity.")
                 .defineInRange("tankSpawnChanceRu", 0.02, 0.0, 1.0);
 
         TANK_SPAWN_CHANCE_US = builder
-                .comment("Chance (0.0-1.0) for a US tank to spawn when a combat event fires. Keep it LOW for rarity.")
+                .comment("Chance (0.0-1.0) for a US tank to spawn when a combat event occours. Keep it LOW for rarity.")
                 .defineInRange("tankSpawnChanceUs", 0.02, 0.0, 1.0);
 
         builder.pop();
@@ -70,19 +72,19 @@ public class SewvConfig {
 
         RU_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids RU crews can spawn with (e.g. \"superbwarfare:t_90a\").",
-                         "List several to have one picked at random per spawn. Helicopters are allowed too",
+                         "List several to have one picked at random per spawn. (Ground Vehicles and Helicopters are supported.)",
                          "(e.g. \"superbwarfare:mi_28\")")
                 .defineList("ruVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:bmp_2", "superbwarfare:mi_28"), SewvConfig::isValidVehicleId);
 
         US_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids US crews can spawn with (e.g. \"superbwarfare:m_1a_2\").",
-                         "List several to have one picked at random per spawn. Helicopters are allowed too",
+                         "List several to have one picked at random per spawn. (Ground Vehicles and Helicopters are supported.)",
                          "(e.g. \"superbwarfare:ah_6\")")
                 .defineList("usVehiclePool", List.of("superbwarfare:m_1a_2", "superbwarfare:bradley", "superbwarfare:ah_6"), SewvConfig::isValidVehicleId);
 
         PMC_VEHICLE_POOL = builder
-                .comment("Vehicle entity ids for /sewv spawn pmctank (player-commandable crew).",
-                         "List several to have one picked at random per spawn. Helicopters are allowed too",
+                .comment("Vehicle entity ids for debug PMC units spawning",
+                         "List several to have one picked at random per spawn. (Ground Vehicles and Helicopters are supported.)",
                          "(e.g. \"superbwarfare:ah_6\")")
                 .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:ah_6"), SewvConfig::isValidVehicleId);
 
@@ -95,54 +97,51 @@ public class SewvConfig {
                 .defineInRange("aiFireCooldownTicks", 5, 1, 200);
 
         WEAPON_SWITCH_COOLDOWN_TICKS = builder
-                .comment("Minimum ticks between AI weapon switches, prevents rapid cannon/MG flip-flopping.")
+                .comment("Minimum ticks between AI weapon switches, prevents rapid cannon/MG spam.")
                 .defineInRange("weaponSwitchCooldownTicks", 5, 1, 200);
+
+        AI_FIRE_ASSIST_CONE_DEG = builder
+                .comment("Defines the radius of accuracy a helicopter should prefer. Lower numbers makes the helicopter's movement less chaotic and unpredictable but also less likely to fire with Helicopter weapons")
+                .defineInRange("aiFireAssistConeDeg", 12.0, 4.0, 30.0);
 
         SMOKE_BLOCK_RADIUS = builder
                 .comment("How close (in blocks) a smoke decoy must be to an AI crew's line of fire to block the shot.",
-                         "Larger = smoke screens are wider and more protective. Only affects AI-crewed vehicles.")
+                         "Larger = smoke screens are wider and more protective.")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
 
         VEHICLE_TARGET_SCAN_RADIUS = builder
                 .comment("Horizontal radius (in blocks) of the cylindrical target scan used by mounted AI crews.",
                          "Replaces the vanilla follow-range scan, which is far too short for vehicle engagement ranges.",
-                         "Larger = crews spot enemies farther out, but each scan touches more of the world (perf cost).")
+                         "Larger = crews spot enemies farther out, but each scan touches more of the world (Lower this for performance).")
                 .defineInRange("vehicleTargetScanRadius", 96.0, 8.0, 128.0);
 
         VEHICLE_TARGET_SCAN_HEIGHT = builder
                 .comment("Total height (in blocks) of the target-scan cylinder, centered on the vehicle.",
-                         "Keeping it flat is the cheap-and-effective shape for ground vehicles: wide reach without",
-                         "paying to scan sky and caves. Raise it if enemies on tall cliffs should be engaged.")
+                         "Raise it if enemies on tall cliffs should be engaged.")
                 .defineInRange("vehicleTargetScanHeight", 128, 4.0, 128.0);
 
         VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder
                 .comment("Ticks between target scans per crew member (20 = 1 second).",
-                         "Larger = cheaper, but crews react slower to new threats.")
+                         "Higher number = cheaper, but crews react slower to threats.")
                 .defineInRange("vehicleTargetScanIntervalTicks", 20, 1, 200);
 
         VEHICLE_TARGET_REQUIRE_LOS = builder
-                .comment("Require line of sight for mounted AI crews: a scanned target is only locked when visible,",
-                         "an existing lock is dropped after a few seconds without visibility, and the guns hold fire",
-                         "while terrain blocks the muzzle-to-target line (whatever set the target).",
-                         "Disabling skips all these raycasts (cheaper) but lets crews acquire and shoot through cover.")
+                .comment("If vehicles should use LineOfSight. Disable to squeeze much more performance, keep enabled for realism.")
                 .define("vehicleTargetRequireLineOfSight", true);
 
         VEHICLE_ALLY_ASSIST_RANGE = builder
-                .comment("Range (in blocks) within which an idle AI vehicle crew notices an allied vehicle in combat",
-                         "and drives to support it, stopping once inside the ally's comfortable ring. 0 disables it.",
-                         "The check runs on the vehicleTargetScanIntervalTicks cadence, so it shares that perf knob.")
-                .defineInRange("vehicleAllyAssistRange", 256.0, 0.0, 256.0);
+                .comment("Range a vehicle uses to scan for allies in combat")
+                .defineInRange("vehicleAllyAssistRange", 128.0, 0.0, 256.0);
 
         VEHICLE_TERRAIN_AVOIDANCE = builder
                 .comment("Look ahead while driving and steer AI vehicles around water, deep drops (ravines/cliffs)",
-                         "and lava instead of ploughing straight into them. Disabling restores the old behavior",
+                         "and lava instead of ploughing straight into them. Disabling restores legacy behavior",
                          "of driving in a straight line at the destination.")
                 .define("vehicleTerrainAvoidance", true);
 
         VEHICLE_LOOKAHEAD_DISTANCE = builder
                 .comment("How far ahead (in blocks) the terrain sensor probes for hazards.",
-                         "This is the performance knob: shorter = cheaper but reacts later (may clip a hazard at speed),",
-                         "longer = earlier, wider avoidance at more block lookups per driving tick.")
+                         "Higher numbers = scans ahead for obstacles at the cost of performance.")
                 .defineInRange("vehicleLookaheadDistance", 5.0, 1.0, 16.0);
 
         VEHICLE_MAX_SAFE_DROP = builder
@@ -156,34 +155,37 @@ public class SewvConfig {
         builder.push("flight_ai");
 
         HELI_CRUISE_ALTITUDE = builder
-                .comment("Flight level (in blocks) above the TAKEOFF ORIGIN that an AI helicopter climbs to",
-                         "and then holds as a consistent Y level for the whole flight. Constrained to 30-50",
-                         "so the aircraft always clears trees/buildings but stays in engagement reach.")
+                .comment("The average amount of blocks an helicopter should hover in the air in relation to the ground")
                 .defineInRange("heliCruiseAltitude", 35.0, 30.0, 50.0);
 
         HELI_ENGAGE_RADIUS = builder
-                .comment("Horizontal standoff (in blocks) an AI helicopter holds from a combat target while",
+                .comment("Horizontal standoff (in blocks) a NPC helicopter holds from a combat target while",
                          "aiming: beyond it the aircraft closes in, inside it the aircraft holds and pitches",
                          "its nose down onto the target so its weapons bear.")
                 .defineInRange("heliEngageRadius", 32.0, 12.0, 64.0);
 
         HELI_ALT_DEADBAND = builder
-                .comment("Altitude-hold tolerance (in blocks). The helicopter only applies climb/descend",
+                .comment("Altitude-hold tolerance (in blocks). The NPC helicopter only applies climb/descend",
                          "collective when it is more than this far off its target height, so it settles into",
                          "a stable hover instead of hunting up and down. Smaller = tighter but twitchier.")
                 .defineInRange("heliAltDeadband", 2.5, 0.5, 8.0);
 
         HELI_CRUISE_SPEED = builder
-                .comment("Target horizontal cruise speed (blocks/tick) an AI helicopter flies a leg at.",
+                .comment("Target horizontal cruise speed (blocks/tick) an helicopter flies a leg at.",
                          "The pilot brakes toward this as a ceiling and eases below it on approach so it",
                          "decelerates onto the destination instead of overshooting. Lower = gentler, safer.")
                 .defineInRange("heliCruiseSpeed", 0.6, 0.1, 2.0);
 
         HELI_WEAPON_SWITCH_INTERVAL_TICKS = builder
-                .comment("Ticks between weapon switches for an AI helicopter crew in combat (20 = 1 second).",
-                         "Gunships cycle to a RANDOM valid weapon slot on this interval, regardless of the",
-                         "target's type — unlike ground crews, which pick a weapon by target category.")
+                .comment("Ticks between weapon switches for an helicopter crew in combat (20 = 1 second).")
                 .defineInRange("heliWeaponSwitchIntervalTicks", 60, 1, 1200);
+
+        HELI_ATTACK_HEIGHT = builder
+                .comment("Height (in blocks) above the TARGET an AI helicopter holds while aiming in combat.",
+                         "Lower = shallower dive needed to bring fixed weapons to bear (fires much more",
+                         "reliably) but a more exposed, terrain-hugging attack profile. Outside the engage",
+                         "ring the aircraft still transits at its normal cruise flight level.")
+                .defineInRange("heliAttackHeight", 15.0, 8.0, 40.0);
 
         builder.pop();
 

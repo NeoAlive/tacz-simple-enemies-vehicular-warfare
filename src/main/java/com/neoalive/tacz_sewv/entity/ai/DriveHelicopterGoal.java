@@ -30,10 +30,13 @@ import java.util.EnumSet;
  *     blocked (yaw avoidance, same pattern as DriveVehicleGoal's ground whiskers);
  *     a fully-blocked forward cone answers with a climb (vertical avoidance).</li>
  * <li><b>Combat = aim platform, no revolution.</b> Close to the engage radius,
- *     hold there, and pitch the nose down onto the target — SBW's AI fire loop
- *     shoots a fixed-gun seat only when the weapon bears within 4°, and pitching
- *     is what brings it to bear. Aim-pitching happens EXCLUSIVELY in combat;
- *     everywhere else the hull flies gentle, bounded attitudes.</li>
+ *     descend to the attack altitude (heliAttackHeight above the TARGET — from
+ *     cruise level the required depression would sit at/past the dive clamp),
+ *     hold there, and pitch the nose down onto the target. The trigger is pulled
+ *     by {@link VehicleWeapons#tryAiFireAssist} within the configured aim cone;
+ *     SBW's own AI loop (hard 4° line) still fires whenever it happens to align.
+ *     Aim-pitching happens EXCLUSIVELY in combat; everywhere else the hull flies
+ *     gentle, bounded attitudes.</li>
  * <li><b>FOLLOW_COMMANDER</b> parks the aircraft over the commander's X/Z at the
  *     nearest level above them (never below flight level, never closer than a
  *     fixed clearance over their head).</li>
@@ -61,9 +64,6 @@ public class DriveHelicopterGoal extends Goal {
     private static final float MAX_ATTITUDE_DEG = 20.0F;   // transit tilt ceiling
     private static final double PITCH_STICK_PER_DEG = 0.8;
     private static final float MAX_PITCH_STICK = 15.0F;
-    // Velocity-error guidance: desired closing speed tapers with distance so the
-    // hull brakes onto the point; error behind the nose is answered with nose-up
-    // reverse thrust, which is what kills tangential drift (no circling).
     private static final double APPROACH_GAIN = 0.1;
     private static final double VEL_ERR_DEADBAND = 0.03;
     private static final double ERR_BEHIND_DEG = 100.0;
@@ -91,14 +91,8 @@ public class DriveHelicopterGoal extends Goal {
     // --- Combat aim band ---
     private static final double ENGAGE_DEADBAND = 4.0;
     private static final double BREAK_RANGE = 14.0;
-    // Aim attitude limits: deep dives allowed (target far below), slight nose-up
-    // for targets above the flight level.
     private static final float MAX_COMBAT_DIVE_DEG = 60.0F;
     private static final float MAX_CLIMB_AIM_DEG = 15.0F;
-    // Aiming flies with FULL control authority (no hover mode — its 0.2× pitch
-    // scaling and auto-level are what kept the nose level instead of on target)
-    // and drives both axes together through mouseInput, like a player tracking
-    // a target with the mouse.
     private static final double AIM_STICK_PER_DEG = 1.0;
     private static final float MAX_AIM_PITCH_STICK = 30.0F;
     private static final float MAX_AIM_YAW_STICK = 40.0F;
@@ -107,9 +101,6 @@ public class DriveHelicopterGoal extends Goal {
     private static final double ARRIVE_RADIUS = 4.0;
     private static final double LAND_OVER_RADIUS = 3.5;
 
-    // --- Self-preservation decoys (flares — cosmetic; the flight profile doesn't
-    // change). Same per-episode coin flip as the ground goal's smoke screen, but
-    // helicopters flare earlier: from half health down, whenever airborne. ---
     private static final float DECOY_HEALTH_FRACTION = 0.5F;
     private static final float PRESERVE_DECOY_CHANCE = 0.5F;
 
@@ -117,15 +108,10 @@ public class DriveHelicopterGoal extends Goal {
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
 
     private VehicleEntity vehicle;
-    // The consistent Y level flown after takeoff. NaN until a takeoff (or first
-    // airborne need) establishes it; cleared on landing/dismount.
     private double flightY = Double.NaN;
-    // Temporary extra floor raised by the vertical whisker; decays back down.
     private double avoidFloorY = Double.NaN;
 
     private int weaponSwitchCooldown = 0;
-    // Decoy episode state (cf. the ground goal's retreat smoke): a gap in
-    // consecutive low-health ticks marks a fresh episode and re-rolls the coin.
     private long lastDecoyTick = Long.MIN_VALUE;
     private boolean deployDecoyThisEpisode = false;
 
@@ -321,13 +307,23 @@ public class DriveHelicopterGoal extends Goal {
             return;
         }
         if (horizDist < BREAK_RANGE) {
-            // Aim drift carried us too close — open back out to the ring.
+            // Aim drift carried us too close — open back out to the ring, staying
+            // at the attack altitude so the guns come back to bear immediately.
             BlockPos out = VehicleTargeting.computeStandoffPoint(
                     this.vehicle, target.blockPosition(), engage);
-            flyToward(out.getX() + 0.5, out.getZ() + 0.5, flightLevel());
+            flyToward(out.getX() + 0.5, out.getZ() + 0.5, attackAltitude(target));
             return;
         }
         aimAtTarget(target, horizDist);
+    }
+
+    // The Y level held while inside the engage band: a configurable height above
+    // the TARGET rather than the cruise flight level. From cruise altitude the
+    // required nose depression at ring range is 45-70° — at or past the dive
+    // clamp, fighting SBW's auto-level the whole way, so the fire cone almost
+    // never lines up. From ~15 above the target it is a routine 25-45°.
+    private double attackAltitude(LivingEntity target) {
+        return target.getY() + SewvConfig.HELI_ATTACK_HEIGHT.get();
     }
 
     // Aim platform: two-axis mouse aim that puts the NOSE on the target entity —
@@ -339,7 +335,7 @@ public class DriveHelicopterGoal extends Goal {
     // combatTick opens the distance again, and the collective (fed every tick)
     // compensates the lift lost to the tilt.
     private void aimAtTarget(LivingEntity target, double horizDist) {
-        applyCollective(flightLevel());
+        applyCollective(withAvoidFloor(attackAltitude(target)));
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
@@ -361,6 +357,13 @@ public class DriveHelicopterGoal extends Goal {
         float mouseX = (float) Mth.clamp(-YAW_STICK_PER_DEG * 2.0 * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK);
         float mouseY = (float) Mth.clamp(attitudeErr * AIM_STICK_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK);
         this.vehicle.mouseInput(mouseX, mouseY);
+
+        // Pull the trigger ourselves once roughly on target: hull-fixed weapons
+        // rarely hold SBW's native 4° line, so the assist fires within the wider
+        // configured cone on the same RPM cadence (canShoot still gates ammo,
+        // CEASE_FIRE, LOS and smoke; guided missiles steer out the residual error).
+        VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
+                SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
     }
 
     // Land on the chosen pad: fly over it at a safe level, then descend straight

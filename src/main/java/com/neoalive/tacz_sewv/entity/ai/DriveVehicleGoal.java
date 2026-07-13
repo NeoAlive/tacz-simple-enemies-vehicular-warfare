@@ -187,8 +187,18 @@ public void tick() {
         boolean isVehicleTarget = category == TargetCategory.VEHICLE;
 
         boolean tooFar = dist > (isVehicleTarget ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR);
+        int seatIndex = this.vehicle.getSeatIndex(this.unit);
         if (this.weaponSwitchCooldown <= 0) {
-            selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), category, tooFar);
+            selectWeaponForTarget(seatIndex, category, tooFar);
+        }
+        // The special is a guided missile whose lofted firing solution can't pass
+        // SBW's 4° straight-line gate at ring range — fire it ourselves within the
+        // configured wider cone (guidance corrects the loft). Cannon/MG keep
+        // firing through SBW's native precise gate.
+        if (seatIndex >= 0
+                && this.vehicle.getWeaponIndex(seatIndex) == VehicleWeapons.WEAPON_SPECIAL) {
+            VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
+                    SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
         }
 
         if (isLowHealth()) {
@@ -668,8 +678,9 @@ private boolean isHelicopter() {
         this.vehicle.setRightInputDown(false);
     }
 
-    // Doctrine itself (classification, weights, slot guard) is shared with the
-    // flight goal via VehicleWeapons; only the switch cooldown lives here.
+    // Ground doctrine (classification, cannon/special round-robin vs armor, MG
+    // range split vs infantry) lives in VehicleWeapons; only the switch cooldown
+    // lives here. The flight goal uses its own random-cycle doctrine instead.
     private void selectWeaponForTarget(int seatIndex, TargetCategory category, boolean tooFar) {
         if (seatIndex < 0 || this.weaponSwitchCooldown > 0) return;
         VehicleWeapons.selectWeaponForTarget(this.vehicle, seatIndex, category, tooFar);

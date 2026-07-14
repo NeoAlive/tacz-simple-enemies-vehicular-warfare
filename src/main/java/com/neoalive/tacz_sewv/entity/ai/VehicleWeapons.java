@@ -50,9 +50,16 @@ public final class VehicleWeapons {
     // projectile id and weapon key. SPECIAL covers guided / launched ordnance that
     // needs the anti-armor preference and the wider-cone fire assist; direct-fire
     // beams/lasers deliberately fall through to the CANNON-role fallback instead.
+    // Generic terms cover SW's own and most addon munitions (whose projectiles are
+    // usually SW-namespaced: agm_65, kh_39, ru_9m336_missile, wire_guide_missile...).
+    // The trailing proper-noun hints catch addon guns whose projectile id carries no
+    // generic keyword — e.g. Frontline Combat Pack's "fcp:malyutka" (a BMP-1's ATGM,
+    // which otherwise loses the anti-armor slot to the low-pressure gun and never
+    // fires at tanks), "fcp:sidewinder" and "fcp:lock_on_hellfire".
     private static final String[] SPECIAL_HINTS = {
             "missile", "rocket", "torpedo", "bomb", "agm", "kh_", "guide", "mortar",
-            "seek", "swarm", "launcher", "fim", "tow"
+            "seek", "swarm", "launcher", "fim", "tow",
+            "malyutka", "sidewinder", "hellfire"
     };
 
     // FACTION_UNIT = SEM's RU/US faction infantry. (An actual PmcUnitEntity target

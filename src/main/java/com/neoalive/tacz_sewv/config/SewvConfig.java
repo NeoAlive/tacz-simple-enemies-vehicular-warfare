@@ -71,22 +71,30 @@ public class SewvConfig {
 
         builder.push("vehicle_pools");
 
+        // Pools accept any registered SW-based VehicleEntity id, including those from
+        // Superb Warfare addons (e.g. "dragonrise_reforge:...", "fcp:...", "mcsp:...").
+        // Ids from mods that aren't installed are skipped safely, so it's fine to list
+        // addon vehicles here even when the addon may be absent. Ground vehicles and
+        // helicopters are fully supported. NOT recommended: fixed-wing aircraft/jets
+        // (flown with helicopter hover logic they can't sustain), and artillery /
+        // indirect-fire hulls like mortars or the TOS-1A (their AI crew can't self-load
+        // and won't fire).
         RU_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids RU crews can spawn with (e.g. \"superbwarfare:t_90a\").",
-                         "List several to have one picked at random per spawn. (Ground Vehicles and Helicopters are supported.)",
-                         "(e.g. \"superbwarfare:mi_28\")")
+                         "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
+                         "Addon ids work too (e.g. \"dragonrise_reforge:t90mh\", \"mcsp:t90a_green\", \"superbwarfare:mi_28\").")
                 .defineList("ruVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:bmp_2", "superbwarfare:mi_28"), SewvConfig::isValidVehicleId);
 
         US_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids US crews can spawn with (e.g. \"superbwarfare:m_1a_2\").",
-                         "List several to have one picked at random per spawn. (Ground Vehicles and Helicopters are supported.)",
-                         "(e.g. \"superbwarfare:ah_6\")")
+                         "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
+                         "Addon ids work too (e.g. \"dragonrise_reforge:m1a2sepv2\", \"fcp:humvee\", \"superbwarfare:ah_6\").")
                 .defineList("usVehiclePool", List.of("superbwarfare:m_1a_2", "superbwarfare:bradley", "superbwarfare:ah_6"), SewvConfig::isValidVehicleId);
 
         PMC_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids for debug PMC units spawning",
-                         "List several to have one picked at random per spawn. (Ground Vehicles and Helicopters are supported.)",
-                         "(e.g. \"superbwarfare:ah_6\")")
+                         "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
+                         "Addon ids work too (e.g. \"fcp:littlebird\", \"mcsp:m1a2\", \"superbwarfare:ah_6\").")
                 .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:ah_6"), SewvConfig::isValidVehicleId);
 
         builder.pop();

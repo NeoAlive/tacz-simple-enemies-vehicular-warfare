@@ -229,6 +229,13 @@ public final class VehicleTargeting {
         return target != null && target.isAlive();
     }
 
+    // The hard friendly-fire gate: true when `target` is a unit of the same
+    // faction. MixinAbstractUnit cancels any setTarget that fails this test, so a
+    // stray splash-damage hit can never escalate into an intra-faction firefight.
+    public static boolean isFriendly(AbstractUnit unit, LivingEntity target) {
+        return target instanceof AbstractUnit other && isSameFaction(unit, other);
+    }
+
     // Package-visible: DriveVehicleGoal's vehicle-obstacle filter defines "ally"
     // with this same test, so assist doctrine and collision doctrine can't diverge.
     static boolean isSameFaction(AbstractUnit unit, AbstractUnit other) {

@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.client;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -51,9 +53,9 @@ public class HelicopterKeybind {
         Player player = mc.player;
         if (player == null || mc.level == null) return;
 
-        List<Integer> unitIds = gatherOwnedUnits(mc, player);
+        List<Integer> unitIds = gatherOwnedPilots(mc, player);
         if (unitIds.isEmpty()) {
-            hint(player, "message.tacz_sewv.board.no_units");
+            hint(player, "message.tacz_sewv.heli.takeoff.none");
             return;
         }
         NetworkHandler.CHANNEL.sendToServer(
@@ -78,9 +80,9 @@ public class HelicopterKeybind {
             return;
         }
 
-        List<Integer> unitIds = gatherOwnedUnits(mc, player);
+        List<Integer> unitIds = gatherOwnedPilots(mc, player);
         if (unitIds.isEmpty()) {
-            hint(player, "message.tacz_sewv.board.no_units");
+            hint(player, "message.tacz_sewv.heli.land.none");
             return;
         }
         BlockPos pad = bhr.getBlockPos();
@@ -88,17 +90,28 @@ public class HelicopterKeybind {
                 new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_LANDING, pad));
     }
 
-    // This player's units within the configured radius; the server re-checks
-    // ownership per unit before acting on the order.
-    private static List<Integer> gatherOwnedUnits(Minecraft mc, Player player) {
+    // This player's units currently AT THE STICK of a helicopter (seat 0) within
+    // the configured radius. Gunners, passengers and ground units are not flight
+    // crews — sending every owned unit made the order feedback report one
+    // "helicopter" per crew member. The server re-checks ownership and the pilot
+    // seat per unit before acting on the order.
+    private static List<Integer> gatherOwnedPilots(Minecraft mc, Player player) {
         double radius = SewvConfig.BOARD_SCAN_RADIUS.get();
         List<Integer> unitIds = new ArrayList<>();
         List<PmcUnitEntity> units = mc.level.getEntitiesOfClass(
                 PmcUnitEntity.class, player.getBoundingBox().inflate(radius));
         for (PmcUnitEntity pmc : units) {
-            if (pmc.isOwnedBy(player)) unitIds.add(pmc.getId());
+            if (pmc.isOwnedBy(player) && isHelicopterPilot(pmc)) unitIds.add(pmc.getId());
         }
         return unitIds;
+    }
+
+    // Engine info is applied from SBW's synced VehicleData on both sides (the
+    // client runs its own helicopter physics), so this is client-safe.
+    private static boolean isHelicopterPilot(PmcUnitEntity pmc) {
+        return pmc.getVehicle() instanceof VehicleEntity v
+                && v.getFirstPassenger() == pmc
+                && v.getEngineInfo() instanceof EngineInfo.Helicopter;
     }
 
     private static void hint(Player player, String key) {

@@ -45,6 +45,8 @@ Because this mod extends classes it doesn't own, almost every interaction point 
     unit mixins only `implements`.
 
 - **`mixin/`** — behavior injected into SW/SEM/vanilla. Targets worth knowing:
+  - `MixinAbstractUnit` — cancels any same-faction `setTarget` at the source (SEM's retaliation goal only
+    excludes players, so stray friendly splash damage would otherwise cascade into intra-faction firefights).
   - `MixinPmcUnitEntity`/`MixinRUunitEntity`/`MixinUSunitEntity` — implement the bridge interfaces + call `addDriveGoals`.
   - `MixinCombatEvent` — tail-injects SEM's `far_combat` event to (rarely, config-gated) spawn crewed tanks.
   - `MixinRangedGunAttackGoal` — cancels SEM's rifle-fire goal for units that control a vehicle weapon (so a

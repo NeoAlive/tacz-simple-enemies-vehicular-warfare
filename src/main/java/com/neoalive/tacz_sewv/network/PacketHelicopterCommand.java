@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.network;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.ChatFormatting;
@@ -59,7 +61,13 @@ public class PacketHelicopterCommand {
                 // Intentionally PMC-only: RU/US crews also implement IHelicopterPilot,
                 // but they are hostile and unowned — they fly autonomously (TankSpawner
                 // issues their takeoff on spawn) and take no player flight orders.
-                if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
+                // Only the unit at the stick (seat 0 of a helicopter) takes the order:
+                // gunners/passengers/ground units are not flight crews, and counting
+                // them reported one "helicopter" per crew member in the feedback.
+                if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)
+                        && pmc.getVehicle() instanceof VehicleEntity v
+                        && v.getFirstPassenger() == pmc
+                        && v.getEngineInfo() instanceof EngineInfo.Helicopter) {
                     IHelicopterPilot pilot = (IHelicopterPilot) pmc;
                     pilot.sewv$setHeliCommand(this.command);
                     pilot.sewv$setHeliLandPos(this.command == IHelicopterPilot.HELI_CMD_LANDING ? this.landPos : null);

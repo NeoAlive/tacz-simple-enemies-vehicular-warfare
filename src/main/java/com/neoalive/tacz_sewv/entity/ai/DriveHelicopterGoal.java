@@ -6,6 +6,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -15,6 +16,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.world.ForgeChunkManager;
+import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.joml.Vector3f;
@@ -25,14 +27,21 @@ import java.util.EnumSet;
  * Autopilot for SuperbWarfare helicopters. Flight model, deliberately simple:
  *
  * <ul>
- * <li><b>Consistent flight level.</b> Takeoff (L) captures a flight Y from the
- *     takeoff origin's ground + the configured cruise altitude (clamped 30-50) and
- *     the aircraft holds THAT level everywhere — idle hover, transits, combat. No
- *     terrain-following; obstacles are handled by the whiskers instead.</li>
+ * <li><b>Terrain-following cruise.</b> Every leg flies the configured cruise
+ *     altitude (clamped 30-50) above the terrain actually below and ahead of the
+ *     hull: the heightmap is sampled along the next stretch of the route and the
+ *     collective holds the offset over the HIGHEST upcoming ground, so the
+ *     aircraft climbs before a ridge and sinks with falling land. An absolute
+ *     level anchored at the takeoff origin turned into treetop-skimming (and a
+ *     wall of whisker deflections) the moment an order led into rising terrain.
+ *     Cliffs and structures taller than the cruise offset remain the whiskers'
+ *     job.</li>
  * <li><b>Whisker avoidance.</b> Every lateral leg probes actual blocks at hull
  *     height along the desired bearing and fans out to alternate bearings when
  *     blocked (yaw avoidance, same pattern as DriveVehicleGoal's ground whiskers);
- *     a fully-blocked forward cone answers with a climb (vertical avoidance).</li>
+ *     probe reach grows with current ground speed so momentum can't outrun the
+ *     lookahead; a fully-blocked forward cone answers with a climb (vertical
+ *     avoidance).</li>
  * <li><b>Combat = aim platform, no revolution.</b> Close to the engage radius,
  *     descend to the attack altitude (heliAttackHeight above the TARGET — from
  *     cruise level the required depression would sit at/past the dive clamp),
@@ -41,11 +50,21 @@ import java.util.EnumSet;
  *     SBW's own AI loop (hard 4° line) still fires whenever it happens to align.
  *     Aim-pitching happens EXCLUSIVELY in combat; everywhere else the hull flies
  *     gentle, bounded attitudes.</li>
+ * <li><b>Orders outrank auto-acquired targets.</b> A PMC pilot under an explicit
+ *     movement order (move-to, follow, formation, hold, cease-fire) keeps flying
+ *     the order: a retaliation target must not hijack the hull into the combat
+ *     profile — with hull-fixed weapons that means flying AT the target, i.e.
+ *     the whole aircraft goes freelancing. The fire assist still takes any shot
+ *     that happens to line up mid-leg. ATTACK_THAT_TARGET and FREE_FIRE hand the
+ *     hull to the fight; autonomous RU/US crews (no order system) always
+ *     fight.</li>
  * <li><b>FOLLOW_COMMANDER</b> parks the aircraft over the commander's X/Z at the
- *     nearest level above them (never below flight level, never closer than a
- *     fixed clearance over their head).</li>
- * <li><b>Landing (CTRL+L)</b> flies to the designated block, descends on top of
- *     it, and enters the sticky LANDED state until a new takeoff.</li>
+ *     cruise altitude above their ground (never closer than a fixed clearance
+ *     over their head).</li>
+ * <li><b>Landing (CTRL+L)</b> rides a glide slope toward the designated block's
+ *     surface (top of its solid column), then inside the capture ring switches
+ *     to hover mode + direct velocity command onto the pad (captureTick) and
+ *     settles into the sticky LANDED state on ground contact near the pad.</li>
  * </ul>
  *
  * <p>Control plumbing (from SBW's {@code helicopterEngine}): {@code forwardInput}
@@ -76,16 +95,27 @@ public class DriveHelicopterGoal extends Goal {
     private static final double CLIMB_RATE_CAP = 0.22;
     private static final double DESCEND_RATE_CAP = 0.22;
 
-    // --- Flight level ---
-    // The takeoff-origin offset is the config value hard-clamped to this band.
+    // --- Cruise altitude (terrain-relative) ---
+    // The terrain offset is the config value hard-clamped to this band.
     private static final double MIN_FLIGHT_ALT = 30.0;
     private static final double MAX_FLIGHT_ALT = 50.0;
     // Never fly a leg below destination + this (e.g. stay above the followed player).
     private static final double MIN_OVER_DEST = 12.0;
+    // Heightmap sampling for the terrain-following collective: step spacing and
+    // how far ahead along the leg the highest ground is looked for. The lookahead
+    // outranges the longest whisker probe, so ridge climbs start on the collective
+    // before the whiskers ever have to veto the bearing.
+    private static final double TERRAIN_SAMPLE_STEP = 8.0;
+    private static final double TERRAIN_LOOKAHEAD = 48.0;
 
     // --- Whiskers (block avoidance at hull height, cf. DriveVehicleGoal) ---
     private static final double[] WHISKER_OFFSETS_DEG = {0.0, 25.0, -25.0, 50.0, -50.0, 75.0, -75.0};
-    private static final double WHISKER_DISTANCE = 12.0;
+    // Probe reach = base + ~1.5s of current travel: a fixed 12-block line was
+    // routinely outrun by cruise momentum (the hull can't shed speed in the
+    // distance the probe cleared), so the fan looks further ahead the faster
+    // the aircraft is actually moving (~34 blocks at default cruise speed).
+    private static final double WHISKER_BASE_DISTANCE = 16.0;
+    private static final double WHISKER_LOOKAHEAD_TICKS = 30.0;
     // Fully boxed in: pop up this far above the obstacle line and try again. The
     // avoidance floor decays ~1 block/s afterwards so surplus altitude is given
     // back gradually (and re-triggers cleanly if the obstacle is tall).
@@ -103,7 +133,23 @@ public class DriveHelicopterGoal extends Goal {
 
     // --- Arrival ---
     private static final double ARRIVE_RADIUS = 4.0;
-    private static final double LAND_OVER_RADIUS = 3.5;
+    // Landing approach closes at half the transit gain so speed is shed early.
+    private static final double LAND_APPROACH_GAIN = 0.05;
+    // Approach glide slope: blocks of height above the pad per block of horizontal
+    // distance out, clamped between the over-pad clearance and the cruise offset.
+    private static final double LAND_GLIDE_RATIO = 0.5;
+    // Capture phase (direct velocity command, see captureTick). Speeds sized so a
+    // worst-case impact stays under SBW's 0.2 crash gate: |(0.15, -0.12+0.06)| ≈ 0.16.
+    private static final double LAND_CAPTURE_RADIUS = 14.0;
+    private static final double LAND_CAPTURE_EXIT_RADIUS = 20.0;
+    private static final double LAND_DESCENT_RADIUS = 2.5;
+    private static final double LAND_SETTLE_RADIUS = 6.5;
+    private static final double CAPTURE_MAX_SPEED = 0.15;
+    private static final double CAPTURE_GAIN = 0.15;
+    private static final double CAPTURE_BLEND = 0.35;
+    private static final double CAPTURE_ALT = 9.0;
+    private static final double CAPTURE_VY_GAIN = 0.08;
+    private static final double CAPTURE_MAX_SINK = 0.12;
 
     private static final float DECOY_HEALTH_FRACTION = 0.5F;
     private static final float PRESERVE_DECOY_CHANCE = 0.5F;
@@ -112,8 +158,8 @@ public class DriveHelicopterGoal extends Goal {
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
 
     private VehicleEntity vehicle;
-    private double flightY = Double.NaN;
     private double avoidFloorY = Double.NaN;
+    private boolean landingCapture;
 
     private int weaponSwitchCooldown = 0;
     private long lastDecoyTick = Long.MIN_VALUE;
@@ -189,8 +235,8 @@ public class DriveHelicopterGoal extends Goal {
             releaseForcedChunk();
         }
         this.vehicle = null;
-        this.flightY = Double.NaN;
         this.avoidFloorY = Double.NaN;
+        this.landingCapture = false;
         this.allyAssist.clear();
     }
 
@@ -231,12 +277,15 @@ public class DriveHelicopterGoal extends Goal {
             pilot.sewv$setHeliCommand(command);
         }
 
+        if (command != IHelicopterPilot.HELI_CMD_LANDING) {
+            this.landingCapture = false;
+        }
+
         // LANDED is sticky: stay shut down on the ground — no hover, no order-driven
         // flying — until the player issues a new takeoff (L) or landing (CTRL+L).
         if (command == IHelicopterPilot.HELI_CMD_LANDED) {
             releaseInputs();
             this.vehicle.setHoverMode(false);
-            this.flightY = Double.NaN;
             return;
         }
 
@@ -250,53 +299,74 @@ public class DriveHelicopterGoal extends Goal {
             pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE); // nothing to land on — drop the order
         }
 
-        // TAKEOFF: capture the flight level from the takeoff origin, climb straight
-        // up to it, then clear the order and fall through to normal duty. On the
-        // ground the origin is the hull's own Y (correct even on rooftops); mid-air
-        // re-anchor off the terrain below instead.
+        // TAKEOFF: climb straight up to the terrain-relative cruise level over the
+        // takeoff column, then clear the order and fall through to normal duty.
+        // The heightmap under a vertically climbing hull is stable, so the climb
+        // target doesn't chase its own altitude the way a getY() offset would.
         if (command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
-            if (Double.isNaN(this.flightY) || this.vehicle.onGround()) {
-                double originY = this.vehicle.onGround() ? this.vehicle.getY() : surfaceBelow();
-                this.flightY = originY + flightAltitude();
-            }
-            if (this.vehicle.getY() >= this.flightY - SewvConfig.HELI_ALT_DEADBAND.get()) {
+            double climbTo = cruiseAltitudeHere();
+            if (this.vehicle.getY() >= climbTo - SewvConfig.HELI_ALT_DEADBAND.get()) {
                 pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
             } else {
-                climbVertically(this.flightY);
+                climbVertically(climbTo);
                 return;
             }
         }
 
-        // Airborne with no established level (autonomous RU/US crews, world reload):
-        // anchor the flight level off the ground currently below.
-        if (Double.isNaN(this.flightY)) {
-            this.flightY = surfaceBelow() + flightAltitude();
-        }
-
         // Combat: no revolution — close to the engage ring and become an aim
-        // platform. The ONLY place the nose is pitched onto something.
+        // platform. The ONLY place the nose is pitched onto something. Explicit
+        // movement orders pin the flight path instead (see flightPinnedByOrder);
+        // the guns stay opportunistic below.
         LivingEntity combatTarget = this.unit.getTarget();
-        if (combatTarget != null) {
+        if (combatTarget != null && !flightPinnedByOrder()) {
             combatTick(combatTarget);
             return;
         }
 
         // Order-driven movement (move-to, follow, formation, ally assist) or idle hover.
         BlockPos dest = VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
+
+        // A pinned flight path doesn't ground the guns: if the nose happens to
+        // bear on the live target mid-leg, take the shot (canShoot still gates
+        // ammo, CEASE_FIRE, LOS and smoke).
+        if (combatTarget != null) {
+            VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, combatTarget,
+                    SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+        }
+
         if (dest == null) {
-            holdHover(flightLevel());
+            holdHover(cruiseAltitudeHere());
             return;
         }
         double dx = dest.getX() + 0.5 - this.vehicle.getX();
         double dz = dest.getZ() + 0.5 - this.vehicle.getZ();
         if (dx * dx + dz * dz <= ARRIVE_RADIUS * ARRIVE_RADIUS) {
-            // Arrived — hold overhead. For FOLLOW this is "the nearest level above
-            // the commander": never below flight level, never on top of their head.
-            holdHover(Math.max(flightLevel(), dest.getY() + MIN_OVER_DEST));
+            // Arrived — hold overhead: cruise level above the ground HERE, never
+            // closer than the fixed clearance over the destination (a followed
+            // commander's head included).
+            holdHover(Math.max(cruiseAltitudeHere(), dest.getY() + MIN_OVER_DEST));
         } else {
-            flyToward(dest.getX() + 0.5, dest.getZ() + 0.5,
-                    Math.max(flightLevel(), dest.getY() + MIN_OVER_DEST));
+            double px = dest.getX() + 0.5;
+            double pz = dest.getZ() + 0.5;
+            flyToward(px, pz,
+                    Math.max(cruiseAltitudeToward(px, pz), dest.getY() + MIN_OVER_DEST));
         }
+    }
+
+    // True when the pilot's current SEM order explicitly owns the flight path.
+    // HOLD_POSITION/CEASE_FIRE pin too: a crew ordered to hold parks and watches,
+    // exactly like the ground goal (which doesn't maneuver at all without a
+    // destination) — it doesn't get dragged across the map by a retaliation
+    // target it happened to acquire.
+    private boolean flightPinnedByOrder() {
+        if (!(this.unit instanceof PmcUnitEntity pmc)) return false;
+        OrderType order = pmc.getOrder();
+        return order == OrderType.MOVE_TO_POSITION
+                || order == OrderType.FOLLOW_COMMANDER
+                || order == OrderType.FORM_WEDGE
+                || order == OrderType.FORM_COLUMN
+                || order == OrderType.HOLD_POSITION
+                || order == OrderType.CEASE_FIRE;
     }
 
     // Combat: outside the ring close in; inside the break range back out; in the
@@ -319,7 +389,8 @@ public class DriveHelicopterGoal extends Goal {
 
         if (horizDist > engage + ENGAGE_DEADBAND) {
             flyToward(target.getX(), target.getZ(),
-                    Math.max(flightLevel(), target.getY() + MIN_OVER_DEST));
+                    Math.max(cruiseAltitudeToward(target.getX(), target.getZ()),
+                            target.getY() + MIN_OVER_DEST));
             return;
         }
         if (horizDist < BREAK_RANGE) {
@@ -382,46 +453,99 @@ public class DriveHelicopterGoal extends Goal {
                 SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
     }
 
-    // Land on the chosen pad: fly over it at a safe level, then descend straight
-    // down (hover mode damping the lateral drift) until settled → sticky LANDED.
+    // Landing: glide-slope approach until the capture ring, then hover-mode
+    // capture steered by direct velocity command (captureTick) — no pursuit
+    // dynamics near the pad, so no orbiting. Ground contact near the pad
+    // settles into sticky LANDED.
     private void doLanding(IHelicopterPilot pilot, BlockPos pad) {
+        double surfaceY = touchdownY(pad);
         double px = pad.getX() + 0.5;
         double pz = pad.getZ() + 0.5;
-        double padTopY = pad.getY() + 1.0;
-
         double dx = px - this.vehicle.getX();
         double dz = pz - this.vehicle.getZ();
-        if (dx * dx + dz * dz > LAND_OVER_RADIUS * LAND_OVER_RADIUS) {
-            // Not over the pad yet — approach at the flight level (or a safe height
-            // above the pad if it sits higher than the flight level).
-            double approachY = Math.max(
-                    Double.isNaN(this.flightY) ? padTopY + flightAltitude() : this.flightY,
-                    padTopY + MIN_OVER_DEST);
-            flyToward(px, pz, approachY);
+        double dist = Math.sqrt(dx * dx + dz * dz);
+        boolean grounded = this.vehicle.onGround() || this.vehicle.getY() <= surfaceY + 0.35;
+
+        if (grounded && dist <= LAND_SETTLE_RADIUS) {
+            settleLanded(pilot);
             return;
         }
 
-        // Over the pad. Touchdown → sticky LANDED; the hull stays down until a new
-        // takeoff order rather than immediately resuming FOLLOW/MOVE orders.
-        if (this.vehicle.onGround() || this.vehicle.getY() <= padTopY + 0.35) {
-            releaseInputs();
-            this.vehicle.setHoverMode(false);
-            pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
-            pilot.sewv$setHeliLandPos(null);
-            this.flightY = Double.NaN;
-            this.avoidFloorY = Double.NaN;
+        if (this.landingCapture) {
+            if (grounded || dist > LAND_CAPTURE_EXIT_RADIUS
+                    || this.vehicle.horizontalCollision
+                    || this.vehicle.getCollisionCoolDown() > 0) {
+                this.landingCapture = false; // grounded short or bounced — go around
+            } else {
+                captureTick(surfaceY, dx, dz, dist);
+                return;
+            }
+        } else if (!grounded && dist < LAND_CAPTURE_RADIUS
+                && this.vehicle.getCollisionCoolDown() == 0
+                && (dist < 1.0E-4 || headingClear(new Vec3(dx / dist, 0, dz / dist), dist))) {
+            this.landingCapture = true;
+            captureTick(surfaceY, dx, dz, dist);
             return;
         }
 
-        // Controlled vertical descent over the pad.
-        this.vehicle.setForwardInputDown(false);
-        this.vehicle.setDownInputDown(true);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        this.vehicle.setMouseMoveSpeedX(0.0F);
-        this.vehicle.setMouseMoveSpeedY(0.0F);
+        double glideY = surfaceY + Mth.clamp(dist * LAND_GLIDE_RATIO, MIN_OVER_DEST, flightAltitude());
+        double clearY = highestGroundToward(px, pz) + MIN_OVER_DEST;
+        flyToward(px, pz, Math.max(glideY, clearY), LAND_APPROACH_GAIN);
+    }
+
+    // Terminal guidance by direct velocity command: SBW's engine integrates
+    // deltaMovement, so a per-tick blended velocity aimed at the pad (decaying
+    // with distance) converges monotonically — no attitude pursuit, no limit
+    // cycle. Hover mode keeps the hull level; downInput pins collective power
+    // at its floor so the auto-throttle can't fight the commanded sink.
+    private void captureTick(double surfaceY, double dx, double dz, double dist) {
+        releaseInputs();
         this.vehicle.setHoverMode(true);
+
+        double speed = Math.min(CAPTURE_MAX_SPEED, dist * CAPTURE_GAIN);
+        double desX = dist > 1.0E-4 ? dx / dist * speed : 0.0;
+        double desZ = dist > 1.0E-4 ? dz / dist * speed : 0.0;
+
+        double targetY = surfaceY + (dist < LAND_DESCENT_RADIUS ? 0.0 : CAPTURE_ALT);
+        double desVy = Mth.clamp(
+                (targetY - this.vehicle.getY()) * CAPTURE_VY_GAIN, -CAPTURE_MAX_SINK, 0.0);
+
+        Vec3 v = this.vehicle.getDeltaMovement();
+        double nvy = v.y;
+        if (desVy < -0.01) {
+            this.vehicle.setDownInputDown(true);
+            nvy = Mth.lerp(CAPTURE_BLEND, v.y, desVy);
+        }
+        this.vehicle.setDeltaMovement(
+                Mth.lerp(CAPTURE_BLEND, v.x, desX),
+                nvy,
+                Mth.lerp(CAPTURE_BLEND, v.z, desZ));
+    }
+
+    // Touchdown → sticky LANDED; the hull stays down until a new takeoff order
+    // rather than immediately resuming FOLLOW/MOVE orders.
+    private void settleLanded(IHelicopterPilot pilot) {
+        releaseInputs();
+        this.vehicle.setHoverMode(false);
+        pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
+        pilot.sewv$setHeliLandPos(null);
+        this.landingCapture = false;
+        this.avoidFloorY = Double.NaN;
+    }
+
+    // Feet-level Y the hull can actually sit at on the ordered block's column:
+    // walk up the contiguous solid stack above the pick (bounded), so designating
+    // the face of a wall or hillside resolves to the surface on top of it.
+    private double touchdownY(BlockPos pad) {
+        Level level = this.unit.level();
+        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(pad.getX(), pad.getY(), pad.getZ());
+        for (int i = 0; i < 32; i++) {
+            p.move(Direction.UP);
+            if (level.getBlockState(p).getCollisionShape(level, p).isEmpty()) {
+                return p.getY();
+            }
+        }
+        return pad.getY() + 1.0;
     }
 
     // The one lateral primitive: whisker-check the bearing, then fly velocity-error
@@ -430,6 +554,10 @@ public class DriveHelicopterGoal extends Goal {
     // steering at the velocity ERROR (not the point) actively brakes sideways drift,
     // which is what prevents endless circling around a destination.
     private void flyToward(double steerX, double steerZ, double desiredY) {
+        flyToward(steerX, steerZ, desiredY, APPROACH_GAIN);
+    }
+
+    private void flyToward(double steerX, double steerZ, double desiredY, double approachGain) {
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
@@ -439,10 +567,20 @@ public class DriveHelicopterGoal extends Goal {
         double dist = Math.sqrt(dx * dx + dz * dz);
         Vec3 dirToDest = dist > 1.0E-4 ? new Vec3(dx / dist, 0, dz / dist) : Vec3.ZERO;
 
-        // Whiskers: fly the nearest clear bearing to the desired one. A fully
-        // blocked cone means terrain taller than the flight level dead ahead —
-        // answer vertically: hold and pop above it (the "pitch" whisker).
-        Vec3 travelDir = chooseClearBearing(dirToDest);
+        Vec3 vel = this.vehicle.getDeltaMovement();
+        double groundSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+
+        // Whiskers: fly the nearest clear bearing to the desired one, probing as
+        // far ahead as current momentum demands — but never past the steering
+        // point itself (ground beyond a landing pad or a destination at the foot
+        // of a wall must not read as "blocked"), with a small floor so a wall
+        // right on the nose still registers. A fully blocked cone means terrain
+        // taller than the flight level dead ahead — answer vertically: hold and
+        // pop above it (the "pitch" whisker).
+        double probe = Math.min(
+                WHISKER_BASE_DISTANCE + groundSpeed * WHISKER_LOOKAHEAD_TICKS,
+                Math.max(dist, 4.0));
+        Vec3 travelDir = chooseClearBearing(dirToDest, probe);
         if (travelDir == null) {
             this.avoidFloorY = this.vehicle.getY() + AVOID_CLIMB_STEP;
             holdHover(this.avoidFloorY);
@@ -452,8 +590,7 @@ public class DriveHelicopterGoal extends Goal {
         applyCollective(withAvoidFloor(desiredY));
         this.vehicle.setHoverMode(false); // full control authority while moving
 
-        double desiredSpeed = Math.min(SewvConfig.HELI_CRUISE_SPEED.get(), dist * APPROACH_GAIN);
-        Vec3 vel = this.vehicle.getDeltaMovement();
+        double desiredSpeed = Math.min(SewvConfig.HELI_CRUISE_SPEED.get(), dist * approachGain);
         double evx = travelDir.x * desiredSpeed - vel.x;
         double evz = travelDir.z * desiredSpeed - vel.z;
         double errMag = Math.sqrt(evx * evx + evz * evz);
@@ -486,11 +623,11 @@ public class DriveHelicopterGoal extends Goal {
 
     // Whisker fan (cf. DriveVehicleGoal.chooseClearBearing): prefer the goal bearing,
     // fan out to alternating flanks, null when the whole forward cone is blocked.
-    private Vec3 chooseClearBearing(Vec3 desired) {
+    private Vec3 chooseClearBearing(Vec3 desired, double probeDistance) {
         if (desired.lengthSqr() < 1.0E-8) return desired;
         for (double offDeg : WHISKER_OFFSETS_DEG) {
             Vec3 cand = rotateY(desired, Math.toRadians(offDeg));
-            if (headingClear(cand, WHISKER_DISTANCE)) return cand;
+            if (headingClear(cand, probeDistance)) return cand;
         }
         return null;
     }
@@ -617,9 +754,40 @@ public class DriveHelicopterGoal extends Goal {
         this.vehicle.setMouseMoveSpeedY(0.0F);
     }
 
-    // The established flight level (callers guarantee it was anchored in tick()).
-    private double flightLevel() {
-        return this.flightY;
+    // Terrain-relative cruise level over the hull's own column.
+    private double cruiseAltitudeHere() {
+        return surfaceBelow() + flightAltitude();
+    }
+
+    // Terrain-relative cruise level for a leg toward (toX, toZ): the configured
+    // offset above the HIGHEST ground between here and there, so the collective
+    // starts climbing before a ridge and gives the altitude back as the land
+    // falls away — instead of holding an absolute level anchored at the takeoff
+    // origin into terrain it knows nothing about.
+    private double cruiseAltitudeToward(double toX, double toZ) {
+        return highestGroundToward(toX, toZ) + flightAltitude();
+    }
+
+    // Highest heightmap ground between the hull's column and (toX, toZ), sampled
+    // every few blocks out to the lookahead (capped at the destination).
+    private int highestGroundToward(double toX, double toZ) {
+        int highest = surfaceBelow();
+        double dx = toX - this.vehicle.getX();
+        double dz = toZ - this.vehicle.getZ();
+        double dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > 1.0E-4) {
+            Level level = this.unit.level();
+            double nx = dx / dist;
+            double nz = dz / dist;
+            double reach = Math.min(dist, TERRAIN_LOOKAHEAD);
+            for (double d = TERRAIN_SAMPLE_STEP; d <= reach; d += TERRAIN_SAMPLE_STEP) {
+                int h = level.getHeight(Heightmap.Types.WORLD_SURFACE,
+                        Mth.floor(this.vehicle.getX() + nx * d),
+                        Mth.floor(this.vehicle.getZ() + nz * d));
+                if (h > highest) highest = h;
+            }
+        }
+        return highest;
     }
 
     // The active hold height including the whisker climb floor, which decays about
@@ -634,8 +802,8 @@ public class DriveHelicopterGoal extends Goal {
         return this.avoidFloorY;
     }
 
-    // Takeoff-origin offset: the configured cruise altitude, hard-clamped to the
-    // 30-50 band the flight model is designed around.
+    // Terrain-relative cruise offset: the configured cruise altitude, hard-clamped
+    // to the 30-50 band the flight model is designed around.
     private double flightAltitude() {
         return Mth.clamp(SewvConfig.HELI_CRUISE_ALTITUDE.get(), MIN_FLIGHT_ALT, MAX_FLIGHT_ALT);
     }

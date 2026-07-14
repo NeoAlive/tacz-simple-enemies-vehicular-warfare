@@ -28,3 +28,4 @@ classes/
 
 # Local dependencies
 libs/*.jar
+libmods/

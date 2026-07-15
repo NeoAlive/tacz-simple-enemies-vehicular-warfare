@@ -106,7 +106,8 @@ public final class VehicleWeapons {
     // burned on soft targets.
     //
     // Every pick is bounded by the weapons the seat actually has — setWeaponIndex()
-    // doesn't bounds-check, and an invalid index silently disarms the seat.
+    // doesn't bounds-check, and an invalid index silently disarms the seat — and to
+    // slots that are real guns (see isRealWeapon).
     public static void selectWeaponForTarget(VehicleEntity vehicle, int seatIndex,
                                              TargetCategory category, boolean tooFar) {
         if (seatIndex < 0) return;
@@ -119,22 +120,28 @@ public final class VehicleWeapons {
         int mg = slot[WEAPON_MG];
         int special = slot[WEAPON_SPECIAL];
 
+        // Last resort when a role lookup misses. NOT slot 0: on a hull whose first
+        // slot is a placeholder, index 0 is the one pick guaranteed to break the
+        // turret. Falls back to the first real weapon, or -1 when the seat has none.
+        int fallback = firstRealWeapon(vehicle, seatIndex, weaponCount);
+
+        int chosen;
         if (category == TargetCategory.VEHICLE) {
             if (special >= 0 && specialReady(vehicle, seatIndex, special)) {
-                vehicle.setWeaponIndex(seatIndex, special);
+                chosen = special;
             } else {
-                vehicle.setWeaponIndex(seatIndex, cannon >= 0 ? cannon : 0);
+                chosen = cannon >= 0 ? cannon : fallback;
             }
-            return;
+        } else if (tooFar) {
+            // MONSTER / FACTION_UNIT: range-based MG/cannon split, special excluded.
+            chosen = cannon >= 0 ? cannon : (mg >= 0 ? mg : fallback);
+        } else {
+            chosen = mg >= 0 ? mg : (cannon >= 0 ? cannon : fallback);
         }
 
-        // MONSTER / FACTION_UNIT: range-based MG/cannon split, special excluded.
-        int chosen;
-        if (tooFar) {
-            chosen = cannon >= 0 ? cannon : (mg >= 0 ? mg : 0);
-        } else {
-            chosen = mg >= 0 ? mg : (cannon >= 0 ? cannon : 0);
-        }
+        // Nothing on this seat is usable (every slot is a placeholder) — leave the
+        // index alone rather than parking the crew on a turret-breaking slot.
+        if (chosen < 0) return;
         vehicle.setWeaponIndex(seatIndex, chosen);
     }
 
@@ -143,11 +150,18 @@ public final class VehicleWeapons {
     // first physical slot matching a role wins. A slot that can't be classified is
     // held aside and, if no true cannon exists, promoted to the CANNON role so the
     // crew still has a usable direct-fire primary on exotic/modded hulls.
+    //
+    // Placeholder slots are skipped outright (isRealWeapon), BEFORE classification:
+    // GunProp.PROJECTILE defaults to "superbwarfare:projectile", so a bodyless
+    // placeholder like "Empty" reads as the plain bullet and classifies as a genuine
+    // MG — it would be picked against infantry in close, not merely inherited via the
+    // unclassified→CANNON promotion. Neither route can reach a placeholder now.
     private static int[] resolveRoleSlots(VehicleEntity vehicle, int seatIndex, int weaponCount) {
         int[] roleToSlot = new int[WEAPON_COUNT];
         for (int r = 0; r < WEAPON_COUNT; r++) roleToSlot[r] = -1;
         int unclassified = -1;
         for (int w = 0; w < weaponCount; w++) {
+            if (!isRealWeapon(vehicle, seatIndex, w)) continue;
             int role = classifySlot(vehicle, seatIndex, w);
             if (role != UNCLASSIFIED) {
                 if (roleToSlot[role] < 0) roleToSlot[role] = w;
@@ -159,6 +173,55 @@ public final class VehicleWeapons {
             roleToSlot[WEAPON_CANNON] = unclassified;
         }
         return roleToSlot;
+    }
+
+    /**
+     * True when a physical slot is a weapon the crew can actually aim and fire —
+     * i.e. it has a configured muzzle velocity.
+     *
+     * <p>This is a turret-safety gate, not a doctrine preference. SBW aims an
+     * AI-crewed turret with {@code RangeTool.calculateFiringSolution}, whose flight
+     * time starts at {@code |d0| / muzzleVelocity}; a muzzle velocity of 0 sends that
+     * to Infinity and the solver returns NaN. {@code Mth.clamp} does not sanitise NaN
+     * and SBW's {@code turretYRot} is a plain field that accumulates off its own
+     * previous value, so ONE NaN freezes the turret permanently while the gun keeps
+     * firing — and spams vanilla's "Invalid entity rotation: NaN, discarding" as the
+     * NaN barrel vector is pushed onto the crew every tick. Players never hit this:
+     * their aim path is pure geometry and never runs the solver.
+     *
+     * <p>{@code GunProp.VELOCITY} DEFAULTS TO 0, so the placeholder weapons addon
+     * packs ship ({@code "Empty"}, {@code "Nothing"} — bodies like
+     * {@code {"RPM":0,"Magazine":0,"Damage":0}}) resolve to 0. A player would never
+     * dwell on an empty slot; the AI happily would.
+     *
+     * <p>Reads the CONFIGURED velocity rather than {@code getProjectileVelocity()} on
+     * purpose: that accessor returns {@code deltaMovement.length() * VELOCITY} for
+     * {@code AddShooterDeltaMovement} weapons, which is 0 whenever the hull is parked.
+     * Gating on it would make a stationary gunship disarm itself. The dynamic zero is
+     * MixinVehicleTurretNaN's job; this only removes slots that are never firable.
+     *
+     * <p>Defensive like the rest of this class: unreadable gun data must never crash
+     * the AI tick. On error assume the slot IS real — the mixin still backstops the
+     * NaN, and silently disarming a working weapon is the worse failure.
+     */
+    private static boolean isRealWeapon(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
+        try {
+            GunData gun = vehicle.getGunData(seatIndex, weaponIndex);
+            if (gun == null) return false; // no data at all — nothing to aim or fire
+            Double velocity = gun.get(GunProp.VELOCITY);
+            return velocity != null && velocity != 0.0;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    // First slot in the seat that is a real weapon, or -1 when every slot is a
+    // placeholder (fcp:bigbird, whose only weapon on seats 0/1 is "Empty").
+    private static int firstRealWeapon(VehicleEntity vehicle, int seatIndex, int weaponCount) {
+        for (int w = 0; w < weaponCount; w++) {
+            if (isRealWeapon(vehicle, seatIndex, w)) return w;
+        }
+        return -1;
     }
 
     // Classify one physical weapon slot into a role, reading the actual GunData so
@@ -287,12 +350,26 @@ public final class VehicleWeapons {
      * weapons the seat actually has, regardless of the target's type. Bounded by
      * the seat's real weapon count for the same reason as above — setWeaponIndex()
      * doesn't bounds-check and an invalid index silently disarms the seat.
+     *
+     * <p>Placeholder slots are excluded (see isRealWeapon): a uniform pick over every
+     * slot would sooner or later land on one and permanently freeze the turret.
      */
     public static void selectRandomWeapon(VehicleEntity vehicle, int seatIndex, RandomSource random) {
         if (seatIndex < 0) return;
         SeatInfo seat = vehicle.getSeat(seatIndex);
         int weaponCount = seat == null ? 0 : seat.weapons().size();
         if (weaponCount <= 0) return;
-        vehicle.setWeaponIndex(seatIndex, random.nextInt(weaponCount));
+
+        // Reservoir pick over the real slots only — one pass, no allocation, and it
+        // stays uniform without needing to know the usable count up front.
+        int chosen = -1;
+        int seen = 0;
+        for (int w = 0; w < weaponCount; w++) {
+            if (!isRealWeapon(vehicle, seatIndex, w)) continue;
+            seen++;
+            if (random.nextInt(seen) == 0) chosen = w;
+        }
+        if (chosen < 0) return; // every slot is a placeholder — leave the index alone
+        vehicle.setWeaponIndex(seatIndex, chosen);
     }
 }

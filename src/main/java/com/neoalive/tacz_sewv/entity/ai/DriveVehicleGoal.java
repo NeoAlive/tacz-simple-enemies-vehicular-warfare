@@ -359,7 +359,7 @@ private void clearRecovery() {
     if (avoidance) {
         steer = chooseClearBearing(desired);
         if (steer == null) {
-            // Boxed in by water/cliffs/vehicle obstacles on every probed bearing —
+            // Boxed in by water/lava/vehicle obstacles on every probed bearing —
             // hold at the edge,
             // turning in place toward the goal rather than ploughing in. Keeping a
             // turn input held preserves the tracked turn ramp and stops updateStuck
@@ -393,8 +393,13 @@ private void clearRecovery() {
     }
 }
 
-// The performance knob and the safe-drop tolerance, read per call so config edits
-// take effect live.
+// How far below the driving level the sensor looks for the surface the hull would come
+// to rest on, purely to classify it as water/lava. This is a probe reach, NOT a fall
+// limit — a drop is allowed whether or not the bottom is within it. Kept at the old
+// safe-drop default so water detection reaches exactly as far as it always did.
+private static final int FLUID_PROBE_DEPTH = 8;
+
+// The performance knob, read per call so config edits take effect live.
 private double lookaheadDistance() {
     return SewvConfig.VEHICLE_LOOKAHEAD_DISTANCE.get();
 }
@@ -438,11 +443,10 @@ private void holdAtEdge(Vec3 dir) {
 }
 
 // True if driving `distance` blocks along `dir` from the hull crosses no hazard:
-// water (unless amphibious), lava, a drop deeper than the safe-drop tolerance, or
-// a vehicle obstacle (wreck or allied hull) the block sensor can't see.
+// water (unless amphibious), lava, or a vehicle obstacle (wreck or allied hull) the
+// block sensor can't see. Height is NOT a hazard — see isHazardColumn.
 private boolean headingClear(Vec3 dir, double distance) {
     boolean avoidWater = !isAmphibiousVehicle();
-    int maxDrop = SewvConfig.VEHICLE_MAX_SAFE_DROP.get();
     Level level = this.unit.level();
     double startX = this.vehicle.getX();
     double startZ = this.vehicle.getZ();
@@ -455,38 +459,41 @@ private boolean headingClear(Vec3 dir, double distance) {
         double sampleX = startX + dir.x * d;
         double sampleZ = startZ + dir.z * d;
         if (isBlockedByVehicle(obstacles, sampleX, sampleZ)) return false;
-        if (isHazardColumn(level, pos, Mth.floor(sampleX), Mth.floor(sampleZ), baseY, avoidWater, maxDrop)) {
+        if (isHazardColumn(level, pos, Mth.floor(sampleX), Mth.floor(sampleZ), baseY, avoidWater)) {
             return false;
         }
     }
     return true;
 }
 
-// A column is hazardous if the surface the hull would drive onto is water/lava, or
-// if there is no footing within `maxDrop` blocks below the driving level (a cliff).
-// An uphill wall is NOT a hazard here — footing is found immediately, and walls are
-// the pathfinder's / stuck-recovery's job, not the terrain sensor's.
+// A column is hazardous only if the surface the hull would end up on is water or lava.
+// DEPTH IS NOT A HAZARD: SBW's fall damage on vehicles is forgiving, so treating drops
+// as cliffs cost far more mobility than it saved — armor would refuse ravines, ledges
+// and terraced ground it could simply have driven off. An uphill wall is not a hazard
+// here either: footing is found immediately, and walls are the pathfinder's /
+// stuck-recovery's job, not the terrain sensor's.
 private boolean isHazardColumn(Level level, BlockPos.MutableBlockPos pos, int x, int z,
-                               int baseY, boolean avoidWater, int maxDrop) {
+                               int baseY, boolean avoidWater) {
     // Fluid at the driving cell or the cell the tracks rest in.
     for (int dy = 0; dy >= -1; dy--) {
         var fluid = level.getFluidState(pos.set(x, baseY + dy, z));
         if (fluid.is(FluidTags.LAVA)) return true;
         if (avoidWater && fluid.is(FluidTags.WATER)) return true;
     }
-    // Look for solid footing from the normal floor (baseY-1) down. Drop depth = k-1,
-    // so k up to maxDrop+1 permits drops of exactly maxDrop; none found → cliff.
-    for (int k = 1; k <= maxDrop + 1; k++) {
+    // Keep scanning down to whatever the hull would actually land on and classify THAT
+    // surface: a lake or lava pool at the bottom of a step-down still drowns or burns
+    // the crew even though the fall itself is survivable. First solid block wins.
+    for (int k = 1; k <= FLUID_PROBE_DEPTH; k++) {
         int y = baseY - k;
         var state = level.getBlockState(pos.set(x, y, z));
         var fluid = state.getFluidState();
         if (fluid.is(FluidTags.LAVA)) return true;
         if (avoidWater && fluid.is(FluidTags.WATER)) return true;
         if (!state.getCollisionShape(level, pos).isEmpty()) {
-            return false; // footing within tolerance — safe column
+            return false; // solid footing — safe column
         }
     }
-    return true; // no ground within maxDrop → cliff
+    return false; // nothing but air within reach — a long drop, which is now allowed
 }
 
 // Vehicle obstacles are entities, so the block-based hazard sensor can't see them:
@@ -501,8 +508,8 @@ private List<AABB> vehicleObstacles() {
         this.vehicleObstacleCacheTime = now;
         double half = this.vehicle.getBbWidth() / 2.0;
         double reach = lookaheadDistance() + half + 1.0;
-        // ±2 vertically: an obstacle on a drivable slope still counts, one far below
-        // a cliff edge doesn't (the drop check already rejects that bearing).
+        // ±2 vertically: an obstacle on a drivable slope still counts, one well above
+        // or below is outside the band the hull can reach by driving.
         AABB search = this.vehicle.getBoundingBox().inflate(reach, 2.0, reach);
         // Inflating each box by our half-width lets the centerline point probes in
         // headingClear stand in for sweeping the full hull width along the bearing.
@@ -609,7 +616,7 @@ private void retreatFromTarget(BlockPos targetPos, double retreatRadius, double 
     double angleToTarget = getAngleBetween(forward, toTarget);
 
     boolean canReverse = Math.abs(angleToTarget) <= REVERSE_FACING_CONE_RAD;
-    // Don't back off a cliff or into water. If the ground behind the hull is a hazard,
+    // Don't back into water or lava. If the ground behind the hull is a hazard,
     // pathfind forward to a standoff point instead of reversing blindly.
     if (canReverse && SewvConfig.VEHICLE_TERRAIN_AVOIDANCE.get()) {
         Vec3 behind = new Vec3(-forward.x, 0, -forward.z).normalize();
@@ -687,7 +694,7 @@ private boolean computeIsTrackedVehicle() {
 }
 
 // Amphibious/floating hulls (boats, or any vehicle with positive buoyancy) are
-// exempt from the water half of the terrain sensor — cliffs and lava still apply.
+// exempt from the water half of the terrain sensor — lava still applies.
 private boolean isAmphibiousVehicle() {
     if (this.vehicle != this.amphibiousCacheVehicle) {
         this.amphibiousCacheVehicle = this.vehicle;

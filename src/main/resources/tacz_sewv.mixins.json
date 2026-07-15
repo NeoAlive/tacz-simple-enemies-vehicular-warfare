@@ -11,6 +11,9 @@
     "MixinUSunitEntity",
     "MixinCombatEvent",
     "MixinVehicleFireCooldown",
+    "MixinVehicleTurretNaN",
+    "MixinVehiclePassengerNaN",
+    "MixinVehicleFactionEnergy",
     "MixinVehicleInteractLock",
     "MixinRangedGunAttackGoal"
   ],

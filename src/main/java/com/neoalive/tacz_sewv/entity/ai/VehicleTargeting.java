@@ -125,6 +125,15 @@ public final class VehicleTargeting {
     // the hull should hold (standoff for armor, orbit for a gunship, break-contact
     // beyond it when retreating).
     public static BlockPos computeStandoffPoint(VehicleEntity vehicle, BlockPos targetPos, double radius) {
+        return computeStandoffPoint(vehicle, targetPos, radius, 0.0);
+    }
+
+    // Same ring, but swung `bearingOffsetRad` around the target from where the hull
+    // currently stands. Offset 0 is "hold this bearing, fix the range"; a non-zero
+    // offset walks the hull around the ring, which is how a crew that can't get a
+    // firing solution from here goes looking for ground it can shoot from.
+    public static BlockPos computeStandoffPoint(VehicleEntity vehicle, BlockPos targetPos,
+                                                double radius, double bearingOffsetRad) {
         double cx = targetPos.getX() + 0.5;
         double cz = targetPos.getZ() + 0.5;
         double dx = vehicle.getX() - cx;
@@ -137,8 +146,23 @@ public final class VehicleTargeting {
             dz = forward.z;
             len = 1.0;
         }
+        if (bearingOffsetRad != 0.0) {
+            Vec3 swung = rotateY(new Vec3(dx, 0.0, dz), bearingOffsetRad);
+            dx = swung.x;
+            dz = swung.z;
+            // rotateY preserves length, so `len` still holds.
+        }
         double scale = radius / len;
         return BlockPos.containing(cx + dx * scale, vehicle.getY(), cz + dz * scale);
+    }
+
+    // Rotate a horizontal (y=0) direction about the vertical axis. Shared: the drive
+    // goal's whisker fan swings candidate headings with it, and the ring math above
+    // swings bearings with it.
+    public static Vec3 rotateY(Vec3 dir, double angleRad) {
+        double cos = Math.cos(angleRad);
+        double sin = Math.sin(angleRad);
+        return new Vec3(dir.x * cos - dir.z * sin, 0.0, dir.x * sin + dir.z * cos);
     }
 
     /**

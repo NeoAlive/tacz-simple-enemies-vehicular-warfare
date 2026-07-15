@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.SmokeVision;
 import net.minecraft.world.entity.LivingEntity;
@@ -20,10 +21,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.UUID;
 
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
-public abstract class MixinVehicleFireCooldown {
+public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
 
     @Unique
     private long tacz_sewv$lastAiShotTick = Long.MIN_VALUE;
+
+    // Published to the drive goal via IAiFireTracker so a crew can tell "parked and
+    // shooting" from "parked and achieving nothing". Not @Unique: an interface
+    // implementation has to keep its declared name.
+    @Override
+    public long tacz_sewv$getLastAiShotTick() {
+        return this.tacz_sewv$lastAiShotTick;
+    }
 
     // Per-tick cache for the line-of-fire verdict: SBW's AI fire loop consults
     // canShoot twice per seat per fire attempt, and the verdict (2 block clips +

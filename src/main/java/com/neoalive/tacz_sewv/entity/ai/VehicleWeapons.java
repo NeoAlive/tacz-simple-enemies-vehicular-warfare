@@ -44,7 +44,9 @@ public final class VehicleWeapons {
     public static final int WEAPON_MG = 1;
     public static final int WEAPON_SPECIAL = 2; // TOW / heavy anti-vehicle ordnance
     private static final int WEAPON_COUNT = 3;
-    private static final int UNCLASSIFIED = -1;
+    // Also selectWeaponForTarget's "nothing selected" return, so it is part of the
+    // public surface, not just an internal classification miss.
+    public static final int UNCLASSIFIED = -1;
 
     // Substring hints for role classification, matched against the lowercased
     // projectile id and weapon key. SPECIAL covers guided / launched ordnance that
@@ -108,12 +110,18 @@ public final class VehicleWeapons {
     // Every pick is bounded by the weapons the seat actually has — setWeaponIndex()
     // doesn't bounds-check, and an invalid index silently disarms the seat — and to
     // slots that are real guns (see isRealWeapon).
-    public static void selectWeaponForTarget(VehicleEntity vehicle, int seatIndex,
-                                             TargetCategory category, boolean tooFar) {
-        if (seatIndex < 0) return;
+    //
+    // Returns the ROLE the selected slot fills (WEAPON_CANNON / WEAPON_MG /
+    // WEAPON_SPECIAL), or UNCLASSIFIED when nothing was selected. Callers need the role
+    // and CANNOT re-derive it from getWeaponIndex(): that returns a PHYSICAL slot, and
+    // the whole point of this class is that physical order carries no meaning. Handing
+    // it back here is free — the role→slot map is already in hand.
+    public static int selectWeaponForTarget(VehicleEntity vehicle, int seatIndex,
+                                            TargetCategory category, boolean tooFar) {
+        if (seatIndex < 0) return UNCLASSIFIED;
         SeatInfo seat = vehicle.getSeat(seatIndex);
         int weaponCount = seat == null ? 0 : seat.weapons().size();
-        if (weaponCount == 0) return; // weaponless seat — nothing to select
+        if (weaponCount == 0) return UNCLASSIFIED; // weaponless seat — nothing to select
 
         int[] slot = resolveRoleSlots(vehicle, seatIndex, weaponCount);
         int cannon = slot[WEAPON_CANNON];
@@ -141,8 +149,22 @@ public final class VehicleWeapons {
 
         // Nothing on this seat is usable (every slot is a placeholder) — leave the
         // index alone rather than parking the crew on a turret-breaking slot.
-        if (chosen < 0) return;
+        if (chosen < 0) return UNCLASSIFIED;
         vehicle.setWeaponIndex(seatIndex, chosen);
+        // Read the role back off the SLOT WE ACTUALLY PICKED rather than off the branch
+        // that picked it: the `fallback` arms can hand back the special's slot (a seat
+        // with an ATGM and no cannon), and reporting that as CANNON would deny it the
+        // fire assist it structurally depends on — the exact deadlock this return value
+        // exists to prevent.
+        return roleOf(slot, chosen);
+    }
+
+    // Which role does this physical slot fill? UNCLASSIFIED if it fills none.
+    private static int roleOf(int[] roleToSlot, int slotIndex) {
+        for (int r = 0; r < WEAPON_COUNT; r++) {
+            if (roleToSlot[r] == slotIndex) return r;
+        }
+        return UNCLASSIFIED;
     }
 
     // Classify each physical slot in the seat and return a role→slot map (values are

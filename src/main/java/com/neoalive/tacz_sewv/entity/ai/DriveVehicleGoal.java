@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
+import com.atsuishio.superbwarfare.entity.vehicle.base.AutoAimableEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
 import net.minecraft.core.BlockPos;
@@ -47,6 +49,33 @@ public class DriveVehicleGoal extends Goal {
     private static final double PRESERVE_RETREAT_MARGIN = 8.0;   // fall back this far BEYOND the ring
     private static final float PRESERVE_SMOKE_CHANCE = 0.5F;     // coin-flip, per retreat, whether to screen with smoke
 
+    // Stalemate breaker (see updateStalemateBreaker). Holding the ring is a TERMINAL
+    // state in the doctrine above — nothing in it reacts to shots not coming out — so
+    // these govern the one thing that will pick a parked crew back up.
+    // Swing far enough around the ring to reach genuinely different ground (the only
+    // lever that fixes an elevation problem is a different height difference), but not
+    // so far that the arc sweeps through the enemy on the way.
+    private static final double BREAKER_ORBIT_RAD = Math.toRadians(60.0);
+    // Opening the range flattens the elevation angle (atan(dy/dist)), so it can rescue a
+    // MARGINAL arc violation. Only ever applied for arc violations — a plain silence is
+    // not a distance problem and stepping out would just fight the doctrine's own bands.
+    // Bounded so 40+12=52 stays well inside the 96-block scan radius: orbiting out past
+    // our own acquisition range would drop the very target we are repositioning for.
+    private static final double BREAKER_RADIUS_STEP = 12.0;
+    // Long enough for a tracked hull to pivot AND translate — the turn ramp alone eats
+    // much of it, and an episode that ends mid-pivot has changed nothing.
+    private static final int REPOSITION_TICKS = 120;
+    // canAim() measures the straight line, but the turret aims at the BALLISTIC solution,
+    // which sits above it — at the depression stop (the common case) that makes canAim
+    // slightly pessimistic. Widen the arc so we only declare failure when clearly outside.
+    private static final double ARC_SLACK_DEG = 2.0;
+    // The geometry moves slowly and getShootPos() isn't free; 10 ticks is still a ~0.5s
+    // reaction, far inside the silence timer.
+    private static final int ARC_CHECK_INTERVAL = 10;
+    // SBW's own fallback elevation envelope, used when the hull's data can't be read.
+    private static final float DEFAULT_TURRET_MIN_PITCH = -10.0F;
+    private static final float DEFAULT_TURRET_MAX_PITCH = 30.0F;
+
     // Pathfinding throttles, A* over the vehicle's block volume is the most
     // expensive thing this goal does, so a still-valid path is reused instead
     // of recomputed on a fixed timer.
@@ -85,10 +114,21 @@ public class DriveVehicleGoal extends Goal {
     private final AbstractUnit unit;
     private VehicleEntity vehicle;
     private int weaponSwitchCooldown = 0;
+    // Which ROLE the last selection picked (VehicleWeapons.WEAPON_*), or UNCLASSIFIED.
+    // Cached because getWeaponIndex() can't answer this — see selectWeaponForTarget.
+    private int selectedRole = VehicleWeapons.UNCLASSIFIED;
 
     // Self-preservation smoke episode state (see preserveRetreat).
     private long lastRetreatTick = Long.MIN_VALUE;
     private boolean deploySmokeThisRetreat = false;
+
+    // Stalemate-breaker state (see updateStalemateBreaker).
+    private LivingEntity breakerTarget;
+    private long breakerAnchorTick = Long.MIN_VALUE;
+    private int repositionTicksLeft = 0;
+    private boolean breakerOrbitLeft = false;
+    private boolean breakerArcViolation = false;
+    private int arcCheckCooldown = 0;
 
     // Per-vehicle drivetrain caches: track/wheel type, buoyancy and engine type
     // don't change mid-drive, and vehicle.data().compute() is too expensive to
@@ -99,6 +139,12 @@ public class DriveVehicleGoal extends Goal {
     private boolean amphibiousCacheValue;
     private VehicleEntity helicopterCacheVehicle;
     private boolean helicopterCacheValue;
+    // Turret elevation envelope. Cached for the same reason as the drivetrain above:
+    // getTurretMinPitch()/getTurretMaxPitch() route through computed() →
+    // VehicleData.compute(), and the arc check reads them repeatedly.
+    private VehicleEntity turretPitchCacheVehicle;
+    private float turretMinPitchCache;
+    private float turretMaxPitchCache;
 
     // Per-game-tick cache of nearby vehicle obstacles (wrecks, allied hulls), each
     // box pre-inflated by our half-width. The whisker fan probes up to 9 headings a
@@ -155,8 +201,10 @@ public class DriveVehicleGoal extends Goal {
         this.pathRecalcCooldown = 0;
         this.vehicleObstacles = List.of();
         this.vehicleObstacleCacheTime = Long.MIN_VALUE;
+        this.selectedRole = VehicleWeapons.UNCLASSIFIED;
         this.allyAssist.clear();
         clearRecovery();
+        clearBreaker();
     }
 
     @Override
@@ -205,15 +253,30 @@ public void tick() {
         // SBW's 4° straight-line gate at ring range — fire it ourselves within the
         // configured wider cone (guidance corrects the loft). Cannon/MG keep
         // firing through SBW's native precise gate.
-        if (seatIndex >= 0
-                && this.vehicle.getWeaponIndex(seatIndex) == VehicleWeapons.WEAPON_SPECIAL) {
+        //
+        // Gated on the ROLE the selection actually chose, never on getWeaponIndex():
+        // that returns a PHYSICAL slot, and comparing it to a role id only appears to
+        // work because SBW's stock hulls happen to list ["Cannon","MachineGun","Missile"]
+        // in role order. On a hull that doesn't — fcp:bmp1u is ["Cannon","Konkurs","Coax"]
+        // — it fired the assist at whatever sat in slot 2 (the COAX) while the ATGM in
+        // slot 1 never fired, so it never reloaded, so specialReady() stayed true, so the
+        // cannon was never re-selected: a crew locked onto a missile it could not launch.
+        if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL) {
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                     SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
         }
 
         if (isLowHealth()) {
             // Badly hurt — abandon the standoff, screen with smoke and break off.
+            // The breaker is deliberately NOT consulted here: a retreating crew is
+            // SUPPOSED to be holding fire, so its silence is success, not a stall.
+            // Letting the breaker see it would drag it back onto the ring and fight
+            // preserveRetreat for the hull every tick.
             preserveRetreat(target, category);
+        } else if (updateStalemateBreaker(target, combatPos, distanceSq, isVehicleTarget)) {
+            // Holding a target we can't hit — the breaker owns the hull this tick.
+            // Sits ABOVE the doctrine because the doctrine's hold branches are exactly
+            // what freeze the crew in place.
         } else if (isVehicleTarget) {
             // Armor holds the far ring: close in if beyond it, back off if inside it.
             maintainVehicleStandoff(combatPos, distanceSq, dist);
@@ -416,17 +479,10 @@ private static final double[] WHISKER_OFFSETS_DEG = {0.0, 25.0, -25.0, 50.0, -50
 private Vec3 chooseClearBearing(Vec3 desired) {
     double dist = lookaheadDistance();
     for (double offDeg : WHISKER_OFFSETS_DEG) {
-        Vec3 cand = rotateY(desired, Math.toRadians(offDeg));
+        Vec3 cand = VehicleTargeting.rotateY(desired, Math.toRadians(offDeg));
         if (headingClear(cand, dist)) return cand;
     }
     return null;
-}
-
-// Rotate a horizontal (y=0) direction about the vertical axis.
-private static Vec3 rotateY(Vec3 dir, double angleRad) {
-    double cos = Math.cos(angleRad);
-    double sin = Math.sin(angleRad);
-    return new Vec3(dir.x * cos - dir.z * sin, 0.0, dir.x * sin + dir.z * cos);
 }
 
 // Turn in place toward `dir` with no forward/back input. When already nearly aligned
@@ -550,6 +606,166 @@ private void maintainVehicleStandoff(BlockPos targetPos, double distanceSq, doub
         stopVehicleMovement();                        // on the ring — hold and let the turret work
         clearRecovery();
     }
+}
+
+// The one thing that picks a parked crew back up.
+//
+// Every hold branch in the doctrine above is terminal: it stops the hull and calls
+// clearRecovery(), which is correct for "I chose to stop" and catastrophic for "I am
+// achieving nothing", because those are the same state as far as the rest of this class
+// can tell. The stuck detector can't help — it measures hull motion, which is zero in
+// every deliberate park by definition. So a crew that holds a live target it physically
+// cannot hit sits there forever: the turret pins at its elevation stop, SBW's 4° fire
+// gate never passes, SBW never re-evaluates whether the target was reachable, and both
+// tanks in a duel do this at once.
+//
+// Two detectors, one response:
+//   - the ARC CHECK is immediate and specific — the target is outside the turret's
+//     elevation envelope, so no amount of waiting will produce a shot;
+//   - the SILENCE WATCHDOG is slow and cause-agnostic — we are holding a target and no
+//     shots are coming out, whatever the reason. It exists because the causes we HAVEN'T
+//     diagnosed matter as much as the ones we have, and because it is the only thing
+//     that sees targets set by SEM's HurtByTargetGoal (those bypass VehicleTargetScanGoal
+//     entirely, so nothing in the scan goal could ever notice them).
+//
+// Response is always the same: walk around the ring to different ground and try again.
+// The crew never abandons the target — it shuffles until it can shoot.
+//
+// Returns true when the breaker is driving the hull this tick.
+private boolean updateStalemateBreaker(LivingEntity target, BlockPos combatPos,
+                                       double distanceSq, boolean isVehicleTarget) {
+    if (!SewvConfig.STALEMATE_BREAKER_ENABLED.get()) return false;
+    // Without the fire stamp there is no way to tell a working crew from a stalled one,
+    // and guessing wrong here means orbiting every crew in the world forever — so fail
+    // safe to the old hold-the-ring behaviour rather than to the intervention.
+    if (!(this.vehicle instanceof IAiFireTracker tracker)) return false;
+
+    long now = this.unit.level().getGameTime();
+
+    // New engagement — fresh anchor, and pick an orbit direction to keep for its whole
+    // life. Deliberately NOT alternated per episode the way unstick swings are: flipping
+    // would rock the hull back and forth over the same ground, when the entire point is
+    // to reach ground with a different height difference to the target. Id parity is
+    // free, stable, and splits a platoon both ways around a shared target on its own.
+    if (target != this.breakerTarget) {
+        this.breakerTarget = target;
+        this.breakerAnchorTick = now;
+        this.repositionTicksLeft = 0;
+        this.breakerArcViolation = false;
+        this.breakerOrbitLeft = (this.unit.getId() & 1) == 0;
+    }
+
+    // A shot is the definition of "not stuck" — re-anchor and stand down.
+    long lastShot = tracker.tacz_sewv$getLastAiShotTick();
+    if (lastShot != IAiFireTracker.NEVER && lastShot > this.breakerAnchorTick) {
+        this.breakerAnchorTick = lastShot;
+        this.repositionTicksLeft = 0;
+        return false;
+    }
+
+    if (this.repositionTicksLeft > 0) {
+        this.repositionTicksLeft--;
+        // Episode over: re-anchor so the crew settles and actually tries to shoot from
+        // the new ground before we conclude anything. Without this the silence test —
+        // which never sees a shot — would hold the hull in a permanent orbit.
+        if (this.repositionTicksLeft == 0) this.breakerAnchorTick = now;
+        driveBreakerOrbit(combatPos, distanceSq, isVehicleTarget);
+        return true;
+    }
+
+    if (this.arcCheckCooldown > 0) this.arcCheckCooldown--;
+    else {
+        this.arcCheckCooldown = ARC_CHECK_INTERVAL;
+        this.breakerArcViolation = !targetWithinTurretArc(target);
+    }
+
+    // Math.max folds in the NEVER sentinel: breakerAnchorTick is always a real game time
+    // while an engagement is live, so a crew that has never landed a shot at all — the
+    // actual stalemate — measures its silence from when it acquired the target. Never
+    // subtract the sentinel directly; now - Long.MIN_VALUE overflows negative and reads
+    // as "fired in the future", which would silence this watchdog permanently.
+    long anchor = Math.max(this.breakerAnchorTick, lastShot);
+    boolean silent = now - anchor > SewvConfig.STALEMATE_SILENCE_TICKS.get();
+
+    if (!this.breakerArcViolation && !silent) return false;
+
+    this.repositionTicksLeft = REPOSITION_TICKS;
+    driveBreakerOrbit(combatPos, distanceSq, isVehicleTarget);
+    return true;
+}
+
+// Walk the ring to a new bearing. Going through navigateTo() is deliberate: it restores
+// the stuck detector and the terrain sensor for the duration, so the breaker can't wedge
+// the hull on the way to ground it likes better.
+//
+// The waypoint is measured from where the hull stands RIGHT NOW, so it slides ahead as
+// the hull closes on it — deliberately. Chasing a point that stays 60° around the ring
+// is what makes the hull actually circle the target for the whole episode; pinning it to
+// a fixed spot would have the crew arrive early and park again, which is the state we are
+// trying to escape.
+private void driveBreakerOrbit(BlockPos combatPos, double distanceSq, boolean isVehicleTarget) {
+    double ring = isVehicleTarget ? VEHICLE_TOO_FAR : (INFANTRY_TOO_CLOSE + INFANTRY_TOO_FAR) / 2.0;
+    // Open the range only for an arc violation, where it genuinely flattens the
+    // elevation angle. On a plain silence it would just fight the doctrine's own bands.
+    double radius = ring + (this.breakerArcViolation ? BREAKER_RADIUS_STEP : 0.0);
+    BlockPos orbit = VehicleTargeting.computeStandoffPoint(this.vehicle, combatPos, radius,
+            this.breakerOrbitLeft ? BREAKER_ORBIT_RAD : -BREAKER_ORBIT_RAD);
+    navigateTo(orbit, distanceSq);
+}
+
+// Is the target inside the turret's elevation envelope at all? SBW clamps the turret to
+// [TurretPitchRange] with Mth.clamp, which SATURATES — so a target above or below the
+// arc pins the barrel at the stop and the angle to it never falls under SBW's hard-coded
+// 4° fire gate. It simply aims forever. The T-90A depresses only 5°, so any real slope
+// does this.
+//
+// NECESSARY, NOT SUFFICIENT: canAim is pitch-only and ignores ballistic drop, so a
+// target inside the arc may still be unhittable — that's what the silence watchdog is
+// for. This only catches the case we can prove instantly.
+private boolean targetWithinTurretArc(LivingEntity target) {
+    try {
+        // The muzzle, matching the origin SBW's own 4° gate measures from.
+        Vec3 muzzle = this.vehicle.getShootPos(this.unit, 1.0F);
+        return AutoAimableEntity.canAim(muzzle, target,
+                turretMinPitch() - ARC_SLACK_DEG,
+                turretMaxPitch() + ARC_SLACK_DEG);
+    } catch (Exception e) {
+        return true; // can't read the hull — assume reachable and let the watchdog decide
+    }
+}
+
+// SBW's TurretPitchRange is already in canAim's convention (positive = up), so both
+// accessors go straight through. Cached: they route through computed().
+private float turretMinPitch() {
+    refreshTurretPitchCache();
+    return this.turretMinPitchCache;
+}
+
+private float turretMaxPitch() {
+    refreshTurretPitchCache();
+    return this.turretMaxPitchCache;
+}
+
+private void refreshTurretPitchCache() {
+    if (this.vehicle == this.turretPitchCacheVehicle) return;
+    this.turretPitchCacheVehicle = this.vehicle;
+    try {
+        this.turretMinPitchCache = this.vehicle.getTurretMinPitch();
+        this.turretMaxPitchCache = this.vehicle.getTurretMaxPitch();
+    } catch (Exception ignored) {
+        this.turretMinPitchCache = DEFAULT_TURRET_MIN_PITCH;
+        this.turretMaxPitchCache = DEFAULT_TURRET_MAX_PITCH;
+    }
+}
+
+// Drop stalemate state so a fresh engagement starts clean.
+private void clearBreaker() {
+    this.breakerTarget = null;
+    this.breakerAnchorTick = Long.MIN_VALUE;
+    this.repositionTicksLeft = 0;
+    this.breakerArcViolation = false;
+    this.arcCheckCooldown = 0;
+    this.turretPitchCacheVehicle = null;
 }
 
 // True once the hull is below the self-preservation health threshold. Vehicle health
@@ -742,9 +958,14 @@ private boolean isHelicopter() {
     // Ground doctrine (classification, cannon/special round-robin vs armor, MG
     // range split vs infantry) lives in VehicleWeapons; only the switch cooldown
     // lives here. The flight goal uses its own random-cycle doctrine instead.
+    //
+    // The chosen role is cached rather than re-derived: it stays valid between
+    // selections (the weapon index can't change under us — nothing else writes it for
+    // this seat), and re-deriving would mean re-running the whole slot classification
+    // every tick just to learn what selection already knew.
     private void selectWeaponForTarget(int seatIndex, TargetCategory category, boolean tooFar) {
         if (seatIndex < 0 || this.weaponSwitchCooldown > 0) return;
-        VehicleWeapons.selectWeaponForTarget(this.vehicle, seatIndex, category, tooFar);
+        this.selectedRole = VehicleWeapons.selectWeaponForTarget(this.vehicle, seatIndex, category, tooFar);
         this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
     }
 

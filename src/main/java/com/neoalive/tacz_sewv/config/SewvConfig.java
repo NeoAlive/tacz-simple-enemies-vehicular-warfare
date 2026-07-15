@@ -32,6 +32,10 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TARGET_REQUIRE_LOS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_ALLY_ASSIST_RANGE;
 
+    // Stalemate breaker (a crew that holds a target it cannot hit repositions itself)
+    public static final ForgeConfigSpec.BooleanValue STALEMATE_BREAKER_ENABLED;
+    public static final ForgeConfigSpec.IntValue STALEMATE_SILENCE_TICKS;
+
     // Terrain avoidance (look-ahead sensor while driving)
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_LOOKAHEAD_DISTANCE;
@@ -116,6 +120,23 @@ public class SewvConfig {
                 .comment("How close (in blocks) a smoke decoy must be to an AI crew's line of fire to block the shot.",
                          "Larger = smoke screens are wider and more protective.")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
+
+        STALEMATE_BREAKER_ENABLED = builder
+                .comment("Let an AI crew reposition on its own initiative when it is holding a target it cannot",
+                         "actually shoot — a turret that can't depress far enough, terrain in the way, or any other",
+                         "reason. Without this two tanks can sit staring at each other forever, since holding still",
+                         "is exactly what the standoff doctrine asks for and nothing notices no shots are coming out.",
+                         "Disable to restore the old behavior of holding the standoff ring unconditionally.")
+                .define("stalemateBreakerEnabled", true);
+
+        STALEMATE_SILENCE_TICKS = builder
+                .comment("How long an AI crew may hold a live target without landing a shot before it assumes it is",
+                         "stuck and repositions (20 ticks = 1 second).",
+                         "MUST stay above the slowest legitimate reload on your hulls, or crews will wander off mid-duel",
+                         "between normal shots: SBW cannon reloads run 6-13 seconds, so the default sits clear of them.",
+                         "Raise it if you run slow-firing modded vehicles. Targets outside the turret's elevation range",
+                         "are detected immediately and don't wait for this timer.")
+                .defineInRange("stalemateSilenceTicks", 300, 40, 2400);
 
         VEHICLE_TARGET_SCAN_RADIUS = builder
                 .comment("Horizontal radius (in blocks) of the cylindrical target scan used by mounted AI crews.",

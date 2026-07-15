@@ -52,6 +52,16 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue HELI_ATTACK_HEIGHT;
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
 
+    // Mortar crew AI (a unit stands beside the mortar, it has no seats to ride)
+    public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
+    public static final ForgeConfigSpec.IntValue MORTAR_APPROACH_TIMEOUT_TICKS;
+    public static final ForgeConfigSpec.IntValue MORTAR_FIRE_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.IntValue MORTAR_DISPERSION_RADIUS;
+    public static final ForgeConfigSpec.BooleanValue MORTAR_REQUIRES_AMMO;
+    public static final ForgeConfigSpec.BooleanValue MORTAR_CHUNK_LOADING;
+    public static final ForgeConfigSpec.DoubleValue MORTAR_RADIO_RANGE;
+    public static final ForgeConfigSpec.BooleanValue MORTAR_DEBUG_LOGGING;
+
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.BooleanValue SHOW_ORDER_FEEDBACK;
@@ -96,8 +106,13 @@ public class SewvConfig {
         // addon vehicles here even when the addon may be absent. Ground vehicles and
         // helicopters are fully supported. NOT recommended: fixed-wing aircraft/jets
         // (flown with helicopter hover logic they can't sustain), and artillery /
-        // indirect-fire hulls like mortars or the TOS-1A (their AI crew can't self-load
-        // and won't fire).
+        // indirect-fire hulls like the TOS-1A (their AI crew can't self-load and won't
+        // fire).
+        //
+        // Mortars don't belong here either, but for a different reason: a mortar has no
+        // seats, so there is nothing for a spawned crew to ride and TankSpawner can't
+        // place anyone in it. Mortars are crewed instead by ordering an existing PMC unit
+        // onto a deployed one with the board key — see the mortar_ai section.
         RU_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids RU crews can spawn with (e.g. \"superbwarfare:t_90a\").",
                          "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
@@ -233,6 +248,60 @@ public class SewvConfig {
 
         builder.pop();
 
+        builder.push("mortar_ai");
+
+        MORTAR_USE_DISTANCE = builder
+                .comment("How close (in blocks) a unit must get to a mortar before it can work it. A mortar has",
+                         "no seats, so the crew stands beside it rather than riding it. Raise this if crews take",
+                         "splash damage from their own launches; lower it for a tighter, more natural crew stance.")
+                .defineInRange("mortarUseDistance", 2.0, 1.0, 6.0);
+
+        MORTAR_APPROACH_TIMEOUT_TICKS = builder
+                .comment("How long a unit keeps trying to walk to its assigned mortar before giving up and",
+                         "releasing it for someone else (20 ticks = 1 second). The clock only runs while the",
+                         "crew is walking, so a unit already in position never times out.")
+                .defineInRange("mortarApproachTimeoutTicks", 300, 20, 1200);
+
+        MORTAR_FIRE_COOLDOWN_TICKS = builder
+                .comment("Minimum delay between shots from one mortar crew (20 ticks = 1 second). This is on top",
+                         "of the mortar's own ~1.25 s load cycle, so it sets the sustained rate of fire.",
+                         "Lower = faster barrages and heavier ammo drain.")
+                .defineInRange("mortarFireCooldownTicks", 60, 1, 1200);
+
+        MORTAR_DISPERSION_RADIUS = builder
+                .comment("Scatter radius (in blocks) an AI crew aims within, around its target. Each shot is",
+                         "re-rolled inside this circle, so a mortar walks its rounds over an area instead of",
+                         "hammering one point. 0 aims dead-on every shot.")
+                .defineInRange("mortarDispersionRadius", 3, 0, 16);
+
+        MORTAR_REQUIRES_AMMO = builder
+                .comment("Require a crew to carry mortar shells in its inventory (sneak+right-click a unit to open",
+                         "it) and consume one per shot. Disable for unlimited shells — useful for testing.")
+                .define("mortarRequiresAmmo", true);
+
+        MORTAR_CHUNK_LOADING = builder
+                .comment("Keep a crewed mortar and its crew loaded and ticking when no player is nearby.",
+                         "This is what lets a radio fire mission be worked from far outside your render distance —",
+                         "without it a mortar simply stops existing once you walk away, and the barrage stops with it.",
+                         "Only chunks with a crewed mortar in them are held, and only until the crew stands down,",
+                         "so the cost scales with how many mortars you have manned, not with the map.",
+                         "Disable if you are manning many mortars at once and the server is struggling.")
+                .define("mortarChunkLoading", true);
+
+        MORTAR_RADIO_RANGE = builder
+                .comment("Range (in blocks) of the handheld radio: how far it looks for the mob you are pointing at,",
+                         "and how far its fire mission reaches out to your manned mortars.",
+                         "A mortar itself can shoot roughly 27-770 blocks, so the default covers most of that.")
+                .defineInRange("mortarRadioRange", 400.0, 16.0, 1024.0);
+
+        MORTAR_DEBUG_LOGGING = builder
+                .comment("Log why a mortar crew is holding fire (to the server log, once per change of reason).",
+                         "Turn this on if a crew reaches its mortar but won't shoot — it names the exact gate,",
+                         "e.g. no target, out of range, no shells.")
+                .define("mortarDebugLogging", false);
+
+        builder.pop();
+
         builder.push("interaction");
 
         BOARD_SCAN_RADIUS = builder
@@ -240,7 +309,7 @@ public class SewvConfig {
                 .defineInRange("boardScanRadius", 64.0, 8.0, 128.0);
 
         SHOW_ORDER_FEEDBACK = builder
-                .comment("Show an action-bar confirmation when a board/dismount order is issued.")
+                .comment("Show an action-bar confirmation when a board/dismount/mortar order is issued.")
                 .define("showOrderFeedback", true);
 
         builder.pop();

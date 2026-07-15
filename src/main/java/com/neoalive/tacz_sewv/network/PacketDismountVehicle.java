@@ -9,6 +9,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.minecraftforge.network.NetworkEvent;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +53,10 @@ public class PacketDismountVehicle {
                 IVehicleBoarder boarder = (IVehicleBoarder) pmc;
                 boarder.tacz_sewv$setBoarding(false);
                 boarder.tacz_sewv$setMountTargetId(-1);
+                // This key is the stand-down verb for every order, so it also frees any
+                // mortar the unit was holding — otherwise nothing else could ever be
+                // assigned to that tube.
+                MortarSupport.releaseClaim(pmc);
                 if (wasMounted) dismounted++;
             }
         }

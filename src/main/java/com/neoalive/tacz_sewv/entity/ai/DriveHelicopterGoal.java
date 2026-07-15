@@ -14,6 +14,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.world.ForgeChunkManager;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
@@ -22,6 +23,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.joml.Vector3f;
 
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Autopilot for SuperbWarfare helicopters. Flight model, deliberately simple:
@@ -36,12 +38,12 @@ import java.util.EnumSet;
  *     wall of whisker deflections) the moment an order led into rising terrain.
  *     Cliffs and structures taller than the cruise offset remain the whiskers'
  *     job.</li>
- * <li><b>Whisker avoidance.</b> Every lateral leg probes actual blocks at hull
- *     height along the desired bearing and fans out to alternate bearings when
- *     blocked (yaw avoidance, same pattern as DriveVehicleGoal's ground whiskers);
- *     probe reach grows with current ground speed so momentum can't outrun the
- *     lookahead; a fully-blocked forward cone answers with a climb (vertical
- *     avoidance).</li>
+ * <li><b>Whisker avoidance.</b> Every lateral leg probes actual blocks — and allied
+ *     airframes, which no block probe can see — at hull height along the desired
+ *     bearing, and fans out to alternate bearings when blocked (yaw avoidance, same
+ *     pattern as DriveVehicleGoal's ground whiskers); probe reach grows with current
+ *     ground speed so momentum can't outrun the lookahead; a fully-blocked forward
+ *     cone answers with a climb (vertical avoidance).</li>
  * <li><b>Combat = aim platform, no revolution.</b> Close to the engage radius,
  *     descend to the attack altitude (heliAttackHeight above the TARGET — from
  *     cruise level the required depression would sit at/past the dive clamp),
@@ -121,6 +123,13 @@ public class DriveHelicopterGoal extends Goal {
     // back gradually (and re-triggers cleanly if the obstacle is tall).
     private static final double AVOID_CLIMB_STEP = 4.0;
     private static final double AVOID_FLOOR_DECAY = 0.05;
+    // Separation bubble grown around every allied airframe before the whiskers probe
+    // it (on top of our own half-width, cf. the ground goal's obstacle inflation).
+    // Point-sampling the hull centerline against a bare bounding box is fine for a
+    // wall that isn't going anywhere; two aircraft close at their COMBINED speed, so
+    // the bubble is what makes a bearing read as blocked while there is still room
+    // to turn out of it rather than at the moment of contact.
+    private static final double AIRCRAFT_CLEARANCE = 4.0;
 
     // --- Combat aim band ---
     private static final double ENGAGE_DEADBAND = 4.0;
@@ -167,6 +176,16 @@ public class DriveHelicopterGoal extends Goal {
 
     private VehicleEntity helicopterCacheVehicle;
     private boolean helicopterCacheValue;
+
+    // Per-game-tick cache of nearby allied airframes, each box pre-inflated by our
+    // half-width plus the separation bubble. The whisker fan probes up to 7 headings
+    // a tick and every probe consults this list — only the first builds it. Unlike
+    // the ground goal's equivalent the probe reach is not a fixed config value (it
+    // grows with airspeed), so the reach the cache was built at is kept alongside it
+    // and a longer probe within the same tick forces a rebuild.
+    private long aircraftObstacleCacheTime = Long.MIN_VALUE;
+    private double aircraftObstacleCacheReach = -1.0;
+    private List<AABB> aircraftObstacles = List.of();
 
     // The chunk currently force-loaded on this aircraft's behalf, or null when the
     // option is off / nothing is held. Only ever one at a time — it hands off as the
@@ -237,6 +256,9 @@ public class DriveHelicopterGoal extends Goal {
         this.vehicle = null;
         this.avoidFloorY = Double.NaN;
         this.landingCapture = false;
+        this.aircraftObstacles = List.of();
+        this.aircraftObstacleCacheTime = Long.MIN_VALUE;
+        this.aircraftObstacleCacheReach = -1.0;
         this.allyAssist.clear();
     }
 
@@ -633,9 +655,10 @@ public class DriveHelicopterGoal extends Goal {
     }
 
     // True if flying `distance` blocks along `dir` keeps the hull slab (its height,
-    // with a 1-block margin above and below) free of collidable blocks. This is the
-    // airborne analogue of the ground goal's headingClear — actual block probes, not
-    // heightmaps, so overhangs, arches and interiors are judged correctly.
+    // with a 1-block margin above and below) free of collidable blocks AND of allied
+    // airframes. This is the airborne analogue of the ground goal's headingClear —
+    // actual block probes, not heightmaps, so overhangs, arches and interiors are
+    // judged correctly.
     private boolean headingClear(Vec3 dir, double distance) {
         Level level = this.unit.level();
         double sx = this.vehicle.getX();
@@ -643,10 +666,14 @@ public class DriveHelicopterGoal extends Goal {
         int yBottom = Mth.floor(this.vehicle.getY()) - 1;
         int yTop = Mth.floor(this.vehicle.getY() + this.vehicle.getBbHeight()) + 1;
         double half = this.vehicle.getBbWidth() / 2.0;
+        List<AABB> traffic = aircraftObstacles(distance);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (double d = half + 1.0; d <= half + distance; d += 1.0) {
-            int px = Mth.floor(sx + dir.x * d);
-            int pz = Mth.floor(sz + dir.z * d);
+            double sampleX = sx + dir.x * d;
+            double sampleZ = sz + dir.z * d;
+            if (isBlockedByAircraft(traffic, sampleX, sampleZ, yBottom, yTop)) return false;
+            int px = Mth.floor(sampleX);
+            int pz = Mth.floor(sampleZ);
             for (int y = yBottom; y <= yTop; y++) {
                 if (!level.getBlockState(pos.set(px, y, pz)).getCollisionShape(level, pos).isEmpty()) {
                     return false;
@@ -654,6 +681,61 @@ public class DriveHelicopterGoal extends Goal {
             }
         }
         return true;
+    }
+
+    // Allied airframes are entities, so the block probes can't see them — this is the
+    // whole reason helicopters flew through each other. Mirrors the ground goal's
+    // vehicleObstacles(): allied hulls and wrecks are obstacles, enemy hulls are NOT
+    // (the combat profile deliberately flies AT its target, so avoiding it would
+    // fight the goal), and our own hull is excluded explicitly since the boxes are
+    // inflated by our half-width and a self-match would veto every bearing.
+    //
+    // Restricted to helicopters on top of the ground goal's rule: a ground hull is
+    // never a flight hazard at cruise, and while the vertical slab test below would
+    // reject it anyway, keeping it out of the scan means the common case (nothing but
+    // tanks below) doesn't pay for engine-type checks at all.
+    private List<AABB> aircraftObstacles(double reach) {
+        long now = this.unit.level().getGameTime();
+        // Reach varies per tick with airspeed, and a landing probe (short) can precede
+        // a cruise probe (long) inside one tick — rebuild when the box in hand is too
+        // small rather than silently missing traffic near the far end of the fan.
+        if (now != this.aircraftObstacleCacheTime || reach > this.aircraftObstacleCacheReach) {
+            this.aircraftObstacleCacheTime = now;
+            this.aircraftObstacleCacheReach = reach;
+            double half = this.vehicle.getBbWidth() / 2.0;
+            double horizontal = reach + half + AIRCRAFT_CLEARANCE + 1.0;
+            AABB search = this.vehicle.getBoundingBox()
+                    .inflate(horizontal, this.vehicle.getBbHeight() + AIRCRAFT_CLEARANCE + 1.0, horizontal);
+            this.aircraftObstacles = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
+                            v -> v != this.vehicle && isAircraftObstacle(v)).stream()
+                    .map(v -> v.getBoundingBox()
+                            .inflate(half + AIRCRAFT_CLEARANCE, AIRCRAFT_CLEARANCE, half + AIRCRAFT_CLEARANCE))
+                    .toList();
+        }
+        return this.aircraftObstacles;
+    }
+
+    private boolean isAircraftObstacle(VehicleEntity other) {
+        if (!(other.getEngineInfo() instanceof EngineInfo.Helicopter)) return false;
+        // A wreck is still a hull hanging in the air on its way down.
+        if (other.isWreck()) return true;
+        return other.getFirstPassenger() instanceof AbstractUnit pilot
+                && VehicleTargeting.isSameFaction(this.unit, pilot);
+    }
+
+    // Vertical containment is what keeps this from being the ground goal's flat test:
+    // an allied airframe holding station 40 blocks below shares our X/Z all day and
+    // must not veto the bearing. Only traffic whose (already clearance-inflated) box
+    // overlaps the hull slab we are about to fly through counts.
+    private static boolean isBlockedByAircraft(List<AABB> obstacles, double x, double z,
+                                               double slabBottom, double slabTop) {
+        for (AABB box : obstacles) {
+            if (x >= box.minX && x <= box.maxX && z >= box.minZ && z <= box.maxZ
+                    && slabTop >= box.minY && slabBottom <= box.maxY) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Rotate a horizontal (y=0) direction about the vertical axis.

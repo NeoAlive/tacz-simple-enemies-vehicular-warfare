@@ -35,7 +35,6 @@ public class SewvConfig {
     // Terrain avoidance (look-ahead sensor while driving)
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_LOOKAHEAD_DISTANCE;
-    public static final ForgeConfigSpec.IntValue VEHICLE_MAX_SAFE_DROP;
 
     // Helicopter/flight AI
     public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_ALTITUDE;
@@ -143,21 +142,16 @@ public class SewvConfig {
                 .defineInRange("vehicleAllyAssistRange", 128.0, 0.0, 256.0);
 
         VEHICLE_TERRAIN_AVOIDANCE = builder
-                .comment("Look ahead while driving and steer AI vehicles around water, deep drops (ravines/cliffs)",
-                         "and lava instead of ploughing straight into them. Disabling restores legacy behavior",
-                         "of driving in a straight line at the destination.")
+                .comment("Look ahead while driving and steer AI vehicles around water and lava instead of",
+                         "ploughing straight into them. Drops are deliberately NOT avoided — SBW's fall damage",
+                         "on vehicles is forgiving, so refusing them cost far more mobility than it saved.",
+                         "Disabling restores legacy behavior of driving in a straight line at the destination.")
                 .define("vehicleTerrainAvoidance", true);
 
         VEHICLE_LOOKAHEAD_DISTANCE = builder
                 .comment("How far ahead (in blocks) the terrain sensor probes for hazards.",
                          "Higher numbers = scans ahead for obstacles at the cost of performance.")
                 .defineInRange("vehicleLookaheadDistance", 5.0, 1.0, 16.0);
-
-        VEHICLE_MAX_SAFE_DROP = builder
-                .comment("Vertical drop (in blocks) an AI vehicle will still drive down. Drops deeper than this are",
-                         "treated as a cliff and avoided. Matches the pathfinder's fall tolerance (vanilla default 3),",
-                         "so ordinary small step-downs are not mistaken for ravines.")
-                .defineInRange("vehicleMaxSafeDrop", 8, 1, 16);
 
         builder.pop();
 

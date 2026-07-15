@@ -236,8 +236,9 @@ public final class VehicleTargeting {
         return target instanceof AbstractUnit other && isSameFaction(unit, other);
     }
 
-    // Package-visible: DriveVehicleGoal's vehicle-obstacle filter defines "ally"
-    // with this same test, so assist doctrine and collision doctrine can't diverge.
+    // Package-visible: the obstacle filters in DriveVehicleGoal (hulls) and
+    // DriveHelicopterGoal (airframes) define "ally" with this same test, so assist
+    // doctrine and collision doctrine can't diverge.
     static boolean isSameFaction(AbstractUnit unit, AbstractUnit other) {
         if (unit instanceof RUunitEntity) return other instanceof RUunitEntity;
         if (unit instanceof USunitEntity) return other instanceof USunitEntity;

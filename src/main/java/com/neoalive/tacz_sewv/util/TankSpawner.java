@@ -54,6 +54,17 @@ public final class TankSpawner {
         return spawnTankWithCrew(level, pos, faction, ownerId, null);
     }
 
+    /** True when the faction's configured pool contains at least one loadable SW vehicle. */
+    public static boolean hasSpawnableVehicle(ServerLevel level, TankFaction faction) {
+        for (String id : faction.vehiclePool()) {
+            ResourceLocation rl = ResourceLocation.tryParse(id);
+            if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
+            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            if (type != null && type.create(level) instanceof VehicleEntity) return true;
+        }
+        return false;
+    }
+
     /**
      * Spawns a faction vehicle with a full crew of the matching faction: one unit per
      * seat the vehicle exposes, mounted in seat order (seat 0 becomes the driver).

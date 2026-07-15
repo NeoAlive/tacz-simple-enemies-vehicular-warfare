@@ -18,6 +18,8 @@
     "MixinRangedGunAttackGoal"
   ],
   "client": [
+    "client.MixinClientGlowManager",
+    "client.MixinClientGlowRenderHandler",
     "client.MixinPmcUnitRenderer",
     "client.MixinRUunitRenderer",
     "client.MixinUSunitRenderer"

@@ -1,0 +1,13 @@
+{
+  "mortar_affirmative": {
+    "sounds": [
+      "tacz_sewv:affirmative",
+      "tacz_sewv:affirmative1"
+    ]
+  },
+  "free_fire": {
+    "sounds": [
+      "tacz_sewv:out"
+    ]
+  }
+}

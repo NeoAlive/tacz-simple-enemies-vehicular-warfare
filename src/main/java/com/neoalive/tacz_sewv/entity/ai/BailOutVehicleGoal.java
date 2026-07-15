@@ -106,6 +106,9 @@ public class BailOutVehicleGoal extends Goal {
             IVehicleBoarder boarder = (IVehicleBoarder) pmc;
             boarder.tacz_sewv$setBoarding(false);
             boarder.tacz_sewv$setMountTargetId(-1);
+            // Likewise any mortar claim: a crew scrambling clear of a burning hull
+            // shouldn't turn round and walk back to a tube it was assigned earlier.
+            MortarSupport.releaseClaim(pmc);
             // setMoveToTarget flips the order to MOVE_TO_POSITION itself.
             if (this.escapePos != null) pmc.setMoveToTarget(escapeTarget());
         } else if (this.escapePos != null) {

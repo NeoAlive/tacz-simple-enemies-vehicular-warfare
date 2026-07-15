@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.client;
 
+import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -17,6 +18,7 @@ import org.lwjgl.glfw.GLFW;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketBoardVehicle;
 import com.neoalive.tacz_sewv.network.PacketDismountVehicle;
+import com.neoalive.tacz_sewv.network.PacketManMortar;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,14 +58,25 @@ public class BoardKeybind {
         }
 
         HitResult hit = mc.hitResult;
-        if (!(hit instanceof EntityHitResult ehr) || !(ehr.getEntity() instanceof VehicleEntity vehicle)) {
+        if (!(hit instanceof EntityHitResult ehr)) {
             hint(player, "message.tacz_sewv.board.no_vehicle");
             return;
         }
 
         // The server validates ownership and reports the result — no optimistic
         // client-side "order sent" message that could lie on failure.
-        NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId()));
+        //
+        // A mortar is a VehicleEntity too, but it has no seats to ride: crewing one
+        // means standing beside it, which is a different order entirely. Check it first,
+        // since the vehicle branch would otherwise swallow it and send units to board
+        // something they can never sit in.
+        if (ehr.getEntity() instanceof MortarEntity mortar) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, mortar.getId()));
+        } else if (ehr.getEntity() instanceof VehicleEntity vehicle) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId()));
+        } else {
+            hint(player, "message.tacz_sewv.board.no_vehicle");
+        }
     }
 
     public static void onDismountPressed() {

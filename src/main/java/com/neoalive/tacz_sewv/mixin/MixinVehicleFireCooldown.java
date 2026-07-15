@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -131,6 +132,13 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     @Unique
     private void tacz_sewv$gateAndStampAiShot(LivingEntity living, CallbackInfo ci) {
         if (!(living instanceof AbstractUnit)) return;
+
+        // Mortars are exempt: ManMortarGoal already paces them with
+        // mortarFireCooldownTicks and only shoots once the barrel has settled, so
+        // throttling here as well would silently tie a mortar's rate of fire to a tank
+        // setting. The line-of-fire gate on canShoot never applied to them anyway —
+        // they're indirect fire, and this overload doesn't consult canShoot.
+        if ((Object) this instanceof MortarEntity) return;
 
         if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
             ci.cancel();

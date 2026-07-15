@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.network;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -46,6 +47,13 @@ public class PacketBoardVehicle {
         for (int unitId : this.unitIds) {
             Entity e = player.level().getEntity(unitId);
             if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
+                // A board order goes out to every owned unit in range, so leave crews that
+                // are already committed to a mortar out of it — otherwise pressing this at
+                // a vehicle silently pulls a working mortar team off its tube, including
+                // the units that would only walk over and bounce off a full hull anyway.
+                // Stand a crew down with the dismount key first to free it up.
+                if (MortarSupport.hasMortarClaim(pmc)) continue;
+
                 IVehicleBoarder boarder = (IVehicleBoarder) pmc;
                 boarder.tacz_sewv$setMountTargetId(this.vehicleId);
                 boarder.tacz_sewv$setBoarding(true);

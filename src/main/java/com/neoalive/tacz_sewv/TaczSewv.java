@@ -2,6 +2,8 @@ package com.neoalive.tacz_sewv;
 
 import com.neoalive.tacz_sewv.command.SewvCommand;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModItems;
+import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.procedural.events.ConvoyEvent;
 import com.mojang.logging.LogUtils;
@@ -25,6 +27,8 @@ public class TaczSewv {
     public TaczSewv() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::commonSetup);
+        ModItems.ITEMS.register(modEventBus);
+        ModSounds.SOUNDS.register(modEventBus);
         MinecraftForge.EVENT_BUS.register(this);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SewvConfig.SPEC);
         // SEM is loaded before this bridge (see mods.toml), so this becomes a normal

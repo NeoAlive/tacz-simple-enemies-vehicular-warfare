@@ -13,6 +13,9 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue TANKS_IN_EVENTS;
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_RU;
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_US;
+    public static final ForgeConfigSpec.BooleanValue CONVOY_EVENTS_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue CONVOY_BASE_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue CONVOY_FAILURE_MULTIPLIER;
 
     // Vehicle pools — entity ids; one is picked at random per spawn
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_POOL;
@@ -69,6 +72,19 @@ public class SewvConfig {
         TANK_SPAWN_CHANCE_US = builder
                 .comment("Chance (0.0-1.0) for a US tank to spawn when a combat event occours. Keep it LOW for rarity.")
                 .defineInRange("tankSpawnChanceUs", 0.02, 0.0, 1.0);
+
+        CONVOY_EVENTS_ENABLED = builder
+                .comment("Enable the standalone convoy event. Each convoy is RU or US only, never PMC.")
+                .define("convoyEventsEnabled", true);
+
+        CONVOY_BASE_CHANCE = builder
+                .comment("Initial chance (0.0-1.0) for SEM's convoy event to occur each event cycle.",
+                         "Its chance grows by convoyFailureMultiplier after each missed roll, following SEM's event system.")
+                .defineInRange("convoyBaseChance", 0.01, 0.0, 1.0);
+
+        CONVOY_FAILURE_MULTIPLIER = builder
+                .comment("Amount added to the convoy event's chance after a missed event roll.")
+                .defineInRange("convoyFailureMultiplier", 0.01, 0.0, 1.0);
 
         builder.pop();
 

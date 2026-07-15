@@ -3,7 +3,9 @@ package com.neoalive.tacz_sewv;
 import com.neoalive.tacz_sewv.command.SewvCommand;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.procedural.events.ConvoyEvent;
 import com.mojang.logging.LogUtils;
+import net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -25,6 +27,9 @@ public class TaczSewv {
         modEventBus.addListener(this::commonSetup);
         MinecraftForge.EVENT_BUS.register(this);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SewvConfig.SPEC);
+        // SEM is loaded before this bridge (see mods.toml), so this becomes a normal
+        // SEM dynamic event: it is listed, can be toggled, and can be forced by SEM.
+        DynamicEventManager.registerEvent(new ConvoyEvent());
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

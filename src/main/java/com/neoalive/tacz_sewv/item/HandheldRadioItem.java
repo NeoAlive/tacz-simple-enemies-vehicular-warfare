@@ -1,7 +1,7 @@
 package com.neoalive.tacz_sewv.item;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
+import com.neoalive.tacz_sewv.entity.ai.FireMissionSupport;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import net.minecraft.ChatFormatting;
@@ -23,20 +23,19 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
 /**
- * Forward observer's radio: point it at a mob to call every mortar crew you own within
- * range onto that target, or sneak-use it to call them off.
+ * Forward observer's radio: point it at a mob to call every mortar and TOW crew you own
+ * within range onto that target, or sneak-use it to call them off.
  *
- * <p>This exists because a mortar outranges its own crew's eyes by a mile — SEM's
- * targeting only reaches {@code FOLLOW_RANGE} (96 blocks) and only ±4 blocks
- * vertically, while the tube itself shoots out to ~770. The radio hands the crew a
- * target it could never have spotted, which is the whole point of indirect fire.
+ * <p>This exists because those weapons outrange the eyes behind them — a mortar shoots
+ * ~770 blocks while SEM's targeting reaches {@code FOLLOW_RANGE} (96 blocks) and only ±4
+ * blocks vertically. The radio hands the crew a target it could never have spotted, which
+ * is the whole point of indirect fire; {@link FireMissionSupport} has the rest.
  */
 public class HandheldRadioItem extends Item {
 
@@ -80,9 +79,9 @@ public class HandheldRadioItem extends Item {
         return InteractionResult.SUCCESS;
     }
 
-    /** Puts every mortar crew in range onto {@code target}. */
+    /** Puts every mortar and TOW crew in range onto {@code target}. */
     private static void callFireMission(Player player, LivingEntity target) {
-        int ordered = MortarSupport.callFireMission(
+        int ordered = FireMissionSupport.callFireMission(
                 player.level(), player.getUUID(), player.position(),
                 SewvConfig.MORTAR_RADIO_RANGE.get(), target);
 
@@ -115,22 +114,11 @@ public class HandheldRadioItem extends Item {
         return false;
     }
 
-    /**
-     * Clears the fire mission. Dropping the order is enough on its own: the goal's canUse
-     * goes false, and its stop() clears the target and the stored id for us — after which
-     * the crew is back on SEM's ordinary targeting.
-     */
+    /** Calls every crew in range off their fire mission. */
     private static void standDown(Player player) {
-        List<PmcUnitEntity> crews = MortarSupport.crewsInRange(
+        int released = FireMissionSupport.standDown(
                 player.level(), player.getUUID(), player.position(),
                 SewvConfig.MORTAR_RADIO_RANGE.get());
-        int released = 0;
-        for (PmcUnitEntity crew : crews) {
-            if (crew.getOrder() != OrderType.ATTACK_THAT_TARGET) continue;
-            crew.setOrder(OrderType.FREE_FIRE);
-            crew.setAttackTargetId(-1);
-            released++;
-        }
 
         if (released > 0) {
             player.level().playSound(null, player.blockPosition(), ModSounds.FREE_FIRE.get(),

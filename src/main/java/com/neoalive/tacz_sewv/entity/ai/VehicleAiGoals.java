@@ -23,6 +23,11 @@ public final class VehicleAiGoals {
         unit.goalSelector.addGoal(1, new DriveVehicleGoal(unit));
         unit.goalSelector.addGoal(1, new DriveHelicopterGoal(unit));
         unit.goalSelector.addGoal(1, new VehicleMinRangeGoal(unit));
+        // Gates on the mounted hull being a TOW, the same way the two drive goals gate on
+        // engine type. It belongs here rather than with the PMC-only goals because loading
+        // a launcher needs nothing but the crew's own inventory — no network bridge — so
+        // any crew that carries missiles can work one.
+        unit.goalSelector.addGoal(1, new ManTowGoal(unit));
         // Priority 2: while mounted this owns the TARGET flag over SEM's short
         // vanilla scans (also priority 2+, but strictly less reach), while SEM's
         // HurtByTargetGoal at priority 1 still preempts for retaliation.

@@ -10,24 +10,21 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Mortar logic shared by {@link ManMortarGoal} and
  * {@link com.neoalive.tacz_sewv.network.PacketManMortar}.
+ *
+ * <p>Designating a target for a crew is not here — that is shared with the TOW and lives
+ * in {@link FireMissionSupport}.
  */
 public final class MortarSupport {
 
@@ -66,44 +63,6 @@ public final class MortarSupport {
 
     public static void releaseClaim(Entity unit) {
         if (unit instanceof IMortarCrew crew) crew.sewv$setMortarTargetId(IMortarCrew.NO_MORTAR);
-    }
-
-    /**
-     * One owner's mortar crews within {@code range} of {@code origin}. Only units actually
-     * manning a tube answer — a fire mission means nothing to a rifleman.
-     *
-     * <p>A crew in an unloaded chunk can't be found, which is what mortarChunkLoading
-     * keeps from happening.
-     */
-    public static List<PmcUnitEntity> crewsInRange(Level level, @Nullable UUID owner, Vec3 origin, double range) {
-        if (owner == null) return List.of();
-
-        List<PmcUnitEntity> crews = new ArrayList<>();
-        for (PmcUnitEntity pmc : level.getEntitiesOfClass(
-                PmcUnitEntity.class, new AABB(origin, origin).inflate(range))) {
-            if (pmc.isAlive() && owner.equals(pmc.getOwnerUUID()) && hasMortarClaim(pmc)) {
-                crews.add(pmc);
-            }
-        }
-        return crews;
-    }
-
-    /**
-     * Puts every mortar crew in range onto {@code target}, and reports how many took it.
-     *
-     * <p>SEM's AttackSpecificTargetGoal (targetSelector priority 0) re-forces the target
-     * from this id every 5 ticks, so it overrides a crew's own short-range scan for as
-     * long as the order stands — which is the whole point: a mortar shoots far past
-     * anything its crew could ever spot for itself.
-     */
-    public static int callFireMission(Level level, @Nullable UUID owner, Vec3 origin,
-                                      double range, LivingEntity target) {
-        List<PmcUnitEntity> crews = crewsInRange(level, owner, origin, range);
-        for (PmcUnitEntity crew : crews) {
-            crew.setAttackTargetId(target.getId());
-            crew.setOrder(OrderType.ATTACK_THAT_TARGET);
-        }
-        return crews.size();
     }
 
     /**

@@ -290,7 +290,7 @@ public class SewvConfig {
 
         MORTAR_RADIO_RANGE = builder
                 .comment("Range (in blocks) of the handheld radio: how far it looks for the mob you are pointing at,",
-                         "and how far its fire mission reaches out to your manned mortars.",
+                         "and how far its fire mission reaches out to your manned mortars and TOW launchers.",
                          "A mortar itself can shoot roughly 27-770 blocks, so the default covers most of that.")
                 .defineInRange("mortarRadioRange", 400.0, 16.0, 1024.0);
 

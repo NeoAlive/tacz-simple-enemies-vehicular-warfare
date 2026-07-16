@@ -5,16 +5,18 @@ import com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleVecUtils;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.item.projectile.MortarShellItem;
 import com.atsuishio.superbwarfare.tools.TrajectoryCalculator;
+import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -43,21 +45,26 @@ public final class MortarSupport {
      *
      * <p>Scans, so it belongs in order handling (once per keypress), never in canUse.
      */
-    public static boolean isMortarClaimed(MortarEntity mortar, @Nullable PmcUnitEntity except) {
+    public static boolean isMortarClaimed(MortarEntity mortar, @Nullable AbstractUnit except) {
         double radius = SewvConfig.BOARD_SCAN_RADIUS.get();
-        for (PmcUnitEntity pmc : mortar.level().getEntitiesOfClass(
-                PmcUnitEntity.class, mortar.getBoundingBox().inflate(radius))) {
-            if (pmc == except || !pmc.isAlive()) continue;
-            if (((IMortarCrew) pmc).sewv$getMortarTargetId() == mortar.getId()) return true;
+        // AbstractUnit, not PmcUnitEntity: RU/US crews man mortars too, and a tube one of
+        // them is working must not read as free just because the asker is a PMC.
+        //
+        // instanceof rather than a cast: this scans whatever AbstractUnits are nearby, and
+        // an addon's own unit type would not carry our bridge interface.
+        for (AbstractUnit unit : mortar.level().getEntitiesOfClass(
+                AbstractUnit.class, mortar.getBoundingBox().inflate(radius))) {
+            if (unit == except || !unit.isAlive()) continue;
+            if (unit instanceof IMortarCrew crew && crew.sewv$getMortarTargetId() == mortar.getId()) return true;
         }
         return false;
     }
 
-    public static boolean hasMortarClaim(PmcUnitEntity unit) {
+    public static boolean hasMortarClaim(AbstractUnit unit) {
         return ((IMortarCrew) unit).sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR;
     }
 
-    public static void claim(PmcUnitEntity unit, MortarEntity mortar) {
+    public static void claim(AbstractUnit unit, MortarEntity mortar) {
         ((IMortarCrew) unit).sewv$setMortarTargetId(mortar.getId());
     }
 
@@ -129,10 +136,24 @@ public final class MortarSupport {
      * Pulls one shell for a shot, or an empty stack if the crew is out. With
      * mortarRequiresAmmo off this conjures one instead of touching the inventory.
      */
-    public static ItemStack takeShell(PmcUnitEntity unit) {
+    public static ItemStack takeShell(AbstractUnit unit) {
         if (!SewvConfig.MORTAR_REQUIRES_AMMO.get()) {
             return new ItemStack(ModItems.MORTAR_SHELL.get());
         }
+
+        // An issued supply is unlimited and needs no inventory at all — which is the only
+        // way an RU/US crew can shoot anything, since those unit types have none. Checked
+        // before the scan because a crew with one has nothing to scan.
+        //
+        // The instanceof is not a formality: it keeps a crew issued some other mod's ammo
+        // from conjuring it into a tube that would refuse it, and it accepts MORTAR_SHELL_WP
+        // (a plain MortarShellItem, like the plain shell) and POTION_MORTAR_SHELL
+        // (PotionMortarShellItem extends it) with no extra cases.
+        if (unit instanceof IIssuedAmmo crew) {
+            Item issued = crew.sewv$getIssuedAmmo();
+            if (issued instanceof MortarShellItem) return new ItemStack(issued);
+        }
+
         IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
         if (inventory == null) return ItemStack.EMPTY;
 

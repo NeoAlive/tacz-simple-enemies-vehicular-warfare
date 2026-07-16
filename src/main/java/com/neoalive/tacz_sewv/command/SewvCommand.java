@@ -5,6 +5,8 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import com.neoalive.tacz_sewv.util.EmplacementSpawner;
+import com.neoalive.tacz_sewv.util.EmplacementSpawner.Emplacement;
 import com.neoalive.tacz_sewv.util.TankSpawner;
 import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
 import net.minecraft.commands.CommandSourceStack;
@@ -29,8 +31,54 @@ public class SewvCommand {
                         .then(tankSpawn("ustank", TankFaction.US))
                         .then(tankSpawn("rutank", TankFaction.RU))
                         .then(tankSpawn("pmctank", TankFaction.PMC))
+                        .then(emplacementSpawn("usmortar", TankFaction.US, Emplacement.MORTAR))
+                        .then(emplacementSpawn("rumortar", TankFaction.RU, Emplacement.MORTAR))
+                        .then(emplacementSpawn("pmcmortar", TankFaction.PMC, Emplacement.MORTAR))
+                        .then(emplacementSpawn("ustow", TankFaction.US, Emplacement.TOW))
+                        .then(emplacementSpawn("rutow", TankFaction.RU, Emplacement.TOW))
+                        .then(emplacementSpawn("pmctow", TankFaction.PMC, Emplacement.TOW))
                 )
         );
+    }
+
+    // Emplacements take no vehicle id (there is exactly one mortar and one TOW), so the
+    // only optional argument is the position:
+    //   /sewv spawn rumortar               at the source, ground-snapped
+    //   /sewv spawn rumortar <x y z>       at the coordinates (given Y)
+    // A mortar spawned this way has no fire mission — it shoots what its crew can see, the
+    // same as one a player ordered a unit onto. The mortar_shelling event is what hands out
+    // standing missions.
+    // Every crew arrives able to fire. RU/US crews carry an unlimited issued supply (they have
+    // no inventory to hold a stack in); a PMC crew gets its inventory filled with real stacks
+    // it can run out of and the owner can top up (sneak+right-click).
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> emplacementSpawn(
+            String literal, TankFaction faction, Emplacement type) {
+        return Commands.literal(literal)
+                .executes(ctx -> spawnEmplacement(ctx.getSource(), faction, type, null))
+                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                        .executes(ctx -> spawnEmplacement(ctx.getSource(), faction, type,
+                                BlockPosArgument.getLoadedBlockPos(ctx, "pos"))));
+    }
+
+    private static int spawnEmplacement(CommandSourceStack source, TankFaction faction,
+                                        Emplacement type, @Nullable BlockPos explicitPos) {
+        ServerLevel level = source.getLevel();
+
+        UUID ownerId = faction == TankFaction.PMC && source.getEntity() instanceof ServerPlayer player
+                ? player.getUUID() : null;
+
+        BlockPos pos = explicitPos != null
+                ? explicitPos
+                : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
+
+        if (EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null) == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.translatable(
+                "command.tacz_sewv.spawn.success", faction.name(), pos.toShortString()), true);
+        return 1;
     }
 
     // Each tank literal takes an OPTIONAL spawn position and an OPTIONAL vehicle id:

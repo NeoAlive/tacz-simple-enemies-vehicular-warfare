@@ -130,7 +130,8 @@ public final class TankSpawner {
         return tank;
     }
 
-    private static AbstractUnit createCrewUnit(ServerLevel level, TankFaction faction, @Nullable UUID ownerId) {
+    /** Package-visible so {@link EmplacementSpawner} crews mortars/TOWs the same way. */
+    static AbstractUnit createCrewUnit(ServerLevel level, TankFaction faction, @Nullable UUID ownerId) {
         switch (faction) {
             case RU: {
                 RUunitEntity unit = new RUunitEntity(ModEntities.RUUNIT.get(), level);

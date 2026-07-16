@@ -1,10 +1,10 @@
 package com.neoalive.tacz_sewv.mixin;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.BoardVehicleGoal;
-import com.neoalive.tacz_sewv.entity.ai.ManMortarGoal;
 import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
 import net.minecraft.world.entity.Mob;
@@ -20,8 +20,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // The boarding order and mortar claim below are deliberately transient: they target
 // an entity by network id, which is not stable across sessions, so persisting them
 // would be wrong — a pending order is simply dropped on reload.
+// IIssuedAmmo is only set on a PMC crew SPAWNED onto an emplacement (/sewv spawn pmctow).
+// One a player ordered onto a tube with the board key has none, and so reads the shells the
+// player actually gave it — which is the whole point of hand-loading one.
 @Mixin(PmcUnitEntity.class)
-public abstract class MixinPmcUnitEntity implements IVehicleBoarder, IHelicopterPilot, IMortarCrew {
+public abstract class MixinPmcUnitEntity implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo {
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
@@ -66,12 +69,11 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder, IHelicopter
     private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
         PmcUnitEntity self = (PmcUnitEntity) (Object) this;
         ((Mob) self).goalSelector.addGoal(1, new BoardVehicleGoal(self));
-        // Priority 1 with MOVE+LOOK: a crew that has been sent to a mortar outranks
-        // SEM's cover/approach/order goals, which would otherwise walk it off the tube.
-        ((Mob) self).goalSelector.addGoal(1, new ManMortarGoal(self));
         // Claims no flags, so its priority is nominal — it only relays a contact over the
         // radio and never competes with what the unit is doing.
         ((Mob) self).goalSelector.addGoal(1, new RadioObserverGoal(self));
+        // ManMortarGoal lives in addDriveGoals with the rest of the crew-served wiring:
+        // working a tube needs no network bridge, so RU/US crews get it too.
         VehicleAiGoals.addDriveGoals(self);
     }
 }

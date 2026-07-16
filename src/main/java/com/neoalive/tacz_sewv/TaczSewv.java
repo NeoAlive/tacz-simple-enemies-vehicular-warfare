@@ -6,6 +6,7 @@ import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.procedural.events.ConvoyEvent;
+import com.neoalive.tacz_sewv.procedural.events.MortarShellingEvent;
 import com.mojang.logging.LogUtils;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager;
 import net.minecraftforge.common.MinecraftForge;
@@ -31,9 +32,10 @@ public class TaczSewv {
         ModSounds.SOUNDS.register(modEventBus);
         MinecraftForge.EVENT_BUS.register(this);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SewvConfig.SPEC);
-        // SEM is loaded before this bridge (see mods.toml), so this becomes a normal
-        // SEM dynamic event: it is listed, can be toggled, and can be forced by SEM.
+        // SEM is loaded before this bridge (see mods.toml), so these become normal
+        // SEM dynamic events: they are listed, can be toggled, and can be forced by SEM.
         DynamicEventManager.registerEvent(new ConvoyEvent());
+        DynamicEventManager.registerEvent(new MortarShellingEvent());
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

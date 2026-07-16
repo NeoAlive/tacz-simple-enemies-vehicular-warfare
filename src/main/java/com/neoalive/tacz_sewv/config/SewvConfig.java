@@ -17,6 +17,18 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue CONVOY_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue CONVOY_FAILURE_MULTIPLIER;
 
+    // Mortar shelling event (an RU/US battery sets up out of sight and shells your base)
+    public static final ForgeConfigSpec.BooleanValue SHELLING_EVENTS_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue SHELLING_BASE_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue SHELLING_FAILURE_MULTIPLIER;
+    public static final ForgeConfigSpec.IntValue SHELLING_BASE_RADIUS;
+    public static final ForgeConfigSpec.IntValue SHELLING_MORTARS;
+    public static final ForgeConfigSpec.IntValue SHELLING_GUARDS;
+    public static final ForgeConfigSpec.IntValue SHELLING_DURATION_MIN_TICKS;
+    public static final ForgeConfigSpec.IntValue SHELLING_DURATION_MAX_TICKS;
+    public static final ForgeConfigSpec.ConfigValue<String> HIGH_CHANCE_MORTAR_SHELL;
+    public static final ForgeConfigSpec.ConfigValue<String> LOW_CHANCE_MORTAR_SHELL;
+
     // Vehicle pools — entity ids; one is picked at random per spawn
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_POOL;
@@ -96,6 +108,64 @@ public class SewvConfig {
                 .comment("Amount added to the convoy event's chance after a missed event roll.")
                 .defineInRange("convoyFailureMultiplier", 0.01, 0.0, 1.0);
 
+        SHELLING_EVENTS_ENABLED = builder
+                .comment("Enable the mortar_shelling event: an RU or US mortar battery sets up out of sight and",
+                         "shells your base. It only fires while you are actually at a base — see shellingBaseRadius —",
+                         "so it threatens something you built rather than open ground you happen to be crossing.",
+                         "The crew cannot see that far (96 blocks), so it works a fire mission on the position",
+                         "instead, for shellingDurationMin/MaxTicks, and then leaves its tubes for good. The crews",
+                         "stay put afterwards as ordinary infantry — the barrage ends, the battery doesn't.")
+                .define("shellingEventsEnabled", true);
+
+        SHELLING_BASE_CHANCE = builder
+                .comment("Starting chance for the mortar_shelling event on each of SEM's event rolls.")
+                .defineInRange("shellingBaseChance", 0.02, 0.0, 1.0);
+
+        SHELLING_FAILURE_MULTIPLIER = builder
+                .comment("Amount added to the shelling event's chance after a missed event roll.")
+                .defineInRange("shellingFailureMultiplier", 0.01, 0.0, 1.0);
+
+        SHELLING_BASE_RADIUS = builder
+                .comment("How close (in blocks) you must be to your respawn point for the shelling event to fire.",
+                         "Your bed/anchor is the stand-in for 'your base' — it is the one spot the game already",
+                         "knows you chose to call home. Never having slept means the event can never fire.")
+                .defineInRange("shellingBaseRadius", 48, 8, 256);
+
+        SHELLING_MORTARS = builder
+                .comment("How many mortars a shelling battery sets up (each gets its own crew).")
+                .defineInRange("shellingMortars", 2, 1, 6);
+
+        SHELLING_GUARDS = builder
+                .comment("Infantry guarding a shelling battery. Killing the crews is the only way to stop the",
+                         "barrage, so the guards are what make that a fight rather than an execution — a mortar",
+                         "crew cannot depress its tube inside about 27 blocks and falls back on its rifle once you",
+                         "are close. 0 leaves the crews on their own.")
+                .defineInRange("shellingGuards", 4, 0, 12);
+
+        SHELLING_DURATION_MIN_TICKS = builder
+                .comment("Shortest a shelling battery works its fire mission before standing down (20 ticks = 1",
+                         "second). One duration is rolled for the whole battery, so its tubes stop together.")
+                .defineInRange("shellingDurationMinTicks", 600, 20, 24000);
+
+        SHELLING_DURATION_MAX_TICKS = builder
+                .comment("Longest a shelling battery works its fire mission before standing down. When the mission",
+                         "expires the crews leave their tubes for good and revert to ordinary infantry — they do not",
+                         "despawn, so the battery is still there to be cleared out afterwards.",
+                         "Set at or below the minimum for a fixed duration.")
+                .defineInRange("shellingDurationMaxTicks", 1200, 20, 24000);
+
+        HIGH_CHANCE_MORTAR_SHELL = builder
+                .comment("Item id of the shell a spawned mortar crew usually gets (75% of crews).",
+                         "Rolled once per crew, so a battery can mix but a given tube shoots one thing throughout.",
+                         "Must be a mortar shell the tube will actually accept; anything else falls back to",
+                         "superbwarfare:mortar_shell rather than leaving the crew unable to fire.")
+                .define("highChanceMortarShell", "superbwarfare:mortar_shell", SewvConfig::isValidResourceId);
+
+        LOW_CHANCE_MORTAR_SHELL = builder
+                .comment("Item id of the shell a spawned mortar crew occasionally gets (25% of crews).",
+                         "Same rules as highChanceMortarShell. Default is white phosphorus.")
+                .define("lowChanceMortarShell", "superbwarfare:mortar_shell_wp", SewvConfig::isValidResourceId);
+
         builder.pop();
 
         builder.push("vehicle_pools");
@@ -117,19 +187,19 @@ public class SewvConfig {
                 .comment("Vehicle entity ids RU crews can spawn with (e.g. \"superbwarfare:t_90a\").",
                          "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
                          "Addon ids work too (e.g. \"dragonrise_reforge:t90mh\", \"mcsp:t90a_green\", \"superbwarfare:mi_28\").")
-                .defineList("ruVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:bmp_2", "superbwarfare:mi_28"), SewvConfig::isValidVehicleId);
+                .defineList("ruVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:bmp_2", "superbwarfare:mi_28"), SewvConfig::isValidResourceId);
 
         US_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids US crews can spawn with (e.g. \"superbwarfare:m_1a_2\").",
                          "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
                          "Addon ids work too (e.g. \"dragonrise_reforge:m1a2sepv2\", \"fcp:humvee\", \"superbwarfare:ah_6\").")
-                .defineList("usVehiclePool", List.of("superbwarfare:m_1a_2", "superbwarfare:bradley", "superbwarfare:ah_6"), SewvConfig::isValidVehicleId);
+                .defineList("usVehiclePool", List.of("superbwarfare:m_1a_2", "superbwarfare:bradley", "superbwarfare:ah_6"), SewvConfig::isValidResourceId);
 
         PMC_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids for debug PMC units spawning",
                          "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
                          "Addon ids work too (e.g. \"fcp:littlebird\", \"mcsp:m1a2\", \"superbwarfare:ah_6\").")
-                .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:ah_6"), SewvConfig::isValidVehicleId);
+                .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:ah_6"), SewvConfig::isValidResourceId);
 
         builder.pop();
 
@@ -317,9 +387,9 @@ public class SewvConfig {
         SPEC = builder.build();
     }
 
-    // Config-load validation only checks the id is well-formed; whether the entity
-    // type actually exists is checked at spawn time (registries aren't ready here).
-    private static boolean isValidVehicleId(Object o) {
+    // Config-load validation only checks the id is well-formed; whether it resolves to a
+    // real entity type or item is checked at spawn time (registries aren't ready here).
+    private static boolean isValidResourceId(Object o) {
         return o instanceof String s && ResourceLocation.tryParse(s) != null;
     }
 }

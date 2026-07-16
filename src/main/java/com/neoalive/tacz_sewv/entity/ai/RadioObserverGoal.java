@@ -11,8 +11,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import java.util.EnumSet;
 
 /**
- * A unit carrying a handheld radio calls its own contacts in to the mortars, turning any
- * rifleman into a forward observer.
+ * A unit carrying a handheld radio calls its own contacts in to the mortar and TOW crews
+ * behind it, turning any rifleman into a forward observer.
  *
  * <p>The unit keeps fighting normally — this only relays whatever it has already found to
  * crews that could never have seen it themselves.
@@ -71,7 +71,7 @@ public class RadioObserverGoal extends Goal {
         LivingEntity target = this.unit.getTarget();
         if (target == null || !target.isAlive()) return;
 
-        int ordered = MortarSupport.callFireMission(
+        int ordered = FireMissionSupport.callFireMission(
                 this.unit.level(), this.unit.getOwnerUUID(), this.unit.position(),
                 SewvConfig.MORTAR_RADIO_RANGE.get(), target);
 

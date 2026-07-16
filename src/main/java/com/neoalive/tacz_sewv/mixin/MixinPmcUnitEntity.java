@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
@@ -7,6 +8,7 @@ import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.BoardVehicleGoal;
 import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,8 +17,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-// IHelicopterPilot needs no method bodies here — its default methods store the
-// flight state in the entity's persistent NBT (so it survives world reloads).
+// IHelicopterPilot and IFormationMember need no method bodies here — their default methods
+// store the flight state and the formation axis in the entity's persistent NBT (so they
+// survive world reloads).
 // The boarding order and mortar claim below are deliberately transient: they target
 // an entity by network id, which is not stable across sessions, so persisting them
 // would be wrong — a pending order is simply dropped on reload.
@@ -24,7 +27,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // One a player ordered onto a tube with the board key has none, and so reads the shells the
 // player actually gave it — which is the whole point of hand-loading one.
 @Mixin(PmcUnitEntity.class)
-public abstract class MixinPmcUnitEntity implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo {
+public abstract class MixinPmcUnitEntity
+        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember {
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
@@ -63,6 +67,26 @@ public abstract class MixinPmcUnitEntity implements IVehicleBoarder, IHelicopter
     @Override
     public int sewv$getMortarTargetId() {
         return this.tacz_sewv$mortarTargetId;
+    }
+
+    /**
+     * The formation axis is ours — PacketVehicleFormation is its only writer — so any other path
+     * assigning this unit a slot means it has joined someone else's formation and must not carry
+     * ours. setFormationIndex is that signal: SEM's PacketIssueOrder calls it for every order,
+     * including the plain infantry wedge that would otherwise send one stale-axis man off to a
+     * vehicle-spaced slot on an old cardinal while his squad forms normally.
+     *
+     * <p>The isAddedToWorld guard is load-bearing, not defensive. PmcUnitEntity's
+     * readAdditionalSaveData ALSO calls setFormationIndex, and Forge restores ForgeData into
+     * persistentData earlier in Entity.load than that — so without this, every world load would
+     * wipe the axis it had just read back and the whole formation would return inert. An entity
+     * read from disk is not added to the world until after load() returns, which makes the flag
+     * say exactly what we mean: a LIVE order clears the axis; loading one is not an order.
+     */
+    @Inject(method = "setFormationIndex", at = @At("HEAD"), remap = false)
+    private void tacz_sewv$dropFormationAxisOnReorder(int index, CallbackInfo ci) {
+        if (!((Entity) (Object) this).isAddedToWorld()) return;
+        this.sewv$setFormationDirection(null);
     }
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)

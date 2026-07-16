@@ -37,7 +37,11 @@ public class DriveVehicleGoal extends Goal {
     private static final double MAX_ANGLE_RAD = Math.toRadians(22.5);
     private static final double MIN_DISTANCE = 2.0;
     private static final double MAX_DISTANCE = 20.0;
-    private static final double STOP_DISTANCE = 8.0;
+
+    // How far off the formation axis a parked hull tolerates before correcting. Without a
+    // deadband the hull hunts across the exact bearing forever, since it can only turn in
+    // discrete input-held steps.
+    private static final double FACING_DEADBAND_RAD = Math.toRadians(8.0);
 
     // Infantry standoff band, MG's effective engagement range.
     private static final double INFANTRY_TOO_CLOSE = 10.0;
@@ -203,13 +207,58 @@ public class DriveVehicleGoal extends Goal {
 
         double distanceSq = this.vehicle.distanceToSqr(
                 targetPos.getX() + 0.5, targetPos.getY(), targetPos.getZ() + 0.5);
-        double stopDistance = this.vehicle.getBbWidth() - 1 + STOP_DISTANCE;
-        if (distanceSq > stopDistance * stopDistance) {
+
+        // Arrival is measured HORIZONTALLY, though distanceSq stays 3D for navigateTo (which only
+        // feeds it to the steering ramp). A formation slot's Y is a terrain probe, so a hull
+        // parked on a rise a few blocks above its slot must still read as arrived — against the
+        // tight formation tolerance a 3D test would leave it grinding at the slot forever.
+        double dx = targetPos.getX() + 0.5 - this.vehicle.getX();
+        double dz = targetPos.getZ() + 0.5 - this.vehicle.getZ();
+        double arrive = VehicleTargeting.arrivalDistance(this.unit, this.vehicle);
+        if (dx * dx + dz * dz > arrive * arrive) {
             navigateTo(targetPos, distanceSq);
         } else {
-            stopVehicleMovement();
+            parkOnStation();
             clearRecovery(); // parked at destination
         }
+    }
+
+    /**
+     * Parked at the destination. Under a formation order that means holding the frozen axis, so
+     * the wedge points where it was pointed and every hull's frontal armor and gun face the same
+     * way; any other order has no heading to hold and simply stops.
+     */
+    private void parkOnStation() {
+        Vec3 axis = VehicleTargeting.formationForward(this.unit);
+        // Only a tracked hull can pivot in place. A wheeled one would sit holding a steering
+        // input it cannot act on, so it parks facing however it happened to arrive.
+        if (axis == null || !this.hull.isTracked()) {
+            stopVehicleMovement();
+            return;
+        }
+        faceHeading(axis);
+    }
+
+    /**
+     * Turn in place onto {@code dir}, stopping once inside the deadband.
+     *
+     * <p>Deliberately NOT {@link #holdAtEdge}: that one FORCES a left turn when already aligned,
+     * because it is scanning for a way past an obstacle and its rotation is what keeps
+     * {@link #updateStuck} from firing a blind unstick reverse. Sharing it here would leave the
+     * whole formation slowly pirouetting in place. Nothing is needed to keep the stuck detector
+     * quiet here — it only runs inside {@link #navigateTo}, and the parked branch clears it.
+     */
+    private void faceHeading(Vec3 dir) {
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        double angle = VehicleTargeting.signedAngleTo(forward, dir);
+        if (Math.abs(angle) < FACING_DEADBAND_RAD) {
+            stopVehicleMovement();
+            return;
+        }
+        this.vehicle.setForwardInputDown(false);
+        this.vehicle.setBackInputDown(false);
+        this.vehicle.setLeftInputDown(angle > 0);
+        this.vehicle.setRightInputDown(angle < 0);
     }
 
     /**

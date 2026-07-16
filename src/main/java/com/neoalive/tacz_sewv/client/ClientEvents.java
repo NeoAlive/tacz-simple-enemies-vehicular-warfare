@@ -1,8 +1,10 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.tacz.guns.api.event.common.GunShootEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -41,6 +43,20 @@ public class ClientEvents {
             while (HelicopterKeybind.LAND_KEY.consumeClick()) {
                 HelicopterKeybind.onLandPressed();
             }
+
+            FormationAxisSelection.tick(Minecraft.getInstance());
+        }
+
+        @SubscribeEvent
+        public static void onMouseInput(InputEvent.MouseButton.Pre event) {
+            FormationAxisSelection.onMouseInput(event);
+        }
+
+        // Cancelling the mouse event above is not enough to keep a gun quiet — TACZ fires from
+        // its own input path, so the designation click needs gating there too.
+        @SubscribeEvent
+        public static void onGunShoot(GunShootEvent event) {
+            FormationAxisSelection.onGunShoot(event);
         }
     }
 }

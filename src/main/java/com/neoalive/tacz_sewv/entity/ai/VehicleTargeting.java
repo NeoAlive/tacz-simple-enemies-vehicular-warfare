@@ -1,9 +1,10 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
-import net.minecraft.util.Mth;
+import net.minecraft.core.Direction;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
@@ -32,11 +33,13 @@ public final class VehicleTargeting {
 
     private VehicleTargeting() {}
 
-    // Formation spacing between successive slots, in blocks.
-    private static final double FORMATION_SPACING = 5.0;
     // Ring around an allied crew an idle unit settles into to join its fight.
     private static final double ASSIST_RING_RADIUS = 16.0;
     private static final double ASSIST_RING_DEADBAND = 4.0;
+    // How close a hull parks to an ordinary destination, on top of its own width. Deliberately
+    // loose: closing to within a hull length of a combat approach is the last thing armor should
+    // do. A formation slot needs the opposite and overrides it — see arrivalDistance.
+    private static final double STOP_DISTANCE = 8.0;
 
     // Resolve where a mounted crew should head. Returns null when there is nowhere
     // to go (holding position, no target, nothing to reinforce). `assist` carries
@@ -79,46 +82,56 @@ public final class VehicleTargeting {
                 return follows != null ? follows.blockPosition() : null;
 
             case FORM_WEDGE:
-            case FORM_COLUMN:
+            case FORM_COLUMN: {
                 Player leader = commander(pmc);
-                return leader != null
-                        ? formationTarget(leader, order, pmc.getFormationIndex()) : null;
+                Direction axis = ((IFormationMember) pmc).sewv$getFormationDirection();
+                int slot = pmc.getFormationIndex();
+                // No axis means this order did not come through our gate — it is a plain SEM
+                // infantry formation that happens to have caught a mounted crew. There is no
+                // hull geometry to drive to, so hold.
+                if (leader == null || axis == null || slot < 0) return null;
+                return VehicleFormation.slotPos(unit.level(), leader.position(), axis, order, slot);
+            }
 
             default:
                 return null;
         }
     }
 
+    /**
+     * How close the hull must be to its resolved destination to count as arrived.
+     *
+     * <p>A formation slot needs a tight arrival that nothing else does. Slots sit
+     * vehicleFormationSpacing apart, while the generic answer is a hull width plus
+     * {@link #STOP_DISTANCE} — for a 4.62-wide T-90A that is 11.62 blocks, wider than the whole
+     * formation, so every hull would read "arrived" from anywhere in it and the wedge would
+     * collapse onto the point man.
+     */
+    public static double arrivalDistance(AbstractUnit unit, VehicleEntity vehicle) {
+        if (unit instanceof PmcUnitEntity pmc) {
+            OrderType order = pmc.getOrder();
+            if (order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN) {
+                return SewvConfig.VEHICLE_FORMATION_ARRIVE_RADIUS.get();
+            }
+        }
+        return vehicle.getBbWidth() - 1.0 + STOP_DISTANCE;
+    }
+
+    /**
+     * The heading a parked crew holds, or null when this order has no heading to hold (which is
+     * every order but a formation — there is nothing else to face).
+     */
+    public static Vec3 formationForward(AbstractUnit unit) {
+        if (!(unit instanceof PmcUnitEntity pmc)) return null;
+        OrderType order = pmc.getOrder();
+        if (order != OrderType.FORM_WEDGE && order != OrderType.FORM_COLUMN) return null;
+        Direction axis = ((IFormationMember) pmc).sewv$getFormationDirection();
+        return axis == null ? null : VehicleFormation.forward(axis);
+    }
+
     private static Player commander(PmcUnitEntity pmc) {
         UUID ownerId = pmc.getOwnerUUID();
         return ownerId != null ? pmc.level().getPlayerByUUID(ownerId) : null;
-    }
-
-    // Drive-to point for a formation slot behind the commander. COLUMN files units
-    // directly astern; WEDGE fans them out to alternating flanks stepping back each
-    // rank. Slot is derived from the unit's SEM-assigned formation index.
-    private static BlockPos formationTarget(Player owner, OrderType order, int index) {
-        float yawRad = owner.getYRot() * Mth.DEG_TO_RAD;
-        double forwardX = -Mth.sin(yawRad);
-        double forwardZ = Mth.cos(yawRad);
-        double rightX = Mth.cos(yawRad);
-        double rightZ = Mth.sin(yawRad);
-
-        double back;
-        double side;
-        if (order == OrderType.FORM_COLUMN) {
-            back = (index + 1) * FORMATION_SPACING;
-            side = 0.0;
-        } else { // FORM_WEDGE
-            int rank = (index / 2) + 1;
-            int sign = (index % 2 == 0) ? -1 : 1;
-            back = rank * FORMATION_SPACING;
-            side = sign * rank * FORMATION_SPACING;
-        }
-
-        double x = owner.getX() - forwardX * back + rightX * side;
-        double z = owner.getZ() - forwardZ * back + rightZ * side;
-        return BlockPos.containing(x, owner.getY(), z);
     }
 
     // Point at `radius` straight out from the target through the vehicle — the ring

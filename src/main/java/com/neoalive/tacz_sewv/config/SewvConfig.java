@@ -40,6 +40,10 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue AI_FIRE_ASSIST_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
 
+    // Vehicle formations (player-designated wedge/column on a fixed cardinal)
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_ARRIVE_RADIUS;
+
     // Mounted-crew target scan (cylinder around the vehicle)
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_HEIGHT;
@@ -221,6 +225,26 @@ public class SewvConfig {
                 .comment("How close (in blocks) a smoke decoy must be to an AI crew's line of fire to block the shot.",
                          "Larger = smoke screens are wider and more protective.")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
+
+        VEHICLE_FORMATION_SPACING = builder
+                .comment("Distance (in blocks) between successive slots in a vehicle wedge or column.",
+                         "This is the step directly astern; a wedge also fans out sideways 1.25x as fast, which is",
+                         "SimpleEnemyMod's own wedge proportion kept at vehicle scale.",
+                         "MUST stay comfortably above your widest hull's width — a T-90A is 4.62 blocks across, and",
+                         "the terrain sensor treats an allied hull as a no-go box reaching a full hull width out from",
+                         "its centre. Set this too low and a column puts each hull's slot inside its leader's no-go",
+                         "box: the follower can never settle there and turns in place beside the formation forever.",
+                         "Larger = a looser, safer formation that covers more ground.")
+                .defineInRange("vehicleFormationSpacing", 12.0, 5.0, 32.0);
+
+        VEHICLE_FORMATION_ARRIVE_RADIUS = builder
+                .comment("How close (in blocks, measured horizontally) a hull must get to its formation slot to park.",
+                         "Formations need their own arrival distance because the ordinary one is a hull width plus 8",
+                         "blocks — 11.62 for a T-90A, wider than the whole formation, so every hull would count as",
+                         "'arrived' from anywhere in it and the wedge would collapse onto the point man.",
+                         "KEEP THIS BELOW HALF vehicleFormationSpacing, or neighbouring slots' arrival circles overlap",
+                         "and a hull can 'arrive' while sitting in its neighbour's slot.")
+                .defineInRange("vehicleFormationArriveRadius", 3.0, 1.0, 8.0);
 
         STALEMATE_BREAKER_ENABLED = builder
                 .comment("Let an AI crew reposition on its own initiative when it is holding a target it cannot",

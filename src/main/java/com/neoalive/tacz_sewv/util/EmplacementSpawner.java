@@ -7,7 +7,6 @@ import com.atsuishio.superbwarfare.init.ModEntities;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.item.projectile.MortarShellItem;
 import com.mojang.logging.LogUtils;
-import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
@@ -21,9 +20,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.common.world.ForgeChunkManager;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -196,22 +193,13 @@ public final class EmplacementSpawner {
 
     /**
      * Bootstraps the crew's chunk ticket so a battery spawned beyond the player's simulation
-     * distance actually works.
+     * distance actually works. See {@link ChunkTicket#bootstrap}.
      *
-     * <p>{@link com.neoalive.tacz_sewv.entity.ai.ManMortarGoal} holds this ticket itself, but
-     * it can only do that from a tick — and an entity outside simulation distance never gets
-     * one, so a fire mission 200 blocks out would sit frozen until the player walked to it,
-     * which is precisely the walk the mission is supposed to provoke. Taking the ticket here
-     * gives the goal its first tick; from then on the goal owns it.
-     *
-     * <p>Same mod id, owner and chunk as the goal's own call, so this IS the goal's ticket —
-     * it adopts it rather than stacking a second one, and its stop() releases it. Gated on the
-     * same config for that reason: with chunk loading off the goal never releases, so taking a
-     * ticket here would leak one.
+     * <p>Gated on the same config as the goal that adopts it: with chunk loading off the goal
+     * never releases, so taking a ticket here would leak one.
      */
     private static void holdChunk(ServerLevel level, AbstractUnit crew) {
         if (!SewvConfig.MORTAR_CHUNK_LOADING.get()) return;
-        ChunkPos chunk = new ChunkPos(crew.blockPosition());
-        ForgeChunkManager.forceChunk(level, TaczSewv.MODID, crew, chunk.x, chunk.z, true, true);
+        ChunkTicket.bootstrap(level, crew);
     }
 }

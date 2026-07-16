@@ -8,18 +8,30 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import java.util.EnumSet;
 
+/**
+ * Walks a player-owned unit to the vehicle its owner pointed it at and puts it in a seat.
+ *
+ * <p>PMC-only, and not part of {@link VehicleAiGoals#addDriveGoals}: the order arrives over
+ * the network bridge ({@link IVehicleBoarder}), which only player-commandable units carry.
+ * RU/US crews are placed into their vehicle directly at spawn instead.
+ */
 public class BoardVehicleGoal extends Goal {
 
     private static final double MOUNT_DISTANCE = 5.0;
     private static final double NAV_STUCK_DISTANCE_SQ = 36.0; // 6 blocks²
+    // 200 goal ticks ≈ 20 s wall clock: goals tick every other game tick.
+    private static final int MAX_BOARDING_TICKS = 200;
+    /** Goal ticks between repath attempts while the path keeps coming up empty. */
+    private static final int REPATH_INTERVAL = 10;
 
     private final PmcUnitEntity unit;
     private VehicleEntity targetVehicle;
+    private int boardingTicks;
 
     public BoardVehicleGoal(PmcUnitEntity unit) {
         this.unit = unit;
         // Claim no flags so the goal selector never gates canUse() behind MOVE/LOOK
-        // contention, boarding must stay evaluable even while other goals run.
+        // contention — boarding must stay evaluable even while other goals run.
         this.setFlags(EnumSet.noneOf(Flag.class));
     }
 
@@ -27,107 +39,98 @@ public class BoardVehicleGoal extends Goal {
         return (IVehicleBoarder) this.unit;
     }
 
-@Override
-public boolean canUse() {
-    if (this.unit.level().isClientSide()) return false;
+    @Override
+    public boolean canUse() {
+        if (this.unit.level().isClientSide()) return false;
+        if (!boarder().tacz_sewv$isBoarding()) return false;
+        if (this.unit.getVehicle() != null) return false;
 
-    boolean boarding = boarder().tacz_sewv$isBoarding();
-    int mountId = boarder().tacz_sewv$getMountTargetId();
+        int mountId = boarder().tacz_sewv$getMountTargetId();
+        if (mountId == -1) return false;
 
-    if (!boarding) return false;
-    if (this.unit.getVehicle() != null) return false;
-    if (mountId == -1) return false;
+        Entity e = this.unit.level().getEntity(mountId);
+        if (e == null) return false; // not resolvable right now — keep the order pending
 
-    Entity e = this.unit.level().getEntity(mountId);
-    if (e == null) return false; // not resolvable right now — keep the order pending
+        // The target resolved but can't be boarded (destroyed, wrecked, or full): drop the
+        // order instead of leaving the boarding flag latched — otherwise the unit would
+        // spontaneously walk off to board whenever a seat frees up later.
+        if (!(e instanceof VehicleEntity v) || !v.isAlive() || v.isWreck() || isFull(v)) {
+            cancelBoarding();
+            return false;
+        }
 
-    // The target resolved but can't be boarded (destroyed, wrecked, or full):
-    // drop the order instead of leaving the boarding flag latched — otherwise the
-    // unit would spontaneously walk off to board whenever a seat frees up later.
-    if (!(e instanceof VehicleEntity v) || !v.isAlive() || v.isWreck()
-            || v.getPassengers().size() >= v.getMaxPassengers()) {
-        cancelBoarding();
-        return false;
+        this.targetVehicle = v;
+        return true;
     }
-
-    this.targetVehicle = v;
-    return true;
-}
-
-private void cancelBoarding() {
-    boarder().tacz_sewv$setBoarding(false);
-    boarder().tacz_sewv$setMountTargetId(-1);
-    this.targetVehicle = null;
-}
 
     @Override
-public boolean canContinueToUse() {
-    if (!boarder().tacz_sewv$isBoarding()) return false;   // order cancelled -> stop
-    if (this.unit.getVehicle() != null) return false;         // mounted -> stop (success)
-    if (this.targetVehicle == null) return false;
-    if (!this.targetVehicle.isAlive() || this.targetVehicle.isWreck()) return false;
-    // Don't stop just because it's full, let tick() handle that with cancelBoarding
-    return true;
-}
+    public boolean canContinueToUse() {
+        if (!boarder().tacz_sewv$isBoarding()) return false; // order cancelled
+        if (this.unit.getVehicle() != null) return false;    // mounted — success
+        if (this.targetVehicle == null) return false;
+        // A vehicle that filled up is deliberately NOT stopped on here; tick() cancels the
+        // order for that, so the reason the unit gave up is recorded rather than just lost.
+        return this.targetVehicle.isAlive() && !this.targetVehicle.isWreck();
+    }
 
     @Override
-public void start() {
-    this.boardingTicks = 0;
-    this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
-}
-
-    private int boardingTicks = 0;
-// 200 goal ticks ≈ 20 s wall clock: goals tick every other game tick.
-private static final int MAX_BOARDING_TICKS = 200;
-
-@Override
-public void tick() {
-    if (this.targetVehicle == null) return;
-
-    this.boardingTicks++;
-
-    // Been trying too long? Probably stuck in a crowd or can't reach, give up.
-    if (this.boardingTicks > MAX_BOARDING_TICKS) {
-        this.cancelBoarding();
-        return;
+    public void start() {
+        this.boardingTicks = 0;
+        this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
     }
 
-    // If the vehicle filled up while I was walking over, bail now
-    if (this.targetVehicle.getPassengers().size() >= this.targetVehicle.getMaxPassengers()) {
-        this.cancelBoarding();
-        return;
+    @Override
+    public void tick() {
+        if (this.targetVehicle == null) return;
+
+        // Stuck in a crowd, or it can't be reached at all.
+        if (++this.boardingTicks > MAX_BOARDING_TICKS) {
+            cancelBoarding();
+            return;
+        }
+        if (isFull(this.targetVehicle)) { // filled up while we walked over
+            cancelBoarding();
+            return;
+        }
+
+        this.unit.getLookControl().setLookAt(this.targetVehicle, 30F, 30F);
+
+        double distSq = this.unit.distanceToSqr(this.targetVehicle);
+        // Navigation can finish just short of a large vehicle's hull; treat "path done and
+        // already within 6 blocks" as close enough to board rather than stalling.
+        boolean navStuck = this.unit.getNavigation().isDone() && distSq <= NAV_STUCK_DISTANCE_SQ;
+
+        if (distSq <= MOUNT_DISTANCE * MOUNT_DISTANCE || navStuck) {
+            // A refused mount (seat raced away, another mod cancelled it) keeps the order:
+            // the full-vehicle check above and the timeout still bound the retries.
+            if (this.unit.startRiding(this.targetVehicle)) {
+                // Clear the order so it doesn't loop, or re-board after a dismount.
+                boarder().tacz_sewv$setBoarding(false);
+                boarder().tacz_sewv$setMountTargetId(-1);
+                this.unit.getNavigation().stop();
+            }
+        } else if (this.unit.getNavigation().isDone() && this.boardingTicks % REPATH_INTERVAL == 0) {
+            // Throttled: an unreachable vehicle leaves navigation "done" every tick, which
+            // would otherwise force a full repath every tick until the timeout.
+            this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
+        }
     }
 
-    this.unit.getLookControl().setLookAt(this.targetVehicle, 30F, 30F);
+    @Override
+    public void stop() {
+        // The order deliberately survives: stop() fires on any interruption and the unit
+        // still wants to board. It's dropped by the timeout, an unusable target, or a bail-out.
+        this.unit.getNavigation().stop();
+        this.boardingTicks = 0;
+    }
 
-    double distSq = this.unit.distanceToSqr(this.targetVehicle);
-    boolean closeEnough = distSq <= MOUNT_DISTANCE * MOUNT_DISTANCE;
-    // Navigation can finish just short of a large vehicle's hull; treat "path done
-    // and already within 6 blocks" as close enough to board rather than stalling.
-    boolean navStuck = this.unit.getNavigation().isDone() && distSq <= NAV_STUCK_DISTANCE_SQ;
-
-    if (closeEnough || navStuck) {
-    if (this.unit.startRiding(this.targetVehicle)) {
-        // Boarded successfully, clear the order so it doesn't loop or re-board after dismount
+    private void cancelBoarding() {
         boarder().tacz_sewv$setBoarding(false);
         boarder().tacz_sewv$setMountTargetId(-1);
-        this.unit.getNavigation().stop();
+        this.targetVehicle = null;
     }
-    // A refused mount (seat raced away, another mod cancelled it) keeps the order:
-    // the full-vehicle check above and the timeout still bound the retries.
-} else if (this.unit.getNavigation().isDone() && this.boardingTicks % 10 == 0) {
-    // Throttled: an unreachable vehicle leaves navigation "done" every tick,
-    // which would otherwise trigger a full repath every tick for 10 seconds.
-    this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
-}
-}
 
-    @Override
-public void stop() {
-    // DON'T cancel boarding here, the unit might still want to board,
-    // this could just be a temporary goal interruption.
-    // Only stop the current navigation.
-    this.unit.getNavigation().stop();
-    this.boardingTicks = 0; // reset the timeout counter for next attempt
-}
+    private static boolean isFull(VehicleEntity v) {
+        return v.getPassengers().size() >= v.getMaxPassengers();
+    }
 }

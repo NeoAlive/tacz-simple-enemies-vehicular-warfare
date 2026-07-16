@@ -2,20 +2,17 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.mojang.logging.LogUtils;
-import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.ChunkTicket;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.world.ForgeChunkManager;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
@@ -86,9 +83,14 @@ public class ManMortarGoal extends Goal {
     /** Last reason logged, so debug logging reports changes rather than every tick. */
     private String lastHold = "";
 
-    /** Chunks held loaded so the crew keeps working with no player nearby, or null. */
-    private ChunkPos forcedUnitChunk;
-    private ChunkPos forcedMortarChunk;
+    /**
+     * Chunks held so the crew keeps working with no player nearby. Both, not just the
+     * mortar's: the AI lives on the crew, which stands beside the tube and can be over a
+     * chunk boundary from it — holding only the mortar would let the crew freeze next to a
+     * perfectly well-loaded mortar.
+     */
+    private final ChunkTicket unitChunk = new ChunkTicket();
+    private final ChunkTicket mortarChunk = new ChunkTicket();
 
     public ManMortarGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -363,49 +365,19 @@ public class ManMortarGoal extends Goal {
      * <p>Bootstraps itself: the first tick happens while the player is still standing
      * there giving the order, so the ticket is taken while the chunk is loaded, and from
      * then on the ticket is what keeps the crew ticking to renew it.
-     *
-     * <p>Both chunks, not just the mortar's: the AI lives on the crew, which stands beside
-     * the tube and can be over a chunk boundary from it. Holding only the mortar would let
-     * the crew freeze next to a perfectly well-loaded mortar.
      */
     private void updateChunkLoading() {
-        if (!SewvConfig.MORTAR_CHUNK_LOADING.get()) {
+        if (SewvConfig.MORTAR_CHUNK_LOADING.get()) {
+            this.unitChunk.follow(this.unit);
+            this.mortarChunk.follow(this.mortar);
+        } else {
             releaseForcedChunks(); // switched off at runtime — hand the chunks back
-            return;
         }
-        if (!(this.unit.level() instanceof ServerLevel serverLevel)) return;
-
-        this.forcedUnitChunk = holdChunk(serverLevel, this.unit, this.forcedUnitChunk);
-        this.forcedMortarChunk = holdChunk(serverLevel, this.mortar, this.forcedMortarChunk);
-    }
-
-    /** Re-issues the ticket only when the owner has crossed into a different chunk. */
-    private ChunkPos holdChunk(ServerLevel level, Entity owner, ChunkPos held) {
-        ChunkPos want = new ChunkPos(owner.blockPosition());
-        if (want.equals(held)) return held;
-
-        if (held != null) {
-            ForgeChunkManager.forceChunk(level, TaczSewv.MODID, owner, held.x, held.z, false, true);
-        }
-        ForgeChunkManager.forceChunk(level, TaczSewv.MODID, owner, want.x, want.z, true, true);
-        return want;
     }
 
     private void releaseForcedChunks() {
-        if (this.forcedUnitChunk == null && this.forcedMortarChunk == null) return;
-
-        if (this.unit.level() instanceof ServerLevel serverLevel) {
-            if (this.forcedUnitChunk != null) {
-                ForgeChunkManager.forceChunk(serverLevel, TaczSewv.MODID, this.unit,
-                        this.forcedUnitChunk.x, this.forcedUnitChunk.z, false, true);
-            }
-            if (this.forcedMortarChunk != null && this.mortar != null) {
-                ForgeChunkManager.forceChunk(serverLevel, TaczSewv.MODID, this.mortar,
-                        this.forcedMortarChunk.x, this.forcedMortarChunk.z, false, true);
-            }
-        }
-        this.forcedUnitChunk = null;
-        this.forcedMortarChunk = null;
+        this.unitChunk.release(this.unit);
+        this.mortarChunk.release(this.mortar);
     }
 
     /** Navigation can finish just short of the mortar; don't stall a block out. */

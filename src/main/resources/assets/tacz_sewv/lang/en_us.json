@@ -24,6 +24,16 @@
   "message.tacz_sewv.mortar.taken": "That mortar already has a crew.",
   "message.tacz_sewv.mortar.gone": "That mortar is no longer there.",
 
+  "message.tacz_sewv.formation.axis.wedge": "Wedge on %s — left click to set, right click to cancel",
+  "message.tacz_sewv.formation.axis.column": "Column on %s — left click to set, right click to cancel",
+  "message.tacz_sewv.formation.dir.north": "-Z (north)",
+  "message.tacz_sewv.formation.dir.south": "+Z (south)",
+  "message.tacz_sewv.formation.dir.west": "-X (west)",
+  "message.tacz_sewv.formation.dir.east": "+X (east)",
+  "message.tacz_sewv.formation.formed.single": "%s hull formed on %s.",
+  "message.tacz_sewv.formation.formed.multiple": "%s hulls formed on %s.",
+  "message.tacz_sewv.formation.formed.none": "No hulls to form up.",
+
   "item.tacz_sewv.handheld_radio": "Handheld Radio",
   "tooltip.tacz_sewv.handheld_radio.use": "Use on a target: call a fire mission from your mortar and TOW crews",
   "tooltip.tacz_sewv.handheld_radio.standdown": "Sneak + use: call your crews off",

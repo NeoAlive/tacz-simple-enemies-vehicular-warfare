@@ -8,9 +8,9 @@ import net.minecraftforge.network.simple.SimpleChannel;
 public class NetworkHandler {
 
     // Bumped when the wire format changes (2: list sizes/ids became VarInts; 3: added
-    // the mortar order) so a mismatched client/server pair is rejected at handshake
-    // instead of misparsing.
-    private static final String PROTOCOL_VERSION = "3";
+    // the mortar order; 4: added the vehicle formation order) so a mismatched
+    // client/server pair is rejected at handshake instead of misparsing.
+    private static final String PROTOCOL_VERSION = "4";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -58,6 +58,14 @@ public class NetworkHandler {
                 PacketManMortar::encode,
                 PacketManMortar::new,
                 PacketManMortar::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketVehicleFormation.class,
+                PacketVehicleFormation::encode,
+                PacketVehicleFormation::new,
+                PacketVehicleFormation::handle
         );
     }
 }

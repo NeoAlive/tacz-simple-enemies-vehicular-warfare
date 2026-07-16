@@ -16,9 +16,11 @@
     "MixinVehiclePassengerNaN",
     "MixinVehicleFactionEnergy",
     "MixinVehicleInteractLock",
-    "MixinRangedGunAttackGoal"
+    "MixinRangedGunAttackGoal",
+    "MixinCommanderOrderGoal"
   ],
   "client": [
+    "client.MixinCommanderMenuScreen",
     "client.MixinClientGlowManager",
     "client.MixinClientGlowRenderHandler",
     "client.MixinPmcUnitRenderer",

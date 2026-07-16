@@ -1,29 +1,23 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.ChunkTicket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.world.ForgeChunkManager;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.joml.Vector3f;
 
 import java.util.EnumSet;
-import java.util.List;
 
 /**
  * Autopilot for SuperbWarfare helicopters. Flight model, deliberately simple:
@@ -38,12 +32,10 @@ import java.util.List;
  *     wall of whisker deflections) the moment an order led into rising terrain.
  *     Cliffs and structures taller than the cruise offset remain the whiskers'
  *     job.</li>
- * <li><b>Whisker avoidance.</b> Every lateral leg probes actual blocks — and allied
- *     airframes, which no block probe can see — at hull height along the desired
- *     bearing, and fans out to alternate bearings when blocked (yaw avoidance, same
- *     pattern as DriveVehicleGoal's ground whiskers); probe reach grows with current
- *     ground speed so momentum can't outrun the lookahead; a fully-blocked forward
- *     cone answers with a climb (vertical avoidance).</li>
+ * <li><b>Whisker avoidance.</b> Every lateral leg asks {@link AirTerrainSensor} for the
+ *     nearest clear bearing to the one it wants (yaw avoidance); probe reach grows with
+ *     current ground speed so momentum can't outrun the lookahead; a fully-blocked
+ *     forward cone answers with a climb (vertical avoidance).</li>
  * <li><b>Combat = aim platform, no revolution.</b> Close to the engage radius,
  *     descend to the attack altitude (heliAttackHeight above the TARGET — from
  *     cruise level the required depression would sit at/past the dive clamp),
@@ -110,8 +102,7 @@ public class DriveHelicopterGoal extends Goal {
     private static final double TERRAIN_SAMPLE_STEP = 8.0;
     private static final double TERRAIN_LOOKAHEAD = 48.0;
 
-    // --- Whiskers (block avoidance at hull height, cf. DriveVehicleGoal) ---
-    private static final double[] WHISKER_OFFSETS_DEG = {0.0, 25.0, -25.0, 50.0, -50.0, 75.0, -75.0};
+    // --- Whiskers (see AirTerrainSensor for what counts as blocked) ---
     // Probe reach = base + ~1.5s of current travel: a fixed 12-block line was
     // routinely outrun by cruise momentum (the hull can't shed speed in the
     // distance the probe cleared), so the fan looks further ahead the faster
@@ -123,13 +114,6 @@ public class DriveHelicopterGoal extends Goal {
     // back gradually (and re-triggers cleanly if the obstacle is tall).
     private static final double AVOID_CLIMB_STEP = 4.0;
     private static final double AVOID_FLOOR_DECAY = 0.05;
-    // Separation bubble grown around every allied airframe before the whiskers probe
-    // it (on top of our own half-width, cf. the ground goal's obstacle inflation).
-    // Point-sampling the hull centerline against a bare bounding box is fine for a
-    // wall that isn't going anywhere; two aircraft close at their COMBINED speed, so
-    // the bubble is what makes a bearing read as blocked while there is still room
-    // to turn out of it rather than at the moment of contact.
-    private static final double AIRCRAFT_CLEARANCE = 4.0;
 
     // --- Combat aim band ---
     private static final double ENGAGE_DEADBAND = 4.0;
@@ -165,35 +149,20 @@ public class DriveHelicopterGoal extends Goal {
 
     private final AbstractUnit unit;
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
+    private final HullFacts hull = new HullFacts();
+    private final AirTerrainSensor sensor;
+    private final DecoyEpisode flares = new DecoyEpisode();
+    // Held on the airframe so it keeps flying with no player nearby (config-gated).
+    private final ChunkTicket chunkTicket = new ChunkTicket();
 
     private VehicleEntity vehicle;
     private double avoidFloorY = Double.NaN;
     private boolean landingCapture;
-
     private int weaponSwitchCooldown = 0;
-    private long lastDecoyTick = Long.MIN_VALUE;
-    private boolean deployDecoyThisEpisode = false;
-
-    private VehicleEntity helicopterCacheVehicle;
-    private boolean helicopterCacheValue;
-
-    // Per-game-tick cache of nearby allied airframes, each box pre-inflated by our
-    // half-width plus the separation bubble. The whisker fan probes up to 7 headings
-    // a tick and every probe consults this list — only the first builds it. Unlike
-    // the ground goal's equivalent the probe reach is not a fixed config value (it
-    // grows with airspeed), so the reach the cache was built at is kept alongside it
-    // and a longer probe within the same tick forces a rebuild.
-    private long aircraftObstacleCacheTime = Long.MIN_VALUE;
-    private double aircraftObstacleCacheReach = -1.0;
-    private List<AABB> aircraftObstacles = List.of();
-
-    // The chunk currently force-loaded on this aircraft's behalf, or null when the
-    // option is off / nothing is held. Only ever one at a time — it hands off as the
-    // hull crosses chunk boundaries (see updateChunkLoading).
-    private ChunkPos forcedChunk;
 
     public DriveHelicopterGoal(AbstractUnit unit) {
         this.unit = unit;
+        this.sensor = new AirTerrainSensor(unit);
         this.setFlags(EnumSet.noneOf(Flag.class)); // flying doesn't need to lock move/look flags
     }
 
@@ -202,10 +171,15 @@ public class DriveHelicopterGoal extends Goal {
         if (!(this.unit.getVehicle() instanceof VehicleEntity v)) return false;
         // ONLY the driver (seat 0) flies — same driver/commander model as the ground goal.
         if (v.getFirstPassenger() != this.unit) return false;
+
+        this.hull.attach(v);
+        if (!this.hull.isHelicopter()) return false;
+
         this.vehicle = v;
+        this.sensor.attach(v);
         // Run whenever mounted in a helicopter, even with no destination: a helicopter
         // must be actively controlled to hold station, so "idle" means "hover", not "off".
-        return isHelicopter();
+        return true;
     }
 
     @Override
@@ -214,7 +188,7 @@ public class DriveHelicopterGoal extends Goal {
                 && this.vehicle != null
                 && this.vehicle.getFirstPassenger() == this.unit
                 && !this.vehicle.isWreck()
-                && isHelicopter();
+                && this.hull.isHelicopter();
     }
 
     // The flight model re-asserts analog stick inputs against their ×0.95/tick
@@ -249,17 +223,14 @@ public class DriveHelicopterGoal extends Goal {
             // releaseInputs leaves the decoy latch alone (crash-spin flares must
             // survive its per-tick calls) — but a crew leaving the seat lets go.
             this.vehicle.setDecoyInputDown(false);
-            // Hand the chunk back before we drop the vehicle reference the release
-            // ticket is keyed to.
-            releaseForcedChunk();
+            // Hand the chunk back before we drop the vehicle the ticket is keyed to.
+            this.chunkTicket.release(this.vehicle);
         }
         this.vehicle = null;
         this.avoidFloorY = Double.NaN;
         this.landingCapture = false;
-        this.aircraftObstacles = List.of();
-        this.aircraftObstacleCacheTime = Long.MIN_VALUE;
-        this.aircraftObstacleCacheReach = -1.0;
         this.allyAssist.clear();
+        this.sensor.clear();
     }
 
     @Override
@@ -453,7 +424,7 @@ public class DriveHelicopterGoal extends Goal {
         Vec3 dir = new Vec3(target.getX() - this.vehicle.getX(), 0, target.getZ() - this.vehicle.getZ());
         if (dir.lengthSqr() > 1.0E-6) dir = dir.normalize();
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
-        double yawErrDeg = Math.toDegrees(getAngleBetween(forward, dir));
+        double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, dir));
 
         // Depression to the target's center (positive = below us = nose down, the
         // same sign as xRot). Tracked regardless of yaw error — both axes converge
@@ -504,7 +475,7 @@ public class DriveHelicopterGoal extends Goal {
             }
         } else if (!grounded && dist < LAND_CAPTURE_RADIUS
                 && this.vehicle.getCollisionCoolDown() == 0
-                && (dist < 1.0E-4 || headingClear(new Vec3(dx / dist, 0, dz / dist), dist))) {
+                && (dist < 1.0E-4 || this.sensor.headingClear(new Vec3(dx / dist, 0, dz / dist), dist))) {
             this.landingCapture = true;
             captureTick(surfaceY, dx, dz, dist);
             return;
@@ -602,7 +573,7 @@ public class DriveHelicopterGoal extends Goal {
         double probe = Math.min(
                 WHISKER_BASE_DISTANCE + groundSpeed * WHISKER_LOOKAHEAD_TICKS,
                 Math.max(dist, 4.0));
-        Vec3 travelDir = chooseClearBearing(dirToDest, probe);
+        Vec3 travelDir = this.sensor.chooseClearBearing(dirToDest, probe);
         if (travelDir == null) {
             this.avoidFloorY = this.vehicle.getY() + AVOID_CLIMB_STEP;
             holdHover(this.avoidFloorY);
@@ -626,7 +597,7 @@ public class DriveHelicopterGoal extends Goal {
         }
 
         Vec3 errDir = new Vec3(evx / errMag, 0, evz / errMag);
-        double yawErrDeg = Math.toDegrees(getAngleBetween(forward, errDir));
+        double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, errDir));
         float attitudeMag = (float) Mth.clamp(errMag * PITCH_DEG_PER_SPEED_ERR, 0.0, MAX_ATTITUDE_DEG);
 
         if (Math.abs(yawErrDeg) <= ERR_BEHIND_DEG) {
@@ -637,112 +608,10 @@ public class DriveHelicopterGoal extends Goal {
             // Error behind the hull (braking / killing sideways drift): keep the nose
             // where it is and pitch UP to thrust backward — no 180° pirouette.
             Vec3 back = new Vec3(-errDir.x, 0, -errDir.z);
-            double backErrDeg = Math.toDegrees(getAngleBetween(forward, back));
+            double backErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, back));
             steerNose(forward, back,
                     Math.abs(backErrDeg) < ALIGN_THRESHOLD_DEG ? -attitudeMag : 0.0F);
         }
-    }
-
-    // Whisker fan (cf. DriveVehicleGoal.chooseClearBearing): prefer the goal bearing,
-    // fan out to alternating flanks, null when the whole forward cone is blocked.
-    private Vec3 chooseClearBearing(Vec3 desired, double probeDistance) {
-        if (desired.lengthSqr() < 1.0E-8) return desired;
-        for (double offDeg : WHISKER_OFFSETS_DEG) {
-            Vec3 cand = rotateY(desired, Math.toRadians(offDeg));
-            if (headingClear(cand, probeDistance)) return cand;
-        }
-        return null;
-    }
-
-    // True if flying `distance` blocks along `dir` keeps the hull slab (its height,
-    // with a 1-block margin above and below) free of collidable blocks AND of allied
-    // airframes. This is the airborne analogue of the ground goal's headingClear —
-    // actual block probes, not heightmaps, so overhangs, arches and interiors are
-    // judged correctly.
-    private boolean headingClear(Vec3 dir, double distance) {
-        Level level = this.unit.level();
-        double sx = this.vehicle.getX();
-        double sz = this.vehicle.getZ();
-        int yBottom = Mth.floor(this.vehicle.getY()) - 1;
-        int yTop = Mth.floor(this.vehicle.getY() + this.vehicle.getBbHeight()) + 1;
-        double half = this.vehicle.getBbWidth() / 2.0;
-        List<AABB> traffic = aircraftObstacles(distance);
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (double d = half + 1.0; d <= half + distance; d += 1.0) {
-            double sampleX = sx + dir.x * d;
-            double sampleZ = sz + dir.z * d;
-            if (isBlockedByAircraft(traffic, sampleX, sampleZ, yBottom, yTop)) return false;
-            int px = Mth.floor(sampleX);
-            int pz = Mth.floor(sampleZ);
-            for (int y = yBottom; y <= yTop; y++) {
-                if (!level.getBlockState(pos.set(px, y, pz)).getCollisionShape(level, pos).isEmpty()) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    // Allied airframes are entities, so the block probes can't see them — this is the
-    // whole reason helicopters flew through each other. Mirrors the ground goal's
-    // vehicleObstacles(): allied hulls and wrecks are obstacles, enemy hulls are NOT
-    // (the combat profile deliberately flies AT its target, so avoiding it would
-    // fight the goal), and our own hull is excluded explicitly since the boxes are
-    // inflated by our half-width and a self-match would veto every bearing.
-    //
-    // Restricted to helicopters on top of the ground goal's rule: a ground hull is
-    // never a flight hazard at cruise, and while the vertical slab test below would
-    // reject it anyway, keeping it out of the scan means the common case (nothing but
-    // tanks below) doesn't pay for engine-type checks at all.
-    private List<AABB> aircraftObstacles(double reach) {
-        long now = this.unit.level().getGameTime();
-        // Reach varies per tick with airspeed, and a landing probe (short) can precede
-        // a cruise probe (long) inside one tick — rebuild when the box in hand is too
-        // small rather than silently missing traffic near the far end of the fan.
-        if (now != this.aircraftObstacleCacheTime || reach > this.aircraftObstacleCacheReach) {
-            this.aircraftObstacleCacheTime = now;
-            this.aircraftObstacleCacheReach = reach;
-            double half = this.vehicle.getBbWidth() / 2.0;
-            double horizontal = reach + half + AIRCRAFT_CLEARANCE + 1.0;
-            AABB search = this.vehicle.getBoundingBox()
-                    .inflate(horizontal, this.vehicle.getBbHeight() + AIRCRAFT_CLEARANCE + 1.0, horizontal);
-            this.aircraftObstacles = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
-                            v -> v != this.vehicle && isAircraftObstacle(v)).stream()
-                    .map(v -> v.getBoundingBox()
-                            .inflate(half + AIRCRAFT_CLEARANCE, AIRCRAFT_CLEARANCE, half + AIRCRAFT_CLEARANCE))
-                    .toList();
-        }
-        return this.aircraftObstacles;
-    }
-
-    private boolean isAircraftObstacle(VehicleEntity other) {
-        if (!(other.getEngineInfo() instanceof EngineInfo.Helicopter)) return false;
-        // A wreck is still a hull hanging in the air on its way down.
-        if (other.isWreck()) return true;
-        return other.getFirstPassenger() instanceof AbstractUnit pilot
-                && VehicleTargeting.isSameFaction(this.unit, pilot);
-    }
-
-    // Vertical containment is what keeps this from being the ground goal's flat test:
-    // an allied airframe holding station 40 blocks below shares our X/Z all day and
-    // must not veto the bearing. Only traffic whose (already clearance-inflated) box
-    // overlaps the hull slab we are about to fly through counts.
-    private static boolean isBlockedByAircraft(List<AABB> obstacles, double x, double z,
-                                               double slabBottom, double slabTop) {
-        for (AABB box : obstacles) {
-            if (x >= box.minX && x <= box.maxX && z >= box.minZ && z <= box.maxZ
-                    && slabTop >= box.minY && slabBottom <= box.maxY) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // Rotate a horizontal (y=0) direction about the vertical axis.
-    private static Vec3 rotateY(Vec3 dir, double angleRad) {
-        double cos = Math.cos(angleRad);
-        double sin = Math.sin(angleRad);
-        return new Vec3(dir.x * cos - dir.z * sin, 0.0, dir.x * sin + dir.z * cos);
     }
 
     // Hold a stationary hover at targetY: hover mode auto-levels and damps drift,
@@ -789,7 +658,7 @@ public class DriveHelicopterGoal extends Goal {
     // hence the negation — verified against SBW's helicopterEngine yaw update.
     private void steerNose(Vector3f forward, Vec3 aim, float targetAttitudeDeg) {
         if (aim.lengthSqr() > 1.0E-8) {
-            double yawErrDeg = Math.toDegrees(getAngleBetween(forward, aim));
+            double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, aim));
             this.vehicle.setMouseMoveSpeedX(
                     (float) Mth.clamp(-YAW_STICK_PER_DEG * yawErrDeg, -MAX_YAW_STICK, MAX_YAW_STICK));
         } else {
@@ -803,9 +672,7 @@ public class DriveHelicopterGoal extends Goal {
     // Cosmetic self-preservation flares (cf. the ground goal's retreat smoke, which
     // this deliberately leaves untouched): from half health down, an airborne hull
     // holds the decoy input — the launcher's own ready/reload gating turns that
-    // into a volley per reload. The coin flip is rolled once per episode (a gap in
-    // consecutive low-health ticks = a fresh episode), so about half of damaged
-    // airframes flare and half don't. Flight behavior is not altered here.
+    // into a volley per reload. Flight behavior is not altered here.
     private void updateDecoy() {
         float max = this.vehicle.getMaxHealth();
         boolean low = max > 0.0F && this.vehicle.getHealth() <= max * DECOY_HEALTH_FRACTION;
@@ -813,15 +680,10 @@ public class DriveHelicopterGoal extends Goal {
             this.vehicle.setDecoyInputDown(false); // unlatch once healed/repaired or parked
             return;
         }
-        // Sentinel tested explicitly: now - Long.MIN_VALUE overflows negative and
-        // would silently skip the roll for the first-ever episode.
-        long now = this.unit.level().getGameTime();
-        if (this.lastDecoyTick == Long.MIN_VALUE || now - this.lastDecoyTick > 1) {
-            this.deployDecoyThisEpisode = this.unit.getRandom().nextFloat() < PRESERVE_DECOY_CHANCE;
-        }
-        this.lastDecoyTick = now;
 
-        if (this.deployDecoyThisEpisode && this.vehicle.hasDecoy()) {
+        boolean flare = this.flares.roll(
+                this.unit.level().getGameTime(), this.unit.getRandom(), PRESERVE_DECOY_CHANCE);
+        if (flare && this.vehicle.hasDecoy()) {
             this.vehicle.setDecoyInputDown(true);
         }
     }
@@ -895,58 +757,13 @@ public class DriveHelicopterGoal extends Goal {
                 Heightmap.Types.WORLD_SURFACE, this.vehicle.getBlockX(), this.vehicle.getBlockZ());
     }
 
-    // Signed horizontal angle (radians) to rotate `forward` onto `target`; same
-    // convention as DriveVehicleGoal so the steering signs match across goals.
-    private double getAngleBetween(Vector3f forward, Vec3 target) {
-        double cross = forward.x * target.z - forward.z * target.x;
-        double dot = forward.x * target.x + forward.z * target.z;
-        return -Math.atan2(cross, dot);
-    }
-
-    // Optional force-loading (config-gated, default off): keep the single chunk the
-    // airframe is currently over loaded and ticking so the aircraft keeps flying when
-    // no player is nearby. Called every tick — the held chunk is only re-issued when
-    // the hull crosses a chunk boundary, and is dropped immediately if the option is
-    // switched off at runtime. Entity-owned tickets are self-cleaning: they are not
-    // restored across a world reload without a validation callback (fine — this is a
-    // live-flight aid, not persistent world state).
-    //
-    // TEMP: the System.out lines report the airframe name so force-loading can be
-    // eyeballed in the server console. Remove once the behavior is verified.
+    // Optional force-loading (config-gated, default off): keep the chunk the airframe
+    // is over loaded and ticking so it keeps flying when no player is nearby.
     private void updateChunkLoading() {
-        if (!SewvConfig.HELI_CHUNK_LOADING.get()) {
-            releaseForcedChunk(); // option turned off — give any held chunk back
-            return;
+        if (SewvConfig.HELI_CHUNK_LOADING.get()) {
+            this.chunkTicket.follow(this.vehicle);
+        } else {
+            this.chunkTicket.release(this.vehicle); // switched off at runtime — hand it back
         }
-        if (!(this.unit.level() instanceof ServerLevel serverLevel)) return;
-
-        ChunkPos current = new ChunkPos(this.vehicle.blockPosition());
-        if (current.equals(this.forcedChunk)) return; // still over the chunk we hold
-
-        releaseForcedChunk(); // crossed a boundary — drop the previous chunk first
-        ForgeChunkManager.forceChunk(serverLevel, TaczSewv.MODID, this.vehicle,
-                current.x, current.z, true, true);
-        this.forcedChunk = current;
-        System.out.println("[SEWV chunkload] " + this.vehicle.getName().getString()
-                + " force-loading chunk [" + current.x + ", " + current.z + "]");
-    }
-
-    private void releaseForcedChunk() {
-        if (this.forcedChunk == null) return;
-        if (this.unit.level() instanceof ServerLevel serverLevel) {
-            ForgeChunkManager.forceChunk(serverLevel, TaczSewv.MODID, this.vehicle,
-                    this.forcedChunk.x, this.forcedChunk.z, false, true);
-            System.out.println("[SEWV chunkload] " + this.vehicle.getName().getString()
-                    + " released chunk [" + this.forcedChunk.x + ", " + this.forcedChunk.z + "]");
-        }
-        this.forcedChunk = null;
-    }
-
-    private boolean isHelicopter() {
-        if (this.vehicle != this.helicopterCacheVehicle) {
-            this.helicopterCacheVehicle = this.vehicle;
-            this.helicopterCacheValue = this.vehicle.getEngineInfo() instanceof EngineInfo.Helicopter;
-        }
-        return this.helicopterCacheValue;
     }
 }

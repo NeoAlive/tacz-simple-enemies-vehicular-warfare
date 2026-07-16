@@ -156,13 +156,22 @@ public final class VehicleTargeting {
         return BlockPos.containing(cx + dx * scale, vehicle.getY(), cz + dz * scale);
     }
 
-    // Rotate a horizontal (y=0) direction about the vertical axis. Shared: the drive
-    // goal's whisker fan swings candidate headings with it, and the ring math above
-    // swings bearings with it.
+    // Rotate a horizontal (y=0) direction about the vertical axis. Shared: the whisker fans
+    // swing candidate headings with it, and the ring math above swings bearings with it.
     public static Vec3 rotateY(Vec3 dir, double angleRad) {
         double cos = Math.cos(angleRad);
         double sin = Math.sin(angleRad);
         return new Vec3(dir.x * cos - dir.z * sin, 0.0, dir.x * sin + dir.z * cos);
+    }
+
+    // Signed horizontal angle (radians) to rotate `forward` onto `target`. Shared so the
+    // steering signs cannot drift apart between the ground and flight goals — the flight
+    // goal's yaw stick is fed the negation of this, which is only correct while both goals
+    // agree on the convention.
+    public static double signedAngleTo(Vector3f forward, Vec3 target) {
+        double cross = forward.x * target.z - forward.z * target.x;
+        double dot = forward.x * target.x + forward.z * target.z;
+        return -Math.atan2(cross, dot);
     }
 
     /**

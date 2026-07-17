@@ -106,6 +106,8 @@ dependencies {
     implementation fg.deobf("blank:kotlin:1.0")
     implementation fg.deobf("blank:simpleenemymod:1.0")
     implementation fg.deobf("blank:tacz:1.0")
+    // Soft compat: compiled against, never bundled/required at runtime (gated by ModList).
+    compileOnly fg.deobf("blank:berezka_api:1.0")
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 

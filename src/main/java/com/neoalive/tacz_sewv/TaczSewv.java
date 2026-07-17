@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv;
 
 import com.neoalive.tacz_sewv.command.SewvCommand;
+import com.neoalive.tacz_sewv.compat.BerezkaStructureCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
@@ -13,6 +14,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
@@ -42,6 +44,11 @@ public class TaczSewv {
     event.enqueueWork(() -> {
         NetworkHandler.register();
     });
+    // Soft compat: only touch berezka_api's classes when it is actually present, so the
+    // structure-vehicle listener never classloads its event type on a berezka-less install.
+    if (ModList.get().isLoaded(BerezkaStructureCompat.MODID)) {
+        BerezkaStructureCompat.register();
+    }
     LOGGER.info("SEM<->SW vehicle bridge loading");
     }
 

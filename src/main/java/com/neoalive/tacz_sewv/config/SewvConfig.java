@@ -35,6 +35,14 @@ public class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_POOL;
     public static final ForgeConfigSpec.BooleanValue CREATIVE_AMMO_FALLBACK;
 
+    // Structure-spawned vehicles (berezka_api soft-compat)
+    public static final ForgeConfigSpec.BooleanValue STRUCTURE_VEHICLES_ENABLED;
+    public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_MAX_COUNT;
+    public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_RAMP_DAYS;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_STRUCTURES;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_STRUCTURES;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_STRUCTURES;
+
     // Crew AI behavior
     public static final ForgeConfigSpec.IntValue AI_FIRE_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue WEAPON_SWITCH_COOLDOWN_TICKS;
@@ -214,6 +222,42 @@ public class SewvConfig {
                          "infinite-ammo hull, or unreadable modded gun data): ON gives it a bottomless creative",
                          "ammo box so it can still fire; turn OFF for a strict survival world (empty container).")
                 .define("creativeAmmoFallback", true);
+
+        builder.pop();
+
+        builder.push("structure_vehicles");
+
+        STRUCTURE_VEHICLES_ENABLED = builder
+                .comment("Spawn vehicles from the faction pools when a compatible berezka_api structure generates.",
+                         "Soft compat: does nothing unless berezka_api and a matching structure mod are installed.",
+                         "RU/US structures get a fully crewed, armed, fuelled vehicle; PMC structures get a BARE hull",
+                         "(no crew, no ammo, no energy) for the player to capture and use.")
+                .define("structureVehiclesEnabled", true);
+
+        STRUCTURE_VEHICLE_MAX_COUNT = builder
+                .comment("Hard ceiling on how many vehicles one structure can field. The actual count ramps from 1",
+                         "toward this cap as the world ages (see structureVehicleRampDays), with per-vehicle randomness.")
+                .defineInRange("structureVehicleMaxCount", 5, 1, 16);
+
+        STRUCTURE_VEHICLE_RAMP_DAYS = builder
+                .comment("Elapsed in-game days over which the per-structure vehicle count ramps from 1 to the cap.",
+                         "Early on a structure fields a lone vehicle; by this many days it can field the full cap.",
+                         "Measured from total world play time, so it survives sleeping and /time set. 0 = no ramp",
+                         "(always rolls against the full cap).")
+                .defineInRange("structureVehicleRampDays", 24, 0, 1000);
+
+        RU_VEHICLE_STRUCTURES = builder
+                .comment("Structure ids (the namespace:path of the structure's start pool) that field a crewed RU",
+                         "vehicle. Add any berezka_api structure id here to have RU armor spawn at it.")
+                .defineList("ruVehicleStructures", List.of("russian_army_structures:tank"), SewvConfig::isValidResourceId);
+
+        US_VEHICLE_STRUCTURES = builder
+                .comment("Structure ids that field a crewed US vehicle.")
+                .defineList("usVehicleStructures", List.of("us_army_structures:convoy"), SewvConfig::isValidResourceId);
+
+        PMC_VEHICLE_STRUCTURES = builder
+                .comment("Structure ids that field a BARE PMC vehicle (no crew, ammo or energy) for the player to take.")
+                .defineList("pmcVehicleStructures", List.of("pmc_structures:buggy"), SewvConfig::isValidResourceId);
 
         builder.pop();
 

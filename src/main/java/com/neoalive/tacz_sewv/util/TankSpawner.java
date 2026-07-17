@@ -1,6 +1,10 @@
 package com.neoalive.tacz_sewv.util;
 
+import com.atsuishio.superbwarfare.data.gun.AmmoConsumer;
+import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
+import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
@@ -12,6 +16,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -89,15 +94,13 @@ public final class TankSpawner {
         tank.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
         level.addFreshEntity(tank);
 
-        // Freshly-created vehicles start with 0 energy and an empty inventory — an AI
-        // driver can't refuel/rearm itself, so fully charge it and stock a creative
-        // ammo box (rather than hardcoding per-vehicle ammo items) so it can move and fire.
+        // Freshly-created vehicles start with 0 energy and an empty container — an AI
+        // driver can't refuel/rearm itself, so fully charge it and stock its guns'
+        // real ammunition so it can move and fire.
         if (tank.hasEnergyStorage()) {
             tank.setEnergy(tank.getMaxEnergy());
         }
-        if (tank.hasContainer() && tank.getContainerSize() > 0) {
-            tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
-        }
+        stockAmmo(tank);
 
         // One unit per seat, mounted in join order: SW's VehicleEntity assigns
         // seats sequentially, so the first rider lands in seat 0 (driver) and
@@ -128,6 +131,63 @@ public final class TankSpawner {
         }
 
         return tank;
+    }
+
+    /**
+     * Stocks a freshly-spawned hull's container with the actual ammunition its weapons
+     * consume, so an AI crew fires finite, lootable rounds instead of a bottomless
+     * creative box. The container is divided evenly across the ammo types the hull uses
+     * (one full stack per slot, cycled), which SBW's own AI auto-reload then draws from.
+     *
+     * <p>When no item ammo can be resolved — an all-energy hull (already charged above),
+     * an infinite-ammo weapon, or unreadable modded gun data — it falls back to a creative
+     * ammo box so the vehicle can still fire, unless {@code creativeAmmoFallback} is off,
+     * in which case a strict survival world gets an empty container.
+     */
+    private static void stockAmmo(VehicleEntity tank) {
+        if (!tank.hasContainer() || tank.getContainerSize() <= 0) return;
+
+        List<Item> ammo = resolveAmmo(tank);
+        if (ammo.isEmpty()) {
+            if (SewvConfig.CREATIVE_AMMO_FALLBACK.get()) {
+                tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
+            }
+            return;
+        }
+        int size = tank.getContainerSize();
+        for (int slot = 0; slot < size; slot++) {
+            Item item = ammo.get(slot % ammo.size());
+            tank.setItem(slot, new ItemStack(item, item.getMaxStackSize()));
+        }
+    }
+
+    // The distinct ammo items every weapon on the hull consumes. Reads GunData the same
+    // way VehicleWeapons does; energy/infinite/empty consumers carry an empty stack and
+    // contribute nothing. Defensive — unreadable modded weapon data must never abort a
+    // spawn, it just leaves that slot out (and, if nothing resolves, the creative fallback).
+    private static List<Item> resolveAmmo(VehicleEntity tank) {
+        List<Item> ammo = new ArrayList<>();
+        int seats = Math.max(1, tank.getMaxPassengers());
+        for (int seat = 0; seat < seats; seat++) {
+            SeatInfo info = tank.getSeat(seat);
+            int weapons = info == null ? 0 : info.weapons().size();
+            for (int w = 0; w < weapons; w++) {
+                try {
+                    GunData gun = tank.getGunData(seat, w);
+                    if (gun == null) continue;
+                    List<AmmoConsumer> consumers = gun.get(GunProp.AMMO_CONSUMER);
+                    if (consumers == null) continue;
+                    for (AmmoConsumer c : consumers) {
+                        if (c == null) continue;
+                        ItemStack stack = c.stack();
+                        if (!stack.isEmpty() && !ammo.contains(stack.getItem())) ammo.add(stack.getItem());
+                    }
+                } catch (Exception ignored) {
+                    // exotic/modded weapon data — skip this slot, keep spawning
+                }
+            }
+        }
+        return ammo;
     }
 
     /** Package-visible so {@link EmplacementSpawner} crews mortars/TOWs the same way. */

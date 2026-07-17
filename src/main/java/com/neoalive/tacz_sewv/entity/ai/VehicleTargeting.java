@@ -5,6 +5,7 @@ import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
@@ -289,6 +290,40 @@ public final class VehicleTargeting {
     // stray splash-damage hit can never escalate into an intra-faction firefight.
     public static boolean isFriendly(AbstractUnit unit, LivingEntity target) {
         return target instanceof AbstractUnit other && isSameFaction(unit, other);
+    }
+
+    // Safety margin (blocks) added around a friendly hull's hitbox when testing
+    // whether a shot would pass through it — covers near-grazes and shell blast.
+    private static final double FRIENDLY_FIRE_MARGIN = 1.0;
+
+    /**
+     * True when a same-faction vehicle straddles the muzzle→aimpoint segment, so an
+     * AI crew's shot would punch through friendly armor. SBW's fire path never asks
+     * what allied hulls are in the way, so without this a crew hoses whatever ally
+     * happens to sit between it and its target. Only vehicles crewed by a unit of
+     * {@code shooter}'s faction count — the target's own (enemy) hull, empty hulls
+     * and wrecks are ignored — and the test is the exact vanilla ray-vs-AABB clip
+     * against each candidate, bounded to the shot corridor like {@link SmokeVision}.
+     */
+    public static boolean alliedVehicleInLineOfFire(AbstractUnit shooter, VehicleEntity self, Vec3 from, Vec3 to) {
+        AABB corridor = new AABB(from, to).inflate(FRIENDLY_FIRE_MARGIN);
+        for (VehicleEntity v : self.level().getEntitiesOfClass(VehicleEntity.class, corridor,
+                veh -> veh != self && !veh.isWreck())) {
+            if (!isAlliedVehicle(shooter, v)) continue;
+            if (v.getBoundingBox().inflate(FRIENDLY_FIRE_MARGIN).clip(from, to).isPresent()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // A hull counts as friendly when any occupant is a same-faction unit. A hull is
+    // not a LivingEntity and carries no faction of its own, so its crew defines it.
+    private static boolean isAlliedVehicle(AbstractUnit shooter, VehicleEntity vehicle) {
+        for (Entity passenger : vehicle.getPassengers()) {
+            if (passenger instanceof AbstractUnit crew && isSameFaction(shooter, crew)) return true;
+        }
+        return false;
     }
 
     // Package-visible: the obstacle filters in DriveVehicleGoal (hulls) and

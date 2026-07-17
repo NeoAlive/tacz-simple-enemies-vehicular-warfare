@@ -134,6 +134,26 @@ public final class TankSpawner {
     }
 
     /**
+     * Spawns a single BARE vehicle from {@code faction}'s pool: the hull only, with no crew,
+     * no ammunition and no energy. Used for PMC (player-friendly) structures — a fully crewed,
+     * fuelled, loaded tank standing at a friendly camp would be free and overpowered, so the
+     * player is left to capture, refuel and man it themselves. Returns the hull, or null when
+     * the pool is empty/unresolvable or there is no room at {@code pos}.
+     */
+    @Nullable
+    public static VehicleEntity spawnBareVehicle(ServerLevel level, BlockPos pos, TankFaction faction) {
+        EntityType<?> type = selectVehicleType(faction.vehiclePool(), null, level.random);
+        if (type == null) return null;
+        if (!hasSpace(level, pos, type)) return null;
+
+        Entity entity = type.create(level);
+        if (!(entity instanceof VehicleEntity vehicle)) return null;
+        vehicle.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        level.addFreshEntity(vehicle);
+        return vehicle; // no setEnergy, no stockAmmo, no crew — deliberately inert
+    }
+
+    /**
      * Stocks a freshly-spawned hull's container with the actual ammunition its weapons
      * consume, so an AI crew fires finite, lootable rounds instead of a bottomless
      * creative box. The container is divided evenly across the ammo types the hull uses

@@ -57,35 +57,60 @@ public final class VehicleFormation {
     }
 
     /**
-     * Where slot {@code index} sits, relative to {@code anchor}, for a formation pointing along
-     * {@code axis}. Reproduces FormationUtils exactly at a spacing of 2.0 — same wedge, bigger.
+     * Where slot {@code index} sits, relative to {@code anchor}, for a {@code shape} pointing along
+     * {@code axis}. Wedge/column reproduce FormationUtils exactly at a spacing of 2.0 — same shape,
+     * bigger; line and the two echelons are ours. {@code rowSize} is the units-per-row cap and only
+     * a LINE reads it.
      *
      * <p>Note the sign: every slot lands at {@code anchor + forward * -back}, so the formation
      * trails BEHIND the anchor. "Wedge on +X" means face east and the wedge forms behind you,
-     * pointing east.
+     * pointing east. {@code perp} points to the formation's right (facing east, right is +Z south).
      */
-    public static Vec3 slotCenter(Vec3 anchor, Direction axis, OrderType order, int index) {
+    public static Vec3 slotCenter(Vec3 anchor, Direction axis, FormationShape shape, int index, int rowSize) {
         double spacing = SewvConfig.VEHICLE_FORMATION_SPACING.get();
         Vec3 forward = forward(axis);
-        Vec3 perp = new Vec3(-forward.z, 0.0, forward.x); // the same perpendicular SEM builds
+        Vec3 perp = new Vec3(-forward.z, 0.0, forward.x); // right of the heading; also SEM's perpendicular
 
         double back;
-        double lateral = 0.0;
-        if (order == OrderType.FORM_COLUMN) {
-            back = spacing * (1 + index);
-        } else if (index == 0) {
-            back = spacing; // point man, centred on the axis
-        } else {
-            int rank = (index - 1) / 2 + 1;
-            back = spacing * (1 + rank);
-            lateral = (index % 2 != 0 ? -1 : 1) * spacing * LATERAL_RATIO * rank; // SEM's signs
+        double lateral;
+        switch (shape) {
+            case COLUMN -> {
+                back = spacing * (1 + index);
+                lateral = 0.0;
+            }
+            case LINE -> {
+                // Fill a rank abreast up to rowSize, then start the next rank one spacing behind.
+                int cols = Math.max(1, rowSize);
+                int row = index / cols;
+                int col = index % cols;
+                back = spacing * (1 + row);
+                lateral = (col - (cols - 1) / 2.0) * spacing; // centred on the axis
+            }
+            case ECHELON_RIGHT -> {
+                back = spacing * (1 + index);
+                lateral = spacing * index; // each hull one step back and to the right
+            }
+            case ECHELON_LEFT -> {
+                back = spacing * (1 + index);
+                lateral = -spacing * index;
+            }
+            default -> { // WEDGE
+                if (index == 0) {
+                    back = spacing; // point man, centred on the axis
+                    lateral = 0.0;
+                } else {
+                    int rank = (index - 1) / 2 + 1;
+                    back = spacing * (1 + rank);
+                    lateral = (index % 2 != 0 ? -1 : 1) * spacing * LATERAL_RATIO * rank; // SEM's signs
+                }
+            }
         }
         return anchor.add(forward.scale(-back)).add(perp.scale(lateral));
     }
 
     /** Drive-to point for a slot: its centre, dropped onto the terrain underneath it. */
-    public static BlockPos slotPos(Level level, Vec3 anchor, Direction axis, OrderType order, int index) {
-        Vec3 center = slotCenter(anchor, axis, order, index);
+    public static BlockPos slotPos(Level level, Vec3 anchor, Direction axis, FormationShape shape, int index, int rowSize) {
+        Vec3 center = slotCenter(anchor, axis, shape, index, rowSize);
         return BlockPos.containing(center.x, groundY(level, center.x, center.z, anchor.y), center.z);
     }
 
@@ -120,7 +145,8 @@ public final class VehicleFormation {
      * mixed selection forms one coherent shape (MixinCommanderOrderGoal is what walks them to
      * vehicle-spaced slots instead of SEM's 2-block ones).
      */
-    public static int assign(Player commander, List<PmcUnitEntity> units, OrderType order, Direction axis) {
+    public static int assign(Player commander, List<PmcUnitEntity> units, FormationShape shape, Direction axis, int rowSize) {
+        OrderType order = shape.semOrder();
         List<PmcUnitEntity> drivers = new ArrayList<>();
         List<PmcUnitEntity> riders = new ArrayList<>();
         List<PmcUnitEntity> loose = new ArrayList<>();
@@ -149,10 +175,10 @@ public final class VehicleFormation {
         Map<Entity, Integer> hullSlots = new HashMap<>();
         for (PmcUnitEntity driver : drivers) {
             hullSlots.put(driver.getVehicle(), slot);
-            apply(driver, order, axis, slot++);
+            apply(driver, order, axis, slot++, shape, rowSize);
         }
         for (PmcUnitEntity infantry : loose) {
-            apply(infantry, order, axis, slot++);
+            apply(infantry, order, axis, slot++, shape, rowSize);
         }
 
         // Passengers inherit their driver's slot. Beyond keeping one hull to one slot, this is
@@ -162,7 +188,7 @@ public final class VehicleFormation {
         // to move.
         for (PmcUnitEntity rider : riders) {
             Integer hullSlot = hullSlots.get(rider.getVehicle());
-            if (hullSlot != null) apply(rider, order, axis, hullSlot);
+            if (hullSlot != null) apply(rider, order, axis, hullSlot, shape, rowSize);
         }
         return hullSlots.size();
     }
@@ -176,10 +202,20 @@ public final class VehicleFormation {
      * live setFormationIndex, which is what stops a stale one from hijacking a plain SEM
      * infantry wedge.
      */
-    private static void apply(PmcUnitEntity pmc, OrderType order, Direction axis, int slot) {
+    private static void apply(PmcUnitEntity pmc, OrderType order, Direction axis, int slot,
+                              FormationShape shape, int rowSize) {
+        // A formation is an explicit movement order, so it supersedes any standing patrol — which
+        // otherwise wins in resolveDestination (checked before the order queue) and would silently
+        // eat the formation.
+        PatrolSupport.clear(pmc);
         pmc.releaseMovementLock();
         pmc.setFormationIndex(slot);
-        ((IFormationMember) pmc).sewv$setFormationDirection(axis);
+        // Axis, shape and row size all go in AFTER the index — MixinPmcUnitEntity clears the axis on
+        // every live setFormationIndex, and these ride with it.
+        IFormationMember member = (IFormationMember) pmc;
+        member.sewv$setFormationDirection(axis);
+        member.sewv$setFormationShape(shape.id);
+        member.sewv$setFormationRowSize(rowSize);
         pmc.resetCommanderGoalCooldown();
         pmc.setOrder(order);
     }

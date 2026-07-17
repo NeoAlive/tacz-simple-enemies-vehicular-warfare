@@ -7,10 +7,11 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public class NetworkHandler {
 
-    // Bumped when the wire format changes (2: list sizes/ids became VarInts; 3: added
-    // the mortar order; 4: added the vehicle formation order) so a mismatched
+    // Bumped when the wire format changes (2: list sizes/ids became VarInts; 3: added the mortar
+    // order; 4: added the vehicle formation order; 5: added the patrol order; 6: formation carries
+    // a shape id + row size, and the heli command carries a cruise altitude) so a mismatched
     // client/server pair is rejected at handshake instead of misparsing.
-    private static final String PROTOCOL_VERSION = "4";
+    private static final String PROTOCOL_VERSION = "6";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -66,6 +67,14 @@ public class NetworkHandler {
                 PacketVehicleFormation::encode,
                 PacketVehicleFormation::new,
                 PacketVehicleFormation::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketPatrolVehicle.class,
+                PacketPatrolVehicle::encode,
+                PacketPatrolVehicle::new,
+                PacketPatrolVehicle::handle
         );
     }
 }

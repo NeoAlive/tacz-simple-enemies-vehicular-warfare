@@ -34,6 +34,8 @@ public interface IFormationMember {
     int AXIS_EAST = 4;  // +X
 
     String TAG_FORMATION_AXIS = "tacz_sewv_formation_axis";
+    String TAG_FORMATION_SHAPE = "tacz_sewv_formation_shape";
+    String TAG_FORMATION_ROWSIZE = "tacz_sewv_formation_rowsize";
 
     default void sewv$setFormationDirection(Direction axis) {
         ((Entity) this).getPersistentData().putInt(TAG_FORMATION_AXIS, axisOf(axis));
@@ -41,6 +43,26 @@ public interface IFormationMember {
 
     default Direction sewv$getFormationDirection() {
         return directionOf(((Entity) this).getPersistentData().getInt(TAG_FORMATION_AXIS));
+    }
+
+    // The FormationShape id (see entity.ai.FormationShape) and, for a LINE, its units-per-row.
+    // Both persist for the same reason the axis does — a formation must come back whole from a
+    // reload. A missing shape reads as 0 (WEDGE); the axis null-gate keeps a stale shape from ever
+    // being applied to a plain SEM infantry formation.
+    default void sewv$setFormationShape(int shapeId) {
+        ((Entity) this).getPersistentData().putInt(TAG_FORMATION_SHAPE, shapeId);
+    }
+
+    default int sewv$getFormationShape() {
+        return ((Entity) this).getPersistentData().getInt(TAG_FORMATION_SHAPE);
+    }
+
+    default void sewv$setFormationRowSize(int rowSize) {
+        ((Entity) this).getPersistentData().putInt(TAG_FORMATION_ROWSIZE, rowSize);
+    }
+
+    default int sewv$getFormationRowSize() {
+        return ((Entity) this).getPersistentData().getInt(TAG_FORMATION_ROWSIZE);
     }
 
     /** Null and the two vertical faces both mean "no axis" — a formation is a horizontal thing. */

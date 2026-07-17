@@ -2,14 +2,15 @@ package com.neoalive.tacz_sewv.network;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.VehicleFormation;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Direction;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import java.util.ArrayList;
@@ -17,9 +18,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Forms a mostly-mounted selection into a wedge or column laid out along a cardinal the player
- * designated. Sent by {@link com.neoalive.tacz_sewv.client.FormationAxisSelection} once the
- * player left-clicks an axis.
+ * Forms the player's owned crews into one of the {@link FormationShape}s, laid out along the cardinal
+ * they were facing when they opened the Tactical Data Terminal. Sent by
+ * {@link com.neoalive.tacz_sewv.client.TdtScreen}'s formation buttons.
  *
  * <p>The wire carries no slot index, unlike SEM's own PacketIssueOrder — the server derives the
  * whole numbering in {@link VehicleFormation#assign}. That is not only the safer shape (SEM
@@ -30,34 +31,40 @@ import java.util.function.Supplier;
  */
 public class PacketVehicleFormation {
 
-    public static final int KIND_WEDGE = 0;
-    public static final int KIND_COLUMN = 1;
+    /** LINE units-per-row bounds; the TDT stepper and the server clamp both use these. */
+    public static final int MIN_ROW_SIZE = 1;
+    public static final int MAX_ROW_SIZE = 12;
+    public static final int DEFAULT_ROW_SIZE = 4;
 
     private final List<Integer> unitIds;
-    private final int kind;
+    private final int shapeId;
     private final int axis;
+    private final int rowSize; // units per row; only a LINE reads it
 
-    public PacketVehicleFormation(List<Integer> unitIds, int kind, int axis) {
+    public PacketVehicleFormation(List<Integer> unitIds, FormationShape shape, int axis, int rowSize) {
         this.unitIds = unitIds;
-        this.kind = kind;
+        this.shapeId = shape.id;
         this.axis = axis;
+        this.rowSize = rowSize;
     }
 
     public PacketVehicleFormation(FriendlyByteBuf buf) {
         int size = buf.readVarInt();
         this.unitIds = new ArrayList<>();
         for (int i = 0; i < size; i++) this.unitIds.add(buf.readVarInt());
-        this.kind = buf.readVarInt();
+        this.shapeId = buf.readVarInt();
         this.axis = buf.readVarInt();
+        this.rowSize = buf.readVarInt();
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeVarInt(this.unitIds.size());
         for (int id : this.unitIds) buf.writeVarInt(id);
-        // Ints rather than writeEnum(OrderType.class): SEM's ordinals are its own business, and
-        // our handshake doesn't check that both ends run the same SEM version.
-        buf.writeVarInt(this.kind);
+        // Our own stable shape/axis ids rather than raw enum ordinals: SEM's are its own business,
+        // and the handshake doesn't check that both ends run the same SEM version.
+        buf.writeVarInt(this.shapeId);
         buf.writeVarInt(this.axis);
+        buf.writeVarInt(this.rowSize);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -67,7 +74,8 @@ public class PacketVehicleFormation {
 
             Direction axis = IFormationMember.directionOf(this.axis);
             if (axis == null) return; // malformed — nothing worth saying
-            OrderType order = this.kind == KIND_COLUMN ? OrderType.FORM_COLUMN : OrderType.FORM_WEDGE;
+            FormationShape shape = FormationShape.byId(this.shapeId);
+            int rowSize = Mth.clamp(this.rowSize, MIN_ROW_SIZE, MAX_ROW_SIZE);
 
             // Ownership-check each unit individually so a spoofed packet can't march another
             // player's units into formation by id.
@@ -79,7 +87,7 @@ public class PacketVehicleFormation {
                 }
             }
 
-            int hulls = VehicleFormation.assign(player, units, order, axis);
+            int hulls = VehicleFormation.assign(player, units, shape, axis, rowSize);
 
             // Server-authoritative feedback — the hulls the server actually formed, not the
             // optimistic client count.

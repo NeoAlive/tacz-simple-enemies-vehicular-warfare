@@ -30,8 +30,15 @@ public interface IHelicopterPilot {
     int HELI_CMD_LANDING = 2;
     int HELI_CMD_LANDED = 3;
 
+    // Terrain-relative cruise offset a pilot holds, set live by the takeoff order and read by
+    // DriveHelicopterGoal (which clamps it to its own 30-50 flight band). This replaced the old
+    // HELI_CRUISE_ALTITUDE config so the player can retrim altitude from the TDT without landing,
+    // and each takeoff press updates it. Crews that never got a takeoff order (autonomous RU/US,
+    // and TankSpawner's) fall back to this default — the old config default, so nothing changes.
+    int DEFAULT_CRUISE_ALTITUDE = 35;
     String TAG_HELI_COMMAND = "tacz_sewv_heli_command";
     String TAG_HELI_LAND_POS = "tacz_sewv_heli_land_pos";
+    String TAG_HELI_CRUISE_ALT = "tacz_sewv_heli_cruise_alt";
 
     default void sewv$setHeliCommand(int command) {
         ((Entity) this).getPersistentData().putInt(TAG_HELI_COMMAND, command);
@@ -53,5 +60,14 @@ public interface IHelicopterPilot {
     default BlockPos sewv$getHeliLandPos() {
         CompoundTag tag = ((Entity) this).getPersistentData();
         return tag.contains(TAG_HELI_LAND_POS) ? BlockPos.of(tag.getLong(TAG_HELI_LAND_POS)) : null;
+    }
+
+    default void sewv$setCruiseAltitude(int altitude) {
+        ((Entity) this).getPersistentData().putInt(TAG_HELI_CRUISE_ALT, altitude);
+    }
+
+    default int sewv$getCruiseAltitude() {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        return tag.contains(TAG_HELI_CRUISE_ALT) ? tag.getInt(TAG_HELI_CRUISE_ALT) : DEFAULT_CRUISE_ALTITUDE;
     }
 }

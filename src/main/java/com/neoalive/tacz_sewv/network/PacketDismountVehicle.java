@@ -10,6 +10,7 @@ import net.minecraftforge.network.NetworkEvent;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
+import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -55,8 +56,9 @@ public class PacketDismountVehicle {
                 boarder.tacz_sewv$setMountTargetId(-1);
                 // This key is the stand-down verb for every order, so it also frees any
                 // mortar the unit was holding — otherwise nothing else could ever be
-                // assigned to that tube.
+                // assigned to that tube — and cancels any standing patrol order.
                 MortarSupport.releaseClaim(pmc);
+                PatrolSupport.clear(pmc);
                 if (wasMounted) dismounted++;
             }
         }

@@ -5,6 +5,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.BoardVehicleGoal;
 import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
@@ -17,9 +18,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-// IHelicopterPilot and IFormationMember need no method bodies here — their default methods
-// store the flight state and the formation axis in the entity's persistent NBT (so they
-// survive world reloads).
+// IHelicopterPilot, IFormationMember and IVehiclePatrol need no method bodies here — their
+// default methods store the flight state, the formation axis and the patrol order in the
+// entity's persistent NBT (so they survive world reloads).
 // The boarding order and mortar claim below are deliberately transient: they target
 // an entity by network id, which is not stable across sessions, so persisting them
 // would be wrong — a pending order is simply dropped on reload.
@@ -28,7 +29,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // player actually gave it — which is the whole point of hand-loading one.
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity
-        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember {
+        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember, IVehiclePatrol {
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;

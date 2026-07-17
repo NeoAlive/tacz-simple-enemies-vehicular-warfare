@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.mixin;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.entity.ai.FollowLeash;
+import com.neoalive.tacz_sewv.entity.ai.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.VehicleFormation;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.LivingEntity;
@@ -72,7 +73,12 @@ public abstract class MixinCommanderOrderGoal {
                                              CallbackInfoReturnable<Vec3> cir) {
         Direction axis = tacz_sewv$formationAxis();
         if (axis == null || index < 0) return;
-        cir.setReturnValue(VehicleFormation.slotCenter(owner.position(), axis, order, index));
+        // formationAxis() already confirmed this.mob is a PmcUnitEntity in one of our formations, so
+        // the loose infantry carries the same shape/row-size the hulls do — it shares their geometry.
+        IFormationMember member = (IFormationMember) this.mob;
+        FormationShape shape = FormationShape.byId(member.sewv$getFormationShape());
+        cir.setReturnValue(VehicleFormation.slotCenter(
+                owner.position(), axis, shape, index, member.sewv$getFormationRowSize()));
     }
 
     /**

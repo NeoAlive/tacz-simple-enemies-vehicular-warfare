@@ -1,62 +1,29 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.tacz.guns.api.event.common.GunShootEvent;
+import com.neoalive.tacz_sewv.init.ModItems;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
-import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-// MOD bus for registration, FORGE bus for the tick/keypress
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+// FORGE bus, client dist: opens the Tactical Data Terminal on a left click with it in hand.
+@Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public class ClientEvents {
 
+    // Left click (attack) with the Tactical Data Terminal in hand opens its command menu.
+    // The screen captures the crosshair/facing the moment it opens, so the click has to be
+    // cancelled — otherwise the same press would mine the block / attack the vehicle the player
+    // was aiming at to give a board, land or formation order.
     @SubscribeEvent
-    public static void registerKeys(RegisterKeyMappingsEvent event) {
-        event.register(BoardKeybind.BOARD_KEY);
-        event.register(BoardKeybind.DISMOUNT_KEY);
-        event.register(HelicopterKeybind.TAKEOFF_KEY);
-        event.register(HelicopterKeybind.LAND_KEY);
-    }
+    public static void onClickInput(InputEvent.InteractionKeyMappingTriggered event) {
+        if (!event.isAttack()) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        if (!mc.player.getMainHandItem().is(ModItems.TACTICAL_DATA_TERMINAL.get())) return;
 
-    // Separate subscriber on the FORGE bus for the actual key polling
-    @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
-    public static class ForgeClientEvents {
-        @SubscribeEvent
-        public static void onClientTick(TickEvent.ClientTickEvent event) {
-            if (event.phase != TickEvent.Phase.END) return;
-            if (Minecraft.getInstance().player == null) return;
-
-            // consumeClick() returns true once per press, drains the queue
-            while (BoardKeybind.BOARD_KEY.consumeClick()) {
-                BoardKeybind.onBoardPressed();
-            }
-            while (BoardKeybind.DISMOUNT_KEY.consumeClick()) {
-                BoardKeybind.onDismountPressed();
-            }
-            while (HelicopterKeybind.TAKEOFF_KEY.consumeClick()) {
-                HelicopterKeybind.onTakeoffPressed();
-            }
-            while (HelicopterKeybind.LAND_KEY.consumeClick()) {
-                HelicopterKeybind.onLandPressed();
-            }
-
-            FormationAxisSelection.tick(Minecraft.getInstance());
-        }
-
-        @SubscribeEvent
-        public static void onMouseInput(InputEvent.MouseButton.Pre event) {
-            FormationAxisSelection.onMouseInput(event);
-        }
-
-        // Cancelling the mouse event above is not enough to keep a gun quiet — TACZ fires from
-        // its own input path, so the designation click needs gating there too.
-        @SubscribeEvent
-        public static void onGunShoot(GunShootEvent event) {
-            FormationAxisSelection.onGunShoot(event);
-        }
+        TdtScreen.open();
+        event.setCanceled(true);
     }
 }

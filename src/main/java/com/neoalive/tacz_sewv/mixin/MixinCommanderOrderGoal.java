@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.mixin;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.entity.ai.FollowLeash;
 import com.neoalive.tacz_sewv.entity.ai.VehicleFormation;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.LivingEntity;
@@ -15,17 +16,26 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Walks the loose infantry of a VEHICLE formation to the same slots the hulls drive to.
+ * Two unrelated fixes to SEM's commander-order goal, both gated so a plain SEM infantry
+ * squad is untouched.
  *
- * <p>They share one numbering with the hulls, so they have to share one geometry: left alone,
- * SEM sends them to its own 2.0/2.5-block slots laid out on the commander's live body yaw, which
- * land inside the vehicle-spaced ones — a rifleman standing where a tank is about to park.
+ * <p><b>1. Vehicle-formation spacing.</b> The loose infantry of a VEHICLE formation share one
+ * numbering with the hulls, so they have to share one geometry: left alone, SEM sends them to
+ * its own 2.0/2.5-block slots laid out on the commander's live body yaw, which land inside the
+ * vehicle-spaced ones — a rifleman standing where a tank is about to park. The two formation
+ * injections no-op unless the unit is actually in one of our formations.
  *
- * <p>Both injections no-op unless the unit is actually in one of our formations, so a plain SEM
- * infantry wedge is untouched.
+ * <p><b>2. Follow while fighting.</b> This goal abandons its follow / hold / formation order
+ * the moment the unit has a live target — canUse, canContinueToUse and tick all bail on the
+ * same {@code getTarget()} read, handing movement to MoveToAttackRangeGoal, which charges the
+ * enemy up to ~90 blocks. {@link #tacz_sewv$ignoreTargetWhileLeashed} blanks that shared read
+ * for an on-foot PMC under a positional order so the goal keeps running through combat and the
+ * unit stays with its commander. The advance itself is suppressed in
+ * {@link MixinMoveToAttackRangeGoal}; see {@link FollowLeash} for the whole picture.
  */
 @Mixin(CommanderOrderGoal.class)
 public abstract class MixinCommanderOrderGoal {
@@ -33,6 +43,29 @@ public abstract class MixinCommanderOrderGoal {
     @Shadow(remap = false)
     @Final
     private PathfinderMob mob;
+
+    /**
+     * Keeps a following unit tied to its commander while it fights instead of dropping the
+     * order the instant it acquires a target.
+     *
+     * <p>canUse, canContinueToUse and tick each give up when {@code mob.getTarget()} is a live
+     * entity — canUse/canContinueToUse return false, tick early-returns without repositioning.
+     * All three read the target through this one call, so returning null for it (only for an
+     * on-foot PMC under a positional order) makes the goal behave exactly as it would with no
+     * target at all: it keeps following / holding / forming. The unit still aims and fires
+     * through SEM's RangedGunAttackGoal (LOOK flag, no movement) and still takes local cover
+     * through SeekCoverGoal (priority 2, ~13 blocks); it simply no longer runs across the map,
+     * because the long advance is gone (see {@link MixinMoveToAttackRangeGoal}). Everything else
+     * gets the real target, so non-leashed units — and SEM's own squads — are untouched.
+     */
+    @Redirect(
+            method = {"canUse", "canContinueToUse", "tick"},
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/world/entity/PathfinderMob;getTarget()Lnet/minecraft/world/entity/LivingEntity;"))
+    private LivingEntity tacz_sewv$ignoreTargetWhileLeashed(PathfinderMob self) {
+        LivingEntity target = self.getTarget();
+        return (target != null && FollowLeash.leashed(self)) ? null : target;
+    }
 
     @Inject(method = "calculateClassicFormationTarget", at = @At("HEAD"), cancellable = true, remap = false)
     private void tacz_sewv$vehicleSpacedSlot(LivingEntity owner, OrderType order, int index,

@@ -17,6 +17,7 @@
     "MixinVehicleFactionEnergy",
     "MixinVehicleInteractLock",
     "MixinRangedGunAttackGoal",
+    "MixinMoveToAttackRangeGoal",
     "MixinCommanderOrderGoal"
   ],
   "client": [

@@ -52,6 +52,12 @@ public final class VehicleTargeting {
             return assist != null ? assist.assistTargetPos(unit, vehicle) : null;
         }
 
+        // A patrol is a standing TDT order that outranks the SEM order queue: while it is set the
+        // hull wanders its area. Combat still preempts it — the drive goal fights its live target
+        // and only falls back to this destination when there is none — and dismount clears it.
+        BlockPos patrol = PatrolSupport.currentWaypoint(pmc);
+        if (patrol != null) return patrol;
+
         OrderType order = pmc.getOrder();
 
         switch (order) {
@@ -84,13 +90,16 @@ public final class VehicleTargeting {
             case FORM_WEDGE:
             case FORM_COLUMN: {
                 Player leader = commander(pmc);
-                Direction axis = ((IFormationMember) pmc).sewv$getFormationDirection();
+                IFormationMember member = (IFormationMember) pmc;
+                Direction axis = member.sewv$getFormationDirection();
                 int slot = pmc.getFormationIndex();
                 // No axis means this order did not come through our gate — it is a plain SEM
                 // infantry formation that happens to have caught a mounted crew. There is no
                 // hull geometry to drive to, so hold.
                 if (leader == null || axis == null || slot < 0) return null;
-                return VehicleFormation.slotPos(unit.level(), leader.position(), axis, order, slot);
+                FormationShape shape = FormationShape.byId(member.sewv$getFormationShape());
+                return VehicleFormation.slotPos(
+                        unit.level(), leader.position(), axis, shape, slot, member.sewv$getFormationRowSize());
             }
 
             default:

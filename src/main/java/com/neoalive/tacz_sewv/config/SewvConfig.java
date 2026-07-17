@@ -59,8 +59,10 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_LOOKAHEAD_DISTANCE;
 
+    // Patrol order (a ground vehicle wanders valid ground inside a circle)
+    public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
+
     // Helicopter/flight AI
-    public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_ALTITUDE;
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HELI_ALT_DEADBAND;
     public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_SPEED;
@@ -299,13 +301,14 @@ public class SewvConfig {
                          "Higher numbers = scans ahead for obstacles at the cost of performance.")
                 .defineInRange("vehicleLookaheadDistance", 5.0, 1.0, 16.0);
 
+        PATROL_ROTATE_INTERVAL_TICKS = builder
+                .comment("How long a patrolling ground vehicle holds a spot before moving to a new random point",
+                         "inside its patrol area (20 ticks = 1 second; default 3600 = 3 minutes).")
+                .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
+
         builder.pop();
 
         builder.push("flight_ai");
-
-        HELI_CRUISE_ALTITUDE = builder
-                .comment("The average amount of blocks an helicopter should hover in the air in relation to the ground")
-                .defineInRange("heliCruiseAltitude", 35.0, 30.0, 50.0);
 
         HELI_ENGAGE_RADIUS = builder
                 .comment("Horizontal standoff (in blocks) a NPC helicopter holds from a combat target while",

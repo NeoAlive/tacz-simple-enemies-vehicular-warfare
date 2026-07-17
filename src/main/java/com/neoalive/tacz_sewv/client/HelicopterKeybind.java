@@ -2,53 +2,26 @@ package com.neoalive.tacz_sewv.client;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.mojang.blaze3d.platform.InputConstants;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraftforge.client.settings.KeyConflictContext;
-import net.minecraftforge.client.settings.KeyModifier;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-import org.lwjgl.glfw.GLFW;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Flight commands for owned helicopter crews, mirroring {@link BoardKeybind}: plain
- * L orders takeoff to cruise altitude; CTRL+L orders a landing at the block the
- * player is looking at. Both are rebindable and share the L base via KeyModifier.
- */
+/** Helicopter takeoff/land orders sent from the Tactical Data Terminal ({@link TdtScreen}). */
 public class HelicopterKeybind {
 
-    public static final KeyMapping TAKEOFF_KEY = new KeyMapping(
-            "key.tacz_sewv.heli_takeoff",
-            KeyConflictContext.IN_GAME,
-            KeyModifier.NONE,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_L,
-            "key.categories.tacz_sewv"
-    );
-
-    public static final KeyMapping LAND_KEY = new KeyMapping(
-            "key.tacz_sewv.heli_land",
-            KeyConflictContext.IN_GAME,
-            KeyModifier.CONTROL,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_L,
-            "key.categories.tacz_sewv"
-    );
-
-    public static void onTakeoffPressed() {
+    /** Order owned helicopter pilots to climb to (and hold) {@code altitude} as their live cruise trim. */
+    public static void orderTakeoff(int altitude) {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null || mc.level == null) return;
@@ -59,35 +32,34 @@ public class HelicopterKeybind {
             return;
         }
         NetworkHandler.CHANNEL.sendToServer(
-                new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_TAKEOFF, null));
+                new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_TAKEOFF, null, altitude));
     }
 
-    // How far out the landing-pad raycast reaches. mc.hitResult only covers the
-    // player's ~5-block interaction range — useless for designating a pad across
-    // the field — so the land order does its own long-range block pick.
-    private static final double LAND_PICK_RANGE = 128.0;
+    // How far out the landing-pad pick reaches. mc.hitResult only covers the player's
+    // ~5-block interaction range — useless for designating a pad across the field — so
+    // the TDT does its own long-range block pick when it opens.
+    public static final double LAND_PICK_RANGE = 128.0;
 
-    public static void onLandPressed() {
+    /**
+     * Order owned helicopter pilots to set down on {@code pad}. The TDT captures the aimed
+     * block when its screen opens and passes it here; a null pad hints to look at a block.
+     */
+    public static void orderLand(@Nullable BlockPos pad) {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null || mc.level == null) return;
 
-        // Land where the player is looking. A block must be under the crosshair —
-        // the helicopter sets down on top of it.
-        HitResult hit = player.pick(LAND_PICK_RANGE, 0.0F, false);
-        if (!(hit instanceof BlockHitResult bhr) || hit.getType() != HitResult.Type.BLOCK) {
+        if (pad == null) {
             hint(player, "message.tacz_sewv.heli.no_pad");
             return;
         }
-
         List<Integer> unitIds = gatherOwnedPilots(mc, player);
         if (unitIds.isEmpty()) {
             hint(player, "message.tacz_sewv.heli.land.none");
             return;
         }
-        BlockPos pad = bhr.getBlockPos();
         NetworkHandler.CHANNEL.sendToServer(
-                new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_LANDING, pad));
+                new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_LANDING, pad, 0));
     }
 
     // This player's units currently AT THE STICK of a helicopter (seat 0) within

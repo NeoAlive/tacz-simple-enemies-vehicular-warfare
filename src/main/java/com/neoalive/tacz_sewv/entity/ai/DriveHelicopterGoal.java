@@ -746,10 +746,14 @@ public class DriveHelicopterGoal extends Goal {
         return this.avoidFloorY;
     }
 
-    // Terrain-relative cruise offset: the configured cruise altitude, hard-clamped
-    // to the 30-50 band the flight model is designed around.
+    // Terrain-relative cruise offset: the pilot's own live cruise altitude (set by the takeoff
+    // order from the TDT stepper, or the default for autonomous crews), hard-clamped to the 30-50
+    // band the flight model is designed around. Read fresh every tick, so retrimming it airborne
+    // takes effect immediately.
     private double flightAltitude() {
-        return Mth.clamp(SewvConfig.HELI_CRUISE_ALTITUDE.get(), MIN_FLIGHT_ALT, MAX_FLIGHT_ALT);
+        int alt = (this.unit instanceof IHelicopterPilot pilot)
+                ? pilot.sewv$getCruiseAltitude() : IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
+        return Mth.clamp(alt, MIN_FLIGHT_ALT, MAX_FLIGHT_ALT);
     }
 
     private int surfaceBelow() {

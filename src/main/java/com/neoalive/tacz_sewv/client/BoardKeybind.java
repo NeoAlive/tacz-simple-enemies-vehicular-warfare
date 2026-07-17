@@ -2,51 +2,34 @@ package com.neoalive.tacz_sewv.client;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.mojang.blaze3d.platform.InputConstants;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.FormationShape;
+import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.EntityHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraftforge.client.settings.KeyConflictContext;
-import net.minecraftforge.client.settings.KeyModifier;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-import org.lwjgl.glfw.GLFW;
+import org.jetbrains.annotations.Nullable;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketBoardVehicle;
 import com.neoalive.tacz_sewv.network.PacketDismountVehicle;
 import com.neoalive.tacz_sewv.network.PacketManMortar;
+import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/** Board/dismount orders sent from the Tactical Data Terminal ({@link TdtScreen}). */
 public class BoardKeybind {
 
-    // Plain K boards; CTRL+K dismounts. Both are rebindable in Controls — the
-    // KeyModifier lets them share the K base without one firing for the other
-    // (NONE is inactive while CTRL is held, and vice-versa).
-    public static final KeyMapping BOARD_KEY = new KeyMapping(
-            "key.tacz_sewv.board",
-            KeyConflictContext.IN_GAME,
-            KeyModifier.NONE,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_K,
-            "key.categories.tacz_sewv"
-    );
-
-    public static final KeyMapping DISMOUNT_KEY = new KeyMapping(
-            "key.tacz_sewv.dismount",
-            KeyConflictContext.IN_GAME,
-            KeyModifier.CONTROL,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_K,
-            "key.categories.tacz_sewv"
-    );
-
-    public static void onBoardPressed() {
+    /**
+     * Order owned units to crew {@code target} — a vehicle to ride or a mortar to stand
+     * beside. The TDT captures the aim when its screen opens and passes it here; a
+     * null/non-vehicle target hints to look at one.
+     */
+    public static void orderBoard(@Nullable Entity target) {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null || mc.level == null) return;
@@ -57,12 +40,6 @@ public class BoardKeybind {
             return;
         }
 
-        HitResult hit = mc.hitResult;
-        if (!(hit instanceof EntityHitResult ehr)) {
-            hint(player, "message.tacz_sewv.board.no_vehicle");
-            return;
-        }
-
         // The server validates ownership and reports the result — no optimistic
         // client-side "order sent" message that could lie on failure.
         //
@@ -70,16 +47,16 @@ public class BoardKeybind {
         // means standing beside it, which is a different order entirely. Check it first,
         // since the vehicle branch would otherwise swallow it and send units to board
         // something they can never sit in.
-        if (ehr.getEntity() instanceof MortarEntity mortar) {
+        if (target instanceof MortarEntity mortar) {
             NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, mortar.getId()));
-        } else if (ehr.getEntity() instanceof VehicleEntity vehicle) {
+        } else if (target instanceof VehicleEntity vehicle) {
             NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId()));
         } else {
             hint(player, "message.tacz_sewv.board.no_vehicle");
         }
     }
 
-    public static void onDismountPressed() {
+    public static void orderDismount() {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null || mc.level == null) return;
@@ -91,6 +68,44 @@ public class BoardKeybind {
         }
 
         NetworkHandler.CHANNEL.sendToServer(new PacketDismountVehicle(unitIds));
+    }
+
+    /**
+     * Order owned crews to patrol a {@code radius}-block circle around the player. The server
+     * filters to ground-vehicle drivers and uses the player's own position as the origin; the TDT
+     * has already checked the radius floor before calling this.
+     */
+    public static void orderPatrol(int radius) {
+        Minecraft mc = Minecraft.getInstance();
+        Player player = mc.player;
+        if (player == null || mc.level == null) return;
+
+        List<Integer> unitIds = gatherOwnedUnits(mc, player);
+        if (unitIds.isEmpty()) {
+            hint(player, "message.tacz_sewv.board.no_units");
+            return;
+        }
+
+        NetworkHandler.CHANNEL.sendToServer(new PacketPatrolVehicle(unitIds, radius));
+    }
+
+    /**
+     * Form owned crews into {@code shape} along {@code axisInt} (the cardinal captured when the TDT
+     * opened). {@code rowSize} is the LINE units-per-row, ignored by the other shapes. The server
+     * numbers the slots and re-checks ownership.
+     */
+    public static void orderFormation(FormationShape shape, int axisInt, int rowSize) {
+        Minecraft mc = Minecraft.getInstance();
+        Player player = mc.player;
+        if (player == null || mc.level == null) return;
+
+        List<Integer> unitIds = gatherOwnedUnits(mc, player);
+        if (unitIds.isEmpty()) {
+            hint(player, "message.tacz_sewv.board.no_units");
+            return;
+        }
+
+        NetworkHandler.CHANNEL.sendToServer(new PacketVehicleFormation(unitIds, shape, axisInt, rowSize));
     }
 
     // This player's units within the configured radius; the server re-checks

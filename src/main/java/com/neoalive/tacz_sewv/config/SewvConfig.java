@@ -33,6 +33,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_POOL;
+    public static final ForgeConfigSpec.BooleanValue CREATIVE_AMMO_FALLBACK;
 
     // Crew AI behavior
     public static final ForgeConfigSpec.IntValue AI_FIRE_COOLDOWN_TICKS;
@@ -206,6 +207,13 @@ public class SewvConfig {
                          "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
                          "Addon ids work too (e.g. \"fcp:littlebird\", \"mcsp:m1a2\", \"superbwarfare:ah_6\").")
                 .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:ah_6"), SewvConfig::isValidResourceId);
+
+        CREATIVE_AMMO_FALLBACK = builder
+                .comment("A spawned vehicle is stocked with the real, finite, lootable ammunition its guns use.",
+                         "This only decides the fallback when that ammo can't be determined (an energy- or",
+                         "infinite-ammo hull, or unreadable modded gun data): ON gives it a bottomless creative",
+                         "ammo box so it can still fire; turn OFF for a strict survival world (empty container).")
+                .define("creativeAmmoFallback", true);
 
         builder.pop();
 

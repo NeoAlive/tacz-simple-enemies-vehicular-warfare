@@ -4,6 +4,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import com.neoalive.tacz_sewv.util.SmokeVision;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
@@ -100,6 +101,13 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         Vec3 from = self.getShootPos(living, 1f);            // muzzle
         Vec3 to = target.getBoundingBox().getCenter();       // target center
 
+        // Hold fire if a friendly hull is in the way — prevents the crew shelling
+        // an ally that has driven between it and its target (living is always an
+        // AbstractUnit here; the caller gated on it).
+        if (living instanceof AbstractUnit unit
+                && VehicleTargeting.alliedVehicleInLineOfFire(unit, self, from, to)) {
+            return true;
+        }
         if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
                 && tacz_sewv$terrainBlocksLine(self, from, target, to)) {
             return true;

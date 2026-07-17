@@ -35,7 +35,7 @@
   "gui.tacz_sewv.tdt.board": "Board Vehicle",
   "gui.tacz_sewv.tdt.dismount": "Dismount",
   "gui.tacz_sewv.tdt.patrol": "Patrol",
-  "gui.tacz_sewv.tdt.takeoff": "Takeoff",
+  "gui.tacz_sewv.tdt.takeoff": "Takeoff/Refresh Altitude",
   "gui.tacz_sewv.tdt.land": "Land",
   "gui.tacz_sewv.tdt.wedge": "Wedge",
   "gui.tacz_sewv.tdt.column": "Column",

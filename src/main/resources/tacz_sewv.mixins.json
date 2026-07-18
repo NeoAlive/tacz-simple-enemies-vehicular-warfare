@@ -26,7 +26,8 @@
     "client.MixinClientGlowRenderHandler",
     "client.MixinPmcUnitRenderer",
     "client.MixinRUunitRenderer",
-    "client.MixinUSunitRenderer"
+    "client.MixinUSunitRenderer",
+    "client.MixinUniversalArmorLayer"
   ],
   "server": [],
   "injectors": {

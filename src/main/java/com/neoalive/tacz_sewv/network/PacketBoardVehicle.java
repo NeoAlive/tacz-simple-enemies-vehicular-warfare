@@ -19,10 +19,12 @@ public class PacketBoardVehicle {
 
     private final List<Integer> unitIds;
     private final int vehicleId;
+    private final boolean passengerOnly; // fill non-driver seats only — see IVehicleBoarder
 
-    public PacketBoardVehicle(List<Integer> unitIds, int vehicleId) {
+    public PacketBoardVehicle(List<Integer> unitIds, int vehicleId, boolean passengerOnly) {
         this.unitIds = unitIds;
         this.vehicleId = vehicleId;
+        this.passengerOnly = passengerOnly;
     }
 
     public PacketBoardVehicle(FriendlyByteBuf buf) {
@@ -30,12 +32,14 @@ public class PacketBoardVehicle {
         this.unitIds = new ArrayList<>();
         for (int i = 0; i < size; i++) this.unitIds.add(buf.readVarInt());
         this.vehicleId = buf.readVarInt();
+        this.passengerOnly = buf.readBoolean();
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeVarInt(this.unitIds.size());
         for (int id : this.unitIds) buf.writeVarInt(id);
         buf.writeVarInt(this.vehicleId);
+        buf.writeBoolean(this.passengerOnly);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -56,6 +60,7 @@ public class PacketBoardVehicle {
 
                 IVehicleBoarder boarder = (IVehicleBoarder) pmc;
                 boarder.tacz_sewv$setMountTargetId(this.vehicleId);
+                boarder.tacz_sewv$setPassengerOnly(this.passengerOnly);
                 boarder.tacz_sewv$setBoarding(true);
                 ordered++;
             }

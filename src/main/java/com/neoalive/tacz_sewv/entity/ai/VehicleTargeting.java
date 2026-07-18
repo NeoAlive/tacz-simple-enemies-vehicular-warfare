@@ -15,9 +15,11 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /**
  * Shared "where should this crew go?" resolution for any mounted-vehicle drive
@@ -53,11 +55,18 @@ public final class VehicleTargeting {
             return assist != null ? assist.assistTargetPos(unit, vehicle) : null;
         }
 
-        // A patrol is a standing TDT order that outranks the SEM order queue: while it is set the
-        // hull wanders its area. Combat still preempts it — the drive goal fights its live target
-        // and only falls back to this destination when there is none — and dismount clears it.
-        BlockPos patrol = PatrolSupport.currentWaypoint(pmc);
-        if (patrol != null) return patrol;
+        // An area task (patrol / search & destroy) is a standing TDT order that outranks the SEM
+        // order queue: while it is set the hull works its area. Combat still preempts it — the drive
+        // goal fights its live target and only falls back to this destination when there is none —
+        // and dismount, a formation order, or a finished sweep all clear it.
+        BlockPos areaTask = PatrolSupport.currentWaypoint(pmc, vehicle);
+        if (areaTask != null) {
+            // Backing up an ally already in contact beats carrying on with our own leg of the area,
+            // so it takes precedence over the waypoint. The conditions differ per task — see
+            // PatrolSupport.assistPos.
+            BlockPos aid = PatrolSupport.assistPos(pmc, vehicle, assist);
+            return aid != null ? aid : areaTask;
+        }
 
         OrderType order = pmc.getOrder();
 
@@ -207,12 +216,42 @@ public final class VehicleTargeting {
     public static final class AllyAssist {
         private VehicleEntity assistAlly;
         private long lastAssistScanTime = Long.MIN_VALUE;
+        private long lastEngagementTime = Long.MIN_VALUE;
 
         // Drive-to point for reinforcing an ally, or null when there is nothing to
         // reinforce (or we're already inside the ally's ring — arrival, not failure).
         BlockPos assistTargetPos(AbstractUnit unit, VehicleEntity vehicle) {
-            VehicleEntity ally = findAllyInCombat(unit, vehicle);
+            return assistTargetPos(unit, vehicle, null, 0, 0.0);
+        }
+
+        /**
+         * Same, but restricted to allies passing {@code allyFilter} (null = any), optionally
+         * rate-limited, and optionally scanning out to {@code rangeOverride} instead of the
+         * configured assist range ({@code <= 0} keeps the configured one).
+         *
+         * <p>The rate limit: peeling off onto a DIFFERENT ally counts as a fresh engagement and is
+         * refused until {@code newEngagementCooldown} ticks have passed since the last one. Staying
+         * with the ally we are already supporting is always free, so the throttle bounds how often a
+         * hull can be pulled off its own task — not how long it may help once it has committed.
+         */
+        BlockPos assistTargetPos(AbstractUnit unit, VehicleEntity vehicle,
+                                 @Nullable Predicate<VehicleEntity> allyFilter,
+                                 int newEngagementCooldown, double rangeOverride) {
+            VehicleEntity previous = this.assistAlly;
+            VehicleEntity ally = findAllyInCombat(unit, vehicle, allyFilter, rangeOverride);
             if (ally == null) return null;
+
+            if (newEngagementCooldown > 0 && ally != previous) {
+                long now = unit.level().getGameTime();
+                // Long.MIN_VALUE must be tested explicitly — now - MIN_VALUE overflows negative and
+                // would read as "too soon" forever, same trap as the scan throttle below.
+                if (this.lastEngagementTime != Long.MIN_VALUE
+                        && now - this.lastEngagementTime < newEngagementCooldown) {
+                    this.assistAlly = previous; // declined — don't let the scan latch the new ally
+                    return null;
+                }
+                this.lastEngagementTime = now;
+            }
 
             double dx = ally.getX() - vehicle.getX();
             double dz = ally.getZ() - vehicle.getZ();
@@ -223,9 +262,13 @@ public final class VehicleTargeting {
         }
 
         // Nearest allied crewed vehicle in combat within the configured assist range.
-        private VehicleEntity findAllyInCombat(AbstractUnit unit, VehicleEntity vehicle) {
-            double range = SewvConfig.VEHICLE_ALLY_ASSIST_RANGE.get();
-            if (range <= 0.0) return null; // mutual support disabled
+        private VehicleEntity findAllyInCombat(AbstractUnit unit, VehicleEntity vehicle,
+                                               @Nullable Predicate<VehicleEntity> allyFilter,
+                                               double rangeOverride) {
+            // The config value stays the master switch even when a caller supplies its own reach —
+            // setting it to 0 means "no mutual support", not "no mutual support except on orders".
+            if (SewvConfig.VEHICLE_ALLY_ASSIST_RANGE.get() <= 0.0) return null;
+            double range = rangeOverride > 0.0 ? rangeOverride : SewvConfig.VEHICLE_ALLY_ASSIST_RANGE.get();
 
             // The sentinel must be tested explicitly: now - Long.MIN_VALUE overflows
             // negative, which would make the throttle permanently "too soon" and the
@@ -233,7 +276,7 @@ public final class VehicleTargeting {
             long now = unit.level().getGameTime();
             if (this.lastAssistScanTime != Long.MIN_VALUE
                     && now - this.lastAssistScanTime < SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get()) {
-                return validateAssistAlly(unit, vehicle, range);
+                return validateAssistAlly(unit, vehicle, range, allyFilter);
             }
             this.lastAssistScanTime = now;
 
@@ -249,6 +292,7 @@ public final class VehicleTargeting {
             for (VehicleEntity ally : unit.level().getEntitiesOfClass(VehicleEntity.class, bounds,
                     v -> v != vehicle && !v.isWreck())) {
                 if (!isAlliedCrewInCombat(unit, ally)) continue;
+                if (allyFilter != null && !allyFilter.test(ally)) continue;
                 double dx = ally.getX() - vehicle.getX();
                 double dz = ally.getZ() - vehicle.getZ();
                 double distSq = dx * dx + dz * dz;
@@ -262,10 +306,12 @@ public final class VehicleTargeting {
         }
 
         // Between scans: keep the cached ally only while it still needs the help.
-        private VehicleEntity validateAssistAlly(AbstractUnit unit, VehicleEntity vehicle, double range) {
+        private VehicleEntity validateAssistAlly(AbstractUnit unit, VehicleEntity vehicle, double range,
+                                                 @Nullable Predicate<VehicleEntity> allyFilter) {
             VehicleEntity ally = this.assistAlly;
             if (ally == null) return null;
             if (ally.isRemoved() || ally.isWreck() || !isAlliedCrewInCombat(unit, ally)
+                    || (allyFilter != null && !allyFilter.test(ally)) // e.g. repaired past the patrol threshold
                     || vehicle.distanceToSqr(ally) > range * range * 2.25) { // >1.5x range — chase abandoned
                 this.assistAlly = null;
                 return null;

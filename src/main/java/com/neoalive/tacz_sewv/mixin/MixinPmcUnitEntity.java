@@ -38,6 +38,9 @@ public abstract class MixinPmcUnitEntity
     private boolean tacz_sewv$boarding = false;
 
     @Unique
+    private boolean tacz_sewv$passengerOnly = false;
+
+    @Unique
     private int tacz_sewv$mortarTargetId = IMortarCrew.NO_MORTAR;
 
     @Override
@@ -58,6 +61,16 @@ public abstract class MixinPmcUnitEntity
     @Override
     public boolean tacz_sewv$isBoarding() {
         return this.tacz_sewv$boarding;
+    }
+
+    @Override
+    public void tacz_sewv$setPassengerOnly(boolean passengerOnly) {
+        this.tacz_sewv$passengerOnly = passengerOnly;
+    }
+
+    @Override
+    public boolean tacz_sewv$isPassengerOnly() {
+        return this.tacz_sewv$passengerOnly;
     }
 
     @Override

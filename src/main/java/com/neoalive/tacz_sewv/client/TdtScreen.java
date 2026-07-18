@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.client;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.FormationShape;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
@@ -11,6 +12,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -41,6 +43,9 @@ public class TdtScreen extends Screen {
     private static final int COL_GAP = 16;
     private static final int BTN_H = 20;
     private static final int BTN_GAP = 4;
+    private static final int ROW_H = BTN_H + BTN_GAP;
+    // Extra breathing room between an area-task control group and whatever follows it.
+    private static final int GROUP_GAP = 8;
     private static final int STEP_BTN_W = 22; // the +/- buttons flanking a stepper's readout
 
     private static final int RADIUS_STEP = 16;
@@ -57,6 +62,7 @@ public class TdtScreen extends Screen {
     private final int formationAxis;  // the cardinal the player faced at open (IFormationMember id)
 
     private int patrolRadius = DEFAULT_RADIUS;
+    private int searchRadius = DEFAULT_RADIUS;
     private int heliAltitude = com.neoalive.tacz_sewv.bridge.IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
     private int lineRowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
 
@@ -101,23 +107,50 @@ public class TdtScreen extends Screen {
         this.leftX = (this.width - totalW) / 2;
         this.midX = this.leftX + COL_W + COL_GAP;
         this.rightX = this.midX + COL_W + COL_GAP;
-        this.headerY = this.height / 2 - 80;
+        this.headerY = this.height / 2 - 105;
         int btnY = this.headerY + 14;
 
-        // Ground column: board / dismount / patrol, then the patrol-radius stepper.
-        addColumnButton(this.leftX, btnY, "gui.tacz_sewv.tdt.board",
-                () -> BoardKeybind.orderBoard(this.boardTarget));
-        addColumnButton(this.leftX, rowY(btnY, 1), "gui.tacz_sewv.tdt.dismount",
-                BoardKeybind::orderDismount);
-        addColumnButton(this.leftX, rowY(btnY, 2), "gui.tacz_sewv.tdt.patrol", this::orderPatrol);
-        addStepper(this.leftX, rowY(btnY, 3), () -> this.patrolRadius, v -> this.patrolRadius = v,
-                RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, "m", PacketPatrolVehicle.MIN_RADIUS);
+        // Ground column. Walked with a cursor rather than fixed row indices: each area task is a
+        // button plus its own stepper, and GROUP_GAP sets those pairs apart so they read as one
+        // control each instead of a uniform stack.
+        int y = btnY;
+        addColumnButton(this.leftX, y, "gui.tacz_sewv.tdt.board",
+                () -> BoardKeybind.orderBoard(this.boardTarget, false));
+        y += ROW_H;
+        addColumnButton(this.leftX, y, "gui.tacz_sewv.tdt.board_passenger",
+                () -> BoardKeybind.orderBoard(this.boardTarget, true), "gui.tacz_sewv.tdt.board_passenger.tip");
+        y += ROW_H;
+        addColumnButton(this.leftX, y, "gui.tacz_sewv.tdt.dismount", BoardKeybind::orderDismount);
+        y += ROW_H + GROUP_GAP;
+
+        addButton(this.leftX, y, "gui.tacz_sewv.tdt.patrol",
+                () -> orderAreaTask(this.patrolRadius, IVehiclePatrol.MODE_PATROL), "gui.tacz_sewv.tdt.patrol.tip");
+        y += ROW_H;
+        addStepper(this.leftX, y, () -> this.patrolRadius, v -> this.patrolRadius = v,
+                RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, "m", PacketPatrolVehicle.MIN_RADIUS,
+                "gui.tacz_sewv.tdt.patrol.tip");
+        y += ROW_H + GROUP_GAP;
+
+        addButton(this.leftX, y, "gui.tacz_sewv.tdt.search",
+                () -> orderAreaTask(this.searchRadius, IVehiclePatrol.MODE_SEARCH), "gui.tacz_sewv.tdt.search.tip");
+        y += ROW_H;
+        addStepper(this.leftX, y, () -> this.searchRadius, v -> this.searchRadius = v,
+                RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, "m", PacketPatrolVehicle.MIN_RADIUS,
+                "gui.tacz_sewv.tdt.search.tip");
+        y += ROW_H + GROUP_GAP;
+
+        // Stands crews down off either area task, back onto their normal AI — without emptying
+        // seats the way Dismount does.
+        addColumnButton(this.leftX, y, "gui.tacz_sewv.tdt.dismiss",
+                () -> BoardKeybind.orderAreaTask(0, PacketPatrolVehicle.MODE_DISMISS),
+                "gui.tacz_sewv.tdt.dismiss.tip");
 
         // Air column: takeoff, its live cruise-altitude stepper, then land.
         addColumnButton(this.midX, btnY, "gui.tacz_sewv.tdt.takeoff",
                 () -> HelicopterKeybind.orderTakeoff(this.heliAltitude));
         addStepper(this.midX, rowY(btnY, 1), () -> this.heliAltitude, v -> this.heliAltitude = v,
-                PacketHelicopterCommand.MIN_ALTITUDE, PacketHelicopterCommand.MAX_ALTITUDE, ALT_STEP, "m", 0);
+                PacketHelicopterCommand.MIN_ALTITUDE, PacketHelicopterCommand.MAX_ALTITUDE, ALT_STEP, "m", 0,
+                "gui.tacz_sewv.tdt.altitude.tip");
         addColumnButton(this.midX, rowY(btnY, 2), "gui.tacz_sewv.tdt.land",
                 () -> HelicopterKeybind.orderLand(this.landPad));
 
@@ -126,20 +159,37 @@ public class TdtScreen extends Screen {
         addFormationButton(this.rightX, rowY(btnY, 1), "gui.tacz_sewv.tdt.column", FormationShape.COLUMN);
         addFormationButton(this.rightX, rowY(btnY, 2), "gui.tacz_sewv.tdt.line", FormationShape.LINE);
         addStepper(this.rightX, rowY(btnY, 3), () -> this.lineRowSize, v -> this.lineRowSize = v,
-                PacketVehicleFormation.MIN_ROW_SIZE, PacketVehicleFormation.MAX_ROW_SIZE, 1, "/row", 0);
+                PacketVehicleFormation.MIN_ROW_SIZE, PacketVehicleFormation.MAX_ROW_SIZE, 1, "/row", 0,
+                "gui.tacz_sewv.tdt.line.tip");
         addFormationButton(this.rightX, rowY(btnY, 4), "gui.tacz_sewv.tdt.echelon_left", FormationShape.ECHELON_LEFT);
         addFormationButton(this.rightX, rowY(btnY, 5), "gui.tacz_sewv.tdt.echelon_right", FormationShape.ECHELON_RIGHT);
     }
 
     private static int rowY(int firstRowY, int row) {
-        return firstRowY + row * (BTN_H + BTN_GAP);
+        return firstRowY + row * ROW_H;
     }
 
     private void addColumnButton(int x, int y, String key, Runnable order) {
-        addRenderableWidget(Button.builder(Component.translatable(key), b -> {
+        addColumnButton(x, y, key, order, null);
+    }
+
+    private void addColumnButton(int x, int y, String key, Runnable order, @Nullable String tooltipKey) {
+        addButton(x, y, key, () -> {
             order.run();
             onClose();
-        }).bounds(x, y, COL_W, BTN_H).build());
+        }, tooltipKey);
+    }
+
+    /**
+     * Fires the handler and nothing else — the handler decides whether to close. The area tasks
+     * need this: they reject a radius under the floor and must leave the terminal up so the player
+     * can correct it, which {@link #addColumnButton} would undo by closing regardless.
+     */
+    private void addButton(int x, int y, String key, Runnable onPress, @Nullable String tooltipKey) {
+        Button.Builder builder = Button.builder(Component.translatable(key), b -> onPress.run())
+                .bounds(x, y, COL_W, BTN_H);
+        if (tooltipKey != null) builder.tooltip(Tooltip.create(Component.translatable(tooltipKey)));
+        addRenderableWidget(builder.build());
     }
 
     private void addFormationButton(int x, int y, String key, FormationShape shape) {
@@ -147,20 +197,22 @@ public class TdtScreen extends Screen {
     }
 
     // [+][value][-] : + raises, - lowers, both clamped; the value is drawn between them in render().
+    // The tooltip goes on both buttons, since the readout between them is drawn text, not a widget.
     private void addStepper(int x, int y, IntSupplier get, IntConsumer set,
-                            int min, int max, int step, String suffix, int redBelow) {
+                            int min, int max, int step, String suffix, int redBelow, String tooltipKey) {
+        Tooltip tip = Tooltip.create(Component.translatable(tooltipKey));
         addRenderableWidget(Button.builder(Component.literal("+"),
                 b -> set.accept(Math.min(max, get.getAsInt() + step)))
-                .bounds(x, y, STEP_BTN_W, BTN_H).build());
+                .tooltip(tip).bounds(x, y, STEP_BTN_W, BTN_H).build());
         addRenderableWidget(Button.builder(Component.literal("-"),
                 b -> set.accept(Math.max(min, get.getAsInt() - step)))
-                .bounds(x + COL_W - STEP_BTN_W, y, STEP_BTN_W, BTN_H).build());
+                .tooltip(tip).bounds(x + COL_W - STEP_BTN_W, y, STEP_BTN_W, BTN_H).build());
         this.readouts.add(new StepperReadout(x + COL_W / 2, y, get, suffix, redBelow));
     }
 
-    // Patrol keeps the terminal open on a rejected radius so the player can correct it.
-    private void orderPatrol() {
-        if (this.patrolRadius < PacketPatrolVehicle.MIN_RADIUS) {
+    // Both area tasks keep the terminal open on a rejected radius so the player can correct it.
+    private void orderAreaTask(int radius, int mode) {
+        if (radius < PacketPatrolVehicle.MIN_RADIUS) {
             if (this.minecraft != null && this.minecraft.player != null) {
                 this.minecraft.player.displayClientMessage(
                         Component.translatable("message.tacz_sewv.patrol.min_radius", PacketPatrolVehicle.MIN_RADIUS)
@@ -168,7 +220,7 @@ public class TdtScreen extends Screen {
             }
             return;
         }
-        BoardKeybind.orderPatrol(this.patrolRadius);
+        BoardKeybind.orderAreaTask(radius, mode);
         onClose();
     }
 

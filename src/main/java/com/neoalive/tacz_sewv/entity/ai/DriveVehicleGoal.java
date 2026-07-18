@@ -281,7 +281,7 @@ public class DriveVehicleGoal extends Goal {
         boolean isVehicleTarget = category == TargetCategory.VEHICLE;
         boolean tooFar = dist > (isVehicleTarget ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR);
 
-        selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), category, tooFar);
+        selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
         fireAssistIfSpecial(target);
 
         if (isLowHealth()) {
@@ -637,18 +637,19 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
-     * Ground doctrine (classification, cannon/special alternation vs armor, MG range split vs
-     * infantry) lives in {@link VehicleWeapons}; only the switch cooldown lives here. The
-     * flight goal uses its own random-cycle doctrine instead.
+     * Ground doctrine (slot roles, cannon/special alternation, and the AP/HE/grapeshot pick
+     * for the target) lives in {@link VehicleWeapons}; only the switch cooldown lives here —
+     * and it matters more than it looks, because the ammo switch resets the gun's reload
+     * timers. The flight goal uses its own random-cycle doctrine instead.
      *
      * <p>The chosen role is cached rather than re-derived: it stays valid between selections
      * (nothing else writes the weapon index for this seat), and re-deriving would mean
      * re-running the whole slot classification every tick just to learn what selection already
      * knew.
      */
-    private void selectWeaponForTarget(int seatIndex, TargetCategory category, boolean tooFar) {
+    private void selectWeaponForTarget(int seatIndex, LivingEntity target) {
         if (seatIndex < 0 || this.weaponSwitchCooldown > 0) return;
-        this.selectedRole = VehicleWeapons.selectWeaponForTarget(this.vehicle, seatIndex, category, tooFar);
+        this.selectedRole = VehicleWeapons.selectWeaponForTarget(this.vehicle, seatIndex, target);
         this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
     }
 

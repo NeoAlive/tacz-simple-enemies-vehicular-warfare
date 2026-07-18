@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.config;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.ForgeConfigSpec;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class SewvConfig {
@@ -48,6 +49,8 @@ public class SewvConfig {
     public static final ForgeConfigSpec.IntValue WEAPON_SWITCH_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.DoubleValue AI_FIRE_ASSIST_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
+    public static final ForgeConfigSpec.ConfigValue<String> AI_AIM_ACCURACY;
+    public static final ForgeConfigSpec.DoubleValue AI_AIM_SPREAD_DEG;
 
     // Vehicle formations (player-designated wedge/column on a fixed cardinal)
     public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
@@ -279,6 +282,31 @@ public class SewvConfig {
                 .comment("How close (in blocks) a smoke decoy must be to an AI crew's line of fire to block the shot.",
                          "Larger = smoke screens are wider and more protective.")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
+
+        AI_AIM_ACCURACY = builder
+                .comment("How accurately an AI vehicle crew lays its guns. SuperbWarfare's auto-aim solves a",
+                         "perfect ballistic firing solution with perfect target lead, so an untreated AI crew",
+                         "never misses at any range.",
+                         "  realistic - every crew disperses by aiAimSpreadDegrees, however many of them there are.",
+                         "  scaled    - dispersion is divided by the number of occupied seats, so a full crew",
+                         "              shoots better than a lone survivor (spotter + loader + gunner).",
+                         "  accurate  - no dispersion at all; the pre-1.x behaviour.",
+                         "Only affects units crewing a vehicle. Mortar crews stand beside their tube rather than",
+                         "riding it and are unaffected, as are players.")
+                // Arrays.asList, NOT List.of: when the key is absent from an existing config file
+                // Forge's correct() pass tests the acceptable-values list against null, and
+                // List.of().contains(null) throws NPE — which aborts server start with a config
+                // stack trace that names no mod. Arrays.asList answers false and lets the default apply.
+                .defineInList("aiAimAccuracy", "realistic", Arrays.asList("realistic", "scaled", "accurate"));
+
+        AI_AIM_SPREAD_DEG = builder
+                .comment("Dispersion cone, in degrees, added to an AI crew's shots (see aiAimAccuracy).",
+                         "This is ANGULAR, so the miss distance grows with range on its own: 1 degree is roughly",
+                         "0.35 blocks at 20 blocks and 1.75 blocks at 100. Values are a triangular distribution",
+                         "about the true line, so most shots land far nearer than the full cone.",
+                         "For scale, SuperbWarfare's own built-in spreads are 0.02 for a tank cannon, 0.5 for a",
+                         "coaxial MG and 5.0 for grapeshot. Ignored when aiAimAccuracy is 'accurate'.")
+                .defineInRange("aiAimSpreadDegrees", 1.0, 0.0, 30.0);
 
         VEHICLE_FORMATION_SPACING = builder
                 .comment("Distance (in blocks) between successive slots in a vehicle wedge or column.",

@@ -12,7 +12,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -32,15 +31,12 @@ public class PacketManMortar {
     }
 
     public PacketManMortar(FriendlyByteBuf buf) {
-        int size = buf.readVarInt();
-        this.unitIds = new ArrayList<>();
-        for (int i = 0; i < size; i++) this.unitIds.add(buf.readVarInt());
+        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
         this.mortarId = buf.readVarInt();
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeVarInt(this.unitIds.size());
-        for (int id : this.unitIds) buf.writeVarInt(id);
+        buf.writeCollection(this.unitIds, FriendlyByteBuf::writeVarInt);
         buf.writeVarInt(this.mortarId);
     }
 

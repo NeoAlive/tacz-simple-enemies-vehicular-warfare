@@ -8,7 +8,6 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -80,7 +79,7 @@ public class CrewTargetPriorityGoal extends Goal {
 
         Doctrine doctrine = doctrine();
         if (doctrine == null) return false;
-        if (!ordersAllowAutoTargets()) return false;
+        if (!VehicleTargeting.ordersAllowAutoTargets(this.unit)) return false;
 
         // Already on the right kind of target — nothing to improve, so don't hold TARGET
         // (and don't pay for a scan) just to re-pick what the crew is already shooting.
@@ -107,7 +106,7 @@ public class CrewTargetPriorityGoal extends Goal {
     public boolean canContinueToUse() {
         Doctrine doctrine = doctrine();
         if (doctrine == null) return false;
-        if (!ordersAllowAutoTargets()) return false;
+        if (!VehicleTargeting.ordersAllowAutoTargets(this.unit)) return false;
 
         LivingEntity target = this.unit.getTarget();
         if (target == null || !target.isAlive()) return false;
@@ -195,14 +194,4 @@ public class CrewTargetPriorityGoal extends Goal {
                 : this.unit.getAttributeValue(Attributes.FOLLOW_RANGE);
     }
 
-    /**
-     * PMC crews obey the SEM order queue: CEASE_FIRE must not pick fights, and
-     * ATTACK_THAT_TARGET leaves targeting to SEM's specific-target goal — which is the
-     * radio, and outranks this. RU/US crews have no orders and always fight.
-     */
-    private boolean ordersAllowAutoTargets() {
-        if (!(this.unit instanceof PmcUnitEntity pmc)) return true;
-        OrderType order = pmc.getOrder();
-        return order != OrderType.CEASE_FIRE && order != OrderType.ATTACK_THAT_TARGET;
-    }
 }

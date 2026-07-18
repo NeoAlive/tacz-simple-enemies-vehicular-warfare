@@ -1,11 +1,27 @@
 package com.neoalive.tacz_sewv.network;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public class NetworkHandler {
+
+    /**
+     * Action-bar result of an order: {@code base + ".none"/".single"/".multiple"} by count —
+     * GRAY when nothing took the order, {@code color} otherwise. Every caller passes the count
+     * of units the SERVER actually accepted, never the client's optimistic guess.
+     */
+    public static void orderFeedback(Player player, String base, int count, ChatFormatting color, Object... args) {
+        if (!SewvConfig.SHOW_ORDER_FEEDBACK.get()) return;
+        String key = base + (count == 0 ? ".none" : count == 1 ? ".single" : ".multiple");
+        player.displayClientMessage(Component.translatable(key, args)
+                .withStyle(count == 0 ? ChatFormatting.GRAY : color), true);
+    }
 
     // Bumped when the wire format changes (2: list sizes/ids became VarInts; 3: added the mortar
     // order; 4: added the vehicle formation order; 5: added the patrol order; 6: formation carries

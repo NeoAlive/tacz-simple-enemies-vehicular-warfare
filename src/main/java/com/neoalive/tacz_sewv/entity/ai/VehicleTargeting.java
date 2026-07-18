@@ -338,6 +338,19 @@ public final class VehicleTargeting {
         return target instanceof AbstractUnit other && isSameFaction(unit, other);
     }
 
+    /**
+     * Whether a crew may pick its own fights. PMC crews obey the SEM order queue: CEASE_FIRE
+     * must not pick any, and ATTACK_THAT_TARGET leaves targeting to SEM's specific-target
+     * goal (the radio, which outranks every scan). RU/US crews have no orders — they always
+     * fight. Shared by {@link VehicleTargetScanGoal} and {@link CrewTargetPriorityGoal},
+     * which must never disagree on it.
+     */
+    static boolean ordersAllowAutoTargets(AbstractUnit unit) {
+        if (!(unit instanceof PmcUnitEntity pmc)) return true;
+        OrderType order = pmc.getOrder();
+        return order != OrderType.CEASE_FIRE && order != OrderType.ATTACK_THAT_TARGET;
+    }
+
     // Safety margin (blocks) added around a friendly hull's hitbox when testing
     // whether a shot would pass through it — covers near-grazes and shell blast.
     private static final double FRIENDLY_FIRE_MARGIN = 1.0;

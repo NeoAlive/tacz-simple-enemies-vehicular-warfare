@@ -6,6 +6,7 @@ import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.PathNavigationRegion;
@@ -16,6 +17,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -185,6 +187,17 @@ public class DriveVehicleGoal extends Goal {
 
         LivingEntity target = this.unit.getTarget();
 
+        // Runs off the same "the driver holds a target" signal fightTick does, and deliberately
+        // ABOVE the destination check below: standing the squad back up happens on quiet ticks,
+        // which are exactly the ticks that can have no destination at all.
+        // An IFV puts its squad on the ground against ARMOUR only — see dismountSquad. Deliberately
+        // NOT screened with smoke first: it would fire on every such contact, and the battlefield
+        // would end up permanently fogged.
+        if (target != null && this.hull.isIfv()
+                && VehicleWeapons.classifyTarget(target) == TargetCategory.VEHICLE) {
+            dismountSquad();
+        }
+
         // The decoy input is latched vehicle state: release it on every tick that is not part
         // of a smoking retreat (preserveRetreat re-asserts it right after when the episode
         // calls for smoke), otherwise one retreat would leave the launcher volleying a fresh
@@ -331,6 +344,44 @@ public class DriveVehicleGoal extends Goal {
         if (this.selectedRole != VehicleWeapons.WEAPON_SPECIAL) return;
         VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                 SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+    }
+
+    /**
+     * Puts everyone who isn't crew out of an IFV, so the squad fights on foot while the hull keeps
+     * working its gun. Who stays is {@link HullFacts#crewSeats} — the driver and the turret.
+     *
+     * <p>Only against a SuperbWarfare hull, which is what {@link TargetCategory#VEHICLE} means:
+     * <b>a VehicleEntity is not a LivingEntity and can never be a mob's target</b>, so the test
+     * that matters is whether the thing we are shooting at is RIDING one
+     * ({@link VehicleWeapons#classifyTarget}). Testing the target itself for {@code VehicleEntity}
+     * would be false forever and this would never fire. Against infantry the squad stays aboard —
+     * the hull's own cannon and MGs already cover that, and it is armour that makes a loaded
+     * troop compartment a liability worth emptying. Addon hulls (fcp/mcsp/…) subclass
+     * {@code VehicleEntity}, so they count too, which a check on the {@code superbwarfare}
+     * namespace would have missed.
+     *
+     * <p>Once out they stay out: they revert to ordinary SEM infantry and are simply picked up
+     * again by whatever puts a unit in a seat. There is no recall, deliberately — a walk-back
+     * state machine is a lot of moving parts for infantry that has already done its job.
+     *
+     * <p>Runs on every combat tick rather than once, which needs no "have I done this" flag: after
+     * the first pass the only passengers left are in crew seats, and that is exactly what the size
+     * check short-circuits on. It also means a unit that boards a rear seat mid-fight is put back
+     * out. Players are never ejected, whatever seat they took.
+     */
+    private void dismountSquad() {
+        Set<Integer> crew = this.hull.crewSeats();
+        // Each passenger holds a distinct seat, so "no more passengers than crew seats" is a
+        // sound way of saying the squad is already off.
+        if (this.vehicle.getPassengers().size() <= crew.size()) return;
+
+        // Copied because stopRiding() mutates the passenger list underneath us.
+        for (Entity passenger : List.copyOf(this.vehicle.getPassengers())) {
+            if (!(passenger instanceof AbstractUnit rider) || rider == this.unit) continue;
+            int seat = this.vehicle.getSeatIndex(rider);
+            if (seat < 0 || crew.contains(seat)) continue;
+            rider.stopRiding();
+        }
     }
 
     /** The ring the breaker orbits for this target type — mid-band against infantry. */
@@ -541,14 +592,22 @@ public class DriveVehicleGoal extends Goal {
         }
     }
 
+    private boolean isLowHealth() {
+        return isLowHealth(this.vehicle);
+    }
+
     /**
      * True once the hull is below the self-preservation health threshold. Vehicle health only
      * falls in combat (repairs happen out of contact), so this is monotonic — no flicker
      * around the threshold to guard against.
+     *
+     * <p>Shared rather than private because {@link PatrolSupport#assistPos} triggers a patrol's
+     * mutual support off the same notion of "badly hurt" that this goal retreats on. A second
+     * threshold of its own would be one more number to keep in step with this one.
      */
-    private boolean isLowHealth() {
-        float max = this.vehicle.getMaxHealth();
-        return max > 0.0F && this.vehicle.getHealth() < max * PRESERVE_HEALTH_FRACTION;
+    static boolean isLowHealth(VehicleEntity vehicle) {
+        float max = vehicle.getMaxHealth();
+        return max > 0.0F && vehicle.getHealth() < max * PRESERVE_HEALTH_FRACTION;
     }
 
     /**

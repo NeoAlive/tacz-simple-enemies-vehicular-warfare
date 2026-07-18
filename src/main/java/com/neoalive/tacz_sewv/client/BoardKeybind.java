@@ -27,9 +27,10 @@ public class BoardKeybind {
     /**
      * Order owned units to crew {@code target} — a vehicle to ride or a mortar to stand
      * beside. The TDT captures the aim when its screen opens and passes it here; a
-     * null/non-vehicle target hints to look at one.
+     * null/non-vehicle target hints to look at one. With {@code passengerOnly} the units fill
+     * non-driver seats only (ignored for a mortar, which has no seats at all).
      */
-    public static void orderBoard(@Nullable Entity target) {
+    public static void orderBoard(@Nullable Entity target, boolean passengerOnly) {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null || mc.level == null) return;
@@ -50,7 +51,7 @@ public class BoardKeybind {
         if (target instanceof MortarEntity mortar) {
             NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, mortar.getId()));
         } else if (target instanceof VehicleEntity vehicle) {
-            NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId()));
+            NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId(), passengerOnly));
         } else {
             hint(player, "message.tacz_sewv.board.no_vehicle");
         }
@@ -71,11 +72,12 @@ public class BoardKeybind {
     }
 
     /**
-     * Order owned crews to patrol a {@code radius}-block circle around the player. The server
+     * Order owned crews onto an area task over a {@code radius}-block circle around the player —
+     * an endless patrol or a one-time search sweep ({@code mode}, see IVehiclePatrol). The server
      * filters to ground-vehicle drivers and uses the player's own position as the origin; the TDT
      * has already checked the radius floor before calling this.
      */
-    public static void orderPatrol(int radius) {
+    public static void orderAreaTask(int radius, int mode) {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null || mc.level == null) return;
@@ -86,7 +88,7 @@ public class BoardKeybind {
             return;
         }
 
-        NetworkHandler.CHANNEL.sendToServer(new PacketPatrolVehicle(unitIds, radius));
+        NetworkHandler.CHANNEL.sendToServer(new PacketPatrolVehicle(unitIds, radius, mode));
     }
 
     /**

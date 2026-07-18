@@ -1,13 +1,17 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.atsuishio.superbwarfare.init.ModItems;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import top.theillusivec4.curios.api.CuriosApi;
+import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
@@ -54,6 +58,12 @@ public class BailOutVehicleGoal extends Goal {
     // down a ravine burns the whole timeout going nowhere.
     private static final int MAX_ESCAPE_ELEVATION = 8;
 
+    // Curios slot the parachute lives in — SuperbWarfare tags its item into curios:back.
+    private static final String PARACHUTE_SLOT = "back";
+    // Don't bother below this height off the deck: the fall is survivable, and SBW only arms the
+    // canopy after 4 blocks of falling, so there would be no room for it to bite anyway.
+    private static final int PARACHUTE_MIN_HEIGHT = 8;
+
     private static final double ARRIVE_DISTANCE_SQ = 4.0; // 2 blocks
     private static final double SCRAMBLE_SPEED = 1.3;     // running, not walking away
     // Goals tick every other game tick, so these constants are ~2x wall clock:
@@ -98,6 +108,7 @@ public class BailOutVehicleGoal extends Goal {
         this.escapePos = findEscapePos(vehicle);
         this.scrambleTicks = 0;
 
+        issueParachute();
         this.unit.stopRiding();
 
         if (this.unit instanceof PmcUnitEntity pmc) {
@@ -154,6 +165,46 @@ public class BailOutVehicleGoal extends Goal {
         if (!this.commandable) this.unit.getNavigation().stop();
         this.escapePos = null;
         this.scrambleTicks = 0;
+    }
+
+    /**
+     * Straps a parachute on before the unit steps out, when it is stepping out high enough to need
+     * one. Without it a crew bailing from a stricken helicopter simply falls to its death — the
+     * escape-point search below only looks at ground within {@link #MAX_ESCAPE_ELEVATION} of the
+     * hull, so at altitude it finds nothing and the goal ends the moment it has pushed them out.
+     *
+     * <p><b>Everything past putting the item in the slot is SuperbWarfare's, and all of it was
+     * already written for mobs.</b> {@code ParachuteItem.curioTick} has a whole non-Player branch
+     * that arms the canopy at {@code deltaMovement.y < -0.6 && fallDistance > 4}, then flies it
+     * (x0.75 vertical per tick, a nudge along the look vector), drains durability and calls
+     * {@code resetFallDistance()} every tick it is open — which is what actually cancels the fall
+     * damage. The canopy is drawn by a global {@code RenderLivingEvent.Post} hook in
+     * {@code ParachuteRenderer} that handles non-players explicitly, NOT by the Curios render layer
+     * (Curios only hangs that on the two player skins). And Curios attaches its inventory
+     * capability to every LivingEntity and ticks curios with no Player gate. So the one thing
+     * missing was a back slot with a parachute in it: SEM grants that slot to PMC units only, hence
+     * {@code data/tacz_sewv/curios/entities/unit_back_slots.json} adding it for RU and US.
+     *
+     * <p>Issued at the moment of bailing rather than worn from spawn deliberately. The canopy arms
+     * itself off nothing but fall distance, so a unit that wears one permanently pops it every time
+     * it walks off a ledge — and this way it covers every route into a seat (spawned crew, a
+     * structure's, a PMC the player ordered aboard) without any of them having to know about it.
+     */
+    private void issueParachute() {
+        Level level = this.unit.level();
+        BlockPos ground = level.getHeightmapPos(
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, this.unit.blockPosition());
+        if (this.unit.getY() - ground.getY() < PARACHUTE_MIN_HEIGHT) return;
+
+        CuriosApi.getCuriosInventory(this.unit).ifPresent(curios -> {
+            ICurioStacksHandler back = curios.getStacksHandler(PARACHUTE_SLOT).orElse(null);
+            if (back == null || back.getSlots() < 1) return;
+            // Never overwrite what is already on the unit's back: a PMC's curio slots are the
+            // player's to fill, and a chute already there (worn, or from an earlier bail-out) is
+            // the one SuperbWarfare will find anyway.
+            if (!back.getStacks().getStackInSlot(0).isEmpty()) return;
+            back.getStacks().setStackInSlot(0, new ItemStack(ModItems.PARACHUTE.get()));
+        });
     }
 
     private Vec3 escapeTarget() {

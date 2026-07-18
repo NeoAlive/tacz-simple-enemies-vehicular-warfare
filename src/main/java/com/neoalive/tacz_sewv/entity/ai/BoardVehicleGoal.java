@@ -101,12 +101,19 @@ public class BoardVehicleGoal extends Goal {
         boolean navStuck = this.unit.getNavigation().isDone() && distSq <= NAV_STUCK_DISTANCE_SQ;
 
         if (distSq <= MOUNT_DISTANCE * MOUNT_DISTANCE || navStuck) {
+            // Passenger-only order: never take the wheel. SBW's driver is just the FIRST
+            // passenger, so boarding an empty hull would make this unit the driver. Wait beside
+            // it until someone else is aboard; MAX_BOARDING_TICKS bounds the wait.
+            if (boarder().tacz_sewv$isPassengerOnly() && this.targetVehicle.getFirstPassenger() == null) {
+                return;
+            }
             // A refused mount (seat raced away, another mod cancelled it) keeps the order:
             // the full-vehicle check above and the timeout still bound the retries.
             if (this.unit.startRiding(this.targetVehicle)) {
                 // Clear the order so it doesn't loop, or re-board after a dismount.
                 boarder().tacz_sewv$setBoarding(false);
                 boarder().tacz_sewv$setMountTargetId(-1);
+                boarder().tacz_sewv$setPassengerOnly(false);
                 this.unit.getNavigation().stop();
             }
         } else if (this.unit.getNavigation().isDone() && this.boardingTicks % REPATH_INTERVAL == 0) {
@@ -127,6 +134,7 @@ public class BoardVehicleGoal extends Goal {
     private void cancelBoarding() {
         boarder().tacz_sewv$setBoarding(false);
         boarder().tacz_sewv$setMountTargetId(-1);
+        boarder().tacz_sewv$setPassengerOnly(false);
         this.targetVehicle = null;
     }
 

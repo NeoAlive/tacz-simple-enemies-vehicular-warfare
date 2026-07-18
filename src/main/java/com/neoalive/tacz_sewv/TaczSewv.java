@@ -8,10 +8,13 @@ import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.procedural.events.ConvoyEvent;
 import com.neoalive.tacz_sewv.procedural.events.MortarShellingEvent;
+import com.neoalive.tacz_sewv.util.NpcArmor;
 import com.mojang.logging.LogUtils;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
@@ -55,5 +58,15 @@ public class TaczSewv {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         SewvCommand.register(event.getDispatcher());
+    }
+
+    // Every unit reaches the world through here, whichever door it came in by, which is what makes
+    // this the one place that can armor all of them. See NpcArmor.
+    @SubscribeEvent
+    public void onEntityJoinLevel(EntityJoinLevelEvent event) {
+        if (event.getLevel().isClientSide) return;
+        if (event.getEntity() instanceof AbstractUnit unit) {
+            NpcArmor.issue(unit);
+        }
     }
 }

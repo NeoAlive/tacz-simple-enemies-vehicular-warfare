@@ -17,18 +17,37 @@ import net.minecraft.world.entity.Entity;
  */
 public interface IVehiclePatrol {
 
+    /** Endless wander of the area, re-rolling a waypoint on a timer. */
+    int MODE_PATROL = 0;
+    /** One-time sweep: each hull covers its own angular sector, then stands down. */
+    int MODE_SEARCH = 1;
+
     String TAG_ORIGIN = "tacz_sewv_patrol_origin";
     String TAG_RADIUS = "tacz_sewv_patrol_radius";
     String TAG_WAYPOINT = "tacz_sewv_patrol_waypoint";
     String TAG_NEXT_ROTATE = "tacz_sewv_patrol_next_rotate";
+    String TAG_MODE = "tacz_sewv_patrol_mode";
+    String TAG_SECTOR = "tacz_sewv_patrol_sector";
+    String TAG_SECTOR_COUNT = "tacz_sewv_patrol_sector_count";
+    String TAG_STEP = "tacz_sewv_patrol_step";
+    String TAG_STEP_DEADLINE = "tacz_sewv_patrol_step_deadline";
 
-    /** Begin (or re-origin) a patrol. Clears any current waypoint so the next resolve picks fresh. */
-    default void sewv$setPatrol(BlockPos origin, int radius) {
+    /**
+     * Begin (or replace) an area task. Clears the waypoint and sweep progress so the next resolve
+     * starts fresh. The two modes share one state slot because a hull can only be doing one of
+     * them — issuing either cancels the other by construction.
+     */
+    default void sewv$setAreaTask(BlockPos origin, int radius, int mode, int sector, int sectorCount) {
         CompoundTag tag = ((Entity) this).getPersistentData();
         tag.putLong(TAG_ORIGIN, origin.asLong());
         tag.putInt(TAG_RADIUS, radius);
+        tag.putInt(TAG_MODE, mode);
+        tag.putInt(TAG_SECTOR, sector);
+        tag.putInt(TAG_SECTOR_COUNT, sectorCount);
+        tag.putInt(TAG_STEP, 0);
         tag.remove(TAG_WAYPOINT);
         tag.remove(TAG_NEXT_ROTATE);
+        tag.remove(TAG_STEP_DEADLINE);
     }
 
     default void sewv$clearPatrol() {
@@ -37,6 +56,39 @@ public interface IVehiclePatrol {
         tag.remove(TAG_RADIUS);
         tag.remove(TAG_WAYPOINT);
         tag.remove(TAG_NEXT_ROTATE);
+        tag.remove(TAG_MODE);
+        tag.remove(TAG_SECTOR);
+        tag.remove(TAG_SECTOR_COUNT);
+        tag.remove(TAG_STEP);
+        tag.remove(TAG_STEP_DEADLINE);
+    }
+
+    default int sewv$getPatrolMode() {
+        return ((Entity) this).getPersistentData().getInt(TAG_MODE);
+    }
+
+    default int sewv$getPatrolSector() {
+        return ((Entity) this).getPersistentData().getInt(TAG_SECTOR);
+    }
+
+    default int sewv$getPatrolSectorCount() {
+        return ((Entity) this).getPersistentData().getInt(TAG_SECTOR_COUNT);
+    }
+
+    default int sewv$getPatrolStep() {
+        return ((Entity) this).getPersistentData().getInt(TAG_STEP);
+    }
+
+    default void sewv$setPatrolStep(int step) {
+        ((Entity) this).getPersistentData().putInt(TAG_STEP, step);
+    }
+
+    default long sewv$getPatrolStepDeadline() {
+        return ((Entity) this).getPersistentData().getLong(TAG_STEP_DEADLINE);
+    }
+
+    default void sewv$setPatrolStepDeadline(long gameTime) {
+        ((Entity) this).getPersistentData().putLong(TAG_STEP_DEADLINE, gameTime);
     }
 
     default boolean sewv$isPatrolling() {

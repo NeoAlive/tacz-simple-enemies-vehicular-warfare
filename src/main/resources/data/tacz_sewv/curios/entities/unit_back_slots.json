@@ -1,0 +1,9 @@
+{
+  "entities": [
+    "simpleenemymod:ruunit",
+    "simpleenemymod:usunit"
+  ],
+  "slots": [
+    "back"
+  ]
+}

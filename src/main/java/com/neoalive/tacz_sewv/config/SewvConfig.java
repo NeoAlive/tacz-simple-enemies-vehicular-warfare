@@ -36,6 +36,12 @@ public class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_POOL;
     public static final ForgeConfigSpec.BooleanValue CREATIVE_AMMO_FALLBACK;
 
+    // Armor issued to units on spawn (any unit, mounted or on foot)
+    public static final ForgeConfigSpec.BooleanValue NPC_ARMOR_ENABLED;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_ARMOR;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_ARMOR;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_ARMOR;
+
     // Structure-spawned vehicles (berezka_api soft-compat)
     public static final ForgeConfigSpec.BooleanValue STRUCTURE_VEHICLES_ENABLED;
     public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_MAX_COUNT;
@@ -51,6 +57,10 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
     public static final ForgeConfigSpec.ConfigValue<String> AI_AIM_ACCURACY;
     public static final ForgeConfigSpec.DoubleValue AI_AIM_SPREAD_DEG;
+
+    // IFVs (a hull that carries a dismount squad rather than just a crew)
+    public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> IFV_NAME_CLUES;
 
     // Vehicle formations (player-designated wedge/column on a fixed cardinal)
     public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
@@ -228,6 +238,46 @@ public class SewvConfig {
 
         builder.pop();
 
+        builder.push("npc_armor");
+
+        NPC_ARMOR_ENABLED = builder
+                .comment("Issue armor to SimpleEnemyMod units when they spawn. Applies to EVERY unit, crewing a",
+                         "vehicle or on foot, however it was spawned (events, structures, /sewv, a spawn egg).",
+                         "Armor is issued once per unit and only into slots that are still empty, so a unit you",
+                         "have re-equipped by hand keeps what you gave it.",
+                         "Turn off to leave units bare — the armor grants SuperbWarfare bullet resistance, so this",
+                         "is the toggle to reach for if infantry feel too tough.")
+                .define("npcArmorEnabled", true);
+
+        // Each entry is equipped into whatever slot its own item declares, so the lists extend to
+        // legs and boots by themselves if SuperbWarfare (or an addon) ever ships them.
+        //
+        // These want armor that brings its own model — all of SuperbWarfare's does. Plain
+        // texture armor (vanilla iron, most modded sets) equips and grants its protection, but
+        // SimpleEnemyMod only draws that on PMC units, so on an RU or US unit it will be
+        // invisible.
+        RU_ARMOR = builder
+                .comment("Armor item ids every RU unit spawns wearing.")
+                .defineList("ruArmor",
+                        List.of("superbwarfare:ru_helmet_6b47", "superbwarfare:ru_chest_6b43"),
+                        SewvConfig::isValidResourceId);
+
+        US_ARMOR = builder
+                .comment("Armor item ids every US unit spawns wearing.")
+                .defineList("usArmor",
+                        List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"),
+                        SewvConfig::isValidResourceId);
+
+        PMC_ARMOR = builder
+                .comment("Armor item ids every PMC unit spawns wearing. US kit by default — a PMC unit is the",
+                         "player's own, and its armor sits in slots 2-5 of the inventory you can open, so this is",
+                         "a starting loadout you can swap rather than a fixed uniform.")
+                .defineList("pmcArmor",
+                        List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"),
+                        SewvConfig::isValidResourceId);
+
+        builder.pop();
+
         builder.push("structure_vehicles");
 
         STRUCTURE_VEHICLES_ENABLED = builder
@@ -307,6 +357,36 @@ public class SewvConfig {
                          "For scale, SuperbWarfare's own built-in spreads are 0.02 for a tank cannon, 0.5 for a",
                          "coaxial MG and 5.0 for grapeshot. Ignored when aiAimAccuracy is 'accurate'.")
                 .defineInRange("aiAimSpreadDegrees", 1.0, 0.0, 30.0);
+
+        IFV_DISMOUNTS_ENABLED = builder
+                .comment("Let infantry fighting vehicles fight like IFVs instead of like small tanks: when the",
+                         "hull comes up against an ARMOURED target it drops its squad, who fight on foot from",
+                         "there while the vehicle keeps working its gun. Against infantry the squad stays aboard,",
+                         "since the hull's own cannon and MGs already cover that.",
+                         "The squad is NOT recalled afterwards -- once out they are ordinary infantry, and picking",
+                         "them back up is whatever you'd normally do to put a unit in a seat. No smoke is fired",
+                         "either: an IFV drops its squad on every contact, so screening each one would leave the",
+                         "whole map permanently fogged.",
+                         "Which hulls count is decided by ifvNameClues. Turn this off to have every hull keep its",
+                         "full crew buttoned up, which is the pre-1.x behaviour.")
+                .define("ifvDismountsEnabled", true);
+
+        IFV_NAME_CLUES = builder
+                .comment("Substrings that mark a vehicle id as an IFV. Matched case-insensitively against the",
+                         "whole registry id, so \"bmp\" catches superbwarfare:bmp_2, fcp:bmp1u and mcsp:bmp2_camo",
+                         "alike, and an addon's hull is picked up without naming it explicitly.",
+                         "Keep them SPECIFIC: a clue that also matches a tank id turns that tank into an IFV and",
+                         "its crew will climb out mid-battle. \"m1\" would catch m1a2 for exactly that reason.",
+                         "",
+                         "Who stays aboard is not configurable, because it cannot be read off the seat data",
+                         "reliably: the DRIVER (seat 0) and the TURRET (the seat carrying the most weapons) hold",
+                         "their positions and everyone else dismounts. Seats are not consistent enough for a",
+                         "finer rule -- superbwarfare:bmp_2 gives its six rear seats firing-port MGs, so an",
+                         "\"only weaponless seats dismount\" rule would empty nothing at all, while fcp's BMPs put",
+                         "a WEAPONLESS driver in seat 0 and the turret in seat 1.")
+                .defineList("ifvNameClues",
+                        List.of("bradley", "bmp", "bmd", "cv90", "puma", "marder"),
+                        o -> o instanceof String s && !s.isBlank());
 
         VEHICLE_FORMATION_SPACING = builder
                 .comment("Distance (in blocks) between successive slots in a vehicle wedge or column.",

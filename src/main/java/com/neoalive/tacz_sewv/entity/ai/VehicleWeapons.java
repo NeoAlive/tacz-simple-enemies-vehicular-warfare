@@ -68,6 +68,21 @@ public final class VehicleWeapons {
     // deliberately falls through to MONSTER — identical doctrine either way.)
     public enum TargetCategory { VEHICLE, MONSTER, FACTION_UNIT }
 
+    // Ammo doctrine thresholds, read against MAX health (the hull/mob's baseline, not its
+    // current damage state — doctrine picks a shell for what the thing IS, not how hurt it is).
+    private static final float ARMORED_HEALTH = 400.0F; // hull at/above this is a hard target
+    private static final float SOFT_HEALTH = 100.0F;    // mob below this is an MG target
+
+    // Cannon ammo preference lists, in order, matched as a SUFFIX of the AmmoConsumer's ammo
+    // item id (superbwarfare:large_shell_ap / small_shell_he / large_shell_gs — the naming is
+    // consistent across every stock hull, and the per-ammo Override blocks are NOT: the
+    // grapeshot entry sets no ShellType at all, and the small-shell hulls set none anywhere).
+    // Later entries are fallbacks for hulls that carry no such round — the howitzers
+    // (mk_42/plz_05/bl_132/mle_1934) stock AP/HE/CM/WP and have no grapeshot to load.
+    private static final String[] AMMO_ANTI_ARMOR = {"_ap", "_he"};
+    private static final String[] AMMO_ANTI_LIGHT = {"_he", "_ap"};
+    private static final String[] AMMO_ANTI_INFANTRY = {"_gs", "_he", "_ap"};
+
     private VehicleWeapons() {}
 
     /**
@@ -97,15 +112,22 @@ public final class VehicleWeapons {
 
     // Ground-crew doctrine. The seat's physical slots are first mapped to roles
     // (resolveRoleSlots), then the pick is made by role so weapon ORDER on the hull
-    // doesn't matter. Armored targets are engaged purely BY TARGET TYPE: the special
-    // slot (TOW / heavy AT ordnance) is selected exactly while it is READY TO FIRE —
-    // loaded, off reload, not overheated — and the cannon covers its 6-13 s reload
-    // gaps. That is the cannon/special alternation that actually works: a fixed-timer
-    // round-robin flipped the turret between the two firing solutions every few ticks
-    // (visible pitch twitch) while the missile was rarely both selected and loaded at
-    // a fire instant. Hulls without a special slot just stay on the cannon. Infantry
-    // keeps the range split: MG in close, cannon at range, and the special is never
-    // burned on soft targets.
+    // doesn't matter, and finally the cannon's ammo revolver is turned to the right
+    // shell for the target (selectCannonAmmo).
+    //
+    // The special slot (TOW / heavy AT ordnance) outranks everything and is selected
+    // exactly while it is READY TO FIRE — loaded, off reload, not overheated —
+    // whatever the target is; the cannon covers its 6-13 s reload gaps. That is the
+    // cannon/special alternation that actually works: a fixed-timer round-robin
+    // flipped the turret between the two firing solutions every few ticks (visible
+    // pitch twitch) while the missile was rarely both selected and loaded at a fire
+    // instant. Hulls without a special slot just stay on the cannon.
+    //
+    // Everything else is decided by what the target IS, on its BASELINE (max) health:
+    //   mounted crew    -> cannon, AP against a hull at/above ARMORED_HEALTH, HE below
+    //   mob under SOFT_HEALTH -> MG
+    //   anything else   -> cannon with grapeshot
+    // Range no longer enters into it — a cannon reaches as far as the crew can see.
     //
     // Every pick is bounded by the weapons the seat actually has — setWeaponIndex()
     // doesn't bounds-check, and an invalid index silently disarms the seat — and to
@@ -116,8 +138,7 @@ public final class VehicleWeapons {
     // and CANNOT re-derive it from getWeaponIndex(): that returns a PHYSICAL slot, and
     // the whole point of this class is that physical order carries no meaning. Handing
     // it back here is free — the role→slot map is already in hand.
-    public static int selectWeaponForTarget(VehicleEntity vehicle, int seatIndex,
-                                            TargetCategory category, boolean tooFar) {
+    public static int selectWeaponForTarget(VehicleEntity vehicle, int seatIndex, LivingEntity target) {
         if (seatIndex < 0) return UNCLASSIFIED;
         SeatInfo seat = vehicle.getSeat(seatIndex);
         int weaponCount = seat == null ? 0 : seat.weapons().size();
@@ -134,23 +155,27 @@ public final class VehicleWeapons {
         int fallback = firstRealWeapon(vehicle, seatIndex, weaponCount);
 
         int chosen;
-        if (category == TargetCategory.VEHICLE) {
-            if (special >= 0 && specialReady(vehicle, seatIndex, special)) {
-                chosen = special;
-            } else {
-                chosen = cannon >= 0 ? cannon : fallback;
-            }
-        } else if (tooFar) {
-            // MONSTER / FACTION_UNIT: range-based MG/cannon split, special excluded.
-            chosen = cannon >= 0 ? cannon : (mg >= 0 ? mg : fallback);
+        String[] ammo = null; // null = this pick doesn't load a shell (special/MG)
+        if (special >= 0 && specialReady(vehicle, seatIndex, special)) {
+            chosen = special;
+        } else if (target.getVehicle() instanceof VehicleEntity hull) {
+            chosen = cannon >= 0 ? cannon : fallback;
+            ammo = hull.getMaxHealth() >= ARMORED_HEALTH ? AMMO_ANTI_ARMOR : AMMO_ANTI_LIGHT;
+        } else if (target.getMaxHealth() < SOFT_HEALTH && mg >= 0) {
+            chosen = mg;
         } else {
-            chosen = mg >= 0 ? mg : (cannon >= 0 ? cannon : fallback);
+            // Tough infantry, or a hull with no MG to answer with — grapeshot.
+            chosen = cannon >= 0 ? cannon : (mg >= 0 ? mg : fallback);
+            ammo = AMMO_ANTI_INFANTRY;
         }
 
         // Nothing on this seat is usable (every slot is a placeholder) — leave the
         // index alone rather than parking the crew on a turret-breaking slot.
         if (chosen < 0) return UNCLASSIFIED;
         vehicle.setWeaponIndex(seatIndex, chosen);
+        // Safe on whatever `chosen` ended up being: a slot with one ammo type (an MG the
+        // fallback landed on) has nothing to switch to and is left alone.
+        if (ammo != null) selectCannonAmmo(vehicle, seatIndex, chosen, ammo);
         // Read the role back off the SLOT WE ACTUALLY PICKED rather than off the branch
         // that picked it: the `fallback` arms can hand back the special's slot (a seat
         // with an ATGM and no cannon), and reporting that as CANNON would deny it the
@@ -298,6 +323,49 @@ public final class VehicleWeapons {
             return UNCLASSIFIED;
         } catch (Exception e) {
             return UNCLASSIFIED;
+        }
+    }
+
+    /**
+     * Turn one weapon's ammo revolver to the first preference in {@code preferences} the
+     * hull actually carries. AP/HE/GS on a cannon are not separate weapon slots — they are
+     * {@code AmmoType} entries on the SAME slot, each overriding the gun's props — so this
+     * goes through SBW's own switch, {@code GunData.changeAmmoConsumer}, driven exactly as
+     * the player's {@code EditMessage(type = 5)} drives it: inside {@code modifyGunData}
+     * (which copies, mutates and saves) with the hull's {@code ammoSupplier}.
+     *
+     * <p>Only ever called behind the caller's weapon-switch cooldown. {@code
+     * changeAmmoConsumer} calls {@code resetStatus()}, wiping the reload timers — switching
+     * every tick would mean a gun that never finishes loading. It no-ops when the index is
+     * already selected, so a crew that keeps engaging the same kind of target never pays.
+     *
+     * <p>A preference the hull has run out of is skipped rather than selected: an empty
+     * chamber the AI can't refill is worse than the wrong shell.
+     */
+    private static void selectCannonAmmo(VehicleEntity vehicle, int seatIndex, int weaponIndex,
+                                         String[] preferences) {
+        try {
+            GunData gun = vehicle.getGunData(seatIndex, weaponIndex);
+            if (gun == null) return;
+            List<AmmoConsumer> consumers = gun.get(GunProp.AMMO_CONSUMER);
+            if (consumers == null || consumers.size() < 2) return; // single-ammo weapon
+
+            Entity supplier = vehicle.getAmmoSupplier();
+            Entity source = supplier != null ? supplier : vehicle;
+            for (String want : preferences) {
+                for (int i = 0; i < consumers.size(); i++) {
+                    AmmoConsumer c = consumers.get(i);
+                    if (c == null || !lower(c.getAmmo()).endsWith(want)) continue;
+                    if (i == gun.selectedAmmoType.get()) return; // already chambered
+                    if (c.count(gun, source) <= 0) break;        // out of it — try next preference
+                    int index = i;
+                    vehicle.modifyGunData(seatIndex, weaponIndex,
+                            d -> d.changeAmmoConsumer(index, source));
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            // Unreadable/exotic gun data — fire whatever is chambered rather than crash the tick.
         }
     }
 

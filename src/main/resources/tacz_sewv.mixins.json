@@ -11,6 +11,7 @@
     "MixinUSunitEntity",
     "MixinCombatEvent",
     "MixinVehicleFireCooldown",
+    "MixinAiAimSpread",
     "MixinTowTurretAim",
     "MixinVehicleTurretNaN",
     "MixinVehiclePassengerNaN",

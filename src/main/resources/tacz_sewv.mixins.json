@@ -7,8 +7,7 @@
   "mixins": [
     "MixinAbstractUnit",
     "MixinPmcUnitEntity",
-    "MixinRUunitEntity",
-    "MixinUSunitEntity",
+    "MixinFactionUnitEntity",
     "MixinCombatEvent",
     "MixinVehicleFireCooldown",
     "MixinAiAimSpread",
@@ -24,9 +23,7 @@
   "client": [
     "client.MixinClientGlowManager",
     "client.MixinClientGlowRenderHandler",
-    "client.MixinPmcUnitRenderer",
-    "client.MixinRUunitRenderer",
-    "client.MixinUSunitRenderer",
+    "client.MixinUnitRenderer",
     "client.MixinUniversalArmorLayer"
   ],
   "server": [],

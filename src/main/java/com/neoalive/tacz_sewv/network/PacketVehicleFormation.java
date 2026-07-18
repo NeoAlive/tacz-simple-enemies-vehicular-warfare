@@ -1,7 +1,6 @@
 package com.neoalive.tacz_sewv.network;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.VehicleFormation;
 import net.minecraft.ChatFormatting;
@@ -43,25 +42,22 @@ public class PacketVehicleFormation {
 
     public PacketVehicleFormation(List<Integer> unitIds, FormationShape shape, int axis, int rowSize) {
         this.unitIds = unitIds;
-        this.shapeId = shape.id;
+        this.shapeId = shape.id();
         this.axis = axis;
         this.rowSize = rowSize;
     }
 
     public PacketVehicleFormation(FriendlyByteBuf buf) {
-        int size = buf.readVarInt();
-        this.unitIds = new ArrayList<>();
-        for (int i = 0; i < size; i++) this.unitIds.add(buf.readVarInt());
+        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
         this.shapeId = buf.readVarInt();
         this.axis = buf.readVarInt();
         this.rowSize = buf.readVarInt();
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeVarInt(this.unitIds.size());
-        for (int id : this.unitIds) buf.writeVarInt(id);
-        // Our own stable shape/axis ids rather than raw enum ordinals: SEM's are its own business,
-        // and the handshake doesn't check that both ends run the same SEM version.
+        buf.writeCollection(this.unitIds, FriendlyByteBuf::writeVarInt);
+        // Our own stable shape/axis ids: SEM's enums are its own business, and the handshake
+        // doesn't check that both ends run the same SEM version.
         buf.writeVarInt(this.shapeId);
         buf.writeVarInt(this.axis);
         buf.writeVarInt(this.rowSize);
@@ -89,19 +85,8 @@ public class PacketVehicleFormation {
 
             int hulls = VehicleFormation.assign(player, units, shape, axis, rowSize);
 
-            // Server-authoritative feedback — the hulls the server actually formed, not the
-            // optimistic client count.
-            if (SewvConfig.SHOW_ORDER_FEEDBACK.get()) {
-                Component msg = hulls == 0
-                        ? Component.translatable("message.tacz_sewv.formation.formed.none")
-                                .copy().withStyle(ChatFormatting.GRAY)
-                        : Component.translatable(
-                                hulls == 1 ? "message.tacz_sewv.formation.formed.single"
-                                           : "message.tacz_sewv.formation.formed.multiple",
-                                hulls, Component.translatable(axisKey(axis)))
-                                .copy().withStyle(ChatFormatting.GREEN);
-                player.displayClientMessage(msg, true);
-            }
+            NetworkHandler.orderFeedback(player, "message.tacz_sewv.formation.formed", hulls,
+                    ChatFormatting.GREEN, hulls, Component.translatable(axisKey(axis)));
         });
         ctx.get().setPacketHandled(true);
     }

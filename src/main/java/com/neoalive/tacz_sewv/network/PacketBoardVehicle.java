@@ -1,17 +1,14 @@
 package com.neoalive.tacz_sewv.network;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -28,16 +25,13 @@ public class PacketBoardVehicle {
     }
 
     public PacketBoardVehicle(FriendlyByteBuf buf) {
-        int size = buf.readVarInt();
-        this.unitIds = new ArrayList<>();
-        for (int i = 0; i < size; i++) this.unitIds.add(buf.readVarInt());
+        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
         this.vehicleId = buf.readVarInt();
         this.passengerOnly = buf.readBoolean();
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeVarInt(this.unitIds.size());
-        for (int id : this.unitIds) buf.writeVarInt(id);
+        buf.writeCollection(this.unitIds, FriendlyByteBuf::writeVarInt);
         buf.writeVarInt(this.vehicleId);
         buf.writeBoolean(this.passengerOnly);
     }
@@ -66,19 +60,8 @@ public class PacketBoardVehicle {
             }
         }
 
-        // Server-authoritative feedback — reflects the units the server actually
-        // accepted, not the optimistic client count.
-        if (SewvConfig.SHOW_ORDER_FEEDBACK.get()) {
-            Component msg;
-            if (ordered == 0) {
-                msg = Component.translatable("message.tacz_sewv.board.ordered.none");
-            } else if (ordered == 1) {
-                msg = Component.translatable("message.tacz_sewv.board.ordered.single", ordered);
-            } else {
-                msg = Component.translatable("message.tacz_sewv.board.ordered.multiple", ordered);
-            }
-            player.displayClientMessage(msg.copy().withStyle(ChatFormatting.GREEN), true);
-        }
+        NetworkHandler.orderFeedback(player, "message.tacz_sewv.board.ordered", ordered,
+                ChatFormatting.GREEN, ordered);
     });
     ctx.get().setPacketHandled(true);
 }

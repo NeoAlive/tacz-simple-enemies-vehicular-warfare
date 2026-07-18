@@ -10,7 +10,6 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
@@ -61,7 +60,7 @@ public class VehicleTargetScanGoal extends Goal {
     @Override
     public boolean canUse() {
         if (!(this.unit.getVehicle() instanceof VehicleEntity v) || v.isWreck()) return false;
-        if (!ordersAllowAutoTargets()) return false;
+        if (!VehicleTargeting.ordersAllowAutoTargets(this.unit)) return false;
 
         LivingEntity current = this.unit.getTarget();
         if (current != null && current.isAlive()) return false; // already engaged — don't retarget every scan
@@ -89,7 +88,7 @@ public class VehicleTargetScanGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         if (this.vehicle == null || this.unit.getVehicle() != this.vehicle || this.vehicle.isWreck()) return false;
-        if (!ordersAllowAutoTargets()) return false;
+        if (!VehicleTargeting.ordersAllowAutoTargets(this.unit)) return false;
 
         LivingEntity target = this.unit.getTarget();
         if (target == null || !target.isAlive() || !isValidTarget(this.vehicle, target)) return false;
@@ -149,24 +148,12 @@ public class VehicleTargetScanGoal extends Goal {
             return distSq <= radiusSq && distSq >= VehicleMinRangeGoal.MIN_ENGAGE_DISTANCE_SQ;
         });
 
-        // Without LOS, "nearest" is a single min-pass; the sort is only needed when
-        // LOS raycasts must probe candidates in nearest-first order.
-        if (!SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()) {
-            LivingEntity best = null;
-            double bestDistSq = Double.MAX_VALUE;
-            for (LivingEntity candidate : candidates) {
-                double distSq = horizontalDistSq(v, candidate);
-                if (distSq < bestDistSq) {
-                    best = candidate;
-                    bestDistSq = distSq;
-                }
-            }
-            return best;
-        }
-
+        // Nearest-first, then the first candidate the crew can actually see (every
+        // candidate, when LOS is off). Raycasts only run down the list until one passes.
         candidates.sort(Comparator.comparingDouble(e -> horizontalDistSq(v, e)));
+        boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get();
         for (LivingEntity candidate : candidates) {
-            if (this.unit.getSensing().hasLineOfSight(candidate)) {
+            if (!needLos || this.unit.getSensing().hasLineOfSight(candidate)) {
                 return candidate;
             }
         }
@@ -190,15 +177,6 @@ public class VehicleTargetScanGoal extends Goal {
         if (this.unit instanceof RUunitEntity) return e instanceof Enemy && !(e instanceof RUunitEntity);
         if (this.unit instanceof USunitEntity) return e instanceof Enemy && !(e instanceof USunitEntity);
         return false;
-    }
-
-    // PMC crews obey the SEM order queue: CEASE_FIRE must not pick fights, and
-    // ATTACK_THAT_TARGET leaves targeting to SEM's specific-target goal. RU/US
-    // crews have no orders — they always fight.
-    private boolean ordersAllowAutoTargets() {
-        if (!(this.unit instanceof PmcUnitEntity pmc)) return true;
-        OrderType order = pmc.getOrder();
-        return order != OrderType.CEASE_FIRE && order != OrderType.ATTACK_THAT_TARGET;
     }
 
     // Extra downward reach for flying vehicles: their height above the terrain

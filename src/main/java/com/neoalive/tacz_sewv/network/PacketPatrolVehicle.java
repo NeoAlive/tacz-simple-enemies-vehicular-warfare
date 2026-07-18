@@ -3,12 +3,10 @@ package com.neoalive.tacz_sewv.network;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -49,16 +47,13 @@ public class PacketPatrolVehicle {
     }
 
     public PacketPatrolVehicle(FriendlyByteBuf buf) {
-        int size = buf.readVarInt();
-        this.unitIds = new ArrayList<>();
-        for (int i = 0; i < size; i++) this.unitIds.add(buf.readVarInt());
+        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
         this.radius = buf.readVarInt();
         this.mode = buf.readVarInt();
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeVarInt(this.unitIds.size());
-        for (int id : this.unitIds) buf.writeVarInt(id);
+        buf.writeCollection(this.unitIds, FriendlyByteBuf::writeVarInt);
         buf.writeVarInt(this.radius);
         buf.writeVarInt(this.mode);
     }
@@ -101,15 +96,9 @@ public class PacketPatrolVehicle {
                 }
             }
 
-            if (SewvConfig.SHOW_ORDER_FEEDBACK.get()) {
-                int ordered = crews.size();
-                String base = search ? "message.tacz_sewv.search" : "message.tacz_sewv.patrol";
-                Component msg = ordered == 0
-                        ? Component.translatable(base + ".ordered.none")
-                        : Component.translatable(
-                                base + (ordered == 1 ? ".ordered.single" : ".ordered.multiple"), ordered, radius);
-                player.displayClientMessage(msg.copy().withStyle(ChatFormatting.GREEN), true);
-            }
+            NetworkHandler.orderFeedback(player,
+                    (search ? "message.tacz_sewv.search" : "message.tacz_sewv.patrol") + ".ordered",
+                    crews.size(), ChatFormatting.GREEN, crews.size(), radius);
         });
         ctx.get().setPacketHandled(true);
     }
@@ -130,13 +119,7 @@ public class PacketPatrolVehicle {
             }
         }
 
-        if (SewvConfig.SHOW_ORDER_FEEDBACK.get()) {
-            Component msg = dismissed == 0
-                    ? Component.translatable("message.tacz_sewv.dismiss.none")
-                    : Component.translatable(
-                            dismissed == 1 ? "message.tacz_sewv.dismiss.single"
-                                           : "message.tacz_sewv.dismiss.multiple", dismissed);
-            player.displayClientMessage(msg.copy().withStyle(ChatFormatting.YELLOW), true);
-        }
+        NetworkHandler.orderFeedback(player, "message.tacz_sewv.dismiss", dismissed,
+                ChatFormatting.YELLOW, dismissed);
     }
 }

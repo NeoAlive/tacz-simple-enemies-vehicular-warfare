@@ -2,17 +2,14 @@ package com.neoalive.tacz_sewv.network;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.minecraftforge.network.NetworkEvent;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -25,14 +22,11 @@ public class PacketDismountVehicle {
     }
 
     public PacketDismountVehicle(FriendlyByteBuf buf) {
-        int size = buf.readVarInt();
-        this.unitIds = new ArrayList<>();
-        for (int i = 0; i < size; i++) this.unitIds.add(buf.readVarInt());
+        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeVarInt(this.unitIds.size());
-        for (int id : this.unitIds) buf.writeVarInt(id);
+        buf.writeCollection(this.unitIds, FriendlyByteBuf::writeVarInt);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -63,17 +57,8 @@ public class PacketDismountVehicle {
             }
         }
 
-        if (SewvConfig.SHOW_ORDER_FEEDBACK.get()) {
-            Component msg;
-            if (dismounted == 0) {
-                msg = Component.translatable("message.tacz_sewv.dismount.none");
-            } else if (dismounted == 1) {
-                msg = Component.translatable("message.tacz_sewv.dismount.single", dismounted);
-            } else {
-                msg = Component.translatable("message.tacz_sewv.dismount.multiple", dismounted);
-            }
-            player.displayClientMessage(msg.copy().withStyle(ChatFormatting.YELLOW), true);
-        }
+        NetworkHandler.orderFeedback(player, "message.tacz_sewv.dismount", dismounted,
+                ChatFormatting.YELLOW, dismounted);
     });
     ctx.get().setPacketHandled(true);
 }

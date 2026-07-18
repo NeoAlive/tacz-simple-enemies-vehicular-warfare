@@ -214,7 +214,7 @@ public final class VehicleFormation {
         // every live setFormationIndex, and these ride with it.
         IFormationMember member = (IFormationMember) pmc;
         member.sewv$setFormationDirection(axis);
-        member.sewv$setFormationShape(shape.id);
+        member.sewv$setFormationShape(shape.id());
         member.sewv$setFormationRowSize(rowSize);
         pmc.resetCommanderGoalCooldown();
         pmc.setOrder(order);

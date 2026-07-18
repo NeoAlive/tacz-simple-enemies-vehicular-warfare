@@ -7,26 +7,26 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
  * order types, so all of these ride one of them as a marker ({@link #semOrder}) — resolveDestination
  * and the follow-set gating key off that — while the actual slot layout is chosen here, in
  * {@link VehicleFormation#slotCenter}.
+ *
+ * <p>The ordinal is the wire/NBT id ({@link #id()}), so this enum is <b>append-only</b>: new
+ * shapes go on the end, or every saved formation remaps.
  */
 public enum FormationShape {
-    WEDGE(0),
-    COLUMN(1),
-    LINE(2),
-    ECHELON_RIGHT(3),
-    ECHELON_LEFT(4);
+    WEDGE,
+    COLUMN,
+    LINE,
+    ECHELON_RIGHT,
+    ECHELON_LEFT;
 
-    // Stable wire/NBT id, decoupled from ordinal so reordering the enum can't remap a saved formation.
-    public final int id;
-
-    FormationShape(int id) {
-        this.id = id;
+    /** Wire/NBT id. */
+    public int id() {
+        return ordinal();
     }
 
+    /** WEDGE for anything unrecognised — a malformed packet or NBT reads as the default shape. */
     public static FormationShape byId(int id) {
-        for (FormationShape shape : values()) {
-            if (shape.id == id) return shape;
-        }
-        return WEDGE;
+        FormationShape[] shapes = values();
+        return id >= 0 && id < shapes.length ? shapes[id] : WEDGE;
     }
 
     /**

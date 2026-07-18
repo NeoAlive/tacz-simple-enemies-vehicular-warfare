@@ -723,8 +723,7 @@ public class DriveVehicleGoal extends Goal {
     }
 
     private double getRotationStopAngle(double distanceSq) {
-        double distance = Math.sqrt(distanceSq);
-        double t = Mth.clamp((distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE), 0.0, 1.0);
-        return MIN_ANGLE_RAD + (MAX_ANGLE_RAD - MIN_ANGLE_RAD) * t;
+        return Mth.clampedLerp(MIN_ANGLE_RAD, MAX_ANGLE_RAD,
+                Mth.inverseLerp(Math.sqrt(distanceSq), MIN_DISTANCE, MAX_DISTANCE));
     }
 }

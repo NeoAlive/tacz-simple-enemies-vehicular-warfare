@@ -124,6 +124,9 @@ public class BailOutVehicleGoal extends Goal {
         MortarSupport.releaseClaim(this.unit);
 
         if (this.unit instanceof PmcUnitEntity pmc) {
+            // Any escort order dies with the bail-out too (PMC-only, so it's cleared here rather
+            // than beside the faction-blind board/mortar clears above).
+            ((com.neoalive.tacz_sewv.bridge.IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
             // setMoveToTarget flips the order to MOVE_TO_POSITION itself.
             if (this.escapePos != null) pmc.setMoveToTarget(escapeTarget());
         } else if (this.escapePos != null) {

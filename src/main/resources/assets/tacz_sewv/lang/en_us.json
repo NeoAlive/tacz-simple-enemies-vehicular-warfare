@@ -13,6 +13,14 @@
   "message.tacz_sewv.board.no_units": "No owned units nearby.",
   "message.tacz_sewv.board.no_vehicle": "Look at a vehicle or mortar.",
 
+  "message.tacz_sewv.escort.select": "Left-click a vehicle to escort, right-click to cancel.",
+  "message.tacz_sewv.escort.no_vehicle": "That's not a vehicle. Left-click a vehicle, or right-click to cancel.",
+  "message.tacz_sewv.escort.no_units": "No units selected or nearby to escort.",
+  "message.tacz_sewv.escort.cancelled": "Escort cancelled.",
+  "message.tacz_sewv.escort.ordered.single": "%s unit escorting.",
+  "message.tacz_sewv.escort.ordered.multiple": "%s units escorting.",
+  "message.tacz_sewv.escort.ordered.none": "No eligible units to escort.",
+
   "message.tacz_sewv.mortar.ordered.single": "%s sent to the mortar.",
   "message.tacz_sewv.mortar.ordered.none": "No free units to crew it.",
   "message.tacz_sewv.mortar.taken": "That mortar already has a crew.",
@@ -36,6 +44,8 @@
   "gui.tacz_sewv.tdt.board_passenger": "Board as Passenger",
   "gui.tacz_sewv.tdt.board_passenger.tip": "Board the vehicle you are looking at, but only into non-driver seats. Units wait beside an empty hull rather than taking the wheel.",
   "gui.tacz_sewv.tdt.dismount": "Dismount",
+  "gui.tacz_sewv.tdt.escort": "Escort",
+  "gui.tacz_sewv.tdt.escort.tip": "Select your units in the commander menu first, then press this and left-click a vehicle for them to stick beside and defend. Right-click cancels the selection.",
   "gui.tacz_sewv.tdt.patrol": "Patrol",
   "gui.tacz_sewv.tdt.patrol.tip": "Radius of the patrol area around you in blocks. Crews wander inside it moving to a new spot after a bit, until you dismiss them. Minimum 48.",
   "gui.tacz_sewv.tdt.dismiss": "Dismiss",

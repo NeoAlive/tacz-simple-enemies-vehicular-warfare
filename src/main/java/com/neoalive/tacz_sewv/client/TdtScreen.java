@@ -121,6 +121,13 @@ public class TdtScreen extends Screen {
                 () -> BoardKeybind.orderBoard(this.boardTarget, true), "gui.tacz_sewv.tdt.board_passenger.tip");
         y += ROW_H;
         addColumnButton(this.leftX, y, "gui.tacz_sewv.tdt.dismount", BoardKeybind::orderDismount);
+        y += ROW_H;
+        // Escort closes the terminal and arms a selection mode (left-click a vehicle to escort,
+        // right-click to cancel) — the vehicle can't be aim-captured at open like Board's, because
+        // the player picks it deliberately AFTER choosing the order. armEscort() does the closing
+        // itself via addColumnButton's onClose().
+        addColumnButton(this.leftX, y, "gui.tacz_sewv.tdt.escort",
+                ClientEvents::armEscort, "gui.tacz_sewv.tdt.escort.tip");
         y += ROW_H + GROUP_GAP;
 
         addButton(this.leftX, y, "gui.tacz_sewv.tdt.patrol",

@@ -38,6 +38,10 @@ public class SewvConfig {
     public static final ForgeConfigSpec.IntValue DERELICT_GUARDS;
     public static final ForgeConfigSpec.IntValue DERELICT_AMMO_COUNT;
 
+    // A crewed tank attached to a SimpleEnemyMod village garrison
+    public static final ForgeConfigSpec.BooleanValue GARRISON_VEHICLES_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue GARRISON_VEHICLE_CHANCE;
+
     // Vehicle pools — entity ids; one is picked at random per spawn
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_POOL;
@@ -275,6 +279,19 @@ public class SewvConfig {
                 .comment("Rounds left in a derelict hull's container. Enough to be worth looting and to make the",
                          "vehicle briefly useful if you recover it, not enough to fight with.")
                 .defineInRange("derelictAmmoCount", 2, 0, 64);
+
+        GARRISON_VEHICLES_ENABLED = builder
+                .comment("Give a share of SimpleEnemyMod's village garrisons a single crewed tank of the",
+                         "garrison's own faction. Only ONE per village, and it is fully crewed -- deliberately",
+                         "never a parked empty hull, because idle RU/US infantry scavenge empty vehicles on",
+                         "sight (that is why an earlier bare-hull version of this was removed). A crewed hull",
+                         "is occupied, so nothing scavenges it, and stays fuelled on its own.")
+                .define("garrisonVehiclesEnabled", true);
+
+        GARRISON_VEHICLE_CHANCE = builder
+                .comment("Chance (0.0-1.0) that a garrisoned village gets its one tank. Rolled once per village",
+                         "(deterministically, so every guard of the same garrison agrees), NOT per guard.")
+                .defineInRange("garrisonVehicleChance", 0.5, 0.0, 1.0);
 
         builder.pop();
 

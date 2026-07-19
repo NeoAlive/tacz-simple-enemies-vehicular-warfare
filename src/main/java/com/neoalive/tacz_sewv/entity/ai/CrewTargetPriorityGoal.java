@@ -171,7 +171,7 @@ public class CrewTargetPriorityGoal extends Goal {
      */
     private boolean isValidTarget(LivingEntity e) {
         if (e == this.unit || !e.isAlive() || !e.isAttackable()) return false;
-        if (VehicleTargeting.isFriendly(this.unit, e)) return false;
+        if (VehicleTargeting.isNonHostile(this.unit, e)) return false;
         if (this.unit.getVehicle() != null && e.getVehicle() == this.unit.getVehicle()) {
             return false; // riding our own hull — crewmate, or a hugger the tube can't reach
         }

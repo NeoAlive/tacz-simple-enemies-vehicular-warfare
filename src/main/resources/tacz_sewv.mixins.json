@@ -10,6 +10,7 @@
     "MixinPmcUnitEntity",
     "MixinFactionUnitEntity",
     "MixinCombatEvent",
+    "MixinVillageGarrisonHandler",
     "MixinVehicleFireCooldown",
     "MixinAiAimSpread",
     "MixinTowTurretAim",

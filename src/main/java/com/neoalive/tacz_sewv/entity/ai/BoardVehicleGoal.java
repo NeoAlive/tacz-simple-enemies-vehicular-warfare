@@ -4,16 +4,26 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import java.util.EnumSet;
 
 /**
- * Walks a player-owned unit to the vehicle its owner pointed it at and puts it in a seat.
+ * Walks a unit to the vehicle it has been told to board and puts it in a seat.
  *
- * <p>PMC-only, and not part of {@link VehicleAiGoals#addDriveGoals}: the order arrives over
- * the network bridge ({@link IVehicleBoarder}), which only player-commandable units carry.
- * RU/US crews are placed into their vehicle directly at spawn instead.
+ * <p>This goal only ever <em>executes</em> a standing order on {@link IVehicleBoarder}; it never
+ * decides to board anything. That split is what lets one goal serve both factions, which arrive
+ * at an order by completely different routes:
+ * <ul>
+ *   <li><b>PMC</b> — the player points at a hull and presses the board key, and
+ *       {@code PacketBoardVehicle} writes the order server-side.
+ *   <li><b>RU/US</b> — {@link SeekAbandonedVehicleGoal} spots an abandoned hull and writes the
+ *       same order. They have no order queue a player command could arrive through.
+ * </ul>
+ *
+ * <p>Nothing here is player-specific, which is why the network bridge lives entirely on the
+ * writing side: an order is three fields, and by the time this goal reads them it cannot tell
+ * (and has no reason to care) which one put them there.
  */
 public class BoardVehicleGoal extends Goal {
 
@@ -24,11 +34,11 @@ public class BoardVehicleGoal extends Goal {
     /** Goal ticks between repath attempts while the path keeps coming up empty. */
     private static final int REPATH_INTERVAL = 10;
 
-    private final PmcUnitEntity unit;
+    private final AbstractUnit unit;
     private VehicleEntity targetVehicle;
     private int boardingTicks;
 
-    public BoardVehicleGoal(PmcUnitEntity unit) {
+    public BoardVehicleGoal(AbstractUnit unit) {
         this.unit = unit;
         // Claim no flags so the goal selector never gates canUse() behind MOVE/LOOK
         // contention — boarding must stay evaluable even while other goals run.

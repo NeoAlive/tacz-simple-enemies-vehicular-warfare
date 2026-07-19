@@ -16,6 +16,11 @@ public class ClientEvents {
     // The screen captures the crosshair/facing the moment it opens, so the click has to be
     // cancelled — otherwise the same press would mine the block / attack the vehicle the player
     // was aiming at to give a board, land or formation order.
+    //
+    // This path CANNOT work while the player is in a vehicle seat: SuperbWarfare cancels the raw
+    // mouse event before vanilla turns it into a click, so this listener is never called. That is
+    // what TdtKeybind is for — see its class doc. This one stays because it is the discoverable
+    // way to open the terminal on foot, and it needs no free key.
     @SubscribeEvent
     public static void onClickInput(InputEvent.InteractionKeyMappingTriggered event) {
         if (!event.isAttack()) return;

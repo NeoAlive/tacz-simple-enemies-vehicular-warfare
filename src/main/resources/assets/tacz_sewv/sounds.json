@@ -9,5 +9,22 @@
     "sounds": [
       "tacz_sewv:out"
     ]
+  },
+
+  "radio_hurt": {
+    "sounds": [
+      "tacz_sewv:out"
+    ]
+  },
+  "radio_death": {
+    "sounds": [
+      "tacz_sewv:out"
+    ]
+  },
+  "radio_contact": {
+    "sounds": [
+      "tacz_sewv:affirmative",
+      "tacz_sewv:affirmative1"
+    ]
   }
 }

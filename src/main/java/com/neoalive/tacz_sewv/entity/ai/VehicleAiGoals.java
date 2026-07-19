@@ -7,9 +7,10 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
  * mortars and TOWs alike — for PmcUnitEntity (player-commandable) as well as
  * RUunitEntity/USunitEntity (hostile, no order queue).
  *
- * <p>BoardVehicleGoal is deliberately not included here: it depends on the IVehicleBoarder
- * network bridge, which only exists on player-owned PmcUnitEntity. RU/US crews are placed
- * directly into their vehicle (or onto their mortar) at spawn instead.
+ * <p>BoardVehicleGoal lives here rather than with the PMC-only goals because it only ever
+ * EXECUTES a standing order — it has no opinion on where that order came from. A PMC gets one
+ * from the player over the network; an RU/US unit gets the identical one from
+ * SeekAbandonedVehicleGoal, which is the only piece that is faction-gated.
  */
 public final class VehicleAiGoals {
 
@@ -35,6 +36,16 @@ public final class VehicleAiGoals {
         // lean out and shoot instead of working the tube. Gates on holding a claim, so it
         // costs a null check on every unit that has none.
         unit.goalSelector.addGoal(1, new ManMortarGoal(unit));
+        // Walks the unit to a hull it has been ordered onto and seats it. Gates on holding a
+        // pending order, so it costs a boolean read on every unit that has none.
+        unit.goalSelector.addGoal(1, new BoardVehicleGoal(unit));
+        // Writes that order for an RU/US unit that spots an abandoned hull. Claims no flags and
+        // never actually runs — it hands the job to the goal above. RU/US-gated internally.
+        unit.goalSelector.addGoal(1, new SeekAbandonedVehicleGoal(unit));
+        // Works a SuperbWarfare launcher for a unit on foot (an IFV dismount issued one, or a
+        // PMC a player equipped). Gates on an SBW gun being in the main hand, which is one
+        // instanceof for everyone else.
+        unit.goalSelector.addGoal(1, new AtWeaponGoal(unit));
         // Priority 2: while mounted this owns the TARGET flag over SEM's short
         // vanilla scans (also priority 2+, but strictly less reach), while SEM's
         // HurtByTargetGoal at priority 1 still preempts for retaliation.

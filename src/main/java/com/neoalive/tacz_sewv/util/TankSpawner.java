@@ -154,6 +154,30 @@ public final class TankSpawner {
     }
 
     /**
+     * Puts a token few rounds in a hull's container — enough to be worth looting and to make the
+     * vehicle briefly useful if it is recovered, nowhere near enough to fight with.
+     *
+     * <p>The counterpart to {@link #stockAmmo}, which fills every slot for a hull that is about to
+     * go into action. This one exists so {@code DerelictVehicleEvent} can reuse the ammo
+     * <em>resolution</em> — which is not obvious logic (it walks every seat, every weapon on that
+     * seat, and asks each weapon's own {@code AmmoConsumer} what item it eats) and should exist
+     * exactly once — without also inheriting "fill it up".
+     *
+     * <p>No creative-box fallback here, deliberately: a hull whose ammunition cannot be resolved
+     * is left empty rather than handed an infinite supply. A derelict with a bottomless magazine
+     * would be a strictly better prize than a working tank.
+     */
+    public static void stockTokenAmmo(VehicleEntity tank, int count) {
+        if (count <= 0) return;
+        if (!tank.hasContainer() || tank.getContainerSize() <= 0) return;
+
+        List<Item> ammo = resolveAmmo(tank);
+        if (ammo.isEmpty()) return;
+
+        tank.setItem(0, new ItemStack(ammo.get(0), count));
+    }
+
+    /**
      * Stocks a freshly-spawned hull's container with the actual ammunition its weapons
      * consume, so an AI crew fires finite, lootable rounds instead of a bottomless
      * creative box. The container is divided evenly across the ammo types the hull uses

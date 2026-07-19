@@ -12,25 +12,29 @@ import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
 
 /**
- * MOD bus, client dist. Hangs {@link BedrockArmorLayer} on all three SEM unit renderers.
+ * MOD bus, client dist. Hangs this mod's two extra render layers on all three SEM unit renderers.
  *
- * <p>Only PMC's renderer has any armor layer of SEM's own; RU and US add nothing but the gun layer,
- * so without this their armor would be equipped and invisible.
+ * <p>Both exist for the same reason: SEM's renderers only know how to draw SEM's own kit.
+ * {@link BedrockArmorLayer} covers armor that supplies its own model — only PMC's renderer has any
+ * armor layer of SEM's at all, so RU/US armor would otherwise be equipped and invisible.
+ * {@link SmallArmsLayer} covers SuperbWarfare guns — SEM's one held-item layer returns immediately
+ * unless the item is a <em>TACZ</em> gun, so an issued launcher would fire from an empty hand.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientModEvents {
 
     @SubscribeEvent
     public static void onAddLayers(EntityRenderersEvent.AddLayers event) {
-        addArmorLayer(event, ModEntities.PMCUNIT.get());
-        addArmorLayer(event, ModEntities.RUUNIT.get());
-        addArmorLayer(event, ModEntities.USUNIT.get());
+        addUnitLayers(event, ModEntities.PMCUNIT.get());
+        addUnitLayers(event, ModEntities.RUUNIT.get());
+        addUnitLayers(event, ModEntities.USUNIT.get());
     }
 
-    private static <T extends LivingEntity> void addArmorLayer(EntityRenderersEvent.AddLayers event, EntityType<T> type) {
+    private static <T extends LivingEntity> void addUnitLayers(EntityRenderersEvent.AddLayers event, EntityType<T> type) {
         LivingEntityRenderer<T, EntityModel<T>> renderer = event.getRenderer(type);
         if (renderer != null) {
             renderer.addLayer(new BedrockArmorLayer<>(renderer));
+            renderer.addLayer(new SmallArmsLayer<>(renderer));
         }
     }
 }

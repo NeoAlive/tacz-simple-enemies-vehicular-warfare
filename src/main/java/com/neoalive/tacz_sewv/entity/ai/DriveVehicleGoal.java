@@ -63,6 +63,11 @@ public class DriveVehicleGoal extends Goal {
     private static final double PRESERVE_RETREAT_MARGIN = 8.0;   // fall back this far BEYOND the ring
     private static final float PRESERVE_SMOKE_CHANCE = 0.5F;
 
+    // How many of a dismounting squad may carry an anti-tank launcher. Hard-capped rather than
+    // configurable: the point is a couple of AT men supporting riflemen, and a squad that is
+    // ALL launchers is a different (and much sillier) unit.
+    private static final int MAX_AT_GUNNERS = 2;
+
     // Reversing only opens distance while the target sits inside this frontal cone; beyond
     // it, backing up moves the hull sideways or INTO the target.
     private static final double REVERSE_FACING_CONE_RAD = Math.toRadians(75.0);
@@ -360,9 +365,17 @@ public class DriveVehicleGoal extends Goal {
      * {@code VehicleEntity}, so they count too, which a check on the {@code superbwarfare}
      * namespace would have missed.
      *
+     * <p>One or two of them draw an anti-tank launcher on the way out ({@link SmallArmsSupport}),
+     * which is what makes the whole feature worth having: the squad is being put on the ground
+     * precisely because the hull met armour, and a TACZ rifle cannot scratch armour. RU/US only —
+     * a PMC's loadout belongs to the player who filled its inventory.
+     *
      * <p>Once out they stay out: they revert to ordinary SEM infantry and are simply picked up
      * again by whatever puts a unit in a seat. There is no recall, deliberately — a walk-back
-     * state machine is a lot of moving parts for infantry that has already done its job.
+     * state machine is a lot of moving parts for infantry that has already done its job. Note
+     * this survived the arrival of vehicle scavenging ({@code SeekAbandonedVehicleGoal}) only
+     * because that goal takes <em>completely empty</em> hulls: the IFV they left still holds its
+     * driver and gunner, so it is never a candidate and the squad cannot drift back aboard.
      *
      * <p>Runs on every combat tick rather than once, which needs no "have I done this" flag: after
      * the first pass the only passengers left are in crew seats, and that is exactly what the size
@@ -375,11 +388,24 @@ public class DriveVehicleGoal extends Goal {
         // sound way of saying the squad is already off.
         if (this.vehicle.getPassengers().size() <= crew.size()) return;
 
+        int armed = 0;
         // Copied because stopRiding() mutates the passenger list underneath us.
         for (Entity passenger : List.copyOf(this.vehicle.getPassengers())) {
             if (!(passenger instanceof AbstractUnit rider) || rider == this.unit) continue;
             int seat = this.vehicle.getSeatIndex(rider);
             if (seat < 0 || crew.contains(seat)) continue;
+
+            // The first man out always draws a launcher, the second rolls for it, and nobody
+            // after that gets one — a squad fields one or two AT gunners, never a whole section
+            // of them. issueAtWeapon answers false for a PMC (whose loadout is the player's),
+            // for a unit already carrying one, and for a blank config id, so the count tracks
+            // weapons actually handed out rather than attempts. That is also what keeps this
+            // honest across the every-tick re-entry above: an already-armed man cannot consume
+            // one of the two slots a second time.
+            if (armed == 0 || (armed < MAX_AT_GUNNERS
+                    && rider.getRandom().nextDouble() < SewvConfig.AT_SECOND_GUNNER_CHANCE.get())) {
+                if (SmallArmsSupport.issueAtWeapon(rider)) armed++;
+            }
             rider.stopRiding();
         }
     }

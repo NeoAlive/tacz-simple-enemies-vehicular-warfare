@@ -111,15 +111,19 @@ public class BailOutVehicleGoal extends Goal {
         issueParachute();
         this.unit.stopRiding();
 
+        // Drop any pending board order, or BoardVehicleGoal would march the unit straight back
+        // to the hull it just abandoned. This is faction-blind on purpose: RU/US units carry
+        // IVehicleBoarder too now (SeekAbandonedVehicleGoal writes them orders), and while this
+        // sat inside the PMC branch a bailed-out RU crew would have walked back to its own
+        // burning tank — and, once clear of it, scavenged it straight back.
+        IVehicleBoarder boarder = (IVehicleBoarder) this.unit;
+        boarder.tacz_sewv$setBoarding(false);
+        boarder.tacz_sewv$setMountTargetId(-1);
+        // Likewise any mortar claim: a crew scrambling clear of a burning hull
+        // shouldn't turn round and walk back to a tube it was assigned earlier.
+        MortarSupport.releaseClaim(this.unit);
+
         if (this.unit instanceof PmcUnitEntity pmc) {
-            // Drop any pending board order, or BoardVehicleGoal would march the unit
-            // straight back to the hull it just abandoned.
-            IVehicleBoarder boarder = (IVehicleBoarder) pmc;
-            boarder.tacz_sewv$setBoarding(false);
-            boarder.tacz_sewv$setMountTargetId(-1);
-            // Likewise any mortar claim: a crew scrambling clear of a burning hull
-            // shouldn't turn round and walk back to a tube it was assigned earlier.
-            MortarSupport.releaseClaim(pmc);
             // setMoveToTarget flips the order to MOVE_TO_POSITION itself.
             if (this.escapePos != null) pmc.setMoveToTarget(escapeTarget());
         } else if (this.escapePos != null) {

@@ -30,6 +30,14 @@ public class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<String> HIGH_CHANCE_MORTAR_SHELL;
     public static final ForgeConfigSpec.ConfigValue<String> LOW_CHANCE_MORTAR_SHELL;
 
+    // Derelict vehicle event (a knocked-out hull with survivors camped around it)
+    public static final ForgeConfigSpec.BooleanValue DERELICT_EVENTS_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue DERELICT_BASE_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue DERELICT_FAILURE_MULTIPLIER;
+    public static final ForgeConfigSpec.DoubleValue DERELICT_HEALTH_FRACTION;
+    public static final ForgeConfigSpec.IntValue DERELICT_GUARDS;
+    public static final ForgeConfigSpec.IntValue DERELICT_AMMO_COUNT;
+
     // Vehicle pools — entity ids; one is picked at random per spawn
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_POOL;
@@ -61,6 +69,24 @@ public class SewvConfig {
     // IFVs (a hull that carries a dismount squad rather than just a crew)
     public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> IFV_NAME_CLUES;
+
+    // Anti-tank weapons issued to an RU/US dismount squad
+    public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_RU;
+    public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_US;
+    public static final ForgeConfigSpec.DoubleValue AT_SECOND_GUNNER_CHANCE;
+    public static final ForgeConfigSpec.IntValue AT_BACKUP_AMMO;
+    public static final ForgeConfigSpec.DoubleValue AT_ENGAGE_RANGE;
+    public static final ForgeConfigSpec.IntValue AT_AIM_TICKS;
+
+    // PMC medics (heal each other out of contact with a SuperbWarfare medical kit)
+    public static final ForgeConfigSpec.BooleanValue MEDIC_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue MEDIC_SEARCH_RADIUS;
+
+    // Scavenging an abandoned hull (RU/US only — a PMC boards on the player's order instead)
+    public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_SCAN_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_MIN_HEALTH_FRACTION;
+    public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_STEALS_PLAYER_VEHICLES;
 
     // Vehicle formations (player-designated wedge/column on a fixed cardinal)
     public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
@@ -102,9 +128,18 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue MORTAR_RADIO_RANGE;
     public static final ForgeConfigSpec.BooleanValue MORTAR_DEBUG_LOGGING;
 
+    // Unit voicelines while crewing a vehicle
+    public static final ForgeConfigSpec.BooleanValue VEHICLE_VOICELINES_ENABLED;
+
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.BooleanValue SHOW_ORDER_FEEDBACK;
+
+    // Faction colours on SuperbWarfare's hover overlay
+    public static final ForgeConfigSpec.BooleanValue FACTION_COLORS_ENABLED;
+    public static final ForgeConfigSpec.ConfigValue<String> COLOR_RU;
+    public static final ForgeConfigSpec.ConfigValue<String> COLOR_US;
+    public static final ForgeConfigSpec.ConfigValue<String> COLOR_PMC;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -116,25 +151,33 @@ public class SewvConfig {
                 .define("tanksInEvents", true);
 
         TANK_SPAWN_CHANCE_RU = builder
-                .comment("Chance (0.0-1.0) for an RU tank to spawn when a combat event occours. Keep it LOW for rarity.")
-                .defineInRange("tankSpawnChanceRu", 0.02, 0.0, 1.0);
+                .comment("Chance (0.0-1.0) for an RU tank to spawn when a combat event occurs.",
+                         "This is CONDITIONAL: it is rolled only once SimpleEnemyMod's far_combat event has",
+                         "already fired, so the rate you actually see is this number TIMES that event's own",
+                         "chance. It therefore needs to look far too high to come out about right — the old",
+                         "0.02 default worked out to a tank every several hours of play.")
+                .defineInRange("tankSpawnChanceRu", 0.12, 0.0, 1.0);
 
         TANK_SPAWN_CHANCE_US = builder
-                .comment("Chance (0.0-1.0) for a US tank to spawn when a combat event occours. Keep it LOW for rarity.")
-                .defineInRange("tankSpawnChanceUs", 0.02, 0.0, 1.0);
+                .comment("Chance (0.0-1.0) for a US tank to spawn when a combat event occurs.",
+                         "Conditional on far_combat having fired, exactly like tankSpawnChanceRu.")
+                .defineInRange("tankSpawnChanceUs", 0.12, 0.0, 1.0);
 
         CONVOY_EVENTS_ENABLED = builder
                 .comment("Enable the standalone convoy event. Each convoy is RU or US only, never PMC.")
                 .define("convoyEventsEnabled", true);
 
         CONVOY_BASE_CHANCE = builder
-                .comment("Initial chance (0.0-1.0) for SEM's convoy event to occur each event cycle.",
-                         "Its chance grows by convoyFailureMultiplier after each missed roll, following SEM's event system.")
-                .defineInRange("convoyBaseChance", 0.01, 0.0, 1.0);
+                .comment("Initial chance (0.0-1.0) for the convoy event on each event cycle.",
+                         "SimpleEnemyMod rolls every registered event once per 1200 ticks (60 SECONDS), so this is",
+                         "a per-minute chance, and its chance grows by convoyFailureMultiplier after each miss",
+                         "until it fires. For scale, SEM's own far_combat runs 0.06 base / 0.12 escalation.")
+                .defineInRange("convoyBaseChance", 0.06, 0.0, 1.0);
 
         CONVOY_FAILURE_MULTIPLIER = builder
-                .comment("Amount added to the convoy event's chance after a missed event roll.")
-                .defineInRange("convoyFailureMultiplier", 0.01, 0.0, 1.0);
+                .comment("Amount added to the convoy event's chance after a missed event roll.",
+                         "Higher = the wait between convoys is more consistent; lower = streakier.")
+                .defineInRange("convoyFailureMultiplier", 0.06, 0.0, 1.0);
 
         SHELLING_EVENTS_ENABLED = builder
                 .comment("Enable the mortar_shelling event: an RU or US mortar battery sets up out of sight and",
@@ -146,12 +189,14 @@ public class SewvConfig {
                 .define("shellingEventsEnabled", true);
 
         SHELLING_BASE_CHANCE = builder
-                .comment("Starting chance for the mortar_shelling event on each of SEM's event rolls.")
-                .defineInRange("shellingBaseChance", 0.02, 0.0, 1.0);
+                .comment("Starting chance for the mortar_shelling event on each of SEM's event rolls (one per",
+                         "60 seconds). Kept below the convoy's because this one is further gated on you being",
+                         "at your base, so a large share of its rolls are discarded before they can fire.")
+                .defineInRange("shellingBaseChance", 0.05, 0.0, 1.0);
 
         SHELLING_FAILURE_MULTIPLIER = builder
                 .comment("Amount added to the shelling event's chance after a missed event roll.")
-                .defineInRange("shellingFailureMultiplier", 0.01, 0.0, 1.0);
+                .defineInRange("shellingFailureMultiplier", 0.04, 0.0, 1.0);
 
         SHELLING_BASE_RADIUS = builder
                 .comment("How close (in blocks) you must be to your respawn point for the shelling event to fire.",
@@ -193,6 +238,43 @@ public class SewvConfig {
                 .comment("Item id of the shell a spawned mortar crew occasionally gets (25% of crews).",
                          "Same rules as highChanceMortarShell. Default is white phosphorus.")
                 .define("lowChanceMortarShell", "superbwarfare:mortar_shell_wp", SewvConfig::isValidResourceId);
+
+        DERELICT_EVENTS_ENABLED = builder
+                .comment("Enable the derelict_vehicle event: a knocked-out RU or US hull with its surviving crew",
+                         "camped around it on foot. The hull has no energy, almost no ammunition and is nearly",
+                         "destroyed, so it is salvage rather than a threat — the fight is with the survivors, and",
+                         "the prize is a vehicle you can recover if you can repair and refuel it.",
+                         "This is the counterpart to the convoy event: something between 'a crewed tank attacks",
+                         "you' and 'no vehicle at all'.")
+                .define("derelictEventsEnabled", true);
+
+        DERELICT_BASE_CHANCE = builder
+                .comment("Starting chance for the derelict_vehicle event on each of SEM's event rolls (one per",
+                         "60 seconds), growing by derelictFailureMultiplier after each miss.")
+                .defineInRange("derelictBaseChance", 0.05, 0.0, 1.0);
+
+        DERELICT_FAILURE_MULTIPLIER = builder
+                .comment("Amount added to the derelict event's chance after a missed event roll.")
+                .defineInRange("derelictFailureMultiplier", 0.05, 0.0, 1.0);
+
+        DERELICT_HEALTH_FRACTION = builder
+                .comment("Health a derelict hull spawns with, as a fraction of its maximum.",
+                         "KEEP THIS BELOW autoBoardMinHealthFraction (default 0.25). That is not a style rule --",
+                         "it is the only thing stopping the survivors from simply climbing back in: scavenging",
+                         "AI refuses any hull below that threshold, and a crewed hull also gets infinite energy",
+                         "from the faction-energy rule, so raising this past it quietly turns this event into",
+                         "'a working tank spawns and attacks you', which the convoy event already is.")
+                .defineInRange("derelictHealthFraction", 0.15, 0.01, 1.0);
+
+        DERELICT_GUARDS = builder
+                .comment("Maximum survivors camped around a derelict hull (at least one always spawns).",
+                         "They are ordinary infantry on foot, NOT a crew -- nobody is in the vehicle.")
+                .defineInRange("derelictGuards", 4, 1, 12);
+
+        DERELICT_AMMO_COUNT = builder
+                .comment("Rounds left in a derelict hull's container. Enough to be worth looting and to make the",
+                         "vehicle briefly useful if you recover it, not enough to fight with.")
+                .defineInRange("derelictAmmoCount", 2, 0, 64);
 
         builder.pop();
 
@@ -388,6 +470,88 @@ public class SewvConfig {
                         List.of("bradley", "bmp", "bmd", "cv90", "puma", "marder"),
                         o -> o instanceof String s && !s.isBlank());
 
+        AT_WEAPON_RU = builder
+                .comment("SuperbWarfare launcher handed to an RU dismount squad's anti-tank gunners.",
+                         "A dismount squad only ever leaves the hull because it met ARMOUR, and a TACZ rifle cannot",
+                         "hurt armour — without this the squad is put on the ground with nothing useful to do.",
+                         "The weapon REPLACES the unit's rifle (there is only one main hand), and it comes with its",
+                         "own ammunition supply (atBackupAmmo) rather than drawing from an inventory, because RU/US",
+                         "units have none. Set blank to leave RU dismounts with their rifles.")
+                .define("atWeaponRu", "superbwarfare:rpg");
+
+        AT_WEAPON_US = builder
+                .comment("The same, for a US dismount squad. The Javelin is guided and fire-and-forget, so it works",
+                         "at any range the unit can acquire a target at; the RPG is an unguided rocket and wants to",
+                         "be much closer (see atEngageRange). Set blank to leave US dismounts with their rifles.")
+                .define("atWeaponUs", "superbwarfare:javelin");
+
+        AT_SECOND_GUNNER_CHANCE = builder
+                .comment("Chance that a dismount squad gets a SECOND anti-tank gunner. The first dismount always",
+                         "gets one; nobody past the second ever does, whatever this is set to.",
+                         "0.0 = always exactly one AT gunner per squad, 1.0 = always two.")
+                .defineInRange("atSecondGunnerChance", 0.5, 0.0, 1.0);
+
+        AT_BACKUP_AMMO = builder
+                .comment("Rockets/missiles issued with the launcher. RU/US units have no inventory, so this is an",
+                         "ISSUED supply (SuperbWarfare's own item-free ammo channel) rather than carried items —",
+                         "the same way mortar shells and TOW missiles reach these crews. When it runs out the",
+                         "gunner is left with an empty tube; it is not resupplied.")
+                .defineInRange("atBackupAmmo", 8, 1, 64);
+
+        AT_ENGAGE_RANGE = builder
+                .comment("Maximum range (in blocks) at which an AT gunner will fire.",
+                         "This is a FIRE gate, not an approach order: SimpleEnemyMod walks a unit to within 90",
+                         "blocks of its target and then stops, so a gunner further out than this simply holds fire",
+                         "rather than wasting its small supply of rockets on shots that fall short.",
+                         "Raise it well past 90 for the Javelin, which is guided and does not care about the drop.")
+                .defineInRange("atEngageRange", 48.0, 8.0, 200.0);
+
+        AT_AIM_TICKS = builder
+                .comment("How long an AT gunner tracks its target before the first shot, in goal ticks.",
+                         "Note goals tick every OTHER game tick, so this is roughly 2x its value in game ticks.",
+                         "Purely a feel knob — it stops a launcher going off the instant the unit hits the ground.")
+                .defineInRange("atAimTicks", 15, 0, 200);
+
+        MEDIC_ENABLED = builder
+                .comment("Let PMC units treat themselves and each other with superbwarfare:medical_kit while OUT",
+                         "of contact (neither the medic nor the patient holding a target).",
+                         "Kits are NOT issued automatically — put them in a unit's inventory yourself, and they are",
+                         "consumed one per treatment. A unit with no kit simply never does this.")
+                .define("medicEnabled", true);
+
+        MEDIC_SEARCH_RADIUS = builder
+                .comment("How far (in blocks) a PMC medic will look for a wounded squadmate to treat.",
+                         "It treats ITSELF first when hurt; only then does it walk to someone else.")
+                .defineInRange("medicSearchRadius", 12.0, 2.0, 48.0);
+
+        AUTO_BOARD_ENABLED = builder
+                .comment("Let RU/US infantry climb into an abandoned vehicle they walk past, so a hull whose crew",
+                         "bailed out (or one you parked and left) gets crewed again instead of sitting there.",
+                         "A unit only does this while it has NO target — it will not break off a firefight to go",
+                         "looking for a ride. PMC units are unaffected: they board on your order instead.",
+                         "Note this deliberately cannot recall an IFV's dismount squad — the hull they left still",
+                         "holds its driver and gunner, and only a COMPLETELY empty vehicle is scavenged.")
+                .define("autoBoardEnabled", true);
+
+        AUTO_BOARD_SCAN_RADIUS = builder
+                .comment("Radius (in blocks) an idle RU/US unit searches for an abandoned vehicle.",
+                         "This scan is the whole cost of the feature, so keep it modest — it runs on every idle",
+                         "unit on the map. Lower it if you spawn very large numbers of infantry.")
+                .defineInRange("autoBoardScanRadius", 32.0, 4.0, 128.0);
+
+        AUTO_BOARD_MIN_HEALTH_FRACTION = builder
+                .comment("Minimum health (as a fraction of maximum) an abandoned vehicle must still have before a",
+                         "crew will take it. Below this the hull is a burning wreck in waiting and a crew that",
+                         "boarded it would only bail straight back out.")
+                .defineInRange("autoBoardMinHealthFraction", 0.25, 0.0, 1.0);
+
+        AUTO_BOARD_STEALS_PLAYER_VEHICLES = builder
+                .comment("Whether enemies may take a vehicle a PLAYER last drove.",
+                         "SuperbWarfare has no concept of vehicle ownership at all — the last driver is the only",
+                         "signal there is — so turning this on means any hull you step out of is fair game, and",
+                         "leaving it off means a vehicle you have driven even once is permanently off limits.")
+                .define("autoBoardStealsPlayerVehicles", false);
+
         VEHICLE_FORMATION_SPACING = builder
                 .comment("Distance (in blocks) between successive slots in a vehicle wedge or column.",
                          "This is the step directly astern; a wedge also fans out sideways 1.25x as fast, which is",
@@ -559,6 +723,21 @@ public class SewvConfig {
 
         builder.pop();
 
+        builder.push("voicelines");
+
+        VEHICLE_VOICELINES_ENABLED = builder
+                .comment("Give a unit crewing a vehicle its own radio voicelines, and let only ONE of them speak.",
+                         "SimpleEnemyMod's hurt/death/alert lines are per-unit with per-unit cooldowns, so a shell",
+                         "that hits a loaded troop carrier fires one death line PER RIDER at the same instant --",
+                         "seven men shouting over each other from inside one hull. With this on, only the driver",
+                         "speaks for the vehicle, and what plays is muffled radio traffic rather than the shouted",
+                         "infantry line (which is the wrong sound to hear from inside a closed vehicle anyway).",
+                         "Units on foot are completely unaffected either way.",
+                         "Turn off to restore SimpleEnemyMod's own behaviour, overlaps included.")
+                .define("vehicleVoicelinesEnabled", true);
+
+        builder.pop();
+
         builder.push("interaction");
 
         BOARD_SCAN_RADIUS = builder
@@ -571,6 +750,32 @@ public class SewvConfig {
 
         builder.pop();
 
+        builder.push("overlay");
+
+        FACTION_COLORS_ENABLED = builder
+                .comment("Colour the name and health bar of SuperbWarfare's hover overlay by who is CREWING the",
+                         "vehicle, so you can tell an enemy tank from your own at a glance.",
+                         "SuperbWarfare colours that overlay from the driver's scoreboard team, and an NPC unit is",
+                         "not on a team, so without this every AI-crewed hull renders the same plain white.",
+                         "Only a hull crewed ENTIRELY by one faction is coloured; an empty, mixed, or",
+                         "player-occupied one keeps SuperbWarfare's own colour.",
+                         "This is a client-side preference — on a server each player sees their own setting.")
+                .define("factionColorsEnabled", true);
+
+        COLOR_RU = builder
+                .comment("Colour for a hull crewed entirely by RU units, as RRGGBB hex. Default is red.")
+                .define("colorRu", "FF5555");
+
+        COLOR_US = builder
+                .comment("Colour for a hull crewed entirely by US units, as RRGGBB hex. Default is blue.")
+                .define("colorUs", "5555FF");
+
+        COLOR_PMC = builder
+                .comment("Colour for a hull crewed entirely by PMC units, as RRGGBB hex. Default is green.")
+                .define("colorPmc", "55FF55");
+
+        builder.pop();
+
         SPEC = builder.build();
     }
 
@@ -578,5 +783,21 @@ public class SewvConfig {
     // real entity type or item is checked at spawn time (registries aren't ready here).
     private static boolean isValidResourceId(Object o) {
         return o instanceof String s && ResourceLocation.tryParse(s) != null;
+    }
+
+    /**
+     * Parse an {@code RRGGBB} config colour into an opaque ARGB int.
+     *
+     * <p>Deliberately lenient: a colour is a cosmetic preference, so a typo falls back to the
+     * overlay's own white rather than throwing out of a render call. The alpha byte is forced
+     * on because SuperbWarfare ORs {@code 255 << 24} onto the text colour for the health bar
+     * and a config value of {@code 000000} would otherwise render as fully transparent.
+     */
+    public static int parseColor(String hex, int fallback) {
+        try {
+            return 0xFF000000 | (Integer.parseInt(hex.trim().replace("#", ""), 16) & 0xFFFFFF);
+        } catch (RuntimeException ignored) {
+            return fallback;
+        }
     }
 }

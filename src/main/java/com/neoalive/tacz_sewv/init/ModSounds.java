@@ -19,12 +19,18 @@ public final class ModSounds {
     // voicelines by MixinUnitVoicelines. A closed hull should sound like a radio, not like a man
     // standing in a field.
     //
-    // PLACEHOLDERS: all three currently point at .ogg files this mod already ships for the radio
-    // item, so the feature is audible and testable without new audio. Swapping in real recordings
-    // is one line each in assets/tacz_sewv/sounds.json and touches no Java.
-    public static final RegistryObject<SoundEvent> RADIO_HURT = register("radio_hurt");
-    public static final RegistryObject<SoundEvent> RADIO_DEATH = register("radio_death");
-    public static final RegistryObject<SoundEvent> RADIO_CONTACT = register("radio_contact");
+    // Two pools per faction, matching the audio that exists: DAMAGED (the unit is hit) and
+    // IDENTIFIED (it has spotted a target). Each event lists several .ogg variants in sounds.json,
+    // which is how Minecraft gives one SoundEvent random variation per play — the same trick SEM
+    // uses for its own voicelines.
+    //
+    // There is deliberately NO death event: no death audio was recorded, and a crew dying inside a
+    // vehicle is simply silent (see MixinUnitVoicelines). PMC has no lines of its own and uses the
+    // US pool.
+    public static final RegistryObject<SoundEvent> RADIO_RU_DAMAGED = register("radio_ru_damaged");
+    public static final RegistryObject<SoundEvent> RADIO_RU_IDENTIFIED = register("radio_ru_identified");
+    public static final RegistryObject<SoundEvent> RADIO_US_DAMAGED = register("radio_us_damaged");
+    public static final RegistryObject<SoundEvent> RADIO_US_IDENTIFIED = register("radio_us_identified");
 
     private ModSounds() {}
 

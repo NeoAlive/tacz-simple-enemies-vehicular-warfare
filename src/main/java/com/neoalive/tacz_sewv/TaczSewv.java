@@ -14,8 +14,10 @@ import com.mojang.logging.LogUtils;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager;
 import net.minecraftforge.common.MinecraftForge;
+import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.server.ServerAboutToStartEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
@@ -60,6 +62,21 @@ public class TaczSewv {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         SewvCommand.register(event.getDispatcher());
+    }
+
+    /**
+     * Snapshot SimpleEnemyMod's faction-friendly toggles before anything can tick.
+     *
+     * <p>This is the one safe moment to read another mod's config: every mod's config is baked by
+     * now, and no entity has ticked yet. It cannot be done from {@code ModConfigEvent} — that fires
+     * on the owning mod's bus, and the config is SEM's — and it must not be done from the AI itself,
+     * because {@code ConfigValue.get()} throws while a config is unbaked and a modpack that defers
+     * startup work (ModernFix et al.) can order things so the crew scans first. See
+     * {@code VehicleTargeting.refreshFactionFriendlyFlags}.
+     */
+    @SubscribeEvent
+    public void onServerAboutToStart(ServerAboutToStartEvent event) {
+        VehicleTargeting.refreshFactionFriendlyFlags();
     }
 
     // Every unit reaches the world through here, whichever door it came in by, which is what makes

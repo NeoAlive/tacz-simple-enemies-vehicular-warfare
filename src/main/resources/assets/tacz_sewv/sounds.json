@@ -11,20 +11,28 @@
     ]
   },
 
-  "radio_hurt": {
+  "radio_ru_damaged": {
     "sounds": [
-      "tacz_sewv:out"
+      "tacz_sewv:vehicle/ru_damaged_1",
+      "tacz_sewv:vehicle/ru_damaged_2"
     ]
   },
-  "radio_death": {
+  "radio_ru_identified": {
     "sounds": [
-      "tacz_sewv:out"
+      "tacz_sewv:vehicle/ru_identified_1",
+      "tacz_sewv:vehicle/ru_identified_2"
     ]
   },
-  "radio_contact": {
+  "radio_us_damaged": {
     "sounds": [
-      "tacz_sewv:affirmative",
-      "tacz_sewv:affirmative1"
+      "tacz_sewv:vehicle/us_damaged_1",
+      "tacz_sewv:vehicle/us_damaged_2"
+    ]
+  },
+  "radio_us_identified": {
+    "sounds": [
+      "tacz_sewv:vehicle/us_identified_1",
+      "tacz_sewv:vehicle/us_identified_2"
     ]
   }
 }

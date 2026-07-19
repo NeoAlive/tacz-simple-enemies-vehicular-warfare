@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
@@ -10,7 +11,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.nekoyuni.SimpleEnemyMod.config.CommonConfig;
+import net.minecraftforge.common.ForgeConfigSpec;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -34,6 +35,8 @@ import java.util.function.Predicate;
  * {@link AllyAssist} holder each goal owns one of.
  */
 public final class VehicleTargeting {
+
+    private static final org.slf4j.Logger LOGGER = LogUtils.getLogger();
 
     private VehicleTargeting() {}
 
@@ -367,13 +370,102 @@ public final class VehicleTargeting {
         return isFriendly(unit, target) || friendlyFlagShields(unit, target);
     }
 
-    // SEM's per-faction "friendly with Players and PMC Units" toggle, read live the same way SEM
-    // reads it in setupRoleGoals. PMC has no such toggle — its friend/foe rules are the per-goal
-    // Enemy checks, so it never reaches here.
+    /**
+     * Cached copies of SimpleEnemyMod's per-faction "friendly with Players and PMC Units" toggles.
+     *
+     * <p><b>Why cached and not read live.</b> {@code ForgeConfigSpec.ConfigValue.get()} asserts
+     * {@code spec.childConfig != null} and <b>throws</b> if the config has not been baked yet.
+     * {@link #friendlyFlagShields} runs from a per-tick AI target scan, and in a heavy modpack —
+     * ModernFix and friends reorder and defer startup work — the load order can land such that a
+     * crew scans before SEM's config is ready. That is a race, not a logic error, which is exactly
+     * why it never reproduced in a lighter instance. Caching removes the per-tick read entirely, so
+     * the hot path cannot be exposed to it at all.
+     *
+     * <p>Defaults match SEM's own ({@code false} = hostile), so a read before the first refresh is
+     * both crash-free and the behaviour that predates the friendly-flag feature.
+     *
+     * <p>{@code volatile} because the refresh and the AI reads are not guaranteed to be the same
+     * thread across integrated/dedicated servers; the cost is a plain load on any real CPU.
+     */
+    private static volatile boolean ruUnitsFriendly = false;
+    private static volatile boolean usUnitsFriendly = false;
+
+    /**
+     * Where SimpleEnemyMod keeps its per-faction friendly toggles — <b>which class has MOVED between
+     * SEM versions</b>. 0.1.5-beta has {@code config.common.FactionsConfig}; older builds have
+     * {@code config.CommonConfig}. Field names and types are identical in both, only the owning
+     * class differs, so the lookup is by class name, newest first.
+     *
+     * <p>This is why the reference cannot be a compile-time one: it binds to whichever layout the
+     * jar in {@code libs/} happened to have and then dies with {@code NoSuchFieldError} on every
+     * other SEM build. Add new homes to the front as SEM moves them again.
+     */
+    private static final String[] FRIENDLY_CONFIG_CLASSES = {
+            "net.nekoyuni.SimpleEnemyMod.config.common.FactionsConfig",
+            "net.nekoyuni.SimpleEnemyMod.config.CommonConfig",
+    };
+
+    /**
+     * Re-read SEM's friendly toggles into the cache. Called on server start — after every mod's
+     * config has been baked, and before any entity can tick.
+     *
+     * <p>Deliberately <b>not</b> driven by {@code ModConfigEvent}: that is dispatched to the event
+     * bus of the mod that <em>owns</em> the config, and this config is SimpleEnemyMod's, so our bus
+     * never sees it.
+     *
+     * <p>Consequence worth knowing: editing SEM's toggle <em>while the server runs</em> is not
+     * picked up until the next world load. Restarting the world applies it.
+     */
+    public static void refreshFactionFriendlyFlags() {
+        Boolean ru = readSemFriendlyFlag("RU_UNITS_FRIENDLY");
+        Boolean us = readSemFriendlyFlag("US_UNITS_FRIENDLY");
+        ruUnitsFriendly = ru != null && ru;
+        usUnitsFriendly = us != null && us;
+
+        if (ru == null || us == null) {
+            // Loud on purpose: silently defaulting to hostile would make a player's
+            // usUnitsFriendly=true look like OUR bug rather than a SEM layout change.
+            LOGGER.warn("SimpleEnemyMod's faction-friendly toggles were not found in any known config"
+                            + " class {}. Treating RU/US crews as hostile to players and PMC units."
+                            + " SEM has most likely moved them again — add the new class to"
+                            + " VehicleTargeting.FRIENDLY_CONFIG_CLASSES.",
+                    String.join(", ", FRIENDLY_CONFIG_CLASSES));
+        }
+    }
+
+    /**
+     * The toggle's value, or {@code null} when this SEM build does not expose it anywhere we know.
+     *
+     * <p>{@code Throwable} — not {@code Exception} — is the correct catch here, and the distinction
+     * is the whole bug: a version mismatch surfaces as {@code NoSuchFieldError}, which extends
+     * {@code LinkageError} extends {@code Error}, so an earlier {@code catch (Exception)} around
+     * this let it straight through and took the server down at {@code ServerAboutToStart}. The same
+     * catch also absorbs the unrelated {@code IllegalStateException} that {@code ConfigValue.get()}
+     * throws while a config is still unbaked, so both failure modes degrade to "not friendly".
+     */
+    private static Boolean readSemFriendlyFlag(String fieldName) {
+        for (String className : FRIENDLY_CONFIG_CLASSES) {
+            try {
+                Object holder = Class.forName(className).getField(fieldName).get(null);
+                if (holder instanceof ForgeConfigSpec.ConfigValue<?> value
+                        && value.get() instanceof Boolean flag) {
+                    return flag;
+                }
+            } catch (Throwable ignored) {
+                // Not this SEM layout (ClassNotFound/NoSuchField), or the config is not baked yet
+                // (IllegalState) — try the next known home.
+            }
+        }
+        return null;
+    }
+
+    // SEM's per-faction "friendly with Players and PMC Units" toggle, from the cache above rather
+    // than the live config — see refreshFactionFriendlyFlags. PMC has no such toggle: its friend/foe
+    // rules are the per-goal Enemy checks, so it never reaches here.
     private static boolean friendlyFlagShields(AbstractUnit unit, LivingEntity target) {
         boolean friendly;
-        if (unit instanceof RUunitEntity) friendly = CommonConfig.RU_UNITS_FRIENDLY.get();
-        else if (unit instanceof USunitEntity) friendly = CommonConfig.US_UNITS_FRIENDLY.get();
+        if (unit instanceof RUunitEntity) friendly = ruUnitsFriendly;
+        else if (unit instanceof USunitEntity) friendly = usUnitsFriendly;
         else return false;
         return friendly && (target instanceof Player || target instanceof PmcUnitEntity);
     }

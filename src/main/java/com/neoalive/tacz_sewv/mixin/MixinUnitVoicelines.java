@@ -7,6 +7,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -31,6 +32,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *   <li><b>A passenger, but not the driver</b> — silent.
  *   <li><b>The driver</b> — speaks for the whole vehicle, with a radio sound.
  * </ul>
+ *
+ * <p>The radio pools are per faction: RU has its own, and <b>PMC uses the US pool</b> (no PMC lines
+ * were recorded). Only two pools exist — {@code damaged} for being hit and {@code identified} for
+ * spotting a target — so <b>death is silent inside a vehicle</b>, which is also the most complete
+ * answer to the overlap this class was written for.
  * The driver is {@code getFirstPassenger()}, this codebase's established "who owns this hull"
  * idiom (see {@code VehicleWeapons}, {@code DriveVehicleGoal}, {@code MixinVehicleFactionEnergy}),
  * and it needs no new state or timers: seat order is stable because {@code TankSpawner} mounts in
@@ -56,12 +62,21 @@ public abstract class MixinUnitVoicelines {
 
     @Inject(method = "getHurtSound", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$radioHurtSound(DamageSource source, CallbackInfoReturnable<SoundEvent> cir) {
-        tacz_sewv$substitute(cir, ModSounds.RADIO_HURT.get());
+        tacz_sewv$substitute(cir, tacz_sewv$damagedLine());
     }
 
+    /**
+     * Death is <b>silent</b> inside a vehicle — for the speaker as much as for everyone else.
+     *
+     * <p>Not an oversight: there is no death audio, only the damaged/identified pools. Passing null
+     * here mutes the whole hull, which is also the cleanest possible answer to the original
+     * complaint (a shell on a loaded carrier used to fire one death line per rider at once). The
+     * damaged line already covers the crew being hit on the way down.
+     */
     @Inject(method = "getDeathSound", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$radioDeathSound(CallbackInfoReturnable<SoundEvent> cir) {
-        tacz_sewv$substitute(cir, ModSounds.RADIO_DEATH.get());
+        if (!tacz_sewv$inVehicle()) return; // on foot: SEM's own death cry, untouched
+        cir.setReturnValue(null);
     }
 
     /**
@@ -85,7 +100,29 @@ public abstract class MixinUnitVoicelines {
             return;
         }
         if (!tacz_sewv$isSpeaker()) return; // a passenger who isn't the driver stays off the net
-        self.playSound(ModSounds.RADIO_CONTACT.get(), volume, pitch);
+        self.playSound(tacz_sewv$identifiedLine(), volume, pitch);
+    }
+
+    /**
+     * The faction's "we're hit" and "target identified" lines.
+     *
+     * <p>RU has its own recordings; US and <b>PMC share the US pool</b> — no PMC lines exist, and a
+     * PMC crew reading as western is the intended stand-in rather than a gap. Selected per call
+     * rather than cached because it costs one instanceof and the unit's class never changes anyway.
+     */
+    @Unique
+    private SoundEvent tacz_sewv$damagedLine() {
+        return tacz_sewv$isRu() ? ModSounds.RADIO_RU_DAMAGED.get() : ModSounds.RADIO_US_DAMAGED.get();
+    }
+
+    @Unique
+    private SoundEvent tacz_sewv$identifiedLine() {
+        return tacz_sewv$isRu() ? ModSounds.RADIO_RU_IDENTIFIED.get() : ModSounds.RADIO_US_IDENTIFIED.get();
+    }
+
+    @Unique
+    private boolean tacz_sewv$isRu() {
+        return (Object) this instanceof RUunitEntity;
     }
 
     /** Mute, substitute, or leave alone — the shared decision for the two vanilla hooks. */

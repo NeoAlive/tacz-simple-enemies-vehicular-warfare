@@ -34,6 +34,15 @@ import java.util.EnumSet;
  */
 public class AtWeaponGoal extends Goal {
 
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+
+    /**
+     * Set once SuperbWarfare's fire path has thrown — see {@link #tacz_sewv$reportBrokenFirePath}.
+     * A broken fire path is a property of the installed mod set, so this latches for the session
+     * instead of being retried per shot.
+     */
+    private static volatile boolean FIRE_PATH_BROKEN = false;
+
     private final AbstractUnit unit;
     /** Goal ticks the target has been tracked for. Reset whenever the target is lost. */
     private int aimTicks;
@@ -51,6 +60,7 @@ public class AtWeaponGoal extends Goal {
      */
     @Override
     public boolean canUse() {
+        if (FIRE_PATH_BROKEN) return false; // an incompatible mod broke SBW's fire path — stay down
         if (this.unit.level().isClientSide()) return false;
         if (this.unit.isPassenger()) return false; // a mounted crew works the hull's weapons
 
@@ -121,7 +131,40 @@ public class AtWeaponGoal extends Goal {
 
         // zoom = true is REQUIRED, not cosmetic: JavelinItem.shoot returns immediately without
         // it, so a Javelin gunner would track its target forever and never launch.
-        gun.shoot(this.unit, 0.0, true, target.getUUID());
+        try {
+            gun.shoot(this.unit, 0.0, true, target.getUUID());
+        } catch (Throwable t) {
+            tacz_sewv$reportBrokenFirePath(t);
+        }
+    }
+
+    /**
+     * Stand every AT gunner down after the SuperbWarfare fire path throws.
+     *
+     * <p>Third-party mods inject into that path and can be flatly incompatible with the installed
+     * SBW: Gunfire Overhaul 0.1.6-a, for instance, mixes into {@code GunItem.playFireSounds} and
+     * reads {@code AmmoConsumer.type} directly, which is <b>private</b> in SBW 0.8.9 (there is a
+     * public {@code getType()}), so every shot dies with {@code IllegalAccessError}. None of that is
+     * ours to fix — but this goal ticks on every AT gunner every tick, and an AI goal must never be
+     * able to take the server down, which is the same rule the rest of this package follows.
+     *
+     * <p>{@code Throwable}, not {@code Exception}: {@code IllegalAccessError} is a
+     * {@code LinkageError} and would sail straight through a narrower catch.
+     *
+     * <p>Latched globally rather than retried, because a broken fire path is a property of the
+     * INSTALL, not of this shot — retrying would rethrow on every reload cycle and bury the log.
+     * The cost is honest and worth stating: AT gunners keep their launchers but stop firing, so the
+     * feature is inert until the offending mod is updated or removed.
+     */
+    private static void tacz_sewv$reportBrokenFirePath(Throwable t) {
+        if (FIRE_PATH_BROKEN) return;
+        FIRE_PATH_BROKEN = true;
+        LOGGER.error("SuperbWarfare's gun-fire path threw, so AI anti-tank gunners are standing down"
+                + " for this session. This is an incompatibility between SuperbWarfare and another"
+                + " mod injecting into it (Gunfire Overhaul is a known case: it reads the private"
+                + " AmmoConsumer.type and fails with IllegalAccessError on SBW 0.8.9), NOT a fault in"
+                + " the weapon or the crew. The same crash occurs if a PLAYER fires a SuperbWarfare"
+                + " gun. Update or remove that mod to restore AT gunners.", t);
     }
 
     /**

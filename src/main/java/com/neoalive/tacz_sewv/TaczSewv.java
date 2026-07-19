@@ -7,6 +7,7 @@ import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.procedural.events.ConvoyEvent;
+import com.neoalive.tacz_sewv.procedural.events.DerelictVehicleEvent;
 import com.neoalive.tacz_sewv.procedural.events.MortarShellingEvent;
 import com.neoalive.tacz_sewv.util.NpcArmor;
 import com.mojang.logging.LogUtils;
@@ -41,6 +42,7 @@ public class TaczSewv {
         // SEM dynamic events: they are listed, can be toggled, and can be forced by SEM.
         DynamicEventManager.registerEvent(new ConvoyEvent());
         DynamicEventManager.registerEvent(new MortarShellingEvent());
+        DynamicEventManager.registerEvent(new DerelictVehicleEvent());
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

@@ -6,6 +6,7 @@
   "refmap": "tacz_sewv.refmap.json",
   "mixins": [
     "MixinAbstractUnit",
+    "MixinUnitVoicelines",
     "MixinPmcUnitEntity",
     "MixinFactionUnitEntity",
     "MixinCombatEvent",
@@ -24,7 +25,8 @@
     "client.MixinClientGlowManager",
     "client.MixinClientGlowRenderHandler",
     "client.MixinUnitRenderer",
-    "client.MixinUniversalArmorLayer"
+    "client.MixinUniversalArmorLayer",
+    "client.MixinVehicleTeamOverlay"
   ],
   "server": [],
   "injectors": {

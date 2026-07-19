@@ -6,7 +6,7 @@ import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
-import com.neoalive.tacz_sewv.entity.ai.BoardVehicleGoal;
+import com.neoalive.tacz_sewv.entity.ai.MedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
 import net.minecraft.world.entity.Entity;
@@ -106,10 +106,15 @@ public abstract class MixinPmcUnitEntity
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
     private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
         PmcUnitEntity self = (PmcUnitEntity) (Object) this;
-        ((Mob) self).goalSelector.addGoal(1, new BoardVehicleGoal(self));
         // Claims no flags, so its priority is nominal — it only relays a contact over the
         // radio and never competes with what the unit is doing.
         ((Mob) self).goalSelector.addGoal(1, new RadioObserverGoal(self));
+        // PMC-only because the kits are player-supplied and a PMC is the one unit type SEM
+        // gives an inventory to — RU/US have no ITEM_HANDLER to hold one. Priority 2 keeps
+        // first aid below anything crew-served: it only runs out of contact anyway.
+        ((Mob) self).goalSelector.addGoal(2, new MedicGoal(self));
+        // BoardVehicleGoal is NOT here any more: it moved into addDriveGoals once RU/US units
+        // gained IVehicleBoarder for scavenging. It never cared where an order came from.
         // ManMortarGoal lives in addDriveGoals with the rest of the crew-served wiring:
         // working a tube needs no network bridge, so RU/US crews get it too.
         VehicleAiGoals.addDriveGoals(self);

@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.mixin;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
@@ -26,11 +27,58 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // IIssuedAmmo is how such a crew has anything to shoot at all: RU/US units have NO
 // inventory (SEM gives one to PmcUnitEntity only), so their ammunition is issued rather
 // than carried. Default methods again — nothing to implement here.
+// IVehicleBoarder is the odd one out: it is NOT here because a player can command these
+// units (nothing can), but because SeekAbandonedVehicleGoal writes the very same order a
+// player's board keypress writes for a PMC. The order is three plain fields and the goal
+// that executes it never asks who set them, so scavenging cost nothing but this interface.
+// Its fields are duplicated from MixinPmcUnitEntity rather than shared: the interface has
+// no default methods and a mixin cannot add fields through one. They stay TRANSIENT — the
+// order names an entity by network id, which means nothing after a reload.
 @Mixin({RUunitEntity.class, USunitEntity.class})
-public abstract class MixinFactionUnitEntity implements IHelicopterPilot, IMortarCrew, IIssuedAmmo {
+public abstract class MixinFactionUnitEntity
+        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo {
+
+    @Unique
+    private int tacz_sewv$mountTargetId = -1;
+
+    @Unique
+    private boolean tacz_sewv$boarding = false;
+
+    @Unique
+    private boolean tacz_sewv$passengerOnly = false;
 
     @Unique
     private int tacz_sewv$mortarTargetId = IMortarCrew.NO_MORTAR;
+
+    @Override
+    public void tacz_sewv$setMountTargetId(int id) {
+        this.tacz_sewv$mountTargetId = id;
+    }
+
+    @Override
+    public int tacz_sewv$getMountTargetId() {
+        return this.tacz_sewv$mountTargetId;
+    }
+
+    @Override
+    public void tacz_sewv$setBoarding(boolean boarding) {
+        this.tacz_sewv$boarding = boarding;
+    }
+
+    @Override
+    public boolean tacz_sewv$isBoarding() {
+        return this.tacz_sewv$boarding;
+    }
+
+    @Override
+    public void tacz_sewv$setPassengerOnly(boolean passengerOnly) {
+        this.tacz_sewv$passengerOnly = passengerOnly;
+    }
+
+    @Override
+    public boolean tacz_sewv$isPassengerOnly() {
+        return this.tacz_sewv$passengerOnly;
+    }
 
     @Override
     public void sewv$setMortarTargetId(int id) {

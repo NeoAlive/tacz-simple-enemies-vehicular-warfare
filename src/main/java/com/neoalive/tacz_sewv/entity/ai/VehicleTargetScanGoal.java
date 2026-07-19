@@ -168,6 +168,11 @@ public class VehicleTargetScanGoal extends Goal {
     private boolean isValidTarget(VehicleEntity v, LivingEntity e) {
         if (e == this.unit || !e.isAlive() || !e.isAttackable()) return false;
         if (e.getVehicle() == v) return false; // riding our own hull — crewmate or min-range hugger
+        // Honour SEM's per-faction friendly flag before the explicit Player branch below would
+        // otherwise lock any player — the reported "friendly US helicopter fires on the player"
+        // bug. Excludes friendly players/PMC here (not just at setTarget) so the scan skips them
+        // and moves on to the next candidate rather than spinning on one it can never lock.
+        if (VehicleTargeting.isNonHostile(this.unit, e)) return false;
 
         if (this.unit instanceof PmcUnitEntity) {
             return e instanceof Enemy && !(e instanceof PmcUnitEntity);

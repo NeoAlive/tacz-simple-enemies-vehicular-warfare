@@ -10,6 +10,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.config.CommonConfig;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -334,8 +335,47 @@ public final class VehicleTargeting {
     // The hard friendly-fire gate: true when `target` is a unit of the same
     // faction. MixinAbstractUnit cancels any setTarget that fails this test, so a
     // stray splash-damage hit can never escalate into an intra-faction firefight.
+    //
+    // Deliberately NARROW — same faction only, no config. It gates EVERY setTarget,
+    // including retaliation, and that is right for a same-faction hit (never fight a
+    // squadmate) but wrong for a player: SEM keeps HurtByTargetGoal on a friendly RU/US
+    // unit, so it fights back when shot. Blocking that here would make friendly units
+    // pacifist on foot too. The friendly-config exclusion therefore lives in
+    // isNonHostile below, which only the PROACTIVE scan goals consult.
     public static boolean isFriendly(AbstractUnit unit, LivingEntity target) {
         return target instanceof AbstractUnit other && isSameFaction(unit, other);
+    }
+
+    /**
+     * Whether a mounted crew must not PROACTIVELY acquire {@code target} — the shared exclusion
+     * for both auto-target paths ({@link VehicleTargetScanGoal} and {@link CrewTargetPriorityGoal}).
+     *
+     * <p>Same-faction friends, plus — for an RU/US crew whose SimpleEnemyMod friendly toggle is on
+     * — players and PMC units. SEM's {@code usUnitsFriendly}/{@code ruUnitsFriendly} make that
+     * faction "friendly with Players and PMC Units", and on foot SEM honours it by simply not
+     * installing the player/PMC target goals in {@code setupRoleGoals}. Our vehicle scanners are
+     * added on TOP of SEM's selectors, so without this they re-introduce exactly the targeting the
+     * flag turned off — a crewed US helicopter opening fire on the player with {@code usUnitsFriendly}
+     * true was the reported symptom, and it is not helicopter-specific: every crewed hull scans the
+     * same way.
+     *
+     * <p>Scoped to proactive acquisition on purpose. Retaliation is left to {@link #isFriendly}
+     * (which does not shield the player), so a friendly crew still fights back when shot — matching
+     * the on-foot unit under the same flag.
+     */
+    public static boolean isNonHostile(AbstractUnit unit, LivingEntity target) {
+        return isFriendly(unit, target) || friendlyFlagShields(unit, target);
+    }
+
+    // SEM's per-faction "friendly with Players and PMC Units" toggle, read live the same way SEM
+    // reads it in setupRoleGoals. PMC has no such toggle — its friend/foe rules are the per-goal
+    // Enemy checks, so it never reaches here.
+    private static boolean friendlyFlagShields(AbstractUnit unit, LivingEntity target) {
+        boolean friendly;
+        if (unit instanceof RUunitEntity) friendly = CommonConfig.RU_UNITS_FRIENDLY.get();
+        else if (unit instanceof USunitEntity) friendly = CommonConfig.US_UNITS_FRIENDLY.get();
+        else return false;
+        return friendly && (target instanceof Player || target instanceof PmcUnitEntity);
     }
 
     /**

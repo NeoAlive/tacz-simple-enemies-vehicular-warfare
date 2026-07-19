@@ -4,8 +4,10 @@ import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.entity.ai.EscortGoal;
 import com.neoalive.tacz_sewv.entity.ai.MedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
@@ -29,10 +31,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // player actually gave it — which is the whole point of hand-loading one.
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity
-        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember, IVehiclePatrol {
+        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember, IVehiclePatrol, IEscort {
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
+
+    // Transient escort target (an entity network id) — the vehicle this unit sticks beside under an
+    // Escort order. Dropped on reload, like the board order, since a network id means nothing across
+    // sessions. -1 = not escorting.
+    @Unique
+    private int tacz_sewv$escortTargetId = -1;
 
     @Unique
     private boolean tacz_sewv$boarding = false;
@@ -71,6 +79,16 @@ public abstract class MixinPmcUnitEntity
     @Override
     public boolean tacz_sewv$isPassengerOnly() {
         return this.tacz_sewv$passengerOnly;
+    }
+
+    @Override
+    public void tacz_sewv$setEscortTargetId(int id) {
+        this.tacz_sewv$escortTargetId = id;
+    }
+
+    @Override
+    public int tacz_sewv$getEscortTargetId() {
+        return this.tacz_sewv$escortTargetId;
     }
 
     @Override
@@ -113,6 +131,10 @@ public abstract class MixinPmcUnitEntity
         // gives an inventory to — RU/US have no ITEM_HANDLER to hold one. Priority 2 keeps
         // first aid below anything crew-served: it only runs out of contact anyway.
         ((Mob) self).goalSelector.addGoal(2, new MedicGoal(self));
+        // Priority 1, and it has to be: it must outrank SEM's owner-follow (CommanderOrderGoal,
+        // prio 3, holds MOVE for ANY order) and the chase goal (MoveToAttackRangeGoal, prio 3) so a
+        // glued escort is never dragged off. PMC-only because escort is a player order. See EscortGoal.
+        ((Mob) self).goalSelector.addGoal(1, new EscortGoal(self));
         // BoardVehicleGoal is NOT here any more: it moved into addDriveGoals once RU/US units
         // gained IVehicleBoarder for scavenging. It never cared where an order came from.
         // ManMortarGoal lives in addDriveGoals with the rest of the crew-served wiring:

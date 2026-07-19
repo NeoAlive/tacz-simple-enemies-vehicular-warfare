@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.procedural.events;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.TankSpawner;
@@ -104,17 +105,29 @@ public final class DerelictVehicleEvent extends DynamicEvent {
 
         // A derelict has to be something that could be DRIVEN AWAY, and SuperbWarfare marks
         // everything that cannot with EngineType "Fixed" — mk_42, hpj_11, annihilator, tow,
-        // mortar — for which getEngineInfo() is null. Those are emplacements: "out of fuel" means
-        // nothing to a naval gun mount, and there is no vehicle to recover at the end of it, so
-        // the whole premise of the event collapses into a broken turret sitting in a field.
+        // mortar. Those are emplacements: "out of fuel" means nothing to a naval gun mount, and
+        // there is no vehicle to recover at the end of it, so the whole premise of the event
+        // collapses into a broken turret sitting in a field.
+        //
+        // Read from computed() (the STATIC datapack data, available the instant the entity exists)
+        // NOT from getEngineInfo(). That is an entity FIELD, lazily populated inside travel() on the
+        // hull's first baseTick — one tick AFTER addFreshEntity — so at spawn time it is null for
+        // EVERY hull, a drivable T-90 exactly as much as a Fixed emplacement. Testing it here made
+        // the event discard everything and always return false (the "/semevent force always fails"
+        // bug). computed().getEngineType() is the same source HullFacts.computeTracked reads.
         //
         // Filtered here rather than in the pool because a Fixed hull is a perfectly good entry for
         // the CREWED spawns those pools mainly exist for. Discarding and failing costs one wasted
         // pick, and returning false burns the roll without resetting the accumulated chance, so
         // the event simply comes round again next cycle.
-        if (hull.getEngineInfo() == null) {
-            hull.discard();
-            return false;
+        try {
+            if (hull.computed().getEngineType() == EngineType.FIXED) {
+                hull.discard();
+                return false;
+            }
+        } catch (Exception ignored) {
+            // Unreadable vehicle data: let a rare odd hull through rather than reintroduce
+            // an always-fail. A wrong derelict is a far smaller problem than a dead event.
         }
 
         hull.setHealth(hull.getMaxHealth() * SewvConfig.DERELICT_HEALTH_FRACTION.get().floatValue());

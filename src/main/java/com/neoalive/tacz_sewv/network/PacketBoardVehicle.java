@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.network;
 
+import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import net.minecraft.ChatFormatting;
@@ -56,6 +57,9 @@ public class PacketBoardVehicle {
                 boarder.tacz_sewv$setMountTargetId(this.vehicleId);
                 boarder.tacz_sewv$setPassengerOnly(this.passengerOnly);
                 boarder.tacz_sewv$setBoarding(true);
+                // Board and escort both drive the unit on foot at goal priority 1 — a unit can't do
+                // both. Boarding wins the moment it's ordered.
+                ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
                 ordered++;
             }
         }

@@ -6,6 +6,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.minecraftforge.network.NetworkEvent;
+import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
@@ -53,6 +54,8 @@ public class PacketDismountVehicle {
                 // assigned to that tube — and cancels any standing patrol order.
                 MortarSupport.releaseClaim(pmc);
                 PatrolSupport.clear(pmc);
+                // Likewise any escort order — dismount stands a unit fully down.
+                ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
                 if (wasMounted) dismounted++;
             }
         }

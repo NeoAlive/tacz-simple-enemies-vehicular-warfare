@@ -26,9 +26,9 @@ public class NetworkHandler {
     // Bumped when the wire format changes (2: list sizes/ids became VarInts; 3: added the mortar
     // order; 4: added the vehicle formation order; 5: added the patrol order; 6: formation carries
     // a shape id + row size, and the heli command carries a cruise altitude; 7: board carries a
-    // passenger-only flag and the area-task order carries a patrol/search mode) so a mismatched
-    // client/server pair is rejected at handshake instead of misparsing.
-    private static final String PROTOCOL_VERSION = "7";
+    // passenger-only flag and the area-task order carries a patrol/search mode; 8: added the escort
+    // order) so a mismatched client/server pair is rejected at handshake instead of misparsing.
+    private static final String PROTOCOL_VERSION = "8";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -92,6 +92,14 @@ public class NetworkHandler {
                 PacketPatrolVehicle::encode,
                 PacketPatrolVehicle::new,
                 PacketPatrolVehicle::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketEscort.class,
+                PacketEscort::encode,
+                PacketEscort::new,
+                PacketEscort::handle
         );
     }
 }

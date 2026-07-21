@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.util;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -45,6 +46,8 @@ public final class NpcArmor {
     }
 
     private static List<? extends String> loadoutFor(AbstractUnit unit) {
+        // Medics have no defense — checked before the faction branches, since a medic IS a RU/US unit.
+        if (VehicleTargeting.isMedic(unit)) return List.of();
         if (unit instanceof RUunitEntity) return SewvConfig.RU_ARMOR.get();
         if (unit instanceof USunitEntity) return SewvConfig.US_ARMOR.get();
         if (unit instanceof PmcUnitEntity) return SewvConfig.PMC_ARMOR.get();

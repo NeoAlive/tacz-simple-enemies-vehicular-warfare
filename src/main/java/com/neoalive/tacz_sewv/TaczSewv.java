@@ -3,8 +3,10 @@ package com.neoalive.tacz_sewv;
 import com.neoalive.tacz_sewv.command.SewvCommand;
 import com.neoalive.tacz_sewv.compat.BerezkaStructureCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModEntities;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
+import com.neoalive.tacz_sewv.util.SupportSpawner;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.procedural.events.ConvoyEvent;
 import com.neoalive.tacz_sewv.procedural.events.DerelictVehicleEvent;
@@ -38,6 +40,7 @@ public class TaczSewv {
         modEventBus.addListener(this::commonSetup);
         ModItems.ITEMS.register(modEventBus);
         ModSounds.SOUNDS.register(modEventBus);
+        ModEntities.register(modEventBus);
         MinecraftForge.EVENT_BUS.register(this);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SewvConfig.SPEC);
         // SEM is loaded before this bridge (see mods.toml), so these become normal
@@ -86,6 +89,9 @@ public class TaczSewv {
         if (event.getLevel().isClientSide) return;
         if (event.getEntity() instanceof AbstractUnit unit) {
             NpcArmor.issue(unit);
+            // Every spawn path surfaces a unit here, so this is also the one place a squad can pick up
+            // a medic/engineer companion regardless of which door it came in by.
+            SupportSpawner.maybeSpawnCompanions(unit);
         }
     }
 }

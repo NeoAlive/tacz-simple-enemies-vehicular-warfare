@@ -4,6 +4,8 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
+import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Entity;
@@ -347,6 +349,26 @@ public final class VehicleTargeting {
     // isNonHostile below, which only the PROACTIVE scan goals consult.
     public static boolean isFriendly(AbstractUnit unit, LivingEntity target) {
         return target instanceof AbstractUnit other && isSameFaction(unit, other);
+    }
+
+    /**
+     * A medic — neutral to every faction. {@link com.neoalive.tacz_sewv.mixin.MixinAbstractUnit}
+     * cancels any {@code setTarget} onto one, so no RU/US/PMC unit ever engages it (vanilla monsters
+     * already ignore {@code AbstractUnit}s), a nod to the Geneva Convention.
+     */
+    public static boolean isMedic(LivingEntity entity) {
+        return entity instanceof RuMedicEntity || entity instanceof UsMedicEntity;
+    }
+
+    /**
+     * A hull an engineer may repair: empty, or crewed by a same-faction unit. Never enemy-crewed, and
+     * never player-crewed (a player is nobody's faction ally). A hull carries no faction of its own —
+     * its first passenger defines it, exactly as {@link #isAlliedVehicle} decides line-of-fire.
+     */
+    public static boolean isFriendlyOrEmptyHull(AbstractUnit unit, VehicleEntity vehicle) {
+        Entity driver = vehicle.getFirstPassenger();
+        if (driver == null) return true;
+        return driver instanceof AbstractUnit crew && isSameFaction(unit, crew);
     }
 
     /**

@@ -86,6 +86,18 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue MEDIC_ENABLED;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SEARCH_RADIUS;
 
+    // Health-based mobility (AI-crewed vehicles only)
+    public static final ForgeConfigSpec.BooleanValue HEALTH_MOBILITY_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue HEALTH_MOBILITY_FLOOR;
+
+    // Medic/engineer support units
+    public static final ForgeConfigSpec.DoubleValue MEDIC_SPAWN_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue ENGINEER_SPAWN_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue SUPPORT_DEDUPE_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue ENGINEER_SEARCH_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue ENGINEER_REPAIR_PER_TREAT;
+    public static final ForgeConfigSpec.IntValue ENGINEER_REPAIR_COOLDOWN;
+
     // Scavenging an abandoned hull (RU/US only — a PMC boards on the player's order instead)
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_ENABLED;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_SCAN_RADIUS;
@@ -538,9 +550,54 @@ public class SewvConfig {
                 .define("medicEnabled", true);
 
         MEDIC_SEARCH_RADIUS = builder
-                .comment("How far (in blocks) a PMC medic will look for a wounded squadmate to treat.",
+                .comment("How far (in blocks) a medic will look for a wounded same-faction unit to treat.",
                          "It treats ITSELF first when hurt; only then does it walk to someone else.")
                 .defineInRange("medicSearchRadius", 12.0, 2.0, 48.0);
+
+        HEALTH_MOBILITY_ENABLED = builder
+                .comment("Slow an AI-crewed vehicle's drive speed and turret slew as it loses health.",
+                         "SuperbWarfare already degrades mobility when a specific COMPONENT is knocked out (a dead",
+                         "track/engine/turret), but not gradually with overall damage — this adds that, and only to",
+                         "vehicles a unit is crewing (player-driven hulls are untouched).")
+                .define("healthMobilityEnabled", true);
+
+        HEALTH_MOBILITY_FLOOR = builder
+                .comment("Slowest an AI vehicle gets from damage, as a fraction of its full speed/slew, reached at",
+                         "0 health. Mobility scales linearly from 1.0 at full health down to this. Keep it above 0",
+                         "so a near-dead tank still limps and turns rather than freezing in place.")
+                .defineInRange("healthMobilityFloor", 0.4, 0.05, 1.0);
+
+        MEDIC_SPAWN_CHANCE = builder
+                .comment("Chance (0.0-1.0) that a freshly-spawned RU/US unit brings a same-faction squad medic with",
+                         "it. Rolled once per unit on first spawn, then suppressed if a friendly medic is already",
+                         "within supportDedupeRadius, so a cluster of units gets about one medic rather than a swarm.",
+                         "Medics are neutral (no faction targets them), carry no weapon, and heal their own side.")
+                .defineInRange("medicSpawnChance", 0.06, 0.0, 1.0);
+
+        ENGINEER_SPAWN_CHANCE = builder
+                .comment("Chance (0.0-1.0) that a freshly-spawned RU/US unit brings a same-faction mechanical",
+                         "engineer. Same first-spawn roll and dedupe as medics. Engineers carry a repair tool and",
+                         "patch up friendly or empty hulls on foot; they can be targeted like any other unit.")
+                .defineInRange("engineerSpawnChance", 0.05, 0.0, 1.0);
+
+        SUPPORT_DEDUPE_RADIUS = builder
+                .comment("Radius (in blocks) used to avoid stacking support units: a medic/engineer companion is not",
+                         "spawned if one of the same role and faction is already within this distance.")
+                .defineInRange("supportDedupeRadius", 32.0, 4.0, 128.0);
+
+        ENGINEER_SEARCH_RADIUS = builder
+                .comment("How far (in blocks) a mechanical engineer looks for a damaged friendly/empty vehicle to fix.")
+                .defineInRange("engineerSearchRadius", 24.0, 4.0, 96.0);
+
+        ENGINEER_REPAIR_PER_TREAT = builder
+                .comment("Vehicle health an engineer restores per repair pulse (SBW vehicle health units; a BMP has",
+                         "300 max). Applied every engineerRepairCooldown goal ticks while it stands by the hull.")
+                .defineInRange("engineerRepairPerTreat", 4.0, 0.5, 100.0);
+
+        ENGINEER_REPAIR_COOLDOWN = builder
+                .comment("Goal ticks between an engineer's repair pulses (goals tick every OTHER game tick, so this",
+                         "is roughly 2x its value in game ticks).")
+                .defineInRange("engineerRepairCooldown", 10, 1, 200);
 
         AUTO_BOARD_ENABLED = builder
                 .comment("Let RU/US infantry climb into an abandoned vehicle they walk past, so a hull whose crew",

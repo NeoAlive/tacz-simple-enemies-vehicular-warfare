@@ -31,7 +31,8 @@ public abstract class MixinAbstractUnit {
     @Inject(method = "setTarget", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$blockFriendlyTarget(LivingEntity target, CallbackInfo ci) {
         AbstractUnit self = (AbstractUnit) (Object) this;
-        if (VehicleTargeting.isFriendly(self, target)) {
+        // Same-faction friends and medics (neutral to everyone) are never taken as a target.
+        if (VehicleTargeting.isFriendly(self, target) || VehicleTargeting.isMedic(target)) {
             ci.cancel();
         }
     }

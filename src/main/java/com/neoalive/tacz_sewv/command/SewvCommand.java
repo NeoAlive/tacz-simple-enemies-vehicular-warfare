@@ -7,6 +7,8 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.neoalive.tacz_sewv.util.EmplacementSpawner;
 import com.neoalive.tacz_sewv.util.EmplacementSpawner.Emplacement;
+import com.neoalive.tacz_sewv.util.SupportSpawner;
+import com.neoalive.tacz_sewv.util.SupportSpawner.SupportRole;
 import com.neoalive.tacz_sewv.util.TankSpawner;
 import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
 import net.minecraft.commands.CommandSourceStack;
@@ -37,8 +39,40 @@ public class SewvCommand {
                         .then(emplacementSpawn("ustow", TankFaction.US, Emplacement.TOW))
                         .then(emplacementSpawn("rutow", TankFaction.RU, Emplacement.TOW))
                         .then(emplacementSpawn("pmctow", TankFaction.PMC, Emplacement.TOW))
+                        .then(supportSpawn("rumedic", true, SupportRole.MEDIC))
+                        .then(supportSpawn("usmedic", false, SupportRole.MEDIC))
+                        .then(supportSpawn("ruengineer", true, SupportRole.ENGINEER))
+                        .then(supportSpawn("usengineer", false, SupportRole.ENGINEER))
                 )
         );
+    }
+
+    // Support units take no vehicle id; only an optional position, like the emplacements.
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> supportSpawn(
+            String literal, boolean ru, SupportRole role) {
+        return Commands.literal(literal)
+                .executes(ctx -> spawnSupport(ctx.getSource(), ru, role, null))
+                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                        .executes(ctx -> spawnSupport(ctx.getSource(), ru, role,
+                                BlockPosArgument.getLoadedBlockPos(ctx, "pos"))));
+    }
+
+    private static int spawnSupport(CommandSourceStack source, boolean ru, SupportRole role,
+                                    @Nullable BlockPos explicitPos) {
+        ServerLevel level = source.getLevel();
+        BlockPos pos = explicitPos != null
+                ? explicitPos
+                : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
+
+        if (SupportSpawner.spawn(level, pos, ru, role) == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
+            return 0;
+        }
+
+        String label = (ru ? "RU " : "US ") + role.name().toLowerCase();
+        source.sendSuccess(() -> Component.translatable(
+                "command.tacz_sewv.spawn.success", label, pos.toShortString()), true);
+        return 1;
     }
 
     // Emplacements take no vehicle id (there is exactly one mortar and one TOW), so the

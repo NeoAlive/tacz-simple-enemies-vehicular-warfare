@@ -75,6 +75,15 @@
   "message.tacz_sewv.dismiss.multiple": "%s crews dismissed.",
   "message.tacz_sewv.dismiss.none": "No crews on an area task.",
 
+  "entity.tacz_sewv.ru_medic": "RU Squad Medic",
+  "entity.tacz_sewv.us_medic": "US Squad Medic",
+  "entity.tacz_sewv.ru_engineer": "RU Mechanical Engineer",
+  "entity.tacz_sewv.us_engineer": "US Mechanical Engineer",
+  "item.tacz_sewv.ru_medic_spawn_egg": "RU Squad Medic Spawn Egg",
+  "item.tacz_sewv.us_medic_spawn_egg": "US Squad Medic Spawn Egg",
+  "item.tacz_sewv.ru_engineer_spawn_egg": "RU Mechanical Engineer Spawn Egg",
+  "item.tacz_sewv.us_engineer_spawn_egg": "US Mechanical Engineer Spawn Egg",
+
   "item.tacz_sewv.handheld_radio": "Handheld Radio",
   "tooltip.tacz_sewv.handheld_radio.use": "Use on a target: call a fire mission from your mortar and TOW crews",
   "tooltip.tacz_sewv.handheld_radio.standdown": "Sneak + use: call your crews off",

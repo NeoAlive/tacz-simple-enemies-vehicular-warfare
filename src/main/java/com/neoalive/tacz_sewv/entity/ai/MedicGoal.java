@@ -1,33 +1,29 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.item.misc.MedicalKitItem;
+import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 
 /**
- * Lets a PMC unit patch itself and its squadmates up between fights with a SuperbWarfare
- * medical kit.
+ * Lets a unit patch itself and its same-faction squadmates up between fights with a SuperbWarfare
+ * medical kit. Runs on any {@link AbstractUnit}: a PMC (added in {@code MixinPmcUnitEntity}) draws
+ * real kits from its inventory and can run out, while a dedicated RU/US medic entity has an
+ * <em>issued</em> kit — an unlimited supply set at spawn via {@link IIssuedAmmo}, the same channel
+ * mortar/TOW crews use — because RU/US units have no inventory to carry one in.
  *
- * <p>SimpleEnemyMod has no healing of any kind — no medic role, no regeneration, not one call to
- * {@code heal()} anywhere — so a unit that survives a firefight stays hurt until it dies in the
- * next one. SuperbWarfare's {@code MedicalKitItem.treat(LivingEntity)} is public and takes any
- * living entity, so the whole feature is "walk over and call it".
- *
- * <p><b>PMC only</b>, and that is a supply fact rather than a doctrine: kits are player-supplied
- * out of the unit's inventory, and a PMC is the one unit type SEM gives an inventory to. RU/US
- * have no {@code ITEM_HANDLER} at all, so there is nowhere to put a kit and nothing to read.
- *
- * <p>Note {@code MedicalKitItem.use()} is deliberately not used: it is typed on {@code Player}
- * and unreachable from a mob. {@code treat} is the part that actually heals, and it is the same
- * call {@code finishUsingItem} makes.
+ * <p>SimpleEnemyMod has no healing of any kind, so a unit that survives a firefight stays hurt until
+ * it dies in the next one. SuperbWarfare's {@code MedicalKitItem.treat(LivingEntity)} is public and
+ * takes any living entity, so the whole feature is "walk over and call it". {@code use()} is not used:
+ * it is typed on {@code Player} and unreachable from a mob; {@code treat} is the part that heals.
  */
 public class MedicGoal extends Goal {
 
@@ -36,23 +32,19 @@ public class MedicGoal extends Goal {
     /** Goal ticks between treatments, so a stack of kits isn't burned in one tick. */
     private static final int TREAT_COOLDOWN = 40;
     /**
-     * Goal ticks before looking for a patient again after finding none.
-     *
-     * <p>Load-bearing, not politeness: without it the inventory scan and the entity search below
-     * would run on <b>every</b> evaluation of every idle PMC on the map — and the overwhelmingly
-     * common case is a unit carrying no kit at all, since kits are player-supplied. Nobody bleeds
-     * out in the two seconds this costs.
+     * Goal ticks before looking for a patient again after finding none. Load-bearing: without it the
+     * kit check and the entity search would run on every evaluation of every idle unit on the map.
      */
     private static final int IDLE_RESCAN = 40;
     /** Give up walking to a patient after this long — it may be somewhere unreachable. */
     private static final int MAX_APPROACH_TICKS = 200;
 
-    private final PmcUnitEntity unit;
-    private PmcUnitEntity patient;
+    private final AbstractUnit unit;
+    private AbstractUnit patient;
     private int cooldown;
     private int approachTicks;
 
-    public MedicGoal(PmcUnitEntity unit) {
+    public MedicGoal(AbstractUnit unit) {
         this.unit = unit;
         this.setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
     }
@@ -65,14 +57,12 @@ public class MedicGoal extends Goal {
             this.cooldown--;
             return false;
         }
-        // A crew member is busy working the vehicle, and a unit in contact has better things to
-        // do than first aid. "Holding a target" is this codebase's only notion of being in
-        // combat — the same signal DriveVehicleGoal's fight branch runs off.
+        // A crew member is busy working the vehicle, and a unit in contact has better things to do
+        // than first aid. "Holding a target" is this codebase's only notion of being in combat.
         if (this.unit.isPassenger() || this.unit.getTarget() != null) return false;
 
-        // Ordered cheapest-first: the inventory read rules out every unit the player never
-        // handed a kit to, which is nearly all of them, before anything touches the world.
-        if (findKitSlot() < 0) {
+        // Cheapest first: rule out every unit with no kit source before touching the world.
+        if (!hasKit()) {
             this.cooldown = IDLE_RESCAN;
             return false;
         }
@@ -92,7 +82,7 @@ public class MedicGoal extends Goal {
                 && this.patient.getHealth() < this.patient.getMaxHealth()
                 && this.unit.getTarget() == null
                 && this.approachTicks < MAX_APPROACH_TICKS
-                && findKitSlot() >= 0;
+                && hasKit();
     }
 
     @Override
@@ -118,9 +108,8 @@ public class MedicGoal extends Goal {
         if (this.patient != this.unit) {
             this.unit.getLookControl().setLookAt(this.patient, 30.0F, 30.0F);
             if (this.unit.distanceToSqr(this.patient) > TREAT_DISTANCE_SQ) {
-                // Repath only once the last one has run out, the way BoardVehicleGoal does —
-                // an unreachable patient reports "done" every tick and would otherwise force a
-                // full path search every tick until the timeout.
+                // Repath only once the last one has run out — an unreachable patient reports "done"
+                // every tick and would otherwise force a full path search every tick until timeout.
                 if (this.unit.getNavigation().isDone()) {
                     this.unit.getNavigation().moveTo(this.patient, 1.0);
                 }
@@ -132,41 +121,49 @@ public class MedicGoal extends Goal {
         treat();
     }
 
-    /** Spend one kit on the patient. */
+    /** Spend one treatment on the patient — from the issued supply if any, else the inventory. */
     private void treat() {
+        // Issued kit (RU/US medic): unlimited, conjured rather than consumed. Same pattern as
+        // MortarSupport.takeShell checking issued ammo before scanning the inventory.
+        MedicalKitItem issued = issuedKit();
+        if (issued != null) {
+            issued.treat(this.patient); // heal + Regeneration II, amounts from SuperbWarfare's config
+            this.cooldown = TREAT_COOLDOWN;
+            this.patient = null; // re-evaluated next canUse; one kit may not have been enough
+            return;
+        }
+
         int slot = findKitSlot();
         if (slot < 0) return;
-
         IItemHandler inventory = inventory();
         if (inventory == null) return;
 
-        // Extract rather than shrink in place: the handler is SEM's own, and going through its
-        // extract path is what keeps the unit's openable inventory in step with what was used.
+        // Extract rather than shrink in place: going through the handler's extract path keeps the
+        // unit's openable inventory in step with what was used.
         ItemStack kit = inventory.extractItem(slot, 1, false);
         if (!(kit.getItem() instanceof MedicalKitItem medkit)) return;
 
-        medkit.treat(this.patient); // heal + Regeneration II, amounts from SuperbWarfare's config
+        medkit.treat(this.patient);
         this.cooldown = TREAT_COOLDOWN;
-        this.patient = null; // re-evaluated next canUse; one kit may not have been enough
+        this.patient = null;
     }
 
     /**
-     * Who needs treating: this unit first if it is hurt, otherwise the worst-off squadmate in
-     * range.
-     *
-     * <p>Self-first is the cheap ordering as well as the sensible one — a medic that bleeds out
-     * walking to someone else helps nobody, and treating itself needs no pathfinding at all.
+     * Worst-off same-faction unit in range (this unit first if it is hurt). Self-first is the cheap
+     * ordering as well as the sensible one — treating itself needs no pathfinding.
      */
-    private PmcUnitEntity findPatient() {
+    private AbstractUnit findPatient() {
         if (this.unit.getHealth() < this.unit.getMaxHealth()) return this.unit;
 
         double radius = SewvConfig.MEDIC_SEARCH_RADIUS.get();
-        List<PmcUnitEntity> nearby = this.unit.level().getEntitiesOfClass(
-                PmcUnitEntity.class,
+        List<AbstractUnit> nearby = this.unit.level().getEntitiesOfClass(
+                AbstractUnit.class,
                 this.unit.getBoundingBox().inflate(radius),
                 other -> other != this.unit
                         && other.isAlive()
                         && other.getHealth() < other.getMaxHealth()
+                        // Same faction only — a medic patches up its own side.
+                        && VehicleTargeting.isFriendly(this.unit, other)
                         // Don't walk into a firefight to bandage someone who is still in it.
                         && other.getTarget() == null
                         && !other.isPassenger());
@@ -176,12 +173,23 @@ public class MedicGoal extends Goal {
                 .orElse(null);
     }
 
-    /** Index of the first medical kit in the unit's inventory, or -1. */
+    private boolean hasKit() {
+        return issuedKit() != null || findKitSlot() >= 0;
+    }
+
+    /** The medic's issued (unlimited) medical kit, or null if it has none. */
+    private MedicalKitItem issuedKit() {
+        if (this.unit instanceof IIssuedAmmo issued
+                && issued.sewv$getIssuedAmmo() instanceof MedicalKitItem kit) {
+            return kit;
+        }
+        return null;
+    }
+
+    /** Index of the first medical kit in the unit's inventory, or -1 (RU/US units have none). */
     private int findKitSlot() {
         IItemHandler inventory = inventory();
         if (inventory == null) return -1;
-        // Equipment slots included, exactly as MortarSupport.takeShell scans: only kits match,
-        // so a rifle in the main hand is never at risk and a kit stashed anywhere still counts.
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             if (inventory.getStackInSlot(slot).getItem() instanceof MedicalKitItem) return slot;
         }

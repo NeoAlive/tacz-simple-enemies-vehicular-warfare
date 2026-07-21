@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.util.CrewRadio;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
@@ -107,6 +108,7 @@ public class BailOutVehicleGoal extends Goal {
         VehicleEntity vehicle = (VehicleEntity) this.unit.getVehicle();
         this.escapePos = findEscapePos(vehicle);
         this.scrambleTicks = 0;
+        CrewRadio.speak(vehicle, this.unit, CrewRadio.Line.BAIL);
 
         issueParachute();
         this.unit.stopRiding();

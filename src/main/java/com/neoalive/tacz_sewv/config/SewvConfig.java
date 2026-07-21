@@ -134,6 +134,7 @@ public class SewvConfig {
 
     // Unit voicelines while crewing a vehicle
     public static final ForgeConfigSpec.BooleanValue VEHICLE_VOICELINES_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_VOICELINE_VOLUME;
 
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -743,15 +744,21 @@ public class SewvConfig {
         builder.push("voicelines");
 
         VEHICLE_VOICELINES_ENABLED = builder
-                .comment("Give a unit crewing a vehicle its own radio voicelines, and let only ONE of them speak.",
-                         "SimpleEnemyMod's hurt/death/alert lines are per-unit with per-unit cooldowns, so a shell",
-                         "that hits a loaded troop carrier fires one death line PER RIDER at the same instant --",
-                         "seven men shouting over each other from inside one hull. With this on, only the driver",
-                         "speaks for the vehicle, and what plays is muffled radio traffic rather than the shouted",
-                         "infantry line (which is the wrong sound to hear from inside a closed vehicle anyway).",
-                         "Units on foot are completely unaffected either way.",
-                         "Turn off to restore SimpleEnemyMod's own behaviour, overlaps included.")
+                .comment("Master switch for ALL crew radio voicelines. With this on, a hull speaks with ONE voice",
+                         "(the driver) that calls out contact, taking fire (under 60% health), popping smoke,",
+                         "dropping its squad from an IFV, bailing out, and acknowledging player orders -- muffled",
+                         "radio traffic rather than SimpleEnemyMod's shouted infantry lines, which are also muted",
+                         "inside a hull so a loaded carrier doesn't fire one death shout per rider at once.",
+                         "Lines play on the vanilla Voice/Speech volume slider; units on foot are unaffected.",
+                         "Turn off to silence every vehicle voiceline and restore SimpleEnemyMod's own behaviour.")
                 .define("vehicleVoicelinesEnabled", true);
+
+        VEHICLE_VOICELINE_VOLUME = builder
+                .comment("Base emission volume for crew voicelines, so they carry over gunfire.",
+                         "Above 1.0 does NOT raise peak loudness (Minecraft clamps gain to 1.0) but widens the",
+                         "sound's falloff radius, so it attenuates more gently and stays audible further out.",
+                         "The in-game Voice/Speech slider scales this per-player on top.")
+                .defineInRange("vehicleVoicelineVolume", 1.8, 0.5, 4.0);
 
         builder.pop();
 

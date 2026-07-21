@@ -7,6 +7,9 @@
   "mixins": [
     "MixinAbstractUnit",
     "MixinUnitVoicelines",
+    "MixinVehicleVoicelines",
+    "AccessorPacketIssueOrder",
+    "MixinPacketIssueOrder",
     "MixinPmcUnitEntity",
     "MixinFactionUnitEntity",
     "MixinCombatEvent",
@@ -27,6 +30,7 @@
     "client.MixinClientGlowRenderHandler",
     "client.MixinUnitRenderer",
     "client.MixinUniversalArmorLayer",
+    "client.MixinUnitModelSeatPose",
     "client.MixinVehicleTeamOverlay"
   ],
   "server": [],

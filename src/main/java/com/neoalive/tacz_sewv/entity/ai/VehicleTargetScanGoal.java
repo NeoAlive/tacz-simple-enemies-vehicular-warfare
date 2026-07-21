@@ -80,6 +80,8 @@ public class VehicleTargetScanGoal extends Goal {
 
     @Override
     public void start() {
+        // SPOTTED is announced from setTarget itself (MixinUnitVoicelines), which catches every path
+        // a vehicle lock arrives through -- this scan, the priority goal, or a player order.
         this.unit.setTarget(this.pendingTarget);
         this.pendingTarget = null;
         this.ticksWithoutLos = 0;

@@ -70,12 +70,13 @@ public final class EmplacementSpawner {
      *                    which is direct-fire.
      */
     @Nullable
-    public static VehicleEntity spawn(ServerLevel level, BlockPos pos, Emplacement type,
+    public static VehicleEntity spawn(ServerLevel level, BlockPos requestedPos, Emplacement type,
                                       TankSpawner.TankFaction faction, @Nullable UUID ownerId,
                                       @Nullable FireMission fireMission) {
         EntityType<? extends VehicleEntity> entityType =
                 type == Emplacement.MORTAR ? ModEntities.MORTAR.get() : ModEntities.TOW.get();
-        if (!TankSpawner.hasSpace(level, pos, entityType)) return null;
+        BlockPos pos = TankSpawner.findClearSpawn(level, requestedPos, entityType);
+        if (pos == null) return null;
 
         VehicleEntity weapon = entityType.create(level);
         if (weapon == null) return null;

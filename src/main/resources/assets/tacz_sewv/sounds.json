@@ -1,38 +1,63 @@
 {
-  "mortar_affirmative": {
-    "sounds": [
-      "tacz_sewv:affirmative",
-      "tacz_sewv:affirmative1"
-    ]
-  },
-  "free_fire": {
-    "sounds": [
-      "tacz_sewv:out"
-    ]
-  },
+  "mortar_affirmative": { "sounds": ["tacz_sewv:affirmative", "tacz_sewv:affirmative1"] },
+  "free_fire": { "sounds": ["tacz_sewv:out"] },
 
-  "radio_ru_damaged": {
-    "sounds": [
-      "tacz_sewv:vehicle/ru_damaged_1",
-      "tacz_sewv:vehicle/ru_damaged_2"
-    ]
-  },
-  "radio_ru_identified": {
-    "sounds": [
-      "tacz_sewv:vehicle/ru_identified_1",
-      "tacz_sewv:vehicle/ru_identified_2"
-    ]
-  },
-  "radio_us_damaged": {
-    "sounds": [
-      "tacz_sewv:vehicle/us_damaged_1",
-      "tacz_sewv:vehicle/us_damaged_2"
-    ]
-  },
-  "radio_us_identified": {
-    "sounds": [
-      "tacz_sewv:vehicle/us_identified_1",
-      "tacz_sewv:vehicle/us_identified_2"
-    ]
-  }
+  "pmc_damaged_1": { "sounds": ["tacz_sewv:pmc/pmc_damaged_1"] },
+  "pmc_damaged_2": { "sounds": ["tacz_sewv:pmc/pmc_damaged_2"] },
+  "pmc_damaged_3": { "sounds": ["tacz_sewv:pmc/pmc_damaged_3"] },
+  "pmc_damaged_4": { "sounds": ["tacz_sewv:pmc/pmc_damaged_4"] },
+  "pmc_damaged_5": { "sounds": ["tacz_sewv:pmc/pmc_damaged_5"] },
+  "pmc_damaged_6": { "sounds": ["tacz_sewv:pmc/pmc_damaged_6"] },
+  "pmc_spotted_1": { "sounds": ["tacz_sewv:pmc/pmc_spotted_1"] },
+  "pmc_spotted_2": { "sounds": ["tacz_sewv:pmc/pmc_spotted_2"] },
+  "pmc_spotted_3": { "sounds": ["tacz_sewv:pmc/pmc_spotted_3"] },
+  "pmc_spotted_4": { "sounds": ["tacz_sewv:pmc/pmc_spotted_4"] },
+  "pmc_spotted_5": { "sounds": ["tacz_sewv:pmc/pmc_spotted_5"] },
+  "pmc_spotted_6": { "sounds": ["tacz_sewv:pmc/pmc_spotted_6"] },
+  "pmc_spotted_7": { "sounds": ["tacz_sewv:pmc/pmc_spotted_7"] },
+  "pmc_orders_1": { "sounds": ["tacz_sewv:pmc/pmc_orders_1"] },
+  "pmc_orders_2": { "sounds": ["tacz_sewv:pmc/pmc_orders_2"] },
+  "pmc_orders_3": { "sounds": ["tacz_sewv:pmc/pmc_orders_3"] },
+  "pmc_orders_4": { "sounds": ["tacz_sewv:pmc/pmc_orders_4"] },
+
+  "ru_damaged_1": { "sounds": ["tacz_sewv:ru/ru_damaged_1"] },
+  "ru_damaged_2": { "sounds": ["tacz_sewv:ru/ru_damaged_2"] },
+  "ru_damaged_3": { "sounds": ["tacz_sewv:ru/ru_damaged_3"] },
+  "ru_spotted_1": { "sounds": ["tacz_sewv:ru/ru_spotted_1"] },
+  "ru_spotted_2": { "sounds": ["tacz_sewv:ru/ru_spotted_2"] },
+  "ru_spotted_3": { "sounds": ["tacz_sewv:ru/ru_spotted_3"] },
+  "ru_spotted_4": { "sounds": ["tacz_sewv:ru/ru_spotted_4"] },
+
+  "us_damaged_1": { "sounds": ["tacz_sewv:us/us_damaged_1"] },
+  "us_damaged_2": { "sounds": ["tacz_sewv:us/us_damaged_2"] },
+  "us_damaged_3": { "sounds": ["tacz_sewv:us/us_damaged_3"] },
+  "us_spotted_1": { "sounds": ["tacz_sewv:us/us_spotted_1"] },
+  "us_spotted_2": { "sounds": ["tacz_sewv:us/us_spotted_2"] },
+  "us_spotted_3": { "sounds": ["tacz_sewv:us/us_spotted_3"] },
+  "us_spotted_4": { "sounds": ["tacz_sewv:us/us_spotted_4"] },
+
+  "pmc_bail_1": { "sounds": ["tacz_sewv:pmc/pmc_bail_1"] },
+  "pmc_bail_2": { "sounds": ["tacz_sewv:pmc/pmc_bail_2"] },
+  "pmc_bail_3": { "sounds": ["tacz_sewv:pmc/pmc_bail_3"] },
+  "pmc_decoy_1": { "sounds": ["tacz_sewv:pmc/pmc_decoy_1"] },
+  "pmc_decoy_2": { "sounds": ["tacz_sewv:pmc/pmc_decoy_2"] },
+
+  "ru_bail_1": { "sounds": ["tacz_sewv:ru/ru_bail_1"] },
+  "ru_bail_2": { "sounds": ["tacz_sewv:ru/ru_bail_2"] },
+  "ru_decoy_1": { "sounds": ["tacz_sewv:ru/ru_decoy_1"] },
+  "ru_decoy_2": { "sounds": ["tacz_sewv:ru/ru_decoy_2"] },
+  "ru_decoy_3": { "sounds": ["tacz_sewv:ru/ru_decoy_3"] },
+  "ru_ifv_1": { "sounds": ["tacz_sewv:ru/ru_ifv_1"] },
+  "ru_ifv_2": { "sounds": ["tacz_sewv:ru/ru_ifv_2"] },
+  "ru_ifv_3": { "sounds": ["tacz_sewv:ru/ru_ifv_3"] },
+
+  "us_bail_1": { "sounds": ["tacz_sewv:us/us_bail_1"] },
+  "us_bail_2": { "sounds": ["tacz_sewv:us/us_bail_2"] },
+  "us_bail_3": { "sounds": ["tacz_sewv:us/us_bail_3"] },
+  "us_decoy_1": { "sounds": ["tacz_sewv:us/us_decoy_1"] },
+  "us_decoy_2": { "sounds": ["tacz_sewv:us/us_decoy_2"] },
+  "us_decoy_3": { "sounds": ["tacz_sewv:us/us_decoy_3"] },
+  "us_ifv_1": { "sounds": ["tacz_sewv:us/us_ifv_1"] },
+  "us_ifv_2": { "sounds": ["tacz_sewv:us/us_ifv_2"] },
+  "us_ifv_3": { "sounds": ["tacz_sewv:us/us_ifv_3"] }
 }

@@ -81,12 +81,13 @@ public final class TankSpawner {
      * is empty, or SW isn't loaded).
      */
     @Nullable
-    public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos pos, TankFaction faction,
+    public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
         EntityType<?> tankType = selectVehicleType(faction.vehiclePool(), vehicleId, level.random);
         if (tankType == null) return null; // nothing valid configured/requested — bail safely
 
-        if (!hasSpace(level, pos, tankType)) return null;
+        BlockPos pos = findClearSpawn(level, requestedPos, tankType);
+        if (pos == null) return null; // no room within snap radius — bail safely
 
         Entity tankEntity = tankType.create(level);
         if (!(tankEntity instanceof VehicleEntity tank)) return null; // configured id isn't an SW vehicle
@@ -141,10 +142,11 @@ public final class TankSpawner {
      * the pool is empty/unresolvable or there is no room at {@code pos}.
      */
     @Nullable
-    public static VehicleEntity spawnBareVehicle(ServerLevel level, BlockPos pos, TankFaction faction) {
+    public static VehicleEntity spawnBareVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction) {
         EntityType<?> type = selectVehicleType(faction.vehiclePool(), null, level.random);
         if (type == null) return null;
-        if (!hasSpace(level, pos, type)) return null;
+        BlockPos pos = findClearSpawn(level, requestedPos, type);
+        if (pos == null) return null;
 
         Entity entity = type.create(level);
         if (!(entity instanceof VehicleEntity vehicle)) return null;
@@ -287,13 +289,45 @@ public final class TankSpawner {
         return candidates.get(random.nextInt(candidates.size()));
     }
 
-    public static boolean hasSpace(ServerLevel level, BlockPos pos, EntityType<?> type) {
-        var aabb = type.getDimensions().makeBoundingBox(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-        return level.noCollision(aabb);
+    /** Max Chebyshev distance findClearSpawn will snap a blocked target to. */
+    private static final int SNAP_RADIUS = 10;
+
+    /**
+     * Nearest surface spawn point around {@code pos} whose footprint is clear, spiralling out
+     * to {@link #SNAP_RADIUS}. Spawns one block above ground so the hull settles by physics
+     * instead of clipping terrain, and snaps past a blocked target (a hull dropped inside a
+     * structure building, on a tree). Ring 0 (the target column) is tried first, so a clear
+     * target costs one collision test. Returns a feet-Y BlockPos, or null when nothing fits.
+     *
+     * <p>Replaces the old full-AABB-at-feet {@code noCollision} check, which rejected any hull
+     * over the slightest terrain undulation and silently dropped the spawn.
+     */
+    @Nullable
+    public static BlockPos findClearSpawn(ServerLevel level, BlockPos pos, EntityType<?> type) {
+        for (int r = 0; r <= SNAP_RADIUS; r++) {
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue; // ring perimeter only, nearest-first
+                    int x = pos.getX() + dx, z = pos.getZ() + dz;
+                    int gy = groundY(level, x, z, pos.getY()) + 1; // +1 lift: hull drops onto the surface
+                    var box = type.getDimensions().makeBoundingBox(x + 0.5, gy, z + 0.5);
+                    if (level.noCollision(box)) return new BlockPos(x, gy, z);
+                }
+            }
+        }
+        return null;
     }
 
     public static BlockPos adjustHeight(ServerLevel level, BlockPos pos) {
-        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
-        return new BlockPos(pos.getX(), y, pos.getZ());
+        return new BlockPos(pos.getX(), groundY(level, pos.getX(), pos.getZ(), pos.getY()), pos.getZ());
+    }
+
+    // Surface Y at (x,z). Level.getHeight answers getMinBuildHeight() for an UNLOADED chunk,
+    // so a probe during/right after worldgen (berezka structures far from a player) would drop
+    // to bedrock — fall back to the caller's reference Y (e.g. the generator-projected anchor)
+    // instead. See VehicleFormation.groundY for the same sentinel.
+    private static int groundY(ServerLevel level, int x, int z, int fallbackY) {
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        return y <= level.getMinBuildHeight() ? fallbackY : y;
     }
 }

@@ -57,19 +57,52 @@ public abstract class MixinVillageGarrisonHandler {
                                                   CallbackInfo ci) {
         if (!SewvConfig.GARRISON_VEHICLES_ENABLED.get()) return;
 
-        // Already has one (or a second villager's garrison put one here) — nothing to add.
-        if (!level.getEntitiesOfClass(VehicleEntity.class, new AABB(basePos).inflate(TACZ_SEWV$RADIUS)).isEmpty()) {
-            return;
+        // Defer out of SEM's onLevelTick loop, which is iterating PENDING_GARRISONS while it calls
+        // spawnGuard. Our spawn point is 6-22 blocks off basePos — possibly a chunk SEM never
+        // verified loaded (it guards its own guard-spawns with isLoaded, we don't) — so the block
+        // reads/addFreshEntity below can force-load it and surface a stored villager, whose join
+        // SEM handles by PENDING_GARRISONS.add(): a ConcurrentModificationException mid-iteration.
+        // Running at end of tick (as BerezkaStructureCompat does) side-steps the re-entrancy; the
+        // seeded roll and the "already has one" dedupe still hold across the 2-4 deferred calls.
+        level.getServer().execute(() -> {
+            // Already has one (or a second villager's garrison put one here) — nothing to add.
+            if (!level.getEntitiesOfClass(VehicleEntity.class, new AABB(basePos).inflate(TACZ_SEWV$RADIUS)).isEmpty()) {
+                return;
+            }
+
+            // One roll per VILLAGE: seeded on the shared basePos so all 2-4 guard calls agree.
+            int chance = (int) Math.round(SewvConfig.GARRISON_VEHICLE_CHANCE.get() * 100.0);
+            if (new Random(basePos.asLong()).nextInt(100) >= chance) return;
+
+            BlockPos spot = TankSpawner.adjustHeight(level, tacz_sewv$offset(level, basePos));
+            // Crew the hull to the infantry ACTUALLY around the spot, not just this garrison's isRu.
+            // SEM rolls isRu per villager, so opposite-faction garrisons can sit within a village of
+            // each other, and the hull's random offset (plus findClearSpawn's snap) can carry it into
+            // a neighbour's ranks — a US crew parked among RU riflemen is exactly what that produces.
+            // Fall back to this garrison's own side when the spot is empty or contested.
+            TankSpawner.TankFaction faction = tacz_sewv$factionForSpot(level, spot, isRu);
+            // Crewed: fuelled by the faction-energy rule and never scavenged. See the class doc.
+            TankSpawner.spawnTankWithCrew(level, spot, faction, null);
+        });
+    }
+
+    /**
+     * The faction of the infantry cluster around {@code spot} — the side the hull would sit among —
+     * or {@code fallbackIsRu}'s own side when the spot is empty or the two factions are tied.
+     * SEM's own guards are already spawned (synchronously in {@code onLevelTick}) by the time this
+     * deferred spawn runs, so the scan sees them.
+     */
+    @Unique
+    private static TankSpawner.TankFaction tacz_sewv$factionForSpot(ServerLevel level, BlockPos spot, boolean fallbackIsRu) {
+        int ru = 0, us = 0;
+        for (net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit unit :
+                level.getEntitiesOfClass(net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit.class,
+                        new AABB(spot).inflate(TACZ_SEWV$RADIUS))) {
+            if (unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity) ru++;
+            else if (unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity) us++;
         }
-
-        // One roll per VILLAGE: seeded on the shared basePos so all 2-4 guard calls agree.
-        int chance = (int) Math.round(SewvConfig.GARRISON_VEHICLE_CHANCE.get() * 100.0);
-        if (new Random(basePos.asLong()).nextInt(100) >= chance) return;
-
-        TankSpawner.TankFaction faction = isRu ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
-        BlockPos spot = TankSpawner.adjustHeight(level, tacz_sewv$offset(level, basePos));
-        // Crewed: fuelled by the faction-energy rule and never scavenged. See the class doc.
-        TankSpawner.spawnTankWithCrew(level, spot, faction, null);
+        if (ru == us) return fallbackIsRu ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
+        return ru > us ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
     }
 
     /** A point 6-12 blocks off the garrison in a random direction. */

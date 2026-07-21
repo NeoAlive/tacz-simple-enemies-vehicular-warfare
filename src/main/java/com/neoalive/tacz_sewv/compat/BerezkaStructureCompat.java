@@ -4,16 +4,22 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.TankSpawner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.berezka.berezka_api.API;
 import org.berezka.berezka_api.events.onStructureSpawned;
 
+import javax.annotation.Nullable;
+import java.util.List;
+
 /**
  * Soft compat with <b>berezka_api</b>: when one of its structures generates, field faction
- * vehicles from the config pools at it. RU/US structures get crewed, armed, fuelled hulls
- * ({@link TankSpawner#spawnTankWithCrew}); PMC structures get a bare hull
- * ({@link TankSpawner#spawnBareVehicle}) for the player to capture.
+ * vehicles from the config pools at it. Every faction — RU, US and PMC — gets a crewed, armed,
+ * fuelled hull ({@link TankSpawner#spawnTankWithCrew}), like a village garrison; a PMC structure
+ * fields friendly (ownerless) PMC crew. (Earlier PMC structures spawned a bare hull for the
+ * player to capture; they are crewed now so a friendly camp is actually defended.)
  *
  * <p>This class references berezka_api types directly, so it is <b>only ever loaded</b> via
  * {@link #register()}, which {@code TaczSewv} calls behind a {@code ModList.isLoaded} gate.
@@ -42,12 +48,15 @@ public final class BerezkaStructureCompat {
         if (level == null) return;
         BlockPos anchor = event.getBlockPos();
         if (anchor == null) return;
+        // Footprint of the just-generated structure — hulls spawn just OUTSIDE it, not at the
+        // origin. Pieces are immutable data, safe to read off this (possibly worldgen) thread.
+        BoundingBox bounds = structureBounds(event.getPieces());
 
         // berezka can post this from a worldgen worker; hop to the main thread to spawn.
         // ponytail: assumes the structure's chunk is loaded by next tick (true when it
         // generates near a player). If distant pre-gen ever drops spawns, gate the spawn
         // on level.isLoaded(pos) and retry via berezka's ServerScheduler.
-        level.getServer().execute(() -> spawnVehicles(level, anchor, faction));
+        level.getServer().execute(() -> spawnVehicles(level, anchor, bounds, faction));
     }
 
     private static TankSpawner.TankFaction factionFor(String structureName) {
@@ -58,15 +67,15 @@ public final class BerezkaStructureCompat {
         return null;
     }
 
-    private static void spawnVehicles(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction) {
+    private static void spawnVehicles(ServerLevel level, BlockPos anchor, @Nullable BoundingBox bounds,
+                                      TankSpawner.TankFaction faction) {
         int count = rollCount(level);
         for (int i = 0; i < count; i++) {
-            BlockPos pos = placement(level, anchor, i);
-            if (faction == TankSpawner.TankFaction.PMC) {
-                TankSpawner.spawnBareVehicle(level, pos, faction);
-            } else {
-                TankSpawner.spawnTankWithCrew(level, pos, faction, null);
-            }
+            BlockPos pos = placement(level, anchor, bounds, i);
+            // Every faction gets a crewed, fuelled, armed hull — a PMC structure fields friendly
+            // PMC crew (ownerId null = FRIENDLY_DEFAULT, ownerless), the same as RU/US and the
+            // village garrisons. See the class doc for why crewed and not a parked bare hull.
+            TankSpawner.spawnTankWithCrew(level, pos, faction, null);
         }
     }
 
@@ -86,15 +95,48 @@ public final class BerezkaStructureCompat {
         return count;
     }
 
-    // Spread extra hulls around the anchor on a golden-angle spiral, each dropped to the
-    // local surface, so a multi-vehicle spawn neither stacks in one block nor buries itself
-    // in the structure's buildings. TankSpawner's own hasSpace check skips any that don't fit.
-    private static BlockPos placement(ServerLevel level, BlockPos anchor, int index) {
-        if (index == 0) return TankSpawner.adjustHeight(level, anchor);
+    /** How far past the structure's outer wall a hull is pushed before the ground/clear search. */
+    private static final int EDGE_MARGIN = 3;
+
+    // Fan hulls around the OUTSIDE of the structure's footprint on a golden-angle spread, each
+    // pushed just past the bounding-box edge in its direction — the anchor is the structure
+    // origin (usually mid-building), so spawning there buries the hull. adjustHeight drops it to
+    // the local surface and TankSpawner.findClearSpawn snaps off any remaining obstruction.
+    // Falls back to an anchor-centred ring when the event carried no pieces to bound.
+    private static BlockPos placement(ServerLevel level, BlockPos anchor, @Nullable BoundingBox bounds, int index) {
         double angle = index * 2.399963; // ~137.5°, even angular spread
-        int radius = 4 + index * 2;
-        int x = anchor.getX() + (int) Math.round(Math.cos(angle) * radius);
-        int z = anchor.getZ() + (int) Math.round(Math.sin(angle) * radius);
+        double dirX = Math.cos(angle), dirZ = Math.sin(angle);
+        int x, z;
+        if (bounds != null) {
+            double cx = (bounds.minX() + bounds.maxX() + 1) / 2.0;
+            double cz = (bounds.minZ() + bounds.maxZ() + 1) / 2.0;
+            double hx = (bounds.maxX() - bounds.minX() + 1) / 2.0;
+            double hz = (bounds.maxZ() - bounds.minZ() + 1) / 2.0;
+            // Distance from centre to the box edge along the ray (nearer face wins), then a margin
+            // clear of the wall. |dir| is never both ~0, so at least one term is finite.
+            double tx = Math.abs(dirX) < 1e-4 ? Double.MAX_VALUE : hx / Math.abs(dirX);
+            double tz = Math.abs(dirZ) < 1e-4 ? Double.MAX_VALUE : hz / Math.abs(dirZ);
+            double t = Math.min(tx, tz) + EDGE_MARGIN;
+            x = (int) Math.round(cx + dirX * t);
+            z = (int) Math.round(cz + dirZ * t);
+        } else {
+            int radius = 6 + index * 2;
+            x = anchor.getX() + (int) Math.round(dirX * radius);
+            z = anchor.getZ() + (int) Math.round(dirZ * radius);
+        }
         return TankSpawner.adjustHeight(level, new BlockPos(x, anchor.getY(), z));
+    }
+
+    /** Union of the structure pieces' boxes — the footprint hulls must clear. Null if none given. */
+    @Nullable
+    private static BoundingBox structureBounds(List<StructurePiece> pieces) {
+        if (pieces == null || pieces.isEmpty()) return null;
+        BoundingBox union = null;
+        for (StructurePiece piece : pieces) {
+            if (piece == null) continue;
+            BoundingBox box = piece.getBoundingBox();
+            union = union == null ? box : union.encapsulate(box);
+        }
+        return union;
     }
 }

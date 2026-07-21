@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.util.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -387,6 +388,7 @@ public class DriveVehicleGoal extends Goal {
         // Each passenger holds a distinct seat, so "no more passengers than crew seats" is a
         // sound way of saying the squad is already off.
         if (this.vehicle.getPassengers().size() <= crew.size()) return;
+        CrewRadio.play(this.vehicle, CrewRadio.Line.IFV); // a real dismount is happening this call
 
         int armed = 0;
         // Copied because stopRiding() mutates the passenger list underneath us.

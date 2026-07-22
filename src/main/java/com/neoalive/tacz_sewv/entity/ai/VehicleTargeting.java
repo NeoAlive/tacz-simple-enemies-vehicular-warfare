@@ -4,7 +4,9 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
+import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -363,6 +365,15 @@ public final class VehicleTargeting {
      */
     public static boolean isMedic(LivingEntity entity) {
         return entity instanceof RuMedicEntity || entity instanceof UsMedicEntity;
+    }
+
+    public static boolean isEngineer(LivingEntity entity) {
+        return entity instanceof RuEngineerEntity || entity instanceof UsEngineerEntity;
+    }
+
+    /** Medic or engineer — the support units, which wear headwear only so their skin stays readable. */
+    public static boolean isSupportUnit(LivingEntity entity) {
+        return isMedic(entity) || isEngineer(entity);
     }
 
     /**

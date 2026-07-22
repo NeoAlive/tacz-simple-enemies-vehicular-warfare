@@ -97,7 +97,23 @@ final class GroundTerrainSensor extends TerrainSensor {
     }
 
     private boolean isHazardFluid(FluidState fluid) {
-        return fluid.is(FluidTags.LAVA) || (!this.amphibious && fluid.is(FluidTags.WATER));
+        return fluid.is(FluidTags.LAVA) || (fluid.is(FluidTags.WATER) && waterIsHazard());
+    }
+
+    /**
+     * Water is something to keep out of, not something to be trapped by. Once the hull is
+     * already in it, every probed bearing reads blocked, {@code chooseClearBearing} answers
+     * null forever and {@link DriveVehicleGoal#holdAtEdge} pivots the hull in place for good —
+     * the stuck recovery can't save it either, since rotation counts as progress. So a hull
+     * that fell in stops treating water as a hazard and simply drives out toward its
+     * destination.
+     *
+     * <p>ponytail: this drops the standoff wholesale while wet, so a hull that entered a lake
+     * can cross it rather than hugging the shore. Bias the whiskers toward shallower water if
+     * that ever matters.
+     */
+    private boolean waterIsHazard() {
+        return !this.amphibious && !this.vehicle.isInWater();
     }
 
     /**

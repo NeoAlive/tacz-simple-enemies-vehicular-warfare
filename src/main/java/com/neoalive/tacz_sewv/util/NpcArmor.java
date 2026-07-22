@@ -34,30 +34,35 @@ public final class NpcArmor {
         if (data.getBoolean(ISSUED)) return;
 
         List<? extends String> loadout = loadoutFor(unit);
+        // A medic/engineer takes the faction HELMET and nothing else. Their custom skin is the
+        // uniform, and a chest rig drawn over it would make them read as ordinary riflemen again —
+        // which is the whole thing the skins exist to prevent.
+        boolean helmetOnly = VehicleTargeting.isSupportUnit(unit);
         boolean anyEquipped = false;
         for (String id : loadout) {
             Item item = resolve(id);
             if (!(item instanceof ArmorItem armor)) continue;
 
             EquipmentSlot slot = armor.getEquipmentSlot();
+            if (helmetOnly && slot != EquipmentSlot.HEAD) continue;
             if (!unit.getItemBySlot(slot).isEmpty()) continue;
 
             wear(unit, slot, new ItemStack(item));
             anyEquipped = true;
         }
 
-        // A medic's empty loadout is a legitimate "nothing to issue" — flag it done. But a
-        // non-empty loadout that equipped nothing (every id a typo, a removed addon, or every
-        // slot already full) must NOT be flagged: this fires again on the next chunk load, so a
-        // config fix can still retrofit the unit instead of it staying naked forever.
+        // An empty loadout is a legitimate "nothing to issue" — flag it done. But a non-empty
+        // loadout that equipped nothing (every id a typo, a removed addon, or every slot already
+        // full) must NOT be flagged: this fires again on the next chunk load, so a config fix can
+        // still retrofit the unit instead of it staying naked forever.
         if (loadout.isEmpty() || anyEquipped) {
             data.putBoolean(ISSUED, true);
         }
     }
 
+    // Support units fall through to their faction's list like anyone else; issue() then keeps only
+    // the helmet out of it, so they stay on the same config a player already tunes.
     private static List<? extends String> loadoutFor(AbstractUnit unit) {
-        // Medics have no defense — checked before the faction branches, since a medic IS a RU/US unit.
-        if (VehicleTargeting.isMedic(unit)) return List.of();
         if (unit instanceof RUunitEntity) return SewvConfig.RU_ARMOR.get();
         if (unit instanceof USunitEntity) return SewvConfig.US_ARMOR.get();
         if (unit instanceof PmcUnitEntity) return SewvConfig.PMC_ARMOR.get();

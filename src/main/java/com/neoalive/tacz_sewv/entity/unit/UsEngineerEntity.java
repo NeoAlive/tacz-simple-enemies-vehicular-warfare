@@ -1,11 +1,9 @@
 package com.neoalive.tacz_sewv.entity.unit;
 
-import com.atsuishio.superbwarfare.init.ModItems;
+import com.neoalive.tacz_sewv.entity.ai.EngineerLoadout;
 import com.neoalive.tacz_sewv.entity.ai.SupportUnitGoals;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Monster;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
@@ -18,11 +16,18 @@ public class UsEngineerEntity extends USunitEntity {
 
     @Override
     public void equipRandomGun() {
-        this.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(ModItems.REPAIR_TOOL.get()));
+        EngineerLoadout.equip(this);
     }
 
     @Override
     public void setupRoleGoals() {
         SupportUnitGoals.engineer(this, this.goalSelector, this.targetSelector);
+    }
+
+    // See RuEngineerEntity — the holster swap is a per-tick state check, not a goal.
+    @Override
+    public void aiStep() {
+        super.aiStep();
+        if (!this.level().isClientSide) EngineerLoadout.updateHolster(this);
     }
 }

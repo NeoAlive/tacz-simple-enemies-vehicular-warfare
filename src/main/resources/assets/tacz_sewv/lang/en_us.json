@@ -61,6 +61,8 @@
   "gui.tacz_sewv.tdt.line.tip": "Vehicles per rank in a Line formation. Once a rank is full the next vehicle starts a new rank behind it.",
   "gui.tacz_sewv.tdt.echelon_left": "Echelon Left",
   "gui.tacz_sewv.tdt.echelon_right": "Echelon Right",
+  "gui.tacz_sewv.tdt.unit.blocks": "m",
+  "gui.tacz_sewv.tdt.unit.per_row": "/row",
 
   "message.tacz_sewv.patrol.ordered.single": "%s vehicle patrolling a %s-block area.",
   "message.tacz_sewv.patrol.ordered.multiple": "%s vehicles patrolling a %s-block area.",
@@ -106,6 +108,22 @@
   "key.tacz_sewv.open_tdt": "Open Tactical Data Terminal",
 
   "command.tacz_sewv.spawn.success": "Spawned %s vehicle at %s",
-  "command.tacz_sewv.spawn.fail": "Couldn't spawn the vehicle, no space here. no valid vehicle id in the config pool, or SuperbWarfare isn't loaded.",
-  "command.tacz_sewv.spawn.not_in_pool": "\"%s\" is not in the %s vehicle pool. add it to the config or pick one of the pool's ids."
+  "command.tacz_sewv.spawn.fail": "Couldn't spawn the vehicle: no space here, no valid vehicle id in the config pool, or SuperbWarfare isn't loaded.",
+  "command.tacz_sewv.spawn.support_fail": "Couldn't spawn the unit: no space here, or SuperbWarfare isn't loaded.",
+  "command.tacz_sewv.spawn.emplacement_fail": "Couldn't spawn the emplacement: no space here, or SuperbWarfare isn't loaded.",
+  "command.tacz_sewv.spawn.not_in_pool": "\"%s\" is not in the %s vehicle pool. add it to the config or pick one of the pool's ids.",
+
+  "message.tacz_sewv.tdt.no_terminal": "Carry a Tactical Data Terminal to use this.",
+  "tooltip.tacz_sewv.tactical_data_terminal.key": "Also opens with the Open Tactical Data Terminal key (default G) — works even while seated in a vehicle",
+
+  "command.tacz_sewv.status.player_only": "Only a player can check their own units' status.",
+  "command.tacz_sewv.status.none_owned": "You have no owned units nearby.",
+  "command.tacz_sewv.status.line": "%s: %s",
+  "command.tacz_sewv.status.escorting": "escorting",
+  "command.tacz_sewv.status.mortar": "manning a mortar",
+  "command.tacz_sewv.status.fire_mission": "on a fire mission at %s",
+  "command.tacz_sewv.status.patrol": "patrolling a %s-block area",
+  "command.tacz_sewv.status.search": "sweeping a %s-block area",
+  "command.tacz_sewv.status.formation": "holding formation",
+  "command.tacz_sewv.status.idle": "no standing order"
 }

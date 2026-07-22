@@ -822,7 +822,8 @@ public class SewvConfig {
         builder.push("interaction");
 
         BOARD_SCAN_RADIUS = builder
-                .comment("Radius (in blocks) around the player searched for owned units when pressing the board/dismount key.")
+                .comment("Radius (in blocks) around the player searched for owned units for any Tactical Data " +
+                        "Terminal ground order (Board, Dismount, Patrol, Search, Dismiss, Formation) and Escort's fallback search.")
                 .defineInRange("boardScanRadius", 64.0, 8.0, 128.0);
 
         SHOW_ORDER_FEEDBACK = builder

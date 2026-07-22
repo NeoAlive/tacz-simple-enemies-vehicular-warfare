@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.network;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
+import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
@@ -60,12 +61,17 @@ public class PacketManMortar {
                 if (assigned != null) claim(assigned, mortar);
             }
 
-            if (SewvConfig.SHOW_ORDER_FEEDBACK.get()) {
-                Component msg = assigned != null
-                        ? Component.translatable("message.tacz_sewv.mortar.ordered.single", assigned.getDisplayName())
-                                .copy().withStyle(ChatFormatting.GREEN)
-                        : Component.translatable(failure).copy().withStyle(ChatFormatting.GRAY);
-                player.displayClientMessage(msg, true);
+            if (assigned != null) {
+                if (SewvConfig.SHOW_ORDER_FEEDBACK.get()) {
+                    player.displayClientMessage(Component.translatable(
+                            "message.tacz_sewv.mortar.ordered.single", assigned.getDisplayName())
+                            .copy().withStyle(ChatFormatting.GREEN), true);
+                }
+            } else {
+                // Always shown regardless of the flag: a failure explanation is not the success
+                // spam SHOW_ORDER_FEEDBACK exists to cut, and disabling it shouldn't leave the
+                // player guessing why nothing happened.
+                player.displayClientMessage(Component.translatable(failure).copy().withStyle(ChatFormatting.GRAY), true);
             }
         });
         ctx.get().setPacketHandled(true);
@@ -109,5 +115,9 @@ public class PacketManMortar {
         IVehicleBoarder boarder = (IVehicleBoarder) unit;
         boarder.tacz_sewv$setBoarding(false);
         boarder.tacz_sewv$setMountTargetId(-1);
+        // Same for a standing escort order: EscortGoal and ManMortarGoal tie at goal priority 1,
+        // and vanilla only yields a held flag to a strictly higher priority — so without this an
+        // escorting unit keeps escorting despite the "mortar crewed" feedback saying otherwise.
+        ((IEscort) unit).tacz_sewv$setEscortTargetId(-1);
     }
 }

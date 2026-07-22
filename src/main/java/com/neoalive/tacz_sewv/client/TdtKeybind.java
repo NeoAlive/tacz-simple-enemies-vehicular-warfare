@@ -3,8 +3,10 @@ package com.neoalive.tacz_sewv.client;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.init.ModItems;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
@@ -86,7 +88,14 @@ public final class TdtKeybind {
         // Opening over it would re-snapshot the crosshair against the GUI rather than the world.
         if (mc.screen != null) return;
 
-        if (!carriesTerminal(mc.player)) return;
+        if (!carriesTerminal(mc.player)) {
+            // Otherwise this is indistinguishable from "wrong key" — the player has no way to
+            // tell the binding fired at all.
+            mc.player.displayClientMessage(
+                    Component.translatable("message.tacz_sewv.tdt.no_terminal").withStyle(ChatFormatting.GRAY),
+                    true);
+            return;
+        }
 
         TdtScreen.open();
     }

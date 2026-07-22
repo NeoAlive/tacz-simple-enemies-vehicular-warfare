@@ -6,6 +6,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModEntities;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
+import com.neoalive.tacz_sewv.util.ChunkTicketSweep;
 import com.neoalive.tacz_sewv.util.SupportSpawner;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.procedural.events.ConvoyEvent;
@@ -42,6 +43,7 @@ public class TaczSewv {
         ModSounds.SOUNDS.register(modEventBus);
         ModEntities.register(modEventBus);
         MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(ChunkTicketSweep.class);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SewvConfig.SPEC);
         // SEM is loaded before this bridge (see mods.toml), so these become normal
         // SEM dynamic events: they are listed, can be toggled, and can be forced by SEM.
@@ -54,6 +56,7 @@ public class TaczSewv {
     event.enqueueWork(() -> {
         NetworkHandler.register();
     });
+    ChunkTicketSweep.register(event);
     // Soft compat: only touch berezka_api's classes when it is actually present, so the
     // structure-vehicle listener never classloads its event type on a berezka-less install.
     if (ModList.get().isLoaded(BerezkaStructureCompat.MODID)) {

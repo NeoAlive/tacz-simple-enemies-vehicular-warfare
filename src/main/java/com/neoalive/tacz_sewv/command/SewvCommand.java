@@ -5,6 +5,12 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import com.neoalive.tacz_sewv.bridge.FireMission;
+import com.neoalive.tacz_sewv.bridge.IEscort;
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.EmplacementSpawner;
 import com.neoalive.tacz_sewv.util.EmplacementSpawner.Emplacement;
 import com.neoalive.tacz_sewv.util.SupportSpawner;
@@ -19,6 +25,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import javax.annotation.Nullable;
 import java.util.UUID;
@@ -28,8 +35,8 @@ public class SewvCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("sewv")
-                .requires(source -> source.hasPermission(2)) // operators only
                 .then(Commands.literal("spawn")
+                        .requires(source -> source.hasPermission(2)) // operators only
                         .then(tankSpawn("ustank", TankFaction.US))
                         .then(tankSpawn("rutank", TankFaction.RU))
                         .then(tankSpawn("pmctank", TankFaction.PMC))
@@ -44,7 +51,61 @@ public class SewvCommand {
                         .then(supportSpawn("ruengineer", true, SupportRole.ENGINEER))
                         .then(supportSpawn("usengineer", false, SupportRole.ENGINEER))
                 )
+                // Ungated (unlike spawn, above): any player can check on their own units.
+                .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
         );
+    }
+
+    // Reports each nearby owned PMC unit's current standing order, in the same precedence the
+    // AI itself resolves them (see CrewTargetPriorityGoal/VehicleTargeting): escort, then a
+    // mortar claim or fire mission, then a patrol/search area task, then formation, else idle.
+    // Bounded by the same radius every other TDT order already scans within.
+    private static int status(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.status.player_only"));
+            return 0;
+        }
+
+        boolean[] any = {false};
+        for (PmcUnitEntity pmc : player.level().getEntitiesOfClass(PmcUnitEntity.class,
+                player.getBoundingBox().inflate(SewvConfig.BOARD_SCAN_RADIUS.get()))) {
+            if (!pmc.isOwnedBy(player)) continue;
+            any[0] = true;
+            source.sendSuccess(() -> Component.translatable(
+                    "command.tacz_sewv.status.line", pmc.getDisplayName(), describeStatus(pmc)), false);
+        }
+        if (!any[0]) {
+            source.sendSuccess(() -> Component.translatable("command.tacz_sewv.status.none_owned"), false);
+        }
+        return 1;
+    }
+
+    private static Component describeStatus(PmcUnitEntity pmc) {
+        if (((IEscort) pmc).tacz_sewv$isEscorting()) {
+            return Component.translatable("command.tacz_sewv.status.escorting");
+        }
+
+        IMortarCrew mortarCrew = (IMortarCrew) pmc;
+        if (mortarCrew.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
+            return Component.translatable("command.tacz_sewv.status.mortar");
+        }
+        FireMission mission = mortarCrew.sewv$getFireMission();
+        if (mission != null) {
+            return Component.translatable("command.tacz_sewv.status.fire_mission", mission.pos().toShortString());
+        }
+
+        IVehiclePatrol patrol = (IVehiclePatrol) pmc;
+        if (patrol.sewv$isPatrolling()) {
+            String key = patrol.sewv$getPatrolMode() == IVehiclePatrol.MODE_SEARCH
+                    ? "command.tacz_sewv.status.search" : "command.tacz_sewv.status.patrol";
+            return Component.translatable(key, patrol.sewv$getPatrolRadius());
+        }
+
+        if (((IFormationMember) pmc).sewv$getFormationDirection() != null) {
+            return Component.translatable("command.tacz_sewv.status.formation");
+        }
+
+        return Component.translatable("command.tacz_sewv.status.idle");
     }
 
     // Support units take no vehicle id; only an optional position, like the emplacements.
@@ -65,7 +126,7 @@ public class SewvCommand {
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
 
         if (SupportSpawner.spawn(level, pos, ru, role) == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.support_fail"));
             return 0;
         }
 
@@ -106,7 +167,7 @@ public class SewvCommand {
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
 
         if (EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null) == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.emplacement_fail"));
             return 0;
         }
 

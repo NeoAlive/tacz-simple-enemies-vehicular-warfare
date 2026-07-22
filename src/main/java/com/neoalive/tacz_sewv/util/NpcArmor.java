@@ -32,9 +32,10 @@ public final class NpcArmor {
 
         CompoundTag data = unit.getPersistentData();
         if (data.getBoolean(ISSUED)) return;
-        data.putBoolean(ISSUED, true);
 
-        for (String id : loadoutFor(unit)) {
+        List<? extends String> loadout = loadoutFor(unit);
+        boolean anyEquipped = false;
+        for (String id : loadout) {
             Item item = resolve(id);
             if (!(item instanceof ArmorItem armor)) continue;
 
@@ -42,6 +43,15 @@ public final class NpcArmor {
             if (!unit.getItemBySlot(slot).isEmpty()) continue;
 
             wear(unit, slot, new ItemStack(item));
+            anyEquipped = true;
+        }
+
+        // A medic's empty loadout is a legitimate "nothing to issue" — flag it done. But a
+        // non-empty loadout that equipped nothing (every id a typo, a removed addon, or every
+        // slot already full) must NOT be flagged: this fires again on the next chunk load, so a
+        // config fix can still retrofit the unit instead of it staying naked forever.
+        if (loadout.isEmpty() || anyEquipped) {
+            data.putBoolean(ISSUED, true);
         }
     }
 

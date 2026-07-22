@@ -33,6 +33,14 @@ import java.util.List;
  * <p>Deliberately not {@code @ModifyVariable} on the overlay's local {@code color}: it is a
  * Kotlin local with three assignment sites, and slot indices there are exactly the kind of thing
  * that shifts silently when upstream recompiles.
+ *
+ * <p><b>A status word (escort/patrol/formation) was deliberately NOT added here.</b> That state
+ * ({@code IEscort}/{@code IVehiclePatrol}/{@code IFormationMember}) lives in transient mixin
+ * fields or Forge persistent NBT, same as {@code IMortarCrew}/{@code IHelicopterPilot} — server-side
+ * only, with no packet or {@code SynchedEntityData} syncing it to the client. Reading it from a
+ * client-side mixin would silently read the client's own always-empty copy and never display
+ * anything; {@code /sewv status} (a server-side command) is the correct home for that instead.
+ * Do not add it here without first wiring real sync.
  */
 @Mixin(value = VehicleTeamOverlay.class, remap = false)
 public abstract class MixinVehicleTeamOverlay {

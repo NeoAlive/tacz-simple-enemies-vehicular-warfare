@@ -85,22 +85,23 @@ public class HandheldRadioItem extends Item {
                 player.level(), player.getUUID(), player.position(),
                 SewvConfig.MORTAR_RADIO_RANGE.get(), target);
 
-        if (ordered > 0) {
-            player.level().playSound(null, player.blockPosition(), ModSounds.MORTAR_AFFIRMATIVE.get(),
-                    SoundSource.NEUTRAL, 1.0F, 1.0F);
+        if (ordered == 0) {
+            // Always shown regardless of the flag: a failure explanation is not the success
+            // spam SHOW_ORDER_FEEDBACK exists to cut.
+            hint(player, "message.tacz_sewv.radio.no_crews", ChatFormatting.GRAY);
+            return;
         }
 
+        player.level().playSound(null, player.blockPosition(), ModSounds.MORTAR_AFFIRMATIVE.get(),
+                SoundSource.NEUTRAL, 1.0F, 1.0F);
+
         if (!SewvConfig.SHOW_ORDER_FEEDBACK.get()) return;
-        if (ordered == 0) {
-            hint(player, "message.tacz_sewv.radio.no_crews", ChatFormatting.GRAY);
-        } else {
-            Component msg = Component.translatable(
-                    ordered == 1
-                            ? "message.tacz_sewv.radio.fire_mission.single"
-                            : "message.tacz_sewv.radio.fire_mission.multiple",
-                    ordered, target.getDisplayName());
-            player.displayClientMessage(msg.copy().withStyle(ChatFormatting.GREEN), true);
-        }
+        Component msg = Component.translatable(
+                ordered == 1
+                        ? "message.tacz_sewv.radio.fire_mission.single"
+                        : "message.tacz_sewv.radio.fire_mission.multiple",
+                ordered, target.getDisplayName());
+        player.displayClientMessage(msg.copy().withStyle(ChatFormatting.GREEN), true);
     }
 
     /** Whether a unit is carrying a radio, and so can call missions in on its own. */
@@ -120,19 +121,21 @@ public class HandheldRadioItem extends Item {
                 player.level(), player.getUUID(), player.position(),
                 SewvConfig.MORTAR_RADIO_RANGE.get());
 
-        if (released > 0) {
-            player.level().playSound(null, player.blockPosition(), ModSounds.FREE_FIRE.get(),
-                    SoundSource.NEUTRAL, 1.0F, 1.0F);
+        if (released == 0) {
+            // Always shown regardless of the flag, same reasoning as callFireMission above.
+            hint(player, "message.tacz_sewv.radio.standdown.none", ChatFormatting.GRAY);
+            return;
         }
 
+        player.level().playSound(null, player.blockPosition(), ModSounds.FREE_FIRE.get(),
+                SoundSource.NEUTRAL, 1.0F, 1.0F);
+
         if (!SewvConfig.SHOW_ORDER_FEEDBACK.get()) return;
-        Component msg = released == 0
-                ? Component.translatable("message.tacz_sewv.radio.standdown.none")
-                : Component.translatable(
-                        released == 1
-                                ? "message.tacz_sewv.radio.standdown.single"
-                                : "message.tacz_sewv.radio.standdown.multiple",
-                        released);
+        Component msg = Component.translatable(
+                released == 1
+                        ? "message.tacz_sewv.radio.standdown.single"
+                        : "message.tacz_sewv.radio.standdown.multiple",
+                released);
         player.displayClientMessage(msg.copy().withStyle(ChatFormatting.YELLOW), true);
     }
 

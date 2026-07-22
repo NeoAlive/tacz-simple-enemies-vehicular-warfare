@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.atsuishio.superbwarfare.item.gun.GunItem;
+import com.atsuishio.superbwarfare.item.misc.MedicalKitItem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
@@ -59,8 +60,9 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
         if (entity.isDeadOrDying()) return;
 
         ItemStack stack = entity.getItemInHand(InteractionHand.MAIN_HAND);
-        // The whole gate. SEM's layer takes it from here for anything TACZ.
-        if (!(stack.getItem() instanceof GunItem)) return;
+        // The whole gate. SEM's layer takes it from here for anything TACZ. A medical kit is not a
+        // gun but has the same problem — a medic holding one would otherwise be empty-handed.
+        if (!(stack.getItem() instanceof GunItem) && !(stack.getItem() instanceof MedicalKitItem)) return;
 
         if (!(this.getParentModel() instanceof HierarchicalModel<?> model)) return;
 

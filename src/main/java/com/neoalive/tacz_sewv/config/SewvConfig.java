@@ -85,6 +85,7 @@ public class SewvConfig {
     // PMC medics (heal each other out of contact with a SuperbWarfare medical kit)
     public static final ForgeConfigSpec.BooleanValue MEDIC_ENABLED;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SEARCH_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue MEDIC_HEAL_PER_TREAT;
 
     // Health-based mobility (AI-crewed vehicles only)
     public static final ForgeConfigSpec.BooleanValue HEALTH_MOBILITY_ENABLED;
@@ -97,6 +98,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue ENGINEER_SEARCH_RADIUS;
     public static final ForgeConfigSpec.DoubleValue ENGINEER_REPAIR_PER_TREAT;
     public static final ForgeConfigSpec.IntValue ENGINEER_REPAIR_COOLDOWN;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ENGINEER_SIDEARM_POOL;
 
     // Scavenging an abandoned hull (RU/US only — a PMC boards on the player's order instead)
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_ENABLED;
@@ -557,8 +559,18 @@ public class SewvConfig {
 
         MEDIC_SEARCH_RADIUS = builder
                 .comment("How far (in blocks) a medic will look for a wounded same-faction unit to treat.",
-                         "It treats ITSELF first when hurt; only then does it walk to someone else.")
-                .defineInRange("medicSearchRadius", 12.0, 2.0, 48.0);
+                         "It treats ITSELF first when hurt; only then does it walk to someone else.",
+                         "A dedicated medic roams, so this wants to be generous — too small and it never",
+                         "happens to be near anyone hurt.")
+                .defineInRange("medicSearchRadius", 24.0, 2.0, 48.0);
+
+        MEDIC_HEAL_PER_TREAT = builder
+                .comment("Health a dedicated medic restores per treatment pulse, repeated every couple of seconds",
+                         "while it stands over a patient. Deliberately modest: the medic works from an unlimited",
+                         "supply, so it tops someone up gradually rather than in one tick.",
+                         "This does NOT apply to a PMC spending a real medical kit from its inventory — that",
+                         "consumes the kit and applies SuperbWarfare's own full heal instead.")
+                .defineInRange("medicHealPerTreat", 2.0, 0.5, 20.0);
 
         HEALTH_MOBILITY_ENABLED = builder
                 .comment("Slow an AI-crewed vehicle's drive speed and turret slew as it loses health.",
@@ -604,6 +616,25 @@ public class SewvConfig {
                 .comment("Goal ticks between an engineer's repair pulses (goals tick every OTHER game tick, so this",
                          "is roughly 2x its value in game ticks).")
                 .defineInRange("engineerRepairCooldown", 10, 1, 200);
+
+        ENGINEER_SIDEARM_POOL = builder
+                .comment("Sidearms an engineer may carry, one rolled per unit. It rides in the OFF hand while the",
+                         "engineer works and is drawn into the main hand only once it has a target — SimpleEnemyMod's",
+                         "rifle goal fires whatever TACZ gun is in the MAIN hand, so the swap is what makes a",
+                         "holstered weapon behave like a holstered weapon.",
+                         "",
+                         "These are TACZ GUN IDs — NOT item ids, and NOT item tags. Every TACZ gun is the same",
+                         "item (tacz:modern_kinetic_gun) carrying its gun id in NBT, so \"tacz:m1911\" only means",
+                         "anything through TACZ's own gun registry; an id TACZ does not know simply leaves that",
+                         "engineer without a sidearm rather than erroring.",
+                         "",
+                         "Ammunition is TACZ's DUMMY-ammo channel (an effectively unlimited magazine written onto",
+                         "the gun itself), which is exactly how SimpleEnemyMod supplies its own units: RU/US units",
+                         "have no inventory, so a real ammo item would have nowhere to live and the gun would",
+                         "never fire. There is no ammo item to configure.")
+                .defineList("engineerSidearmPool",
+                        List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"),
+                        SewvConfig::isValidResourceId);
 
         AUTO_BOARD_ENABLED = builder
                 .comment("Let RU/US infantry climb into an abandoned vehicle they walk past, so a hull whose crew",

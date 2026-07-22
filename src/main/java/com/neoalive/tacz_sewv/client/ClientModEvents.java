@@ -4,14 +4,13 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.init.ModEntities;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.nekoyuni.SimpleEnemyMod.entity.client.ru_unit.RUunitRenderer;
-import net.nekoyuni.SimpleEnemyMod.entity.client.us_unit.USunitRenderer;
 
 /**
  * MOD bus, client dist. Registers renderers for this mod's support-unit entities (reusing SEM's own
@@ -27,12 +26,23 @@ import net.nekoyuni.SimpleEnemyMod.entity.client.us_unit.USunitRenderer;
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientModEvents {
 
+    // Support-unit skins. These sit under assets/tacz_sewv/skins/ rather than textures/entity/ — a
+    // texture ResourceLocation is just a path under the namespace, so the folder is free choice.
+    private static final ResourceLocation RU_MEDIC_SKIN = skin("ru_squad_medic");
+    private static final ResourceLocation US_MEDIC_SKIN = skin("us_squad_medic");
+    private static final ResourceLocation RU_ENGINEER_SKIN = skin("ru_engineer");
+    private static final ResourceLocation US_ENGINEER_SKIN = skin("us_engineer");
+
+    private static ResourceLocation skin(String name) {
+        return new ResourceLocation(TaczSewv.MODID, "skins/" + name + ".png");
+    }
+
     @SubscribeEvent
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
-        event.registerEntityRenderer(ModEntities.RU_MEDIC.get(), RUunitRenderer::new);
-        event.registerEntityRenderer(ModEntities.US_MEDIC.get(), USunitRenderer::new);
-        event.registerEntityRenderer(ModEntities.RU_ENGINEER.get(), RUunitRenderer::new);
-        event.registerEntityRenderer(ModEntities.US_ENGINEER.get(), USunitRenderer::new);
+        event.registerEntityRenderer(ModEntities.RU_MEDIC.get(), ctx -> new RuSupportRenderer(ctx, RU_MEDIC_SKIN));
+        event.registerEntityRenderer(ModEntities.US_MEDIC.get(), ctx -> new UsSupportRenderer(ctx, US_MEDIC_SKIN));
+        event.registerEntityRenderer(ModEntities.RU_ENGINEER.get(), ctx -> new RuSupportRenderer(ctx, RU_ENGINEER_SKIN));
+        event.registerEntityRenderer(ModEntities.US_ENGINEER.get(), ctx -> new UsSupportRenderer(ctx, US_ENGINEER_SKIN));
     }
 
     @SubscribeEvent

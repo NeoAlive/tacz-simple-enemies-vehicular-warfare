@@ -37,6 +37,11 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     // Required clear distance (in blocks) between any drivable node and water.
     private static final int WATER_MARGIN = 3;
 
+    // A hull that is already wet must be able to path OUT: the standoff blocks the start node
+    // and everything around it, so every search from in the water fails, and the drive goal is
+    // left steering blind at the destination. Keeping water out is only a rule for a dry hull.
+    private boolean inWater;
+
     // ponytail: step/jump/fall limits stay the crewman's (vanilla reads them off this.mob),
     // not the hull's — a >1.125-block ledge may not path, but the drive goal steers straight
     // at the goal when no path exists and the hull's own physics climbs it. Override
@@ -44,7 +49,9 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     @Override
     public void prepare(PathNavigationRegion region, Mob mob) {
         super.prepare(region, mob);
+        this.inWater = false;
         if (mob.getVehicle() instanceof VehicleEntity vehicle) {
+            this.inWater = vehicle.isInWater();
             // The path is searched for the HULL's footprint, not the crewman's.
             this.entityWidth = Mth.floor(vehicle.getBbWidth() + 1.0F);
             this.entityHeight = Mth.floor(vehicle.getBbHeight() + 1.0F);
@@ -59,7 +66,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         // volume scan — a blocked node needs no further classifying. The aggregate result is
         // cached per node by the inherited getCachedBlockType, so this runs at most once per
         // unique node per search.
-        if (this.hasWaterWithinMargin(level, x, y, z)) {
+        if (!this.inWater && this.hasWaterWithinMargin(level, x, y, z)) {
             return BlockPathTypes.BLOCKED;
         }
 

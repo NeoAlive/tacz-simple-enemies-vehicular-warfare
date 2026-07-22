@@ -1,7 +1,11 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.atsuishio.superbwarfare.init.ModParticleTypes;
+import com.atsuishio.superbwarfare.init.ModSounds;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
@@ -97,7 +101,27 @@ public class RepairGoal extends Goal {
             return;
         }
         this.target.heal(SewvConfig.ENGINEER_REPAIR_PER_TREAT.get().floatValue());
+        showRepairEffects();
         this.cooldown = SewvConfig.ENGINEER_REPAIR_COOLDOWN.get();
+    }
+
+    /**
+     * Sparks and the repair-tool sound at the hull, so a repair reads as work being done rather than
+     * a unit standing next to a tank. Uses SuperbWarfare's own repair sound and particles, which is
+     * what a player sees when they repair with the tool by hand.
+     */
+    private void showRepairEffects() {
+        if (!(this.unit.level() instanceof ServerLevel level)) return;
+
+        level.playSound(null, this.target, ModSounds.REPAIRING.get(), SoundSource.NEUTRAL, 1.0F, 1.0F);
+
+        // Around the middle of the hull rather than its origin, which for a tank sits at the tracks.
+        double x = this.target.getX();
+        double y = this.target.getY() + this.target.getBbHeight() * 0.5;
+        double z = this.target.getZ();
+        double spread = Math.max(0.5, this.target.getBbWidth() * 0.4);
+        level.sendParticles(ModParticleTypes.FIRE_STAR.get(), x, y, z, 4, spread, 0.3, spread, 0.02);
+        level.sendParticles(ModParticleTypes.RISING_SMOKE.get(), x, y, z, 3, spread, 0.2, spread, 0.01);
     }
 
     /** Nearest damaged friendly/empty hull in range. */

@@ -40,6 +40,9 @@ public class SewvCommand {
                         .then(tankSpawn("ustank", TankFaction.US))
                         .then(tankSpawn("rutank", TankFaction.RU))
                         .then(tankSpawn("pmctank", TankFaction.PMC))
+                        .then(shipSpawn("usship", TankFaction.US))
+                        .then(shipSpawn("ruship", TankFaction.RU))
+                        .then(shipSpawn("pmcship", TankFaction.PMC))
                         .then(emplacementSpawn("usmortar", TankFaction.US, Emplacement.MORTAR))
                         .then(emplacementSpawn("rumortar", TankFaction.RU, Emplacement.MORTAR))
                         .then(emplacementSpawn("pmcmortar", TankFaction.PMC, Emplacement.MORTAR))
@@ -206,6 +209,30 @@ public class SewvCommand {
         return SharedSuggestionProvider.suggest(faction.vehiclePool().stream().map(String::valueOf), builder);
     }
 
+    // Mirrors tankSpawn/spawnTank exactly, against the faction's ship pool instead. Ships are a
+    // dedicated pool/spawn path (TankSpawner.spawnShipWithCrew, water-surface positioning) rather
+    // than another entry in the ground/air one, so this isn't just tankSpawn with a different id.
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> shipSpawn(String literal, TankFaction faction) {
+        return Commands.literal(literal)
+                .executes(ctx -> spawnShip(ctx.getSource(), faction, null, null))
+                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                        .executes(ctx -> spawnShip(ctx.getSource(), faction, null,
+                                BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
+                        .then(Commands.argument("vehicle", StringArgumentType.greedyString())
+                                .suggests((c, b) -> suggestShipPool(faction, b))
+                                .executes(ctx -> spawnShip(ctx.getSource(), faction,
+                                        StringArgumentType.getString(ctx, "vehicle"),
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.argument("vehicle", StringArgumentType.greedyString())
+                        .suggests((c, b) -> suggestShipPool(faction, b))
+                        .executes(ctx -> spawnShip(ctx.getSource(), faction,
+                                StringArgumentType.getString(ctx, "vehicle"), null)));
+    }
+
+    private static CompletableFuture<Suggestions> suggestShipPool(TankFaction faction, SuggestionsBuilder builder) {
+        return SharedSuggestionProvider.suggest(faction.shipPool().stream().map(String::valueOf), builder);
+    }
+
     private static int spawnTank(CommandSourceStack source, TankFaction faction,
                                  @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
         ServerLevel level = source.getLevel();
@@ -235,6 +262,35 @@ public class SewvCommand {
         }
 
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.spawn.success", faction.name(), pos.toShortString()), true);
+        return 1;
+    }
+
+    private static int spawnShip(CommandSourceStack source, TankFaction faction,
+                                  @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
+        ServerLevel level = source.getLevel();
+
+        if (vehicleId != null && !faction.shipPool().contains(vehicleId)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
+            return 0;
+        }
+
+        UUID ownerId = faction == TankFaction.PMC && source.getEntity() instanceof ServerPlayer player
+                ? player.getUUID() : null;
+
+        // Unlike spawnTank, the no-explicit-pos fallback is NOT snapped to ground height —
+        // TankSpawner.findClearWaterSpawn resolves its own per-column Y while spiralling for
+        // water, so the source position's raw X/Z (with its own Y only as a chunk-unloaded
+        // fallback) is all it needs.
+        BlockPos requestedPos = explicitPos != null ? explicitPos : BlockPos.containing(source.getPosition());
+        VehicleEntity ship = TankSpawner.spawnShipWithCrew(level, requestedPos, faction, ownerId, vehicleId);
+
+        if (ship == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.translatable(
+                "command.tacz_sewv.spawn.success", faction.name(), ship.blockPosition().toShortString()), true);
         return 1;
     }
 }

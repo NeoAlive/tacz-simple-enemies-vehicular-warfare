@@ -12,6 +12,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -47,6 +48,16 @@ public final class TankSpawner {
                 case RU -> SewvConfig.RU_VEHICLE_POOL.get();
                 case US -> SewvConfig.US_VEHICLE_POOL.get();
                 case PMC -> SewvConfig.PMC_VEHICLE_POOL.get();
+            };
+        }
+
+        /** The faction's ship pool — a dedicated list, not appended to {@link #vehiclePool()},
+         * since a ship needs a water-adjacent spawn position a ground pool pick never does. */
+        public List<? extends String> shipPool() {
+            return switch (this) {
+                case RU -> SewvConfig.RU_SHIP_POOL.get();
+                case US -> SewvConfig.US_SHIP_POOL.get();
+                case PMC -> SewvConfig.PMC_SHIP_POOL.get();
             };
         }
     }
@@ -95,11 +106,33 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
-        EntityType<?> tankType = selectVehicleType(faction.vehiclePool(), vehicleId, level.random);
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.vehiclePool(), false);
+    }
+
+    /**
+     * Same contract as {@link #spawnTankWithCrew(ServerLevel, BlockPos, TankFaction, UUID, String)},
+     * for the faction's ship pool instead — the only real difference is spawn positioning: a ship
+     * is placed via {@link #findClearWaterSpawn} rather than {@link #findClearSpawn}, since it
+     * must float rather than stand. Crew mounting, ammo/energy stocking and the (no-op for ships)
+     * helicopter takeoff order are all identical and shared with the ground path below.
+     */
+    @Nullable
+    public static VehicleEntity spawnShipWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                  @Nullable UUID ownerId, @Nullable String vehicleId) {
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(), true);
+    }
+
+    @Nullable
+    private static VehicleEntity spawnCrewedVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                     @Nullable UUID ownerId, @Nullable String vehicleId,
+                                                     List<? extends String> pool, boolean water) {
+        EntityType<?> tankType = selectVehicleType(pool, vehicleId, level.random);
         if (tankType == null) return null; // nothing valid configured/requested — bail safely
 
-        BlockPos pos = findClearSpawn(level, requestedPos, tankType);
-        if (pos == null) return null; // no room within snap radius — bail safely
+        BlockPos pos = water
+                ? findClearWaterSpawn(level, requestedPos, tankType)
+                : findClearSpawn(level, requestedPos, tankType);
+        if (pos == null) return null; // no room (or no water) within snap radius — bail safely
 
         Entity tankEntity = tankType.create(level);
         if (!(tankEntity instanceof VehicleEntity tank)) return null; // configured id isn't an SW vehicle
@@ -350,6 +383,43 @@ public final class TankSpawner {
             }
         }
         return null;
+    }
+
+    /**
+     * Water-surface counterpart to {@link #findClearSpawn}, for a hull that must float rather
+     * than stand — same spiral search and the same {@code +1} lift, but a candidate column only
+     * qualifies when it actually IS water at the surface, checked explicitly (the same idiom
+     * {@code GroundVehicleNodeEvaluator.hasWaterWithinMargin} uses to REJECT water, just asserting
+     * the opposite here). {@code groundY}'s heightmap already stops at a lake's surface rather
+     * than its bed (verified: {@code MOTION_BLOCKING_NO_LEAVES}'s predicate counts any non-empty
+     * fluid state), but it has no PREFERENCE for water over land — without this check, a ship
+     * spawn request next to a shore is just as likely to land on the bank as on the lake.
+     */
+    @Nullable
+    public static BlockPos findClearWaterSpawn(ServerLevel level, BlockPos pos, EntityType<?> type) {
+        for (int r = 0; r <= SNAP_RADIUS; r++) {
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    int x = pos.getX() + dx, z = pos.getZ() + dz;
+                    int rawY = groundY(level, x, z, pos.getY());
+                    if (!isWaterSurface(level, x, rawY, z)) continue; // dry column — never fall back to land
+                    int gy = rawY + 1;
+                    var box = type.getDimensions().makeBoundingBox(x + 0.5, gy, z + 0.5);
+                    if (level.noCollision(box)) return new BlockPos(x, gy, z);
+                }
+            }
+        }
+        return null;
+    }
+
+    // Checked at the raw heightmap Y and one below it, the same two-level margin
+    // GroundVehicleNodeEvaluator.hasWaterWithinMargin uses — a heightmap's exact "one above the
+    // counted block" convention is easy to be off by one on, and a spurious miss here only costs
+    // trying the next ring position, not a crash.
+    private static boolean isWaterSurface(ServerLevel level, int x, int y, int z) {
+        return level.getFluidState(new BlockPos(x, y, z)).is(FluidTags.WATER)
+                || level.getFluidState(new BlockPos(x, y - 1, z)).is(FluidTags.WATER);
     }
 
     public static BlockPos adjustHeight(ServerLevel level, BlockPos pos) {

@@ -1,0 +1,16 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+[remote "origin"]
+	url = https://github.com/NeoAlive/tacz-simple-enemies-vehicular-warfare
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	vscode-merge-base = origin/main
+	remote = origin
+	merge = refs/heads/main
+[branch "helicopter-implementation-MVP"]
+	vscode-merge-base = origin/main
+	remote = origin
+	merge = refs/heads/helicopter-implementation-MVP

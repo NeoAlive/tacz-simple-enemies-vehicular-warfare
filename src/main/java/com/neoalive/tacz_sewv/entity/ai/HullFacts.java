@@ -4,8 +4,10 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import net.minecraft.world.entity.Entity;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -26,16 +28,20 @@ final class HullFacts {
     private VehicleEntity vehicle;
     private boolean helicopter;
     private boolean tracked;
+    private boolean ship;
     private boolean ifv;
     private Set<Integer> crewSeats = Set.of(0);
+    private Set<Integer> climbSeats = Set.of();
 
     void attach(VehicleEntity v) {
         if (this.vehicle == v) return;
         this.vehicle = v;
         this.helicopter = computeHelicopter(v);
         this.tracked = computeTracked(v);
+        this.ship = computeShip(v);
         this.ifv = computeIfv(v);
         this.crewSeats = this.ifv ? computeCrewSeats(v) : Set.of(0);
+        this.climbSeats = SewvConfig.TANK_RIDER_DISMOUNT_ENABLED.get() ? computeClimbSeats(v) : Set.of();
     }
 
     /** Helicopters and fixed-wing (which subclass {@link EngineInfo.Helicopter}) fly, not drive. */
@@ -46,6 +52,22 @@ final class HullFacts {
     /** Tracked hulls pivot in place; wheeled ones must roll through a turn. */
     boolean isTracked() {
         return this.tracked;
+    }
+
+    /**
+     * Ships ({@link EngineInfo.Ship}) drive through {@link DriveVehicleGoal} the same as any
+     * ground hull — same input flags, same combat doctrine, same terrain sensor (already
+     * amphibious-aware, see {@code GroundTerrainSensor.computeAmphibious}) — the only thing this
+     * fact changes is which {@code PathFinder}/node evaluator pair {@code recomputePath} picks,
+     * since a hull that floats needs {@code ShipVehicleNodeEvaluator}'s water-surface search
+     * instead of {@code GroundVehicleNodeEvaluator}'s land one (which explicitly rejects water).
+     * {@code isTracked()} is already correctly {@code false} for a ship (no {@code TrackRotSpeed}
+     * in its data), so the existing wheeled "roll through the turn" steering branch already
+     * matches a ship's own physics (turn rate scales with speed — it can't pivot at a standstill)
+     * with no changes needed there either.
+     */
+    boolean isShip() {
+        return this.ship;
     }
 
     /**
@@ -71,6 +93,72 @@ final class HullFacts {
      */
     Set<Integer> crewSeats() {
         return this.crewSeats;
+    }
+
+    /**
+     * Seats posed as a tank-rider handhold (SuperbWarfare's {@code Pose == "Climb"}) rather than a
+     * real crew station — {@code DriveVehicleGoal}'s dismount-utilization feature empties these out
+     * in combat and {@code SeekAbandonedVehicleGoal} lets an idle unit refill them once quiet.
+     *
+     * <p>Deliberately NOT "seats with no weapon", the same trap {@link #crewSeats} already avoids
+     * for IFVs: {@code m_1a_2}/{@code ztz_99a} both carry a SECOND weaponless seat (a loader/extra
+     * crewman) alongside their two actual {@code Climb} seats, and a "no weapon" rule would empty
+     * that seat too — exactly the "commander walks off the tank" bug this is written to not have.
+     * {@code Pose} is a real, SBW-rendered animation state (see {@code HumanoidModelMixin}, which
+     * special-cases {@code "Climb"}/{@code "Pilot"}/{@code "Tow"}/{@code "Stand"} for how a
+     * passenger is drawn), not a loose convention — any addon hull wanting a rider visibly clinging
+     * to the exterior has to use the same value to get that rendering, so this holds up on
+     * MCSP/FCP/ashvehicles hulls the same way it does on SuperbWarfare's own.
+     */
+    Set<Integer> climbSeats() {
+        return this.climbSeats;
+    }
+
+    private static Set<Integer> computeClimbSeats(VehicleEntity v) {
+        try {
+            int seats = Math.max(1, v.getMaxPassengers());
+            Set<Integer> result = new HashSet<>();
+            for (int seat = 0; seat < seats; seat++) {
+                SeatInfo info = v.getSeat(seat);
+                if (info != null && "Climb".equals(info.pose)) result.add(seat);
+            }
+            return result;
+        } catch (Exception ignored) {
+            return Set.of(); // unreadable seats: nothing to dismount rather than guessing
+        }
+    }
+
+    /**
+     * True when {@code v} has at least one unoccupied seat and EVERY unoccupied seat is a
+     * {@link #climbSeats} seat — the signal {@code SeekAbandonedVehicleGoal} uses to let a
+     * still-crewed tank-rider hull count as worth boarding without reintroducing the IFV recall
+     * ({@code DriveVehicleGoal#dismountSquad}'s troop-compartment seats are never {@code Climb}-posed,
+     * so they never match this and stay excluded exactly as before). A vacant DRIVER/gunner/commander
+     * seat does not qualify — this is refilling a hitchhiker slot, not reinforcing a partial crew.
+     *
+     * <p>Static, not part of the per-instance cache above: this evaluates arbitrary CANDIDATE hulls
+     * during a scavenging scan, not the one hull a drive goal is attached to for its whole tick.
+     */
+    static boolean hasFreeClimbSeat(VehicleEntity v) {
+        if (!SewvConfig.TANK_RIDER_DISMOUNT_ENABLED.get()) return false;
+        try {
+            int seats = Math.max(1, v.getMaxPassengers());
+            Set<Integer> occupied = new HashSet<>();
+            for (Entity passenger : v.getPassengers()) {
+                int seat = v.getSeatIndex(passenger);
+                if (seat >= 0) occupied.add(seat);
+            }
+            boolean foundFreeClimb = false;
+            for (int seat = 0; seat < seats; seat++) {
+                if (occupied.contains(seat)) continue;
+                SeatInfo info = v.getSeat(seat);
+                if (info == null || !"Climb".equals(info.pose)) return false; // a non-climb seat is free
+                foundFreeClimb = true;
+            }
+            return foundFreeClimb;
+        } catch (Exception ignored) {
+            return false; // unreadable: don't treat as board-worthy
+        }
     }
 
     private static Set<Integer> computeCrewSeats(VehicleEntity v) {
@@ -115,6 +203,14 @@ final class HullFacts {
     private static boolean computeHelicopter(VehicleEntity v) {
         try {
             return v.getEngineInfo() instanceof EngineInfo.Helicopter;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static boolean computeShip(VehicleEntity v) {
+        try {
+            return v.getEngineInfo() instanceof EngineInfo.Ship;
         } catch (Exception ignored) {
             return false;
         }

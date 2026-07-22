@@ -109,12 +109,16 @@ public class SeekAbandonedVehicleGoal extends Goal {
         if (hull instanceof MortarEntity) return false;
         if (hull.getMaxPassengers() <= 0) return false;
 
-        // COMPLETELY empty. Not "has a free seat" — a hull with anyone still in it is somebody's,
-        // and this is scavenging, not reinforcement. It also happens to be what stops an IFV's
-        // dismount squad from climbing straight back into the hull that just put them out: that
-        // one still holds its driver and gunner. See DriveVehicleGoal.dismountSquad, where the
-        // absence of a recall is deliberate.
-        if (!hull.getPassengers().isEmpty()) return false;
+        // COMPLETELY empty, OR every currently free seat is a tank-rider "Climb" handhold
+        // (HullFacts.hasFreeClimbSeat) — a hull with a driver/gunner/commander still aboard is
+        // otherwise somebody's, and this is scavenging (or refilling a hitchhiker slot), not
+        // reinforcement: a vacant CREW seat still fails this test. Narrow on purpose — it is
+        // exactly what stops an IFV's dismount squad from climbing straight back into the hull
+        // that just put them out. That hull's troop-compartment seats are ordinary (non-Climb)
+        // seats, so hasFreeClimbSeat answers false for it and the no-recall rule in
+        // DriveVehicleGoal.dismountSquad holds exactly as before; loosening this to "has a free
+        // seat" of ANY kind would silently reintroduce that recall.
+        if (!hull.getPassengers().isEmpty() && !HullFacts.hasFreeClimbSeat(hull)) return false;
 
         float max = hull.getMaxHealth();
         if (max > 0.0F

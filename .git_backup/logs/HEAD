@@ -1,0 +1,87 @@
+0000000000000000000000000000000000000000 2b2e77f1a4912bca520fd8a46e2cf0f7f9ad0644 NeoAlive <filippo.dangelofl@gmail.com> 1783595509 +0200	commit (initial): Initial Commit
+2b2e77f1a4912bca520fd8a46e2cf0f7f9ad0644 0000000000000000000000000000000000000000 NeoAlive <filippo.dangelofl@gmail.com> 1783595660 +0200	Branch: renamed refs/heads/master to refs/heads/main
+0000000000000000000000000000000000000000 2b2e77f1a4912bca520fd8a46e2cf0f7f9ad0644 NeoAlive <filippo.dangelofl@gmail.com> 1783595660 +0200	Branch: renamed refs/heads/master to refs/heads/main
+2b2e77f1a4912bca520fd8a46e2cf0f7f9ad0644 0000000000000000000000000000000000000000 NeoAlive <filippo.dangelofl@gmail.com> 1783595882 +0200	Branch: renamed refs/heads/main to refs/heads/main
+2b2e77f1a4912bca520fd8a46e2cf0f7f9ad0644 2b2e77f1a4912bca520fd8a46e2cf0f7f9ad0644 NeoAlive <filippo.dangelofl@gmail.com> 1783595882 +0200	Branch: renamed refs/heads/main to refs/heads/main
+2b2e77f1a4912bca520fd8a46e2cf0f7f9ad0644 c92be9bf1d56436f5769e82f11ca7282cd6139cc NeoAlive <filippo.dangelofl@gmail.com> 1783596737 +0200	commit: Removed initial scaffolding
+c92be9bf1d56436f5769e82f11ca7282cd6139cc f27394b257d268a56a8c308cc8365ca16b2da43b NeoAlive <filippo.dangelofl@gmail.com> 1783598357 +0200	commit: initial mixin instances and classes
+f27394b257d268a56a8c308cc8365ca16b2da43b e652ceeb3d1246c28e3ba773f1e049f8bd6fcf66 NeoAlive <filippo.dangelofl@gmail.com> 1783602596 +0200	commit: updated structure and added more classes
+e652ceeb3d1246c28e3ba773f1e049f8bd6fcf66 53596860e9026530acbcdd3264641d2c828c5a9e NeoAlive <filippo.dangelofl@gmail.com> 1783603264 +0200	commit: various patches
+53596860e9026530acbcdd3264641d2c828c5a9e ca7f42348ca2b76ff468851ec03e332e0e338902 NeoAlive <filippo.dangelofl@gmail.com> 1783604921 +0200	commit: patched navigation bug, added distance calculation and fallback
+ca7f42348ca2b76ff468851ec03e332e0e338902 2583534ac529f792ac382e78db964fa58a0f9ae5 NeoAlive <filippo.dangelofl@gmail.com> 1783608610 +0200	commit: passenger hotfix
+2583534ac529f792ac382e78db964fa58a0f9ae5 6ad67c6a0aed41e3799a5fce1277e18ad308316e NeoAlive <filippo.dangelofl@gmail.com> 1783609875 +0200	commit: definitive commit for passenger methods
+6ad67c6a0aed41e3799a5fce1277e18ad308316e 186d2b339478f104cb4267025f8551a5ee385df5 NeoAlive <filippo.dangelofl@gmail.com> 1783612109 +0200	commit: early pathfinding and goals implemented
+186d2b339478f104cb4267025f8551a5ee385df5 281c06431588c5d00d42db63121eeacfea8dfd96 NeoAlive <filippo.dangelofl@gmail.com> 1783627050 +0200	commit: hidden passenger seat rendering and improved AI
+281c06431588c5d00d42db63121eeacfea8dfd96 ad2b13a5b2173ddf32ae0c4aafdbbd863886c7ab NeoAlive <filippo.dangelofl@gmail.com> 1783631353 +0200	commit: mixin for SEM events
+ad2b13a5b2173ddf32ae0c4aafdbbd863886c7ab e53571d1d8747eb9803c31f0761599bb11fc1661 NeoAlive <filippo.dangelofl@gmail.com> 1783631865 +0200	commit: patched gradle.properties for release
+e53571d1d8747eb9803c31f0761599bb11fc1661 7e7b52b6bb051741131f08f5f16c365c7d654195 NeoAlive <filippo.dangelofl@gmail.com> 1783679648 +0200	commit: boarding broken debugging checkpoint
+7e7b52b6bb051741131f08f5f16c365c7d654195 18afa5a4c32c921a74286b7845202aa1a1ce576e NeoAlive <filippo.dangelofl@gmail.com> 1783690547 +0200	commit: fixed Boarding bug
+18afa5a4c32c921a74286b7845202aa1a1ce576e b1ddd201ae87c9bc65547860ea78f0dd24469188 NeoAlive <filippo.dangelofl@gmail.com> 1783693334 +0200	commit: fixed boarding and AI goal
+b1ddd201ae87c9bc65547860ea78f0dd24469188 9b77ad84be41b8ded0aa4a3b60dd4d9def84c58a NeoAlive <filippo.dangelofl@gmail.com> 1783696808 +0200	commit: README.md patched and called GroundVehicleNodeEvaluator by DriveVehicleGoal
+9b77ad84be41b8ded0aa4a3b60dd4d9def84c58a 0f684f6cf6e29650e1ee655a7bb381a2cf1bcea5 NeoAlive <filippo.dangelofl@gmail.com> 1783697113 +0200	commit: final README.md patch
+0f684f6cf6e29650e1ee655a7bb381a2cf1bcea5 83f60d6a9cf7b8dca87fcc92a3dbefed64bbdc1b NeoAlive <filippo.dangelofl@gmail.com> 1783697192 +0200	commit: final README.md patch
+83f60d6a9cf7b8dca87fcc92a3dbefed64bbdc1b 85f3d78505a70c4501138e18f1bb2d2704606023 NeoAlive <filippo.dangelofl@gmail.com> 1783697298 +0200	commit (amend): final README.md patch
+85f3d78505a70c4501138e18f1bb2d2704606023 3873a078d4e51afdf4b0ef61a09e5397a37d9a65 NeoAlive <filippo.dangelofl@gmail.com> 1783697393 +0200	commit: Stop tracking local libraries
+3873a078d4e51afdf4b0ef61a09e5397a37d9a65 18708e627c612e38c77120b41ed27308dd9e963b NeoAlive <filippo.dangelofl@gmail.com> 1783700307 +0200	commit: Patched MixinVehicleInteractLock for public release+
+18708e627c612e38c77120b41ed27308dd9e963b e0dfef5d8c8b48025e3db84972bb41015d95a96a NeoAlive <filippo.dangelofl@gmail.com> 1783703725 +0200	commit: implemented pack.png and respective toml patch
+e0dfef5d8c8b48025e3db84972bb41015d95a96a acbe0b02e973c801ea778eab1341039fdfef6e3f NeoAlive <filippo.dangelofl@gmail.com> 1783714775 +0200	commit: optimized Vehicle Targeting
+acbe0b02e973c801ea778eab1341039fdfef6e3f 4344420b7f583c7dcc3e92389f1e4a2c8b389825 NeoAlive <filippo.dangelofl@gmail.com> 1783721988 +0200	commit: fixed ru/us broken AI & Revamped PMC AI
+4344420b7f583c7dcc3e92389f1e4a2c8b389825 97d0838d9319b6beeaa906b65c7dbf6df0c9a66f NeoAlive <filippo.dangelofl@gmail.com> 1783722055 +0200	commit: versioning correction
+97d0838d9319b6beeaa906b65c7dbf6df0c9a66f 3dc7b398445dc6f16375139bf38d4fce9e00913b NeoAlive <filippo.dangelofl@gmail.com> 1783759681 +0200	commit: further pathfind optimizations and defined RUunitRenderer and USunitRenderer
+3dc7b398445dc6f16375139bf38d4fce9e00913b 94e348581d1fe8c827520cfc437a881d3059aebc NeoAlive <filippo.dangelofl@gmail.com> 1783762459 +0200	commit: Removed unnecessary comments & versioning patch
+94e348581d1fe8c827520cfc437a881d3059aebc 5958d93b5d29bbf7c447062171c3a029333f801f NeoAlive <filippo.dangelofl@gmail.com> 1783785188 +0200	commit: config instances added for public release & pmcunit tank entry added
+5958d93b5d29bbf7c447062171c3a029333f801f ee1406de003b3a710803e4f8b3cc7c754a0b2670 NeoAlive <filippo.dangelofl@gmail.com> 1783801503 +0200	commit: vehicle unit retreat method
+ee1406de003b3a710803e4f8b3cc7c754a0b2670 ce2f7d892facbdd73a1862a28a58b2d12920b8b6 NeoAlive <filippo.dangelofl@gmail.com> 1783802746 +0200	commit: vehicles provided with smoke now may use them as a functionality
+ce2f7d892facbdd73a1862a28a58b2d12920b8b6 cc210fdf2ad42b3d88e90d341c2d3b118e63cdd8 NeoAlive <filippo.dangelofl@gmail.com> 1783835178 +0200	commit: TankSpawner.java now spawns full crew & added configurable spotting span
+cc210fdf2ad42b3d88e90d341c2d3b118e63cdd8 9c382e9673474a64f79f1852b55c8cfa8deeb748 NeoAlive <filippo.dangelofl@gmail.com> 1783837254 +0200	commit: set chance based Smoke Screen
+9c382e9673474a64f79f1852b55c8cfa8deeb748 b33b15b5aa45e2c82bc8034d618e14696b40c40c NeoAlive <filippo.dangelofl@gmail.com> 1783839289 +0200	commit: Added command pool specifications
+b33b15b5aa45e2c82bc8034d618e14696b40c40c 27cde6247260dfe8a834475301e49746756e4757 NeoAlive <filippo.dangelofl@gmail.com> 1783855517 +0200	commit: helicopter MVP
+27cde6247260dfe8a834475301e49746756e4757 27cde6247260dfe8a834475301e49746756e4757 NeoAlive <filippo.dangelofl@gmail.com> 1783882337 +0200	checkout: moving from main to main
+27cde6247260dfe8a834475301e49746756e4757 27cde6247260dfe8a834475301e49746756e4757 NeoAlive <filippo.dangelofl@gmail.com> 1783882410 +0200	checkout: moving from main to helicopter-implementation-MVP
+27cde6247260dfe8a834475301e49746756e4757 09f7aed14ee753c85c8142237b6ab98c163dc5d4 NeoAlive <filippo.dangelofl@gmail.com> 1783882460 +0200	commit: Helicopter 1st iteration
+09f7aed14ee753c85c8142237b6ab98c163dc5d4 20650fafc268c3ba5394aa9a00a387b11a9a8955 NeoAlive <filippo.dangelofl@gmail.com> 1783884828 +0200	commit: Helicopter 2nd Iteration
+20650fafc268c3ba5394aa9a00a387b11a9a8955 4bc1c1bde99661f1ab808aa8b6d1787c0bf2f24e NeoAlive <filippo.dangelofl@gmail.com> 1783885803 +0200	commit: Helicopter Iteration 3
+4bc1c1bde99661f1ab808aa8b6d1787c0bf2f24e d5cef8e213a2ffd97695260c1bed8fee9f6e0022 NeoAlive <filippo.dangelofl@gmail.com> 1783887415 +0200	commit: Helicopter iterations complete
+d5cef8e213a2ffd97695260c1bed8fee9f6e0022 27cde6247260dfe8a834475301e49746756e4757 NeoAlive <filippo.dangelofl@gmail.com> 1783888077 +0200	checkout: moving from helicopter-implementation-MVP to main
+27cde6247260dfe8a834475301e49746756e4757 d5cef8e213a2ffd97695260c1bed8fee9f6e0022 NeoAlive <filippo.dangelofl@gmail.com> 1783888101 +0200	merge helicopter-implementation-MVP: Fast-forward
+d5cef8e213a2ffd97695260c1bed8fee9f6e0022 a68c989e4aa5503b7a89548af1afa9bac902641a NeoAlive <filippo.dangelofl@gmail.com> 1783892498 +0200	commit: patch
+a68c989e4aa5503b7a89548af1afa9bac902641a 8ff97ff791b23a02bee1b2d748f9b60a63147c04 NeoAlive <filippo.dangelofl@gmail.com> 1783894733 +0200	commit: patch fixes for config
+8ff97ff791b23a02bee1b2d748f9b60a63147c04 8b95bf6d54c6ce74124ab03cc5639f42328076dc NeoAlive <filippo.dangelofl@gmail.com> 1783895512 +0200	commit: LoS patch for all vehicles
+8b95bf6d54c6ce74124ab03cc5639f42328076dc 201b03b77c1e714e4e4c4aee50d6d4761fe82450 NeoAlive <filippo.dangelofl@gmail.com> 1783935177 +0200	commit: Big bug fixes, Tick sync
+201b03b77c1e714e4e4c4aee50d6d4761fe82450 5eeb8168db987bd7e0581856dc8a0e71f3c3ad80 NeoAlive <filippo.dangelofl@gmail.com> 1783955202 +0200	commit: WEAPON_SPECIAL frequent usage and patch for helicopter driver weapons
+5eeb8168db987bd7e0581856dc8a0e71f3c3ad80 6af649a1cdb7054211bdd98cbdb571f96b21ee65 NeoAlive <filippo.dangelofl@gmail.com> 1783958253 +0200	commit: added vehicle wrecks to Whisker function hazards
+6af649a1cdb7054211bdd98cbdb571f96b21ee65 3daca81f967f689fe717cf5fb135506e3c993c6c NeoAlive <filippo.dangelofl@gmail.com> 1783961659 +0200	commit: added heliChunkloading boolean to SewvConfig and heliChunkloading method to its respective class
+3daca81f967f689fe717cf5fb135506e3c993c6c 47162a8e90804e845e9053edbdeab5602f6b0169 NeoAlive <filippo.dangelofl@gmail.com> 1783961756 +0200	commit: patched en_us.json
+47162a8e90804e845e9053edbdeab5602f6b0169 8d32f0a723fc279af1b3c948243ba664dc79be59 NeoAlive <filippo.dangelofl@gmail.com> 1783961845 +0200	commit: mod_version patch
+8d32f0a723fc279af1b3c948243ba664dc79be59 b2c8b431f62a0f0ee40a4523875bccd83a9696fb NeoAlive <filippo.dangelofl@gmail.com> 1784017168 +0200	commit: superficial compat for other ammo types
+b2c8b431f62a0f0ee40a4523875bccd83a9696fb 5739d9c7292ad04ec15ddd6ab6634579abce7efe NeoAlive <filippo.dangelofl@gmail.com> 1784055095 +0200	commit: landing and takeoff patch
+5739d9c7292ad04ec15ddd6ab6634579abce7efe 9c2691158b044a75b98da15662f863cca401c8f1 NeoAlive <filippo.dangelofl@gmail.com> 1784055474 +0200	commit (merge): Merge remote changes
+9c2691158b044a75b98da15662f863cca401c8f1 4e256e9e22f565662d39a9dbfffaf56c40aa981a NeoAlive <filippo.dangelofl@gmail.com> 1784055752 +0200	commit: repo edit
+4e256e9e22f565662d39a9dbfffaf56c40aa981a 2bd1fb4c23c940c4d1bd295696d8c67c150b3da2 NeoAlive <filippo.dangelofl@gmail.com> 1784110960 +0200	commit: fixed turret NaN bug & removed safedropcheck
+2bd1fb4c23c940c4d1bd295696d8c67c150b3da2 314d66ea57bcb0b52766aa33814bbd959a3b511a NeoAlive <filippo.dangelofl@gmail.com> 1784120656 +0200	commit: Units evacuate tanks when under 15% health
+314d66ea57bcb0b52766aa33814bbd959a3b511a a79a1dd994c81f78c160f352ab30696ba777a824 NeoAlive <filippo.dangelofl@gmail.com> 1784126410 +0200	commit: commit
+a79a1dd994c81f78c160f352ab30696ba777a824 e644f80a22f60f46430ee80520e4e02635cf6412 NeoAlive <filippo.dangelofl@gmail.com> 1784142825 +0200	commit: mortar support
+e644f80a22f60f46430ee80520e4e02635cf6412 1975a0c5c42049b684d1257456fa45d345888841 NeoAlive <filippo.dangelofl@gmail.com> 1784144672 +0200	commit: crafting for handheld radio
+1975a0c5c42049b684d1257456fa45d345888841 c6561237935c56ee03a1c81f2201de7e90df67b1 NeoAlive <filippo.dangelofl@gmail.com> 1784195924 +0200	commit: TOW compat
+c6561237935c56ee03a1c81f2201de7e90df67b1 2ed96af6ea0d8d64742ab9de299bd61744f9b6e9 NeoAlive <filippo.dangelofl@gmail.com> 1784202624 +0200	commit: tow fixes, shelling event etc.
+2ed96af6ea0d8d64742ab9de299bd61744f9b6e9 2ed96af6ea0d8d64742ab9de299bd61744f9b6e9 NeoAlive <filippo.dangelofl@gmail.com> 1784214954 +0200	reset: moving to HEAD
+2ed96af6ea0d8d64742ab9de299bd61744f9b6e9 41b4c7a421e9c367f80965d8378b6997afacca6d NeoAlive <filippo.dangelofl@gmail.com> 1784217060 +0200	commit: code tidying
+41b4c7a421e9c367f80965d8378b6997afacca6d a8cf6bae6f3a0279c4dc4aeabe56a0e59da92c3b NeoAlive <filippo.dangelofl@gmail.com> 1784229285 +0200	commit: ground vehicle support for tanks
+a8cf6bae6f3a0279c4dc4aeabe56a0e59da92c3b 966f80bd7ae6789fdb79582155241798cc690fc5 NeoAlive <filippo.dangelofl@gmail.com> 1784240423 +0200	commit: version change
+966f80bd7ae6789fdb79582155241798cc690fc5 7361e987e1df4d99b1b3d09365a6e871ca7d4c05 NeoAlive <filippo.dangelofl@gmail.com> 1784309580 +0200	commit: FOLLOW_ME fix
+7361e987e1df4d99b1b3d09365a6e871ca7d4c05 70a0bd93f861e2f76ad5fffb8e23c5ecaef8667c NeoAlive <filippo.dangelofl@gmail.com> 1784323754 +0200	commit: added item and formation gui and their intrisic functions
+70a0bd93f861e2f76ad5fffb8e23c5ecaef8667c 944f9fdd7391fa5866c6f69ac76535e1a70f6b1d NeoAlive <filippo.dangelofl@gmail.com> 1784326139 +0200	commit: CreativeAmmo replacement and anti-FF patch
+944f9fdd7391fa5866c6f69ac76535e1a70f6b1d f480f2359829532669c292c4a784510188668aec NeoAlive <filippo.dangelofl@gmail.com> 1784329999 +0200	commit: Berezka Structure compat test
+f480f2359829532669c292c4a784510188668aec 42b194459f8c958cee369d9daad9433129e27f61 NeoAlive <filippo.dangelofl@gmail.com> 1784370424 +0200	commit: accuracy patch & ammunition
+42b194459f8c958cee369d9daad9433129e27f61 133cc16914381593021f46bb4b55ccb1de5c7d7a NeoAlive <filippo.dangelofl@gmail.com> 1784390823 +0200	commit: IFV role added
+133cc16914381593021f46bb4b55ccb1de5c7d7a c0f9e72e4e5591ea30cc37c1bc367e7b0a22f6ff NeoAlive <filippo.dangelofl@gmail.com> 1784402566 +0200	commit: heuristics and code reordering
+c0f9e72e4e5591ea30cc37c1bc367e7b0a22f6ff 0cccbd08a388aae5e251d0c2c469a28f1a504536 NeoAlive <filippo.dangelofl@gmail.com> 1784424286 +0200	commit: SBW small arms render fix
+0cccbd08a388aae5e251d0c2c469a28f1a504536 f34b13d2c7675d813ec97505388e132f9045f8d8 NeoAlive <filippo.dangelofl@gmail.com> 1784454514 +0200	commit: mixin for SEM garrisons and derelict_vehicle getEngineType fix
+f34b13d2c7675d813ec97505388e132f9045f8d8 1af7ad0f40e053f3fe5752c97d7a6c018ef87669 NeoAlive <filippo.dangelofl@gmail.com> 1784501255 +0200	commit: fixed RU unit bug
+1af7ad0f40e053f3fe5752c97d7a6c018ef87669 7e2165f8ea50d3bb1498d8eae7e49fecc89be8f3 NeoAlive <filippo.dangelofl@gmail.com> 1784644634 +0200	commit: replaced old voiceline
+7e2165f8ea50d3bb1498d8eae7e49fecc89be8f3 b7442a29b8c76c64feea52a1a8cd9514b74371eb NeoAlive <filippo.dangelofl@gmail.com> 1784663868 +0200	commit: additional voicelines + health movement multiplier + new unit roles
+b7442a29b8c76c64feea52a1a8cd9514b74371eb 16ea4e066e0efffeb4768cf742e6cfa706268ba1 NeoAlive <filippo.dangelofl@gmail.com> 1784711646 +0200	commit: code plumbing & AI fixes
+16ea4e066e0efffeb4768cf742e6cfa706268ba1 786652c593b7619b011284ce80e5e92ab9f8edc8 NeoAlive <filippo.dangelofl@gmail.com> 1784720511 +0200	commit: replaced old voicelines for pmc handheld radio & added tow + idle behavior w/ sounds
+786652c593b7619b011284ce80e5e92ab9f8edc8 cb7761ccae520393d5b79ae7ba6d028f99f963b9 NeoAlive <filippo.dangelofl@gmail.com> 1784725812 +0200	commit: complete SEM engineer/medic implementation
+cb7761ccae520393d5b79ae7ba6d028f99f963b9 8407036b28024596e62d4c22faed3c7599e760e9 NeoAlive <filippo.dangelofl@gmail.com> 1784730057 +0200	commit: experimental drone support
+8407036b28024596e62d4c22faed3c7599e760e9 6b904b49acba845c4ed6c7af7ccee053bb1595a1 NeoAlive <filippo.dangelofl@gmail.com> 1784740744 +0200	commit: support for speedboats & ship exclusive pathfinding

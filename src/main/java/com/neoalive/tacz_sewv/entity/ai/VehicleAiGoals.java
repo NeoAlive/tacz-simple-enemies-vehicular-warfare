@@ -20,9 +20,10 @@ public final class VehicleAiGoals {
         // Priority 0: bailing out of a hull that's about to die outranks everything
         // it could otherwise be doing from inside that hull.
         unit.goalSelector.addGoal(0, new BailOutVehicleGoal(unit));
-        // DriveVehicleGoal (ground/ship) and DriveHelicopterGoal (flight) are both
-        // registered on every crew; each gates on the mounted vehicle's engine type,
-        // so exactly one activates for whatever hull the unit ends up in.
+        // DriveVehicleGoal (ground/ship — see its own class doc for how one goal covers
+        // both) and DriveHelicopterGoal (flight) are both registered on every crew; each
+        // gates on the mounted vehicle's engine type, so exactly one activates for
+        // whatever hull the unit ends up in.
         unit.goalSelector.addGoal(1, new DriveVehicleGoal(unit));
         unit.goalSelector.addGoal(1, new DriveHelicopterGoal(unit));
         // Both drive goals above only ever act for the FIRST passenger (the driver/steering

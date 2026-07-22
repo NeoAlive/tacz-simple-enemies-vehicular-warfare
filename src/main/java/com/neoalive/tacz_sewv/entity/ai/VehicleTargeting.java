@@ -403,8 +403,17 @@ public final class VehicleTargeting {
      * <p>Scoped to proactive acquisition on purpose. Retaliation is left to {@link #isFriendly}
      * (which does not shield the player), so a friendly crew still fights back when shot — matching
      * the on-foot unit under the same flag.
+     *
+     * <p>Also shields a creative/spectator player unconditionally, regardless of faction or the
+     * friendly toggle — nothing in this mod's AI should ever proactively engage one, the same
+     * convention {@code VehicleTargetScanGoal}/{@code CrewTargetPriorityGoal} already apply inline.
+     * Centralized here rather than duplicated a third and fourth time in the engineer's own
+     * targeting goals and the recon drone's scan, which is exactly the pair of new call sites that
+     * had been missing it — a unit or drone attacking a creative player is the kind of "extremely
+     * unusual" behavior a builder/admin testing the map should never see.
      */
     public static boolean isNonHostile(AbstractUnit unit, LivingEntity target) {
+        if (target instanceof Player p && (p.isCreative() || p.isSpectator())) return true;
         return isFriendly(unit, target) || friendlyFlagShields(unit, target);
     }
 
@@ -506,6 +515,19 @@ public final class VehicleTargeting {
         else if (unit instanceof USunitEntity) friendly = usUnitsFriendly;
         else return false;
         return friendly && (target instanceof Player || target instanceof PmcUnitEntity);
+    }
+
+    /**
+     * Raw read of {@code unit}'s own faction friendly toggle (false for PMC/anything else) — the
+     * same cache {@link #friendlyFlagShields} reads. Lets a caller decide UPFRONT whether Player/PMC
+     * targeting should exist at all, mirroring how SEM's own {@code RUunitEntity}/{@code USunitEntity}
+     * only ever INSTALL their player-targeting goal when the toggle is off, rather than installing it
+     * unconditionally and trusting a runtime predicate alone to keep it from firing.
+     */
+    public static boolean isFactionFriendly(AbstractUnit unit) {
+        if (unit instanceof RUunitEntity) return ruUnitsFriendly;
+        if (unit instanceof USunitEntity) return usUnitsFriendly;
+        return false;
     }
 
     /**

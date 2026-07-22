@@ -16,13 +16,16 @@ import java.util.List;
 
 /**
  * Terrain sensing for {@link DriveVehicleGoal}: what a ground or ship hull must not drive
- * into. Water (unless it floats), lava, and the hulls a block probe cannot see.
+ * into. Water (unless it floats), lava, and the hulls a block probe cannot see — and, for a
+ * hull that floats, dry land itself: see {@link #isLandHazard} for why running aground is a
+ * dead end for a ship in a way it never is for a ground vehicle.
  *
  * <p><b>Depth is deliberately not a hazard.</b> SBW's fall damage on vehicles is forgiving,
  * so treating drops as cliffs cost far more mobility than it saved — armor would refuse
  * ravines, ledges and terraced ground it could simply have driven off. An uphill wall isn't
  * one either: footing is found immediately, and walls belong to the pathfinder and the
- * stuck recovery, not to a terrain probe.
+ * stuck recovery, not to a terrain probe. (A ship is the one exception — see
+ * {@link #isLandHazard}, where depth below the surface is exactly what's being asked about.)
  */
 final class GroundTerrainSensor extends TerrainSensor {
 
@@ -80,6 +83,10 @@ final class GroundTerrainSensor extends TerrainSensor {
 
     /** A column is hazardous only if the surface the hull would end up on is water or lava. */
     private boolean isHazardColumn(Level level, BlockPos.MutableBlockPos pos, int x, int z, int baseY) {
+        // A ship's hazard is the INVERSE of a ground hull's: dry land, not water. See
+        // isLandHazard's own doc for why this matters more than it looks.
+        if (this.amphibious) return isLandHazard(level, pos, x, z, baseY);
+
         // Fluid at the driving cell or the cell the tracks rest in.
         for (int dy = 0; dy >= -1; dy--) {
             if (isHazardFluid(level.getFluidState(pos.set(x, baseY + dy, z)))) return true;
@@ -94,6 +101,34 @@ final class GroundTerrainSensor extends TerrainSensor {
             if (!state.getCollisionShape(level, pos).isEmpty()) return false; // solid footing
         }
         return false; // nothing but air within reach — a long drop, which is allowed
+    }
+
+    /**
+     * Where the water gives out is a hazard for a ship, not a place to avoid becoming a place
+     * it's fine to be: SuperbWarfare's own ship engine gates BOTH thrust and yaw change behind
+     * {@code isInFluidType || isUnderWater} (verified against {@code VehicleEngineUtils.shipEngine}),
+     * and {@code onGround()} separately clamps existing velocity toward zero. A hull that runs
+     * fully aground therefore has no input that does anything at all — no thrust to back off
+     * with, no yaw change to turn away with, because yaw change itself is scaled by CURRENT
+     * SPEED, which grounding just crushed to zero. There is no "unstick" maneuver for a boat the
+     * way there is for a wedged ground vehicle (reverse-and-swing needs exactly the speed a
+     * beaching just took away) — this has to be prevented, not recovered from.
+     *
+     * <p>Scans down from the driving level (same {@link #FLUID_PROBE_DEPTH} used above) for the
+     * first thing that ISN'T air: water means still afloat here (not a hazard), lava is always
+     * one, and any other solid surface means the hull would run aground on it before ever
+     * reaching water — a hazard regardless of how far down it is, unlike the ground-vehicle
+     * case where a drop onto solid footing below a fluid layer is fine.
+     */
+    private boolean isLandHazard(Level level, BlockPos.MutableBlockPos pos, int x, int z, int baseY) {
+        for (int dy = 0; dy >= -FLUID_PROBE_DEPTH; dy--) {
+            var state = level.getBlockState(pos.set(x, baseY + dy, z));
+            FluidState fluid = state.getFluidState();
+            if (fluid.is(FluidTags.LAVA)) return true;
+            if (fluid.is(FluidTags.WATER)) return false; // afloat here — not a hazard
+            if (!state.getCollisionShape(level, pos).isEmpty()) return true; // solid ground, no water above it
+        }
+        return true; // no water anywhere in reach below the hull either
     }
 
     private boolean isHazardFluid(FluidState fluid) {

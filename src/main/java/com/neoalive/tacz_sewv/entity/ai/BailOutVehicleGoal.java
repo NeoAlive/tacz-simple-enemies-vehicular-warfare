@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.util.CrewRadio;
 import net.minecraft.core.BlockPos;
@@ -124,11 +125,21 @@ public class BailOutVehicleGoal extends Goal {
         // Likewise any mortar claim: a crew scrambling clear of a burning hull
         // shouldn't turn round and walk back to a tube it was assigned earlier.
         MortarSupport.releaseClaim(this.unit);
+        // And any flight command: every crew type implements IHelicopterPilot, so this is
+        // faction-blind like the two clears above. Without it a pilot bailing with a stale
+        // LANDING/TAKEOFF command + BlockPos carries it straight into the next helicopter
+        // it boards, which starts flying itself toward the old order the moment it's seated.
+        IHelicopterPilot pilot = (IHelicopterPilot) this.unit;
+        pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
+        pilot.sewv$setHeliLandPos(null);
 
         if (this.unit instanceof PmcUnitEntity pmc) {
             // Any escort order dies with the bail-out too (PMC-only, so it's cleared here rather
             // than beside the faction-blind board/mortar clears above).
             ((com.neoalive.tacz_sewv.bridge.IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
+            // Same for a standing patrol/search area task (also PMC-only) — PacketDismountVehicle
+            // clears this too, but a hull destroyed in combat only ever runs through here.
+            PatrolSupport.clear(pmc);
             // setMoveToTarget flips the order to MOVE_TO_POSITION itself.
             if (this.escapePos != null) pmc.setMoveToTarget(escapeTarget());
         } else if (this.escapePos != null) {

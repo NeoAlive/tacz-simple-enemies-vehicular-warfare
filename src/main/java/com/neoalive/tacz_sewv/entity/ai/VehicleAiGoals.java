@@ -25,6 +25,14 @@ public final class VehicleAiGoals {
         // so exactly one activates for whatever hull the unit ends up in.
         unit.goalSelector.addGoal(1, new DriveVehicleGoal(unit));
         unit.goalSelector.addGoal(1, new DriveHelicopterGoal(unit));
+        // Both drive goals above only ever act for the FIRST passenger (the driver/steering
+        // seat); this covers everyone else in a weapon-bearing seat — a separate turret seat,
+        // firing ports — with the same ammo doctrine and fire-assist, claiming no flags since
+        // SBW's native per-seat loop already aims and fires that seat. GROUND/SHIP HULLS ONLY —
+        // see the class doc on TurretGunnerGoal: a helicopter gunner firing mid-flight was found
+        // to destabilize DriveHelicopterGoal's landing approach, so helicopters are excluded
+        // there until that interaction is understood.
+        unit.goalSelector.addGoal(1, new TurretGunnerGoal(unit));
         unit.goalSelector.addGoal(1, new VehicleMinRangeGoal(unit));
         // Gates on the mounted hull being a TOW, the same way the two drive goals gate on
         // engine type. It belongs here rather than with the PMC-only goals because loading

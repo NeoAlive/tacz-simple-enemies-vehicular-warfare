@@ -14,6 +14,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -103,6 +104,10 @@ public class TdtScreen extends Screen {
     @Override
     protected void init() {
         this.readouts.clear();
+        // Resolved once per screen open rather than hardcoded literals, so the stepper suffixes
+        // are translatable like every other piece of text in this screen.
+        String unitBlocks = I18n.get("gui.tacz_sewv.tdt.unit.blocks");
+        String unitPerRow = I18n.get("gui.tacz_sewv.tdt.unit.per_row");
         int totalW = COL_W * 3 + COL_GAP * 2;
         this.leftX = (this.width - totalW) / 2;
         this.midX = this.leftX + COL_W + COL_GAP;
@@ -134,7 +139,7 @@ public class TdtScreen extends Screen {
                 () -> orderAreaTask(this.patrolRadius, IVehiclePatrol.MODE_PATROL), "gui.tacz_sewv.tdt.patrol.tip");
         y += ROW_H;
         addStepper(this.leftX, y, () -> this.patrolRadius, v -> this.patrolRadius = v,
-                RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, "m", PacketPatrolVehicle.MIN_RADIUS,
+                RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, unitBlocks, PacketPatrolVehicle.MIN_RADIUS,
                 "gui.tacz_sewv.tdt.patrol.tip");
         y += ROW_H + GROUP_GAP;
 
@@ -142,7 +147,7 @@ public class TdtScreen extends Screen {
                 () -> orderAreaTask(this.searchRadius, IVehiclePatrol.MODE_SEARCH), "gui.tacz_sewv.tdt.search.tip");
         y += ROW_H;
         addStepper(this.leftX, y, () -> this.searchRadius, v -> this.searchRadius = v,
-                RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, "m", PacketPatrolVehicle.MIN_RADIUS,
+                RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, unitBlocks, PacketPatrolVehicle.MIN_RADIUS,
                 "gui.tacz_sewv.tdt.search.tip");
         y += ROW_H + GROUP_GAP;
 
@@ -156,7 +161,7 @@ public class TdtScreen extends Screen {
         addColumnButton(this.midX, btnY, "gui.tacz_sewv.tdt.takeoff",
                 () -> HelicopterKeybind.orderTakeoff(this.heliAltitude));
         addStepper(this.midX, rowY(btnY, 1), () -> this.heliAltitude, v -> this.heliAltitude = v,
-                PacketHelicopterCommand.MIN_ALTITUDE, PacketHelicopterCommand.MAX_ALTITUDE, ALT_STEP, "m", 0,
+                PacketHelicopterCommand.MIN_ALTITUDE, PacketHelicopterCommand.MAX_ALTITUDE, ALT_STEP, unitBlocks, 0,
                 "gui.tacz_sewv.tdt.altitude.tip");
         addColumnButton(this.midX, rowY(btnY, 2), "gui.tacz_sewv.tdt.land",
                 () -> HelicopterKeybind.orderLand(this.landPad));
@@ -166,7 +171,7 @@ public class TdtScreen extends Screen {
         addFormationButton(this.rightX, rowY(btnY, 1), "gui.tacz_sewv.tdt.column", FormationShape.COLUMN);
         addFormationButton(this.rightX, rowY(btnY, 2), "gui.tacz_sewv.tdt.line", FormationShape.LINE);
         addStepper(this.rightX, rowY(btnY, 3), () -> this.lineRowSize, v -> this.lineRowSize = v,
-                PacketVehicleFormation.MIN_ROW_SIZE, PacketVehicleFormation.MAX_ROW_SIZE, 1, "/row", 0,
+                PacketVehicleFormation.MIN_ROW_SIZE, PacketVehicleFormation.MAX_ROW_SIZE, 1, unitPerRow, 0,
                 "gui.tacz_sewv.tdt.line.tip");
         addFormationButton(this.rightX, rowY(btnY, 4), "gui.tacz_sewv.tdt.echelon_left", FormationShape.ECHELON_LEFT);
         addFormationButton(this.rightX, rowY(btnY, 5), "gui.tacz_sewv.tdt.echelon_right", FormationShape.ECHELON_RIGHT);

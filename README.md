@@ -7,8 +7,11 @@ A bridge mod that allows NPCs from TACZ: Simple Enemy Mod to interact and/or spa
 ## Commands & Guide
 
 To begin I recommended to choose a flat space to spawn your PMC units and your chosen ground vehicle to decrease the chances of getting stuck in ravines or similar terrain obstacles.
-Once done, you may spawn your tank, make sure it is fully **loaded** and **charged**, select your PMC units (1 unit may be enough to make the vehicle function) from the SEM command menu **(Default: CTRL + C)**, point at the vehicle and press the mount key (Default: K).
-If, for any reason you need to unmount your units, you may press CTRL + K. 
+Once done, you may spawn your tank, make sure it is fully **loaded** and **charged**, and select your PMC units (1 unit may be enough to make the vehicle function) from the SEM command menu **(Default: CTRL + C)**.
+
+Crew orders (board, dismount, patrol, escort, formation, ...) all go through the **Tactical Data Terminal**, a craftable item. Left-click while holding it to open its screen, point at the vehicle, and use the Board/Dismount buttons — the terminal also opens with the **G** key (default), which works even while you're seated in a vehicle, so you're never stuck without it mid-drive.
+
+The **Handheld Radio** (also craftable) is for calling fire missions: point it at a target and use it to hand that target to a mortar/TOW crew that couldn't otherwise see it (SEM units have limited line-of-sight range), or sneak-use it to cancel the order.
 
 Once your units are in the vehicle, they will respond directly to your SEM command menu. You can either Select All + Follow to have the vehicle follow you, or Select All + Free Fire to let the vehicle operate autonomously.
 

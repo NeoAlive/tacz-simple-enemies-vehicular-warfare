@@ -212,8 +212,8 @@ public class ManMortarGoal extends Goal {
         double distSq = this.unit.distanceToSqr(this.mortar);
 
         if (distSq > useDistance * useDistance && !pathExhaustedNearby(distSq, useDistance)) {
-            hold(String.format("walking to the mortar (%.0f blocks away, needs %.1f)",
-                    Math.sqrt(distSq), useDistance));
+            hold("walking to the mortar (%.0f blocks away, needs %.1f)",
+                    Math.sqrt(distSq), useDistance);
             approach();
             return;
         }
@@ -275,16 +275,16 @@ public class ManMortarGoal extends Goal {
                 // Inside minimum range or beyond maximum: hold rather than spend a shell
                 // that can't land. canContinueToUse hands the crew back to its rifle when
                 // this is a live target rather than leaving it frozen at a dead tube.
-                hold(String.format("aimpoint at %.1f blocks is outside the mortar's envelope",
-                        Math.sqrt(this.mortar.distanceToSqr(aimCentre))));
+                hold("aimpoint at %.1f blocks is outside the mortar's envelope",
+                        Math.sqrt(this.mortar.distanceToSqr(aimCentre)));
                 return;
             }
 
             MortarSupport.aimAt(this.mortar, aim[0], aim[1]);
             this.laidOn = aimPos;
-            hold(String.format("laying on %s at %.1f blocks (yaw %.1f, pitch %.1f), barrel slewing",
+            hold("laying on %s at %.1f blocks (yaw %.1f, pitch %.1f), barrel slewing",
                     onTarget ? target.getName().getString() : "fire mission " + this.fireMission.pos().toShortString(),
-                    Math.sqrt(this.mortar.distanceToSqr(aimCentre)), aim[0], aim[1]));
+                    Math.sqrt(this.mortar.distanceToSqr(aimCentre)), aim[0], aim[1]);
             return; // let the barrel start slewing before testing it
         }
 
@@ -355,6 +355,17 @@ public class ManMortarGoal extends Goal {
         this.lastHold = reason;
         LOGGER.info("[mortar] unit {} at mortar {}: {}",
                 this.unit.getId(), this.mortar.blockPosition().toShortString(), reason);
+    }
+
+    /**
+     * Same as {@link #hold(String)}, but for a reason that needs formatting first — the flag
+     * check happens BEFORE the format/allocation, not inside {@code hold}, so a caller on the
+     * approach/lay-on hot path doesn't pay for a {@code String.format} every tick that
+     * mortarDebugLogging is off (the common case).
+     */
+    private void hold(String fmt, Object... args) {
+        if (!SewvConfig.MORTAR_DEBUG_LOGGING.get()) return;
+        hold(String.format(fmt, args));
     }
 
     /**

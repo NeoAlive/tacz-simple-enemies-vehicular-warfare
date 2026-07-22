@@ -25,5 +25,8 @@ public class TacticalDataTerminalItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
         tooltip.add(Component.translatable("tooltip.tacz_sewv.tactical_data_terminal.use").withStyle(ChatFormatting.GRAY));
+        // The G key also opens it from anywhere it's carried — the only way to reach it while
+        // seated in a vehicle, where a left click never reaches this item at all (see TdtKeybind).
+        tooltip.add(Component.translatable("tooltip.tacz_sewv.tactical_data_terminal.key").withStyle(ChatFormatting.GRAY));
     }
 }

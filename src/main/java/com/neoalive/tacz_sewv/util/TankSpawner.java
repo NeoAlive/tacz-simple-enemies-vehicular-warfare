@@ -3,7 +3,7 @@ package com.neoalive.tacz_sewv.util;
 import com.atsuishio.superbwarfare.data.gun.AmmoConsumer;
 import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.data.gun.GunProp;
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
@@ -29,7 +29,9 @@ import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public final class TankSpawner {
@@ -59,13 +61,23 @@ public final class TankSpawner {
         return spawnTankWithCrew(level, pos, faction, ownerId, null);
     }
 
+    // Resolved once per unique pool entry and cached for the server's lifetime: pool entries are
+    // static config, so constructing a throwaway entity just to type-check it — on every ~60s roll,
+    // twice per roll (RU+US) from both ConvoyEvent and DerelictVehicleEvent — is pure waste past
+    // the first hit for that id.
+    private static final Map<ResourceLocation, Boolean> VEHICLE_TYPE_CACHE = new HashMap<>();
+
+    private static boolean isVehicleEntityType(ServerLevel level, ResourceLocation rl, EntityType<?> type) {
+        return VEHICLE_TYPE_CACHE.computeIfAbsent(rl, k -> type.create(level) instanceof VehicleEntity);
+    }
+
     /** True when the faction's configured pool contains at least one loadable SW vehicle. */
     public static boolean hasSpawnableVehicle(ServerLevel level, TankFaction faction) {
         for (String id : faction.vehiclePool()) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
             if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
             EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
-            if (type != null && type.create(level) instanceof VehicleEntity) return true;
+            if (type != null && isVehicleEntityType(level, rl, type)) return true;
         }
         return false;
     }
@@ -107,6 +119,7 @@ public final class TankSpawner {
         // seats sequentially, so the first rider lands in seat 0 (driver) and
         // the rest man the remaining weapon/passenger stations.
         int seats = Math.max(1, tank.getMaxPassengers());
+        int mounted = 0;
         for (int i = 0; i < seats; i++) {
             AbstractUnit crew = createCrewUnit(level, faction, ownerId);
             crew.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
@@ -118,6 +131,17 @@ public final class TankSpawner {
                 crew.discard();
                 break;
             }
+            mounted++;
+        }
+
+        if (mounted == 0) {
+            // The very first seat was refused: a fully fuelled, fully armed hull with nobody
+            // aboard is completely empty by SeekAbandonedVehicleGoal's own test, which makes it
+            // a scavenge magnet for any nearby RU/US infantry — the exact "bare hull near
+            // infantry" trap this mod avoids everywhere else. Any later seat failing (mounted > 0)
+            // already has a driver, so it isn't "completely empty" and stays safe.
+            tank.discard();
+            return null;
         }
 
         // Helicopters spawn on the ground, so order the pilot (seat 0) to take off:
@@ -126,9 +150,19 @@ public final class TankSpawner {
         // implements IHelicopterPilot, so this drives RU/US autonomous crews the
         // same as owned PMC ones; ground vehicles ignore it (the goal only reads
         // the command while mounted in a helicopter).
-        if (tank.getEngineInfo() instanceof EngineInfo.Helicopter
-                && tank.getFirstPassenger() instanceof IHelicopterPilot pilot) {
-            pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_TAKEOFF);
+        //
+        // Read from computed() (the STATIC datapack data, valid the instant the entity exists),
+        // NOT getEngineInfo() — that field is lazily populated inside travel() on the hull's first
+        // baseTick, one tick AFTER addFreshEntity, so it is null for every hull at this exact spot
+        // in spawnTankWithCrew. Same gotcha DerelictVehicleEvent already works around; this call
+        // site never got the fix, so no helicopter spawned through TankSpawner ever took off.
+        try {
+            if (tank.computed().getEngineType() == EngineType.HELICOPTER
+                    && tank.getFirstPassenger() instanceof IHelicopterPilot pilot) {
+                pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_TAKEOFF);
+            }
+        } catch (Exception ignored) {
+            // Unreadable vehicle data — leave it on the ground rather than abort the spawn.
         }
 
         return tank;

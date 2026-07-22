@@ -38,6 +38,12 @@ public final class SupportUnitGoals {
         // engaged" without either side needing to know about the other.
         goals.addGoal(1, new RepairGoal(unit));
 
+        // Deploys and flies up to a couple of unarmed recon drones that relay spotted enemies
+        // to nearby same-faction units/vehicle crews. Claims no flags — it only ever acts on
+        // the drones it owns, never on the engineer — so it runs alongside repair and combat
+        // with nothing to arbitrate.
+        goals.addGoal(1, new DroneOperatorGoal(unit));
+
         // SEM's own infantry goals — cover, movement, look, stroll, and RangedGunAttackGoal, which
         // fires whatever TACZ gun is in the MAIN hand. That last one is what the holstered sidearm
         // relies on (see EngineerLoadout). Reused rather than rebuilt because it reads SEM's combat
@@ -49,10 +55,22 @@ public final class SupportUnitGoals {
         // passengers is the test — a crew is exactly a unit riding something.
         // isNonHostile covers same-faction friends AND SEM's per-faction "friendly to players/PMC"
         // toggle, read from VehicleTargeting's cached copy rather than SEM's config class directly.
+        // Also excludes PMC when the faction is friendly (same predicate handles both), which is why
+        // this one goal doesn't need its own config gate the way the Player goal below does.
         targets.addGoal(2, new NearestAttackableTargetGoal<>(unit, AbstractUnit.class, true,
                 target -> !target.isPassenger() && !VehicleTargeting.isNonHostile(unit, target)));
-        targets.addGoal(3, new NearestAttackableTargetGoal<>(unit, Player.class, true,
-                target -> !target.isPassenger() && !VehicleTargeting.isNonHostile(unit, target)));
+
+        // Only installed when NOT friendly — mirrors SEM's own RUunitEntity/USunitEntity, which
+        // never adds a Player-targeting goal at all under `if (!RU_UNITS_FRIENDLY.get())`, rather
+        // than adding it unconditionally and trusting a predicate to keep it quiet. An engineer
+        // used to do the latter: the goal always existed and isNonHostile was its only guard, so
+        // any edge case in that one check (or a race on the cached config before it settles) meant
+        // an engineer could still acquire a "friendly" player as a target. Not installing the goal
+        // when friendly removes that failure mode entirely rather than trying to harden it.
+        if (!VehicleTargeting.isFactionFriendly(unit)) {
+            targets.addGoal(3, new NearestAttackableTargetGoal<>(unit, Player.class, true,
+                    target -> !target.isPassenger() && !VehicleTargeting.isNonHostile(unit, target)));
+        }
     }
 
     private static void reset(AbstractUnit unit, GoalSelector goals, GoalSelector targets) {

@@ -5,6 +5,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.util.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
+import com.neoalive.tacz_sewv.entity.ai.navigation.ShipVehicleNodeEvaluator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -32,6 +33,22 @@ import java.util.Set;
  * ({@link GroundTerrainSensor}), the recovery from a crew that holds a target it cannot hit
  * ({@link StalemateBreaker}), weapon doctrine ({@link VehicleWeapons}) and destination
  * resolution ({@link VehicleTargeting}).
+ *
+ * <p><b>Ships are a hull type here, not a separate goal.</b> {@code HullFacts.isTracked()} is
+ * already {@code false} for a ship (no {@code TrackRotSpeed} in its data), so the existing
+ * wheeled "hold forward while turning" branch in {@link #driveGroundVehicle} already fires —
+ * which happens to be exactly right, since SuperbWarfare's ship engine scales turn rate with
+ * current speed (a stationary boat can't pivot), much closer to a wheeled hull needing to roll
+ * through a turn than to a helicopter's hover-and-reorient-freely model. The combat doctrine
+ * below is equally hull-agnostic already. The ONLY hull-specific fork is which evaluator
+ * {@link #recomputePath} hands to the search: {@link GroundVehicleNodeEvaluator} rejects water
+ * outright, so a ship gets {@link ShipVehicleNodeEvaluator} (vanilla's water-surface pathing,
+ * the same evaluator dolphins/guardians use) instead. Everything else in this class — standoff,
+ * retreat, stuck recovery, weapon selection — needs no ship branch at all.
+ * A ship boxed in by other hulls on every bearing (never land/water — {@link GroundTerrainSensor}
+ * already treats a ship as amphibious) turns in place near-uselessly per its own "can't turn
+ * standing still" physics; this is left to the existing stuck/unstick recovery in
+ * {@link #navigateTo} rather than special-cased further.
  */
 public class DriveVehicleGoal extends Goal {
 
@@ -110,6 +127,11 @@ public class DriveVehicleGoal extends Goal {
 
     private final GroundVehicleNodeEvaluator nodeEvaluator = new GroundVehicleNodeEvaluator();
     private final PathFinder pathFinder = new PathFinder(this.nodeEvaluator, 512);
+    // A ship needs vanilla's water-surface evaluator instead — GroundVehicleNodeEvaluator
+    // explicitly rejects water. Both pairs are always constructed (cheap, stateless until a
+    // search runs) and recomputePath picks between them off HullFacts.isShip().
+    private final ShipVehicleNodeEvaluator shipNodeEvaluator = new ShipVehicleNodeEvaluator();
+    private final PathFinder shipPathFinder = new PathFinder(this.shipNodeEvaluator, 512);
 
     private VehicleEntity vehicle;
 
@@ -202,6 +224,13 @@ public class DriveVehicleGoal extends Goal {
         if (target != null && this.hull.isIfv()
                 && VehicleWeapons.classifyTarget(target) == TargetCategory.VEHICLE) {
             dismountSquad();
+        }
+
+        // Tank-rider ("Climb" pose) seats: a utilization fix, not an anti-armor tactic, so it
+        // triggers on ANY held target rather than being armor-gated like the IFV dismount above —
+        // see dismountClimbers.
+        if (target != null && !this.hull.climbSeats().isEmpty()) {
+            dismountClimbers();
         }
 
         // The decoy input is latched vehicle state: release it on every tick that is not part
@@ -412,6 +441,28 @@ public class DriveVehicleGoal extends Goal {
         }
     }
 
+    /**
+     * Empties out the tank-rider ("Climb" pose) seats once the driver holds any target — see
+     * {@link HullFacts#climbSeats} for why "Climb" and not "no weapon" is the test. Unlike
+     * {@link #dismountSquad}: triggers on ANY contact (utilization, not an anti-armor tactic), never
+     * issues an AT launcher (these are spare hitchhikers, not a designated element), and is NOT
+     * one-way — {@code SeekAbandonedVehicleGoal} lets any idle unit reclaim a free Climb seat once
+     * things are quiet, rather than tracking and recalling the specific rider who got off.
+     *
+     * <p>Runs every combat tick with no "have I done this" flag, same reasoning as
+     * {@link #dismountSquad}: once a seat is empty there is nobody left in it to find on the next
+     * pass, so re-running costs one more iteration over a short passenger list.
+     */
+    private void dismountClimbers() {
+        Set<Integer> climb = this.hull.climbSeats();
+        for (Entity passenger : List.copyOf(this.vehicle.getPassengers())) {
+            if (!(passenger instanceof AbstractUnit rider) || rider == this.unit) continue;
+            int seat = this.vehicle.getSeatIndex(rider);
+            if (!climb.contains(seat)) continue;
+            rider.stopRiding();
+        }
+    }
+
     /** The ring the breaker orbits for this target type — mid-band against infantry. */
     private static double breakerRing(boolean isVehicleTarget) {
         return isVehicleTarget ? VEHICLE_TOO_FAR : (INFANTRY_TOO_CLOSE + INFANTRY_TOO_FAR) / 2.0;
@@ -506,8 +557,10 @@ public class DriveVehicleGoal extends Goal {
                     this.unit.level(),
                     origin.offset(-PATH_SEARCH_RANGE, -PATH_SEARCH_VERTICAL, -PATH_SEARCH_RANGE),
                     origin.offset(PATH_SEARCH_RANGE, PATH_SEARCH_VERTICAL, PATH_SEARCH_RANGE));
-            // PathFinder.findPath() calls nodeEvaluator.prepare()/done() itself.
-            this.currentPath = this.pathFinder.findPath(
+            // PathFinder.findPath() calls its evaluator's prepare()/done() itself. A ship needs
+            // the water-surface evaluator instead of the land one, which would reject every node.
+            PathFinder finder = this.hull.isShip() ? this.shipPathFinder : this.pathFinder;
+            this.currentPath = finder.findPath(
                     region, this.unit, Set.of(target), PATH_SEARCH_RANGE, 1, 1.0F);
         } catch (Exception e) {
             this.currentPath = null;

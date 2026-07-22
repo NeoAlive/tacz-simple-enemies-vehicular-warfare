@@ -46,6 +46,9 @@ public class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_POOL;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_SHIP_POOL;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_SHIP_POOL;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_SHIP_POOL;
     public static final ForgeConfigSpec.BooleanValue CREATIVE_AMMO_FALLBACK;
 
     // Armor issued to units on spawn (any unit, mounted or on foot)
@@ -74,6 +77,9 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> IFV_NAME_CLUES;
 
+    // Tank-rider ("Climb" pose) seats — RU/US only, unrelated to the IFV feature above
+    public static final ForgeConfigSpec.BooleanValue TANK_RIDER_DISMOUNT_ENABLED;
+
     // Anti-tank weapons issued to an RU/US dismount squad
     public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_RU;
     public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_US;
@@ -99,6 +105,15 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue ENGINEER_REPAIR_PER_TREAT;
     public static final ForgeConfigSpec.IntValue ENGINEER_REPAIR_COOLDOWN;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ENGINEER_SIDEARM_POOL;
+
+    // RU/US engineer recon drones (SuperbWarfare's DroneEntity, AI-flown — no player, no weapon)
+    public static final ForgeConfigSpec.IntValue DRONE_MAX_PER_ENGINEER;
+    public static final ForgeConfigSpec.IntValue DRONE_DEPLOY_CHECK_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.DoubleValue DRONE_DEPLOY_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue DRONE_SCAN_ALTITUDE;
+    public static final ForgeConfigSpec.DoubleValue DRONE_DETECTION_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue DRONE_BROADCAST_RADIUS;
+    public static final ForgeConfigSpec.IntValue DRONE_SCAN_INTERVAL_TICKS;
 
     // Scavenging an abandoned hull (RU/US only — a PMC boards on the player's order instead)
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_ENABLED;
@@ -321,11 +336,11 @@ public class SewvConfig {
         // Pools accept any registered SW-based VehicleEntity id, including those from
         // Superb Warfare addons (e.g. "dragonrise_reforge:...", "fcp:...", "mcsp:...").
         // Ids from mods that aren't installed are skipped safely, so it's fine to list
-        // addon vehicles here even when the addon may be absent. Ground vehicles and
-        // helicopters are fully supported. NOT recommended: fixed-wing aircraft/jets
-        // (flown with helicopter hover logic they can't sustain), and artillery /
-        // indirect-fire hulls like the TOS-1A (their AI crew can't self-load and won't
-        // fire).
+        // addon vehicles here even when the addon may be absent. Ground vehicles,
+        // helicopters and ships are all fully supported. NOT recommended: fixed-wing
+        // aircraft/jets (flown with helicopter hover logic they can't sustain), and
+        // artillery / indirect-fire hulls like the TOS-1A (their AI crew can't
+        // self-load and won't fire).
         //
         // Mortars don't belong here either, but for a different reason: a mortar has no
         // seats, so there is nothing for a spawned crew to ride and TankSpawner can't
@@ -348,6 +363,24 @@ public class SewvConfig {
                          "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
                          "Addon ids work too (e.g. \"fcp:littlebird\", \"mcsp:m1a2\", \"superbwarfare:ah_6\").")
                 .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:ah_6"), SewvConfig::isValidResourceId);
+
+        // Ships are a DEDICATED pool, separate from the ground/air ones above — a ship must spawn
+        // on water (see TankSpawner.findClearWaterSpawn) and paths over water via its own
+        // evaluator (see ShipVehicleNodeEvaluator), so it is never picked at random for a land
+        // spawn or mixed in with a tank/helicopter roll.
+        RU_SHIP_POOL = builder
+                .comment("Ship entity ids RU crews can spawn with (e.g. \"superbwarfare:speedboat\").",
+                         "List several to have one picked at random per spawn. Spawned on water, not ground —",
+                         "see /sewv spawn ruship.")
+                .defineList("ruShipPool", List.of("superbwarfare:speedboat"), SewvConfig::isValidResourceId);
+
+        US_SHIP_POOL = builder
+                .comment("Ship entity ids US crews can spawn with. Same rules as ruShipPool.")
+                .defineList("usShipPool", List.of("superbwarfare:speedboat"), SewvConfig::isValidResourceId);
+
+        PMC_SHIP_POOL = builder
+                .comment("Ship entity ids for debug PMC units spawning. Same rules as ruShipPool.")
+                .defineList("pmcShipPool", List.of("superbwarfare:speedboat"), SewvConfig::isValidResourceId);
 
         CREATIVE_AMMO_FALLBACK = builder
                 .comment("A spawned vehicle is stocked with the real, finite, lootable ammunition its guns use.",
@@ -508,6 +541,19 @@ public class SewvConfig {
                         List.of("bradley", "bmp", "bmd", "cv90", "puma", "marder"),
                         o -> o instanceof String s && !s.isBlank());
 
+        TANK_RIDER_DISMOUNT_ENABLED = builder
+                .comment("Let a tank-rider seat (SuperbWarfare's Pose==\"Climb\" — an exposed handhold, not a real",
+                         "crew station) empty out once the driver holds ANY target, and refill once a nearby idle",
+                         "RU/US unit walks past a hull with a free one. Purely a utilization fix, not an anti-armor",
+                         "tactic like ifvDismountsEnabled: a Climb seat has no weapon and nothing to do mounted, so",
+                         "there is no reason to fight with an idle NPC riding along instead of on foot.",
+                         "No AT launcher is issued (these are spare hitchhikers, not a designated element) and there",
+                         "is no recall — SeekAbandonedVehicleGoal is what lets ANY idle unit reclaim the seat later,",
+                         "not necessarily the one who got off. Identified by pose, not by seat index or \"no weapon\"",
+                         "(which would also empty a weaponless commander seat) — so this works unmodified on any",
+                         "hull using SuperbWarfare's seat schema, addons included.")
+                .define("tankRiderDismountEnabled", true);
+
         AT_WEAPON_RU = builder
                 .comment("SuperbWarfare launcher handed to an RU dismount squad's anti-tank gunners.",
                          "A dismount squad only ever leaves the hull because it met ARMOUR, and a TACZ rifle cannot",
@@ -635,6 +681,44 @@ public class SewvConfig {
                 .defineList("engineerSidearmPool",
                         List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"),
                         SewvConfig::isValidResourceId);
+
+        DRONE_MAX_PER_ENGINEER = builder
+                .comment("Max recon drones a single engineer may have deployed at once. Ownership is tagged on the",
+                         "drone itself and re-counted from the world rather than remembered by the engineer, so this",
+                         "cap survives a chunk reload rather than resetting it.")
+                .defineInRange("droneMaxPerEngineer", 2, 0, 8);
+
+        DRONE_DEPLOY_CHECK_INTERVAL_TICKS = builder
+                .comment("Game ticks between an engineer's deploy rolls. Skipped entirely once at droneMaxPerEngineer",
+                         "— an engineer with a full flight never even runs this check.")
+                .defineInRange("droneDeployCheckIntervalTicks", 200, 20, 12000);
+
+        DRONE_DEPLOY_CHANCE = builder
+                .comment("Chance (0.0-1.0) that a deploy roll actually launches a drone, rolled once per",
+                         "droneDeployCheckIntervalTicks while under the cap.")
+                .defineInRange("droneDeployChance", 0.2, 0.0, 1.0);
+
+        DRONE_SCAN_ALTITUDE = builder
+                .comment("Height (in blocks) a drone holds above the engineer it escorts while on station.")
+                .defineInRange("droneScanAltitude", 20.0, 5.0, 60.0);
+
+        DRONE_DETECTION_RADIUS = builder
+                .comment("Radius (in blocks) a drone scans around itself for enemies.")
+                .defineInRange("droneDetectionRadius", 48.0, 8.0, 128.0);
+
+        DRONE_BROADCAST_RADIUS = builder
+                .comment("Radius (in blocks) around a drone that a spotted enemy is relayed to — every same-faction",
+                         "unit or vehicle crew in range with no target of its own is handed the sighting directly",
+                         "(RU/US have no order queue to route it through, unlike the PMC radio relay).")
+                .defineInRange("droneBroadcastRadius", 160.0, 16.0, 384.0);
+
+        DRONE_SCAN_INTERVAL_TICKS = builder
+                .comment("Game ticks between a drone's enemy scans (an area query, the expensive part), throttled",
+                         "independent of flight ticking. Proximity/faction only — no line-of-sight check: a spotted",
+                         "target only makes a receiving unit/vehicle AWARE of it, and firing still gates on that",
+                         "unit's own LOS check at the moment it shoots, so this never causes a tank to shoot",
+                         "through a wall it can't see over.")
+                .defineInRange("droneScanIntervalTicks", 20, 5, 200);
 
         AUTO_BOARD_ENABLED = builder
                 .comment("Let RU/US infantry climb into an abandoned vehicle they walk past, so a hull whose crew",

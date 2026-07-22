@@ -54,6 +54,11 @@ public final class VehicleAiGoals {
         // PMC a player equipped). Gates on an SBW gun being in the main hand, which is one
         // instanceof for everyone else.
         unit.goalSelector.addGoal(1, new AtWeaponGoal(unit));
+        // Priority 2: the turret sweep and radio chatter of a crew with nothing to fight. Claims no
+        // flags and only runs while the unit holds no target, so it yields to everything above by
+        // simply not being applicable. The idle DRIVING half is not here — it is a destination
+        // fallback in VehicleTargeting, handled by the drive goal like any other.
+        unit.goalSelector.addGoal(2, new IdleCrewGoal(unit));
         // Priority 2: while mounted this owns the TARGET flag over SEM's short
         // vanilla scans (also priority 2+, but strictly less reach), while SEM's
         // HurtByTargetGoal at priority 1 still preempts for retaliation.

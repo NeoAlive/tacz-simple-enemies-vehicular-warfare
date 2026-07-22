@@ -92,7 +92,7 @@ public class HandheldRadioItem extends Item {
             return;
         }
 
-        player.level().playSound(null, player.blockPosition(), ModSounds.MORTAR_AFFIRMATIVE.get(),
+        player.level().playSound(null, player, ModSounds.PMC_MORTAR.next(),
                 SoundSource.NEUTRAL, 1.0F, 1.0F);
 
         if (!SewvConfig.SHOW_ORDER_FEEDBACK.get()) return;
@@ -127,7 +127,7 @@ public class HandheldRadioItem extends Item {
             return;
         }
 
-        player.level().playSound(null, player.blockPosition(), ModSounds.FREE_FIRE.get(),
+        player.level().playSound(null, player, ModSounds.PMC_MORTAR.next(),
                 SoundSource.NEUTRAL, 1.0F, 1.0F);
 
         if (!SewvConfig.SHOW_ORDER_FEEDBACK.get()) return;

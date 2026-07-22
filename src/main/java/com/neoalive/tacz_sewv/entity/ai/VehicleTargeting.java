@@ -58,7 +58,9 @@ public final class VehicleTargeting {
             LivingEntity target = unit.getTarget();
             if (target != null) return target.blockPosition();
             // No fight of our own — reinforce a nearby allied crew that has one.
-            return assist != null ? assist.assistTargetPos(unit, vehicle) : null;
+            BlockPos aid = assist != null ? assist.assistTargetPos(unit, vehicle) : null;
+            // Nothing to reinforce either: potter about rather than park like a statue.
+            return aid != null ? aid : IdleSupport.wanderPos(unit, vehicle);
         }
 
         // An area task (patrol / search & destroy) is a standing TDT order that outranks the SEM
@@ -96,8 +98,11 @@ public final class VehicleTargeting {
                 if (pmc.getTarget() != null) {
                     return pmc.getTarget().blockPosition();
                 }
-                // Free-firing with nothing to shoot — reinforce an allied crew in combat.
-                return assist != null ? assist.assistTargetPos(unit, vehicle) : null;
+                // Free-firing with nothing to shoot — reinforce an allied crew in combat, and failing
+                // that idle about. FREE_FIRE is the only order that idles: every other one is a
+                // positional instruction the player expects to be obeyed exactly.
+                BlockPos support = assist != null ? assist.assistTargetPos(unit, vehicle) : null;
+                return support != null ? support : IdleSupport.wanderPos(unit, vehicle);
 
             case FOLLOW_COMMANDER:
                 Player follows = commander(pmc);

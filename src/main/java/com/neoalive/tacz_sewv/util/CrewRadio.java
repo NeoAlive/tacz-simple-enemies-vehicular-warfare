@@ -24,7 +24,7 @@ public final class CrewRadio {
      * hold the one channel and starve spotted/bail/decoy, which is what made lines feel rare.
      */
     public enum Line {
-        DAMAGED(160), SPOTTED(90), ORDERS(60), BAIL(60), DECOY(60), IFV(90);
+        DAMAGED(160), SPOTTED(90), ORDERS(60), BAIL(60), DECOY(60), IFV(90), IDLE(600), TOW(100);
         final int cooldown;
         Line(int cooldown) { this.cooldown = cooldown; }
     }
@@ -64,9 +64,12 @@ public final class CrewRadio {
         data.putLong(OVERLAP_KEY, now + OVERLAP_TICKS);
         data.putLong(typeKey, now + line.cooldown);
         // SoundSource.VOICE puts these on the dedicated Voice/Speech slider, separate from combat noise.
+        // Bound to the HULL, not a coordinate: the entity overload sends ClientboundSoundEntityPacket,
+        // so the clip tracks the vehicle client-side instead of being left behind by a hull moving at
+        // 30 m/s. The hull rather than the speaker because it outlives a crewman who bails or dies
+        // mid-line, and while seated the two positions are the same.
         float volume = SewvConfig.VEHICLE_VOICELINE_VOLUME.get().floatValue();
-        hull.level().playSound(null, speaker.getX(), speaker.getY(), speaker.getZ(),
-                pool.next(), SoundSource.VOICE, volume, 1.0f);
+        hull.level().playSound(null, hull, pool.next(), SoundSource.VOICE, volume, 1.0f);
     }
 
     private static SoundPool poolFor(AbstractUnit unit, Line line) {
@@ -76,6 +79,8 @@ public final class CrewRadio {
             case BAIL    -> ModSounds.RU_BAIL;
             case DECOY   -> ModSounds.RU_DECOY;
             case IFV     -> ModSounds.RU_IFV;
+            case IDLE    -> ModSounds.RU_IDLE;
+            case TOW     -> ModSounds.RU_TOW;
             case ORDERS  -> null;
         };
         if (unit instanceof USunitEntity) return switch (line) {
@@ -84,6 +89,8 @@ public final class CrewRadio {
             case BAIL    -> ModSounds.US_BAIL;
             case DECOY   -> ModSounds.US_DECOY;
             case IFV     -> ModSounds.US_IFV;
+            case IDLE    -> ModSounds.US_IDLE;
+            case TOW     -> ModSounds.US_TOW;
             case ORDERS  -> null;
         };
         return switch (line) { // PMC
@@ -92,6 +99,8 @@ public final class CrewRadio {
             case ORDERS  -> ModSounds.PMC_ORDERS;
             case BAIL    -> ModSounds.PMC_BAIL;
             case DECOY   -> ModSounds.PMC_DECOY;
+            case IDLE    -> ModSounds.PMC_IDLE;
+            case TOW     -> ModSounds.PMC_TOW;
             case IFV     -> null; // PMC IFVs field no dedicated line
         };
     }

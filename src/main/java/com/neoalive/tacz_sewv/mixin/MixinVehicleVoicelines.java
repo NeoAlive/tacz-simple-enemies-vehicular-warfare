@@ -1,9 +1,14 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import com.atsuishio.superbwarfare.entity.vehicle.TowEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.util.CrewRadio;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
+
+import java.util.UUID;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -48,5 +53,21 @@ public abstract class MixinVehicleVoicelines {
         long episodeEnd = data.getLong(tacz_sewv$DECOY_KEY);
         data.putLong(tacz_sewv$DECOY_KEY, now + tacz_sewv$DECOY_GRACE);
         if (now >= episodeEnd) CrewRadio.play(hull, CrewRadio.Line.DECOY);
+    }
+
+    /**
+     * TOW launch call-out. Injected on {@code VehicleEntity}'s own shoot rather than
+     * {@code TowEntity.vehicleShoot}, because that override runs its backblast/reload tail even when
+     * the super call is cancelled by MixinVehicleFireCooldown -- so hooking it would announce shots
+     * that never happened. TAIL here is skipped whenever that gate cancels at HEAD, so the line
+     * tracks actual launches. Reloading is silent (SBW plays its own TYPE_63_RELOAD).
+     */
+    @Inject(
+            method = "vehicleShoot(Lnet/minecraft/world/entity/LivingEntity;Ljava/util/UUID;Lnet/minecraft/world/phys/Vec3;)V",
+            at = @At("TAIL"), remap = false)
+    private void tacz_sewv$towFireVoice(LivingEntity shooter, UUID uuid, Vec3 targetPos, CallbackInfo ci) {
+        if ((Object) this instanceof TowEntity tow) {
+            CrewRadio.play(tow, CrewRadio.Line.TOW);
+        }
     }
 }

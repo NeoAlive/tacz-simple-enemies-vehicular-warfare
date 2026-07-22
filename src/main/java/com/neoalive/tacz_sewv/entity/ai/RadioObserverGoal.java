@@ -78,7 +78,7 @@ public class RadioObserverGoal extends Goal {
         if (ordered == 0) {
             this.nextCheck = now + NO_CREWS_BACKOFF;
         } else {
-            this.unit.level().playSound(null, this.unit.blockPosition(), ModSounds.MORTAR_AFFIRMATIVE.get(),
+            this.unit.level().playSound(null, this.unit, ModSounds.PMC_MORTAR.next(),
                     SoundSource.NEUTRAL, 1.0F, 1.0F);
         }
     }

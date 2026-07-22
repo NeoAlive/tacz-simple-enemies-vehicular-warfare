@@ -126,6 +126,10 @@ public class SewvConfig {
     // Patrol order (a ground vehicle wanders valid ground inside a circle)
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
 
+    // Idle behaviour (a crewed hull with nothing to fight and nowhere to be)
+    public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
+    public static final ForgeConfigSpec.IntValue IDLE_WANDER_RADIUS;
+
     // Helicopter/flight AI
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HELI_ALT_DEADBAND;
@@ -147,6 +151,8 @@ public class SewvConfig {
     // Unit voicelines while crewing a vehicle
     public static final ForgeConfigSpec.BooleanValue VEHICLE_VOICELINES_ENABLED;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_VOICELINE_VOLUME;
+    public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_DELAY_TICKS;
+    public static final ForgeConfigSpec.DoubleValue IDLE_VOICELINE_HEALTH_FRACTION;
 
     // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -705,6 +711,19 @@ public class SewvConfig {
                          "inside its patrol area (20 ticks = 1 second; default 3600 = 3 minutes).")
                 .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
 
+        IDLE_WANDER_ENABLED = builder
+                .comment("Let a crewed ground/ship hull with no target and no standing order potter about near",
+                         "where it went idle -- short drives to nearby drivable ground, with pauses where it sits",
+                         "completely still, and a slow turret sweep. Turn off to have idle hulls park like statues.",
+                         "The turret sweep and idle radio chatter are NOT disabled by this; only the driving is.")
+                .define("idleWanderEnabled", true);
+
+        IDLE_WANDER_RADIUS = builder
+                .comment("How far (in blocks) an idle hull may drift from the spot it went idle at.",
+                         "Kept small on purpose: this is a crew stretching its legs, not a patrol -- use the",
+                         "Tactical Data Terminal's Patrol order for a real one.")
+                .defineInRange("idleWanderRadius", 16, 4, 64);
+
         builder.pop();
 
         builder.push("flight_ai");
@@ -816,6 +835,16 @@ public class SewvConfig {
                          "sound's falloff radius, so it attenuates more gently and stays audible further out.",
                          "The in-game Voice/Speech slider scales this per-player on top.")
                 .defineInRange("vehicleVoicelineVolume", 1.8, 0.5, 4.0);
+
+        IDLE_VOICELINE_DELAY_TICKS = builder
+                .comment("How long a crew must go without a target before it starts idle radio chatter",
+                         "(20 ticks = 1 second). Set high to keep hulls quiet between fights.")
+                .defineInRange("idleVoicelineDelayTicks", 200, 20, 12000);
+
+        IDLE_VOICELINE_HEALTH_FRACTION = builder
+                .comment("A hull below this fraction of its max health does not chatter -- a shot-up crew has",
+                         "nothing idle to say. Its damaged/bail lines still play.")
+                .defineInRange("idleVoicelineHealthFraction", 0.3, 0.0, 1.0);
 
         builder.pop();
 

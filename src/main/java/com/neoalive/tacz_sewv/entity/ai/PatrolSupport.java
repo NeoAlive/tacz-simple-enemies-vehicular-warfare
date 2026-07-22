@@ -154,8 +154,10 @@ public final class PatrolSupport {
     // Uniform random point over the patrol disk, snapped to the surface, kept only if it is drivable
     // ground. Unloaded columns are skipped rather than force-loaded, so a patrol stays within the
     // area the hull can actually reach.
+    // Package-private rather than private: IdleSupport wants exactly this rejection sample for an
+    // idle hull's short drift, at a much smaller radius.
     @Nullable
-    private static BlockPos pickWaypoint(Level level, BlockPos origin, int radius, RandomSource random) {
+    static BlockPos pickWaypoint(Level level, BlockPos origin, int radius, RandomSource random) {
         for (int i = 0; i < PICK_ATTEMPTS; i++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double dist = Math.sqrt(random.nextDouble()) * radius; // sqrt → uniform over the disk, not clustered at centre
@@ -274,7 +276,7 @@ public final class PatrolSupport {
     // The surface of this column if a ground hull could sit and be pathed to there, else null.
     // Unloaded columns answer null rather than being force-loaded.
     @Nullable
-    private static BlockPos drivableColumn(Level level, int x, int z) {
+    static BlockPos drivableColumn(Level level, int x, int z) {
         if (!level.hasChunkAt(x, z)) return null;
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         return CLASSIFIER.getBlockPathType(level, x, y, z) == BlockPathTypes.WALKABLE

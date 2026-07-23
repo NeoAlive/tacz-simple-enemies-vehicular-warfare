@@ -182,6 +182,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue MORTAR_CHUNK_LOADING;
     public static final ForgeConfigSpec.DoubleValue MORTAR_RADIO_RANGE;
     public static final ForgeConfigSpec.BooleanValue MORTAR_DEBUG_LOGGING;
+    public static final ForgeConfigSpec.BooleanValue PMC_COMBAT_DEBUG_LOGGING;
 
     // Unit voicelines while crewing a vehicle
     public static final ForgeConfigSpec.BooleanValue VEHICLE_VOICELINES_ENABLED;
@@ -1028,6 +1029,13 @@ public class SewvConfig {
                          "Turn this on if a crew reaches its mortar but won't shoot — it names the exact gate,",
                          "e.g. no target, out of range, no shells.")
                 .define("mortarDebugLogging", false);
+
+        PMC_COMBAT_DEBUG_LOGGING = builder
+                .comment("Log why one of YOUR PMC units is not shooting back (to the server log, throttled per unit).",
+                         "Turn this on if your PMCs 'stop shooting after a while' — when an owned PMC has been hit",
+                         "recently but holds no live target, it dumps the fields that name the cause: its order,",
+                         "target, held items, whether it is riding a hull (and that hull's health), and support role.")
+                .define("pmcCombatDebugLogging", false);
 
         builder.pop();
 

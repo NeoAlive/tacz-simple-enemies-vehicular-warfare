@@ -24,7 +24,7 @@ import java.util.Set;
  * <p>Reads are defensive: unreadable hull data must never crash the AI tick, and each
  * fact falls back to the answer whose behaviour is the safe one.
  */
-final class HullFacts {
+public final class HullFacts {
 
     private VehicleEntity vehicle;
     private boolean helicopter;
@@ -190,6 +190,15 @@ final class HullFacts {
      * firing-port MGs). The id is the only signal that actually tracks the vehicle class, which
      * is why the clue list is config — an addon's hull is caught without this mod knowing it.
      */
+    /**
+     * The same IFV test, for callers with no crew to attach a {@link HullFacts} to (the map
+     * markers, which classify a hull they only ever look at). Cheap — a registry-id string match,
+     * no vehicle-data compute.
+     */
+    public static boolean isIfvHull(VehicleEntity v) {
+        return computeIfv(v);
+    }
+
     private static boolean computeIfv(VehicleEntity v) {
         if (!SewvConfig.IFV_DISMOUNTS_ENABLED.get()) return false;
         try {

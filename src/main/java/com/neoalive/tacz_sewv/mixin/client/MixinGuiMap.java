@@ -1,7 +1,7 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
 import com.neoalive.tacz_sewv.client.MapMarkers;
-import com.neoalive.tacz_sewv.client.xaero.MoveHereOption;
+import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.resources.ResourceKey;
@@ -54,8 +54,9 @@ public abstract class MixinGuiMap {
     private void tacz_sewv$selectMarker(int button, int x, int y, CallbackInfo ci) {
         if (button != 0 || this.viewed == null) return;
         if (!(this.viewed.getElement() instanceof VehicleMarker marker)) return;
-        MapMarkers.toggleSelected(marker);
-        ci.cancel();
+        // Only swallow the click if it selected something — a click on an enemy symbol should still
+        // do whatever the map would have done with it.
+        if (MapMarkers.toggleSelected(marker)) ci.cancel();
     }
 
     @Inject(method = "getRightClickOptions", at = @At("RETURN"))
@@ -64,7 +65,7 @@ public abstract class MixinGuiMap {
         ArrayList<RightClickOption> options = cir.getReturnValue();
         if (options == null) return;
 
-        options.add(new MoveHereOption(options.size(), (GuiMap) (Object) this,
+        options.addAll(UnitOrderOption.allFor(options.size(), (GuiMap) (Object) this,
                 this.rightClickX, this.rightClickY, this.rightClickZ, this.rightClickDim,
                 MapMarkers.selected().size()));
     }

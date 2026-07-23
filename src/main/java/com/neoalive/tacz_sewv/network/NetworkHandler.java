@@ -27,9 +27,11 @@ public class NetworkHandler {
     // order; 4: added the vehicle formation order; 5: added the patrol order; 6: formation carries
     // a shape id + row size, and the heli command carries a cruise altitude; 7: board carries a
     // passenger-only flag and the area-task order carries a patrol/search mode; 8: added the escort
-    // order; 9: added the owned-vehicle map sync, this channel's first server->client packet) so a
+    // order; 9: added the owned-vehicle map sync, this channel's first server->client packet;
+    // 10: map markers carry an allegiance so other factions can be shown; 11: the area task carries
+    // an optional origin, so it can be centred on a map click instead of on the sender) so a
     // mismatched client/server pair is rejected at handshake instead of misparsing.
-    private static final String PROTOCOL_VERSION = "9";
+    private static final String PROTOCOL_VERSION = "11";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

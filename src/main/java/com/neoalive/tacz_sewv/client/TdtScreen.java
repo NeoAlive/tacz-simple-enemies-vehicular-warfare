@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.client;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.FormationShape;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
@@ -62,10 +63,29 @@ public class TdtScreen extends Screen {
     private final BlockPos landPad;   // long-range block pick at open
     private final int formationAxis;  // the cardinal the player faced at open (IFormationMember id)
 
-    private int patrolRadius = DEFAULT_RADIUS;
-    private int searchRadius = DEFAULT_RADIUS;
-    private int heliAltitude = com.neoalive.tacz_sewv.bridge.IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
-    private int lineRowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
+    // Stepper values are STATIC: they are the player's standing preference, not screen state, so
+    // they survive closing the terminal instead of snapping back to the default on every open. That
+    // also makes them the one place the world map's order menu reads its radius and altitude from —
+    // the map has no room for a stepper, and a second set of defaults would drift from these.
+    private static int patrolRadius = DEFAULT_RADIUS;
+    private static int searchRadius = DEFAULT_RADIUS;
+    private static int heliAltitude = IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
+    private static int lineRowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
+
+    /** Last patrol radius the player set on the terminal, for callers with no stepper of their own. */
+    public static int patrolRadius() {
+        return patrolRadius;
+    }
+
+    /** Last search radius the player set on the terminal. */
+    public static int searchRadius() {
+        return searchRadius;
+    }
+
+    /** Last cruise altitude the player set on the terminal. */
+    public static int heliAltitude() {
+        return heliAltitude;
+    }
 
     private int leftX;   // Ground column
     private int midX;    // Air column
@@ -136,17 +156,17 @@ public class TdtScreen extends Screen {
         y += ROW_H + GROUP_GAP;
 
         addButton(this.leftX, y, "gui.tacz_sewv.tdt.patrol",
-                () -> orderAreaTask(this.patrolRadius, IVehiclePatrol.MODE_PATROL), "gui.tacz_sewv.tdt.patrol.tip");
+                () -> orderAreaTask(patrolRadius, IVehiclePatrol.MODE_PATROL), "gui.tacz_sewv.tdt.patrol.tip");
         y += ROW_H;
-        addStepper(this.leftX, y, () -> this.patrolRadius, v -> this.patrolRadius = v,
+        addStepper(this.leftX, y, () -> patrolRadius, v -> patrolRadius = v,
                 RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, unitBlocks, PacketPatrolVehicle.MIN_RADIUS,
                 "gui.tacz_sewv.tdt.patrol.tip");
         y += ROW_H + GROUP_GAP;
 
         addButton(this.leftX, y, "gui.tacz_sewv.tdt.search",
-                () -> orderAreaTask(this.searchRadius, IVehiclePatrol.MODE_SEARCH), "gui.tacz_sewv.tdt.search.tip");
+                () -> orderAreaTask(searchRadius, IVehiclePatrol.MODE_SEARCH), "gui.tacz_sewv.tdt.search.tip");
         y += ROW_H;
-        addStepper(this.leftX, y, () -> this.searchRadius, v -> this.searchRadius = v,
+        addStepper(this.leftX, y, () -> searchRadius, v -> searchRadius = v,
                 RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, unitBlocks, PacketPatrolVehicle.MIN_RADIUS,
                 "gui.tacz_sewv.tdt.search.tip");
         y += ROW_H + GROUP_GAP;
@@ -159,8 +179,8 @@ public class TdtScreen extends Screen {
 
         // Air column: takeoff, its live cruise-altitude stepper, then land.
         addColumnButton(this.midX, btnY, "gui.tacz_sewv.tdt.takeoff",
-                () -> HelicopterKeybind.orderTakeoff(this.heliAltitude));
-        addStepper(this.midX, rowY(btnY, 1), () -> this.heliAltitude, v -> this.heliAltitude = v,
+                () -> HelicopterKeybind.orderTakeoff(heliAltitude));
+        addStepper(this.midX, rowY(btnY, 1), () -> heliAltitude, v -> heliAltitude = v,
                 PacketHelicopterCommand.MIN_ALTITUDE, PacketHelicopterCommand.MAX_ALTITUDE, ALT_STEP, unitBlocks, 0,
                 "gui.tacz_sewv.tdt.altitude.tip");
         addColumnButton(this.midX, rowY(btnY, 2), "gui.tacz_sewv.tdt.land",
@@ -170,7 +190,7 @@ public class TdtScreen extends Screen {
         addFormationButton(this.rightX, btnY, "gui.tacz_sewv.tdt.wedge", FormationShape.WEDGE);
         addFormationButton(this.rightX, rowY(btnY, 1), "gui.tacz_sewv.tdt.column", FormationShape.COLUMN);
         addFormationButton(this.rightX, rowY(btnY, 2), "gui.tacz_sewv.tdt.line", FormationShape.LINE);
-        addStepper(this.rightX, rowY(btnY, 3), () -> this.lineRowSize, v -> this.lineRowSize = v,
+        addStepper(this.rightX, rowY(btnY, 3), () -> lineRowSize, v -> lineRowSize = v,
                 PacketVehicleFormation.MIN_ROW_SIZE, PacketVehicleFormation.MAX_ROW_SIZE, 1, unitPerRow, 0,
                 "gui.tacz_sewv.tdt.line.tip");
         addFormationButton(this.rightX, rowY(btnY, 4), "gui.tacz_sewv.tdt.echelon_left", FormationShape.ECHELON_LEFT);
@@ -205,7 +225,7 @@ public class TdtScreen extends Screen {
     }
 
     private void addFormationButton(int x, int y, String key, FormationShape shape) {
-        addColumnButton(x, y, key, () -> BoardKeybind.orderFormation(shape, this.formationAxis, this.lineRowSize));
+        addColumnButton(x, y, key, () -> BoardKeybind.orderFormation(shape, this.formationAxis, lineRowSize));
     }
 
     // [+][value][-] : + raises, - lowers, both clamped; the value is drawn between them in render().

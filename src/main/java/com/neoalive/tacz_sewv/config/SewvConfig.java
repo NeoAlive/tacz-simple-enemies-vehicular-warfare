@@ -184,6 +184,9 @@ public class SewvConfig {
     // Vehicle markers on Xaero's World Map (soft dep)
     public static final ForgeConfigSpec.BooleanValue MAP_MARKERS_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
+    public static final ForgeConfigSpec.ConfigValue<String> MAP_COLOR_FRIENDLY;
+    public static final ForgeConfigSpec.ConfigValue<String> MAP_COLOR_HOSTILE;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -1019,6 +1022,23 @@ public class SewvConfig {
                 .comment("How often (in game ticks) the server sends each player the positions of their PMC",
                          "vehicles. Lower is smoother marker movement and more traffic; 20 is once a second.")
                 .defineInRange("mapSyncIntervalTicks", 20, 5, 200);
+
+        MAP_SPOT_RADIUS = builder
+                .comment("How far (in blocks) your side can see an OTHER faction's vehicle for it to appear",
+                         "on your map. Measured from you and from each of your own crewed vehicles, so a",
+                         "tank you send forward scouts for you.",
+                         "Set to 0 to show only your own vehicles and never anyone else's.")
+                .defineInRange("mapSpotRadius", 128.0, 0.0, 512.0);
+
+        MAP_COLOR_FRIENDLY = builder
+                .comment("Fill colour for a vehicle crewed by a faction that is friendly to you (SimpleEnemyMod's",
+                         "ruUnitsFriendly / usUnitsFriendly), as RRGGBB hex. Default is NATO friendly blue.")
+                .define("mapColorFriendly", "80D0FF");
+
+        MAP_COLOR_HOSTILE = builder
+                .comment("Fill colour for a vehicle crewed by a faction hostile to you, as RRGGBB hex.",
+                         "Default is NATO hostile red.")
+                .define("mapColorHostile", "FF8080");
 
         builder.pop();
 

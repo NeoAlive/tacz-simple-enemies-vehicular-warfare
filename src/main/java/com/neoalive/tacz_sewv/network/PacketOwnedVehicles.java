@@ -13,11 +13,11 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * The only server→client packet on this channel: a player's own PMC-crewed vehicles, for the map
- * markers. Sent by {@code OwnedVehicleTracker} on a timer, to that one player.
+ * The only server→client packet on this channel: the crewed vehicles one player's side can see,
+ * for the map markers. Sent by {@code OwnedVehicleTracker} on a timer, to that one player.
  *
- * <p>Each player gets <b>only their own</b> hulls, which is the whole privacy model — a client can
- * never learn where anyone else's units are, so the map cannot be used to scout with. Ordering is
+ * <p>Each player gets their own hulls plus whatever their side has spotted, and <b>never</b> another
+ * player's units — a client cannot learn where anyone else's PMC is. Ordering is
  * checked separately and independently: SEM's own order packet refuses a unit the sender does not
  * own, so neither side relies on the other to be the gate.
  *
@@ -44,6 +44,7 @@ public class PacketOwnedVehicles {
                     buf.readDouble(),
                     buf.readFloat(),
                     VehicleMarker.Kind.byId(buf.readByte()),
+                    VehicleMarker.Allegiance.byId(buf.readByte()),
                     buf.readResourceKey(Registries.DIMENSION)));
         }
         this.markers = read;
@@ -59,6 +60,7 @@ public class PacketOwnedVehicles {
             buf.writeDouble(marker.z());
             buf.writeFloat(marker.yaw());
             buf.writeByte(marker.kind().ordinal());
+            buf.writeByte(marker.allegiance().ordinal());
             buf.writeResourceKey(marker.dimension());
         }
     }

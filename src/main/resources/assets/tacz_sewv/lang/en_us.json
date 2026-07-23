@@ -22,8 +22,16 @@
   "message.tacz_sewv.escort.ordered.none": "No eligible units to escort.",
 
   "gui.tacz_sewv.map.move_here": "Move %s selected unit(s) here",
-  "message.tacz_sewv.map.ordered.single": "%s unit moving to the marked position.",
-  "message.tacz_sewv.map.ordered.multiple": "%s units moving to the marked position.",
+  "gui.tacz_sewv.map.hold": "Hold position (%s selected)",
+  "gui.tacz_sewv.map.free_fire": "Free fire (%s selected)",
+  "gui.tacz_sewv.map.cease_fire": "Cease fire (%s selected)",
+  "gui.tacz_sewv.map.takeoff": "Take off (%s selected)",
+  "gui.tacz_sewv.map.patrol": "Patrol here (%s selected)",
+  "gui.tacz_sewv.map.search": "Search & destroy here (%s selected)",
+  "message.tacz_sewv.map.ordered": "%s unit(s) moving to the marked position.",
+  "message.tacz_sewv.map.held": "%s unit(s) holding position.",
+  "message.tacz_sewv.map.free_fire": "%s unit(s) weapons free.",
+  "message.tacz_sewv.map.cease_fire": "%s unit(s) ceasing fire.",
   "message.tacz_sewv.map.wrong_dimension": "That position is in another dimension.",
 
   "message.tacz_sewv.mortar.ordered.single": "%s sent to the mortar.",

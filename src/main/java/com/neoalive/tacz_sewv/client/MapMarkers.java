@@ -67,8 +67,15 @@ public final class MapMarkers {
         return SELECTED.contains(marker.driverId());
     }
 
-    public static void toggleSelected(VehicleMarker marker) {
+    /**
+     * Selection is for units you can actually order, so an enemy or an allied NPC hull is inert to
+     * a click. Answers whether the click did anything, which is what lets the caller decide whether
+     * to swallow it.
+     */
+    public static boolean toggleSelected(VehicleMarker marker) {
+        if (marker.allegiance() != VehicleMarker.Allegiance.OWN) return false;
         if (!SELECTED.remove(marker.driverId())) SELECTED.add(marker.driverId());
+        return true;
     }
 
     /** The drivers to order, as a snapshot — the caller sends one order packet per id. */

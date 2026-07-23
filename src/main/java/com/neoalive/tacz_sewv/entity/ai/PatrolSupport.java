@@ -12,15 +12,17 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
- * The two area tasks a ground crew can be given from the TDT, both read by whichever drive goal
- * resolves the destination ({@link VehicleTargeting#resolveDestination}). They share one state slot
- * on the unit ({@link IVehiclePatrol}) because a hull can only be doing one of them.
+ * The area tasks a ground crew can be given, all read by whichever drive goal resolves the
+ * destination ({@link VehicleTargeting#resolveDestination}). They share one state slot on the unit
+ * ({@link IVehiclePatrol}) because a hull can only be doing one of them.
  *
  * <ul>
  * <li><b>Patrol</b> — endless: hold a waypoint inside the circle, roll a new one every
@@ -29,6 +31,9 @@ import java.util.UUID;
  *     time and zig-zags across it to cover the ground, then stands down. The first hull to acquire
  *     a target alerts every other hull on the task, which ends the sweep for all of them and puts
  *     them on that target.</li>
+ * <li><b>Cruise</b> — endless: drive the waypoints the player plotted on the world map, in order,
+ *     looping. The only task whose points are given rather than generated, which is why it is the
+ *     only one that does no ground sampling.</li>
  * </ul>
  *
  * <p>Valid ground is judged with {@link GroundVehicleNodeEvaluator}'s own block classification, so a
@@ -52,6 +57,11 @@ public final class PatrolSupport {
     private static final int NEAR_JITTER = 16;
     // Arrival radius for a sweep leg — looser than a formation slot; this is "swept past", not "parked on".
     private static final double SWEEP_ARRIVE_SQ = 12.0 * 12.0;
+    // Slack added to the drive goal's own stop distance before a cruise leg counts as reached.
+    // It has to be MORE than the goal stops at, or the hull parks short of the leg and the route
+    // only advances when the timeout fires — the goal halts at hull width - 1 + 8 blocks, so a
+    // tighter "arrived" test than that can never be satisfied.
+    private static final double CRUISE_ARRIVE_SLACK = 2.0;
     // A leg the hull cannot reach must not stall the sweep: move on after this long (game time).
     private static final int SWEEP_STEP_TIMEOUT = 1200; // 60s
     // Contact alert reaches across the whole area (a hull can be a full diameter away), with a floor.
@@ -80,9 +90,49 @@ public final class PatrolSupport {
         BlockPos origin = task.sewv$getPatrolOrigin();
         if (origin == null) return null;
 
-        return task.sewv$getPatrolMode() == IVehiclePatrol.MODE_SEARCH
-                ? searchWaypoint(pmc, vehicle, task, origin)
-                : patrolWaypoint(pmc, task, origin);
+        return switch (task.sewv$getPatrolMode()) {
+            case IVehiclePatrol.MODE_SEARCH -> searchWaypoint(pmc, vehicle, task, origin);
+            case IVehiclePatrol.MODE_CRUISE -> cruiseWaypoint(pmc, vehicle, task);
+            default -> patrolWaypoint(pmc, task, origin);
+        };
+    }
+
+    /**
+     * The leg of a plotted cruise this crew is on, advancing to the next one as each is reached and
+     * wrapping at the end — a cruise is a loop, so it never stands the crew down by itself.
+     *
+     * <p>Unlike patrol and search, the points are the player's, so none of the ground-validity
+     * sampling applies: if they plotted a leg the hull cannot reach, the timeout moves it on rather
+     * than the route being silently edited. That timeout is what keeps one bad node from stalling
+     * the loop forever, and it is the sweep's own — an unreachable leg is the same problem there.
+     *
+     * <p>"Reached" is measured off {@link VehicleTargeting#arrivalDistance} rather than a constant
+     * of its own, because that is the distance the drive goal actually parks at: any tighter test
+     * is unreachable by construction and would turn every leg into a 60-second wait.
+     */
+    @Nullable
+    private static BlockPos cruiseWaypoint(PmcUnitEntity pmc, @Nullable VehicleEntity vehicle, IVehiclePatrol task) {
+        List<BlockPos> route = task.sewv$getCruiseRoute();
+        if (route.isEmpty()) return null;
+
+        long now = pmc.level().getGameTime();
+        int step = Math.floorMod(task.sewv$getPatrolStep(), route.size());
+        BlockPos leg = route.get(step);
+
+        if (task.sewv$getPatrolStepDeadline() == 0L) {
+            task.sewv$setPatrolStepDeadline(now + SWEEP_STEP_TIMEOUT);
+        }
+
+        boolean arrived = false;
+        if (vehicle != null) {
+            double reach = VehicleTargeting.arrivalDistance(pmc, vehicle) + CRUISE_ARRIVE_SLACK;
+            arrived = horizontalDistSq(vehicle, leg) <= reach * reach;
+        }
+        if (arrived || now >= task.sewv$getPatrolStepDeadline()) {
+            task.sewv$setPatrolStep(step + 1 >= route.size() ? 0 : step + 1);
+            task.sewv$setPatrolStepDeadline(now + SWEEP_STEP_TIMEOUT);
+        }
+        return leg;
     }
 
     /**
@@ -124,6 +174,23 @@ public final class PatrolSupport {
     /** {@code sector} of {@code sectorCount} is this hull's slice of the circle to sweep. */
     public static void beginSearch(PmcUnitEntity pmc, BlockPos origin, int radius, int sector, int sectorCount) {
         ((IVehiclePatrol) pmc).sewv$setAreaTask(origin, radius, IVehiclePatrol.MODE_SEARCH, sector, sectorCount);
+    }
+
+    /** Loop these waypoints in order, endlessly, until dismissed. */
+    public static void beginCruise(PmcUnitEntity pmc, List<BlockPos> route) {
+        ((IVehiclePatrol) pmc).sewv$setCruise(route);
+    }
+
+    /**
+     * Whether this crew is on a plotted cruise, which is the one area task that does <b>not</b>
+     * yield the wheel to a contact — see {@code DriveVehicleGoal.tick}. A patrol may be broken off
+     * to fight and a sweep ends outright on contact, but a cruise is a route the player laid down
+     * and expects to keep being driven; the crew fights from it, on the move.
+     */
+    public static boolean isCruising(AbstractUnit unit) {
+        return unit instanceof PmcUnitEntity
+                && ((IVehiclePatrol) unit).sewv$getPatrolOrigin() != null
+                && ((IVehiclePatrol) unit).sewv$getPatrolMode() == IVehiclePatrol.MODE_CRUISE;
     }
 
     public static void clear(PmcUnitEntity pmc) {

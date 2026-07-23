@@ -1,9 +1,11 @@
 package com.neoalive.tacz_sewv.util;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
+import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOwnedVehicles;
@@ -18,6 +20,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -96,6 +99,14 @@ public final class OwnedVehicleTracker {
     // are crewed instead of rediscovering them.
     private static void collect(ServerLevel level, List<Candidate> candidates) {
         for (VehicleEntity hull : level.getEntities(EntityTypeTest.forClass(VehicleEntity.class), h -> true)) {
+            // A mortar IS a VehicleEntity but has no seats, so it never has a crew to read a faction
+            // off — that is the whole reason it needs its own branch rather than falling through the
+            // passenger test as "empty".
+            if (hull instanceof MortarEntity mortar) {
+                collectMortar(level, mortar, candidates);
+                continue;
+            }
+
             CrewFacts.Faction faction = CrewFacts.factionOf(hull);
             if (faction == null) continue; // empty, mixed, or a player's own ride — not a marker
 
@@ -108,6 +119,32 @@ public final class OwnedVehicleTracker {
                     driver.getId(), hull.getId(),
                     hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension()));
         }
+    }
+
+    /**
+     * A mortar is marked from its <b>crew</b>, which stands beside it: the tube has no owner field
+     * and no seats, so the claim on the unit ({@code IMortarCrew}) is the only record that this
+     * mortar is anybody's. Position still comes from the tube — that is the thing on the map — but
+     * faction, owner and the entity an order would name all come from the crewman.
+     *
+     * <p>An unclaimed mortar is nobody's and is not shown, which also keeps a dropped tube out of
+     * the enemy sighting picture.
+     */
+    // ponytail: MortarSupport.crewOf scans nearby units per mortar. Mortars are rare enough that
+    // once a second costs nothing; if that stops being true, keep the claim on the tube instead.
+    private static void collectMortar(ServerLevel level, MortarEntity mortar, List<Candidate> candidates) {
+        AbstractUnit crew = MortarSupport.crewOf(mortar, null);
+        if (crew == null) return;
+
+        CrewFacts.Faction faction = CrewFacts.factionOfCrew(crew);
+        if (faction == null) return;
+
+        candidates.add(new Candidate(
+                VehicleMarker.Kind.EMPLACEMENT, faction,
+                crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
+                VehicleTargeting.isFactionFriendly(crew),
+                crew.getId(), mortar.getId(),
+                mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension()));
     }
 
     /**

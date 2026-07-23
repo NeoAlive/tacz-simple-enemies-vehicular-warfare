@@ -29,9 +29,10 @@ public class NetworkHandler {
     // passenger-only flag and the area-task order carries a patrol/search mode; 8: added the escort
     // order; 9: added the owned-vehicle map sync, this channel's first server->client packet;
     // 10: map markers carry an allegiance so other factions can be shown; 11: the area task carries
-    // an optional origin, so it can be centred on a map click instead of on the sender) so a
-    // mismatched client/server pair is rejected at handshake instead of misparsing.
-    private static final String PROTOCOL_VERSION = "11";
+    // an optional origin, so it can be centred on a map click instead of on the sender; 12: the
+    // area task also carries a cruise route) so a mismatched client/server pair is rejected at
+    // handshake instead of misparsing.
+    private static final String PROTOCOL_VERSION = "12";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

@@ -84,7 +84,16 @@ public final class TankSpawner {
 
     /** True when the faction's configured pool contains at least one loadable SW vehicle. */
     public static boolean hasSpawnableVehicle(ServerLevel level, TankFaction faction) {
-        for (String id : faction.vehiclePool()) {
+        return hasSpawnable(level, faction.vehiclePool());
+    }
+
+    /** The same, for the faction's separate ship pool — see {@link #spawnShipWithCrew}. */
+    public static boolean hasSpawnableShip(ServerLevel level, TankFaction faction) {
+        return hasSpawnable(level, faction.shipPool());
+    }
+
+    private static boolean hasSpawnable(ServerLevel level, List<? extends String> pool) {
+        for (String id : pool) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
             if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
             EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);

@@ -7,14 +7,7 @@ import com.neoalive.tacz_sewv.util.TankSpawner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.MobSpawnType;
-import net.minecraft.world.level.levelgen.Heightmap;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.roles.utils.UnitRole;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
-import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
 import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
 /**
@@ -87,13 +80,8 @@ public final class DerelictVehicleEvent extends DynamicEvent {
         // we want, and the reason not to try harder to find a spot.
         if (!SpawnHelper.isValidSpawn(level, centerPos)) return false;
 
-        boolean ruAvailable = TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.RU);
-        boolean usAvailable = TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.US);
-        if (!ruAvailable && !usAvailable) return false;
-
-        TankSpawner.TankFaction faction = ruAvailable && usAvailable
-                ? (level.random.nextBoolean() ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US)
-                : (ruAvailable ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US);
+        TankSpawner.TankFaction faction = EventSpawns.pickVehicleFaction(level);
+        if (faction == null) return false;
 
         BlockPos hullPos = TankSpawner.adjustHeight(level, centerPos);
         // spawnBareVehicle is already exactly right: it omits setEnergy and stockAmmo, and a
@@ -133,28 +121,12 @@ public final class DerelictVehicleEvent extends DynamicEvent {
         hull.setHealth(hull.getMaxHealth() * SewvConfig.DERELICT_HEALTH_FRACTION.get().floatValue());
         TankSpawner.stockTokenAmmo(hull, SewvConfig.DERELICT_AMMO_COUNT.get());
 
+        // Survivors are put on the ground and never mounted — see the class doc; a mounted crew
+        // would refuel the very hull this event exists to leave dry.
         int survivors = 1 + level.random.nextInt(SewvConfig.DERELICT_GUARDS.get());
         for (int i = 0; i < survivors; i++) {
-            spawnSurvivor(level, hullPos, faction);
+            EventSpawns.infantry(level, hullPos, faction, GUARD_SCATTER);
         }
         return true;
-    }
-
-    /**
-     * One survivor on foot beside the wreck. Deliberately never {@code startRiding} — see the
-     * class doc; a mounted crew would refuel the hull it is sitting in.
-     */
-    private static void spawnSurvivor(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction) {
-        AbstractUnit unit = faction == TankSpawner.TankFaction.RU
-                ? new RUunitEntity(ModEntities.RUUNIT.get(), level)
-                : new USunitEntity(ModEntities.USUNIT.get(), level);
-        unit.setRole(UnitRole.DEFAULT);
-
-        int x = anchor.getX() + level.random.nextInt(GUARD_SCATTER * 2 + 1) - GUARD_SCATTER;
-        int z = anchor.getZ() + level.random.nextInt(GUARD_SCATTER * 2 + 1) - GUARD_SCATTER;
-        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        unit.setPos(x + 0.5, y, z + 0.5);
-        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(unit.blockPosition()), MobSpawnType.EVENT, null, null);
-        level.addFreshEntity(unit);
     }
 }

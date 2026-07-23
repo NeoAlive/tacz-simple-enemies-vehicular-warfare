@@ -68,7 +68,9 @@ public class UnitOrderOption extends RightClickOption {
         CEASE_FIRE("cease_fire", "message.tacz_sewv.map.cease_fire", false),
         TAKEOFF("takeoff", null, false),
         PATROL("patrol", null, true),
-        SEARCH("search", null, true);
+        SEARCH("search", null, true),
+        CRUISE("cruise", null, false),
+        DISMISS("dismiss", null, false);
 
         final String labelKey;
         final String ackKey;
@@ -115,6 +117,21 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
+        if (this.action == Action.CRUISE) {
+            // Arms the plotting mode instead of ordering anything: the route does not exist yet.
+            // MixinGuiMap owns everything from here — clicks, the drawn route, confirm and cancel.
+            if (CruisePlot.arm()) hint("message.tacz_sewv.cruise.plotting", 0);
+            return;
+        }
+
+        if (this.action == Action.DISMISS) {
+            // Stands crews off patrol, search AND cruise in one go — they share one state slot, so
+            // the server needs no idea which of the three it is cancelling.
+            NetworkHandler.CHANNEL.sendToServer(new PacketPatrolVehicle(
+                    new ArrayList<>(drivers), 0, PacketPatrolVehicle.MODE_DISMISS));
+            return;
+        }
+
         if (this.action == Action.PATROL || this.action == Action.SEARCH) {
             // Radius comes from the terminal's stepper, which is the player's standing preference
             // and survives the screen being closed — a right-click menu has nowhere to put one.
@@ -150,7 +167,8 @@ public class UnitOrderOption extends RightClickOption {
             case HOLD -> OrderType.HOLD_POSITION;
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
-            case TAKEOFF, PATROL, SEARCH -> throw new IllegalStateException(this.action + " is not a SEM order");
+            case TAKEOFF, PATROL, SEARCH, CRUISE, DISMISS ->
+                    throw new IllegalStateException(this.action + " is not a SEM order");
         };
     }
 

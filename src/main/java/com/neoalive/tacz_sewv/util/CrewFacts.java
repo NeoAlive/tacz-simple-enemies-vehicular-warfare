@@ -42,6 +42,20 @@ public final class CrewFacts {
     }
 
     /**
+     * The faction of one unit, for the things that have a crew but no seats — a mortar's crew
+     * stands beside the tube, so there is no passenger list to be unanimous about. Deliberately a
+     * different name rather than an overload: {@code VehicleEntity} is an {@code Entity}, and an
+     * overload would quietly pick whichever one the call site's static type happened to be.
+     */
+    @Nullable
+    public static Faction factionOfCrew(Entity unit) {
+        if (unit instanceof RUunitEntity) return Faction.RU;
+        if (unit instanceof USunitEntity) return Faction.US;
+        if (unit instanceof PmcUnitEntity) return Faction.PMC;
+        return null;
+    }
+
+    /**
      * The player this hull belongs to: non-null only when every passenger is a PMC unit owned by
      * one and the same player. An ownerless PMC crew (a friendly camp garrison) answers null, which
      * is correct — nobody commands it.

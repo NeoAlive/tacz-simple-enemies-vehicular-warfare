@@ -42,21 +42,36 @@ public class PacketPatrolVehicle {
      */
     public static final int MODE_DISMISS = -1;
 
+    /** Ceiling on a plotted cruise, so a client cannot hand the server an unbounded route. */
+    public static final int MAX_ROUTE_NODES = 64;
+
     private final List<Integer> unitIds;
     private final int radius;
-    private final int mode; // IVehiclePatrol.MODE_PATROL or MODE_SEARCH
+    private final int mode; // IVehiclePatrol.MODE_PATROL / MODE_SEARCH / MODE_CRUISE, or MODE_DISMISS
     @Nullable
     private final BlockPos origin; // null = centre the area on the sender
+    private final List<BlockPos> route; // MODE_CRUISE only; empty otherwise
 
     public PacketPatrolVehicle(List<Integer> unitIds, int radius, int mode) {
-        this(unitIds, radius, mode, null);
+        this(unitIds, radius, mode, null, List.of());
     }
 
     public PacketPatrolVehicle(List<Integer> unitIds, int radius, int mode, @Nullable BlockPos origin) {
+        this(unitIds, radius, mode, origin, List.of());
+    }
+
+    public PacketPatrolVehicle(List<Integer> unitIds, int radius, int mode, @Nullable BlockPos origin,
+                               List<BlockPos> route) {
         this.unitIds = unitIds;
         this.radius = radius;
         this.mode = mode;
         this.origin = origin;
+        this.route = route;
+    }
+
+    /** A cruise: loop these plotted waypoints in order. */
+    public static PacketPatrolVehicle cruise(List<Integer> unitIds, List<BlockPos> route) {
+        return new PacketPatrolVehicle(unitIds, 0, IVehiclePatrol.MODE_CRUISE, null, route);
     }
 
     public PacketPatrolVehicle(FriendlyByteBuf buf) {
@@ -64,6 +79,7 @@ public class PacketPatrolVehicle {
         this.radius = buf.readVarInt();
         this.mode = buf.readVarInt();
         this.origin = buf.readBoolean() ? buf.readBlockPos() : null;
+        this.route = buf.readList(FriendlyByteBuf::readBlockPos);
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -72,6 +88,7 @@ public class PacketPatrolVehicle {
         buf.writeVarInt(this.mode);
         buf.writeBoolean(this.origin != null);
         if (this.origin != null) buf.writeBlockPos(this.origin);
+        buf.writeCollection(this.route, FriendlyByteBuf::writeBlockPos);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -81,6 +98,11 @@ public class PacketPatrolVehicle {
 
             if (this.mode == MODE_DISMISS) {
                 dismiss(player);
+                return;
+            }
+
+            if (this.mode == IVehiclePatrol.MODE_CRUISE) {
+                assignCruise(player);
                 return;
             }
 
@@ -120,6 +142,37 @@ public class PacketPatrolVehicle {
                     crews.size(), ChatFormatting.GREEN, crews.size(), radius);
         });
         ctx.get().setPacketHandled(true);
+    }
+
+    /**
+     * Assign the plotted route. Same crew filter as the other area tasks — a cruise is driven, so
+     * only the driver of a non-helicopter hull takes it — and the same stand-down off the SEM order
+     * queue, since an area task outranks it and a stale MOVE underneath would spring back the
+     * moment the cruise ends.
+     *
+     * <p>The route is capped rather than trusted: a plot is a list from the client, and nothing
+     * else bounds how long it could be.
+     */
+    private void assignCruise(Player player) {
+        if (this.route.isEmpty()) return;
+        List<BlockPos> route = this.route.size() > MAX_ROUTE_NODES
+                ? this.route.subList(0, MAX_ROUTE_NODES) : this.route;
+
+        int ordered = 0;
+        for (int unitId : this.unitIds) {
+            Entity e = player.level().getEntity(unitId);
+            if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)
+                    && pmc.getVehicle() instanceof VehicleEntity v
+                    && v.getFirstPassenger() == pmc
+                    && !(v.getEngineInfo() instanceof EngineInfo.Helicopter)) {
+                pmc.setOrder(OrderType.FREE_FIRE);
+                PatrolSupport.beginCruise(pmc, route);
+                ordered++;
+            }
+        }
+
+        NetworkHandler.orderFeedback(player, "message.tacz_sewv.cruise.ordered", ordered,
+                ChatFormatting.GREEN, ordered, route.size());
     }
 
     /**

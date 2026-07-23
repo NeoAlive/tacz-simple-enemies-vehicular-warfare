@@ -25,9 +25,16 @@ import java.util.List;
  *
  * <p><b>Depth is deliberately not a hazard.</b> SBW's fall damage on vehicles is forgiving,
  * so treating drops as cliffs cost far more mobility than it saved — armor would refuse
- * ravines, ledges and terraced ground it could simply have driven off. An uphill wall isn't
- * one either: footing is found immediately, and walls belong to the pathfinder and the
- * stuck recovery, not to a terrain probe.
+ * ravines, ledges and terraced ground it could simply have driven off.
+ *
+ * <p><b>Height is, though.</b> Leaving walls entirely to the pathfinder was the original
+ * design and it does not hold up: a hull cutting a corner, driving a stale path, or steering
+ * off its path to hold a standoff has nothing telling it a house is four blocks ahead, and it
+ * simply drives into it. The rule cannot be "any solid block ahead" — terrain rises, and a
+ * sensor that refuses slopes is the mobility loss this class already learned to avoid once. So
+ * what is measured is the <b>step between consecutive samples</b>: ground that climbs a block
+ * at a time is a hill and is fine, while ground that jumps by more than the hull can mount is a
+ * wall, a tree trunk or a cliff face.
  */
 final class GroundTerrainSensor extends TerrainSensor {
 
@@ -38,8 +45,27 @@ final class GroundTerrainSensor extends TerrainSensor {
      */
     private static final int FLUID_PROBE_DEPTH = 8;
 
+    /** {@link #probeColumn} answers: nothing solid within reach (a drop), or a hazard fluid. */
+    private static final int NO_SURFACE = Integer.MIN_VALUE;
+    private static final int HAZARD = Integer.MAX_VALUE;
+
     /** Positive buoyancy means it floats rather than sinking, so water stops being a hazard. */
     private boolean amphibious;
+
+    /**
+     * The tallest step this hull can drive up, in whole blocks. Read from the hull's own
+     * {@code maxUpStep} so a vehicle built to climb better is allowed to, rather than every hull
+     * sharing one guess; floored at 1 because a hull that officially steps less than a block still
+     * manages kerbs, and treating those as walls would be the refuse-everything failure again.
+     */
+    private int climbHeight = 1;
+
+    /**
+     * How far above its base the hull physically occupies, and therefore how high a block still
+     * counts as being in the way. Anything above this — an overhanging canopy, a bridge deck — is
+     * driven under, which is why the probe does not simply scan from the sky down.
+     */
+    private int hullTop = 1;
 
     GroundTerrainSensor(AbstractUnit unit) {
         super(unit);
@@ -48,6 +74,8 @@ final class GroundTerrainSensor extends TerrainSensor {
     @Override
     protected void onAttach(VehicleEntity v) {
         this.amphibious = computeAmphibious(v);
+        this.climbHeight = Math.max(1, Mth.ceil(v.maxUpStep()));
+        this.hullTop = Math.max(1, Mth.ceil(v.getBbHeight()) - 1);
     }
 
     boolean enabled() {
@@ -73,32 +101,52 @@ final class GroundTerrainSensor extends TerrainSensor {
         List<AABB> hulls = obstacles(distance);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 
+        // The footing under the hull itself, which the first sample is measured against.
+        int floor = probeColumn(level, pos, Mth.floor(startX), Mth.floor(startZ), baseY);
+
         // Step ~1 block at a time from just past the hull edge out to the look-ahead range.
         for (double d = half + 0.5; d <= half + distance; d += 1.0) {
             double sampleX = startX + dir.x * d;
             double sampleZ = startZ + dir.z * d;
             if (isBlockedByHull(hulls, sampleX, sampleZ)) return false;
-            if (isHazardColumn(level, pos, Mth.floor(sampleX), Mth.floor(sampleZ), baseY)) return false;
+
+            int surface = probeColumn(level, pos, Mth.floor(sampleX), Mth.floor(sampleZ), baseY);
+            if (surface == HAZARD) return false;
+            if (surface == NO_SURFACE) continue; // a drop: allowed, and nothing to measure a step against
+            if (floor != NO_SURFACE && surface - floor > this.climbHeight) return false; // a wall
+            floor = surface;
         }
         return true;
     }
 
-    /** A column is hazardous only if the surface the hull would end up on is water or lava. */
-    private boolean isHazardColumn(Level level, BlockPos.MutableBlockPos pos, int x, int z, int baseY) {
-        // Fluid at the driving cell or the cell the tracks rest in.
+    /**
+     * What this column offers the hull: {@link #HAZARD} if driving onto it would drown or burn the
+     * crew, {@link #NO_SURFACE} if there is nothing within reach (a drop), otherwise the Y of the
+     * footing it would ride on.
+     *
+     * <p>Scanned from the top of the hull's own volume downward, so the first thing found is what
+     * the hull would actually hit — a wall at chest height is reported as footing far above the
+     * ground it stands on, which is exactly what makes the step test see it as a wall.
+     */
+    private int probeColumn(Level level, BlockPos.MutableBlockPos pos, int x, int z, int baseY) {
+        // Fluid at the driving cell or the cell the tracks rest in, checked before anything else:
+        // a hazard hidden under an overhang is still a hazard.
         for (int dy = 0; dy >= -1; dy--) {
-            if (isHazardFluid(level.getFluidState(pos.set(x, baseY + dy, z)))) return true;
+            if (isHazardFluid(level.getFluidState(pos.set(x, baseY + dy, z)))) return HAZARD;
         }
 
-        // Keep scanning down to whatever the hull would actually land on and classify THAT
-        // surface: a lake or lava pool at the bottom of a step-down still drowns or burns the
-        // crew even though the fall itself is survivable. First solid block wins.
-        for (int k = 1; k <= FLUID_PROBE_DEPTH; k++) {
-            var state = level.getBlockState(pos.set(x, baseY - k, z));
-            if (isHazardFluid(state.getFluidState())) return true;
-            if (!state.getCollisionShape(level, pos).isEmpty()) return false; // solid footing
+        // Down past whatever the hull would actually land on and classify THAT surface: a lake or
+        // lava pool at the bottom of a step-down still drowns or burns the crew even though the
+        // fall itself is survivable.
+        for (int y = baseY + this.hullTop; y >= baseY - FLUID_PROBE_DEPTH; y--) {
+            var state = level.getBlockState(pos.set(x, y, z));
+            if (isHazardFluid(state.getFluidState())) return HAZARD;
+            if (!state.getCollisionShape(level, pos).isEmpty()) return y; // solid footing, or a wall
+            // A hull that floats rides the water surface, so for it that IS the footing — without
+            // this the probe reports the lake bed and the far bank reads as a wall to climb out of.
+            if (this.amphibious && state.getFluidState().is(FluidTags.WATER)) return y;
         }
-        return false; // nothing but air within reach — a long drop, which is allowed
+        return NO_SURFACE; // nothing but air within reach — a long drop, which is allowed
     }
 
     private boolean isHazardFluid(FluidState fluid) {

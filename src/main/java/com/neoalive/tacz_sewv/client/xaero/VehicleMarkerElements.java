@@ -39,10 +39,12 @@ import java.util.List;
 public final class VehicleMarkerElements {
 
     /** Icon half-size in map pixels, and the interaction box that has to agree with it. */
-    private static final int BODY_HALF_WIDTH = 4;
-    private static final int BODY_HALF_LENGTH = 6;
-    private static final int HIT_BOX = 10;
-    private static final int RENDER_BOX = 14;
+    private static final int BODY_HALF_WIDTH = 6;
+    private static final int BODY_HALF_LENGTH = 9;
+    private static final int NOSE_HALF_WIDTH = 2;
+    private static final int NOSE_LENGTH = 5;
+    private static final int HIT_BOX = 14;
+    private static final int RENDER_BOX = 19;
 
     private static final int OUTLINE_COLOR = 0xFFFFFFFF;
     private static final int SHADOW_COLOR = 0x80000000;
@@ -116,7 +118,7 @@ public final class VehicleMarkerElements {
         /** The placeholder symbol: a hull-shaped block with a nose. Replace wholesale for real symbology. */
         private void drawSymbol(GuiGraphics guiGraphics, VehicleMarker marker, int color) {
             guiGraphics.fill(-BODY_HALF_WIDTH, -BODY_HALF_LENGTH, BODY_HALF_WIDTH, BODY_HALF_LENGTH, color);
-            guiGraphics.fill(-1, -BODY_HALF_LENGTH - 4, 1, -BODY_HALF_LENGTH, color);
+            guiGraphics.fill(-NOSE_HALF_WIDTH, -BODY_HALF_LENGTH - NOSE_LENGTH, NOSE_HALF_WIDTH, -BODY_HALF_LENGTH, color);
         }
 
         @Override

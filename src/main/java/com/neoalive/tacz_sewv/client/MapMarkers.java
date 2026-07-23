@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.neoalive.tacz_sewv.util.VehicleMarker;
+import net.minecraft.client.Minecraft;
 
 import java.util.HashSet;
 import java.util.List;
@@ -46,7 +47,19 @@ public final class MapMarkers {
         SELECTED.removeIf(driverId -> markers.stream().noneMatch(m -> m.driverId() == driverId));
     }
 
+    /**
+     * <b>Nothing is stale while the game is paused.</b> Xaero's map does not override
+     * {@code isPauseScreen}, so in singleplayer opening it freezes the integrated server — which
+     * stops the sync at its source. Expiring the list then would blank the map a few seconds after
+     * every time it is opened, which is the one moment it has to be right. The markers are not out
+     * of date in that state, they are as current as the hulls they describe, which are also frozen.
+     * The timestamp is pushed along so unpausing does not blink them out before the next packet.
+     */
     public static List<VehicleMarker> markers() {
+        if (Minecraft.getInstance().isPaused()) {
+            lastUpdate = System.currentTimeMillis();
+            return markers;
+        }
         return System.currentTimeMillis() - lastUpdate > STALE_MILLIS ? List.of() : markers;
     }
 

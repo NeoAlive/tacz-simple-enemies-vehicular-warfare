@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -208,10 +209,13 @@ final class HullFacts {
         }
     }
 
+    // computed() (static datapack data), NOT getEngineInfo() — that field is populated lazily on
+    // the hull's first travel(), so a crew whose goal evaluates on the spawn tick would read null
+    // and, because attach() caches per hull identity, keep that wrong answer for the hull's life.
     private static boolean computeShip(VehicleEntity v) {
         try {
-            return v.getEngineInfo() instanceof EngineInfo.Ship;
-        } catch (Exception ignored) {
+            return v.computed().getEngineType() == EngineType.SHIP;
+        } catch (Throwable ignored) {
             return false;
         }
     }

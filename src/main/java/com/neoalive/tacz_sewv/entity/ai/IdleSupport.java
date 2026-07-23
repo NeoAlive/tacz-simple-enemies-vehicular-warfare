@@ -75,9 +75,12 @@ public final class IdleSupport {
 
         data.putLong(NEXT_KEY, now + LEG_TICKS + random.nextInt(LEG_JITTER));
         // Same rejection sample a patrol uses, at a much smaller radius: a point on loaded, dry,
-        // drivable ground, i.e. exactly a node the driver's own pathfinder can route to.
-        BlockPos next = PatrolSupport.pickWaypoint(
-                vehicle.level(), anchor, SewvConfig.IDLE_WANDER_RADIUS.get(), random);
+        // drivable ground, i.e. exactly a node the driver's own pathfinder can route to. A ship
+        // wants the mirror image of that — open water — so it samples its own.
+        int radius = SewvConfig.IDLE_WANDER_RADIUS.get();
+        BlockPos next = isShip(data)
+                ? WaterSupport.pickWaterWaypoint(vehicle.level(), anchor, radius, random)
+                : PatrolSupport.pickWaypoint(vehicle.level(), anchor, radius, random);
         if (next == null) {
             data.remove(WAYPOINT_KEY); // nothing valid nearby — dwell this leg out instead
             return null;
@@ -91,25 +94,35 @@ public final class IdleSupport {
         return data.contains(WAYPOINT_KEY) ? BlockPos.of(data.getLong(WAYPOINT_KEY)) : null;
     }
 
+    private static final byte DRIVES_GROUND = 1;
+    private static final byte DRIVES_NOT = 2;
+    private static final byte DRIVES_WATER = 3;
+
     /**
-     * Whether this hull is something that drives on the ground at all. Helicopters and aircraft have
+     * Whether this hull can idle-wander at all, and in which medium. Helicopters and aircraft have
      * their own goal ({@link DriveHelicopterGoal}) and FIXED mounts — the TOW, the naval guns, the
      * mortar — have no drivetrain to idle with, so both simply stay put and keep only the turret
-     * sweep and radio chatter of {@link IdleCrewGoal}. Ships fall out too: an idle waypoint is dry
-     * WALKABLE ground by construction, which a ship could never reach.
+     * sweep and radio chatter of {@link IdleCrewGoal}. A ship wanders like a ground hull does, just
+     * over water waypoints ({@link WaterSupport#pickWaterWaypoint}) rather than walkable ones.
      */
     private static boolean drives(VehicleEntity vehicle, CompoundTag data) {
         byte cached = data.getByte(DRIVES_KEY);
-        if (cached != 0) return cached == 1;
+        if (cached != 0) return cached != DRIVES_NOT;
 
-        boolean drives;
+        byte kind;
         try {
             EngineType type = vehicle.computed().getEngineType();
-            drives = type == EngineType.WHEEL || type == EngineType.TRACK;
+            if (type == EngineType.SHIP) kind = DRIVES_WATER;
+            else if (type == EngineType.WHEEL || type == EngineType.TRACK) kind = DRIVES_GROUND;
+            else kind = DRIVES_NOT;
         } catch (Throwable ignored) {
-            drives = false; // unreadable hull data: parking is the safe answer
+            kind = DRIVES_NOT; // unreadable hull data: parking is the safe answer
         }
-        data.putByte(DRIVES_KEY, (byte) (drives ? 1 : 2));
-        return drives;
+        data.putByte(DRIVES_KEY, kind);
+        return kind != DRIVES_NOT;
+    }
+
+    private static boolean isShip(CompoundTag data) {
+        return data.getByte(DRIVES_KEY) == DRIVES_WATER;
     }
 }

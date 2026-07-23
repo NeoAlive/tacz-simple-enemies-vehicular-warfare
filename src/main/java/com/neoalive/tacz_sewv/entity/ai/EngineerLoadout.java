@@ -39,6 +39,47 @@ public final class EngineerLoadout {
 
     private EngineerLoadout() {}
 
+    /**
+     * Runs {@link #updateHolster} for as long as the unit is an engineer.
+     *
+     * <p>A goal rather than an injection into the unit's {@code tick}: the swap has to happen for
+     * PMC units as well as the engineer entities, and hooking SEM's {@code tick} to reach them
+     * would make a cosmetic-but-load-bearing hand swap depend on SEM still overriding a vanilla
+     * method it has no obligation to keep overriding. It claims <b>no flags</b>, so it never
+     * competes with repairing, fighting or moving — it only ever moves an item between two hands.
+     * Goals tick every other game tick, which for a hand swap is imperceptible.
+     */
+    public static final class HolsterGoal extends net.minecraft.world.entity.ai.goal.Goal {
+
+        private final AbstractUnit unit;
+
+        public HolsterGoal(AbstractUnit unit) {
+            this.unit = unit;
+            this.setFlags(java.util.EnumSet.noneOf(Flag.class));
+        }
+
+        @Override
+        public boolean canUse() {
+            return !this.unit.level().isClientSide
+                    && SupportRole.of(this.unit) == SupportRole.ENGINEER;
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return canUse();
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void tick() {
+            updateHolster(this.unit);
+        }
+    }
+
     /** Rounds in the magazine. The dummy-ammo reserve below is what actually keeps it fed. */
     private static final int SIDEARM_MAGAZINE = 15;
     private static final int DUMMY_AMMO_RESERVE = 9999;

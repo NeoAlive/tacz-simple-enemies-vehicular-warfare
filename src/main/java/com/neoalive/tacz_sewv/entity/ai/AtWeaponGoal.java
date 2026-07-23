@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
+import com.atsuishio.superbwarfare.item.gun.special.RepairToolItem;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -208,7 +209,14 @@ public class AtWeaponGoal extends Goal {
     private GunData gun() {
         try {
             var stack = this.unit.getMainHandItem();
-            return stack.getItem() instanceof GunItem ? GunData.from(stack) : null;
+            // NOT every SuperbWarfare GunItem is a weapon: RepairToolItem extends GunGeoItem
+            // extends GunItem, so an engineer holding its tool would otherwise be handed to the
+            // fire path and "shoot" a repair beam at infantry. It is the only such item today, and
+            // excluding it by class beats excluding it by id.
+            if (!(stack.getItem() instanceof GunItem) || stack.getItem() instanceof RepairToolItem) {
+                return null;
+            }
+            return GunData.from(stack);
         } catch (Exception e) {
             return null; // unreadable gun data must never crash the AI tick
         }

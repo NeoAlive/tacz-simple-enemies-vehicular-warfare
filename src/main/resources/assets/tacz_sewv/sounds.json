@@ -106,5 +106,39 @@
 
   "us_tow_1": { "sounds": ["tacz_sewv:us/us_tow_1"] },
   "us_tow_2": { "sounds": ["tacz_sewv:us/us_tow_2"] },
-  "us_tow_3": { "sounds": ["tacz_sewv:us/us_tow_3"] }
+  "us_tow_3": { "sounds": ["tacz_sewv:us/us_tow_3"] },
+
+  "pmc_navy_idle_1": { "sounds": ["tacz_sewv:pmc/pmc_navy_idle_1"] },
+  "pmc_navy_idle_2": { "sounds": ["tacz_sewv:pmc/pmc_navy_idle_2"] },
+  "pmc_navy_idle_3": { "sounds": ["tacz_sewv:pmc/pmc_navy_idle_3"] },
+  "pmc_navy_idle_4": { "sounds": ["tacz_sewv:pmc/pmc_navy_idle_4"] },
+
+  "pmc_navy_target_1": { "sounds": ["tacz_sewv:pmc/pmc_navy_target_1"] },
+  "pmc_navy_target_2": { "sounds": ["tacz_sewv:pmc/pmc_navy_target_2"] },
+  "pmc_navy_target_3": { "sounds": ["tacz_sewv:pmc/pmc_navy_target_3"] },
+  "pmc_navy_target_4": { "sounds": ["tacz_sewv:pmc/pmc_navy_target_4"] },
+  "pmc_navy_target_5": { "sounds": ["tacz_sewv:pmc/pmc_navy_target_5"] },
+
+  "ru_navy_idle_1": { "sounds": ["tacz_sewv:ru/ru_navy_idle_1"] },
+  "ru_navy_idle_2": { "sounds": ["tacz_sewv:ru/ru_navy_idle_2"] },
+  "ru_navy_idle_3": { "sounds": ["tacz_sewv:ru/ru_navy_idle_3"] },
+  "ru_navy_idle_4": { "sounds": ["tacz_sewv:ru/ru_navy_idle_4"] },
+
+  "ru_navy_target_1": { "sounds": ["tacz_sewv:ru/ru_navy_target_1"] },
+  "ru_navy_target_2": { "sounds": ["tacz_sewv:ru/ru_navy_target_2"] },
+  "ru_navy_target_3": { "sounds": ["tacz_sewv:ru/ru_navy_target_3"] },
+  "ru_navy_target_4": { "sounds": ["tacz_sewv:ru/ru_navy_target_4"] },
+  "ru_navy_target_5": { "sounds": ["tacz_sewv:ru/ru_navy_target_5"] },
+
+  "us_navy_idle_1": { "sounds": ["tacz_sewv:us/us_navy_idle_1"] },
+  "us_navy_idle_2": { "sounds": ["tacz_sewv:us/us_navy_idle_2"] },
+  "us_navy_idle_3": { "sounds": ["tacz_sewv:us/us_navy_idle_3"] },
+  "us_navy_idle_4": { "sounds": ["tacz_sewv:us/us_navy_idle_4"] },
+  "us_navy_idle_5": { "sounds": ["tacz_sewv:us/us_navy_idle_5"] },
+
+  "us_navy_target_1": { "sounds": ["tacz_sewv:us/us_navy_target_1"] },
+  "us_navy_target_2": { "sounds": ["tacz_sewv:us/us_navy_target_2"] },
+  "us_navy_target_3": { "sounds": ["tacz_sewv:us/us_navy_target_3"] },
+  "us_navy_target_4": { "sounds": ["tacz_sewv:us/us_navy_target_4"] },
+  "us_navy_target_5": { "sounds": ["tacz_sewv:us/us_navy_target_5"] }
 }

@@ -221,6 +221,14 @@ public final class HullFacts {
     // computed() (static datapack data), NOT getEngineInfo() — that field is populated lazily on
     // the hull's first travel(), so a crew whose goal evaluates on the spawn tick would read null
     // and, because attach() caches per hull identity, keep that wrong answer for the hull's life.
+    /**
+     * The same ship test for callers with no crew to attach a {@link HullFacts} to — the radio,
+     * which needs to know whether the hull under a speaker is a boat to pick the right voice pool.
+     */
+    public static boolean isShipHull(VehicleEntity v) {
+        return computeShip(v);
+    }
+
     private static boolean computeShip(VehicleEntity v) {
         try {
             return v.computed().getEngineType() == EngineType.SHIP;

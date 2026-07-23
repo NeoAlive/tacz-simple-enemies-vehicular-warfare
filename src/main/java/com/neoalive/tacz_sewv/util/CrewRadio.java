@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.util;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 import net.minecraft.nbt.CompoundTag;
@@ -53,7 +54,7 @@ public final class CrewRadio {
     /** A specific crew member speaks (e.g. the one bailing out), still one line per hull. */
     public static void speak(VehicleEntity hull, AbstractUnit speaker, Line line) {
         if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return;
-        SoundPool pool = poolFor(speaker, line);
+        SoundPool pool = poolFor(speaker, line, HullFacts.isShipHull(hull));
         if (pool == null) return;
 
         long now = hull.level().getGameTime();
@@ -72,34 +73,40 @@ public final class CrewRadio {
         hull.level().playSound(null, hull, pool.next(), SoundSource.VOICE, volume, 1.0f);
     }
 
-    private static SoundPool poolFor(AbstractUnit unit, Line line) {
+    /**
+     * The faction's pool for this line, with the <b>navy</b> variants standing in on a boat: a
+     * ground crew's idle chatter and contact calls talk about tanks and ground targets, which reads
+     * as nonsense from a gunboat. Only the two lines that name what they are looking at are
+     * swapped — being hit, bailing out and popping smoke sound the same at sea.
+     */
+    private static SoundPool poolFor(AbstractUnit unit, Line line, boolean navy) {
         if (unit instanceof RUunitEntity) return switch (line) {
             case DAMAGED -> ModSounds.RU_DAMAGED;
-            case SPOTTED -> ModSounds.RU_SPOTTED;
+            case SPOTTED -> navy ? ModSounds.RU_NAVY_TARGET : ModSounds.RU_SPOTTED;
             case BAIL    -> ModSounds.RU_BAIL;
             case DECOY   -> ModSounds.RU_DECOY;
             case IFV     -> ModSounds.RU_IFV;
-            case IDLE    -> ModSounds.RU_IDLE;
+            case IDLE    -> navy ? ModSounds.RU_NAVY_IDLE : ModSounds.RU_IDLE;
             case TOW     -> ModSounds.RU_TOW;
             case ORDERS  -> null;
         };
         if (unit instanceof USunitEntity) return switch (line) {
             case DAMAGED -> ModSounds.US_DAMAGED;
-            case SPOTTED -> ModSounds.US_SPOTTED;
+            case SPOTTED -> navy ? ModSounds.US_NAVY_TARGET : ModSounds.US_SPOTTED;
             case BAIL    -> ModSounds.US_BAIL;
             case DECOY   -> ModSounds.US_DECOY;
             case IFV     -> ModSounds.US_IFV;
-            case IDLE    -> ModSounds.US_IDLE;
+            case IDLE    -> navy ? ModSounds.US_NAVY_IDLE : ModSounds.US_IDLE;
             case TOW     -> ModSounds.US_TOW;
             case ORDERS  -> null;
         };
         return switch (line) { // PMC
             case DAMAGED -> ModSounds.PMC_DAMAGED;
-            case SPOTTED -> ModSounds.PMC_SPOTTED;
+            case SPOTTED -> navy ? ModSounds.PMC_NAVY_TARGET : ModSounds.PMC_SPOTTED;
             case ORDERS  -> ModSounds.PMC_ORDERS;
             case BAIL    -> ModSounds.PMC_BAIL;
             case DECOY   -> ModSounds.PMC_DECOY;
-            case IDLE    -> ModSounds.PMC_IDLE;
+            case IDLE    -> navy ? ModSounds.PMC_NAVY_IDLE : ModSounds.PMC_IDLE;
             case TOW     -> ModSounds.PMC_TOW;
             case IFV     -> null; // PMC IFVs field no dedicated line
         };

@@ -41,6 +41,10 @@ public class RepairGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        // Holding the tool IS the job. An RU/US engineer entity always is (EngineerLoadout keeps it
+        // in one hand or the other), so this changes nothing for them; it is what lets the goal be
+        // installed on every PMC and stay dormant until a player actually hands one a repair tool.
+        if (SupportRole.of(this.unit) != SupportRole.ENGINEER) return false;
         // On foot only, and not while fighting.
         if (this.unit.isPassenger() || this.unit.getTarget() != null) return false;
         if (this.cooldown > 0) {

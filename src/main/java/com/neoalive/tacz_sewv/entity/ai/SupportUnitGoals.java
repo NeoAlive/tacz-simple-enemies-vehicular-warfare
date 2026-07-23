@@ -38,6 +38,10 @@ public final class SupportUnitGoals {
         // engaged" without either side needing to know about the other.
         goals.addGoal(1, new RepairGoal(unit));
 
+        // Draws the holstered sidearm when a fight starts and puts it away when it ends. Claims no
+        // flags — see EngineerLoadout.HolsterGoal.
+        goals.addGoal(1, new EngineerLoadout.HolsterGoal(unit));
+
         // Deploys and flies up to a couple of unarmed recon drones that relay spotted enemies
         // to nearby same-faction units/vehicle crews. Claims no flags — it only ever acts on
         // the drones it owns, never on the engineer — so it runs alongside repair and combat

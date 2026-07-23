@@ -33,6 +33,8 @@ public final class ModSounds {
     public static final SoundPool PMC_IDLE    = pool("pmc_idle", 7);
     public static final SoundPool PMC_MORTAR  = pool("pmc_mortar", 5);
     public static final SoundPool PMC_TOW     = pool("pmc_tow", 2);
+    public static final SoundPool PMC_NAVY_IDLE   = pool("pmc_navy_idle", 4);
+    public static final SoundPool PMC_NAVY_TARGET = pool("pmc_navy_target", 5);
     public static final SoundPool RU_DAMAGED  = pool("ru_damaged", 3);
     public static final SoundPool RU_SPOTTED  = pool("ru_spotted", 4);
     public static final SoundPool RU_BAIL     = pool("ru_bail", 2);
@@ -40,6 +42,8 @@ public final class ModSounds {
     public static final SoundPool RU_IFV      = pool("ru_ifv", 3);
     public static final SoundPool RU_IDLE     = pool("ru_idle", 7);
     public static final SoundPool RU_TOW      = pool("ru_tow", 3);
+    public static final SoundPool RU_NAVY_IDLE    = pool("ru_navy_idle", 4);
+    public static final SoundPool RU_NAVY_TARGET  = pool("ru_navy_target", 5);
     public static final SoundPool US_DAMAGED  = pool("us_damaged", 3);
     public static final SoundPool US_SPOTTED  = pool("us_spotted", 4);
     public static final SoundPool US_BAIL     = pool("us_bail", 3);
@@ -47,6 +51,8 @@ public final class ModSounds {
     public static final SoundPool US_IFV      = pool("us_ifv", 3);
     public static final SoundPool US_IDLE     = pool("us_idle", 7);
     public static final SoundPool US_TOW      = pool("us_tow", 3);
+    public static final SoundPool US_NAVY_IDLE    = pool("us_navy_idle", 5);
+    public static final SoundPool US_NAVY_TARGET  = pool("us_navy_target", 5);
 
     private ModSounds() {}
 

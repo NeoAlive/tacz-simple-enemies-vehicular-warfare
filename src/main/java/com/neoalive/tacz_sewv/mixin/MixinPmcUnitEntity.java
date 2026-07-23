@@ -8,7 +8,9 @@ import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.EscortGoal;
+import com.neoalive.tacz_sewv.entity.ai.EngineerLoadout;
 import com.neoalive.tacz_sewv.entity.ai.MedicGoal;
+import com.neoalive.tacz_sewv.entity.ai.RepairGoal;
 import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
 import net.minecraft.world.entity.Entity;
@@ -131,6 +133,15 @@ public abstract class MixinPmcUnitEntity
         // gives an inventory to — RU/US have no ITEM_HANDLER to hold one. Priority 2 keeps
         // first aid below anything crew-served: it only runs out of contact anyway.
         ((Mob) self).goalSelector.addGoal(2, new MedicGoal(self));
+        // The engineer half of the same idea: dormant on an ordinary PMC and live the moment a
+        // player hands one a repair tool (RepairGoal gates itself on SupportRole). Same priority as
+        // first aid — both are things a unit does when it is not otherwise busy — and it stands
+        // itself down the instant the unit holds a target. No DroneOperatorGoal: recon drones are
+        // RU/US doctrine, and a PMC's reconnaissance is the player's own.
+        ((Mob) self).goalSelector.addGoal(2, new RepairGoal(self));
+        // Same pairing the RU/US engineer gets: without the hand swap a PMC engineer with a sidearm
+        // would acquire targets it can never shoot, because SEM's rifle goal fires the MAIN hand.
+        ((Mob) self).goalSelector.addGoal(2, new EngineerLoadout.HolsterGoal(self));
         // Priority 1, and it has to be: it must outrank SEM's owner-follow (CommanderOrderGoal,
         // prio 3, holds MOVE for ANY order) and the chase goal (MoveToAttackRangeGoal, prio 3) so a
         // glued escort is never dragged off. PMC-only because escort is a player order. See EscortGoal.

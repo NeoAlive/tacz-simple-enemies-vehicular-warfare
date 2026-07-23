@@ -12,6 +12,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -47,6 +48,11 @@ import java.util.Set;
  * area task ({@code MixinPacketIssueOrder}) — an area task outranks the order queue, so without
  * that pair the second order of any such pair would silently do nothing.
  *
+ * <p>Entries carry a symbol (in the lang file, so a pack can strip them) and a category colour.
+ * The symbols are plain BMP characters — arrows and geometric shapes — which render on any client:
+ * Minecraft's default font falls back to unifont, shipped through the asset index, for everything
+ * outside its own glyph sheets. Nothing here uses emoji, which have no such fallback.
+ *
  * <p><b>Only {@link Action#MOVE} clears the selection</b>, because a move is a dispatch — the
  * selection has done its job. The rest are stance changes you may well want to stack ("cease fire,
  * then move there"), so they leave it alone.
@@ -61,25 +67,48 @@ public class UnitOrderOption extends RightClickOption {
      * (takeoff counts how many of the selection were actually helicopter pilots, which the client
      * cannot know), so the player never gets told twice.
      */
+    /**
+     * The colour families the menu is grouped by, mirroring the terminal's columns — the map has no
+     * room for headers, so colour carries the grouping instead. Xaero applies this through the
+     * {@code Style} its own entries use for the grey coordinate readout, and it loses to
+     * {@code DARK_GRAY} whenever the entry is inactive, so an unavailable order still reads as
+     * unavailable rather than as its category.
+     */
+    private enum Category {
+        MOVEMENT(ChatFormatting.AQUA),
+        STANCE(ChatFormatting.GREEN),
+        AREA_TASK(ChatFormatting.YELLOW),
+        AIR(ChatFormatting.LIGHT_PURPLE),
+        STAND_DOWN(ChatFormatting.RED);
+
+        final Style style;
+
+        Category(ChatFormatting color) {
+            this.style = Style.EMPTY.withColor(color);
+        }
+    }
+
     public enum Action {
-        MOVE("move_here", "message.tacz_sewv.map.ordered", true),
-        HOLD("hold", "message.tacz_sewv.map.held", false),
-        FREE_FIRE("free_fire", "message.tacz_sewv.map.free_fire", false),
-        CEASE_FIRE("cease_fire", "message.tacz_sewv.map.cease_fire", false),
-        TAKEOFF("takeoff", null, false),
-        PATROL("patrol", null, true),
-        SEARCH("search", null, true),
-        CRUISE("cruise", null, false),
-        DISMISS("dismiss", null, false);
+        MOVE("move_here", "message.tacz_sewv.map.ordered", true, Category.MOVEMENT),
+        HOLD("hold", "message.tacz_sewv.map.held", false, Category.STANCE),
+        FREE_FIRE("free_fire", "message.tacz_sewv.map.free_fire", false, Category.STANCE),
+        CEASE_FIRE("cease_fire", "message.tacz_sewv.map.cease_fire", false, Category.STANCE),
+        TAKEOFF("takeoff", null, false, Category.AIR),
+        PATROL("patrol", null, true, Category.AREA_TASK),
+        SEARCH("search", null, true, Category.AREA_TASK),
+        CRUISE("cruise", null, false, Category.MOVEMENT),
+        DISMISS("dismiss", null, false, Category.STAND_DOWN);
 
         final String labelKey;
         final String ackKey;
         final boolean positional;
+        final Category category;
 
-        Action(String label, String ackKey, boolean positional) {
+        Action(String label, String ackKey, boolean positional, Category category) {
             this.labelKey = "gui.tacz_sewv.map." + label;
             this.ackKey = ackKey;
             this.positional = positional;
+            this.category = category;
         }
     }
 
@@ -91,7 +120,7 @@ public class UnitOrderOption extends RightClickOption {
 
     public UnitOrderOption(int index, IRightClickableElement target, Action action,
                            int x, int y, int z, ResourceKey<Level> dimension, int selectedCount) {
-        super(action.labelKey, index, target);
+        super(action.labelKey, action.category.style, index, target);
         this.action = action;
         this.x = x;
         this.y = y;

@@ -34,6 +34,5 @@ public class RuEngineerEntity extends RUunitEntity {
     @Override
     public void aiStep() {
         super.aiStep();
-        if (!this.level().isClientSide) EngineerLoadout.updateHolster(this);
     }
 }

@@ -28,6 +28,5 @@ public class UsEngineerEntity extends USunitEntity {
     @Override
     public void aiStep() {
         super.aiStep();
-        if (!this.level().isClientSide) EngineerLoadout.updateHolster(this);
     }
 }

@@ -179,7 +179,9 @@ public class MedicGoal extends Goal {
         // after contact, so a wounded unit is almost ALWAYS holding one, and requiring otherwise
         // (which is right for an ordinary PMC that would be walking into a firefight) excluded
         // essentially every realistic patient and made the medic look broken.
-        boolean neutral = VehicleTargeting.isMedic(this.unit);
+        // A PMC holding a kit is neutral by the same rule (SupportRole vetoes its targets in
+        // MixinAbstractUnit), so it treats patients still in contact exactly as a medic entity does.
+        boolean neutral = VehicleTargeting.isMedic(this.unit) || SupportRole.of(this.unit) == SupportRole.MEDIC;
 
         double radius = SewvConfig.MEDIC_SEARCH_RADIUS.get();
         List<AbstractUnit> nearby = this.unit.level().getEntitiesOfClass(

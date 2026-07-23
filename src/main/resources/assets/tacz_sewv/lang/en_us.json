@@ -21,6 +21,11 @@
   "message.tacz_sewv.escort.ordered.multiple": "%s units escorting.",
   "message.tacz_sewv.escort.ordered.none": "No eligible units to escort.",
 
+  "gui.tacz_sewv.map.move_here": "Move %s selected unit(s) here",
+  "message.tacz_sewv.map.ordered.single": "%s unit moving to the marked position.",
+  "message.tacz_sewv.map.ordered.multiple": "%s units moving to the marked position.",
+  "message.tacz_sewv.map.wrong_dimension": "That position is in another dimension.",
+
   "message.tacz_sewv.mortar.ordered.single": "%s sent to the mortar.",
   "message.tacz_sewv.mortar.ordered.none": "No free units to crew it.",
   "message.tacz_sewv.mortar.taken": "That mortar already has a crew.",

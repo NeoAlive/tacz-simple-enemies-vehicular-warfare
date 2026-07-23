@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
 import com.neoalive.tacz_sewv.init.ModEntities;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
@@ -10,7 +11,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 /**
  * MOD bus, client dist. Registers renderers for this mod's support-unit entities (reusing SEM's own
@@ -35,6 +38,18 @@ public class ClientModEvents {
 
     private static ResourceLocation skin(String name) {
         return new ResourceLocation(TaczSewv.MODID, "skins/" + name + ".png");
+    }
+
+    /**
+     * Soft compat: only touch Xaero's classes when the map mod is actually present, so its element
+     * framework is never classloaded on an install without it. Same gate as berezka in
+     * {@link com.neoalive.tacz_sewv.TaczSewv}.
+     */
+    @SubscribeEvent
+    public static void onClientSetup(FMLClientSetupEvent event) {
+        if (ModList.get().isLoaded(XaeroMapCompat.MODID)) {
+            XaeroMapCompat.register();
+        }
     }
 
     @SubscribeEvent

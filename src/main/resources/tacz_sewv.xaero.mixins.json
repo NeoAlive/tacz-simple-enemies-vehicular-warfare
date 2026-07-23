@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.neoalive.tacz_sewv.mixin.client",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "tacz_sewv.refmap.json",
+  "mixins": [],
+  "client": [
+    "MixinGuiMap"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

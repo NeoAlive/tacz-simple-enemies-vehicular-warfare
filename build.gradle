@@ -75,9 +75,16 @@ minecraft {
 mixin {
     add sourceSets.main, "tacz_sewv.refmap.json"
     config "tacz_sewv.mixins.json"
+    // Separate config because it is "required": false — Xaero's World Map is optional, and the
+    // main config is required, which would make a missing map mod a startup crash.
+    config "tacz_sewv.xaero.mixins.json"
 }
 
 repositories {
+    maven {
+        url "https://chocolateminecraft.com/maven"
+        name "Xaero's Maven"
+    }
     flatDir {
         dirs 'libs'
     }
@@ -95,6 +102,7 @@ repositories {
     maven {
         url = "https://maven.theillusivec4.top/"
         url = 'https://maven.parchmentmc.org'
+        url = "https://repo.sleeping.town/"
     }
 }
 
@@ -106,9 +114,9 @@ dependencies {
     implementation fg.deobf("blank:kotlin:1.0")
     implementation fg.deobf("blank:simpleenemymod:1.0")
     implementation fg.deobf("blank:tacz:1.0")
-    // Soft compat: compiled against, never bundled/required at runtime (gated by ModList).
     compileOnly fg.deobf("blank:berezka_api:1.0")
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    implementation "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

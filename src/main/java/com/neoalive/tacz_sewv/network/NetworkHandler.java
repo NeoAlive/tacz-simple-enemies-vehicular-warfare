@@ -27,8 +27,9 @@ public class NetworkHandler {
     // order; 4: added the vehicle formation order; 5: added the patrol order; 6: formation carries
     // a shape id + row size, and the heli command carries a cruise altitude; 7: board carries a
     // passenger-only flag and the area-task order carries a patrol/search mode; 8: added the escort
-    // order) so a mismatched client/server pair is rejected at handshake instead of misparsing.
-    private static final String PROTOCOL_VERSION = "8";
+    // order; 9: added the owned-vehicle map sync, this channel's first server->client packet) so a
+    // mismatched client/server pair is rejected at handshake instead of misparsing.
+    private static final String PROTOCOL_VERSION = "9";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -100,6 +101,15 @@ public class NetworkHandler {
                 PacketEscort::encode,
                 PacketEscort::new,
                 PacketEscort::handle
+        );
+
+        // The one server->client packet here (PacketDistributor.PLAYER, see OwnedVehicleTracker).
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOwnedVehicles.class,
+                PacketOwnedVehicles::encode,
+                PacketOwnedVehicles::new,
+                PacketOwnedVehicles::handle
         );
     }
 }

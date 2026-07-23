@@ -227,9 +227,19 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
 
+        // A cruise is the one task a contact does not take the wheel away from: the route is the
+        // player's standing instruction and the crew fights from it, on the move. Everything the
+        // fight needs that is NOT movement still runs — weapon choice and the fire assist — and the
+        // hull then carries straight on to its leg below. A badly hurt crew is the exception: that
+        // is not "engaging", it is dying, and preserveRetreat inside fightTick still wins.
         if (target != null) {
-            fightTick(target);
-            return;
+            if (PatrolSupport.isCruising(this.unit) && !isLowHealth()) {
+                selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
+                fireAssistIfSpecial(target);
+            } else {
+                fightTick(target);
+                return;
+            }
         }
 
         double distanceSq = this.vehicle.distanceToSqr(
@@ -586,8 +596,16 @@ public class DriveVehicleGoal extends Goal {
         if (avoidance) {
             steer = this.sensor.chooseClearBearing(desired);
             if (steer == null) {
-                // Boxed in by water/lava/hull obstacles on every probed bearing — hold at the
-                // edge, turning in place toward the goal rather than ploughing in.
+                // Boxed in on every probed bearing — hold at the edge, turning in place toward the
+                // goal rather than ploughing in.
+                //
+                // The route is dropped on the way out because the fan is centred on the bearing to
+                // the next PATH NODE: if every approach to it is fouled, the route we are on is the
+                // thing that is wrong, and holding at the edge cannot fix it. Rotation counts as
+                // progress to updateStuck, so nothing else would ever repath this hull — it would
+                // pivot at the wall for good. The recalc cooldown bounds how often that costs a
+                // search.
+                this.currentPath = null;
                 holdAtEdge(desired);
                 return;
             }

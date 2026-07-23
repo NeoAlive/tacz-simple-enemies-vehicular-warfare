@@ -35,6 +35,13 @@ public class DriveShipGoal extends Goal {
     private static final double MIN_DISTANCE = 4.0;
     private static final double MAX_DISTANCE = 32.0;
 
+    // Throttle duty through a turn: engine on one tick in N. A hard-over rudder gets the deeper
+    // cut because that is where the momentum overshoot actually hurts. Never 0 — steerage way is
+    // what makes a ship answer the rudder at all.
+    private static final double HARD_TURN_RAD = Math.toRadians(45.0);
+    private static final int TURN_DUTY = 2;
+    private static final int HARD_TURN_DUTY = 3;
+
     /** Past this bearing error the hull backs and fills instead of trying to sweep round. */
     private static final double REVERSE_ANGLE_RAD = Math.toRadians(110.0);
     private static final int REVERSE_TICKS = 40;
@@ -95,6 +102,9 @@ public class DriveShipGoal extends Goal {
 
     private int weaponSwitchCooldown;
     private int selectedRole = VehicleWeapons.UNCLASSIFIED;
+
+    /** Free-running counter behind the turn throttle's duty cycle. */
+    private int throttlePhase;
 
     public DriveShipGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -297,15 +307,40 @@ public class DriveShipGoal extends Goal {
                 steer.getX() + 0.5, this.vehicle.getY(), steer.getZ() + 0.5));
     }
 
-    /** Ahead, rudder over once roughly lined up. Steerage way is held the whole time. */
+    /**
+     * Ahead, rudder over once roughly lined up — but <b>throttled back through the turn</b>.
+     *
+     * <p>A boat does not go where it is pointing, it goes where its momentum is carrying it: SBW
+     * integrates {@code deltaMovement}, so while the bow swings the hull keeps sliding along its old
+     * course and the turn comes out wide. At full ahead that overshoot is what puts a speedboat on
+     * the rocks it was steering around, and the sensor cannot save it because its own look-ahead
+     * shrinks the moment the hull is finally slow enough to matter.
+     *
+     * <p>Throttle is a boolean in SBW, so "slower" is a duty cycle: the sharper the turn, the fewer
+     * ticks in which the engine is actually driving. That has to bleed speed <b>without stopping</b>
+     * — yaw change is scaled by current speed, so a stalled boat cannot turn at all — and pulsing
+     * settles at an equilibrium against drag rather than running down to zero, which is exactly the
+     * property wanted here. No speed constant is involved, so it holds for any hull.
+     */
     private void driveForward(double angle, double distanceSq) {
         double threshold = Mth.clampedLerp(MIN_ANGLE_RAD, MAX_ANGLE_RAD,
                 Mth.inverseLerp(Math.sqrt(distanceSq), MIN_DISTANCE, MAX_DISTANCE));
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setForwardInputDown(true); // a ship only answers the rudder while making way
         boolean turning = Math.abs(angle) >= threshold;
+
+        this.vehicle.setBackInputDown(false);
+        this.vehicle.setForwardInputDown(!turning || throttleTick(Math.abs(angle)));
         this.vehicle.setLeftInputDown(turning && angle > 0);
         this.vehicle.setRightInputDown(turning && angle < 0);
+    }
+
+    /**
+     * Whether the engine drives on this tick, given how hard over the rudder is. One tick in two
+     * through a moderate turn, one in three through a hard one; anything gentler runs full ahead
+     * and never reaches here.
+     */
+    private boolean throttleTick(double angle) {
+        int duty = angle >= HARD_TURN_RAD ? HARD_TURN_DUTY : TURN_DUTY;
+        return this.throttlePhase++ % duty == 0;
     }
 
     /**

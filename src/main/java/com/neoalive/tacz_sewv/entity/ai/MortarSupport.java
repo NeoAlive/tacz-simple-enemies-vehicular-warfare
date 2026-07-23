@@ -46,6 +46,17 @@ public final class MortarSupport {
      * <p>Scans, so it belongs in order handling (once per keypress), never in canUse.
      */
     public static boolean isMortarClaimed(MortarEntity mortar, @Nullable AbstractUnit except) {
+        return crewOf(mortar, except) != null;
+    }
+
+    /**
+     * The unit working this mortar, or null if nobody is. Same scan as
+     * {@link #isMortarClaimed(MortarEntity, AbstractUnit)} — which is written in terms of this —
+     * for callers that need the crew itself and not just whether there is one: a mortar has no
+     * seats, so its crew is the only place to read a faction, an owner or an entity to order.
+     */
+    @Nullable
+    public static AbstractUnit crewOf(MortarEntity mortar, @Nullable AbstractUnit except) {
         double radius = SewvConfig.BOARD_SCAN_RADIUS.get();
         // AbstractUnit, not PmcUnitEntity: RU/US crews man mortars too, and a tube one of
         // them is working must not read as free just because the asker is a PMC.
@@ -55,9 +66,9 @@ public final class MortarSupport {
         for (AbstractUnit unit : mortar.level().getEntitiesOfClass(
                 AbstractUnit.class, mortar.getBoundingBox().inflate(radius))) {
             if (unit == except || !unit.isAlive()) continue;
-            if (unit instanceof IMortarCrew crew && crew.sewv$getMortarTargetId() == mortar.getId()) return true;
+            if (unit instanceof IMortarCrew crew && crew.sewv$getMortarTargetId() == mortar.getId()) return unit;
         }
-        return false;
+        return null;
     }
 
     public static boolean hasMortarClaim(AbstractUnit unit) {

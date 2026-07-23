@@ -19,6 +19,24 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue CONVOY_FAILURE_MULTIPLIER;
 
     // Mortar shelling event (an RU/US battery sets up out of sight and shells your base)
+    public static final ForgeConfigSpec.BooleanValue LARGE_COMBAT_EVENTS_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_BASE_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_FAILURE_MULTIPLIER;
+    public static final ForgeConfigSpec.IntValue LARGE_COMBAT_VEHICLES;
+    public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_EMPLACEMENT_CHANCE;
+
+    public static final ForgeConfigSpec.BooleanValue NAVAL_EVENTS_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue NAVAL_BASE_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue NAVAL_FAILURE_MULTIPLIER;
+    public static final ForgeConfigSpec.IntValue NAVAL_SHIPS_PER_SIDE;
+
+    public static final ForgeConfigSpec.BooleanValue INVASION_EVENTS_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue INVASION_BASE_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue INVASION_FAILURE_MULTIPLIER;
+    public static final ForgeConfigSpec.IntValue INVASION_DEFENDER_INFANTRY;
+    public static final ForgeConfigSpec.IntValue INVASION_DEFENDER_TOWS;
+    public static final ForgeConfigSpec.IntValue INVASION_DEFENDER_MORTARS;
+
     public static final ForgeConfigSpec.BooleanValue SHELLING_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue SHELLING_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue SHELLING_FAILURE_MULTIPLIER;
@@ -225,6 +243,80 @@ public class SewvConfig {
                 .comment("Amount added to the convoy event's chance after a missed event roll.",
                          "Higher = the wait between convoys is more consistent; lower = streakier.")
                 .defineInRange("convoyFailureMultiplier", 0.06, 0.0, 1.0);
+
+        LARGE_COMBAT_EVENTS_ENABLED = builder
+                .comment("Enable the large_combat event: far_combat at three times the scale, with armour.",
+                         "Two platoons of infantry (9-15 a side) with vehicles behind them, and rarely a mortar",
+                         "or TOW on a flank. Independent of far_combat's own rate and toggle.")
+                .define("largeCombatEventsEnabled", true);
+
+        LARGE_COMBAT_BASE_CHANCE = builder
+                .comment("Initial chance (0.0-1.0) for the large_combat event on each event cycle.",
+                         "SimpleEnemyMod rolls every registered event once per 1200 ticks (60 SECONDS). Kept well",
+                         "below the convoy default because this one spawns upward of thirty entities at a time.")
+                .defineInRange("largeCombatBaseChance", 0.02, 0.0, 1.0);
+
+        LARGE_COMBAT_FAILURE_MULTIPLIER = builder
+                .comment("Amount added to the large_combat event's chance after a missed event roll.")
+                .defineInRange("largeCombatFailureMultiplier", 0.02, 0.0, 1.0);
+
+        LARGE_COMBAT_VEHICLES = builder
+                .comment("Vehicles each side deploys behind its infantry in a large_combat battle.")
+                .defineInRange("largeCombatVehicles", 2, 0, 8);
+
+        LARGE_COMBAT_EMPLACEMENT_CHANCE = builder
+                .comment("Chance (0.0-1.0) PER SIDE that a large_combat battle also has a mortar or a TOW dug in",
+                         "on a flank. Deliberately tiny: a crew-served weapon is something to remember, not a",
+                         "fixture of every battle.")
+                .defineInRange("largeCombatEmplacementChance", 0.04, 0.0, 1.0);
+
+        NAVAL_EVENTS_ENABLED = builder
+                .comment("Enable the naval_battle event: two flotillas from the faction SHIP pools fighting",
+                         "offshore. Only fires in ocean biomes that are not frozen over, and only where the water",
+                         "is actually navigable — so it cannot happen in a swamp or on a lake.")
+                .define("navalEventsEnabled", true);
+
+        NAVAL_BASE_CHANCE = builder
+                .comment("Initial chance (0.0-1.0) for the naval_battle event on each event cycle.",
+                         "Most players are nowhere near an ocean most of the time, and a roll that lands inland",
+                         "simply fails without resetting the accumulated chance, so this can afford to be higher",
+                         "than its share of the world would suggest.")
+                .defineInRange("navalBaseChance", 0.05, 0.0, 1.0);
+
+        NAVAL_FAILURE_MULTIPLIER = builder
+                .comment("Amount added to the naval_battle event's chance after a missed event roll.")
+                .defineInRange("navalFailureMultiplier", 0.05, 0.0, 1.0);
+
+        NAVAL_SHIPS_PER_SIDE = builder
+                .comment("Ships each faction brings to a naval_battle. Higher than a ground event's vehicle count",
+                         "on purpose: boats are lightly armoured and trade fire in the open, so they deplete fast.")
+                .defineInRange("navalShipsPerSide", 4, 1, 12);
+
+        INVASION_EVENTS_ENABLED = builder
+                .comment("Enable the asymmetric_invasion event: two or three vehicles of one faction attacking a",
+                         "dug-in position of the other — infantry, TOWs and mortars, with no vehicles of its own.")
+                .define("invasionEventsEnabled", true);
+
+        INVASION_BASE_CHANCE = builder
+                .comment("Initial chance (0.0-1.0) for the asymmetric_invasion event on each event cycle.")
+                .defineInRange("invasionBaseChance", 0.03, 0.0, 1.0);
+
+        INVASION_FAILURE_MULTIPLIER = builder
+                .comment("Amount added to the asymmetric_invasion event's chance after a missed event roll.")
+                .defineInRange("invasionFailureMultiplier", 0.03, 0.0, 1.0);
+
+        INVASION_DEFENDER_INFANTRY = builder
+                .comment("Riflemen holding the position in an asymmetric_invasion.")
+                .defineInRange("invasionDefenderInfantry", 6, 0, 32);
+
+        INVASION_DEFENDER_TOWS = builder
+                .comment("TOW launchers sited around the defended position. These are what actually threaten the",
+                         "attacking armour — at zero the defence has almost nothing that can hurt a tank.")
+                .defineInRange("invasionDefenderTows", 2, 0, 8);
+
+        INVASION_DEFENDER_MORTARS = builder
+                .comment("Mortars sited around the defended position.")
+                .defineInRange("invasionDefenderMortars", 2, 0, 8);
 
         SHELLING_EVENTS_ENABLED = builder
                 .comment("Enable the mortar_shelling event: an RU or US mortar battery sets up out of sight and",

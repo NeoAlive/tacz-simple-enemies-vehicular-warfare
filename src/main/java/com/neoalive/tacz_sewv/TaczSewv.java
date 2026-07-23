@@ -10,7 +10,10 @@ import com.neoalive.tacz_sewv.util.ChunkTicketSweep;
 import com.neoalive.tacz_sewv.util.OwnedVehicleTracker;
 import com.neoalive.tacz_sewv.util.SupportSpawner;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.procedural.events.AsymmetricInvasionEvent;
 import com.neoalive.tacz_sewv.procedural.events.ConvoyEvent;
+import com.neoalive.tacz_sewv.procedural.events.LargeCombatEvent;
+import com.neoalive.tacz_sewv.procedural.events.NavalBattleEvent;
 import com.neoalive.tacz_sewv.procedural.events.DerelictVehicleEvent;
 import com.neoalive.tacz_sewv.procedural.events.MortarShellingEvent;
 import com.neoalive.tacz_sewv.util.NpcArmor;
@@ -54,6 +57,9 @@ public class TaczSewv {
         DynamicEventManager.registerEvent(new ConvoyEvent());
         DynamicEventManager.registerEvent(new MortarShellingEvent());
         DynamicEventManager.registerEvent(new DerelictVehicleEvent());
+        DynamicEventManager.registerEvent(new LargeCombatEvent());
+        DynamicEventManager.registerEvent(new NavalBattleEvent());
+        DynamicEventManager.registerEvent(new AsymmetricInvasionEvent());
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {

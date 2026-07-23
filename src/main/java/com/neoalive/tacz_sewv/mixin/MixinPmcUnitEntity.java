@@ -10,6 +10,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.EscortGoal;
 import com.neoalive.tacz_sewv.entity.ai.EngineerLoadout;
 import com.neoalive.tacz_sewv.entity.ai.MedicGoal;
+import com.neoalive.tacz_sewv.entity.ai.PmcCombatDebugGoal;
 import com.neoalive.tacz_sewv.entity.ai.RepairGoal;
 import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
@@ -146,6 +147,9 @@ public abstract class MixinPmcUnitEntity
         // prio 3, holds MOVE for ANY order) and the chase goal (MoveToAttackRangeGoal, prio 3) so a
         // glued escort is never dragged off. PMC-only because escort is a player order. See EscortGoal.
         ((Mob) self).goalSelector.addGoal(1, new EscortGoal(self));
+        // Diagnostic only (off unless pmcCombatDebugLogging is set): logs why an owned PMC that was
+        // just shot isn't shooting back. Claims no flags and always declines to run — see the class.
+        ((Mob) self).goalSelector.addGoal(1, new PmcCombatDebugGoal(self));
         // BoardVehicleGoal is NOT here any more: it moved into addDriveGoals once RU/US units
         // gained IVehicleBoarder for scavenging. It never cared where an order came from.
         // ManMortarGoal lives in addDriveGoals with the rest of the crew-served wiring:

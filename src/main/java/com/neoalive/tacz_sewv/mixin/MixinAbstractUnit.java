@@ -36,6 +36,13 @@ public abstract class MixinAbstractUnit {
     // (unlike the remap=false mod-declared methods elsewhere in this package).
     @Inject(method = "setTarget", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$blockFriendlyTarget(LivingEntity target, CallbackInfo ci) {
+        // Never veto CLEARING a target. The veto's whole job is to stop a unit ACQUIRING one it
+        // shouldn't; setTarget(null) is the opposite — it releases whatever was held — and
+        // cancelling it would freeze a dead/stale target on the unit. SupportRole.refusesTarget
+        // returns true for null (a medic refuses everything; an engineer refuses null), so without
+        // this guard a PMC that became a medic/engineer mid-combat could never shed its target and
+        // would sit neither fighting nor supporting. isFriendly/isMedic already pass a null through.
+        if (target == null) return;
         AbstractUnit self = (AbstractUnit) (Object) this;
         // Same-faction friends and medics (neutral to everyone) are never taken as a target.
         if (VehicleTargeting.isFriendly(self, target) || VehicleTargeting.isMedic(target)) {

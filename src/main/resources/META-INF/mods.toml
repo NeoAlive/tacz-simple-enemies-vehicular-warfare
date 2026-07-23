@@ -13,6 +13,11 @@ description='''${mod_description}'''
 [[mixins]]
 config="tacz_sewv.mixins.json"
 
+# Xaero's World Map compat. Separate config so it can be "required": false — the mod is optional
+# and the main config is required, which would make a missing map mod a startup crash.
+[[mixins]]
+config="tacz_sewv.xaero.mixins.json"
+
 [[dependencies.tacz_sewv]] #optional
     modId="forge" #mandatory
     mandatory=true #mandatory
@@ -56,3 +61,11 @@ config="tacz_sewv.mixins.json"
     versionRange="[1.2.9,)"
     ordering="AFTER"
     side="BOTH"
+
+# Soft compat: your own PMC vehicles show as markers on the world map and can be ordered from it.
+[[dependencies.tacz_sewv]]
+    modId="xaeroworldmap"
+    mandatory=false
+    versionRange="[1.44.0,)"
+    ordering="AFTER"
+    side="CLIENT"

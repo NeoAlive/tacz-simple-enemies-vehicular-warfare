@@ -7,6 +7,7 @@ import com.neoalive.tacz_sewv.init.ModEntities;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.util.ChunkTicketSweep;
+import com.neoalive.tacz_sewv.util.OwnedVehicleTracker;
 import com.neoalive.tacz_sewv.util.SupportSpawner;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.procedural.events.ConvoyEvent;
@@ -44,6 +45,9 @@ public class TaczSewv {
         ModEntities.register(modEventBus);
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(ChunkTicketSweep.class);
+        // Server-side half of the map markers: it only ever SENDS, so it is registered
+        // unconditionally — a client with no map mod simply ignores the packet.
+        MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SewvConfig.SPEC);
         // SEM is loaded before this bridge (see mods.toml), so these become normal
         // SEM dynamic events: they are listed, can be toggled, and can be forced by SEM.

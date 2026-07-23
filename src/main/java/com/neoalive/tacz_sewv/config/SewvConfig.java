@@ -181,6 +181,10 @@ public class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<String> COLOR_US;
     public static final ForgeConfigSpec.ConfigValue<String> COLOR_PMC;
 
+    // Vehicle markers on Xaero's World Map (soft dep)
+    public static final ForgeConfigSpec.BooleanValue MAP_MARKERS_ENABLED;
+    public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
+
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
 
@@ -999,6 +1003,22 @@ public class SewvConfig {
         COLOR_PMC = builder
                 .comment("Colour for a hull crewed entirely by PMC units, as RRGGBB hex. Default is green.")
                 .define("colorPmc", "55FF55");
+
+        builder.pop();
+
+        builder.push("map");
+
+        MAP_MARKERS_ENABLED = builder
+                .comment("Show your own PMC-crewed vehicles as markers on Xaero's World Map, and let you select",
+                         "them there and right-click the map to order them somewhere.",
+                         "Does nothing without Xaero's World Map installed. The server sends each player only",
+                         "their OWN units' positions, so this cannot be used to scout with.")
+                .define("mapMarkersEnabled", true);
+
+        MAP_SYNC_INTERVAL_TICKS = builder
+                .comment("How often (in game ticks) the server sends each player the positions of their PMC",
+                         "vehicles. Lower is smoother marker movement and more traffic; 20 is once a second.")
+                .defineInRange("mapSyncIntervalTicks", 20, 5, 200);
 
         builder.pop();
 

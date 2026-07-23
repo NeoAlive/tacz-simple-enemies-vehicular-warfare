@@ -3,17 +3,13 @@ package com.neoalive.tacz_sewv.mixin.client;
 import com.atsuishio.superbwarfare.client.overlay.VehicleTeamOverlay;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.CrewFacts;
 import net.minecraft.world.entity.Entity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
-
-import java.util.List;
 
 /**
  * Colours SuperbWarfare's hover overlay by whoever is crewing the vehicle, so an enemy tank
@@ -113,26 +109,12 @@ public abstract class MixinVehicleTeamOverlay {
 
         if (!(lookingEntity instanceof VehicleEntity vehicle)) return null;
 
-        List<Entity> passengers = vehicle.getPassengers();
-        if (passengers.isEmpty()) return null;
-
-        if (tacz_sewv$allAre(passengers, RUunitEntity.class)) {
-            return SewvConfig.parseColor(SewvConfig.COLOR_RU.get(), -1);
-        }
-        if (tacz_sewv$allAre(passengers, USunitEntity.class)) {
-            return SewvConfig.parseColor(SewvConfig.COLOR_US.get(), -1);
-        }
-        if (tacz_sewv$allAre(passengers, PmcUnitEntity.class)) {
-            return SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), -1);
-        }
-        return null;
-    }
-
-    @Unique
-    private static boolean tacz_sewv$allAre(List<Entity> passengers, Class<?> faction) {
-        for (Entity passenger : passengers) {
-            if (!faction.isInstance(passenger)) return false;
-        }
-        return true;
+        CrewFacts.Faction faction = CrewFacts.factionOf(vehicle);
+        if (faction == null) return null;
+        return switch (faction) {
+            case RU -> SewvConfig.parseColor(SewvConfig.COLOR_RU.get(), -1);
+            case US -> SewvConfig.parseColor(SewvConfig.COLOR_US.get(), -1);
+            case PMC -> SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), -1);
+        };
     }
 }

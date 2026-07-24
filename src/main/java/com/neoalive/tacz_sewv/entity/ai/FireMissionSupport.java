@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -27,17 +28,30 @@ public final class FireMissionSupport {
 
     private FireMissionSupport() {}
 
+    // How far up/down the fire-mission query reaches, on top of the horizontal range. A plane crew
+    // cruises 100+ blocks up, so a symmetric ±range box would drop it whenever the range is smaller
+    // than the plane's altitude; the box is made tall and the range itself checked HORIZONTALLY, which
+    // is what a top-down radio designation wants anyway.
+    private static final double VERTICAL_REACH = 512.0;
+
     /**
      * Whether a unit is manning something a fire mission means anything to. A rifleman is
      * not: it can see whatever it can shoot, so designating for it would only override the
-     * target it already picked.
+     * target it already picked. A plane pilot IS: the aircraft outranges and out-climbs the
+     * pilot's own eyes, so the radio is how a player points it at a specific target.
      */
     private static boolean servesFireMissions(PmcUnitEntity unit) {
-        return MortarSupport.hasMortarClaim(unit) || TowSupport.isCrewing(unit);
+        return MortarSupport.hasMortarClaim(unit) || TowSupport.isCrewing(unit) || isPlanePilot(unit);
+    }
+
+    private static boolean isPlanePilot(PmcUnitEntity unit) {
+        return unit.getVehicle() instanceof VehicleEntity v
+                && v.getFirstPassenger() == unit
+                && HullFacts.isPlaneHull(v);
     }
 
     /**
-     * One owner's fire-mission crews within {@code range} of {@code origin}.
+     * One owner's fire-mission crews within {@code range} (horizontal) of {@code origin}.
      *
      * <p>A crew in an unloaded chunk can't be found, which is what mortarChunkLoading keeps
      * from happening.
@@ -46,11 +60,13 @@ public final class FireMissionSupport {
         if (owner == null) return List.of();
 
         List<PmcUnitEntity> crews = new ArrayList<>();
-        for (PmcUnitEntity pmc : level.getEntitiesOfClass(
-                PmcUnitEntity.class, new AABB(origin, origin).inflate(range))) {
-            if (pmc.isAlive() && owner.equals(pmc.getOwnerUUID()) && servesFireMissions(pmc)) {
-                crews.add(pmc);
-            }
+        AABB box = new AABB(origin, origin).inflate(range, range + VERTICAL_REACH, range);
+        double rangeSq = range * range;
+        for (PmcUnitEntity pmc : level.getEntitiesOfClass(PmcUnitEntity.class, box)) {
+            if (!pmc.isAlive() || !owner.equals(pmc.getOwnerUUID()) || !servesFireMissions(pmc)) continue;
+            double dx = pmc.getX() - origin.x;
+            double dz = pmc.getZ() - origin.z;
+            if (dx * dx + dz * dz <= rangeSq) crews.add(pmc); // horizontal range — altitude-independent
         }
         return crews;
     }

@@ -18,7 +18,10 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.joml.Vector3f;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -38,11 +41,14 @@ import java.util.UUID;
  * <li><b>Cruise steers with yaw + pitch only.</b> Deliberately no roll: SBW's {@code yRot} turns
  *     directly off {@code mouseMoveSpeedX} with or without bank, and skipping roll removes a whole
  *     class of sign-inversion bugs (cf. the ship steering notes). Turns skid; that is acceptable.</li>
- * <li><b>Combat is a racetrack.</b> Fly a straight ~220-block line locked onto the target, diving at
- *     it (bounded, with a hard pull-up floor above the terrain so it never faceplants), then a wide
- *     climbing turn — an approximate Immelman — reverses course for the next pass. Armour is
- *     dive-bombed ({@code vehicleShoot(unit, "Bomb")} over the target); everything else is strafed
- *     with the forward gun via {@link VehicleWeapons#tryAiFireAssist}.</li>
+ * <li><b>Combat is a racetrack.</b> Each contact opens with a wide climbing turn (an approximate
+ *     Immelman), then a straight ~440-block line locked onto the target, diving at it (bounded, with a
+ *     hard pull-up floor so it never faceplants), then the turn again for the next pass. On each run a
+ *     weapon is scored off the target's heaviness (vehicles → missiles/bombs, infantry → rockets, soft
+ *     targets → cannon; weapons found by name clues since SBW doesn't order them consistently). A
+ *     nose weapon fires within a deliberately generous cone (splash does the work); a bomb is released
+ *     by continuous ballistic prediction — dropped the instant a bomb thrown NOW would land on the
+ *     target, which self-adjusts for altitude/speed/pitch across level, dive and low passes.</li>
  * </ul>
  *
  * <p>Flight command state ({@code NONE/TAKEOFF/LANDING/LANDED}) is reused from {@link IHelicopterPilot}
@@ -63,12 +69,15 @@ public class DrivePlaneGoal extends Goal {
     private static final double YAW_STICK_PER_DEG = 0.6;
     private static final float MAX_YAW_STICK = 25.0F;
     private static final double PITCH_STICK_PER_DEG = 0.8;
-    private static final float MAX_PITCH_STICK = 20.0F;
+    private static final float MAX_PITCH_STICK = 28.0F; // enough authority to snap onto a dive/pull-up
     private static final float LOITER_YAW_STICK = 8.0F; // steady turn → orbit when idle
 
     // --- Cruise altitude (terrain-relative, clamped to this band) ---
-    private static final double MIN_FLIGHT_ALT = 30.0;
-    private static final double MAX_FLIGHT_ALT = 60.0;
+    // Planes operate ~3x higher than helicopters: the pilot's cruise stepper (30-50) is scaled up
+    // and the band widened to match, so a jet cruises well above the terrain it is diving on.
+    private static final double ALT_SCALE = 3.0;
+    private static final double MIN_FLIGHT_ALT = 90.0;
+    private static final double MAX_FLIGHT_ALT = 180.0;
     private static final double MIN_OVER_DEST = 20.0;
     private static final double TERRAIN_SAMPLE_STEP = 8.0;
     private static final double TERRAIN_LOOKAHEAD = 64.0;
@@ -83,17 +92,33 @@ public class DrivePlaneGoal extends Goal {
     // --- Takeoff ---
     private static final double ROTATE_SPEED = 0.35;        // horizontal blocks/tick before nose-up
     private static final float TAKEOFF_PITCH_DEG = 15.0F;   // nose-up rotate target
-    private static final double CLIMBOUT_ABOVE_GROUND = 24.0;
+    private static final double CLIMBOUT_ABOVE_GROUND = 72.0;
 
     // --- Combat (run → Immelman racetrack) ---
+    // Turns are scaled wide (long legs + a gentle, half-rate yaw ≈ double the radius) because heavy
+    // planes carry momentum through a turn — SBW integrates deltaMovement, so the velocity lags the
+    // nose and a tight yaw just skids. Wide, gentle turns let the airframe follow its own nose.
     private static final int PHASE_RUN = 0;
     private static final int PHASE_TURN = 1;
-    private static final double RUN_LENGTH = 220.0;         // straight attack line before turning out
-    private static final double MIN_ATTACK_CLEARANCE = 30.0; // hard pull-up floor above the terrain
-    private static final double IMMELMAN_CLIMB = 40.0;      // altitude gained in the climbing turn
+    private static final double RUN_LENGTH = 440.0;         // straight attack line before turning out
+    private static final double TURN_YAW_SCALE = 0.5;       // half yaw rate in the turn → ~2x radius
+    private static final double OVERFLY_MARGIN = 15.0;      // extend this far past the target, then break
+    private static final double MIN_ATTACK_CLEARANCE = 22.0; // base pull-up floor (pressed in close)
+    private static final double PULLUP_LEAD_TICKS = 14.0;   // anticipate recovery sink from descent rate
+    private static final float HARD_CLIMB_PITCH_DEG = 30.0F; // nose-up to pull out of / climb from a dive
+    private static final double IMMELMAN_CLIMB = 120.0;     // altitude gained in the climbing turn
     private static final double TURN_ALIGN_DEG = 35.0;      // heading tolerance to finish the turn
-    private static final double BOMB_RELEASE_DIST = 14.0;   // horizontal range to target to pickle
-    private static final float MAX_DIVE_PITCH_DEG = 30.0F;  // bounded so the dive can be pulled out of
+    private static final float MAX_DIVE_PITCH_DEG = 55.0F;  // steep, aggressive dive onto the target
+
+    // Weapon scoring: target heaviness → weapon-ladder level (vehicles heaviest — the doctrine choice).
+    private static final int LEVEL_VEHICLE = 3;
+    private static final int LEVEL_FACTION = 2;
+    private static final int LEVEL_SOFT = 1;
+    // Predictive bomb release (ballistic forward-sim; the two factors are the calibration knobs).
+    private static final double BOMB_GRAVITY = 0.06;       // blocks/tick^2 fall
+    private static final double BOMB_VEL_FACTOR = 1.0;     // bomb inherits ~this × aircraft velocity
+    private static final double BOMB_HIT_TOLERANCE = 6.0;  // release when predicted impact within this
+    private static final int BOMB_SIM_MAX_TICKS = 200;
 
     private static final float DECOY_HEALTH_FRACTION = 0.5F;
     private static final float PRESERVE_DECOY_CHANCE = 0.5F;
@@ -111,17 +136,18 @@ public class DrivePlaneGoal extends Goal {
     private double takeoffDirZ = Double.NaN;
 
     // Combat racetrack state.
-    private int attackPhase = PHASE_RUN;
+    private int attackPhase = PHASE_TURN; // enter combat with the setup Immelman
     private double runDirX = Double.NaN; // locked straight-line heading of the current run (NaN = none)
     private double runDirZ = Double.NaN;
     private double runStartX;
     private double runStartZ;
-    private boolean bombRun;         // this pass drops bombs (armour) vs strafes the cannon
     private boolean droppedThisRun;  // one payload per pass
-    // Forward-gun / bomb slots, scanned once off the seat's weapon names.
+    // Seat weapons classified into the scoring ladder once; the scored pick for the current run.
     private boolean weaponsScanned;
-    private int cannonSlot = -1;
-    private String bombWeapon; // the seat's bomb weapon name (null = none), fired by name to drop
+    private final List<PlaneWeapon> weapons = new ArrayList<>();
+    private int selWeaponSlot = -1;
+    private boolean selBomb;
+    private String selBombName;
 
     public DrivePlaneGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -233,9 +259,9 @@ public class DrivePlaneGoal extends Goal {
         resetAttackRun(); // not attacking — next contact starts a fresh run
         BlockPos dest = VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
         if (combatTarget != null) {
-            // Pinned by an order, but take any shot that lines up mid-leg.
+            // Pinned by an order, but take any shot that lines up mid-leg (eased plane cone).
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, combatTarget,
-                    SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+                    SewvConfig.PLANE_FIRE_CONE_DEG.get());
         }
         if (dest == null) {
             loiter(cruiseAltitudeHere());
@@ -383,49 +409,63 @@ public class DrivePlaneGoal extends Goal {
         double gx = this.vehicle.getX();
         double gz = this.vehicle.getZ();
         double distFromStart = Math.hypot(gx - this.runStartX, gz - this.runStartZ);
-        // Clearance to the ground under AND just ahead, so rising terrain triggers the pull-up early.
+
+        // Overfly test off the LOCKED run axis (projection along runDir): have we passed the target?
+        double planeAlong = (gx - this.runStartX) * this.runDirX + (gz - this.runStartZ) * this.runDirZ;
+        double targetAlong = (target.getX() - this.runStartX) * this.runDirX
+                + (target.getZ() - this.runStartZ) * this.runDirZ;
+        boolean passedTarget = planeAlong > targetAlong + OVERFLY_MARGIN;
+
+        // Predictive pull-up floor: anticipate the sink during recovery from the CURRENT descent rate,
+        // so a fast/steep dive breaks earlier (heavy-plane momentum) while a shallow one presses close.
         int groundRef = Math.max(surfaceBelow(),
                 highestGroundToward(gx + this.runDirX * 24.0, gz + this.runDirZ * 24.0));
         double clearance = this.vehicle.getY() - groundRef;
+        double descentRate = Math.max(0.0, -this.vehicle.getDeltaMovement().y);
+        double pullupTrigger = MIN_ATTACK_CLEARANCE + descentRate * PULLUP_LEAD_TICKS;
 
-        // End the pass: flown the line out, or hit the pull-up floor. Either way climb and turn.
-        if (distFromStart >= RUN_LENGTH || clearance <= MIN_ATTACK_CLEARANCE) {
+        // End the pass: overflew the target, hit the (anticipated) floor, or flew the whole line.
+        if (passedTarget || clearance <= pullupTrigger || distFromStart >= RUN_LENGTH) {
             this.attackPhase = PHASE_TURN;
             this.runDirX = Double.NaN;
             this.runDirZ = Double.NaN;
             this.vehicle.setMouseMoveSpeedX(0.0F);
-            commandPitch(-MAX_CRUISE_PITCH_DEG); // nose up out of the dive
+            commandPitch(-HARD_CLIMB_PITCH_DEG); // hard nose-up out of the dive
             return;
         }
 
-        // Hold the LOCKED straight heading (not tracking the target — that would curve the line).
-        steerYaw(new Vec3(this.runDirX, 0, this.runDirZ));
-
-        // Dive toward the target, bounded so the pull-up floor above can always recover it.
+        // AIM: track the target with BOTH axes so the nose actually points at what it fires at — the
+        // accuracy the wide cone alone couldn't give. It still flies roughly the locked line (the
+        // target sits along it); the corrections just tighten the pipper as it closes.
         double horiz = Math.hypot(target.getX() - gx, target.getZ() - gz);
+        steerYaw(new Vec3(target.getX() - gx, 0, target.getZ() - gz));
         double targetCenterY = target.getY() + target.getBbHeight() * 0.5;
         double depressionDeg = Math.toDegrees(Math.atan2(this.vehicle.getY() - targetCenterY, Math.max(horiz, 1.0)));
         commandPitch((float) Mth.clamp(depressionDeg, -MAX_CRUISE_PITCH_DEG, MAX_DIVE_PITCH_DEG));
 
-        if (this.bombRun) {
-            // Dive-bomb: pickle one payload as it passes over the target (bomb inherits the diving
-            // velocity + gravity, so releasing on the dive throws it onto the aimpoint).
-            if (!this.droppedThisRun && horiz <= BOMB_RELEASE_DIST) {
-                this.vehicle.vehicleShoot(this.unit, this.bombWeapon);
+        if (this.selBomb) {
+            // BombAttack: a continuous ballistic prediction, not a fixed release distance. Every tick
+            // it simulates where a bomb dropped NOW would land (inheriting the aircraft's velocity),
+            // and pickles the instant that predicted impact lands on the target — so the release point
+            // shifts earlier at higher speed/altitude and later when low/slow, on its own. Same logic
+            // serves level, dive and low-altitude passes; the dive above is only the approach.
+            if (!this.droppedThisRun && this.selBombName != null && bombWouldHit(target)) {
+                this.vehicle.vehicleShoot(this.unit, this.selBombName);
                 this.droppedThisRun = true;
             }
         } else {
-            // Strafe: keep the forward gun selected and let the assist fire it within the cone.
-            if (this.cannonSlot >= 0) {
-                this.vehicle.setWeaponIndex(this.vehicle.getSeatIndex(this.unit), this.cannonSlot);
+            // NoseAttack: select the scored weapon and fire it within the (deliberately generous)
+            // nose cone. Guided missiles steer out the residual; splash covers the rest.
+            if (this.selWeaponSlot >= 0) {
+                this.vehicle.setWeaponIndex(this.vehicle.getSeatIndex(this.unit), this.selWeaponSlot);
             }
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
-                    SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+                    SewvConfig.PLANE_FIRE_CONE_DEG.get());
         }
     }
 
-    // Lock the run: a straight heading at the target, the start point (to measure the line), and
-    // whether it's a bomb pass. Armour gets bombed (if the hull carries them); everything else strafed.
+    // Lock the run: a straight heading at the target, the start point (to measure the line), and the
+    // scored weapon for this pass (chosen AFTER the Immelman, off the target's heaviness).
     private void startRun(LivingEntity target) {
         Vec3 toT = new Vec3(target.getX() - this.vehicle.getX(), 0, target.getZ() - this.vehicle.getZ());
         Vec3 dir = toT.lengthSqr() > 1.0E-6 ? toT.normalize() : forwardFlat();
@@ -434,53 +474,153 @@ public class DrivePlaneGoal extends Goal {
         this.runStartX = this.vehicle.getX();
         this.runStartZ = this.vehicle.getZ();
         this.droppedThisRun = false;
-        this.bombRun = this.bombWeapon != null
-                && VehicleWeapons.classifyTarget(target) == VehicleWeapons.TargetCategory.VEHICLE;
+        selectRunWeapon(scoreTarget(target));
+    }
+
+    // Target heaviness → weapon-ladder level: vehicles draw the heaviest weapons, then faction
+    // infantry, then soft single targets (monsters/players). (Doctrine choice — flip here to invert.)
+    private int scoreTarget(LivingEntity target) {
+        return switch (VehicleWeapons.classifyTarget(target)) {
+            case VEHICLE -> LEVEL_VEHICLE;
+            case FACTION_UNIT -> LEVEL_FACTION;
+            default -> LEVEL_SOFT; // MONSTER + player
+        };
+    }
+
+    // Pick this run's weapon by weighted random over the seat's weapons whose tier fits the target
+    // level (never a heavier weapon than the target warrants — no missiles at a zombie). Heavier
+    // weapons are favoured among those that fit, and a missile is favoured hardest, so it "stays in
+    // the higher levels with a higher chance" while a light target settles for the cannon.
+    private void selectRunWeapon(int level) {
+        PlaneWeapon chosen = null;
+        double total = 0.0;
+        for (PlaneWeapon w : this.weapons) {
+            if (w.tier() > level) continue;          // too heavy for this target
+            total += weaponWeight(w);
+        }
+        if (total <= 0.0) {                          // nothing fits (shouldn't happen — cannon is tier 1)
+            chosen = this.weapons.isEmpty() ? null : this.weapons.get(0);
+        } else {
+            double r = this.unit.getRandom().nextDouble() * total;
+            for (PlaneWeapon w : this.weapons) {
+                if (w.tier() > level) continue;
+                r -= weaponWeight(w);
+                if (r <= 0.0) { chosen = w; break; }
+            }
+        }
+        if (chosen == null) {
+            this.selWeaponSlot = 0;
+            this.selBomb = false;
+            this.selBombName = null;
+            return;
+        }
+        this.selWeaponSlot = chosen.slot();
+        this.selBomb = chosen.bomb();
+        this.selBombName = chosen.name();
+    }
+
+    private static double weaponWeight(PlaneWeapon w) {
+        return w.tier() + (w.missile() ? w.tier() : 0); // missile ≈ double weight → picked most at top
+    }
+
+    // Ballistic forward-sim: would a bomb dropped this tick land on the target? Inherits the aircraft's
+    // velocity, falls under gravity. Factors are approximations (SBW's exact muzzle/drag differ) — the
+    // per-tick re-evaluation absorbs the error, and BOMB_VEL_FACTOR/BOMB_GRAVITY are the calibration.
+    private boolean bombWouldHit(LivingEntity target) {
+        Vec3 pos = this.vehicle.position();
+        Vec3 vel = this.vehicle.getDeltaMovement().scale(BOMB_VEL_FACTOR);
+        double impactY = target.getY();
+        double tx = target.getX();
+        double tz = target.getZ();
+        for (int t = 0; t < BOMB_SIM_MAX_TICKS; t++) {
+            pos = pos.add(vel);
+            vel = new Vec3(vel.x, vel.y - BOMB_GRAVITY, vel.z);
+            if (pos.y <= impactY) {
+                double dx = pos.x - tx;
+                double dz = pos.z - tz;
+                return dx * dx + dz * dz <= BOMB_HIT_TOLERANCE * BOMB_HIT_TOLERANCE;
+            }
+        }
+        return false; // never comes down in the window (climbing / too shallow) — hold the bomb
     }
 
     // The wide climbing turn back onto the target — an approximate Immelman (no inverted-flight
-    // modelling, so it reverses by yaw while climbing rather than by looping). Reuses flyToward for
-    // the whisker terrain avoidance; finishes when it points back at the target and has regained height.
+    // modelling, so it reverses by yaw while climbing rather than by looping). Steers at a GENTLE
+    // half-rate yaw so the turn radius is wide enough for a heavy plane's momentum to follow; climbs
+    // hard to the high turn altitude. Finishes when it points back at the target and has regained
+    // height — then rolls in for the next pass.
     private void immelmanTurn(LivingEntity target) {
-        flyToward(target.getX(), target.getZ(), cruiseAltitudeHere() + IMMELMAN_CLIMB);
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        this.vehicle.setForwardInputDown(true);
+        this.vehicle.setBackInputDown(false);
+        this.vehicle.setLeftInputDown(false);
+        this.vehicle.setRightInputDown(false);
+
         Vec3 toT = new Vec3(target.getX() - this.vehicle.getX(), 0, target.getZ() - this.vehicle.getZ());
-        double yawErr = toT.lengthSqr() > 1.0E-6
-                ? Math.abs(Math.toDegrees(VehicleTargeting.signedAngleTo(forward, toT.normalize()))) : 0.0;
+        Vec3 dir = toT.lengthSqr() > 1.0E-6 ? toT.normalize() : forwardFlat();
+        Vec3 clear = this.sensor.chooseClearBearing(dir, PROBE_DISTANCE);
+        if (clear == null) {
+            this.vehicle.setMouseMoveSpeedX(0.0F);
+            commandPitch(-CLIMB_AVOID_PITCH_DEG);
+            return;
+        }
+        steerYaw(clear, TURN_YAW_SCALE); // gentle → wide, momentum-friendly turn
+
         double clearance = this.vehicle.getY() - surfaceBelow();
-        if (yawErr < TURN_ALIGN_DEG && clearance >= MIN_ATTACK_CLEARANCE + IMMELMAN_CLIMB * 0.5) {
+        double recoverAlt = MIN_ATTACK_CLEARANCE + IMMELMAN_CLIMB * 0.5;
+        if (clearance < recoverAlt) {
+            commandPitch(-HARD_CLIMB_PITCH_DEG); // still low from the aggressive dive — climb hard first
+        } else {
+            commandPitch(altitudePitch(cruiseAltitudeHere() + IMMELMAN_CLIMB));
+        }
+
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        double yawErr = Math.abs(Math.toDegrees(VehicleTargeting.signedAngleTo(forward, dir)));
+        if (yawErr < TURN_ALIGN_DEG && clearance >= recoverAlt) {
             this.attackPhase = PHASE_RUN; // realigned and high — roll in for the next pass
         }
     }
 
-    // Which seat weapon is the forward gun and whether the hull carries bombs — read once off the
-    // weapon names (planes' slots are real weapons, so no placeholder guarding needed).
+    // Classify the seat's weapons into the scoring ladder ONCE, off their names (SBW planes don't
+    // order weapons consistently, so this is the same clue idea as ifvNameClues). Missile/bomb are
+    // the heavy tier, rockets the medium, cannon/gun the light — and anything unrecognised is treated
+    // as a light nose gun so it is never simply unusable.
     private void scanWeapons() {
         this.weaponsScanned = true;
-        this.cannonSlot = -1;
-        this.bombWeapon = null;
+        this.weapons.clear();
         try {
             int seat = this.vehicle.getSeatIndex(this.unit);
             var info = this.vehicle.getSeat(seat);
             int count = info == null ? 0 : info.weapons().size();
             for (int w = 0; w < count; w++) {
                 String raw = this.vehicle.getGunName(seat, w);
-                String name = raw == null ? "" : raw.toLowerCase(java.util.Locale.ROOT);
-                if (this.cannonSlot < 0
-                        && (name.contains("cannon") || name.contains("gun") || name.contains("mg"))) {
-                    this.cannonSlot = w;
-                }
-                // Keep the raw name (case-sensitive weapon key), preferring the plain "Bomb".
-                if (name.contains("bomb") && (this.bombWeapon == null || name.equals("bomb"))) {
-                    this.bombWeapon = raw;
+                String name = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
+                if (matchesAny(name, SewvConfig.PLANE_MISSILE_CLUES.get())) {
+                    this.weapons.add(new PlaneWeapon(w, 3, false, true, raw));
+                } else if (matchesAny(name, SewvConfig.PLANE_BOMB_CLUES.get())) {
+                    this.weapons.add(new PlaneWeapon(w, 3, true, false, raw));
+                } else if (matchesAny(name, SewvConfig.PLANE_ROCKET_CLUES.get())) {
+                    this.weapons.add(new PlaneWeapon(w, 2, false, false, raw));
+                } else {
+                    // Cannon clue, or unrecognised — either way a light forward gun.
+                    this.weapons.add(new PlaneWeapon(w, 1, false, false, raw));
                 }
             }
         } catch (Exception ignored) {}
-        if (this.cannonSlot < 0) this.cannonSlot = 0; // fall back to the first weapon
+        if (this.weapons.isEmpty()) this.weapons.add(new PlaneWeapon(0, 1, false, false, null));
+    }
+
+    private static boolean matchesAny(String name, List<? extends String> clues) {
+        if (name.isEmpty()) return false;
+        for (String clue : clues) {
+            if (clue != null && !clue.isBlank() && name.contains(clue.toLowerCase(Locale.ROOT))) return true;
+        }
+        return false;
     }
 
     private void resetAttackRun() {
-        this.attackPhase = PHASE_RUN;
+        // Enter combat with the Immelman: on the next contact the turn runs first (climb + line up),
+        // THEN the scored run — so the turn "enacts each time the plane is in combat".
+        this.attackPhase = PHASE_TURN;
         this.runDirX = Double.NaN;
         this.runDirZ = Double.NaN;
         this.droppedThisRun = false;
@@ -512,6 +652,12 @@ public class DrivePlaneGoal extends Goal {
     // --- Steering helpers ------------------------------------------------------------------------
 
     private void steerYaw(Vec3 aim) {
+        steerYaw(aim, 1.0);
+    }
+
+    // rateScale < 1 gentles the yaw (lower gain AND lower saturation), widening the turn radius so a
+    // heavy airframe's lagging momentum can follow the nose instead of skidding through the turn.
+    private void steerYaw(Vec3 aim, double rateScale) {
         if (aim.lengthSqr() <= 1.0E-8) {
             this.vehicle.setMouseMoveSpeedX(0.0F);
             return;
@@ -520,8 +666,9 @@ public class DrivePlaneGoal extends Goal {
         double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, aim));
         // Same sign as DriveHelicopterGoal.steerNose: positive mouseMoveSpeedX increases yRot and
         // signedAngleTo is signed the other way, hence the negation.
+        double maxStick = MAX_YAW_STICK * rateScale;
         this.vehicle.setMouseMoveSpeedX(
-                (float) Mth.clamp(-YAW_STICK_PER_DEG * yawErrDeg, -MAX_YAW_STICK, MAX_YAW_STICK));
+                (float) Mth.clamp(-YAW_STICK_PER_DEG * rateScale * yawErrDeg, -maxStick, maxStick));
     }
 
     // Command a target pitch (positive = nose down, matching xRot) via the pitch stick, closed
@@ -588,7 +735,7 @@ public class DrivePlaneGoal extends Goal {
     private double flightAltitude() {
         int alt = (this.unit instanceof IHelicopterPilot pilot)
                 ? pilot.sewv$getCruiseAltitude() : IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
-        return Mth.clamp(alt, MIN_FLIGHT_ALT, MAX_FLIGHT_ALT);
+        return Mth.clamp(alt * ALT_SCALE, MIN_FLIGHT_ALT, MAX_FLIGHT_ALT);
     }
 
     private int surfaceBelow() {
@@ -619,4 +766,8 @@ public class DrivePlaneGoal extends Goal {
             this.chunkTicket.release(this.vehicle);
         }
     }
+
+    // A seat weapon on the scoring ladder: tier 1 (cannon/gun) .. 3 (missile/bomb), with the two
+    // flags that route firing — a bomb goes to the predictive release, a missile to the guided shot.
+    private record PlaneWeapon(int slot, int tier, boolean bomb, boolean missile, String name) {}
 }

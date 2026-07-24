@@ -32,7 +32,7 @@ public class NetworkHandler {
     // an optional origin, so it can be centred on a map click instead of on the sender; 12: the
     // area task also carries a cruise route) so a mismatched client/server pair is rejected at
     // handshake instead of misparsing.
-    private static final String PROTOCOL_VERSION = "12";
+    private static final String PROTOCOL_VERSION = "14";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

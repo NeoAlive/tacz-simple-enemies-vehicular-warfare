@@ -202,10 +202,9 @@ public class SewvConfig {
 
     // Vehicle markers on Xaero's World Map (soft dep)
     public static final ForgeConfigSpec.BooleanValue MAP_MARKERS_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
-    public static final ForgeConfigSpec.ConfigValue<String> MAP_COLOR_FRIENDLY;
-    public static final ForgeConfigSpec.ConfigValue<String> MAP_COLOR_HOSTILE;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -1118,6 +1117,14 @@ public class SewvConfig {
                          "their OWN units' positions, so this cannot be used to scout with.")
                 .define("mapMarkersEnabled", true);
 
+        MAP_INFANTRY_ENABLED = builder
+                .comment("Also show on-foot units (infantry, medics, engineers) on the map, not just vehicles.",
+                         "Same rules as vehicles: your own always, other factions' only where your side has",
+                         "spotted them. This scans every unit rather than the handful of crewed hulls, so",
+                         "turning it OFF skips that scan entirely — the switch to reach for if a large battle",
+                         "costs you frames.")
+                .define("mapInfantryEnabled", true);
+
         MAP_SYNC_INTERVAL_TICKS = builder
                 .comment("How often (in game ticks) the server sends each player the positions of their PMC",
                          "vehicles. Lower is smoother marker movement and more traffic; 20 is once a second.")
@@ -1130,15 +1137,8 @@ public class SewvConfig {
                          "Set to 0 to show only your own vehicles and never anyone else's.")
                 .defineInRange("mapSpotRadius", 128.0, 0.0, 512.0);
 
-        MAP_COLOR_FRIENDLY = builder
-                .comment("Fill colour for a vehicle crewed by a faction that is friendly to you (SimpleEnemyMod's",
-                         "ruUnitsFriendly / usUnitsFriendly), as RRGGBB hex. Default is NATO friendly blue.")
-                .define("mapColorFriendly", "80D0FF");
-
-        MAP_COLOR_HOSTILE = builder
-                .comment("Fill colour for a vehicle crewed by a faction hostile to you, as RRGGBB hex.",
-                         "Default is NATO hostile red.")
-                .define("mapColorHostile", "FF8080");
+        // Marker fill colour is the crew's FACTION colour (colorRu / colorUs / colorPmc above), the
+        // same as the in-world team overlay — the map has no separate colour config of its own.
 
         builder.pop();
 

@@ -4,11 +4,14 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
+import com.neoalive.tacz_sewv.entity.ai.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOwnedVehicles;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -16,9 +19,11 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.network.PacketDistributor;
+import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -66,7 +71,7 @@ public final class OwnedVehicleTracker {
 
     /** A crewed hull, resolved once per sync and then served to every player from this. */
     private record Candidate(VehicleMarker.Kind kind, CrewFacts.Faction faction, UUID pmcOwner,
-                             boolean factionFriendly, int driverId, int vehicleId,
+                             boolean factionFriendly, MarkerOrder order, int driverId, int vehicleId,
                              double x, double y, double z, float yaw,
                              ResourceKey<Level> dimension) {}
 
@@ -81,9 +86,11 @@ public final class OwnedVehicleTracker {
         if (now < nextSend) return;
         nextSend = now + SewvConfig.MAP_SYNC_INTERVAL_TICKS.get();
 
+        boolean infantry = SewvConfig.MAP_INFANTRY_ENABLED.get();
         List<Candidate> candidates = new ArrayList<>();
         for (ServerLevel level : event.getServer().getAllLevels()) {
             collect(level, candidates);
+            if (infantry) collectInfantry(level, candidates);
         }
 
         double spotRadius = SewvConfig.MAP_SPOT_RADIUS.get();
@@ -115,7 +122,7 @@ public final class OwnedVehicleTracker {
 
             candidates.add(new Candidate(
                     kindOf(hull), faction, CrewFacts.pmcOwner(hull),
-                    VehicleTargeting.isFactionFriendly(crew),
+                    VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
                     driver.getId(), hull.getId(),
                     hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension()));
         }
@@ -142,9 +149,50 @@ public final class OwnedVehicleTracker {
         candidates.add(new Candidate(
                 VehicleMarker.Kind.EMPLACEMENT, faction,
                 crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
-                VehicleTargeting.isFactionFriendly(crew),
+                VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
                 crew.getId(), mortar.getId(),
                 mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension()));
+    }
+
+    /**
+     * On-foot units as their own markers, behind {@code mapInfantryEnabled}. Unlike the hull scan
+     * this walks EVERY unit rather than the handful of crewed hulls, so it is the one part of this
+     * sync whose cost scales with the size of a fight — which is why it has its own switch. A unit
+     * riding a hull is skipped (the hull's marker already stands for it), and so is a mortar crew
+     * (already shown as its EMPLACEMENT). The medic/engineer variant is read fresh every scan, not
+     * cached like a hull's class, because a PMC's support role is what it is holding and can change.
+     */
+    // ponytail: O(all SEM units) per level per interval. Bounded by MAX_MARKERS on the spotted output
+    // and the once-a-second cadence; the toggle is the escape hatch if a huge fight shows on a profile.
+    private static void collectInfantry(ServerLevel level, List<Candidate> candidates) {
+        for (AbstractUnit unit : level.getEntities(EntityTypeTest.forClass(AbstractUnit.class),
+                u -> u.isAlive() && !u.isPassenger() && !MortarSupport.hasMortarClaim(u))) {
+            CrewFacts.Faction faction = CrewFacts.factionOfCrew(unit);
+            if (faction == null) continue;
+
+            candidates.add(new Candidate(
+                    infantryKind(unit), faction,
+                    unit instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
+                    VehicleTargeting.isFactionFriendly(unit), orderPreviewOf(unit),
+                    unit.getId(), unit.getId(),
+                    unit.getX(), unit.getY(), unit.getZ(), unit.getYRot(), level.dimension()));
+        }
+    }
+
+    /**
+     * Which infantry symbol a unit draws as. Covers both the dedicated RU/US medic/engineer entity
+     * types ({@link VehicleTargeting#isMedic}/{@link VehicleTargeting#isEngineer}) and a PMC the
+     * player has field-assigned by handing it a kit or a repair tool ({@link SupportRole#of}). Medic
+     * wins a tie, matching {@code SupportRole.of}.
+     */
+    private static VehicleMarker.Kind infantryKind(AbstractUnit unit) {
+        if (VehicleTargeting.isMedic(unit) || SupportRole.of(unit) == SupportRole.MEDIC) {
+            return VehicleMarker.Kind.INFANTRY_MEDIC;
+        }
+        if (VehicleTargeting.isEngineer(unit) || SupportRole.of(unit) == SupportRole.ENGINEER) {
+            return VehicleMarker.Kind.INFANTRY_ENGINEER;
+        }
+        return VehicleMarker.Kind.INFANTRY;
     }
 
     /**
@@ -204,8 +252,38 @@ public final class OwnedVehicleTracker {
     }
 
     private static VehicleMarker marker(Candidate c, VehicleMarker.Allegiance allegiance) {
+        // The order preview is only for units you command — a FRIENDLY garrison or a HOSTILE crew
+        // has no player order to draw, and sending one would leak intent it should not.
+        MarkerOrder order = allegiance == VehicleMarker.Allegiance.OWN ? c.order() : MarkerOrder.NONE;
         return new VehicleMarker(c.driverId(), c.vehicleId(), c.x(), c.y(), c.z(), c.yaw(),
-                c.kind(), allegiance, c.dimension());
+                c.kind(), allegiance, c.faction(), order, c.dimension());
+    }
+
+    /**
+     * A commandable unit's current standing order, for the map's preview overlay. Only a PMC has
+     * orders; everything else (and a PMC with none) answers {@link MarkerOrder#NONE}. An area task
+     * (patrol / search / cruise) takes precedence, because it outranks the SEM order queue — the same
+     * order {@code resolveDestination} reads them in.
+     */
+    private static MarkerOrder orderPreviewOf(AbstractUnit unit) {
+        if (!(unit instanceof PmcUnitEntity pmc)) return MarkerOrder.NONE;
+        IVehiclePatrol patrol = (IVehiclePatrol) pmc;
+        if (patrol.sewv$isPatrolling()) {
+            if (patrol.sewv$getPatrolMode() == IVehiclePatrol.MODE_CRUISE) {
+                return MarkerOrder.cruise(patrol.sewv$getCruiseRoute());
+            }
+            BlockPos origin = patrol.sewv$getPatrolOrigin();
+            if (origin != null) {
+                MarkerOrder.Type mode = patrol.sewv$getPatrolMode() == IVehiclePatrol.MODE_SEARCH
+                        ? MarkerOrder.Type.SEARCH : MarkerOrder.Type.PATROL;
+                return MarkerOrder.area(mode, origin, patrol.sewv$getPatrolRadius());
+            }
+        }
+        if (pmc.getOrder() == OrderType.MOVE_TO_POSITION) {
+            Vec3 t = pmc.getMoveToTarget();
+            if (t != null && !t.equals(Vec3.ZERO)) return MarkerOrder.move(BlockPos.containing(t));
+        }
+        return MarkerOrder.NONE;
     }
 
     /**

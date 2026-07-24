@@ -6,6 +6,7 @@ import com.mojang.math.Axis;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.CrewFacts;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -38,7 +39,7 @@ import java.util.Map;
  *
  * <p><b>The symbols are black-on-white art tinted by a plain colour multiply.</b> Each texture is
  * black strokes over a white fill on transparency, so {@code setColor} leaves the strokes black
- * (anything × 0 is 0) and turns the fill into the allegiance colour — no second texture per
+ * (anything × 0 is 0) and turns the fill into the crew's faction colour — no second texture per
  * faction, no shader, and a new symbol is a PNG rather than code. The textures are 256×256 drawn at
  * ~26px, so they are switched to <b>linear filtering</b>; at nearest-neighbour an 8:1 downscale
  * eats the dashed frames that carry half the meaning.
@@ -79,6 +80,21 @@ public final class VehicleMarkerElements {
     public static final Renderer INSTANCE = new Renderer();
 
     private VehicleMarkerElements() {}
+
+    /**
+     * Fill colour = the crew's FACTION colour, the same {@code COLOR_RU}/{@code COLOR_US}/
+     * {@code COLOR_PMC} the in-world team overlay uses, so the map and the world agree. The allegiance
+     * (OWN/FRIENDLY/HOSTILE) no longer drives colour — it only decides whether a marker is selectable —
+     * so an ownerless friendly PMC garrison and your own hull are both green, which is correct: both
+     * are your side. Public because the order-preview overlay tints its lines the same way.
+     */
+    public static int factionColor(CrewFacts.Faction faction) {
+        return switch (faction) {
+            case RU -> SewvConfig.parseColor(SewvConfig.COLOR_RU.get(), 0xFFFF5555);
+            case US -> SewvConfig.parseColor(SewvConfig.COLOR_US.get(), 0xFF5555FF);
+            case PMC -> SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), 0xFF55FF55);
+        };
+    }
 
     /**
      * Per-frame state the reader needs but is not handed: which dimension's map is on screen.
@@ -137,7 +153,7 @@ public final class VehicleMarkerElements {
                 guiGraphics.fill(-HIT_BOX + 1, -HIT_BOX + 1, HIT_BOX - 1, HIT_BOX - 1, SELECTION_SHADE);
             }
 
-            int color = colorOf(marker.allegiance());
+            int color = factionColor(marker.faction());
             drawHeading(guiGraphics, marker, color);
             drawSymbol(guiGraphics, marker, color);
 
@@ -172,14 +188,6 @@ public final class VehicleMarkerElements {
             guiGraphics.fill(-HEADING_HALF_WIDTH, -HEADING_END, HEADING_HALF_WIDTH, -HEADING_START,
                     0xFF000000 | color);
             pose.popPose();
-        }
-
-        private static int colorOf(VehicleMarker.Allegiance allegiance) {
-            return switch (allegiance) {
-                case OWN -> SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), 0xFF55FF55);
-                case FRIENDLY -> SewvConfig.parseColor(SewvConfig.MAP_COLOR_FRIENDLY.get(), 0xFF80D0FF);
-                case HOSTILE -> SewvConfig.parseColor(SewvConfig.MAP_COLOR_HOSTILE.get(), 0xFFFF8080);
-            };
         }
 
         @Override
@@ -312,7 +320,7 @@ public final class VehicleMarkerElements {
 
         @Override
         public int getRightClickTitleBackgroundColor(VehicleMarker marker) {
-            return Renderer.colorOf(marker.allegiance());
+            return factionColor(marker.faction());
         }
 
         @Override

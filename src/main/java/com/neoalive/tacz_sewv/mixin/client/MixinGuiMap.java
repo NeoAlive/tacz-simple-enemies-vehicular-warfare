@@ -27,6 +27,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import xaero.map.element.HoveredMapElementHolder;
 import xaero.map.gui.GuiMap;
+import xaero.map.gui.dropdown.rightclick.GuiRightClickMenu;
 import xaero.map.gui.dropdown.rightclick.RightClickOption;
 
 import java.util.ArrayList;
@@ -98,6 +99,17 @@ public abstract class MixinGuiMap extends Screen {
     @Shadow
     private double screenScale;
 
+    // Xaero's open right-click menu (null when closed — onRightClickClosed nulls it) and its two
+    // toggle-menus. While any of these is up, a click belongs to the menu, not to our drag/box.
+    @Shadow
+    private GuiRightClickMenu rightClickMenu;
+
+    @Shadow
+    public boolean waypointMenu;
+
+    @Shadow
+    public boolean playersMenu;
+
     /** Xaero's "no surface height known here" sentinel — an unexplored tile, or cave mode. */
     @Unique
     private static final int TACZ_SEWV$NO_HEIGHT = 32767;
@@ -129,7 +141,11 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private int tacz_sewv$dragAz;
 
-    /** Below this (blocks²) an order-drag is treated as a click — deselect — rather than a line. */
+    /** The marker under a left-press, so a barely-moved drag toggles it (a drag can start on a marker). */
+    @Unique
+    private VehicleMarker tacz_sewv$pressMarker;
+
+    /** Below this (blocks²) an order-drag is treated as a click — edit selection — rather than a line. */
     @Unique
     private static final double TACZ_SEWV$MIN_DRAG_SQ = 16.0;
 
@@ -207,6 +223,7 @@ public abstract class MixinGuiMap extends Screen {
     private void tacz_sewv$onMapPress(double mouseX, double mouseY, int button,
                                       CallbackInfoReturnable<Boolean> cir) {
         if (!SewvConfig.MAP_MARKERS_ENABLED.get() || CruisePlot.armed()) return;
+        if (tacz_sewv$dropdownOpen()) return; // the right-click menu (or a toggle-menu) owns this click
         if (this.getChildAt(mouseX, mouseY).isPresent()) return; // a Xaero widget, not the map
 
         if (button == 1) {
@@ -217,13 +234,18 @@ public abstract class MixinGuiMap extends Screen {
             this.tacz_sewv$boxAz = this.mouseBlockPosZ;
             return;
         }
+        // With <2 selected, leave the left button to Xaero (pan + normal marker selection). With a
+        // group selected we take it over entirely: a drag from ANYWHERE (marker or open map) lays out
+        // the line, and a plain click edits the selection — judged on release, so units clustered
+        // together no longer block the drag from starting on top of one.
         if (button != 0 || MapMarkers.selected().size() < 2) return;
-        if (this.viewed != null && this.viewed.getElement() instanceof VehicleMarker) return; // marker → select
 
         this.tacz_sewv$orderDragging = true;
         this.tacz_sewv$dragAx = this.mouseBlockPosX;
         this.tacz_sewv$dragAz = this.mouseBlockPosZ;
         this.tacz_sewv$dragAy = tacz_sewv$nodeY();
+        this.tacz_sewv$pressMarker = (this.viewed != null
+                && this.viewed.getElement() instanceof VehicleMarker m) ? m : null;
         cir.setReturnValue(true); // swallow: Xaero must not start a camera pan on this press
     }
 
@@ -236,6 +258,14 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapRelease(double mouseX, double mouseY, int button,
                                         CallbackInfoReturnable<Boolean> cir) {
+        // A menu opened between our press and this release (e.g. the right-click order menu): the
+        // release belongs to it. Drop any half-started gesture without acting on it.
+        if (tacz_sewv$dropdownOpen()) {
+            this.tacz_sewv$orderDragging = false;
+            this.tacz_sewv$boxSelecting = false;
+            this.tacz_sewv$pressMarker = null;
+            return;
+        }
         if (button == 1 && this.tacz_sewv$boxSelecting) {
             this.tacz_sewv$boxSelecting = false;
             // Not swallowed: below the box threshold this was a right-CLICK and Xaero must still open
@@ -245,16 +275,22 @@ public abstract class MixinGuiMap extends Screen {
         }
         if (button != 0 || !this.tacz_sewv$orderDragging) return;
         this.tacz_sewv$orderDragging = false;
+        VehicleMarker pressed = this.tacz_sewv$pressMarker;
+        this.tacz_sewv$pressMarker = null;
 
-        if (MapMarkers.selected().size() >= 2) {
-            Vec3 a = new Vec3(this.tacz_sewv$dragAx + 0.5, this.tacz_sewv$dragAy, this.tacz_sewv$dragAz + 0.5);
-            Vec3 b = new Vec3(this.mouseBlockPosX + 0.5, tacz_sewv$nodeY(), this.mouseBlockPosZ + 0.5);
-            double dx = b.x - a.x, dz = b.z - a.z;
-            if (dx * dx + dz * dz < TACZ_SEWV$MIN_DRAG_SQ) {
-                MapMarkers.clearSelection(); // a click, not a drag → deselect, restoring pan
+        Vec3 a = new Vec3(this.tacz_sewv$dragAx + 0.5, this.tacz_sewv$dragAy, this.tacz_sewv$dragAz + 0.5);
+        Vec3 b = new Vec3(this.mouseBlockPosX + 0.5, tacz_sewv$nodeY(), this.mouseBlockPosZ + 0.5);
+        double dx = b.x - a.x, dz = b.z - a.z;
+        if (dx * dx + dz * dz < TACZ_SEWV$MIN_DRAG_SQ) {
+            // A click, not a drag: edit the selection. On a marker toggle it; on open map deselect
+            // everything (which drops below the group threshold and hands panning back).
+            if (pressed != null) {
+                MapMarkers.toggleSelected(pressed);
             } else {
-                OrderPreview.dispatchMoveLine(a, b);
+                MapMarkers.clearSelection();
             }
+        } else if (MapMarkers.selected().size() >= 2) {
+            OrderPreview.dispatchMoveLine(a, b);
         }
         cir.setReturnValue(true); // swallow: this left press/release pair was ours end to end
     }
@@ -318,6 +354,12 @@ public abstract class MixinGuiMap extends Screen {
      * none. Never the 32767 sentinel — the drive goal paths TO this position, and a node at y=0
      * would aim the route through bedrock.
      */
+    /** True while any Xaero menu is up — the right-click order menu, or the waypoint/player toggles. */
+    @Unique
+    private boolean tacz_sewv$dropdownOpen() {
+        return this.rightClickMenu != null || this.waypointMenu || this.playersMenu;
+    }
+
     @Unique
     private int tacz_sewv$nodeY() {
         if (this.mouseBlockPosY != TACZ_SEWV$NO_HEIGHT) return this.mouseBlockPosY;

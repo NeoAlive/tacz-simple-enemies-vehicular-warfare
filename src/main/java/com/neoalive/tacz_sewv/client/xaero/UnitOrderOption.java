@@ -90,12 +90,14 @@ public class UnitOrderOption extends RightClickOption {
 
     public enum Action {
         MOVE("move_here", "message.tacz_sewv.map.ordered", true, Category.MOVEMENT),
+        FOLLOW("follow_me", "message.tacz_sewv.map.following", false, Category.MOVEMENT),
         HOLD("hold", "message.tacz_sewv.map.held", false, Category.STANCE),
         FREE_FIRE("free_fire", "message.tacz_sewv.map.free_fire", false, Category.STANCE),
         CEASE_FIRE("cease_fire", "message.tacz_sewv.map.cease_fire", false, Category.STANCE),
         TAKEOFF("takeoff", null, false, Category.AIR),
-        PATROL("patrol", null, true, Category.AREA_TASK),
-        SEARCH("search", null, true, Category.AREA_TASK),
+        LAND_HERE("land_here", null, true, Category.AIR),
+        PATROL_HERE("patrol_here", null, true, Category.AREA_TASK),
+        SAD_HERE("sad_here", null, true, Category.AREA_TASK),
         CRUISE("cruise", null, false, Category.MOVEMENT),
         DISMISS("dismiss", null, false, Category.STAND_DOWN);
 
@@ -161,23 +163,32 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
-        if (this.action == Action.PATROL || this.action == Action.SEARCH) {
+        if (this.action == Action.PATROL_HERE || this.action == Action.SAD_HERE) {
             // Radius comes from the terminal's stepper, which is the player's standing preference
             // and survives the screen being closed — a right-click menu has nowhere to put one.
-            boolean search = this.action == Action.SEARCH;
+            // The area centres on the CLICKED point, which is the whole reason these are map orders.
+            boolean search = this.action == Action.SAD_HERE;
             NetworkHandler.CHANNEL.sendToServer(new PacketPatrolVehicle(new ArrayList<>(drivers),
                     search ? TdtScreen.searchRadius() : TdtScreen.patrolRadius(),
                     search ? IVehiclePatrol.MODE_SEARCH : IVehiclePatrol.MODE_PATROL,
-                    new BlockPos(this.x, (int) destination(player).y, this.z)));
+                    mapPos(player)));
             return;
         }
 
         if (this.action == Action.TAKEOFF) {
             // This mod's own channel: flight state is IHelicopterPilot, not a SEM order. The server
-            // filters the selection down to actual helicopter pilots and reports the count itself.
+            // filters the selection down to actual aircraft pilots and reports the count itself.
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
                     new ArrayList<>(drivers), IHelicopterPilot.HELI_CMD_TAKEOFF, null,
                     TdtScreen.heliAltitude()));
+            return;
+        }
+
+        if (this.action == Action.LAND_HERE) {
+            // Land the aircraft ON the clicked point (its pad), same flight channel as takeoff. A plane
+            // flies a glideslope onto it; a helicopter sets down vertically. Server filters to pilots.
+            NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
+                    new ArrayList<>(drivers), IHelicopterPilot.HELI_CMD_LANDING, mapPos(player), 0));
             return;
         }
 
@@ -193,10 +204,11 @@ public class UnitOrderOption extends RightClickOption {
     private OrderType orderType() {
         return switch (this.action) {
             case MOVE -> OrderType.MOVE_TO_POSITION;
+            case FOLLOW -> OrderType.FOLLOW_COMMANDER;
             case HOLD -> OrderType.HOLD_POSITION;
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
-            case TAKEOFF, PATROL, SEARCH, CRUISE, DISMISS ->
+            case TAKEOFF, LAND_HERE, PATROL_HERE, SAD_HERE, CRUISE, DISMISS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
         };
     }
@@ -208,6 +220,15 @@ public class UnitOrderOption extends RightClickOption {
     private Vec3 destination(Player player) {
         double destY = this.y == NO_HEIGHT ? player.getY() : this.y + 1;
         return new Vec3(this.x + 0.5, destY, this.z + 0.5);
+    }
+
+    /**
+     * The BlockPos the player clicked on the MAP — X/Z from the click, Y from the surface there (or
+     * the player's own Y on an unexplored tile). The single source of the map-selected position for
+     * every map-positional order (patrol/search/land here), so none of them read the player's spot.
+     */
+    private BlockPos mapPos(Player player) {
+        return new BlockPos(this.x, (int) destination(player).y, this.z);
     }
 
     /** Every order entry, in menu order, for the position the player right-clicked. */

@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -83,14 +84,29 @@ public class BoardKeybind {
      */
     static void withOwnedUnits(Predicate<PmcUnitEntity> filter, String emptyKey,
                                BiConsumer<Player, List<Integer>> order) {
+        withOwnedUnits(SewvConfig.BOARD_SCAN_RADIUS.get(), filter, emptyKey, order);
+    }
+
+    /**
+     * As above, but with an explicit {@code radius} — the aircraft command path passes a larger one
+     * (planeCommandRadius) since planes fly high and far. The reach is HORIZONTAL and the query box is
+     * made tall, so a plane cruising overhead is not dropped by a vertical extent the way a symmetric
+     * box would drop it — the same fix the fire-mission scan uses.
+     */
+    static void withOwnedUnits(double radius, Predicate<PmcUnitEntity> filter, String emptyKey,
+                               BiConsumer<Player, List<Integer>> order) {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null || mc.level == null) return;
 
         List<Integer> unitIds = new ArrayList<>();
-        for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class,
-                player.getBoundingBox().inflate(SewvConfig.BOARD_SCAN_RADIUS.get()))) {
-            if (pmc.isOwnedBy(player) && filter.test(pmc)) unitIds.add(pmc.getId());
+        AABB box = player.getBoundingBox().inflate(radius, radius + 512.0, radius);
+        double rSq = radius * radius;
+        for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class, box)) {
+            if (!pmc.isOwnedBy(player) || !filter.test(pmc)) continue;
+            double dx = pmc.getX() - player.getX();
+            double dz = pmc.getZ() - player.getZ();
+            if (dx * dx + dz * dz <= rSq) unitIds.add(pmc.getId());
         }
 
         if (unitIds.isEmpty()) {

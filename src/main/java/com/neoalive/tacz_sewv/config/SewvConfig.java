@@ -179,6 +179,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_BOMB_CLUES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_ROCKET_CLUES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_CANNON_CLUES;
+    public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
 
     // Mortar crew AI (a unit stands beside the mortar, it has no seats to ride)
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
@@ -209,6 +210,7 @@ public class SewvConfig {
 
     // Vehicle markers on Xaero's World Map (soft dep)
     public static final ForgeConfigSpec.BooleanValue MAP_MARKERS_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue MAP_LIVE;
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
@@ -1030,6 +1032,15 @@ public class SewvConfig {
                         List.of("cannon", "gau", "machinegun", "mg", "gun", "vulcan"),
                         o -> o instanceof String s && !s.isBlank());
 
+        PLANE_COMMAND_RADIUS = builder
+                .comment("Range (in blocks) the Tactical Data Terminal reaches to find your own AIRCRAFT (planes",
+                         "and helicopters) for a takeoff/land order. Bigger than the ground boardScanRadius because",
+                         "aircraft fly high and far, and the reach is measured HORIZONTALLY (altitude-independent) so",
+                         "a plane cruising overhead is still found. Note the client only knows entities the server",
+                         "sends it (~render distance), so a value past that cannot reach a plane on the far side of",
+                         "the map -- command those from Xaero's map instead.")
+                .defineInRange("planeCommandRadius", 256.0, 32.0, 1024.0);
+
         builder.pop();
 
         builder.push("mortar_ai");
@@ -1171,6 +1182,15 @@ public class SewvConfig {
                          "Does nothing without Xaero's World Map installed. The server sends each player only",
                          "their OWN units' positions, so this cannot be used to scout with.")
                 .define("mapMarkersEnabled", true);
+
+        MAP_LIVE = builder
+                .comment("Keep the game running while Xaero's World Map is open, so your units' positions and",
+                         "orders update LIVE and the commands you give from the map take effect immediately.",
+                         "Without this, in singleplayer the map pauses the server (vanilla behaviour) and nothing",
+                         "you order there happens until you close it. Multiplayer is unaffected either way.",
+                         "Turn OFF if you would rather the map pause the game like a normal screen (the map",
+                         "command features then only work in multiplayer).")
+                .define("mapLive", true);
 
         MAP_INFANTRY_ENABLED = builder
                 .comment("Also show on-foot units (infantry, medics, engineers) on the map, not just vehicles.",

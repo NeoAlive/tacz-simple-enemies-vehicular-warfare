@@ -93,6 +93,8 @@ public class DrivePlaneGoal extends Goal {
     private static final double ROTATE_SPEED = 0.35;        // horizontal blocks/tick before nose-up
     private static final float TAKEOFF_PITCH_DEG = 15.0F;   // nose-up rotate target
     private static final double CLIMBOUT_ABOVE_GROUND = 72.0;
+    private static final double[] RUNWAY_FAN_DEG = {0.0, 20.0, -20.0, 40.0, -40.0, 65.0, -65.0};
+    private static final int RUNWAY_MAX_STEP = 2;           // blocks the surface may rise across a runway
 
     // --- Combat (run → Immelman racetrack) ---
     // Turns are scaled wide (long legs + a gentle, half-rate yaw ≈ double the radius) because heavy
@@ -119,6 +121,12 @@ public class DrivePlaneGoal extends Goal {
     private static final double BOMB_VEL_FACTOR = 1.0;     // bomb inherits ~this × aircraft velocity
     private static final double BOMB_HIT_TOLERANCE = 6.0;  // release when predicted impact within this
     private static final int BOMB_SIM_MAX_TICKS = 200;
+
+    // --- Landing (glideslope → flare → settle) ---
+    private static final double LAND_GLIDE_RATIO = 0.35;    // approach altitude per block of distance
+    private static final double LAND_MAX_APPROACH_HEIGHT = 90.0;
+    private static final double LAND_FLARE_HEIGHT = 8.0;    // below this over the ground, flare
+    private static final float LAND_FLARE_PITCH_DEG = -8.0F; // slight nose-up hold in the flare
 
     private static final float DECOY_HEALTH_FRACTION = 0.5F;
     private static final float PRESERVE_DECOY_CHANCE = 0.5F;
@@ -296,8 +304,7 @@ public class DrivePlaneGoal extends Goal {
 
     private void doTakeoff(IHelicopterPilot pilot) {
         if (Double.isNaN(this.takeoffDirX)) {
-            Vec3 facing = forwardFlat();
-            Vec3 clear = this.sensor.chooseClearBearing(facing, SewvConfig.PLANE_TAKEOFF_RUNWAY_RADIUS.get());
+            Vec3 clear = pickRunwayHeading();
             if (clear == null) {
                 abortTakeoff(pilot);
                 return;
@@ -327,6 +334,35 @@ public class DrivePlaneGoal extends Goal {
         // Neutral until the wheels have speed, then rotate the nose up to fly off.
         boolean rotate = this.vehicle.getDeltaMovement().horizontalDistance() >= ROTATE_SPEED;
         commandPitch(rotate ? -TAKEOFF_PITCH_DEG : 0.0F);
+    }
+
+    // Pick a takeoff heading by a GROUND-relative clearance scan, NOT the airborne whisker: the flight
+    // sensor probes a slab from floor(Y)-1 up, which on the ground is the block the plane sits on, so
+    // it reported every direction blocked and takeoff needed the plane lifted a block first. This
+    // instead compares the surface height ahead to the plane's own — flat ground is always clear, a
+    // wall/tree/cliff (a step taller than RUNWAY_MAX_STEP) is not. Fans across headings, nearest first.
+    private Vec3 pickRunwayHeading() {
+        double length = SewvConfig.PLANE_TAKEOFF_RUNWAY_RADIUS.get();
+        Vec3 facing = forwardFlat();
+        for (double offDeg : RUNWAY_FAN_DEG) {
+            Vec3 cand = VehicleTargeting.rotateY(facing, Math.toRadians(offDeg));
+            if (runwayClearAhead(cand, length)) return cand;
+        }
+        return null;
+    }
+
+    private boolean runwayClearAhead(Vec3 dir, double length) {
+        Level level = this.unit.level();
+        int baseSurface = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                this.vehicle.getBlockX(), this.vehicle.getBlockZ());
+        double half = this.vehicle.getBbWidth() / 2.0;
+        for (double d = half + 1.0; d <= length; d += 1.0) {
+            int px = Mth.floor(this.vehicle.getX() + dir.x * d);
+            int pz = Mth.floor(this.vehicle.getZ() + dir.z * d);
+            int surf = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, px, pz);
+            if (surf - baseSurface > RUNWAY_MAX_STEP) return false; // wall/tree/cliff the roll can't clear
+        }
+        return true;
     }
 
     private void abortTakeoff(IHelicopterPilot pilot) {
@@ -626,10 +662,11 @@ public class DrivePlaneGoal extends Goal {
         this.droppedThisRun = false;
     }
 
-    // --- Landing (crude, deferred proper autoland) -----------------------------------------------
+    // --- Landing (glideslope → flare → settle) ---------------------------------------------------
 
-    // Descend toward the designated column and settle; ground contact is safe (SBW does not crash a
-    // plane on the ground). A real glideslope/flare approach is a follow-up.
+    // A fixed-wing approach: gear down, steer onto the pad while descending a shallow glideslope
+    // (altitude proportional to distance out), then near the strip cut throttle and flare so it sinks
+    // on. Ground contact is safe (SBW does not crash a plane on the ground), so touchdown → LANDED.
     private void doLanding(IHelicopterPilot pilot) {
         BlockPos pad = pilot.sewv$getHeliLandPos();
         if (pad == null) {
@@ -642,11 +679,42 @@ public class DrivePlaneGoal extends Goal {
             pilot.sewv$setHeliLandPos(null);
             return;
         }
+
         this.vehicle.setGearUp(false); // gear down for the approach
+        this.vehicle.setLeftInputDown(false);
+        this.vehicle.setRightInputDown(false);
+
         double px = pad.getX() + 0.5;
         double pz = pad.getZ() + 0.5;
-        // Fly toward the pad losing height: aim below cruise so the plane sinks onto the approach.
-        flyToward(px, pz, pad.getY() + MIN_OVER_DEST * 0.5);
+        double dx = px - this.vehicle.getX();
+        double dz = pz - this.vehicle.getZ();
+        double dist = Math.sqrt(dx * dx + dz * dz);
+
+        // Steer STRAIGHT at the pad — NOT through the airborne whisker. Near the deck that sensor reads
+        // the very ground we are descending onto as an obstacle (its slab starts at floor(Y)-1) and
+        // deflects the plane into a skim along it, which is why it "brushed the ground and never slowed".
+        steerYaw(new Vec3(dx, 0, dz));
+
+        double aboveGround = this.vehicle.getY() - surfaceBelow();
+
+        // Flare on ALTITUDE alone (not distance to the pad, which a fast plane blows past before the
+        // gate ever coincided): idle the throttle, THROTTLE DOWN and hold the AIR BRAKE — the brake
+        // (downInput → planeBreak) is what actually sheds speed — with a slight nose-up so it settles.
+        if (aboveGround <= LAND_FLARE_HEIGHT) {
+            this.vehicle.setForwardInputDown(false);
+            this.vehicle.setBackInputDown(true);
+            this.vehicle.setDownInputDown(true);
+            commandPitch(LAND_FLARE_PITCH_DEG);
+            return;
+        }
+
+        // Glideslope: descend toward the pad, altitude proportional to distance, floored at the flare
+        // height (arrive AT the numbers, not diving through them) and capped so it doesn't dive steeply.
+        this.vehicle.setForwardInputDown(true); // maintain approach speed until the flare
+        this.vehicle.setBackInputDown(false);
+        this.vehicle.setDownInputDown(false);
+        double glideY = pad.getY() + Mth.clamp(dist * LAND_GLIDE_RATIO, LAND_FLARE_HEIGHT, LAND_MAX_APPROACH_HEIGHT);
+        commandPitch(altitudePitch(glideY));
     }
 
     // --- Steering helpers ------------------------------------------------------------------------

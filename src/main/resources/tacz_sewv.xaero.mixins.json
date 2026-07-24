@@ -6,7 +6,8 @@
   "refmap": "tacz_sewv.refmap.json",
   "mixins": [],
   "client": [
-    "MixinGuiMap"
+    "MixinGuiMap",
+    "MixinGuiMapPause"
   ],
   "server": [],
   "injectors": {

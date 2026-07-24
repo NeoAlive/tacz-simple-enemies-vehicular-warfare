@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.client;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import net.minecraft.client.Minecraft;
@@ -21,7 +22,8 @@ public class HelicopterKeybind {
 
     /** Order owned helicopter pilots to climb to (and hold) {@code altitude} as their live cruise trim. */
     public static void orderTakeoff(int altitude) {
-        BoardKeybind.withOwnedUnits(HelicopterKeybind::isHelicopterPilot, "message.tacz_sewv.heli.takeoff.none",
+        BoardKeybind.withOwnedUnits(SewvConfig.PLANE_COMMAND_RADIUS.get(),
+                HelicopterKeybind::isHelicopterPilot, "message.tacz_sewv.heli.takeoff.none",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
                         new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_TAKEOFF, null, altitude)));
     }
@@ -36,7 +38,8 @@ public class HelicopterKeybind {
             if (player != null) BoardKeybind.hint(player, "message.tacz_sewv.heli.no_pad");
             return;
         }
-        BoardKeybind.withOwnedUnits(HelicopterKeybind::isHelicopterPilot, "message.tacz_sewv.heli.land.none",
+        BoardKeybind.withOwnedUnits(SewvConfig.PLANE_COMMAND_RADIUS.get(),
+                HelicopterKeybind::isHelicopterPilot, "message.tacz_sewv.heli.land.none",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
                         new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_LANDING, pad, 0)));
     }

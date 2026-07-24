@@ -252,6 +252,12 @@ public final class HullFacts {
         return computeShip(v);
     }
 
+    /** The fixed-wing test for callers with no crew to attach a {@link HullFacts} to (the fire-mission
+     * crew filter, which asks whether a PMC is flying a plane). */
+    public static boolean isPlaneHull(VehicleEntity v) {
+        return computePlane(v);
+    }
+
     private static boolean computeShip(VehicleEntity v) {
         try {
             return v.computed().getEngineType() == EngineType.SHIP;

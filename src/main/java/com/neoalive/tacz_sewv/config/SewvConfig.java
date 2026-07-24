@@ -174,6 +174,11 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
     public static final ForgeConfigSpec.IntValue PLANE_TAKEOFF_RUNWAY_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue PLANE_FIRE_CONE_DEG;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_MISSILE_CLUES;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_BOMB_CLUES;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_ROCKET_CLUES;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_CANNON_CLUES;
 
     // Mortar crew AI (a unit stands beside the mortar, it has no seats to ride)
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
@@ -987,6 +992,43 @@ public class SewvConfig {
                          "found it aborts and reports 'no runway' rather than stalling into an obstacle. A plane",
                          "does not taxi, so this is a clearance check from where it stands, not a search radius.")
                 .defineInRange("planeTakeoffRunwaySearchRadius", 64, 16, 256);
+
+        PLANE_FIRE_CONE_DEG = builder
+                .comment("How far off its nose a NPC plane's forward weapons (cannon/rockets/missiles) will fire,",
+                         "in degrees. A fast plane sweeps a small ground target through a tight cone in a fraction",
+                         "of a second, so a narrow angle (the 12 deg used elsewhere) almost never fires; this is",
+                         "deliberately generous and lets the weapon's splash do the work. Guided missiles steer",
+                         "out the residual error. Bombs ignore this (they use predictive release, not the nose).")
+                .defineInRange("planeFireConeDeg", 45.0, 4.0, 90.0);
+
+        PLANE_MISSILE_CLUES = builder
+                .comment("Substrings that mark a plane weapon slot as a MISSILE (heaviest tier, guided, reserved",
+                         "for the toughest targets and fired with the highest chance there). Matched",
+                         "case-insensitively against the weapon's name, since SuperbWarfare planes do not order",
+                         "their weapons consistently -- the same clue idea as ifvNameClues.")
+                .defineList("planeMissileWeaponClues",
+                        List.of("missile", "agm", "kh_", "atgm", "maverick"),
+                        o -> o instanceof String s && !s.isBlank());
+
+        PLANE_BOMB_CLUES = builder
+                .comment("Substrings that mark a plane weapon slot as a BOMB (heavy tier, dropped by predictive",
+                         "release rather than fired along the nose).")
+                .defineList("planeBombWeaponClues",
+                        List.of("bomb"),
+                        o -> o instanceof String s && !s.isBlank());
+
+        PLANE_ROCKET_CLUES = builder
+                .comment("Substrings that mark a plane weapon slot as a ROCKET (medium tier, used against infantry).")
+                .defineList("planeRocketWeaponClues",
+                        List.of("rocket", "hydra"),
+                        o -> o instanceof String s && !s.isBlank());
+
+        PLANE_CANNON_CLUES = builder
+                .comment("Substrings that mark a plane weapon slot as a CANNON/gun (lightest tier, used against",
+                         "soft single targets). Any slot matching none of the four clue lists is treated as this.")
+                .defineList("planeCannonWeaponClues",
+                        List.of("cannon", "gau", "machinegun", "mg", "gun", "vulcan"),
+                        o -> o instanceof String s && !s.isBlank());
 
         builder.pop();
 

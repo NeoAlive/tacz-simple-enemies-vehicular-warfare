@@ -2,9 +2,13 @@ package com.neoalive.tacz_sewv.mixin.client;
 
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.xaero.CruisePlot;
+import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
+import com.neoalive.tacz_sewv.client.xaero.VehicleMarkerElements;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.MarkerOrder;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -108,6 +112,46 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private Button tacz_sewv$cancelButton;
 
+    /**
+     * Live multi-unit line-order drag. All transient client state, and deliberately an <b>instance</b>
+     * field: it dies with the screen, so a drag interrupted by closing the map can never leak into the
+     * next one. {@code orderDragging} is only ever true between a press we swallowed and its release.
+     */
+    @Unique
+    private boolean tacz_sewv$orderDragging;
+
+    @Unique
+    private int tacz_sewv$dragAx;
+
+    @Unique
+    private int tacz_sewv$dragAy;
+
+    @Unique
+    private int tacz_sewv$dragAz;
+
+    /** Below this (blocks²) an order-drag is treated as a click — deselect — rather than a line. */
+    @Unique
+    private static final double TACZ_SEWV$MIN_DRAG_SQ = 16.0;
+
+    /**
+     * Right-drag box-select. {@code boxSelecting} is true only while the right button is held over the
+     * map; like the line drag it is an instance field, so it dies with the screen. Point A is stored in
+     * world coordinates so the box stays anchored to the ground.
+     */
+    @Unique
+    private boolean tacz_sewv$boxSelecting;
+
+    @Unique
+    private int tacz_sewv$boxAx;
+
+    @Unique
+    private int tacz_sewv$boxAz;
+
+    /** Screen-pixel drag below which a right-drag is a right-CLICK — Xaero opens its menu, no box.
+     *  Kept above Xaero's own 5px click threshold so the two never both fire on one gesture. */
+    @Unique
+    private static final double TACZ_SEWV$BOX_MIN_PX = 6.0;
+
     // remap = true on this one and on render: the class is remap = false for Xaero's own members,
     // but init/render are VANILLA methods and are SRG-named in production, so the literal name
     // would simply never be found.
@@ -149,6 +193,72 @@ public abstract class MixinGuiMap extends Screen {
         if (MapMarkers.toggleSelected(marker)) ci.cancel();
     }
 
+    /**
+     * Both map drags begin here: a LEFT-drag (with &gt;1 unit selected) lays out a line MOVE order
+     * instead of panning, and a RIGHT-drag boxes in your units. Neither disturbs a plain click — a
+     * left-click still selects a marker, a right-click still opens the order menu — because only a real
+     * drag, judged on release, acts. A press on any Xaero widget is left alone, and while cruise
+     * plotting is armed both stand aside.
+     *
+     * <p>remap = true: mouseClicked/mouseReleased are vanilla {@code Screen} methods (SRG-named in
+     * production), unlike the {@code remap = false} Xaero members this class mostly targets.
+     */
+    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, remap = true)
+    private void tacz_sewv$onMapPress(double mouseX, double mouseY, int button,
+                                      CallbackInfoReturnable<Boolean> cir) {
+        if (!SewvConfig.MAP_MARKERS_ENABLED.get() || CruisePlot.armed()) return;
+        if (this.getChildAt(mouseX, mouseY).isPresent()) return; // a Xaero widget, not the map
+
+        if (button == 1) {
+            // Right-press: begin a box. NOT swallowed — a plain right-click must still reach Xaero's
+            // order menu; only a real drag (checked on release) actually selects anything.
+            this.tacz_sewv$boxSelecting = true;
+            this.tacz_sewv$boxAx = this.mouseBlockPosX;
+            this.tacz_sewv$boxAz = this.mouseBlockPosZ;
+            return;
+        }
+        if (button != 0 || MapMarkers.selected().size() < 2) return;
+        if (this.viewed != null && this.viewed.getElement() instanceof VehicleMarker) return; // marker → select
+
+        this.tacz_sewv$orderDragging = true;
+        this.tacz_sewv$dragAx = this.mouseBlockPosX;
+        this.tacz_sewv$dragAz = this.mouseBlockPosZ;
+        this.tacz_sewv$dragAy = tacz_sewv$nodeY();
+        cir.setReturnValue(true); // swallow: Xaero must not start a camera pan on this press
+    }
+
+    /**
+     * Confirms whichever drag was running. A LEFT line-order drag dispatches the selection along A→B
+     * (a barely-moved one deselects and hands panning back). A RIGHT box-drag adds every own unit
+     * inside the box to the selection; a barely-moved one is left to Xaero as an ordinary right-click,
+     * so the order menu still opens for it.
+     */
+    @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, remap = true)
+    private void tacz_sewv$onMapRelease(double mouseX, double mouseY, int button,
+                                        CallbackInfoReturnable<Boolean> cir) {
+        if (button == 1 && this.tacz_sewv$boxSelecting) {
+            this.tacz_sewv$boxSelecting = false;
+            // Not swallowed: below the box threshold this was a right-CLICK and Xaero must still open
+            // the menu. applyBoxSelection no-ops in that case (it re-checks the threshold itself).
+            tacz_sewv$applyBoxSelection(mouseX, mouseY);
+            return;
+        }
+        if (button != 0 || !this.tacz_sewv$orderDragging) return;
+        this.tacz_sewv$orderDragging = false;
+
+        if (MapMarkers.selected().size() >= 2) {
+            Vec3 a = new Vec3(this.tacz_sewv$dragAx + 0.5, this.tacz_sewv$dragAy, this.tacz_sewv$dragAz + 0.5);
+            Vec3 b = new Vec3(this.mouseBlockPosX + 0.5, tacz_sewv$nodeY(), this.mouseBlockPosZ + 0.5);
+            double dx = b.x - a.x, dz = b.z - a.z;
+            if (dx * dx + dz * dz < TACZ_SEWV$MIN_DRAG_SQ) {
+                MapMarkers.clearSelection(); // a click, not a drag → deselect, restoring pan
+            } else {
+                OrderPreview.dispatchMoveLine(a, b);
+            }
+        }
+        cir.setReturnValue(true); // swallow: this left press/release pair was ours end to end
+    }
+
     @Inject(method = "getRightClickOptions", at = @At("RETURN"))
     private void tacz_sewv$orderOptions(CallbackInfoReturnable<ArrayList<RightClickOption>> cir) {
         if (!SewvConfig.MAP_MARKERS_ENABLED.get()) return;
@@ -162,6 +272,20 @@ public abstract class MixinGuiMap extends Screen {
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)
     private void tacz_sewv$drawPlot(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
+        // The order-preview overlay draws independently of cruise plotting. Standing orders come
+        // straight from the synced markers (so they clear themselves when an order is dismissed or
+        // overridden); the live drag is the transient line being laid down right now.
+        if (SewvConfig.MAP_MARKERS_ENABLED.get()) {
+            tacz_sewv$drawStandingPreviews(guiGraphics);
+            if (this.tacz_sewv$orderDragging && !CruisePlot.armed()
+                    && MapMarkers.selected().size() >= 2) {
+                tacz_sewv$drawDragPreview(guiGraphics);
+            }
+            if (this.tacz_sewv$boxSelecting && !CruisePlot.armed()) {
+                tacz_sewv$drawSelectionBox(guiGraphics, mouseX, mouseY);
+            }
+        }
+
         boolean armed = CruisePlot.armed();
         if (this.tacz_sewv$confirmButton != null) this.tacz_sewv$confirmButton.visible = armed;
         if (this.tacz_sewv$cancelButton != null) this.tacz_sewv$cancelButton.visible = armed;
@@ -208,9 +332,21 @@ public abstract class MixinGuiMap extends Screen {
      */
     @Unique
     private int[] tacz_sewv$toScreen(BlockPos pos) {
-        double px = (pos.getX() + 0.5 - this.cameraX) * this.scale / this.screenScale;
-        double pz = (pos.getZ() + 0.5 - this.cameraZ) * this.scale / this.screenScale;
+        return tacz_sewv$toScreenXZ(pos.getX() + 0.5, pos.getZ() + 0.5);
+    }
+
+    /** World XZ (continuous, e.g. an entity position) to screen pixels — the same maths as toScreen. */
+    @Unique
+    private int[] tacz_sewv$toScreenXZ(double wx, double wz) {
+        double px = (wx - this.cameraX) * this.scale / this.screenScale;
+        double pz = (wz - this.cameraZ) * this.scale / this.screenScale;
         return new int[]{(int) Math.round(this.width / 2.0 + px), (int) Math.round(this.height / 2.0 + pz)};
+    }
+
+    /** A world distance (blocks) as screen pixels at the current zoom — for an area task's radius. */
+    @Unique
+    private double tacz_sewv$worldToScreen(double blocks) {
+        return blocks * this.scale / this.screenScale;
     }
 
     /** A leg as a chain of dots: no rotated quad, and it reads as a route rather than a border. */
@@ -224,6 +360,114 @@ public abstract class MixinGuiMap extends Screen {
             int y = from[1] + dy * i / steps;
             guiGraphics.fill(x - 1, y - 1, x + 1, y + 1, color);
         }
+    }
+
+    /**
+     * The faint animated overlay of every own unit's standing order, drawn from the server-synced
+     * {@link MarkerOrder} on each marker. Because the data is the sync, a dismissed or overridden
+     * order simply stops arriving and the overlay clears itself — there is no client-held state to go
+     * stale. Only the map's own dimension is drawn, so a unit in the Nether does not scatter across
+     * the Overworld map.
+     */
+    @Unique
+    private void tacz_sewv$drawStandingPreviews(GuiGraphics guiGraphics) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        ResourceKey<Level> dim = mc.player.level().dimension();
+
+        for (VehicleMarker marker : MapMarkers.markers()) {
+            MarkerOrder order = marker.order();
+            if (order.type() == MarkerOrder.Type.NONE || !dim.equals(marker.dimension())) continue;
+
+            int color = OrderPreview.lowAlpha(VehicleMarkerElements.factionColor(marker.faction()));
+            int[] unit = tacz_sewv$toScreenXZ(marker.x(), marker.z());
+            switch (order.type()) {
+                case MOVE -> {
+                    int[] t = tacz_sewv$toScreen(order.target());
+                    OrderPreview.dashedLine(guiGraphics, unit[0], unit[1], t[0], t[1], color);
+                    OrderPreview.blinkingDot(guiGraphics, t[0], t[1], color);
+                }
+                case PATROL, SEARCH -> {
+                    int[] c = tacz_sewv$toScreen(order.target());
+                    OrderPreview.ring(guiGraphics, c[0], c[1], tacz_sewv$worldToScreen(order.radius()), color);
+                    OrderPreview.node(guiGraphics, c[0], c[1], color);
+                }
+                case CRUISE -> {
+                    List<BlockPos> route = order.route();
+                    for (int i = 0; i < route.size(); i++) {
+                        int[] from = tacz_sewv$toScreen(route.get(i));
+                        int[] to = tacz_sewv$toScreen(route.get((i + 1) % route.size()));
+                        if (route.size() > 1) {
+                            OrderPreview.dashedLine(guiGraphics, from[0], from[1], to[0], to[1], color);
+                        }
+                        OrderPreview.node(guiGraphics, from[0], from[1], color);
+                    }
+                }
+                case NONE -> { }
+            }
+        }
+    }
+
+    /** The line being laid down right now: A→B with a pip at each unit's arc-length destination. */
+    @Unique
+    private void tacz_sewv$drawDragPreview(GuiGraphics guiGraphics) {
+        int n = MapMarkers.selected().size();
+        Vec3 a = new Vec3(this.tacz_sewv$dragAx + 0.5, this.tacz_sewv$dragAy, this.tacz_sewv$dragAz + 0.5);
+        Vec3 b = new Vec3(this.mouseBlockPosX + 0.5, tacz_sewv$nodeY(), this.mouseBlockPosZ + 0.5);
+        int color = OrderPreview.lowAlpha(SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), 0xFF55FF55));
+
+        int[] sa = tacz_sewv$toScreenXZ(a.x, a.z);
+        int[] sb = tacz_sewv$toScreenXZ(b.x, b.z);
+        OrderPreview.dashedLine(guiGraphics, sa[0], sa[1], sb[0], sb[1], color);
+        for (Vec3 p : OrderPreview.arcLengthPoints(a, b, n)) {
+            int[] sp = tacz_sewv$toScreenXZ(p.x, p.z);
+            OrderPreview.node(guiGraphics, sp[0], sp[1], color);
+        }
+        guiGraphics.drawString(this.font, String.valueOf(n), sb[0] + 6, sb[1] - 4, color);
+    }
+
+    /**
+     * Adds every OWN unit inside the drawn box to the selection. World bounds run from point A to the
+     * cursor's block; the pixel check against the release cursor is what tells a real box from a mere
+     * right-click (below it this no-ops, and Xaero's own menu opens instead). Only the map's own
+     * dimension counts, and {@link MapMarkers#addSelected} silently ignores anything not yours.
+     */
+    @Unique
+    private void tacz_sewv$applyBoxSelection(double mouseX, double mouseY) {
+        int[] a = tacz_sewv$toScreenXZ(this.tacz_sewv$boxAx + 0.5, this.tacz_sewv$boxAz + 0.5);
+        if (Math.hypot(mouseX - a[0], mouseY - a[1]) < TACZ_SEWV$BOX_MIN_PX) return; // a right-click, not a box
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        ResourceKey<Level> dim = mc.player.level().dimension();
+
+        double minX = Math.min(this.tacz_sewv$boxAx, this.mouseBlockPosX);
+        double maxX = Math.max(this.tacz_sewv$boxAx, this.mouseBlockPosX);
+        double minZ = Math.min(this.tacz_sewv$boxAz, this.mouseBlockPosZ);
+        double maxZ = Math.max(this.tacz_sewv$boxAz, this.mouseBlockPosZ);
+        int caught = 0;
+        for (VehicleMarker marker : MapMarkers.markers()) {
+            if (!dim.equals(marker.dimension())) continue;
+            if (marker.x() >= minX && marker.x() <= maxX && marker.z() >= minZ && marker.z() <= maxZ
+                    && MapMarkers.addSelected(marker)) {
+                caught++;
+            }
+        }
+        if (caught > 0) tacz_sewv$hint("message.tacz_sewv.map.boxed", MapMarkers.selected().size());
+    }
+
+    /** The live rectangle while right-dragging: point A anchored to the world, the far corner at the cursor. */
+    @Unique
+    private void tacz_sewv$drawSelectionBox(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        int[] a = tacz_sewv$toScreenXZ(this.tacz_sewv$boxAx + 0.5, this.tacz_sewv$boxAz + 0.5);
+        int x1 = Math.min(a[0], mouseX), x2 = Math.max(a[0], mouseX);
+        int y1 = Math.min(a[1], mouseY), y2 = Math.max(a[1], mouseY);
+        int color = OrderPreview.lowAlpha(SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), 0xFF55FF55));
+        guiGraphics.fill(x1, y1, x2, y2, (color & 0x00FFFFFF) | 0x22000000); // faint interior tint
+        guiGraphics.fill(x1, y1, x2, y1 + 1, color);                          // top
+        guiGraphics.fill(x1, y2 - 1, x2, y2, color);                          // bottom
+        guiGraphics.fill(x1, y1, x1 + 1, y2, color);                          // left
+        guiGraphics.fill(x2 - 1, y1, x2, y2, color);                          // right
     }
 
     @Unique

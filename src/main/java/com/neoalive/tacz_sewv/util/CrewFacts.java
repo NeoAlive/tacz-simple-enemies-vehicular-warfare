@@ -26,7 +26,16 @@ import java.util.UUID;
  */
 public final class CrewFacts {
 
-    public enum Faction { RU, US, PMC }
+    public enum Faction {
+        RU, US, PMC;
+
+        private static final Faction[] VALUES = values();
+
+        /** Wire-safe lookup by ordinal, for the map-marker packet's colour byte. */
+        public static Faction byId(int id) {
+            return id >= 0 && id < VALUES.length ? VALUES[id] : PMC;
+        }
+    }
 
     private CrewFacts() {}
 

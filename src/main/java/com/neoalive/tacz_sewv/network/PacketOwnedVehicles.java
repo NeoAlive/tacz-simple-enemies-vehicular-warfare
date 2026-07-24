@@ -1,6 +1,8 @@
 package com.neoalive.tacz_sewv.network;
 
 import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.util.CrewFacts;
+import com.neoalive.tacz_sewv.util.MarkerOrder;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
@@ -45,6 +47,8 @@ public class PacketOwnedVehicles {
                     buf.readFloat(),
                     VehicleMarker.Kind.byId(buf.readByte()),
                     VehicleMarker.Allegiance.byId(buf.readByte()),
+                    CrewFacts.Faction.byId(buf.readByte()),
+                    MarkerOrder.decode(buf),
                     buf.readResourceKey(Registries.DIMENSION)));
         }
         this.markers = read;
@@ -61,6 +65,8 @@ public class PacketOwnedVehicles {
             buf.writeFloat(marker.yaw());
             buf.writeByte(marker.kind().ordinal());
             buf.writeByte(marker.allegiance().ordinal());
+            buf.writeByte(marker.faction().ordinal());
+            marker.order().encode(buf);
             buf.writeResourceKey(marker.dimension());
         }
     }

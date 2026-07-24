@@ -13,22 +13,26 @@ import net.minecraft.world.level.Level;
  */
 public record VehicleMarker(int driverId, int vehicleId, double x, double y, double z, float yaw,
                             VehicleMarker.Kind kind, VehicleMarker.Allegiance allegiance,
-                            ResourceKey<Level> dimension) {
+                            CrewFacts.Faction faction, MarkerOrder order, ResourceKey<Level> dimension) {
 
     /**
      * Which NATO symbol to draw. Resolved <b>server-side</b> from the hull's engine type and
-     * {@code HullFacts.isIfvHull}, and carried as this enum's own ordinal rather than
-     * SuperbWarfare's, so an upstream enum reorder cannot silently repaint every marker.
+     * {@code HullFacts.isIfvHull} (or, for the infantry kinds, the on-foot unit's own class/role),
+     * and carried as this enum's own ordinal rather than SuperbWarfare's, so an upstream enum
+     * reorder cannot silently repaint every marker.
      *
      * <p>Each value names its texture under {@code textures/map/}; they are APP-6 icons, so the
-     * frame shape is part of the art (ground = rectangle, air = dome, sea = circle).
+     * frame shape is part of the art. New kinds go on the END — the ordinal is the wire value.
      */
     public enum Kind {
         ARMOR("armor"),
         MECHANIZED("mechanized"),
         EMPLACEMENT("emplacement"),
         ROTARY_WING("rotarywing"),
-        SURFACE_COMBATANT("surfacecombatant");
+        SURFACE_COMBATANT("surfacecombatant"),
+        INFANTRY("infantry"),
+        INFANTRY_MEDIC("infantry_medic"),
+        INFANTRY_ENGINEER("infantry_engineer");
 
         private static final Kind[] VALUES = values();
         private final String texture;

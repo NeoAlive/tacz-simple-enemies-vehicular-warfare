@@ -38,6 +38,7 @@
   "message.tacz_sewv.cruise.ordered.single": "%s vehicle cruising a %s-waypoint route.",
   "message.tacz_sewv.cruise.ordered.multiple": "%s vehicles cruising a %s-waypoint route.",
   "message.tacz_sewv.cruise.ordered.none": "No eligible vehicles to cruise.",
+  "message.tacz_sewv.map.boxed": "%s unit(s) selected.",
   "message.tacz_sewv.map.ordered": "%s unit(s) moving to the marked position.",
   "message.tacz_sewv.map.held": "%s unit(s) holding position.",
   "message.tacz_sewv.map.free_fire": "%s unit(s) weapons free.",

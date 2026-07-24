@@ -78,6 +78,17 @@ public final class MapMarkers {
         return true;
     }
 
+    /**
+     * Adds an OWN marker to the selection (a no-op for one already in, or one you cannot command).
+     * Used by the map's box-select, which ADDS to the current set rather than toggling. Answers
+     * whether it is now selected and ownable, so a caller can count what a box actually caught.
+     */
+    public static boolean addSelected(VehicleMarker marker) {
+        if (marker.allegiance() != VehicleMarker.Allegiance.OWN) return false;
+        SELECTED.add(marker.driverId());
+        return true;
+    }
+
     /** The drivers to order, as a snapshot — the caller sends one order packet per id. */
     public static Set<Integer> selected() {
         return Set.copyOf(SELECTED);

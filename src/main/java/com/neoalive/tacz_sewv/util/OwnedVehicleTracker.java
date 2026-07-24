@@ -313,7 +313,8 @@ public final class OwnedVehicleTracker {
             engine = null;
         }
         if (engine == EngineType.SHIP) return VehicleMarker.Kind.SURFACE_COMBATANT;
-        if (engine == EngineType.HELICOPTER || engine == EngineType.AIRCRAFT) return VehicleMarker.Kind.ROTARY_WING;
+        if (engine == EngineType.AIRCRAFT) return VehicleMarker.Kind.FIXED_WING;
+        if (engine == EngineType.HELICOPTER) return VehicleMarker.Kind.ROTARY_WING;
         if (engine == EngineType.FIXED) return VehicleMarker.Kind.EMPLACEMENT;
         // Everything that drives is armour, and an IFV is mechanized infantry — the one distinction
         // the vehicle data cannot make, so it comes off the id clue list HullFacts already owns.

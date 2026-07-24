@@ -144,7 +144,9 @@ public class DriveVehicleGoal extends Goal {
         if (v.getFirstPassenger() != this.unit) return false;
 
         this.hull.attach(v);
-        if (this.hull.isHelicopter() || this.hull.isShip()) return false;
+        // Flight and water hulls have their own goals; a fixed-wing plane must be excluded here too,
+        // or this ground goal and DrivePlaneGoal both fire on it (isHelicopter() is false for planes).
+        if (this.hull.isHelicopter() || this.hull.isPlane() || this.hull.isShip()) return false;
 
         this.vehicle = v;
         this.sensor.attach(v);

@@ -172,6 +172,8 @@ public class SewvConfig {
     public static final ForgeConfigSpec.IntValue HELI_WEAPON_SWITCH_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue HELI_ATTACK_HEIGHT;
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
+    public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
+    public static final ForgeConfigSpec.IntValue PLANE_TAKEOFF_RUNWAY_RADIUS;
 
     // Mortar crew AI (a unit stands beside the mortar, it has no seats to ride)
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
@@ -974,6 +976,17 @@ public class SewvConfig {
         HELI_CHUNK_LOADING = builder
                 .comment("If enabled, helicopters will keep flying even if chunks are unloaded. Can cause performance issues if many helicopters are flying at once.")
                 .define("heliChunkLoading", false);
+
+        PLANE_CHUNK_LOADING = builder
+                .comment("If enabled, planes will keep flying even if chunks are unloaded. Can cause performance issues if many planes are flying at once.")
+                .define("planeChunkLoading", false);
+
+        PLANE_TAKEOFF_RUNWAY_RADIUS = builder
+                .comment("Length (in blocks) of clear run a NPC plane needs ahead of it to take off. On the",
+                         "takeoff order it fans across nearby headings for a clear strip this long; if none is",
+                         "found it aborts and reports 'no runway' rather than stalling into an obstacle. A plane",
+                         "does not taxi, so this is a clearance check from where it stands, not a search radius.")
+                .defineInRange("planeTakeoffRunwaySearchRadius", 64, 16, 256);
 
         builder.pop();
 

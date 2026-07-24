@@ -6,6 +6,7 @@
   "message.tacz_sewv.heli.land.multiple": "%s helicopters landing.",
   "message.tacz_sewv.heli.land.none": "No eligible helicopters.",
   "message.tacz_sewv.heli.no_pad": "Look at a block to land on.",
+  "message.tacz_sewv.plane.takeoff.no_runway": "No clear runway for takeoff.",
 
   "message.tacz_sewv.board.ordered.single": "%s unit ordered to board.",
   "message.tacz_sewv.board.ordered.multiple": "%s units ordered to board.",

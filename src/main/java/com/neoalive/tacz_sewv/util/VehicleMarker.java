@@ -32,7 +32,8 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
         SURFACE_COMBATANT("surfacecombatant"),
         INFANTRY("infantry"),
         INFANTRY_MEDIC("infantry_medic"),
-        INFANTRY_ENGINEER("infantry_engineer");
+        INFANTRY_ENGINEER("infantry_engineer"),
+        FIXED_WING("fixedwing");
 
         private static final Kind[] VALUES = values();
         private final String texture;

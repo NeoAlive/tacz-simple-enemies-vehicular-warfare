@@ -28,6 +28,7 @@ public final class HullFacts {
 
     private VehicleEntity vehicle;
     private boolean helicopter;
+    private boolean plane;
     private boolean tracked;
     private boolean ship;
     private boolean ifv;
@@ -38,6 +39,7 @@ public final class HullFacts {
         if (this.vehicle == v) return;
         this.vehicle = v;
         this.helicopter = computeHelicopter(v);
+        this.plane = computePlane(v);
         this.tracked = computeTracked(v);
         this.ship = computeShip(v);
         this.ifv = computeIfv(v);
@@ -45,9 +47,22 @@ public final class HullFacts {
         this.climbSeats = SewvConfig.TANK_RIDER_DISMOUNT_ENABLED.get() ? computeClimbSeats(v) : Set.of();
     }
 
-    /** Helicopters and fixed-wing (which subclass {@link EngineInfo.Helicopter}) fly, not drive. */
+    /**
+     * Rotary-wing hulls, flown by {@link DriveHelicopterGoal} (hover/vertical climb). Read off the
+     * engine TYPE, not {@code getEngineInfo() instanceof EngineInfo.Helicopter}: SBW's fixed-wing
+     * {@code EngineInfo.Aircraft} <b>subclasses</b> {@code Helicopter}, so the instanceof test also
+     * matched planes and handed them to the hover autopilot. {@code EngineType.HELICOPTER} and
+     * {@code EngineType.AIRCRAFT} are distinct enum values, so this cleanly excludes planes — which
+     * fly through {@link DrivePlaneGoal} instead.
+     */
     boolean isHelicopter() {
         return this.helicopter;
+    }
+
+    /** Fixed-wing aircraft ({@link EngineType#AIRCRAFT}): forward-airspeed lift, no hover — flown by
+     * {@link DrivePlaneGoal}. Mutually exclusive with {@link #isHelicopter()}. */
+    boolean isPlane() {
+        return this.plane;
     }
 
     /** Tracked hulls pivot in place; wheeled ones must roll through a turn. */
@@ -212,8 +227,16 @@ public final class HullFacts {
 
     private static boolean computeHelicopter(VehicleEntity v) {
         try {
-            return v.getEngineInfo() instanceof EngineInfo.Helicopter;
-        } catch (Exception ignored) {
+            return v.computed().getEngineType() == EngineType.HELICOPTER;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean computePlane(VehicleEntity v) {
+        try {
+            return v.computed().getEngineType() == EngineType.AIRCRAFT;
+        } catch (Throwable ignored) {
             return false;
         }
     }

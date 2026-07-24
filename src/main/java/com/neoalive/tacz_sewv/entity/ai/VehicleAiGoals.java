@@ -25,6 +25,7 @@ public final class VehicleAiGoals {
         // activates for whatever hull the unit ends up in.
         unit.goalSelector.addGoal(1, new DriveVehicleGoal(unit));
         unit.goalSelector.addGoal(1, new DriveHelicopterGoal(unit));
+        unit.goalSelector.addGoal(1, new DrivePlaneGoal(unit));
         unit.goalSelector.addGoal(1, new DriveShipGoal(unit));
         // Both drive goals above only ever act for the FIRST passenger (the driver/steering
         // seat); this covers everyone else in a weapon-bearing seat — a separate turret seat,

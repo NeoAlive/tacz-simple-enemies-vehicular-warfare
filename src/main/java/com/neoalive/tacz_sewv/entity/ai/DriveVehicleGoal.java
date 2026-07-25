@@ -3,9 +3,13 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.entity.ai.utility.Action;
+import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
+import com.neoalive.tacz_sewv.entity.ai.utility.TacticalBrain;
 import com.neoalive.tacz_sewv.util.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -47,28 +51,29 @@ public class DriveVehicleGoal extends Goal {
     // discrete input-held steps.
     private static final double FACING_DEADBAND_RAD = Math.toRadians(8.0);
 
-    // Infantry standoff band, MG's effective engagement range.
-    private static final double INFANTRY_TOO_CLOSE = 10.0;
-    private static final double INFANTRY_TOO_FAR = 20.0;
+    // The standoff rings themselves now live in Facts.preferredRange / Facts.rangeDeadband,
+    // because the scorer needs the same numbers to decide whether we are too close or too far
+    // and two copies would drift. Infantry is a 10-20 band (15 ± 5); armor holds the far ring
+    // at 40 ± 4, because a tank duel that collapses to point-blank is a tank duel getting lost.
 
-    // Vehicle standoff: MG can't hurt armor and cannon/TOW work at range, so armor actively
-    // holds the FAR ring rather than sitting anywhere in a band — a tank duel that collapses
-    // to point-blank is a tank duel getting lost. A deadband around the ring keeps the hull
-    // from jittering forward/back over it.
-    private static final double VEHICLE_TOO_FAR = 40.0;
-    private static final double VEHICLE_RING_DEADBAND = 4.0;
+    // Self-preservation: a crew breaking contact falls back past the standoff ring rather than
+    // to it, so the retreat actually opens distance instead of stopping where it started.
+    private static final double PRESERVE_RETREAT_MARGIN = 8.0;
 
-    // Self-preservation: a crew that has lost most of its health breaks contact rather than
-    // trading to the death — pop smoke toward the threat and fall back past the standoff
-    // ring, then hold at range instead of charging back in.
-    private static final float PRESERVE_HEALTH_FRACTION = 0.25F; // retreat below 1/4 health
-    private static final double PRESERVE_RETREAT_MARGIN = 8.0;   // fall back this far BEYOND the ring
-    private static final float PRESERVE_SMOKE_CHANCE = 0.5F;
+    // The health fraction at which a hull is written off — used by PatrolSupport's mutual
+    // support and by the ally-assist scan. The crew's OWN decision to break off is no longer a
+    // threshold at all: it is the retreat action outscoring the rest (see TacticalBrain).
+    private static final float PRESERVE_HEALTH_FRACTION = 0.25F;
 
     // How many of a dismounting squad may carry an anti-tank launcher. Hard-capped rather than
     // configurable: the point is a couple of AT men supporting riflemen, and a squad that is
     // ALL launchers is a different (and much sillier) unit.
     private static final int MAX_AT_GUNNERS = 2;
+
+    // How far around the ring a deliberate flank aims for. Matches StalemateBreaker's own orbit
+    // step: far enough to reach genuinely different ground and a different facing on the target,
+    // but not so far that the arc sweeps through the enemy on the way round.
+    private static final double FLANK_ARC_RAD = Math.toRadians(60.0);
 
     // Reversing only opens distance while the target sits inside this frontal cone; beyond
     // it, backing up moves the hull sideways or INTO the target.
@@ -104,7 +109,8 @@ public class DriveVehicleGoal extends Goal {
     private final HullFacts hull = new HullFacts();
     private final GroundTerrainSensor sensor;
     private final StalemateBreaker breaker;
-    private final DecoyEpisode smoke = new DecoyEpisode();
+    /** Decides what this crew does about its target. See {@link #fightTick}. */
+    private final TacticalBrain brain = new TacticalBrain();
     // Mutual support scanner (idle crew reinforces an allied crew in combat), shared with
     // DriveHelicopterGoal via VehicleTargeting.
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
@@ -185,6 +191,7 @@ public class DriveVehicleGoal extends Goal {
         this.allyAssist.clear();
         this.sensor.clear();
         this.breaker.clear();
+        this.brain.clear();
         clearRecovery();
     }
 
@@ -193,6 +200,10 @@ public class DriveVehicleGoal extends Goal {
         if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
         if (this.pathRecalcCooldown > 0) this.pathRecalcCooldown--;
         this.pathAge++;
+
+        // Re-read the battlefield and, on its own ~1s cadence, re-decide. Cheap on the ticks it
+        // does nothing, which is most of them.
+        this.brain.update(this.unit, this.vehicle);
 
         LivingEntity target = this.unit.getTarget();
 
@@ -214,11 +225,10 @@ public class DriveVehicleGoal extends Goal {
             dismountClimbers();
         }
 
-        // The decoy input is latched vehicle state: release it on every tick that is not part
-        // of a smoking retreat (preserveRetreat re-asserts it right after when the episode
-        // calls for smoke), otherwise one retreat would leave the launcher volleying a fresh
-        // smoke salvo every reload, forever.
-        if (target == null || !isLowHealth() || !this.smoke.isDeploying()) {
+        // The decoy input is latched vehicle state: release it on every tick the crew is not
+        // actively screening (preserveRetreat re-asserts it immediately after), otherwise one
+        // retreat would leave the launcher volleying a fresh smoke salvo every reload, forever.
+        if (target == null || this.brain.plan() != Action.DEPLOY_SMOKE) {
             this.vehicle.setDecoyInputDown(false);
         }
 
@@ -301,14 +311,23 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
-     * The combat doctrine, in precedence order: break contact when badly hurt, break a
-     * stalemate when we hold a target we can't hit, otherwise hold the standoff band for the
-     * target's type.
+     * Carry out whatever the crew has decided to do about its target.
+     *
+     * <p>This is the Action layer and nothing else: the choice was made by {@link TacticalBrain}
+     * from {@link com.neoalive.tacz_sewv.entity.ai.utility.Facts} and the commander's
+     * {@link com.neoalive.tacz_sewv.entity.ai.utility.Doctrine}, and no tactical reasoning happens
+     * here beyond the geometry each action needs. Adding a behaviour means adding an
+     * {@link Action} and a weight block, not another branch in a chain.
      *
      * <p>Anchored to the TARGET, not the resolved order destination — under FOLLOW/MOVE_TO/
      * formation orders those differ, and holding a standoff ring around our own commander
      * (while weapon choice tracks the actual enemy) is exactly the bug this distinction
      * avoids. Once the fight ends, the next tick resumes driving on the order.
+     *
+     * <p>Every branch issues steering input on every tick. SuperbWarfare ramps a tracked hull's
+     * turn rate only while a steering input stays held, so an action that simply returned would
+     * bring back the pivot-forever bug — {@link #stopVehicleMovement} is a real instruction, not
+     * the absence of one.
      */
     private void fightTick(LivingEntity target) {
         BlockPos combatPos = target.blockPosition();
@@ -317,40 +336,116 @@ public class DriveVehicleGoal extends Goal {
         double dist = Math.sqrt(distanceSq);
 
         TargetCategory category = VehicleWeapons.classifyTarget(target);
-        boolean isVehicleTarget = category == TargetCategory.VEHICLE;
-        boolean tooFar = dist > (isVehicleTarget ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR);
+        // The ring this crew wants to hold against this kind of target — the same number the
+        // scorer measured its too-close/too-far signals against.
+        double ring = Facts.preferredRange(category);
 
         selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
         fireAssistIfSpecial(target);
 
-        if (isLowHealth()) {
-            // Badly hurt — abandon the standoff, screen with smoke and break off. The breaker
-            // is deliberately NOT consulted here: a retreating crew is SUPPOSED to be holding
-            // fire, so its silence is success, not a stall. Letting the breaker see it would
-            // drag it back onto the ring and fight preserveRetreat for the hull every tick.
-            preserveRetreat(target, category);
-            return;
+        // The stalemate breaker outranks the scorer, and must: it is the watchdog for a crew
+        // holding a target it physically cannot hit, and the actions that freeze the hull are
+        // exactly the ones that look correct while it happens. A bad weight in a datapack must
+        // not be able to bring back the park-forever bug this exists to kill. It is skipped
+        // while retreating, where silence is success rather than a stall.
+        Action plan = this.brain.plan();
+        if (plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
+            BlockPos orbit = this.breaker.update(target, combatPos, ring);
+            if (orbit != null) {
+                this.brain.force(breakerGoesLeft() ? Action.FLANK_LEFT : Action.FLANK_RIGHT,
+                        this.unit.level().getGameTime());
+                // Going through navigateTo is deliberate: it restores the stuck detector and the
+                // terrain sensor for the duration, so the breaker can't wedge the hull on the way
+                // to ground it likes better.
+                navigateTo(orbit, distanceSq);
+                return;
+            }
         }
 
-        // Sits ABOVE the doctrine because the doctrine's hold branches are exactly what freeze
-        // the crew in place.
-        BlockPos orbit = this.breaker.update(target, combatPos, breakerRing(isVehicleTarget));
-        if (orbit != null) {
-            // Going through navigateTo is deliberate: it restores the stuck detector and the
-            // terrain sensor for the duration, so the breaker can't wedge the hull on the way
-            // to ground it likes better.
-            navigateTo(orbit, distanceSq);
-        } else if (isVehicleTarget) {
-            maintainVehicleStandoff(combatPos, distanceSq, dist);
-        } else if (dist < INFANTRY_TOO_CLOSE) {
-            // Infantry: a wide comfortable band inside the MG's effective range.
-            retreatFromTarget(combatPos, (INFANTRY_TOO_CLOSE + INFANTRY_TOO_FAR) / 2.0, distanceSq);
-        } else if (tooFar) {
-            navigateTo(combatPos, distanceSq);
-        } else {
-            stopVehicleMovement();
-            clearRecovery(); // holding the band on purpose — not stuck
+        switch (plan) {
+            case RETREAT -> retreatFromTarget(combatPos, ring + PRESERVE_RETREAT_MARGIN, distanceSq);
+
+            // Smoke is a screened withdrawal, not a standalone puff: the launcher fires along the
+            // turret vector (already tracking the threat) while the hull falls back behind it.
+            case DEPLOY_SMOKE -> preserveRetreat(target, category);
+
+            case ADVANCE -> navigateTo(combatPos, distanceSq);
+
+            case FLANK_LEFT -> navigateTo(
+                    VehicleTargeting.computeStandoffPoint(this.vehicle, combatPos, ring, FLANK_ARC_RAD),
+                    distanceSq);
+            case FLANK_RIGHT -> navigateTo(
+                    VehicleTargeting.computeStandoffPoint(this.vehicle, combatPos, ring, -FLANK_ARC_RAD),
+                    distanceSq);
+
+            case HOLD -> {
+                stopVehicleMovement();
+                clearRecovery(); // holding on purpose — not stuck
+            }
+
+            // Calling for support takes no time and moves nothing, so these keep fighting exactly
+            // as ATTACK would. A crew that stopped driving to use its radio would be a crew
+            // standing still in the middle of a tank battle.
+            case CALL_MORTARS -> {
+                requestSupport(target, FireMissionSupport.Kind.MORTAR);
+                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+            }
+            case CALL_TOW -> {
+                requestSupport(target, FireMissionSupport.Kind.TOW);
+                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+            }
+            case CALL_CAS -> {
+                requestSupport(target, FireMissionSupport.Kind.CAS);
+                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+            }
+            case DELEGATE_TARGET -> {
+                delegateTarget(target);
+                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+            }
+
+            // Hold the standoff band for the target's type: close when beyond it, open when
+            // inside it, sit still on it and let the turret work.
+            case ATTACK -> maintainVehicleStandoff(combatPos, distanceSq, dist, category);
         }
+    }
+
+    /**
+     * Radio the target in to whoever behind us can reach it.
+     *
+     * <p>The cooldown stamp is written whether or not anyone answered: a crew that finds nothing
+     * listening must not retry every tick, and the facts it decided on are a second old anyway.
+     */
+    private void requestSupport(LivingEntity target, FireMissionSupport.Kind kind) {
+        Facts facts = this.brain.facts();
+        facts.memory.lastSupportTick = this.unit.level().getGameTime();
+        FireMissionSupport.callFireMission(this.unit.level(), facts.faction, facts.owner,
+                this.unit.position(), SewvConfig.MORTAR_RADIO_RANGE.get(), target,
+                java.util.Set.of(kind));
+    }
+
+    /**
+     * Hand our target to friendlies that have none.
+     *
+     * <p>Reuses the drone relay wholesale — "tell nearby friendlies about this enemy" is the same
+     * job whether the eyes were a drone's or a tank commander's, and it already only writes to
+     * units holding no target of their own, so it can never pull an ally off its own fight.
+     */
+    private void delegateTarget(LivingEntity target) {
+        if (!(this.unit.level() instanceof ServerLevel server)) return;
+        this.brain.facts().memory.lastSupportTick = server.getGameTime();
+        // Same radius the crew counted its allies over, so it can only hand the target to
+        // friendlies it actually knows are there.
+        DroneSupport.broadcastTarget(server, this.unit, target, this.unit.position(),
+                SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get());
+    }
+
+    /**
+     * Which way this crew works around a target. Entity-id parity, matching
+     * {@link StalemateBreaker}'s own choice so the breaker's orbit and the scored flank never
+     * disagree about the direction and walk the hull back and forth over the same ground.
+     */
+    private boolean breakerGoesLeft() {
+        return (this.unit.getId() & 1) == 0;
     }
 
     /**
@@ -452,11 +547,6 @@ public class DriveVehicleGoal extends Goal {
             if (!climb.contains(seat)) continue;
             rider.stopRiding();
         }
-    }
-
-    /** The ring the breaker orbits for this target type — mid-band against infantry. */
-    private static double breakerRing(boolean isVehicleTarget) {
-        return isVehicleTarget ? VEHICLE_TOO_FAR : (INFANTRY_TOO_CLOSE + INFANTRY_TOO_FAR) / 2.0;
     }
 
     /**
@@ -659,11 +749,14 @@ public class DriveVehicleGoal extends Goal {
      * the deadband gives the ring width so the hull settles instead of dithering forward and
      * back across the exact radius.
      */
-    private void maintainVehicleStandoff(BlockPos targetPos, double distanceSq, double dist) {
-        if (dist > VEHICLE_TOO_FAR + VEHICLE_RING_DEADBAND) {
+    private void maintainVehicleStandoff(BlockPos targetPos, double distanceSq, double dist,
+                                         TargetCategory category) {
+        double ring = Facts.preferredRange(category);
+        double deadband = Facts.rangeDeadband(category);
+        if (dist > ring + deadband) {
             navigateTo(targetPos, distanceSq);
-        } else if (dist < VEHICLE_TOO_FAR - VEHICLE_RING_DEADBAND) {
-            retreatFromTarget(targetPos, VEHICLE_TOO_FAR, distanceSq);
+        } else if (dist < ring - deadband) {
+            retreatFromTarget(targetPos, ring, distanceSq);
         } else {
             stopVehicleMovement(); // on the ring — hold and let the turret work
             clearRecovery();
@@ -696,16 +789,17 @@ public class DriveVehicleGoal extends Goal {
      * input just fires each volley as it comes back up.
      */
     private void preserveRetreat(LivingEntity threat, TargetCategory category) {
-        boolean screen = this.smoke.roll(
-                this.unit.level().getGameTime(), this.unit.getRandom(), PRESERVE_SMOKE_CHANCE);
-        if (screen && this.vehicle.hasDecoy()) {
+        // No coin flip any more: whether to screen at all was already decided by the scorer, and
+        // the plan's minimum duration is what keeps the latch held for a whole episode instead of
+        // stuttering. Holding the input simply fires each volley as the launcher comes back up.
+        if (this.vehicle.hasDecoy()) {
             this.vehicle.setDecoyInputDown(true);
+            this.brain.facts().memory.lastSmokeTick = this.unit.level().getGameTime();
         }
 
         BlockPos threatPos = threat.blockPosition();
         double distanceSq = this.vehicle.distanceToSqr(threatPos.getX(), threatPos.getY(), threatPos.getZ());
-        double ringRadius = category == TargetCategory.VEHICLE ? VEHICLE_TOO_FAR : INFANTRY_TOO_FAR;
-        double breakDistance = ringRadius + PRESERVE_RETREAT_MARGIN;
+        double breakDistance = Facts.preferredRange(category) + PRESERVE_RETREAT_MARGIN;
 
         if (Math.sqrt(distanceSq) > breakDistance) {
             // Clear of the ring — far enough to be safe. Hold here (still smoking) so we

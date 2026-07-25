@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.config;
 
+import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.ForgeConfigSpec;
 
@@ -164,6 +165,42 @@ public class SewvConfig {
     // Idle behaviour (a crewed hull with nothing to fight and nowhere to be)
     public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
     public static final ForgeConfigSpec.IntValue IDLE_WANDER_RADIUS;
+
+    // Utility AI (crews score every possible action and act on the best one)
+    public static final ForgeConfigSpec.IntValue UTILITY_REFRESH_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.DoubleValue UTILITY_SWITCH_MARGIN;
+    public static final ForgeConfigSpec.IntValue UTILITY_MIN_PLAN_TICKS;
+    public static final ForgeConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
+    public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.BooleanValue UTILITY_DEBUG_LOGGING;
+
+    /**
+     * Commander doctrine, {@code [faction][axis]} — faction by {@code CrewFacts.Faction} ordinal,
+     * axis by {@code Doctrine.Axis} ordinal. A table rather than 24 named fields because it is
+     * genuinely two-dimensional and the axis names already exist on the enum.
+     */
+    public static final ForgeConfigSpec.IntValue[][] DOCTRINE;
+
+    // Declared ABOVE the static initialiser that reads them: static fields initialise in textual
+    // order, so a table declared after the block would still be null when the block runs.
+
+    /** Config sub-section per faction, indexed by {@code CrewFacts.Faction} ordinal. */
+    private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
+
+    /**
+     * Starting doctrine per faction, in {@code Doctrine.Axis} order.
+     *
+     * <p>RU pushes hard and straight: aggressive, cohesive, willing to take losses, and it assaults
+     * rather than flanks. US is the mirror — cautious, methodical, leans on supporting fire and
+     * manoeuvre. PMC is neutral because it is the player's own force and the player has no way to
+     * set its doctrine yet; when the doctrine editor lands it overrides this row alone.
+     */
+    private static final int[][] DOCTRINE_DEFAULTS = {
+            //        aggr pres cohe init supp targ manv risk
+            /* RU  */ {2, -1, 2, -1, 1, 0, -2, 2},
+            /* US  */ {0, 2, 1, 2, 3, 1, 2, -1},
+            /* PMC */ {0, 0, 0, 0, 0, 0, 0, 0},
+    };
 
     // Helicopter/flight AI
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
@@ -1214,6 +1251,70 @@ public class SewvConfig {
 
         // Marker fill colour is the crew's FACTION colour (colorRu / colorUs / colorPmc above), the
         // same as the in-world team overlay — the map has no separate colour config of its own.
+
+        builder.pop();
+
+        builder.push("utility_ai");
+
+        UTILITY_REFRESH_INTERVAL_TICKS = builder
+                .comment("How often (in game ticks) a vehicle crew re-reads the battlefield and re-scores its",
+                         "options. 20 is once a second. Steering and firing still happen every tick — this is",
+                         "only how often the crew CHANGES ITS MIND.",
+                         "Lower = twitchier, more reactive crews and more CPU; higher = calmer and cheaper.")
+                .defineInRange("utilityRefreshIntervalTicks", 20, 5, 200);
+
+        UTILITY_SWITCH_MARGIN = builder
+                .comment("How many utility points a rival action must beat the current plan by before the crew",
+                         "switches to it. This is what stops a crew flip-flopping between two nearly-equal",
+                         "options every second. Raise it for more committed, stubborn crews.")
+                .defineInRange("utilitySwitchMargin", 10.0, 0.0, 100.0);
+
+        UTILITY_MIN_PLAN_TICKS = builder
+                .comment("Minimum ticks a crew sticks with a chosen action before any rival can replace it,",
+                         "however much better the rival scores. Stops a plan being abandoned before the vehicle",
+                         "has physically had time to begin it (a tank needs a second just to start turning).")
+                .defineInRange("utilityMinPlanTicks", 40, 0, 400);
+
+        FACTION_ORGANIC_COMMS = builder
+                .comment("Let RU and US crews call for mortar, TOW and air support without carrying a radio.",
+                         "They have no inventory a radio could be put in, so without this they can never ask",
+                         "for supporting fire and half their doctrine does nothing.",
+                         "Your own PMC crews always need a real Handheld Radio in the unit's inventory —",
+                         "supporting fire is something you equip them for.",
+                         "Turn OFF to make faction armour fight strictly on its own.")
+                .define("factionOrganicComms", true);
+
+        SUPPORT_CALL_INTERVAL_TICKS = builder
+                .comment("Minimum ticks between one crew's requests for supporting fire. Also how often a",
+                         "crew looks to see whether any supporting weapons are in range at all — that search",
+                         "is the expensive part, so raising this is the cheap way to reduce its cost.")
+                .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
+
+        UTILITY_DEBUG_LOGGING = builder
+                .comment("Log each crew's battlefield reading and its top-scoring actions every time it replans.",
+                         "Very noisy — this is a tuning tool for editing the AI weights, not something to leave on.")
+                .define("utilityDebugLogging", false);
+
+        builder.pop();
+
+        builder.push("doctrine");
+        builder.comment("How each faction's commanders prefer to fight.",
+                        "Every axis runs from -5 to +5, where 0 is neutral. Doctrine does not add or remove",
+                        "behaviours — it shifts how attractive each one is, so an aggressive commander and a",
+                        "cautious one make different choices from the identical tank in the identical spot.",
+                        "These are read once when the world loads; edit and reload the world to apply.");
+
+        DOCTRINE = new ForgeConfigSpec.IntValue[FACTION_KEYS.length][Doctrine.Axis.VALUES.length];
+        for (int f = 0; f < FACTION_KEYS.length; f++) {
+            builder.push(FACTION_KEYS[f]);
+            for (Doctrine.Axis axis : Doctrine.Axis.VALUES) {
+                DOCTRINE[f][axis.ordinal()] = builder
+                        .comment(axis.description)
+                        .defineInRange(axis.key, DOCTRINE_DEFAULTS[f][axis.ordinal()],
+                                -Doctrine.AXIS_LIMIT, Doctrine.AXIS_LIMIT);
+            }
+            builder.pop();
+        }
 
         builder.pop();
 

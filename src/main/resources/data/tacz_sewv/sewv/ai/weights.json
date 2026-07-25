@@ -1,0 +1,138 @@
+{
+  "attack": {
+    "enemyVisible": 50,
+    "confidence": 15,
+    "alliesNearby": 10,
+    "aggression": 20,
+    "desert": 10,
+    "open": 5,
+    "lowHealth": -40,
+    "lowAmmo": -30,
+    "cannotShoot": -10,
+    "outnumbered": -15,
+    "storm": -20,
+    "snow": -10
+  },
+
+  "advance": {
+    "tooFar": 50,
+    "enemyVisible": 20,
+    "confidence": 15,
+    "aggression": 25,
+    "initiative": 15,
+    "riskTolerance": 10,
+    "urban": 15,
+    "forest": 10,
+    "lowHealth": -50,
+    "lowAmmo": -30,
+    "outnumbered": -25,
+    "enemyArmor": -10,
+    "steepGround": -20,
+    "swamp": -15
+  },
+
+  "hold": {
+    "base": 20,
+    "cannotShoot": 15,
+    "lowAmmo": 20,
+    "tooClose": 10,
+    "preservation": 10,
+    "mountain": 15,
+    "steepGround": 10,
+    "aggression": -10,
+    "initiative": -10
+  },
+
+  "retreat": {
+    "lowHealth": 85,
+    "outnumbered": 25,
+    "lowEnergy": 20,
+    "preservation": 25,
+    "confidence": -15,
+    "aggression": -15,
+    "riskTolerance": -15
+  },
+
+  "deploySmoke": {
+    "lowHealth": 70,
+    "recentlyHit": 25,
+    "enemyArmor": 15,
+    "smokeReady": 10,
+    "preservation": 20,
+    "open": 15,
+    "desert": 15,
+    "screened": -200,
+    "aggression": -10
+  },
+
+  "flankLeft": {
+    "enemyArmor": 25,
+    "cannotShoot": 25,
+    "alliesNearby": 20,
+    "maneuver": 30,
+    "confidence": 10,
+    "forest": 15,
+    "mountain": 10,
+    "alone": -30,
+    "lowHealth": -40,
+    "tooFar": -20,
+    "urban": -30,
+    "swamp": -20,
+    "steepGround": -15
+  },
+
+  "flankRight": {
+    "enemyArmor": 25,
+    "cannotShoot": 25,
+    "alliesNearby": 20,
+    "maneuver": 30,
+    "confidence": 10,
+    "forest": 15,
+    "mountain": 10,
+    "alone": -30,
+    "lowHealth": -40,
+    "tooFar": -20,
+    "urban": -30,
+    "swamp": -20,
+    "steepGround": -15
+  },
+
+  "callMortars": {
+    "base": 25,
+    "enemyInfantry": 30,
+    "supportReliance": 40,
+    "cannotShoot": 20,
+    "tooFar": 15,
+    "enemyArmor": -15
+  },
+
+  "callTow": {
+    "base": 25,
+    "enemyArmor": 45,
+    "supportReliance": 40,
+    "cannotShoot": 20,
+    "enemyInfantry": -25
+  },
+
+  "callCas": {
+    "base": 20,
+    "enemyArmor": 35,
+    "supportReliance": 45,
+    "outnumbered": 25,
+    "lowAmmo": 20,
+    "open": 10,
+    "storm": -80,
+    "snow": -30,
+    "urban": -20,
+    "forest": -15
+  },
+
+  "delegateTarget": {
+    "base": 15,
+    "idleAlly": 35,
+    "cohesion": 30,
+    "cannotShoot": 20,
+    "lowAmmo": 25,
+    "lowHealth": 20
+  }
+}

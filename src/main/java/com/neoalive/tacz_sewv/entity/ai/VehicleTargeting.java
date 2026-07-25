@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
@@ -541,6 +542,22 @@ public final class VehicleTargeting {
         if (!(unit instanceof PmcUnitEntity pmc)) return true;
         OrderType order = pmc.getOrder();
         return order != OrderType.CEASE_FIRE && order != OrderType.ATTACK_THAT_TARGET;
+    }
+
+    /**
+     * Whether where this crew drives is the player's decision rather than the crew's.
+     *
+     * <p>True under any standing instruction — an area task, or any order but FREE_FIRE, which is
+     * the one that means "do as you see fit". Read by the utility AI, which may not choose a
+     * destination of its own while an order stands: {@link #resolveDestination} already reads the
+     * area task and the order switch ahead of everything else, and a crew that wandered off under
+     * MOVE_TO_POSITION would simply be disobeying.
+     *
+     * <p>Always false for RU/US, which have no order queue for an order to arrive through.
+     */
+    public static boolean underStandingOrder(AbstractUnit unit) {
+        if (!(unit instanceof PmcUnitEntity pmc)) return false;
+        return ((IVehiclePatrol) pmc).sewv$isPatrolling() || pmc.getOrder() != OrderType.FREE_FIRE;
     }
 
     // Safety margin (blocks) added around a friendly hull's hitbox when testing

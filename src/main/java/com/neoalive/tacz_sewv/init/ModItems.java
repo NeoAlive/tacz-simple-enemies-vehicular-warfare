@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.init;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.TacticalDataTerminalItem;
 import net.minecraft.world.item.CreativeModeTabs;
@@ -29,6 +30,10 @@ public class ModItems {
     public static final RegistryObject<Item> TACTICAL_DATA_TERMINAL =
             ITEMS.register("tactical_data_terminal", TacticalDataTerminalItem::new);
 
+    /** The doctrine editor's access key. Handed out once per player; craft another to respec. */
+    public static final RegistryObject<Item> DOCTRINE_LEDGER =
+            ITEMS.register("doctrine_ledger", DoctrineLedgerItem::new);
+
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",
@@ -45,6 +50,7 @@ public class ModItems {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(HANDHELD_RADIO);
             event.accept(TACTICAL_DATA_TERMINAL);
+            event.accept(DOCTRINE_LEDGER);
         }
         if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
             event.accept(RU_MEDIC_SPAWN_EGG);

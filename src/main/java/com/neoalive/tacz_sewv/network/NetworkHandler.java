@@ -32,7 +32,9 @@ public class NetworkHandler {
     // an optional origin, so it can be centred on a map click instead of on the sender; 12: the
     // area task also carries a cruise route) so a mismatched client/server pair is rejected at
     // handshake instead of misparsing.
-    private static final String PROTOCOL_VERSION = "14";
+    // 13, 14, 15: Various previous changes.
+    // 16: added the player doctrine save packet.
+    private static final String PROTOCOL_VERSION = "16";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -113,6 +115,14 @@ public class NetworkHandler {
                 PacketOwnedVehicles::encode,
                 PacketOwnedVehicles::new,
                 PacketOwnedVehicles::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSaveDoctrine.class,
+                PacketSaveDoctrine::encode,
+                PacketSaveDoctrine::new,
+                PacketSaveDoctrine::handle
         );
     }
 }

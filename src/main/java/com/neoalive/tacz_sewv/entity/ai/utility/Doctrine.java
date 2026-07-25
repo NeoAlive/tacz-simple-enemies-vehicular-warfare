@@ -122,8 +122,17 @@ public final class Doctrine {
      */
     public static Doctrine forCrew(Entity unit) {
         Doctrine[] snapshot = presets;
-        if (snapshot == null) return NEUTRAL;
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(unit);
+        
+        if (faction == CrewFacts.Faction.PMC && unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity pmc) {
+            java.util.UUID owner = pmc.getOwnerUUID();
+            if (owner != null && !unit.level().isClientSide) {
+                Doctrine playerDoctrine = PlayerDoctrineData.get(unit.level()).getDoctrine(owner);
+                if (playerDoctrine != null) return playerDoctrine;
+            }
+        }
+        
+        if (snapshot == null) return NEUTRAL;
         return faction == null ? NEUTRAL : snapshot[faction.ordinal()];
     }
 

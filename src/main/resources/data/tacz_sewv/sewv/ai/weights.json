@@ -45,6 +45,7 @@
 
   "retreat": {
     "lowHealth": 85,
+    "lowAmmo": 45,
     "outnumbered": 25,
     "lowEnergy": 20,
     "preservation": 25,
@@ -134,5 +135,49 @@
     "cannotShoot": 20,
     "lowAmmo": 25,
     "lowHealth": 20
+  },
+
+  "patrol": {
+    "base": 30,
+    "underOrders": 40,
+    "initiative": 10
+  },
+
+  "searchLastKnown": {
+    "lostContact": 45,
+    "initiative": 35,
+    "aggression": 20,
+    "riskTolerance": 10,
+    "lowHealth": -40,
+    "lowAmmo": -35,
+    "alone": -15
+  },
+
+  "regroup": {
+    "lowAmmo": 50,
+    "lowHealth": 40,
+    "cohesion": 35,
+    "alone": 20,
+    "preservation": 20,
+    "aggression": -20,
+    "initiative": -15
+  },
+
+  "confidence": {
+    "alliesNearby": 20,
+    "riskTolerance": 12,
+    "lowHealth": -30,
+    "outnumbered": -20,
+    "threatDensity": -12,
+    "recentlyHit": -10,
+    "lowAmmo": -18,
+    "lowEnergy": -10,
+    "cannotShoot": -8,
+    "steepGround": -6,
+    "highAltitude": -8,
+    "storm": -12,
+    "snow": -6,
+    "rain": -3,
+    "preservation": -12
   }
 }

@@ -22,6 +22,9 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager;
 import net.minecraftforge.common.MinecraftForge;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
+import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
+import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
@@ -81,6 +84,15 @@ public class TaczSewv {
     }
 
     /**
+     * The vehicle AI's utility weights are a datapack file, so they load and reload with the rest
+     * of the server's data. See {@link com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights}.
+     */
+    @SubscribeEvent
+    public void onAddReloadListener(AddReloadListenerEvent event) {
+        event.addListener(new UtilityWeights.Loader());
+    }
+
+    /**
      * Snapshot SimpleEnemyMod's faction-friendly toggles before anything can tick.
      *
      * <p>This is the one safe moment to read another mod's config: every mod's config is baked by
@@ -93,6 +105,9 @@ public class TaczSewv {
     @SubscribeEvent
     public void onServerAboutToStart(ServerAboutToStartEvent event) {
         VehicleTargeting.refreshFactionFriendlyFlags();
+        // Same moment, same reason: doctrine presets are read from our own config, which is
+        // equally unsafe to touch from an AI tick before it has been baked.
+        Doctrine.refreshPresets();
     }
 
     // Every unit reaches the world through here, whichever door it came in by, which is what makes

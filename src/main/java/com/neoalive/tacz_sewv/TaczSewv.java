@@ -54,6 +54,7 @@ public class TaczSewv {
         // Server-side half of the map markers: it only ever SENDS, so it is registered
         // unconditionally — a client with no map mod simply ignores the packet.
         MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.PlayerJoinHandler.class);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SewvConfig.SPEC);
         // SEM is loaded before this bridge (see mods.toml), so these become normal
         // SEM dynamic events: they are listed, can be toggled, and can be forced by SEM.

@@ -153,5 +153,19 @@
   "command.tacz_sewv.status.patrol": "patrolling a %s-block area",
   "command.tacz_sewv.status.search": "sweeping a %s-block area",
   "command.tacz_sewv.status.formation": "holding formation",
-  "command.tacz_sewv.status.idle": "no standing order"
+  "command.tacz_sewv.status.idle": "no standing order",
+
+  "item.tacz_sewv.doctrine_ledger": "Doctrine Ledger",
+  "message.tacz_sewv.doctrine.not_owner": "This ledger belongs to another commander.",
+  "message.tacz_sewv.doctrine.saved": "Doctrine configured successfully.",
+  "gui.tacz_sewv.doctrine.confirm": "Confirm",
+  "gui.tacz_sewv.doctrine.remaining": "Remaining Points: %s",
+  "gui.tacz_sewv.doctrine.axis.aggression": "Aggression",
+  "gui.tacz_sewv.doctrine.axis.preservation": "Preservation",
+  "gui.tacz_sewv.doctrine.axis.cohesion": "Cohesion",
+  "gui.tacz_sewv.doctrine.axis.initiative": "Initiative",
+  "gui.tacz_sewv.doctrine.axis.supportReliance": "Support Reliance",
+  "gui.tacz_sewv.doctrine.axis.targetPriority": "Target Priority",
+  "gui.tacz_sewv.doctrine.axis.maneuver": "Maneuver",
+  "gui.tacz_sewv.doctrine.axis.riskTolerance": "Risk Tolerance"
 }

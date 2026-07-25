@@ -5,12 +5,13 @@ import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
-import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights.Signal;
 import net.minecraft.util.Mth;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Picks what one crew does next, and sticks with it.
@@ -41,9 +42,16 @@ public final class TacticalBrain {
     private final Facts facts = new Facts();
     private final double[] signals = new double[Signal.VALUES.length];
     private final double[] scores = new double[Action.VALUES.length];
+    /**
+     * Which actions could be carried out at all this tick.
+     *
+     * <p>Kept beside the scores rather than encoded as a {@code -Infinity} score: "blocked" and
+     * "scored badly" are different states, and a sentinel that has to be recognised by its value
+     * leaks into everything that later reads a score — ranking, logging, and any future consumer.
+     */
+    private final boolean[] feasible = new boolean[Action.VALUES.length];
 
     private Action plan = Action.HOLD;
-    private double planScore;
     private long planStarted = Long.MIN_VALUE;
     /** Game time of the last sample, so the feasibility gates can age the memory stamps. */
     private long lastSampledTick = Long.MIN_VALUE;
@@ -55,11 +63,18 @@ public final class TacticalBrain {
      */
     public boolean update(AbstractUnit unit, VehicleEntity hull) {
         Doctrine doctrine = Doctrine.forCrew(unit);
-        if (!this.facts.refresh(unit, hull, doctrine)) return false;
+        if (!this.facts.refresh(unit, hull)) return false;
 
         long now = unit.level().getGameTime();
+        UtilityWeights weights = UtilityWeights.active();
+
+        // Order matters: the facts are projected onto signals, confidence is judged from those,
+        // and only then are the actions scored — because confidence is itself an input to them.
         sample(this.facts, now);
-        decide(unit, doctrine, now);
+        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights);
+        this.signals[Signal.CONFIDENCE.ordinal()] = Confidence.asSignal(this.facts.confidence);
+
+        decide(unit, doctrine, weights, now);
         return true;
     }
 
@@ -83,13 +98,11 @@ public final class TacticalBrain {
             this.plan = action;
             this.planStarted = now;
         }
-        this.planScore = Double.MAX_VALUE;
     }
 
     public void clear() {
         this.facts.clear();
         this.plan = Action.HOLD;
-        this.planScore = 0.0;
         this.planStarted = Long.MIN_VALUE;
         Arrays.fill(this.signals, 0.0);
     }
@@ -115,9 +128,8 @@ public final class TacticalBrain {
         s[Signal.ENEMY_INFANTRY.ordinal()] =
                 hasTarget && f.targetCategory != TargetCategory.VEHICLE ? 1.0 : 0.0;
 
-        // Confidence is 0-100 around a neutral 50; the signal is signed so a merely average
-        // battlefield contributes nothing rather than a permanent half-weight bonus.
-        s[Signal.CONFIDENCE.ordinal()] = Mth.clamp((f.confidence - 50.0) / 50.0, -1.0, 1.0);
+        // CONFIDENCE is deliberately NOT set here — it is judged from this sample immediately
+        // afterwards and written back by update(). See Confidence.
 
         // Both ramp from half-full to empty: above half neither is a concern worth scoring.
         s[Signal.LOW_HEALTH.ordinal()] = Mth.clamp(1.0 - f.health / 0.5, 0.0, 1.0);
@@ -131,8 +143,14 @@ public final class TacticalBrain {
 
         s[Signal.OUTNUMBERED.ordinal()] =
                 Mth.clamp(1.0 / Math.max(f.forceRatio, 1.0E-3) - 1.0, 0.0, 1.0);
+        // Beyond the first, each enemy is more pressure — but the difference between four and ten
+        // is not something a tank commander meaningfully distinguishes.
+        s[Signal.THREAT_DENSITY.ordinal()] = Mth.clamp((f.enemies - 1) / 4.0, 0.0, 1.0);
         s[Signal.ALLIES_NEARBY.ordinal()] = Math.min(f.allies, 3) / 3.0;
         s[Signal.ALONE.ordinal()] = f.allies == 0 ? 1.0 : 0.0;
+
+        s[Signal.LOST_CONTACT.ordinal()] = f.target == null && f.memory.hasFreshContact(now) ? 1.0 : 0.0;
+        s[Signal.UNDER_ORDERS.ordinal()] = f.underOrders ? 1.0 : 0.0;
 
         // rangeError is signed and already normalised against the preferred range, so one field
         // gives both directions and neither can be non-zero at the same time as the other.
@@ -173,9 +191,7 @@ public final class TacticalBrain {
         s[Signal.HIGH_ALTITUDE.ordinal()] = f.altitude;
     }
 
-    private void decide(AbstractUnit unit, Doctrine doctrine, long now) {
-        UtilityWeights weights = UtilityWeights.active();
-
+    private void decide(AbstractUnit unit, Doctrine doctrine, UtilityWeights weights, long now) {
         // Which way this crew goes round. Fixed per unit, not re-rolled, so a crew commits to one
         // direction instead of rocking back and forth over the same ground.
         Action preferredFlank = (unit.getId() & 1) == 0 ? Action.FLANK_LEFT : Action.FLANK_RIGHT;
@@ -183,13 +199,17 @@ public final class TacticalBrain {
         Action best = null;
         double bestScore = 0.0;
         for (Action action : Action.VALUES) {
-            if (!feasible(action)) {
-                this.scores[action.ordinal()] = Double.NEGATIVE_INFINITY;
+            int i = action.ordinal();
+            this.feasible[i] = feasible(action);
+            if (!this.feasible[i]) {
+                // A real number, so nothing downstream has to know about a sentinel. It is simply
+                // never compared, because every read is guarded by the feasible flag.
+                this.scores[i] = 0.0;
                 continue;
             }
             double score = weights.score(action, this.signals, doctrine);
             if (action == preferredFlank) score += FLANK_TIEBREAK;
-            this.scores[action.ordinal()] = score;
+            this.scores[i] = score;
             if (best == null || score > bestScore) {
                 best = action;
                 bestScore = score;
@@ -199,21 +219,26 @@ public final class TacticalBrain {
         // feasible(HOLD) is unconditionally true, so this can only be null if the enum is empty.
         if (best == null) return;
 
-        double current = feasible(this.plan)
-                ? weights.score(this.plan, this.signals, doctrine)
-                : Double.NEGATIVE_INFINITY;
+        // Nothing has been decided yet, so there is no incumbent to defend. Without this the
+        // constructor's placeholder HOLD gets the switch margin's protection it never earned, and a
+        // crew whose best option only ever beats it by a few points sits still for good — which is
+        // exactly what "idle units look static" turned out to be.
+        boolean neverPlanned = this.planStarted == Long.MIN_VALUE;
+
+        boolean planStillValid = this.feasible[this.plan.ordinal()];
+        double current = planStillValid ? this.scores[this.plan.ordinal()] : bestScore;
 
         boolean committed = Facts.ticksSince(this.planStarted, now) < SewvConfig.UTILITY_MIN_PLAN_TICKS.get();
         boolean beaten = bestScore > current + SewvConfig.UTILITY_SWITCH_MARGIN.get();
 
-        if (best != this.plan && beaten && !committed) {
+        // A plan that has become impossible is dropped at once — neither the switch margin nor the
+        // minimum duration may keep a crew committed to something it can no longer carry out.
+        if (best != this.plan && (neverPlanned || !planStillValid || (beaten && !committed))) {
             this.plan = best;
             this.planStarted = now;
-            this.planScore = bestScore;
-        } else {
-            // Keep the plan, but re-record what it is worth now, so its score decays with the
-            // battlefield instead of being frozen at whatever won it the job.
-            this.planScore = current;
+        } else if (neverPlanned) {
+            // Best already IS the plan; stamp it so the hysteresis starts counting from here.
+            this.planStarted = now;
         }
 
         if (SewvConfig.UTILITY_DEBUG_LOGGING.get()) logDecision(unit, doctrine);
@@ -228,10 +253,21 @@ public final class TacticalBrain {
      * feasible, which is what guarantees there is always a winner.
      */
     private boolean feasible(Action action) {
+        // Combat and standing-down are disjoint: an action from the wrong set can never win, so
+        // neither dispatch can ever be handed a plan it has no case for.
+        if (action.needsTarget() != (this.facts.target != null)) return false;
+
         return switch (action) {
             case HOLD -> true;
-            case DEPLOY_SMOKE -> this.facts.smokeReady && this.facts.target != null;
-            case ATTACK, ADVANCE, RETREAT, FLANK_LEFT, FLANK_RIGHT -> this.facts.target != null;
+            case DEPLOY_SMOKE -> this.facts.smokeReady;
+            case ATTACK, ADVANCE, RETREAT, FLANK_LEFT, FLANK_RIGHT -> true;
+
+            // Where an ordered crew goes is the player's business, not the scorer's. PATROL is the
+            // one that stays available, because it IS "carry out the standing destination".
+            case PATROL -> true;
+            case SEARCH_LAST_KNOWN ->
+                    !this.facts.underOrders && this.facts.memory.hasFreshContact(this.lastSampledTick);
+            case REGROUP -> !this.facts.underOrders && this.facts.nearestAlly != null;
 
             // A request needs something to request from, and a crew that just called must not
             // call again — the cooldown is what stops one contact re-tasking every tube in the
@@ -245,28 +281,41 @@ public final class TacticalBrain {
     }
 
     private boolean canRequest(FireMissionSupport.Kind kind) {
-        return this.facts.target != null
-                && this.facts.support.contains(kind)
+        return this.facts.support.contains(kind)
                 && !this.facts.memory.recentlyCalledSupport(this.lastSampledTick);
     }
 
+    /**
+     * One line per replan, for tuning the weights.
+     *
+     * <p>Blocked actions are listed separately from scored ones rather than shown with a sentinel
+     * score: "could not" and "would not" are different answers, and reading a huge negative number
+     * as "blocked" is exactly the confusion this avoids.
+     */
     private void logDecision(AbstractUnit unit, Doctrine doctrine) {
-        Action[] ranked = Action.VALUES.clone();
-        Arrays.sort(ranked, (a, b) -> Double.compare(this.scores[b.ordinal()], this.scores[a.ordinal()]));
+        List<Action> ranked = new ArrayList<>();
+        List<String> blocked = new ArrayList<>();
+        for (Action action : Action.VALUES) {
+            if (this.feasible[action.ordinal()]) ranked.add(action);
+            else blocked.add(action.key);
+        }
+        ranked.sort((a, b) -> Double.compare(this.scores[b.ordinal()], this.scores[a.ordinal()]));
 
         StringBuilder top = new StringBuilder();
-        for (int i = 0; i < Math.min(3, ranked.length); i++) {
+        for (int i = 0; i < Math.min(3, ranked.size()); i++) {
             if (i > 0) top.append(", ");
-            top.append(ranked[i].key).append('=')
-               .append(String.format("%.1f", this.scores[ranked[i].ordinal()]));
+            top.append(ranked.get(i).key).append('=')
+               .append(String.format("%.1f", this.scores[ranked.get(i).ordinal()]));
         }
 
-        LOGGER.info("[sewv-ai] {}#{} plan={} conf={} hp={} ammo={} allies={} enemies={} range={} | {} | {}",
+        LOGGER.info("[sewv-ai] {}#{} plan={} conf={} hp={} ammo={} allies={} enemies={} range={}"
+                        + " | best: {} | blocked: {} | {}",
                 unit.getType().toShortString(), unit.getId(), this.plan.key,
                 String.format("%.0f", this.facts.confidence),
-                String.format("%.2f", this.facts.health), this.facts.ammo,
+                String.format("%.2f", this.facts.health),
+                this.facts.ammo + "(" + this.facts.ammoCount + ")",
                 this.facts.allies, this.facts.enemies,
                 String.format("%.1f", this.facts.targetDist == Double.MAX_VALUE ? -1.0 : this.facts.targetDist),
-                top, doctrine);
+                top, String.join(",", blocked), doctrine);
     }
 }

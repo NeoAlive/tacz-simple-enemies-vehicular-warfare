@@ -41,7 +41,21 @@ public enum Action {
     /** Call the target in to a friendly aircraft already airborne nearby. */
     CALL_CAS("callCas"),
     /** Hand our target to nearby friendlies who have none of their own. */
-    DELEGATE_TARGET("delegateTarget");
+    DELEGATE_TARGET("delegateTarget"),
+
+    /**
+     * Work the standing destination: a player's order, a patrol leg, or the idle wander that
+     * {@code VehicleTargeting.resolveDestination} already produces.
+     *
+     * <p>The default out-of-contact action, and the one that keeps a crew doing what it was doing.
+     * It executes nothing new — it simply lets the existing destination pipeline run, which is why
+     * a standing order can never be overridden by a crew that fancies a wander.
+     */
+    PATROL("patrol"),
+    /** Go and look where an enemy was last seen. */
+    SEARCH_LAST_KNOWN("searchLastKnown"),
+    /** Fall back on the nearest friendly. Also the answer to being out of ammo. */
+    REGROUP("regroup");
 
     /** The key naming this action in the weights file. */
     public final String key;
@@ -63,5 +77,12 @@ public enum Action {
     /** True for the two flanks, which share every scoring rule but their direction. */
     public boolean isFlank() {
         return this == FLANK_LEFT || this == FLANK_RIGHT;
+    }
+
+    public boolean needsTarget() {
+        return switch (this) {
+            case HOLD, PATROL, SEARCH_LAST_KNOWN, REGROUP -> false;
+            default -> true;
+        };
     }
 }

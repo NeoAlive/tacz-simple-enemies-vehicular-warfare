@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.entity.ai.utility;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights.Signal;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.LinkedHashMap;
@@ -30,8 +29,12 @@ public final class UtilityWeightsSelfCheck {
         unknownKeysAreIgnoredNotFatal();
         laterFilesReplaceAnActionWholesale();
         shippedWeightsLoad();
-        flanksAreSymmetric();
+        pairedActionsAreSymmetric();
         healthDecidesWhetherToFight();
+        confidenceDoesNotSaturate();
+        everyActionIsDispatchable();
+        idleCrewsDoNotJustSit();
+        emptyCrewsDisengage();
 
         System.out.println("utility scorer self-check: OK");
     }
@@ -133,28 +136,90 @@ public final class UtilityWeightsSelfCheck {
      * the other — that split silently becomes "everyone goes right", and nothing about it looks
      * wrong in game. This caught exactly that during development.
      */
-    private static void flanksAreSymmetric() {
+    private static void pairedActionsAreSymmetric() {
         UtilityWeights weights = UtilityWeights.parse(
                 Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
 
-        // Walk one signal at a time rather than testing an all-ones sample: a difference in two
-        // modifiers that happens to cancel out would slip past a single combined total.
-        for (Signal signal : Signal.VALUES) {
-            double[] one = zeroSignals();
-            one[signal.ordinal()] = 1.0;
-            double left = weights.score(Action.FLANK_LEFT, one, Doctrine.NEUTRAL);
-            double right = weights.score(Action.FLANK_RIGHT, one, Doctrine.NEUTRAL);
-            assert Math.abs(left - right) < 1.0E-9
-                    : "flank weights differ on '" + signal.key + "': left=" + left + " right=" + right;
+        for (Action[] pair : MIRRORED_ACTIONS) {
+            // Walk one signal at a time rather than testing an all-ones sample: a difference in two
+            // modifiers that happens to cancel out would slip past a single combined total.
+            for (Signal signal : Signal.VALUES) {
+                double[] one = zeroSignals();
+                one[signal.ordinal()] = 1.0;
+                double a = weights.score(pair[0], one, Doctrine.NEUTRAL);
+                double b = weights.score(pair[1], one, Doctrine.NEUTRAL);
+                assert Math.abs(a - b) < 1.0E-9 : pair[0].key + "/" + pair[1].key
+                        + " differ on '" + signal.key + "': " + a + " vs " + b;
+            }
+            for (Doctrine.Axis axis : Doctrine.Axis.VALUES) {
+                Doctrine full = doctrineWith(axis, Doctrine.AXIS_LIMIT);
+                double[] none = zeroSignals();
+                double a = weights.score(pair[0], none, full);
+                double b = weights.score(pair[1], none, full);
+                assert Math.abs(a - b) < 1.0E-9 : pair[0].key + "/" + pair[1].key
+                        + " differ on axis '" + axis.key + "'";
+            }
         }
-        for (Doctrine.Axis axis : Doctrine.Axis.VALUES) {
-            Doctrine full = doctrineWith(axis, Doctrine.AXIS_LIMIT);
-            double[] none = zeroSignals();
-            double left = weights.score(Action.FLANK_LEFT, none, full);
-            double right = weights.score(Action.FLANK_RIGHT, none, full);
-            assert Math.abs(left - right) < 1.0E-9
-                    : "flank weights differ on axis '" + axis.key + "'";
+    }
+
+    /**
+     * Actions that are the same behaviour in opposite directions, and must therefore score
+     * identically — the direction is chosen by entity-id parity, not by the weights.
+     *
+     * <p>Add any future mirrored pair here. A tiny asymmetry between two of these looks perfectly
+     * valid in the file and silently biases every crew in the game one way.
+     */
+    private static final Action[][] MIRRORED_ACTIONS = {
+            {Action.FLANK_LEFT, Action.FLANK_RIGHT},
+    };
+
+    /**
+     * Confidence must stay a gradient rather than pinning at its maximum.
+     *
+     * <p>The first version handed an undamaged hull +30 for being undamaged and pinned live crews
+     * at 100, at which point it had stopped telling the scorer anything. So: an unremarkable crew
+     * sits at the neutral 50, a supported one is above it but not maxed, and a losing one is well
+     * below without bottoming out either.
+     */
+    private static void confidenceDoesNotSaturate() {
+        UtilityWeights weights = UtilityWeights.parse(
+                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+
+        double quiet = Confidence.evaluate(zeroSignals(), Doctrine.NEUTRAL, weights);
+        assertClose(Confidence.NEUTRAL, quiet, "an unremarkable crew is neutral");
+
+        double[] winning = zeroSignals();
+        winning[Signal.ALLIES_NEARBY.ordinal()] = 1.0;
+        double high = Confidence.evaluate(winning, Doctrine.NEUTRAL, weights);
+        assert high > Confidence.NEUTRAL && high < 100.0
+                : "a supported crew should be confident but not maxed, was " + high;
+
+        double[] losing = zeroSignals();
+        losing[Signal.LOW_HEALTH.ordinal()] = 0.6;
+        losing[Signal.OUTNUMBERED.ordinal()] = 0.5;
+        losing[Signal.RECENTLY_HIT.ordinal()] = 1.0;
+        double low = Confidence.evaluate(losing, Doctrine.NEUTRAL, weights);
+        assert low < Confidence.NEUTRAL && low > 0.0
+                : "a losing crew should be shaken but not bottomed out, was " + low;
+    }
+
+    /**
+     * Every action must be reachable by exactly one of the two dispatches.
+     *
+     * <p>{@code needsTarget} is what splits the enum into the combat set and the out-of-contact
+     * set, and the drive goal has a switch for each. An action on the wrong side of that split
+     * would win a vote and then find no case to execute it — the parked-statue bug.
+     */
+    private static void everyActionIsDispatchable() {
+        int combat = 0;
+        int standDown = 0;
+        for (Action action : Action.VALUES) {
+            if (action.needsTarget()) combat++;
+            else standDown++;
         }
+        assert combat > 0 && standDown > 0
+                : "both dispatches must have actions: combat=" + combat + " standDown=" + standDown;
+        assert !Action.HOLD.needsTarget() : "HOLD is the always-feasible fallback and must not need a target";
     }
 
     /**
@@ -194,6 +259,52 @@ public final class UtilityWeightsSelfCheck {
         s[Signal.LOW_HEALTH.ordinal()] = Math.max(0.0, Math.min(1.0, 1.0 - health / 0.5));
         s[Signal.CONFIDENCE.ordinal()] = Math.max(-1.0, Math.min(1.0, (health - 0.5) * 1.2));
         return s;
+    }
+
+    /**
+     * Out of contact and off the leash, a crew must prefer to get on with something over parking.
+     *
+     * <p>The reported symptom of the first build was crews selecting {@code hold} whenever no enemy
+     * was about, which reads as a battlefield full of statues. {@code patrol} is the action that
+     * means "work the standing destination", so it has to out-score {@code hold} in the plain quiet
+     * case or the out-of-contact set does nothing.
+     */
+    private static void idleCrewsDoNotJustSit() {
+        UtilityWeights weights = UtilityWeights.parse(
+                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+
+        double[] quiet = zeroSignals();
+        quiet[Signal.BASE.ordinal()] = 1.0;
+        quiet[Signal.OPEN.ordinal()] = 1.0;
+
+        double patrol = weights.score(Action.PATROL, quiet, Doctrine.NEUTRAL);
+        double hold = weights.score(Action.HOLD, quiet, Doctrine.NEUTRAL);
+        assert patrol > hold
+                : "an idle crew should get on with something: patrol=" + patrol + " hold=" + hold;
+    }
+
+    /**
+     * A crew that has shot itself dry must stop behaving like a gun.
+     *
+     * <p>There is no rearm in the game, so the answer is to break off or fall back on friends —
+     * either beats sitting in the open with an empty rack, which is what an untouched attack score
+     * would have it do.
+     */
+    private static void emptyCrewsDisengage() {
+        UtilityWeights weights = UtilityWeights.parse(
+                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+
+        double[] dry = zeroSignals();
+        dry[Signal.BASE.ordinal()] = 1.0;
+        dry[Signal.ENEMY_VISIBLE.ordinal()] = 1.0;
+        dry[Signal.ENEMY_ARMOR.ordinal()] = 1.0;
+        dry[Signal.OPEN.ordinal()] = 1.0;
+        dry[Signal.LOW_AMMO.ordinal()] = 1.0;
+
+        double attack = weights.score(Action.ATTACK, dry, Doctrine.NEUTRAL);
+        double retreat = weights.score(Action.RETREAT, dry, Doctrine.NEUTRAL);
+        assert retreat > attack
+                : "an empty crew should break off: attack=" + attack + " retreat=" + retreat;
     }
 
     // ---- helpers ----

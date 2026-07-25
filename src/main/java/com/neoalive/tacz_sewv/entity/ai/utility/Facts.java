@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
+import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.FireMissionSupport;
@@ -63,9 +64,18 @@ public final class Facts {
     /** Weather grouped the same way: by how much it hides you and spoils your shooting. */
     public enum Sky { CLEAR, RAIN, SNOW, STORM }
 
-    // ponytail: one absolute "running low" line for every weapon, from a cannon to a coaxial MG.
-    // A per-weapon fraction would need each gun's intended load, which the vehicle data does not
-    // state anywhere; revisit if a weapon shows up where 5 rounds is not a meaningful reserve.
+    /**
+     * "Running low" as a fraction of what the weapon holds, so a launcher that carries two missiles
+     * is not permanently low for carrying two missiles.
+     *
+     * <p>Measured in the field: real hulls report ammo counts of 1 and 2 for their selected weapon,
+     * where a flat threshold of five rounds read every one of them as LOW forever and quietly biased
+     * every crew towards holding and regrouping. A quarter of the magazine, floored at one round, is
+     * the same answer for a 40-round cannon and a 2-round launcher.
+     */
+    private static final double LOW_AMMO_FRACTION = 0.25;
+
+    /** Fallback "running low" line for a weapon whose magazine size cannot be read. */
     private static final int LOW_AMMO_ROUNDS = 5;
 
     /** How long a contact stays worth acting on after it is lost. */
@@ -87,6 +97,14 @@ public final class Facts {
     /** 0..1. Reads 1.0 for RU/US, whose hulls are given infinite energy by MixinVehicleFactionEnergy. */
     public float energy = 1.0F;
     public Ammo ammo = Ammo.OK;
+    /**
+     * The raw round count behind {@link #ammo}, or -1 for a seat with no weapon.
+     *
+     * <p>Carried purely so the debug line can show it: whether a given hull's cannon reads "low" at
+     * five rounds is a tuning question, and it cannot be answered without seeing the real numbers
+     * the vehicle data actually produces.
+     */
+    public int ammoCount = -1;
     /** The weapon is loaded, cool, off reload and past our own AI fire throttle. */
     public boolean canShoot;
     /** A smoke volley is available right now. */
@@ -110,6 +128,14 @@ public final class Facts {
     /** allies+1 (us) over enemies; 1.0 is an even fight, above 1 favours us. */
     public double forceRatio = 1.0;
     public double nearestAllyDist = Double.MAX_VALUE;
+    /** The closest friendly, for a crew that decides to fall back on it. */
+    @Nullable
+    public AbstractUnit nearestAlly;
+    /**
+     * A player order or area task is standing, so where this crew drives is not the scorer's
+     * business. Always false for RU/US, which have no order queue at all.
+     */
+    public boolean underOrders;
 
     /** The range we want to fight the current target at. See {@link #preferredRange}. */
     public double preferredRange;
@@ -142,8 +168,12 @@ public final class Facts {
     @Nullable
     public UUID owner;
 
-    /** 0-100 overall estimate of battlefield advantage. See {@link #computeConfidence}. */
-    public double confidence = 50.0;
+    /**
+     * 0-100 estimate of battlefield advantage, written back by {@link TacticalBrain} once the
+     * {@link Confidence} layer has judged it. Held here so debug output and any future consumer
+     * read it off the same struct as everything else.
+     */
+    public double confidence = Confidence.NEUTRAL;
 
     public final Memory memory = new Memory();
 
@@ -152,7 +182,7 @@ public final class Facts {
      *
      * @return true if this call actually gathered — the caller's cue to re-score its options.
      */
-    public boolean refresh(AbstractUnit unit, VehicleEntity hull, Doctrine doctrine) {
+    public boolean refresh(AbstractUnit unit, VehicleEntity hull) {
         long now = unit.level().getGameTime();
         attach(hull);
 
@@ -167,7 +197,6 @@ public final class Facts {
         readBattlefield(unit, hull);
         readEnvironment(unit, hull);
         readComms(unit, now);
-        this.confidence = computeConfidence(doctrine);
         return true;
     }
 
@@ -223,24 +252,46 @@ public final class Facts {
                 : 1.0F;
 
         int seat = hull.getSeatIndex(unit);
-        this.ammo = readAmmo(hull, seat);
+        this.ammoCount = readAmmoCount(hull, seat);
+        this.ammo = classifyAmmo(this.ammoCount, readMagazine(hull, seat));
         this.canShoot = seat >= 0 && safeCanShoot(hull, unit);
         this.smokeReady = this.hasDecoy && safeDecoyReady(hull);
         this.speed = hull.getLastTickSpeed();
     }
 
-    private Ammo readAmmo(VehicleEntity hull, int seat) {
-        if (seat < 0) return Ammo.OK;
+    /** Rounds available to this seat's selected weapon, or -1 when the seat has no weapon. */
+    private static int readAmmoCount(VehicleEntity hull, int seat) {
+        if (seat < 0) return -1;
         try {
             // "No such weapon" and "empty magazine" both count as 0, so the null check is what
             // stops a weaponless seat reporting itself permanently out of ammo.
-            if (hull.getGunData(seat) == null) return Ammo.OK;
-            int count = hull.getAmmoCount(seat);
-            if (count <= 0) return Ammo.OUT;
-            return count <= LOW_AMMO_ROUNDS ? Ammo.LOW : Ammo.OK;
+            if (hull.getGunData(seat) == null) return -1;
+            return hull.getAmmoCount(seat);
         } catch (Throwable ignored) {
-            return Ammo.OK;
+            return -1;
         }
+    }
+
+    /** The weapon's magazine capacity, or -1 when it cannot be read. */
+    private static int readMagazine(VehicleEntity hull, int seat) {
+        if (seat < 0) return -1;
+        try {
+            var gun = hull.getGunData(seat);
+            if (gun == null) return -1;
+            Integer magazine = gun.get(GunProp.MAGAZINE);
+            return magazine == null ? -1 : magazine;
+        } catch (Throwable ignored) {
+            return -1;
+        }
+    }
+
+    private static Ammo classifyAmmo(int count, int magazine) {
+        if (count < 0) return Ammo.OK;                    // no weapon here to be short of rounds
+        if (count == 0) return Ammo.OUT;
+        int low = magazine > 0
+                ? Math.max(1, (int) Math.floor(magazine * LOW_AMMO_FRACTION))
+                : LOW_AMMO_ROUNDS;
+        return count <= low ? Ammo.LOW : Ammo.OK;
     }
 
     private static boolean safeCanShoot(VehicleEntity hull, AbstractUnit unit) {
@@ -313,7 +364,8 @@ public final class Facts {
         int allyCount = 0;
         int enemyCount = 0;
         int idleCount = 0;
-        double nearestAlly = Double.MAX_VALUE;
+        double nearestAllyRange = Double.MAX_VALUE;
+        AbstractUnit closestAlly = null;
 
         // RU/US have no inventory a radio could ever be in, so their comms are a doctrine setting
         // rather than a piece of equipment — the same split that makes their ammo issued rather
@@ -327,7 +379,11 @@ public final class Facts {
             if (other == unit || !other.isAlive()) continue;
             if (own != null && CrewFacts.factionOfCrew(other) == own) {
                 allyCount++;
-                nearestAlly = Math.min(nearestAlly, hull.distanceTo(other));
+                double range = hull.distanceTo(other);
+                if (range < nearestAllyRange) {
+                    nearestAllyRange = range;
+                    closestAlly = other;
+                }
                 if (other.getTarget() == null) idleCount++;
                 // Any unit on our side carrying a radio can call it in for us. Short-circuited,
                 // and only ever reached for PMC — scanning an inventory per ally is not free.
@@ -343,12 +399,15 @@ public final class Facts {
         this.allies = allyCount;
         this.enemies = enemyCount;
         this.idleAllies = idleCount;
-        this.nearestAllyDist = nearestAlly;
+        this.nearestAllyDist = nearestAllyRange;
+        this.nearestAlly = closestAlly;
         this.faction = own;
         this.owner = unit instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
-        // +1 for ourselves on both sides: it keeps the ratio finite with no enemies about and
-        // makes "alone against one" read as an even 1.0 rather than a rout.
-        this.forceRatio = (allyCount + 1.0) / (enemyCount + 1.0);
+        this.underOrders = VehicleTargeting.underStandingOrder(unit);
+        // +1 on our side is US; the enemy side is floored at 1 rather than incremented, which
+        // would invent a phantom enemy. A lone crew facing a lone enemy is an even 1.0 — the
+        // earlier (enemies + 1) read that as 0.5 and had healthy crews permanently "outnumbered".
+        this.forceRatio = (allyCount + 1.0) / Math.max(enemyCount, 1);
     }
 
     /**
@@ -429,43 +488,6 @@ public final class Facts {
     private static final Direction[] HORIZONTAL =
             {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
 
-    /**
-     * One number for "how well is this going", so no individual action has to re-derive it.
-     *
-     * <p>Starts at an even 50 and is pushed either way by the things a commander would actually
-     * weigh. Doctrine tilts the baseline: a risk-tolerant commander reads the same battlefield
-     * more favourably than a preservation-minded one, which is the whole point of having both.
-     */
-    private double computeConfidence(Doctrine doctrine) {
-        double score = 50.0;
-
-        score += (this.health - 0.5) * 60.0;            // ±30 across the health range
-        score += (this.energy - 0.5) * 10.0;            // ±5 — only ever moves for PMC hulls
-        score += switch (this.ammo) {
-            case OUT -> -30.0;
-            case LOW -> -10.0;
-            case OK -> 0.0;
-        };
-        // Force ratio saturates: being outnumbered three to one is not meaningfully worse than
-        // five to one, and both should read as "get out".
-        score += Mth.clamp((this.forceRatio - 1.0) * 20.0, -25.0, 25.0);
-
-        // Weather you cannot see or shoot through is a reason to be less sure of yourself, not a
-        // reason to do anything in particular — the per-action effects live in the weights.
-        score += switch (this.sky) {
-            case STORM -> -15.0;
-            case SNOW -> -8.0;
-            case RAIN -> -4.0;
-            case CLEAR -> 0.0;
-        };
-        score -= this.altitude * 10.0;
-
-        score += doctrine.get(Doctrine.Axis.RISK_TOLERANCE) * 10.0;
-        score -= doctrine.get(Doctrine.Axis.PRESERVATION) * 10.0;
-
-        return Mth.clamp(score, 0.0, 100.0);
-    }
-
     /** Drop everything so a crew rejoining a different hull starts clean. */
     public void clear() {
         this.vehicle = null;
@@ -473,6 +495,9 @@ public final class Facts {
         this.target = null;
         this.targetCategory = null;
         this.targetDist = Double.MAX_VALUE;
+        this.nearestAlly = null;
+        this.underOrders = false;
+        this.confidence = Confidence.NEUTRAL;
         this.memory.clear();
     }
 

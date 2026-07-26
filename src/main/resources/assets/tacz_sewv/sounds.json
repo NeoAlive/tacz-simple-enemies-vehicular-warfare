@@ -40,6 +40,17 @@
   "pmc_mortar_4": { "sounds": ["tacz_sewv:pmc/pmc_mortar_4"] },
   "pmc_mortar_5": { "sounds": ["tacz_sewv:pmc/pmc_mortar_5"] },
 
+  "pmc_cas_1": { "sounds": ["tacz_sewv:pmc/pmc_cas_1"] },
+  "pmc_cas_2": { "sounds": ["tacz_sewv:pmc/pmc_cas_2"] },
+  "pmc_cas_3": { "sounds": ["tacz_sewv:pmc/pmc_cas_3"] },
+  "pmc_cas_4": { "sounds": ["tacz_sewv:pmc/pmc_cas_4"] },
+  "pmc_cas_5": { "sounds": ["tacz_sewv:pmc/pmc_cas_5"] },
+
+  "pmc_takeoff_1": { "sounds": ["tacz_sewv:pmc/pmc_takeoff_1"] },
+  "pmc_takeoff_2": { "sounds": ["tacz_sewv:pmc/pmc_takeoff_2"] },
+  "pmc_takeoff_3": { "sounds": ["tacz_sewv:pmc/pmc_takeoff_3"] },
+  "pmc_takeoff_4": { "sounds": ["tacz_sewv:pmc/pmc_takeoff_4"] },
+
   "pmc_tow_1": { "sounds": ["tacz_sewv:pmc/pmc_tow_1"] },
   "pmc_tow_2": { "sounds": ["tacz_sewv:pmc/pmc_tow_2"] },
 

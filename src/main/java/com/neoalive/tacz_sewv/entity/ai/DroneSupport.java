@@ -13,6 +13,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import javax.annotation.Nullable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -35,12 +36,29 @@ import java.util.UUID;
  * from the world just naturally excludes it, and the cap survives the engineer's own goal
  * instance being rebuilt on a chunk reload (a network id would not).
  */
-final class DroneSupport {
+public final class DroneSupport {
 
     private static final String OWNER_TAG = "sewv_drone_owner";
     private static final ResourceLocation DRONE_ID = new ResourceLocation("superbwarfare", "drone");
 
     private DroneSupport() {}
+
+    /**
+     * The engineer flying this drone, or null if nobody is. A drone has no seats, so its owner
+     * tag is the only place to read a faction — same role {@link MortarSupport#crewOf} plays for
+     * a tube. Search radius matches {@link #findOwnedDrones}: a drone escorts near its engineer.
+     */
+    @Nullable
+    public static AbstractUnit crewOf(DroneEntity drone) {
+        UUID ownerId = readOwner(drone);
+        if (ownerId == null) return null;
+        double radius = SewvConfig.DRONE_BROADCAST_RADIUS.get();
+        for (AbstractUnit unit : drone.level().getEntitiesOfClass(
+                AbstractUnit.class, drone.getBoundingBox().inflate(radius))) {
+            if (unit.isAlive() && ownerId.equals(unit.getUUID())) return unit;
+        }
+        return null;
+    }
 
     /**
      * Every currently-alive drone tagged as belonging to {@code owner}, found by scanning near

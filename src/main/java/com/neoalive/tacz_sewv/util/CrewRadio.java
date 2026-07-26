@@ -25,7 +25,7 @@ public final class CrewRadio {
      * hold the one channel and starve spotted/bail/decoy, which is what made lines feel rare.
      */
     public enum Line {
-        DAMAGED(160), SPOTTED(90), ORDERS(60), BAIL(60), DECOY(60), IFV(90), IDLE(600), TOW(100);
+        DAMAGED(160), SPOTTED(90), ORDERS(60), TAKEOFF(60), BAIL(60), DECOY(60), IFV(90), IDLE(600), TOW(100);
         final int cooldown;
         Line(int cooldown) { this.cooldown = cooldown; }
     }
@@ -88,7 +88,7 @@ public final class CrewRadio {
             case IFV     -> ModSounds.RU_IFV;
             case IDLE    -> navy ? ModSounds.RU_NAVY_IDLE : ModSounds.RU_IDLE;
             case TOW     -> ModSounds.RU_TOW;
-            case ORDERS  -> null;
+            case ORDERS, TAKEOFF -> null;
         };
         if (unit instanceof USunitEntity) return switch (line) {
             case DAMAGED -> ModSounds.US_DAMAGED;
@@ -98,12 +98,13 @@ public final class CrewRadio {
             case IFV     -> ModSounds.US_IFV;
             case IDLE    -> navy ? ModSounds.US_NAVY_IDLE : ModSounds.US_IDLE;
             case TOW     -> ModSounds.US_TOW;
-            case ORDERS  -> null;
+            case ORDERS, TAKEOFF -> null;
         };
         return switch (line) { // PMC
             case DAMAGED -> ModSounds.PMC_DAMAGED;
             case SPOTTED -> navy ? ModSounds.PMC_NAVY_TARGET : ModSounds.PMC_SPOTTED;
             case ORDERS  -> ModSounds.PMC_ORDERS;
+            case TAKEOFF -> ModSounds.PMC_TAKEOFF;
             case BAIL    -> ModSounds.PMC_BAIL;
             case DECOY   -> ModSounds.PMC_DECOY;
             case IDLE    -> navy ? ModSounds.PMC_NAVY_IDLE : ModSounds.PMC_IDLE;

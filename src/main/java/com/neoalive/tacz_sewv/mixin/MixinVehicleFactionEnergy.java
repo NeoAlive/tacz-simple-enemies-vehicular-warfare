@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.world.entity.Entity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
@@ -38,14 +39,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * reverts to whatever charge it genuinely had, and a captured/looted vehicle behaves
  * normally instead of being mysteriously empty.
  *
- * <p>PMC units are excluded on purpose — they are player-owned, so they stay on the
+ * <p>Gated by {@code SewvConfig.factionInfiniteEnergy} so a survival-minded pack can turn the
+ * free fuel off. PMC units are excluded on purpose — they are player-owned, so they stay on the
  * player's energy economy.
  */
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
 public abstract class MixinVehicleFactionEnergy {
 
     /**
-     * True while the driver's seat holds an RU/US unit.
+     * True while the driver's seat holds an RU/US unit and the infinite-energy toggle is on.
      *
      * <p>Cheap enough to run on every energy read — an empty-check, one list get and
      * two instanceofs, with no {@code computed()} call. Deliberately NOT cached per
@@ -57,6 +59,7 @@ public abstract class MixinVehicleFactionEnergy {
      */
     @Unique
     private boolean tacz_sewv$hasFactionDriver() {
+        if (!SewvConfig.FACTION_INFINITE_ENERGY.get()) return false;
         Entity driver = ((VehicleEntity) (Object) this).getFirstPassenger();
         return driver instanceof RUunitEntity || driver instanceof USunitEntity;
     }

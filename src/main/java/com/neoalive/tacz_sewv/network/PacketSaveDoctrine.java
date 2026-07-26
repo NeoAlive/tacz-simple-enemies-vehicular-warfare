@@ -11,7 +11,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.UUID;
 import java.util.function.Supplier;
 
 public class PacketSaveDoctrine {
@@ -55,16 +54,17 @@ public class PacketSaveDoctrine {
                 if (!(held.getItem() instanceof DoctrineLedgerItem)) return; // Not holding book
             }
 
-            // 4. Verify book ownership matches player
-            UUID ownerUUID = DoctrineLedgerItem.getOwner(held);
-            if (ownerUUID == null || !ownerUUID.equals(player.getUUID())) {
-                player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.not_owner").withStyle(ChatFormatting.RED), true);
+            // 4. Initial Ledger vs Respec Ledger validation
+            PlayerDoctrineData doctrineData = PlayerDoctrineData.get(player.level());
+            boolean isInitial = held.hasTag() && held.getTag().getBoolean("sewv_is_initial");
+            if (isInitial && doctrineData.getDoctrine(player.getUUID()) != null) {
+                player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.already_set").withStyle(ChatFormatting.RED), true);
                 return;
             }
 
             // 5. Save doctrine
             Doctrine customDoctrine = Doctrine.ofAxes(this.axes);
-            PlayerDoctrineData.get(player.level()).setDoctrine(player.getUUID(), customDoctrine);
+            doctrineData.setDoctrine(player.getUUID(), customDoctrine);
 
             // 6. Consume item
             held.shrink(1);

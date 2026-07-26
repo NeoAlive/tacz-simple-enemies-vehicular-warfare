@@ -43,6 +43,9 @@ public class SewvCommand {
                         .then(shipSpawn("usship", TankFaction.US))
                         .then(shipSpawn("ruship", TankFaction.RU))
                         .then(shipSpawn("pmcship", TankFaction.PMC))
+                        .then(planeSpawn("usplane", TankFaction.US))
+                        .then(planeSpawn("ruplane", TankFaction.RU))
+                        .then(planeSpawn("pmcplane", TankFaction.PMC))
                         .then(emplacementSpawn("usmortar", TankFaction.US, Emplacement.MORTAR))
                         .then(emplacementSpawn("rumortar", TankFaction.RU, Emplacement.MORTAR))
                         .then(emplacementSpawn("pmcmortar", TankFaction.PMC, Emplacement.MORTAR))
@@ -99,7 +102,11 @@ public class SewvCommand {
 
         IVehiclePatrol patrol = (IVehiclePatrol) pmc;
         if (patrol.sewv$isPatrolling()) {
-            String key = patrol.sewv$getPatrolMode() == IVehiclePatrol.MODE_SEARCH
+            int mode = patrol.sewv$getPatrolMode();
+            if (mode == IVehiclePatrol.MODE_CRUISE) {
+                return Component.translatable("command.tacz_sewv.status.cruise");
+            }
+            String key = mode == IVehiclePatrol.MODE_SEARCH
                     ? "command.tacz_sewv.status.search" : "command.tacz_sewv.status.patrol";
             return Component.translatable(key, patrol.sewv$getPatrolRadius());
         }
@@ -233,6 +240,28 @@ public class SewvCommand {
         return SharedSuggestionProvider.suggest(faction.shipPool().stream().map(String::valueOf), builder);
     }
 
+    // Mirrors shipSpawn against the faction's plane pool. RU/US go airborne; PMC takes off from ground.
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> planeSpawn(String literal, TankFaction faction) {
+        return Commands.literal(literal)
+                .executes(ctx -> spawnPlane(ctx.getSource(), faction, null, null))
+                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                        .executes(ctx -> spawnPlane(ctx.getSource(), faction, null,
+                                BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
+                        .then(Commands.argument("vehicle", StringArgumentType.greedyString())
+                                .suggests((c, b) -> suggestPlanePool(faction, b))
+                                .executes(ctx -> spawnPlane(ctx.getSource(), faction,
+                                        StringArgumentType.getString(ctx, "vehicle"),
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.argument("vehicle", StringArgumentType.greedyString())
+                        .suggests((c, b) -> suggestPlanePool(faction, b))
+                        .executes(ctx -> spawnPlane(ctx.getSource(), faction,
+                                StringArgumentType.getString(ctx, "vehicle"), null)));
+    }
+
+    private static CompletableFuture<Suggestions> suggestPlanePool(TankFaction faction, SuggestionsBuilder builder) {
+        return SharedSuggestionProvider.suggest(faction.planePool().stream().map(String::valueOf), builder);
+    }
+
     private static int spawnTank(CommandSourceStack source, TankFaction faction,
                                  @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
         ServerLevel level = source.getLevel();
@@ -291,6 +320,33 @@ public class SewvCommand {
 
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.spawn.success", faction.name(), ship.blockPosition().toShortString()), true);
+        return 1;
+    }
+
+    private static int spawnPlane(CommandSourceStack source, TankFaction faction,
+                                  @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
+        ServerLevel level = source.getLevel();
+
+        if (vehicleId != null && !faction.planePool().contains(vehicleId)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
+            return 0;
+        }
+
+        UUID ownerId = faction == TankFaction.PMC && source.getEntity() instanceof ServerPlayer player
+                ? player.getUUID() : null;
+
+        BlockPos requestedPos = explicitPos != null
+                ? explicitPos
+                : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
+        VehicleEntity plane = TankSpawner.spawnPlaneWithCrew(level, requestedPos, faction, ownerId, vehicleId);
+
+        if (plane == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.translatable(
+                "command.tacz_sewv.spawn.success", faction.name(), plane.blockPosition().toShortString()), true);
         return 1;
     }
 }

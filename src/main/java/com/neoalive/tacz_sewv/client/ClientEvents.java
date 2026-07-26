@@ -12,6 +12,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -133,6 +134,16 @@ public class ClientEvents {
         pendingEscort = false;
         pendingEscortUnits = List.of();
         promptCooldown = 0;
+    }
+
+    /**
+     * Map markers and escort mode are JVM-static. Leaving them across a disconnect paints the next
+     * world's map with the previous save's units (network ids are reused) until a sync arrives.
+     */
+    @SubscribeEvent
+    public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        MapMarkers.clear();
+        clearEscort();
     }
 
     private static void hint(String key) {

@@ -150,8 +150,9 @@ public abstract class MixinGuiMap extends Screen {
     private static final double TACZ_SEWV$MIN_DRAG_SQ = 16.0;
 
     /**
-     * Right-drag box-select. {@code boxSelecting} is true only while the right button is held over the
-     * map; like the line drag it is an instance field, so it dies with the screen. Point A is stored in
+     * Right-drag box-select was remapped to middle-mouse drag so RMB stays free for Xaero's order
+     * menu. {@code boxSelecting} is true only while the middle button is held over the map; like
+     * the line drag it is an instance field, so it dies with the screen. Point A is stored in
      * world coordinates so the box stays anchored to the ground.
      */
     @Unique
@@ -163,7 +164,7 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private int tacz_sewv$boxAz;
 
-    /** Screen-pixel drag below which a right-drag is a right-CLICK — Xaero opens its menu, no box.
+    /** Screen-pixel drag below which a middle-drag is a middle-CLICK — no box, no other action.
      *  Kept above Xaero's own 5px click threshold so the two never both fire on one gesture. */
     @Unique
     private static final double TACZ_SEWV$BOX_MIN_PX = 6.0;
@@ -211,7 +212,7 @@ public abstract class MixinGuiMap extends Screen {
 
     /**
      * Both map drags begin here: a LEFT-drag (with &gt;1 unit selected) lays out a line MOVE order
-     * instead of panning, and a RIGHT-drag boxes in your units. Neither disturbs a plain click — a
+     * instead of panning, and a MIDDLE-drag boxes in your units. Neither disturbs a plain click — a
      * left-click still selects a marker, a right-click still opens the order menu — because only a real
      * drag, judged on release, acts. A press on any Xaero widget is left alone, and while cruise
      * plotting is armed both stand aside.
@@ -226,12 +227,13 @@ public abstract class MixinGuiMap extends Screen {
         if (tacz_sewv$dropdownOpen()) return; // the right-click menu (or a toggle-menu) owns this click
         if (this.getChildAt(mouseX, mouseY).isPresent()) return; // a Xaero widget, not the map
 
-        if (button == 1) {
-            // Right-press: begin a box. NOT swallowed — a plain right-click must still reach Xaero's
-            // order menu; only a real drag (checked on release) actually selects anything.
+        if (button == 2) {
+            // Middle-press: begin a box. Swallowed so Xaero does not treat MMB as something else;
+            // a barely-moved release simply selects nothing (RMB still owns the order menu).
             this.tacz_sewv$boxSelecting = true;
             this.tacz_sewv$boxAx = this.mouseBlockPosX;
             this.tacz_sewv$boxAz = this.mouseBlockPosZ;
+            cir.setReturnValue(true);
             return;
         }
         // With <2 selected, leave the left button to Xaero (pan + normal marker selection). With a
@@ -251,9 +253,8 @@ public abstract class MixinGuiMap extends Screen {
 
     /**
      * Confirms whichever drag was running. A LEFT line-order drag dispatches the selection along A→B
-     * (a barely-moved one deselects and hands panning back). A RIGHT box-drag adds every own unit
-     * inside the box to the selection; a barely-moved one is left to Xaero as an ordinary right-click,
-     * so the order menu still opens for it.
+     * (a barely-moved one deselects and hands panning back). A MIDDLE box-drag adds every own unit
+     * inside the box to the selection; a barely-moved one is a no-op (RMB still opens the order menu).
      */
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapRelease(double mouseX, double mouseY, int button,
@@ -266,11 +267,10 @@ public abstract class MixinGuiMap extends Screen {
             this.tacz_sewv$pressMarker = null;
             return;
         }
-        if (button == 1 && this.tacz_sewv$boxSelecting) {
+        if (button == 2 && this.tacz_sewv$boxSelecting) {
             this.tacz_sewv$boxSelecting = false;
-            // Not swallowed: below the box threshold this was a right-CLICK and Xaero must still open
-            // the menu. applyBoxSelection no-ops in that case (it re-checks the threshold itself).
             tacz_sewv$applyBoxSelection(mouseX, mouseY);
+            cir.setReturnValue(true);
             return;
         }
         if (button != 0 || !this.tacz_sewv$orderDragging) return;
@@ -471,13 +471,13 @@ public abstract class MixinGuiMap extends Screen {
     /**
      * Adds every OWN unit inside the drawn box to the selection. World bounds run from point A to the
      * cursor's block; the pixel check against the release cursor is what tells a real box from a mere
-     * right-click (below it this no-ops, and Xaero's own menu opens instead). Only the map's own
+     * middle-click (below it this no-ops). Only the map's own
      * dimension counts, and {@link MapMarkers#addSelected} silently ignores anything not yours.
      */
     @Unique
     private void tacz_sewv$applyBoxSelection(double mouseX, double mouseY) {
         int[] a = tacz_sewv$toScreenXZ(this.tacz_sewv$boxAx + 0.5, this.tacz_sewv$boxAz + 0.5);
-        if (Math.hypot(mouseX - a[0], mouseY - a[1]) < TACZ_SEWV$BOX_MIN_PX) return; // a right-click, not a box
+        if (Math.hypot(mouseX - a[0], mouseY - a[1]) < TACZ_SEWV$BOX_MIN_PX) return; // a click, not a box
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
@@ -498,7 +498,7 @@ public abstract class MixinGuiMap extends Screen {
         if (caught > 0) tacz_sewv$hint("message.tacz_sewv.map.boxed", MapMarkers.selected().size());
     }
 
-    /** The live rectangle while right-dragging: point A anchored to the world, the far corner at the cursor. */
+    /** The live rectangle while middle-dragging: point A anchored to the world, the far corner at the cursor. */
     @Unique
     private void tacz_sewv$drawSelectionBox(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         int[] a = tacz_sewv$toScreenXZ(this.tacz_sewv$boxAx + 0.5, this.tacz_sewv$boxAz + 0.5);

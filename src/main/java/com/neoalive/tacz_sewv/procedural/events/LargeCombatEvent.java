@@ -140,6 +140,13 @@ public final class LargeCombatEvent extends DynamicEvent {
             // targets. A mission is for shelling a place nobody has eyes on.
             EmplacementSpawner.spawn(level, TankSpawner.adjustHeight(level, pos), type, faction, null, null);
         }
+
+        // Bonus CAS — does not count toward the "vehicles == 0" fail gate above.
+        if (SewvConfig.PLANES_IN_EVENTS.get()
+                && level.random.nextDouble() < SewvConfig.LARGE_COMBAT_PLANE_CHANCE.get()
+                && TankSpawner.hasSpawnablePlane(level, faction)) {
+            TankSpawner.spawnPlaneWithCrew(level, TankSpawner.adjustHeight(level, anchor), faction, null);
+        }
         return spawned;
     }
 }

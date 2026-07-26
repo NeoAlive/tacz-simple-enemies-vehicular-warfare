@@ -18,24 +18,35 @@ public abstract class MixinCombatEvent {
             ServerLevel level, ServerPlayer player, BlockPos centerPos,
             CallbackInfoReturnable<Boolean> cir) {
 
-        // Config gate
-        if (!SewvConfig.TANKS_IN_EVENTS.get()) return;
-
         // Only proceed if the event actually succeeded (returned true)
         if (cir.getReturnValue() == null || !cir.getReturnValue()) return;
 
         int separation = 24;
 
-        // Roll for RU tank (extremely low chance)
-        if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_RU.get()) {
-            BlockPos posRu = TankSpawner.adjustHeight(level, centerPos.offset(separation, 0, 0));
-            TankSpawner.spawnTankWithCrew(level, posRu, TankSpawner.TankFaction.RU, null);
+        if (SewvConfig.TANKS_IN_EVENTS.get()) {
+            if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_RU.get()) {
+                BlockPos posRu = TankSpawner.adjustHeight(level, centerPos.offset(separation, 0, 0));
+                TankSpawner.spawnTankWithCrew(level, posRu, TankSpawner.TankFaction.RU, null);
+            }
+            if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_US.get()) {
+                BlockPos posUs = TankSpawner.adjustHeight(level, centerPos.offset(-separation, 0, 0));
+                TankSpawner.spawnTankWithCrew(level, posUs, TankSpawner.TankFaction.US, null);
+            }
         }
 
-        // Roll for US tank (independent roll)
-        if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_US.get()) {
-            BlockPos posUs = TankSpawner.adjustHeight(level, centerPos.offset(-separation, 0, 0));
-            TankSpawner.spawnTankWithCrew(level, posUs, TankSpawner.TankFaction.US, null);
+        // Rare CAS overhead — independent of the tank rolls, from the dedicated plane pools.
+        if (SewvConfig.PLANES_IN_EVENTS.get()) {
+            int airSep = 32;
+            if (level.random.nextDouble() < SewvConfig.PLANE_SPAWN_CHANCE_RU.get()
+                    && TankSpawner.hasSpawnablePlane(level, TankSpawner.TankFaction.RU)) {
+                BlockPos posRu = TankSpawner.adjustHeight(level, centerPos.offset(airSep, 0, 0));
+                TankSpawner.spawnPlaneWithCrew(level, posRu, TankSpawner.TankFaction.RU, null);
+            }
+            if (level.random.nextDouble() < SewvConfig.PLANE_SPAWN_CHANCE_US.get()
+                    && TankSpawner.hasSpawnablePlane(level, TankSpawner.TankFaction.US)) {
+                BlockPos posUs = TankSpawner.adjustHeight(level, centerPos.offset(-airSep, 0, 0));
+                TankSpawner.spawnPlaneWithCrew(level, posUs, TankSpawner.TankFaction.US, null);
+            }
         }
     }
 }

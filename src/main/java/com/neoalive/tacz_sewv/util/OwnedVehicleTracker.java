@@ -1,10 +1,12 @@
 package com.neoalive.tacz_sewv.util;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
+import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.entity.ai.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.SupportRole;
@@ -21,6 +23,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
@@ -64,10 +69,33 @@ public final class OwnedVehicleTracker {
      * Deadline on the server's own tick counter, not on world game time: game time rewinds when a
      * different world is loaded in the same session, and a deadline set from the previous world's
      * clock would then sit in the future for hours.
+     *
+     * <p>Still reset on {@link ServerStartingEvent}: the tick counter itself also restarts at 0 on
+     * a new integrated server, and a leftover deadline from the previous run would suppress every
+     * sync until that old tick number came around again — leaving the client on cleared/empty
+     * markers (or, before the client clear, on ghosts from the last world).
      */
     private static int nextSend = Integer.MIN_VALUE;
 
     private OwnedVehicleTracker() {}
+
+    @SubscribeEvent
+    public static void onServerStarting(ServerStartingEvent event) {
+        nextSend = Integer.MIN_VALUE;
+    }
+
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        nextSend = Integer.MIN_VALUE;
+    }
+
+    /** Flush on join so a reconnect / new world gets a picture on the first tick, not after the interval. */
+    @SubscribeEvent
+    public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer) {
+            nextSend = Integer.MIN_VALUE;
+        }
+    }
 
     /** A crewed hull, resolved once per sync and then served to every player from this. */
     private record Candidate(VehicleMarker.Kind kind, CrewFacts.Faction faction, UUID pmcOwner,
@@ -108,9 +136,13 @@ public final class OwnedVehicleTracker {
         for (VehicleEntity hull : level.getEntities(EntityTypeTest.forClass(VehicleEntity.class), h -> true)) {
             // A mortar IS a VehicleEntity but has no seats, so it never has a crew to read a faction
             // off — that is the whole reason it needs its own branch rather than falling through the
-            // passenger test as "empty".
+            // passenger test as "empty". Same shape for recon drones (seatless, owned by NBT tag).
             if (hull instanceof MortarEntity mortar) {
                 collectMortar(level, mortar, candidates);
+                continue;
+            }
+            if (hull instanceof DroneEntity drone) {
+                collectDrone(level, drone, candidates);
                 continue;
             }
 
@@ -152,6 +184,27 @@ public final class OwnedVehicleTracker {
                 VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
                 crew.getId(), mortar.getId(),
                 mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension()));
+    }
+
+    /**
+     * Recon drones are seatless, like mortars: faction/owner come from the engineer tagged on the
+     * hull ({@link DroneSupport#crewOf}), position from the drone. Drawn as
+     * {@link VehicleMarker.Kind#ROTARY_WING} — SBW's datapack {@code Type} is {@code Drone}, not
+     * {@code HELICOPTER}.
+     */
+    private static void collectDrone(ServerLevel level, DroneEntity drone, List<Candidate> candidates) {
+        AbstractUnit crew = DroneSupport.crewOf(drone);
+        if (crew == null) return;
+
+        CrewFacts.Faction faction = CrewFacts.factionOfCrew(crew);
+        if (faction == null) return;
+
+        candidates.add(new Candidate(
+                VehicleMarker.Kind.ROTARY_WING, faction,
+                crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
+                VehicleTargeting.isFactionFriendly(crew), MarkerOrder.NONE,
+                crew.getId(), drone.getId(),
+                drone.getX(), drone.getY(), drone.getZ(), drone.getYRot(), level.dimension()));
     }
 
     /**
@@ -306,6 +359,8 @@ public final class OwnedVehicleTracker {
     }
 
     private static VehicleMarker.Kind computeKind(VehicleEntity hull) {
+        // Datapack Type "Drone" is not EngineType.HELICOPTER — pin it before the engine switch.
+        if (hull instanceof DroneEntity) return VehicleMarker.Kind.ROTARY_WING;
         EngineType engine;
         try {
             engine = hull.computed().getEngineType();

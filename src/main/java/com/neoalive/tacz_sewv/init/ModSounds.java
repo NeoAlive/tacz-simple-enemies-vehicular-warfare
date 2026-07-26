@@ -23,8 +23,10 @@ public final class ModSounds {
     // Each pool registers its variants as individual events so the code can pick a specific,
     // non-repeating clip; sounds.json maps each to one .ogg under sounds/<faction>/. RU/US ORDERS are
     // absent (autonomous units get no player orders); PMC IFV is absent (its squad fields no line).
-    // PMC_MORTAR is the odd one out: it is not a crew radio pool but the handheld radio's own
-    // acknowledgement, played by the fire-mission caller (HandheldRadioItem, RadioObserverGoal).
+    // PMC_MORTAR / PMC_CAS are not crew-radio pools: they are the handheld radio's acknowledgements
+    // for a fire mission (HandheldRadioItem, RadioObserverGoal), picked by which support kinds
+    // actually answered. PMC_TAKEOFF is a crew line, but only on a plane ordered to take off —
+    // PacketHelicopterCommand, never idle flight / patrol / CAS / land.
     public static final SoundPool PMC_DAMAGED = pool("pmc_damaged", 6);
     public static final SoundPool PMC_SPOTTED = pool("pmc_spotted", 7);
     public static final SoundPool PMC_ORDERS  = pool("pmc_orders", 4);
@@ -32,6 +34,8 @@ public final class ModSounds {
     public static final SoundPool PMC_DECOY   = pool("pmc_decoy", 2);
     public static final SoundPool PMC_IDLE    = pool("pmc_idle", 7);
     public static final SoundPool PMC_MORTAR  = pool("pmc_mortar", 5);
+    public static final SoundPool PMC_CAS     = pool("pmc_cas", 5);
+    public static final SoundPool PMC_TAKEOFF = pool("pmc_takeoff", 4);
     public static final SoundPool PMC_TOW     = pool("pmc_tow", 2);
     public static final SoundPool PMC_NAVY_IDLE   = pool("pmc_navy_idle", 4);
     public static final SoundPool PMC_NAVY_TARGET = pool("pmc_navy_target", 5);

@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -12,6 +13,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -64,6 +66,10 @@ public class DrivePlaneGoal extends Goal {
 
     // Below this fraction of max health SBW flies the plane into a death spiral on its own; let go.
     private static final float CRASH_HEALTH_FRACTION = 0.10F;
+    // RU/US emergency landing: abstract "get down" before the crash spiral, reuse PMC land procedure.
+    private static final float EMERGENCY_LAND_HEALTH = 0.15F;
+    private static final int EMERGENCY_LAND_RETRY_TICKS = 100;
+    private static final double FACTION_ESCORT_RANGE = 256.0;
 
     // --- Steering (proportional sticks, re-asserted every tick against the ×0.95 decay) ---
     private static final double YAW_STICK_PER_DEG = 0.6;
@@ -157,6 +163,9 @@ public class DrivePlaneGoal extends Goal {
     private boolean selBomb;
     private String selBombName;
 
+    /** Absolute game time before the next RU/US emergency-pad search (no field found). */
+    private long nextEmergencyLandTry = Long.MIN_VALUE;
+
     public DrivePlaneGoal(AbstractUnit unit) {
         this.unit = unit;
         this.sensor = new AirTerrainSensor(unit);
@@ -215,6 +224,7 @@ public class DrivePlaneGoal extends Goal {
         resetAttackRun();
         this.allyAssist.clear();
         this.sensor.clear();
+        this.nextEmergencyLandTry = Long.MIN_VALUE;
     }
 
     @Override
@@ -235,6 +245,34 @@ public class DrivePlaneGoal extends Goal {
         IHelicopterPilot pilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
         int command = pilot != null ? pilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
 
+        // RU/US: try the PMC landing procedure while still controllable (<15%, above crash spiral).
+        if (pilot != null && !(this.unit instanceof PmcUnitEntity)
+                && command != IHelicopterPilot.HELI_CMD_LANDING
+                && command != IHelicopterPilot.HELI_CMD_LANDED
+                && max > 0.0F && this.vehicle.getHealth() < max * EMERGENCY_LAND_HEALTH) {
+            long now = this.unit.level().getGameTime();
+            if (now >= this.nextEmergencyLandTry) {
+                BlockPos pad = pickEmergencyPad();
+                if (pad != null) {
+                    pilot.sewv$setHeliLandPos(pad);
+                    command = IHelicopterPilot.HELI_CMD_LANDING;
+                    pilot.sewv$setHeliCommand(command);
+                } else {
+                    this.nextEmergencyLandTry = now + EMERGENCY_LAND_RETRY_TICKS;
+                }
+            }
+        }
+
+        // Hostile RU/US crews take no player flight orders and never idle parked: any grounded
+        // NONE state (spawn edge case, world reload) resolves to takeoff. Sticky LANDED after an
+        // emergency landing stays down — that is the whole point of the emergency procedure.
+        if (pilot != null && !(this.unit instanceof PmcUnitEntity)
+                && this.vehicle.onGround()
+                && command == IHelicopterPilot.HELI_CMD_NONE) {
+            command = IHelicopterPilot.HELI_CMD_TAKEOFF;
+            pilot.sewv$setHeliCommand(command);
+        }
+
         // LANDED is sticky: stay shut down until a new takeoff.
         if (command == IHelicopterPilot.HELI_CMD_LANDED) {
             releaseInputs();
@@ -250,14 +288,20 @@ public class DrivePlaneGoal extends Goal {
         }
 
         // command == NONE. A plane on the ground with no takeoff order just sits — running the cruise
-        // logic on the ground would taxi it around pointlessly (and PMC-only scope means no
-        // autonomous takeoff for RU/US planes, which do not spawn).
+        // logic on the ground would taxi it around pointlessly. RU/US never stay here long: the
+        // auto-TAKEOFF above lifts them, and event/command spawns place them already airborne.
         if (this.vehicle.onGround()) {
             releaseInputs();
             return;
         }
 
-        // Airborne. Combat unless an explicit movement order pins the flight path.
+        // RU/US: guided faction assets — escort nearest ground ally, inherit targets, stay local.
+        if (!(this.unit instanceof PmcUnitEntity)) {
+            factionEscortTick();
+            return;
+        }
+
+        // Airborne PMC. Combat unless an explicit movement order pins the flight path.
         LivingEntity combatTarget = this.unit.getTarget();
         if (combatTarget != null && !flightPinnedByOrder()) {
             combatTick(combatTarget);
@@ -285,6 +329,152 @@ public class DrivePlaneGoal extends Goal {
         } else {
             flyToward(px, pz, Math.max(cruiseAltitudeToward(px, pz), dest.getY() + MIN_OVER_DEST));
         }
+    }
+
+    /**
+     * RU/US planes stay tied to the local fight: nearest same-faction ground hull, inherit its
+     * target, fall back to any allied unit, else orbit the nearest ground underfoot — never a
+     * free roam across the map.
+     */
+    private void factionEscortTick() {
+        VehicleEntity allyHull = findNearestGroundAlly();
+        if (allyHull != null) {
+            inheritTargetFromHull(allyHull);
+            LivingEntity combatTarget = this.unit.getTarget();
+            if (combatTarget != null) {
+                combatTick(combatTarget);
+                return;
+            }
+            resetAttackRun();
+            flyToward(allyHull.getX(), allyHull.getZ(),
+                    Math.max(cruiseAltitudeToward(allyHull.getX(), allyHull.getZ()),
+                            allyHull.getY() + MIN_OVER_DEST));
+            return;
+        }
+        AbstractUnit allyUnit = findNearestAllyUnit();
+        if (allyUnit != null) {
+            inheritTargetFromUnit(allyUnit);
+            LivingEntity combatTarget = this.unit.getTarget();
+            if (combatTarget != null) {
+                combatTick(combatTarget);
+                return;
+            }
+            resetAttackRun();
+            flyToward(allyUnit.getX(), allyUnit.getZ(),
+                    Math.max(cruiseAltitudeToward(allyUnit.getX(), allyUnit.getZ()),
+                            allyUnit.getY() + MIN_OVER_DEST));
+            return;
+        }
+        resetAttackRun();
+        BlockPos ground = nearestLocalGround();
+        double px = ground.getX() + 0.5;
+        double pz = ground.getZ() + 0.5;
+        double dx = px - this.vehicle.getX();
+        double dz = pz - this.vehicle.getZ();
+        if (dx * dx + dz * dz <= (2.0 * MIN_OVER_DEST) * (2.0 * MIN_OVER_DEST)) {
+            loiter(Math.max(cruiseAltitudeHere(), ground.getY() + MIN_OVER_DEST));
+        } else {
+            flyToward(px, pz, Math.max(cruiseAltitudeToward(px, pz), ground.getY() + MIN_OVER_DEST));
+        }
+    }
+
+    private void inheritTargetFromHull(VehicleEntity hull) {
+        if (hull.getFirstPassenger() instanceof AbstractUnit driver) {
+            inheritTargetFromUnit(driver);
+        }
+    }
+
+    private void inheritTargetFromUnit(AbstractUnit ally) {
+        LivingEntity theirs = ally.getTarget();
+        if (theirs != null && theirs.isAlive() && theirs != this.unit) {
+            this.unit.setTarget(theirs);
+        }
+    }
+
+    private VehicleEntity findNearestGroundAlly() {
+        AABB box = this.vehicle.getBoundingBox().inflate(FACTION_ESCORT_RANGE);
+        VehicleEntity best = null;
+        double bestD = Double.MAX_VALUE;
+        for (VehicleEntity v : this.unit.level().getEntitiesOfClass(VehicleEntity.class, box,
+                this::isFactionGroundAlly)) {
+            double d = v.distanceToSqr(this.vehicle);
+            if (d < bestD) {
+                bestD = d;
+                best = v;
+            }
+        }
+        return best;
+    }
+
+    private boolean isFactionGroundAlly(VehicleEntity v) {
+        if (v == this.vehicle || !v.isAlive() || v.isWreck()) return false;
+        if (HullFacts.isPlaneHull(v) || HullFacts.isShipHull(v)) return false;
+        try {
+            if (v.computed().getEngineType() == EngineType.HELICOPTER) return false;
+        } catch (Throwable ignored) {
+            return false;
+        }
+        return v.getFirstPassenger() instanceof AbstractUnit crew
+                && VehicleTargeting.isSameFaction(this.unit, crew);
+    }
+
+    private AbstractUnit findNearestAllyUnit() {
+        AABB box = this.vehicle.getBoundingBox().inflate(FACTION_ESCORT_RANGE);
+        AbstractUnit best = null;
+        double bestD = Double.MAX_VALUE;
+        for (AbstractUnit other : this.unit.level().getEntitiesOfClass(AbstractUnit.class, box,
+                a -> a != this.unit && a.isAlive() && VehicleTargeting.isSameFaction(this.unit, a))) {
+            double d = other.distanceToSqr(this.vehicle);
+            if (d < bestD) {
+                bestD = d;
+                best = other;
+            }
+        }
+        return best;
+    }
+
+    private BlockPos nearestLocalGround() {
+        Level level = this.unit.level();
+        int x = this.vehicle.getBlockX();
+        int z = this.vehicle.getBlockZ();
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        return new BlockPos(x, y, z);
+    }
+
+    /** Flat-enough strip near the plane for an emergency glide-in; null → retry later. */
+    private BlockPos pickEmergencyPad() {
+        Level level = this.unit.level();
+        int bx = this.vehicle.getBlockX();
+        int bz = this.vehicle.getBlockZ();
+        Vec3 facing = forwardFlat();
+        for (int r = 0; r <= 48; r += 4) {
+            for (int dx = -r; dx <= r; dx += 4) {
+                for (int dz = -r; dz <= r; dz += 4) {
+                    if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r) continue;
+                    int x = bx + dx;
+                    int z = bz + dz;
+                    int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                    if (y <= level.getMinBuildHeight()) continue;
+                    BlockPos pad = new BlockPos(x, y, z);
+                    if (!level.getFluidState(pad).isEmpty()) continue;
+                    if (fieldClearFrom(pad, facing)) return pad;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean fieldClearFrom(BlockPos pad, Vec3 dir) {
+        Level level = this.unit.level();
+        int base = pad.getY();
+        double length = Math.min(32.0, SewvConfig.PLANE_TAKEOFF_RUNWAY_RADIUS.get());
+        for (double d = 2.0; d <= length; d += 2.0) {
+            int px = Mth.floor(pad.getX() + 0.5 + dir.x * d);
+            int pz = Mth.floor(pad.getZ() + 0.5 + dir.z * d);
+            int surf = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, px, pz);
+            if (Math.abs(surf - base) > RUNWAY_MAX_STEP) return false;
+        }
+        return true;
     }
 
     // Same pin set as the helicopter goal: an explicit movement/hold order owns the flight path so a

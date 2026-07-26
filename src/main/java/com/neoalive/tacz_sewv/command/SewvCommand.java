@@ -59,7 +59,18 @@ public class SewvCommand {
                 )
                 // Ungated (unlike spawn, above): any player can check on their own units.
                 .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
+                .then(Commands.literal("pool")
+                        .requires(source -> source.hasPermission(2))
+                        .executes(ctx -> openPoolEditor(ctx.getSource())))
         );
+    }
+
+    private static int openPoolEditor(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.pool.player_only"));
+            return 0;
+        }
+        return com.neoalive.tacz_sewv.util.PoolEditorAccess.open(player);
     }
 
     // Reports each nearby owned PMC unit's current standing order, in the same precedence the
@@ -202,18 +213,19 @@ public class SewvCommand {
                         .executes(ctx -> spawnTank(ctx.getSource(), faction, null,
                                 BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
                         .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                                .suggests((c, b) -> suggestPool(faction, b))
+                                .suggests((c, b) -> suggestPool(c.getSource(), faction, b))
                                 .executes(ctx -> spawnTank(ctx.getSource(), faction,
                                         StringArgumentType.getString(ctx, "vehicle"),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                        .suggests((c, b) -> suggestPool(faction, b))
+                        .suggests((c, b) -> suggestPool(c.getSource(), faction, b))
                         .executes(ctx -> spawnTank(ctx.getSource(), faction,
                                 StringArgumentType.getString(ctx, "vehicle"), null)));
     }
 
-    private static CompletableFuture<Suggestions> suggestPool(TankFaction faction, SuggestionsBuilder builder) {
-        return SharedSuggestionProvider.suggest(faction.vehiclePool().stream().map(String::valueOf), builder);
+    private static CompletableFuture<Suggestions> suggestPool(CommandSourceStack source, TankFaction faction, SuggestionsBuilder builder) {
+        return SharedSuggestionProvider.suggest(
+                faction.vehiclePool(source.getLevel()).stream().map(String::valueOf), builder);
     }
 
     // Mirrors tankSpawn/spawnTank exactly, against the faction's ship pool instead. Ships are a
@@ -226,18 +238,19 @@ public class SewvCommand {
                         .executes(ctx -> spawnShip(ctx.getSource(), faction, null,
                                 BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
                         .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                                .suggests((c, b) -> suggestShipPool(faction, b))
+                                .suggests((c, b) -> suggestShipPool(c.getSource(), faction, b))
                                 .executes(ctx -> spawnShip(ctx.getSource(), faction,
                                         StringArgumentType.getString(ctx, "vehicle"),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                        .suggests((c, b) -> suggestShipPool(faction, b))
+                        .suggests((c, b) -> suggestShipPool(c.getSource(), faction, b))
                         .executes(ctx -> spawnShip(ctx.getSource(), faction,
                                 StringArgumentType.getString(ctx, "vehicle"), null)));
     }
 
-    private static CompletableFuture<Suggestions> suggestShipPool(TankFaction faction, SuggestionsBuilder builder) {
-        return SharedSuggestionProvider.suggest(faction.shipPool().stream().map(String::valueOf), builder);
+    private static CompletableFuture<Suggestions> suggestShipPool(CommandSourceStack source, TankFaction faction, SuggestionsBuilder builder) {
+        return SharedSuggestionProvider.suggest(
+                faction.shipPool(source.getLevel()).stream().map(String::valueOf), builder);
     }
 
     // Mirrors shipSpawn against the faction's plane pool. RU/US go airborne; PMC takes off from ground.
@@ -248,27 +261,28 @@ public class SewvCommand {
                         .executes(ctx -> spawnPlane(ctx.getSource(), faction, null,
                                 BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
                         .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                                .suggests((c, b) -> suggestPlanePool(faction, b))
+                                .suggests((c, b) -> suggestPlanePool(c.getSource(), faction, b))
                                 .executes(ctx -> spawnPlane(ctx.getSource(), faction,
                                         StringArgumentType.getString(ctx, "vehicle"),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                        .suggests((c, b) -> suggestPlanePool(faction, b))
+                        .suggests((c, b) -> suggestPlanePool(c.getSource(), faction, b))
                         .executes(ctx -> spawnPlane(ctx.getSource(), faction,
                                 StringArgumentType.getString(ctx, "vehicle"), null)));
     }
 
-    private static CompletableFuture<Suggestions> suggestPlanePool(TankFaction faction, SuggestionsBuilder builder) {
-        return SharedSuggestionProvider.suggest(faction.planePool().stream().map(String::valueOf), builder);
+    private static CompletableFuture<Suggestions> suggestPlanePool(CommandSourceStack source, TankFaction faction, SuggestionsBuilder builder) {
+        return SharedSuggestionProvider.suggest(
+                faction.planePool(source.getLevel()).stream().map(String::valueOf), builder);
     }
 
     private static int spawnTank(CommandSourceStack source, TankFaction faction,
                                  @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
         ServerLevel level = source.getLevel();
 
-        // A specific id is only honored if the config pool actually contains it — catch
+        // A specific id is only honored if the world pool actually contains it — catch
         // it here so the operator gets a clear reason rather than the generic failure.
-        if (vehicleId != null && !faction.vehiclePool().contains(vehicleId)) {
+        if (vehicleId != null && !faction.vehiclePool(level).contains(vehicleId)) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
             return 0;
         }
@@ -298,7 +312,7 @@ public class SewvCommand {
                                   @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
         ServerLevel level = source.getLevel();
 
-        if (vehicleId != null && !faction.shipPool().contains(vehicleId)) {
+        if (vehicleId != null && !faction.shipPool(level).contains(vehicleId)) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
             return 0;
         }
@@ -327,7 +341,7 @@ public class SewvCommand {
                                   @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
         ServerLevel level = source.getLevel();
 
-        if (vehicleId != null && !faction.planePool().contains(vehicleId)) {
+        if (vehicleId != null && !faction.planePool(level).contains(vehicleId)) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
             return 0;
         }

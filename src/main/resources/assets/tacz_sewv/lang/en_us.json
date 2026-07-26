@@ -168,5 +168,23 @@
   "gui.tacz_sewv.doctrine.axis.supportReliance": "Support Reliance",
   "gui.tacz_sewv.doctrine.axis.targetPriority": "Target Priority",
   "gui.tacz_sewv.doctrine.axis.maneuver": "Maneuver",
-  "gui.tacz_sewv.doctrine.axis.riskTolerance": "Risk Tolerance"
+  "gui.tacz_sewv.doctrine.axis.riskTolerance": "Risk Tolerance",
+
+  "item.tacz_sewv.pool_clipboard": "Vehicle Pool Clipboard",
+  "tooltip.tacz_sewv.pool_clipboard.use": "Use (op only) to edit this world's vehicle spawn pools",
+  "tooltip.tacz_sewv.pool_clipboard.op": "Operator-only admin tool — uncraftable",
+  "message.tacz_sewv.pool.denied": "Pool editor requires operator permission.",
+  "message.tacz_sewv.pool.saved": "Vehicle pools saved for this world.",
+  "command.tacz_sewv.pool.player_only": "Only a player can open the pool editor.",
+  "gui.tacz_sewv.pool.title": "Vehicle Spawn Pools",
+  "gui.tacz_sewv.pool.cat.ground": "Ground / Heli",
+  "gui.tacz_sewv.pool.cat.ship": "Ships",
+  "gui.tacz_sewv.pool.cat.plane": "Planes",
+  "gui.tacz_sewv.pool.filter": "Filter catalog…",
+  "gui.tacz_sewv.pool.add": "Add",
+  "gui.tacz_sewv.pool.remove": "Remove",
+  "gui.tacz_sewv.pool.reset": "Reset",
+  "gui.tacz_sewv.pool.save": "Save",
+  "gui.tacz_sewv.pool.hint": "%s · %s · %s entries",
+  "gui.tacz_sewv.pool.next_add": "Add will insert: %s"
 }

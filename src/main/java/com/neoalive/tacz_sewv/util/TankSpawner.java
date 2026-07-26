@@ -8,6 +8,8 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.compat.AshAmmoCompat;
+import com.neoalive.tacz_sewv.compat.McspAmmoCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -40,35 +42,24 @@ public final class TankSpawner {
 
     private TankSpawner() {}
 
-    /** Which faction crews the vehicle; each has its own configurable vehicle pool. */
+    /** Which faction crews the vehicle; each has its own world-overridable vehicle pool. */
     public enum TankFaction {
         RU, US, PMC;
 
-        public List<? extends String> vehiclePool() {
-            return switch (this) {
-                case RU -> SewvConfig.RU_VEHICLE_POOL.get();
-                case US -> SewvConfig.US_VEHICLE_POOL.get();
-                case PMC -> SewvConfig.PMC_VEHICLE_POOL.get();
-            };
+        /** Ground + helicopter pool for this world (COMMON config is the seed only). */
+        public List<? extends String> vehiclePool(ServerLevel level) {
+            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.GROUND);
         }
 
-        /** The faction's ship pool — a dedicated list, not appended to {@link #vehiclePool()},
+        /** The faction's ship pool — a dedicated list, not appended to {@link #vehiclePool},
          * since a ship needs a water-adjacent spawn position a ground pool pick never does. */
-        public List<? extends String> shipPool() {
-            return switch (this) {
-                case RU -> SewvConfig.RU_SHIP_POOL.get();
-                case US -> SewvConfig.US_SHIP_POOL.get();
-                case PMC -> SewvConfig.PMC_SHIP_POOL.get();
-            };
+        public List<? extends String> shipPool(ServerLevel level) {
+            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.SHIP);
         }
 
         /** The faction's plane pool — dedicated like ships; RU/US spawn airborne, PMC on the ground. */
-        public List<? extends String> planePool() {
-            return switch (this) {
-                case RU -> SewvConfig.RU_PLANE_POOL.get();
-                case US -> SewvConfig.US_PLANE_POOL.get();
-                case PMC -> SewvConfig.PMC_PLANE_POOL.get();
-            };
+        public List<? extends String> planePool(ServerLevel level) {
+            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.PLANE);
         }
     }
 
@@ -82,10 +73,8 @@ public final class TankSpawner {
         return spawnTankWithCrew(level, pos, faction, ownerId, null);
     }
 
-    // Resolved once per unique pool entry and cached for the server's lifetime: pool entries are
-    // static config, so constructing a throwaway entity just to type-check it — on every ~60s roll,
-    // twice per roll (RU+US) from both ConvoyEvent and DerelictVehicleEvent — is pure waste past
-    // the first hit for that id.
+    // Resolved once per unique pool entry and cached for the server's lifetime. Pool lists can
+    // change via WorldVehiclePools mid-session, but entity-type identity for a given id does not.
     private static final Map<ResourceLocation, Boolean> VEHICLE_TYPE_CACHE = new HashMap<>();
 
     private static boolean isVehicleEntityType(ServerLevel level, ResourceLocation rl, EntityType<?> type) {
@@ -94,17 +83,17 @@ public final class TankSpawner {
 
     /** True when the faction's configured pool contains at least one loadable SW vehicle. */
     public static boolean hasSpawnableVehicle(ServerLevel level, TankFaction faction) {
-        return hasSpawnable(level, faction.vehiclePool());
+        return hasSpawnable(level, faction.vehiclePool(level));
     }
 
     /** The same, for the faction's separate ship pool — see {@link #spawnShipWithCrew}. */
     public static boolean hasSpawnableShip(ServerLevel level, TankFaction faction) {
-        return hasSpawnable(level, faction.shipPool());
+        return hasSpawnable(level, faction.shipPool(level));
     }
 
     /** The same, for the faction's separate plane pool — see {@link #spawnPlaneWithCrew}. */
     public static boolean hasSpawnablePlane(ServerLevel level, TankFaction faction) {
-        return hasSpawnable(level, faction.planePool());
+        return hasSpawnable(level, faction.planePool(level));
     }
 
     private static boolean hasSpawnable(ServerLevel level, List<? extends String> pool) {
@@ -130,7 +119,7 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.vehiclePool(), false);
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.vehiclePool(level), false);
     }
 
     /**
@@ -143,7 +132,7 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnShipWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(), true);
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(level), true);
     }
 
     /**
@@ -171,7 +160,7 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnPlaneWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                    @Nullable UUID ownerId, @Nullable String vehicleId) {
-        EntityType<?> planeType = selectVehicleType(faction.planePool(), vehicleId, level.random);
+        EntityType<?> planeType = selectVehicleType(faction.planePool(level), vehicleId, level.random);
         if (planeType == null) return null;
 
         boolean airborne = faction != TankFaction.PMC;
@@ -327,7 +316,7 @@ public final class TankSpawner {
      */
     @Nullable
     public static VehicleEntity spawnBareVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction) {
-        EntityType<?> type = selectVehicleType(faction.vehiclePool(), null, level.random);
+        EntityType<?> type = selectVehicleType(faction.vehiclePool(level), null, level.random);
         if (type == null) return null;
         BlockPos pos = findClearSpawn(level, requestedPos, type);
         if (pos == null) return null;
@@ -357,7 +346,16 @@ public final class TankSpawner {
         if (count <= 0) return;
         if (!tank.hasContainer() || tank.getContainerSize() <= 0) return;
 
+        String id = entityId(tank);
+        if (AshAmmoCompat.isMissileSystemHull(id)) return;
+
         List<Item> ammo = resolveAmmo(tank);
+        if (ammo.isEmpty() && McspAmmoCompat.isMcspHull(id)) {
+            ammo = McspAmmoCompat.fallbackAmmo();
+        }
+        if (ammo.isEmpty() && AshAmmoCompat.isAshHull(id)) {
+            ammo = AshAmmoCompat.fallbackAmmo();
+        }
         if (ammo.isEmpty()) return;
 
         tank.setItem(0, new ItemStack(ammo.get(0), count));
@@ -371,23 +369,39 @@ public final class TankSpawner {
      *
      * <p>When {@code factionInfiniteAmmo} is on and the faction is RU/US, the hull gets a
      * creative ammo box instead — same unlimited supply ground and air opposition share.
+     * <b>Exception:</b> MCSP and ASH hulls always get native ammo items — those packs do not
+     * honour SBW's creative box for tank magazines, so a creative-only fill leaves them dry.
      *
      * <p>When no item ammo can be resolved — an all-energy hull (already charged above),
      * an infinite-ammo weapon, or unreadable modded gun data — it falls back to a creative
      * ammo box so the vehicle can still fire, unless {@code creativeAmmoFallback} is off,
-     * in which case a strict survival world gets an empty container.
+     * in which case a strict survival world gets an empty container. MCSP/ASH never take
+     * that creative fallback either: they use a registry-id softcompat list instead.
+     *
+     * <p>ASH Sapsan-style missile systems have no gun ammo and leave the container empty.
      */
     private static void stockAmmo(VehicleEntity tank, TankFaction faction) {
         if (!tank.hasContainer() || tank.getContainerSize() <= 0) return;
 
-        if (faction != TankFaction.PMC && SewvConfig.FACTION_INFINITE_AMMO.get()) {
+        String id = entityId(tank);
+        if (AshAmmoCompat.isMissileSystemHull(id)) return; // Sapsan: ballistic spawn, no magazine
+
+        boolean addonNative = McspAmmoCompat.isMcspHull(id) || AshAmmoCompat.isAshHull(id);
+
+        if (!addonNative && faction != TankFaction.PMC && SewvConfig.FACTION_INFINITE_AMMO.get()) {
             tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
             return;
         }
 
         List<Item> ammo = resolveAmmo(tank);
+        if (ammo.isEmpty() && McspAmmoCompat.isMcspHull(id)) {
+            ammo = McspAmmoCompat.fallbackAmmo();
+        }
+        if (ammo.isEmpty() && AshAmmoCompat.isAshHull(id)) {
+            ammo = AshAmmoCompat.fallbackAmmo();
+        }
         if (ammo.isEmpty()) {
-            if (SewvConfig.CREATIVE_AMMO_FALLBACK.get()) {
+            if (!addonNative && SewvConfig.CREATIVE_AMMO_FALLBACK.get()) {
                 tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
             }
             return;
@@ -396,6 +410,16 @@ public final class TankSpawner {
         for (int slot = 0; slot < size; slot++) {
             Item item = ammo.get(slot % ammo.size());
             tank.setItem(slot, new ItemStack(item, item.getMaxStackSize()));
+        }
+    }
+
+    @Nullable
+    private static String entityId(VehicleEntity tank) {
+        try {
+            ResourceLocation key = ForgeRegistries.ENTITY_TYPES.getKey(tank.getType());
+            return key == null ? null : key.toString();
+        } catch (Exception ignored) {
+            return null;
         }
     }
 

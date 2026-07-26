@@ -22,10 +22,12 @@
     "MixinVehicleTurretNaN",
     "MixinVehiclePassengerNaN",
     "MixinVehicleFactionEnergy",
+    "MixinVehicleInertiaRotate",
     "MixinVehicleInteractLock",
     "MixinRangedGunAttackGoal",
     "MixinMoveToAttackRangeGoal",
-    "MixinCommanderOrderGoal"
+    "MixinCommanderOrderGoal",
+    "MixinWalkNodeEvaluator"
   ],
   "client": [
     "client.MixinClientGlowManager",

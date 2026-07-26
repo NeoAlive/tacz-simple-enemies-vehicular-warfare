@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.utility.Action;
@@ -95,6 +96,8 @@ public class DriveVehicleGoal extends Goal {
         // Flight and water hulls have their own goals; a fixed-wing plane must be excluded here too,
         // or this ground goal and DrivePlaneGoal both fire on it (isHelicopter() is false for planes).
         if (this.hull.isHelicopter() || this.hull.isPlane() || this.hull.isShip()) return false;
+        // ASH Sapsan (and similar): ManMissileSystemGoal owns MOVE while engaging.
+        if (this.hull.isMissileSystem() && AshMissileSupport.shouldEngage(this.unit)) return false;
 
         this.vehicle = v;
         this.driver.attach(v);
@@ -104,6 +107,7 @@ public class DriveVehicleGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
+        if (this.hull.isMissileSystem() && AshMissileSupport.shouldEngage(this.unit)) return false;
         return this.unit.getVehicle() == this.vehicle
                 && this.vehicle != null
                 && this.vehicle.getFirstPassenger() == this.unit

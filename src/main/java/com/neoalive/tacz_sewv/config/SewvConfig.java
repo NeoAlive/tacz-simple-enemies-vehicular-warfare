@@ -107,6 +107,12 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> IFV_NAME_CLUES;
 
+    // Addon softcompat: FCP-style chassis bank, ASH MissileSystem / AntiAir roles
+    public static final ForgeConfigSpec.BooleanValue SEM_CREW_DISABLE_INERTIA_ROTATE;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> MISSILE_SYSTEM_NAME_CLUES;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ANTI_AIR_NAME_CLUES;
+    public static final ForgeConfigSpec.IntValue MISSILE_SYSTEM_FIRE_COOLDOWN_TICKS;
+
     // Tank-rider ("Climb" pose) seats — RU/US only, unrelated to the IFV feature above
     public static final ForgeConfigSpec.BooleanValue TANK_RIDER_DISMOUNT_ENABLED;
 
@@ -262,6 +268,9 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
+    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ICONS;
+    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_HEALTH_BAR;
+    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -754,6 +763,33 @@ public class SewvConfig {
                 .defineList("ifvNameClues",
                         List.of("bradley", "bmp", "bmd", "cv90", "puma", "marder"),
                         o -> o instanceof String s && !s.isBlank());
+
+        SEM_CREW_DISABLE_INERTIA_ROTATE = builder
+                .comment("Zero SuperbWarfare's InertiaRotateRate chassis bank while an SEM unit is driving.",
+                         "FCP (and some ASH) hulls set that rate high so the cosmetic lean fights AI steering",
+                         "at speed. Players keep the datapack value. Turn OFF to restore stock bank for AI crews.")
+                .define("semCrewDisableInertiaRotate", true);
+
+        MISSILE_SYSTEM_NAME_CLUES = builder
+                .comment("Substrings that mark a vehicle id as a coordinate missile system (ASH Sapsan and",
+                         "similar). Matched case-insensitively against the whole registry id. Crews stop, raise",
+                         "the launch pod and fire at a designated target or fire-mission aimpoint.")
+                .defineList("missileSystemNameClues",
+                        List.of("sapsan", "grim2"),
+                        o -> o instanceof String s && !s.isBlank());
+
+        ANTI_AIR_NAME_CLUES = builder
+                .comment("Substrings that mark a vehicle id as an anti-air platform (ASH Gepard/Pantsir and",
+                         "similar). Matched case-insensitively against the whole registry id. Those crews prefer",
+                         "targets riding HELICOPTER or AIRCRAFT engine hulls over ground contacts.")
+                .defineList("antiAirNameClues",
+                        List.of("gepard", "pantsir", "pa_pantsir"),
+                        o -> o instanceof String s && !s.isBlank());
+
+        MISSILE_SYSTEM_FIRE_COOLDOWN_TICKS = builder
+                .comment("Game ticks between ballistic missile launches from a MissileSystem crew. Goals tick",
+                         "every other game tick, so this is wall-clock time (100 = 5 seconds).")
+                .defineInRange("missileSystemFireCooldownTicks", 100, 20, 1200);
 
         TANK_RIDER_DISMOUNT_ENABLED = builder
                 .comment("Let a tank-rider seat (SuperbWarfare's Pose==\"Climb\" — an exposed handhold, not a real",
@@ -1317,6 +1353,20 @@ public class SewvConfig {
                          "tank you send forward scouts for you.",
                          "Set to 0 to show only your own vehicles and never anyone else's.")
                 .defineInRange("mapSpotRadius", 128.0, 0.0, 512.0);
+
+        MAP_SHOW_ICONS = builder
+                .comment("Draw APP-6 vehicle/infantry type icons on the map (armor, rotary wing, airplane, …).",
+                         "Selection, heading sticks and PMC vitals bars still work when this is off.")
+                .define("mapShowIcons", true);
+
+        MAP_SHOW_HEALTH_BAR = builder
+                .comment("Draw a compact ♥ health bar under PMC vehicle markers (not RU/US).")
+                .define("mapShowHealthBar", true);
+
+        MAP_SHOW_ENERGY_BAR = builder
+                .comment("Draw a compact ⚡ energy bar under PMC vehicle markers that have energy storage",
+                         "(not RU/US; hidden when the hull has no energy).")
+                .define("mapShowEnergyBar", true);
 
         // Marker fill colour is the crew's FACTION colour (colorRu / colorUs / colorPmc above), the
         // same as the in-world team overlay — the map has no separate colour config of its own.

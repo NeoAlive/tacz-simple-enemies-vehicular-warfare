@@ -1,28 +1,34 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleMotionUtils;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.util.CrewRadio;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import top.theillusivec4.curios.api.CuriosApi;
-import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.core.Direction;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import top.theillusivec4.curios.api.CuriosApi;
+import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 
 import java.util.EnumSet;
+import java.util.UUID;
 
 /**
  * Crew survival: when the hull a unit is riding is shot to pieces, the crew stops
@@ -49,13 +55,11 @@ public class BailOutVehicleGoal extends Goal {
     // retreating didn't save it.
     private static final float BAIL_HEALTH_FRACTION = 0.15F;
 
-    // Scramble ring: far enough out that the vehicle brewing up (and whatever killed
-    // it) is someone else's problem.
-    private static final double MIN_ESCAPE_DISTANCE = 20.0;
-    private static final double MAX_ESCAPE_DISTANCE = 28.0;
-    // Random bearings sampled per bail-out; the nearest standable one wins, so the
-    // direction is random but the unit doesn't cross the map to reach it.
-    private static final int ESCAPE_CANDIDATES = 8;
+    // Scramble just clear of the hull hitbox — get out of the wreck volume fast without
+    // running across the map. Radii are added on top of the hull's half-extent.
+    private static final double MIN_CLEARANCE = 2.0;
+    private static final double MAX_CLEARANCE = 6.0;
+    private static final int ESCAPE_CANDIDATES = 12;
     // Reject candidates this far above/below the hull — pathing onto a clifftop or
     // down a ravine burns the whole timeout going nowhere.
     private static final int MAX_ESCAPE_ELEVATION = 8;
@@ -67,7 +71,13 @@ public class BailOutVehicleGoal extends Goal {
     private static final int PARACHUTE_MIN_HEIGHT = 8;
 
     private static final double ARRIVE_DISTANCE_SQ = 4.0; // 2 blocks
-    private static final double SCRAMBLE_SPEED = 1.3;     // running, not walking away
+    private static final double SCRAMBLE_SPEED = 1.3;     // navigation multiplier for RU/US
+    // Transient attribute boost so PMC (order-driven) and RU/US both scramble faster;
+    // restored in stop() so it cannot leak past the goal.
+    private static final UUID SCRAMBLE_SPEED_UUID =
+            UUID.fromString("a7c3e91f-4b2d-4e8a-9f01-6d5c8b3a2e14");
+    private static final AttributeModifier SCRAMBLE_SPEED_MOD = new AttributeModifier(
+            SCRAMBLE_SPEED_UUID, "sewv_bail_scramble", 0.4D, AttributeModifier.Operation.MULTIPLY_TOTAL);
     // Goals tick every other game tick, so these constants are ~2x wall clock:
     // ~20 s to reach the escape point, repath attempts ~1 s apart.
     private static final int MAX_SCRAMBLE_TICKS = 200;
@@ -113,6 +123,7 @@ public class BailOutVehicleGoal extends Goal {
 
         issueParachute();
         this.unit.stopRiding();
+        applyScrambleSpeed();
 
         // Drop any pending board order, or BoardVehicleGoal would march the unit straight back
         // to the hull it just abandoned. This is faction-blind on purpose: RU/US units carry
@@ -180,11 +191,24 @@ public class BailOutVehicleGoal extends Goal {
 
     @Override
     public void stop() {
+        clearScrambleSpeed();
         // The PMC order stands after arrival: the unit holds where it scrambled to,
         // and the player retasks it from there.
         if (!this.commandable) this.unit.getNavigation().stop();
         this.escapePos = null;
         this.scrambleTicks = 0;
+    }
+
+    private void applyScrambleSpeed() {
+        AttributeInstance speed = this.unit.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed == null) return;
+        speed.removeModifier(SCRAMBLE_SPEED_UUID);
+        speed.addTransientModifier(SCRAMBLE_SPEED_MOD);
+    }
+
+    private void clearScrambleSpeed() {
+        AttributeInstance speed = this.unit.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed != null) speed.removeModifier(SCRAMBLE_SPEED_UUID);
     }
 
     /**
@@ -236,32 +260,56 @@ public class BailOutVehicleGoal extends Goal {
         this.unit.getNavigation().moveTo(target.x, target.y, target.z, SCRAMBLE_SPEED);
     }
 
-    // A random bearing off the hull, at least MIN_ESCAPE_DISTANCE out, that the unit
-    // can actually stand on. Samples several and keeps the nearest; null when nothing
-    // around the vehicle is standable (canUse then simply won't hold the goal).
+    /**
+     * Nearest standable point just clear of the hull, preferring the same horizontal
+     * hemisphere the unit exits on so the pathfinder is not asked to route through the
+     * wreck. Falls back to any clear candidate if same-side finds nothing.
+     */
     private BlockPos findEscapePos(VehicleEntity vehicle) {
         Level level = this.unit.level();
         RandomSource random = this.unit.getRandom();
+        AABB hullBox = VehicleMotionUtils.INSTANCE.calculateCombinedAABBOptimized(vehicle);
+        double halfW = Math.max(hullBox.getXsize(), hullBox.getZsize()) * 0.5;
+        double minR = halfW + MIN_CLEARANCE;
+        double maxR = halfW + MAX_CLEARANCE;
 
-        BlockPos best = null;
-        double bestDistSq = Double.MAX_VALUE;
+        double exitX = this.unit.getX() - vehicle.getX();
+        double exitZ = this.unit.getZ() - vehicle.getZ();
+        // If somehow still at the hull centre, any bearing is "same side".
+        boolean hasExitDir = exitX * exitX + exitZ * exitZ > 1.0e-4;
+
+        BlockPos bestSame = null;
+        double bestSameDistSq = Double.MAX_VALUE;
+        BlockPos bestAny = null;
+        double bestAnyDistSq = Double.MAX_VALUE;
+
         for (int i = 0; i < ESCAPE_CANDIDATES; i++) {
             double angle = random.nextDouble() * Mth.TWO_PI;
-            double radius = MIN_ESCAPE_DISTANCE
-                    + random.nextDouble() * (MAX_ESCAPE_DISTANCE - MIN_ESCAPE_DISTANCE);
-            int x = Mth.floor(vehicle.getX() + Math.cos(angle) * radius);
-            int z = Mth.floor(vehicle.getZ() + Math.sin(angle) * radius);
+            double radius = minR + random.nextDouble() * (maxR - minR);
+            double dx = Math.cos(angle) * radius;
+            double dz = Math.sin(angle) * radius;
+            int x = Mth.floor(vehicle.getX() + dx);
+            int z = Mth.floor(vehicle.getZ() + dz);
 
             BlockPos candidate = standableGroundAt(level, x, z, vehicle.getBlockY());
             if (candidate == null) continue;
+            // Must sit outside the hull volume — standing inside invites a path through it.
+            if (hullBox.intersects(candidate.getX(), candidate.getY(), candidate.getZ(),
+                    candidate.getX() + 1.0, candidate.getY() + 2.0, candidate.getZ() + 1.0)) {
+                continue;
+            }
 
             double distSq = this.unit.distanceToSqr(Vec3.atBottomCenterOf(candidate));
-            if (distSq < bestDistSq) {
-                best = candidate;
-                bestDistSq = distSq;
+            if (distSq < bestAnyDistSq) {
+                bestAny = candidate;
+                bestAnyDistSq = distSq;
+            }
+            if (hasExitDir && dx * exitX + dz * exitZ > 0.0 && distSq < bestSameDistSq) {
+                bestSame = candidate;
+                bestSameDistSq = distSq;
             }
         }
-        return best;
+        return bestSame != null ? bestSame : bestAny;
     }
 
     // Surface position at (x, z) a unit can stand in, or null. Unloaded chunks are

@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 import com.neoalive.tacz_sewv.util.CrewFacts;
@@ -56,7 +57,9 @@ public final class FireMissionSupport {
         /** A guided missile from a TOW launcher. */
         TOW,
         /** Close air support: an AI-flown aircraft already airborne nearby. */
-        CAS
+        CAS,
+        /** ASH coordinate ballistic launcher (Sapsan) — stop, arm pod, fire at a mark. */
+        MISSILE_SYSTEM
     }
 
     /** Ask for anything that will answer. */
@@ -72,6 +75,7 @@ public final class FireMissionSupport {
     public static Kind kindOf(AbstractUnit unit) {
         if (MortarSupport.hasMortarClaim(unit)) return Kind.MORTAR;
         if (TowSupport.isCrewing(unit)) return Kind.TOW;
+        if (AshMissileSupport.isCrewing(unit)) return Kind.MISSILE_SYSTEM;
         if (isPlanePilot(unit)) return Kind.CAS;
         return null;
     }
@@ -181,6 +185,10 @@ public final class FireMissionSupport {
         if (triggered.contains(Kind.MORTAR)) pools.add(ModSounds.PMC_MORTAR);
         if (triggered.contains(Kind.TOW)) pools.add(ModSounds.PMC_TOW);
         if (triggered.contains(Kind.CAS)) pools.add(ModSounds.PMC_CAS);
+        // Missile systems share the mortar ack — both are indirect area fires.
+        if (triggered.contains(Kind.MISSILE_SYSTEM) && !triggered.contains(Kind.MORTAR)) {
+            pools.add(ModSounds.PMC_MORTAR);
+        }
         if (pools.isEmpty()) return null;
         return pools.get(ThreadLocalRandom.current().nextInt(pools.size())).next();
     }

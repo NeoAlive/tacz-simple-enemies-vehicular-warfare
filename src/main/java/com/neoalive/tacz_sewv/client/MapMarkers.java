@@ -1,7 +1,6 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.neoalive.tacz_sewv.util.VehicleMarker;
-import net.minecraft.client.Minecraft;
 
 import java.util.HashSet;
 import java.util.List;
@@ -16,51 +15,38 @@ import java.util.Set;
  *
  * <p>The list is replaced wholesale by each packet rather than merged — a marker that stops being
  * sent (hull destroyed, crew killed, chunk unloaded) has to disappear, and a full replacement is
- * the only version of that with no per-marker expiry bookkeeping. {@link #markers()} additionally
- * returns nothing at all once the last packet is older than {@link #STALE_TICKS}, so a server that
- * goes quiet (mod absent, feature turned off mid-session) leaves a blank map rather than a frozen
- * one showing hulls that may have moved miles.
+ * the only version of that with no per-marker expiry bookkeeping. The server is the source of
+ * truth: an empty packet clears the map. There is deliberately <b>no client-side wall-clock
+ * expiry</b> — with {@code mapLive} a hitch or dropped packet used to blank the whole picture
+ * mid-open (markers flashed once on accept, then vanished).
+ *
+ * <p>Must be {@link #clear() cleared} on client logout: the store is static for the JVM session, and
+ * entity network ids are reused in the next world, so leaving stale markers paints ghosts from the
+ * previous save until the next sync lands (and that sync can be delayed — see
+ * {@code OwnedVehicleTracker}'s {@code nextSend} reset).
  */
 public final class MapMarkers {
 
-    /**
-     * How long a list stays believable, in wall-clock milliseconds: five times the default sync
-     * interval, so a dropped packet does not make the map blink.
-     *
-     * <p>Wall clock rather than game time on purpose — game time rewinds when another world is
-     * loaded in the same session, which would leave the previous world's markers looking fresh
-     * forever.
-     */
-    private static final long STALE_MILLIS = 5_000L;
-
     private static List<VehicleMarker> markers = List.of();
     private static final Set<Integer> SELECTED = new HashSet<>();
-    private static long lastUpdate = Long.MIN_VALUE;
 
     private MapMarkers() {}
 
     public static void accept(List<VehicleMarker> incoming) {
         markers = List.copyOf(incoming);
-        lastUpdate = System.currentTimeMillis();
         // A selected hull that is gone is not selectable any more, and leaving it in would keep
         // sending orders into the void.
         SELECTED.removeIf(driverId -> markers.stream().noneMatch(m -> m.driverId() == driverId));
     }
 
-    /**
-     * <b>Nothing is stale while the game is paused.</b> Xaero's map does not override
-     * {@code isPauseScreen}, so in singleplayer opening it freezes the integrated server — which
-     * stops the sync at its source. Expiring the list then would blank the map a few seconds after
-     * every time it is opened, which is the one moment it has to be right. The markers are not out
-     * of date in that state, they are as current as the hulls they describe, which are also frozen.
-     * The timestamp is pushed along so unpausing does not blink them out before the next packet.
-     */
+    /** Drop everything — call on disconnect so a new world never inherits the last one's picture. */
+    public static void clear() {
+        markers = List.of();
+        SELECTED.clear();
+    }
+
     public static List<VehicleMarker> markers() {
-        if (Minecraft.getInstance().isPaused()) {
-            lastUpdate = System.currentTimeMillis();
-            return markers;
-        }
-        return System.currentTimeMillis() - lastUpdate > STALE_MILLIS ? List.of() : markers;
+        return markers;
     }
 
     public static boolean isSelected(VehicleMarker marker) {

@@ -1,7 +1,10 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.init.ModSounds;
+import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 import com.neoalive.tacz_sewv.util.CrewFacts;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -16,6 +19,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Designating a target for crews that cannot find their own, shared by
@@ -132,16 +136,22 @@ public final class FireMissionSupport {
     }
 
     /**
-     * Puts every matching crew in range onto {@code target}, and reports how many took it.
+     * Puts every matching crew in range onto {@code target}.
      *
      * <p>For a mounted TOW crew the PMC order also stands {@link VehicleTargetScanGoal} down, which
      * yields under ATTACK_THAT_TARGET rather than fight SEM's goal for the TARGET flag.
+     *
+     * <p>{@link Call#kinds()} is the set of support types that actually answered — the radio ack
+     * picks its voiceline from that set, not from what was polled.
      */
-    public static int callFireMission(Level level, @Nullable CrewFacts.Faction faction,
-                                      @Nullable UUID owner, Vec3 origin, double range,
-                                      LivingEntity target, Set<Kind> kinds) {
+    public static Call callFireMission(Level level, @Nullable CrewFacts.Faction faction,
+                                       @Nullable UUID owner, Vec3 origin, double range,
+                                       LivingEntity target, Set<Kind> kinds) {
         List<AbstractUnit> crews = crewsInRange(level, faction, owner, origin, range, kinds);
+        EnumSet<Kind> triggered = EnumSet.noneOf(Kind.class);
         for (AbstractUnit crew : crews) {
+            Kind kind = kindOf(crew);
+            if (kind != null) triggered.add(kind);
             if (crew instanceof PmcUnitEntity pmc) {
                 pmc.setAttackTargetId(target.getId());
                 pmc.setOrder(OrderType.ATTACK_THAT_TARGET);
@@ -151,13 +161,35 @@ public final class FireMissionSupport {
                 crew.setTarget(target);
             }
         }
-        return crews.size();
+        return new Call(crews.size(), triggered);
     }
 
     /** The radio's own call: a player's PMC crews, any kind of weapon. */
-    public static int callFireMission(Level level, @Nullable UUID owner, Vec3 origin,
-                                      double range, LivingEntity target) {
+    public static Call callFireMission(Level level, @Nullable UUID owner, Vec3 origin,
+                                       double range, LivingEntity target) {
         return callFireMission(level, CrewFacts.Faction.PMC, owner, origin, range, target, ANY);
+    }
+
+    /**
+     * One PMC radio ack for the kinds that answered. Single-kind calls map 1:1
+     * (mortar→pmc_mortar, CAS→pmc_cas, TOW→pmc_tow); a mixed answer picks one of those pools
+     * at random — never a generic line.
+     */
+    @Nullable
+    public static SoundEvent ackFor(Set<Kind> triggered) {
+        List<SoundPool> pools = new ArrayList<>(3);
+        if (triggered.contains(Kind.MORTAR)) pools.add(ModSounds.PMC_MORTAR);
+        if (triggered.contains(Kind.TOW)) pools.add(ModSounds.PMC_TOW);
+        if (triggered.contains(Kind.CAS)) pools.add(ModSounds.PMC_CAS);
+        if (pools.isEmpty()) return null;
+        return pools.get(ThreadLocalRandom.current().nextInt(pools.size())).next();
+    }
+
+    /** How many crews took the mission, and which support kinds they were. */
+    public record Call(int ordered, Set<Kind> kinds) {
+        public boolean empty() {
+            return ordered == 0;
+        }
     }
 
     /**

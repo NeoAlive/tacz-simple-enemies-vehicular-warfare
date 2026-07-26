@@ -79,28 +79,30 @@ public class HandheldRadioItem extends Item {
         return InteractionResult.SUCCESS;
     }
 
-    /** Puts every mortar and TOW crew in range onto {@code target}. */
+    /** Puts every mortar, TOW and CAS crew in range onto {@code target}. */
     private static void callFireMission(Player player, LivingEntity target) {
-        int ordered = FireMissionSupport.callFireMission(
+        FireMissionSupport.Call call = FireMissionSupport.callFireMission(
                 player.level(), player.getUUID(), player.position(),
                 SewvConfig.MORTAR_RADIO_RANGE.get(), target);
 
-        if (ordered == 0) {
+        if (call.empty()) {
             // Always shown regardless of the flag: a failure explanation is not the success
             // spam SHOW_ORDER_FEEDBACK exists to cut.
             hint(player, "message.tacz_sewv.radio.no_crews", ChatFormatting.GRAY);
             return;
         }
 
-        player.level().playSound(null, player, ModSounds.PMC_MORTAR.next(),
-                SoundSource.NEUTRAL, 1.0F, 1.0F);
+        var ack = FireMissionSupport.ackFor(call.kinds());
+        if (ack != null) {
+            player.level().playSound(null, player, ack, SoundSource.NEUTRAL, 1.0F, 1.0F);
+        }
 
         if (!SewvConfig.SHOW_ORDER_FEEDBACK.get()) return;
         Component msg = Component.translatable(
-                ordered == 1
+                call.ordered() == 1
                         ? "message.tacz_sewv.radio.fire_mission.single"
                         : "message.tacz_sewv.radio.fire_mission.multiple",
-                ordered, target.getDisplayName());
+                call.ordered(), target.getDisplayName());
         player.displayClientMessage(msg.copy().withStyle(ChatFormatting.GREEN), true);
     }
 

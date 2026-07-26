@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.util;
 
 import com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData;
 import com.neoalive.tacz_sewv.init.ModItems;
-import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -16,14 +15,14 @@ public class PlayerJoinHandler {
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         Player player = event.getEntity();
         if (player.level().isClientSide) return;
-        
+
         UUID playerUuid = player.getUUID();
         PlayerDoctrineData data = PlayerDoctrineData.get(player.level());
-        
+
         if (!data.hasReceivedBook(playerUuid)) {
             ItemStack ledger = new ItemStack(ModItems.DOCTRINE_LEDGER.get());
-            DoctrineLedgerItem.setOwner(ledger, playerUuid);
-            
+            ledger.getOrCreateTag().putBoolean("sewv_is_initial", true);
+
             if (player.getInventory().add(ledger)) {
                 data.setReceivedBook(playerUuid);
             } else {

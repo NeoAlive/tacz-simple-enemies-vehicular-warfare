@@ -15,6 +15,9 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue TANKS_IN_EVENTS;
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_RU;
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_US;
+    public static final ForgeConfigSpec.BooleanValue PLANES_IN_EVENTS;
+    public static final ForgeConfigSpec.DoubleValue PLANE_SPAWN_CHANCE_RU;
+    public static final ForgeConfigSpec.DoubleValue PLANE_SPAWN_CHANCE_US;
     public static final ForgeConfigSpec.BooleanValue CONVOY_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue CONVOY_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue CONVOY_FAILURE_MULTIPLIER;
@@ -25,6 +28,7 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_FAILURE_MULTIPLIER;
     public static final ForgeConfigSpec.IntValue LARGE_COMBAT_VEHICLES;
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_EMPLACEMENT_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_PLANE_CHANCE;
 
     public static final ForgeConfigSpec.BooleanValue NAVAL_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue NAVAL_BASE_CHANCE;
@@ -68,7 +72,14 @@ public class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_SHIP_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_SHIP_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_SHIP_POOL;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_PLANE_POOL;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_PLANE_POOL;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_PLANE_POOL;
     public static final ForgeConfigSpec.BooleanValue CREATIVE_AMMO_FALLBACK;
+    /** Unlimited energy for RU/US-crewed hulls (including planes). PMC stays on the player economy. */
+    public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_ENERGY;
+    /** Unlimited ammo for RU/US-crewed hulls (creative ammo box at spawn). PMC stays finite. */
+    public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_AMMO;
 
     // Armor issued to units on spawn (any unit, mounted or on foot)
     public static final ForgeConfigSpec.BooleanValue NPC_ARMOR_ENABLED;
@@ -274,6 +285,22 @@ public class SewvConfig {
                          "Conditional on far_combat having fired, exactly like tankSpawnChanceRu.")
                 .defineInRange("tankSpawnChanceUs", 0.12, 0.0, 1.0);
 
+        PLANES_IN_EVENTS = builder
+                .comment("Allow rare RU/US planes from the faction plane pools to spawn in far_combat and",
+                         "large_combat. Independent of tanksInEvents so armour and CAS can be toggled apart.")
+                .define("planesInEvents", true);
+
+        PLANE_SPAWN_CHANCE_RU = builder
+                .comment("Chance (0.0-1.0) for an RU plane to spawn when far_combat fires.",
+                         "Conditional on that event succeeding, like tankSpawnChanceRu. Kept far lower than the",
+                         "tank chance — planes are rare battlefield assets, not common spawns.")
+                .defineInRange("planeSpawnChanceRu", 0.02, 0.0, 1.0);
+
+        PLANE_SPAWN_CHANCE_US = builder
+                .comment("Chance (0.0-1.0) for a US plane to spawn when far_combat fires.",
+                         "Conditional on far_combat having fired, exactly like planeSpawnChanceRu.")
+                .defineInRange("planeSpawnChanceUs", 0.02, 0.0, 1.0);
+
         CONVOY_EVENTS_ENABLED = builder
                 .comment("Enable the standalone convoy event. Each convoy is RU or US only, never PMC.")
                 .define("convoyEventsEnabled", true);
@@ -315,6 +342,12 @@ public class SewvConfig {
                          "on a flank. Deliberately tiny: a crew-served weapon is something to remember, not a",
                          "fixture of every battle.")
                 .defineInRange("largeCombatEmplacementChance", 0.04, 0.0, 1.0);
+
+        LARGE_COMBAT_PLANE_CHANCE = builder
+                .comment("Chance (0.0-1.0) PER SIDE that a large_combat battle also fields one airborne plane",
+                         "from that faction's plane pool. Extreme rarity on purpose — CAS overhead, not a",
+                         "fixture. Gated by planesInEvents.")
+                .defineInRange("largeCombatPlaneChance", 0.03, 0.0, 1.0);
 
         NAVAL_EVENTS_ENABLED = builder
                 .comment("Enable the naval_battle event: two flotillas from the faction SHIP pools fighting",
@@ -481,11 +514,11 @@ public class SewvConfig {
         // Pools accept any registered SW-based VehicleEntity id, including those from
         // Superb Warfare addons (e.g. "dragonrise_reforge:...", "fcp:...", "mcsp:...").
         // Ids from mods that aren't installed are skipped safely, so it's fine to list
-        // addon vehicles here even when the addon may be absent. Ground vehicles,
-        // helicopters and ships are all fully supported. NOT recommended: fixed-wing
-        // aircraft/jets (flown with helicopter hover logic they can't sustain), and
-        // artillery / indirect-fire hulls like the TOS-1A (their AI crew can't
-        // self-load and won't fire).
+        // addon vehicles here even when the addon may be absent. Ground vehicles and
+        // helicopters are supported here. Fixed-wing planes have their OWN pools below
+        // (ru/us/pmcPlanePool) — do not list them here or they will be rolled into land
+        // spawns. Artillery / indirect-fire hulls like the TOS-1A are still a bad fit
+        // (their AI crew can't self-load and won't fire).
         //
         // Mortars don't belong here either, but for a different reason: a mortar has no
         // seats, so there is nothing for a spawned crew to ride and TankSpawner can't
@@ -494,18 +527,21 @@ public class SewvConfig {
         RU_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids RU crews can spawn with (e.g. \"superbwarfare:t_90a\").",
                          "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
+                         "Planes belong in ruPlanePool, not here.",
                          "Addon ids work too (e.g. \"dragonrise_reforge:t90mh\", \"mcsp:t90a_green\", \"superbwarfare:mi_28\").")
                 .defineList("ruVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:bmp_2", "superbwarfare:mi_28"), SewvConfig::isValidResourceId);
 
         US_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids US crews can spawn with (e.g. \"superbwarfare:m_1a_2\").",
                          "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
+                         "Planes belong in usPlanePool, not here.",
                          "Addon ids work too (e.g. \"dragonrise_reforge:m1a2sepv2\", \"fcp:humvee\", \"superbwarfare:ah_6\").")
                 .defineList("usVehiclePool", List.of("superbwarfare:m_1a_2", "superbwarfare:bradley", "superbwarfare:ah_6"), SewvConfig::isValidResourceId);
 
         PMC_VEHICLE_POOL = builder
                 .comment("Vehicle entity ids for debug PMC units spawning",
                          "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
+                         "Planes belong in pmcPlanePool, not here.",
                          "Addon ids work too (e.g. \"fcp:littlebird\", \"mcsp:m1a2\", \"superbwarfare:ah_6\").")
                 .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:ah_6"), SewvConfig::isValidResourceId);
 
@@ -527,12 +563,45 @@ public class SewvConfig {
                 .comment("Ship entity ids for debug PMC units spawning. Same rules as ruShipPool.")
                 .defineList("pmcShipPool", List.of("superbwarfare:speedboat"), SewvConfig::isValidResourceId);
 
+        // Planes are a DEDICATED pool, separate from ground/heli and ship ones — RU/US planes spawn
+        // already airborne (SBW needs airspeed to stay up; they have no player takeoff order), and
+        // mixing them into a land vehicle roll would strand them on the ground. See
+        // TankSpawner.spawnPlaneWithCrew and /sewv spawn ruplane|usplane|pmcplane.
+        // Skip superbwarfare:tom_6 — its engine only answers a Player controller.
+        RU_PLANE_POOL = builder
+                .comment("Fixed-wing entity ids RU crews can spawn with (e.g. \"superbwarfare:kv_16\").",
+                         "List several to have one picked at random per spawn. Spawned airborne for RU/US —",
+                         "see /sewv spawn ruplane. ju_87 is omitted from defaults; add it here only if wanted.")
+                .defineList("ruPlanePool", List.of("superbwarfare:kv_16"), SewvConfig::isValidResourceId);
+
+        US_PLANE_POOL = builder
+                .comment("Fixed-wing entity ids US crews can spawn with. Same rules as ruPlanePool.")
+                .defineList("usPlanePool", List.of("superbwarfare:a_10a"), SewvConfig::isValidResourceId);
+
+        PMC_PLANE_POOL = builder
+                .comment("Fixed-wing entity ids for debug PMC units. PMC planes spawn on the ground and take",
+                         "off via the normal player flight order (they are exempt from airborne spawn).")
+                .defineList("pmcPlanePool", List.of("superbwarfare:a_10a"), SewvConfig::isValidResourceId);
+
         CREATIVE_AMMO_FALLBACK = builder
                 .comment("A spawned vehicle is stocked with the real, finite, lootable ammunition its guns use.",
                          "This only decides the fallback when that ammo can't be determined (an energy- or",
                          "infinite-ammo hull, or unreadable modded gun data): ON gives it a bottomless creative",
-                         "ammo box so it can still fire; turn OFF for a strict survival world (empty container).")
+                         "ammo box so it can still fire; turn OFF for a strict survival world (empty container).",
+                         "RU/US hulls also honour factionInfiniteAmmo, which overrides this with a creative box.")
                 .define("creativeAmmoFallback", true);
+
+        FACTION_INFINITE_ENERGY = builder
+                .comment("RU/US-crewed vehicles (tanks, helis, ships, planes) never run out of energy while a",
+                         "faction unit is in the driver's seat. PMC crews stay on the normal fuel/charge economy.",
+                         "Turn OFF to make faction opposition burn fuel like a player hull.")
+                .define("factionInfiniteEnergy", true);
+
+        FACTION_INFINITE_AMMO = builder
+                .comment("RU/US-crewed vehicles spawn with a bottomless creative ammo box instead of finite",
+                         "stacks, so long fights do not leave them dry. PMC crews keep finite (or creativeAmmoFallback)",
+                         "stocking. Applies to planes the same way as ground hulls.")
+                .define("factionInfiniteAmmo", true);
 
         builder.pop();
 

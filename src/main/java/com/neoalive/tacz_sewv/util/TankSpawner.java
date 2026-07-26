@@ -20,6 +20,7 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.roles.utils.UnitRole;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -60,6 +61,15 @@ public final class TankSpawner {
                 case PMC -> SewvConfig.PMC_SHIP_POOL.get();
             };
         }
+
+        /** The faction's plane pool — dedicated like ships; RU/US spawn airborne, PMC on the ground. */
+        public List<? extends String> planePool() {
+            return switch (this) {
+                case RU -> SewvConfig.RU_PLANE_POOL.get();
+                case US -> SewvConfig.US_PLANE_POOL.get();
+                case PMC -> SewvConfig.PMC_PLANE_POOL.get();
+            };
+        }
     }
 
     /**
@@ -90,6 +100,11 @@ public final class TankSpawner {
     /** The same, for the faction's separate ship pool — see {@link #spawnShipWithCrew}. */
     public static boolean hasSpawnableShip(ServerLevel level, TankFaction faction) {
         return hasSpawnable(level, faction.shipPool());
+    }
+
+    /** The same, for the faction's separate plane pool — see {@link #spawnPlaneWithCrew}. */
+    public static boolean hasSpawnablePlane(ServerLevel level, TankFaction faction) {
+        return hasSpawnable(level, faction.planePool());
     }
 
     private static boolean hasSpawnable(ServerLevel level, List<? extends String> pool) {
@@ -131,6 +146,99 @@ public final class TankSpawner {
         return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(), true);
     }
 
+    /**
+     * Blocks above the surface a RU/US plane is placed at spawn. Matches DrivePlaneGoal's default
+     * cruise band ({@code DEFAULT_CRUISE_ALTITUDE * 3} clamped into 90–180) so the first loiter tick
+     * does not climb or dive hard to correct altitude.
+     */
+    private static final double PLANE_AIR_SPAWN_ALT = 105.0;
+
+    /** Horizontal speed (blocks/tick) given to an airborne spawn so SBW's lift is non-zero before throttle spools. */
+    private static final double PLANE_AIR_SPAWN_SPEED = 0.55;
+
+    /**
+     * Same contract as {@link #spawnTankWithCrew} for the faction's plane pool. RU/US planes spawn
+     * already airborne (gear up, modest forward speed, flight command NONE → DrivePlaneGoal loiters):
+     * they cannot be player-ordered to take off, and SBW needs airspeed to stay up. PMC planes spawn
+     * on the ground with TAKEOFF like helicopters — the player can order flight themselves.
+     */
+    @Nullable
+    public static VehicleEntity spawnPlaneWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                   @Nullable UUID ownerId) {
+        return spawnPlaneWithCrew(level, requestedPos, faction, ownerId, null);
+    }
+
+    @Nullable
+    public static VehicleEntity spawnPlaneWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
+        EntityType<?> planeType = selectVehicleType(faction.planePool(), vehicleId, level.random);
+        if (planeType == null) return null;
+
+        boolean airborne = faction != TankFaction.PMC;
+        BlockPos ground = findClearSpawn(level, requestedPos, planeType);
+        if (ground == null) return null;
+
+        double x = ground.getX() + 0.5;
+        double z = ground.getZ() + 0.5;
+        double y = airborne ? ground.getY() + PLANE_AIR_SPAWN_ALT : ground.getY();
+
+        Entity planeEntity = planeType.create(level);
+        if (!(planeEntity instanceof VehicleEntity plane)) return null;
+
+        plane.setPos(x, y, z);
+        if (airborne) {
+            // Level flight attitude — a fresh entity's pitch can be anything; lofted or inverted
+            // ruins the lift nudge below.
+            plane.setXRot(0.0F);
+            plane.setGearUp(true);
+            float yawRad = plane.getYRot() * ((float) Math.PI / 180.0F);
+            // Forward along body yaw (not look angle): look follows pitch, which we just zeroed,
+            // but yaw-based is the same and clearer for "along the runway heading".
+            plane.setDeltaMovement(new Vec3(-Math.sin(yawRad) * PLANE_AIR_SPAWN_SPEED, 0.0,
+                    Math.cos(yawRad) * PLANE_AIR_SPAWN_SPEED));
+        }
+        level.addFreshEntity(plane);
+
+        if (plane.hasEnergyStorage()) {
+            plane.setEnergy(plane.getMaxEnergy());
+        }
+        stockAmmo(plane, faction);
+
+        int seats = Math.max(1, plane.getMaxPassengers());
+        int mounted = 0;
+        for (int i = 0; i < seats; i++) {
+            AbstractUnit crew = createCrewUnit(level, faction, ownerId);
+            crew.setPos(x, y, z);
+            crew.finalizeSpawn(level, level.getCurrentDifficultyAt(crew.blockPosition()), MobSpawnType.EVENT, null, null);
+            level.addFreshEntity(crew);
+            if (!crew.startRiding(plane)) {
+                crew.discard();
+                break;
+            }
+            mounted++;
+        }
+
+        if (mounted == 0) {
+            plane.discard();
+            return null;
+        }
+
+        // PMC: ground takeoff order (player can also re-issue it). RU/US stay at NONE so the goal
+        // loiters immediately — they never receive a takeoff packet.
+        if (!airborne) {
+            try {
+                if (plane.computed().getEngineType() == EngineType.AIRCRAFT
+                        && plane.getFirstPassenger() instanceof IHelicopterPilot pilot) {
+                    pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_TAKEOFF);
+                }
+            } catch (Exception ignored) {
+                // Unreadable vehicle data — leave it on the ground rather than abort the spawn.
+            }
+        }
+
+        return plane;
+    }
+
     @Nullable
     private static VehicleEntity spawnCrewedVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                      @Nullable UUID ownerId, @Nullable String vehicleId,
@@ -155,7 +263,7 @@ public final class TankSpawner {
         if (tank.hasEnergyStorage()) {
             tank.setEnergy(tank.getMaxEnergy());
         }
-        stockAmmo(tank);
+        stockAmmo(tank, faction);
 
         // One unit per seat, mounted in join order: SW's VehicleEntity assigns
         // seats sequentially, so the first rider lands in seat 0 (driver) and
@@ -261,13 +369,21 @@ public final class TankSpawner {
      * creative box. The container is divided evenly across the ammo types the hull uses
      * (one full stack per slot, cycled), which SBW's own AI auto-reload then draws from.
      *
+     * <p>When {@code factionInfiniteAmmo} is on and the faction is RU/US, the hull gets a
+     * creative ammo box instead — same unlimited supply ground and air opposition share.
+     *
      * <p>When no item ammo can be resolved — an all-energy hull (already charged above),
      * an infinite-ammo weapon, or unreadable modded gun data — it falls back to a creative
      * ammo box so the vehicle can still fire, unless {@code creativeAmmoFallback} is off,
      * in which case a strict survival world gets an empty container.
      */
-    private static void stockAmmo(VehicleEntity tank) {
+    private static void stockAmmo(VehicleEntity tank, TankFaction faction) {
         if (!tank.hasContainer() || tank.getContainerSize() <= 0) return;
+
+        if (faction != TankFaction.PMC && SewvConfig.FACTION_INFINITE_AMMO.get()) {
+            tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
+            return;
+        }
 
         List<Item> ammo = resolveAmmo(tank);
         if (ammo.isEmpty()) {

@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
-import com.neoalive.tacz_sewv.init.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -71,15 +70,18 @@ public class RadioObserverGoal extends Goal {
         LivingEntity target = this.unit.getTarget();
         if (target == null || !target.isAlive()) return;
 
-        int ordered = FireMissionSupport.callFireMission(
+        FireMissionSupport.Call call = FireMissionSupport.callFireMission(
                 this.unit.level(), this.unit.getOwnerUUID(), this.unit.position(),
                 SewvConfig.MORTAR_RADIO_RANGE.get(), target);
 
-        if (ordered == 0) {
+        if (call.empty()) {
             this.nextCheck = now + NO_CREWS_BACKOFF;
         } else {
-            this.unit.level().playSound(null, this.unit, ModSounds.PMC_MORTAR.next(),
-                    SoundSource.NEUTRAL, 1.0F, 1.0F);
+            var ack = FireMissionSupport.ackFor(call.kinds());
+            if (ack != null) {
+                this.unit.level().playSound(null, this.unit, ack,
+                        SoundSource.NEUTRAL, 1.0F, 1.0F);
+            }
         }
     }
 }

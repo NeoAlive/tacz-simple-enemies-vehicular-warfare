@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.client.xaero;
 
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -16,6 +17,11 @@ import xaero.map.gui.GuiMap;
  * {@code SIDED_SETUP} deferred work, and nothing orders that against ours. Registering on the first
  * map screen instead needs no ordering guarantee at all — by then the handler certainly exists.
  *
+ * <p>The handler reference itself can be rebuilt when Xaero reloads between worlds. Tracking the
+ * instance we hung on (not a boolean) is what lets us re-add after that without stacking duplicates
+ * on the same handler — a stuck {@code registered = true} was a way for icons to vanish for the
+ * rest of the session after a world switch.
+ *
  * <p>This class and {@code MixinGuiMap} are the only two places Xaero types are named, and both are
  * reached only when the mod is present: this one behind {@code ModList.isLoaded} in
  * {@code ClientModEvents}, the mixin behind its own non-required config.
@@ -24,7 +30,8 @@ public final class XaeroMapCompat {
 
     public static final String MODID = "xaeroworldmap";
 
-    private static boolean registered;
+    /** The handler we last called {@code add} on; null means not hung yet. */
+    private static Object hungOn;
 
     private XaeroMapCompat() {}
 
@@ -34,9 +41,17 @@ public final class XaeroMapCompat {
 
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
-        if (registered || !(event.getScreen() instanceof GuiMap)) return;
+        if (!(event.getScreen() instanceof GuiMap)) return;
         if (WorldMap.mapElementRenderHandler == null) return; // Xaero failed to load; leave it alone
+        if (hungOn == WorldMap.mapElementRenderHandler) return; // already on this handler instance
         WorldMap.mapElementRenderHandler.add(VehicleMarkerElements.INSTANCE);
-        registered = true;
+        hungOn = WorldMap.mapElementRenderHandler;
+    }
+
+    @SubscribeEvent
+    public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        CruisePlot.cancel();
+        // Force a re-hang if Xaero builds a fresh handler for the next world.
+        hungOn = null;
     }
 }

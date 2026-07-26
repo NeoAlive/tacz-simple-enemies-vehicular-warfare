@@ -34,7 +34,9 @@ public class NetworkHandler {
     // handshake instead of misparsing.
     // 13, 14, 15: Various previous changes.
     // 16: added the player doctrine save packet.
-    private static final String PROTOCOL_VERSION = "16";
+    // 17: world vehicle pool editor (open + update).
+    // 18: map markers carry PMC health/energy fractions.
+    private static final String PROTOCOL_VERSION = "18";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -123,6 +125,22 @@ public class NetworkHandler {
                 PacketSaveDoctrine::encode,
                 PacketSaveDoctrine::new,
                 PacketSaveDoctrine::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenPoolEditor.class,
+                PacketOpenPoolEditor::encode,
+                PacketOpenPoolEditor::new,
+                PacketOpenPoolEditor::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketUpdateVehiclePools.class,
+                PacketUpdateVehiclePools::encode,
+                PacketUpdateVehiclePools::new,
+                PacketUpdateVehiclePools::handle
         );
     }
 }

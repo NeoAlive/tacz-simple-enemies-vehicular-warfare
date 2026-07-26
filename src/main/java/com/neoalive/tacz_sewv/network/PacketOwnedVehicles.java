@@ -49,7 +49,9 @@ public class PacketOwnedVehicles {
                     VehicleMarker.Allegiance.byId(buf.readByte()),
                     CrewFacts.Faction.byId(buf.readByte()),
                     MarkerOrder.decode(buf),
-                    buf.readResourceKey(Registries.DIMENSION)));
+                    buf.readResourceKey(Registries.DIMENSION),
+                    buf.readFloat(),
+                    buf.readFloat()));
         }
         this.markers = read;
     }
@@ -68,6 +70,8 @@ public class PacketOwnedVehicles {
             buf.writeByte(marker.faction().ordinal());
             marker.order().encode(buf);
             buf.writeResourceKey(marker.dimension());
+            buf.writeFloat(marker.healthFrac());
+            buf.writeFloat(marker.energyFrac());
         }
     }
 

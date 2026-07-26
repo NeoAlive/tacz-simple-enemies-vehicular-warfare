@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.init;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.item.PoolClipboardItem;
 import com.neoalive.tacz_sewv.item.TacticalDataTerminalItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
@@ -34,6 +35,10 @@ public class ModItems {
     public static final RegistryObject<Item> DOCTRINE_LEDGER =
             ITEMS.register("doctrine_ledger", DoctrineLedgerItem::new);
 
+    /** Creative-tab admin clipboard for per-world vehicle spawn pools. Op-gated, uncraftable. */
+    public static final RegistryObject<Item> POOL_CLIPBOARD =
+            ITEMS.register("pool_clipboard", PoolClipboardItem::new);
+
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",
@@ -51,6 +56,7 @@ public class ModItems {
             event.accept(HANDHELD_RADIO);
             event.accept(TACTICAL_DATA_TERMINAL);
             event.accept(DOCTRINE_LEDGER);
+            event.accept(POOL_CLIPBOARD);
         }
         if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
             event.accept(RU_MEDIC_SPAWN_EGG);

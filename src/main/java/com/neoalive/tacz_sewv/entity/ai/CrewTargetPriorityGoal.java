@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * Doctrine targeting for crew-served weapons: a mortar shoots troops before monsters, a
- * TOW shoots vehicles before anything else.
+ * TOW shoots vehicles before anything else, and an AntiAir platform prefers airborne riders.
  *
  * <p><b>Why this has to be its own goal at priority 1.</b> SEM's target ladder looks like a
  * preference but is not one at the bottom. For a PMC unit it is:
@@ -63,6 +63,9 @@ public class CrewTargetPriorityGoal extends Goal {
     private Doctrine doctrine() {
         if (TowSupport.isCrewing(this.unit)) return Doctrine.ARMOR;
         if (MortarSupport.hasMortarClaim(this.unit)) return Doctrine.TROOPS;
+        if (this.unit.getVehicle() instanceof VehicleEntity v && HullFacts.isAntiAirHull(v)) {
+            return Doctrine.AIR;
+        }
         return null;
     }
 
@@ -70,7 +73,9 @@ public class CrewTargetPriorityGoal extends Goal {
         /** TOW: one wire-guided missile every 7.5 s. Spending it on a zombie is a waste. */
         ARMOR,
         /** Mortar: an area weapon, and troops are what it is for. */
-        TROOPS
+        TROOPS,
+        /** AA platform: prefer crews riding HELICOPTER / AIRCRAFT hulls. */
+        AIR
     }
 
     @Override
@@ -160,7 +165,14 @@ public class CrewTargetPriorityGoal extends Goal {
             // the AI targets the crew riding it, so "is armor" means "is riding a hull".
             case ARMOR -> target.getVehicle() instanceof VehicleEntity;
             case TROOPS -> target instanceof AbstractUnit;
+            case AIR -> isAirborneRider(target);
         };
+    }
+
+    /** True when the living target is riding a HELICOPTER or AIRCRAFT engine hull. */
+    private static boolean isAirborneRider(LivingEntity target) {
+        if (!(target.getVehicle() instanceof VehicleEntity v)) return false;
+        return HullFacts.isPlaneHull(v) || HullFacts.isHelicopterHull(v);
     }
 
     /**

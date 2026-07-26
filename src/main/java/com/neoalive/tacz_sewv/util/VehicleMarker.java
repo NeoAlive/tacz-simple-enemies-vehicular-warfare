@@ -10,10 +10,18 @@ import net.minecraft.world.level.Level;
  * <p>{@code driverId} is the unit an order names — SEM commands units, not hulls, and the drive
  * goal runs on the first passenger. It is only actionable on an {@link Allegiance#OWN} marker;
  * on anything else it is just an identity for the client to track the hull by.
+ *
+ * <p>{@code healthFrac} is 0..1. {@code energyFrac} is 0..1 when the hull has energy storage,
+ * or {@link #NO_ENERGY} when it does not (mortars, some emplacements) so the client can hide
+ * the energy bar rather than invent a reading.
  */
 public record VehicleMarker(int driverId, int vehicleId, double x, double y, double z, float yaw,
                             VehicleMarker.Kind kind, VehicleMarker.Allegiance allegiance,
-                            CrewFacts.Faction faction, MarkerOrder order, ResourceKey<Level> dimension) {
+                            CrewFacts.Faction faction, MarkerOrder order, ResourceKey<Level> dimension,
+                            float healthFrac, float energyFrac) {
+
+    /** Sentinel: hull has no energy storage — do not draw an energy bar. */
+    public static final float NO_ENERGY = -1.0F;
 
     /**
      * Which NATO symbol to draw. Resolved <b>server-side</b> from the hull's engine type and
@@ -33,7 +41,11 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
         INFANTRY("infantry"),
         INFANTRY_MEDIC("infantry_medic"),
         INFANTRY_ENGINEER("infantry_engineer"),
-        FIXED_WING("fixedwing");
+        FIXED_WING("airplane"),
+        /** ASH Sapsan-style coordinate ballistic launcher. Reuses emplacement art. */
+        MISSILE_SYSTEM("emplacement"),
+        /** ASH Gepard/Pantsir-style AA. Reuses armor art until a dedicated symbol ships. */
+        ANTI_AIR("armor");
 
         private static final Kind[] VALUES = values();
         private final String texture;

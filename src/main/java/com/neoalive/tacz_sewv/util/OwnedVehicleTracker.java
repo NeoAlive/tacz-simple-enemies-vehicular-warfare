@@ -18,6 +18,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
@@ -101,7 +102,7 @@ public final class OwnedVehicleTracker {
     private record Candidate(VehicleMarker.Kind kind, CrewFacts.Faction faction, UUID pmcOwner,
                              boolean factionFriendly, MarkerOrder order, int driverId, int vehicleId,
                              double x, double y, double z, float yaw,
-                             ResourceKey<Level> dimension) {}
+                             ResourceKey<Level> dimension, float healthFrac, float energyFrac) {}
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
@@ -156,7 +157,8 @@ public final class OwnedVehicleTracker {
                     kindOf(hull), faction, CrewFacts.pmcOwner(hull),
                     VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
                     driver.getId(), hull.getId(),
-                    hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension()));
+                    hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension(),
+                    healthFrac(hull), energyFrac(hull)));
         }
     }
 
@@ -183,7 +185,8 @@ public final class OwnedVehicleTracker {
                 crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
                 VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
                 crew.getId(), mortar.getId(),
-                mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension()));
+                mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension(),
+                healthFrac(mortar), energyFrac(mortar)));
     }
 
     /**
@@ -204,7 +207,8 @@ public final class OwnedVehicleTracker {
                 crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
                 VehicleTargeting.isFactionFriendly(crew), MarkerOrder.NONE,
                 crew.getId(), drone.getId(),
-                drone.getX(), drone.getY(), drone.getZ(), drone.getYRot(), level.dimension()));
+                drone.getX(), drone.getY(), drone.getZ(), drone.getYRot(), level.dimension(),
+                healthFrac(drone), energyFrac(drone)));
     }
 
     /**
@@ -228,7 +232,9 @@ public final class OwnedVehicleTracker {
                     unit instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
                     VehicleTargeting.isFactionFriendly(unit), orderPreviewOf(unit),
                     unit.getId(), unit.getId(),
-                    unit.getX(), unit.getY(), unit.getZ(), unit.getYRot(), level.dimension()));
+                    unit.getX(), unit.getY(), unit.getZ(), unit.getYRot(), level.dimension(),
+                    Mth.clamp(unit.getHealth() / unit.getMaxHealth(), 0.0F, 1.0F),
+                    VehicleMarker.NO_ENERGY));
         }
     }
 
@@ -309,7 +315,28 @@ public final class OwnedVehicleTracker {
         // has no player order to draw, and sending one would leak intent it should not.
         MarkerOrder order = allegiance == VehicleMarker.Allegiance.OWN ? c.order() : MarkerOrder.NONE;
         return new VehicleMarker(c.driverId(), c.vehicleId(), c.x(), c.y(), c.z(), c.yaw(),
-                c.kind(), allegiance, c.faction(), order, c.dimension());
+                c.kind(), allegiance, c.faction(), order, c.dimension(),
+                c.healthFrac(), c.energyFrac());
+    }
+
+    private static float healthFrac(VehicleEntity hull) {
+        float max = hull.getMaxHealth();
+        return max > 0.0F ? Mth.clamp(hull.getHealth() / max, 0.0F, 1.0F) : 1.0F;
+    }
+
+    /**
+     * Live energy fraction, or {@link VehicleMarker#NO_ENERGY} when the hull has no storage —
+     * {@code getEnergy}/{@code getMaxEnergy} warn on every call for those hulls.
+     */
+    private static float energyFrac(VehicleEntity hull) {
+        try {
+            if (!hull.hasEnergyStorage()) return VehicleMarker.NO_ENERGY;
+            int max = hull.getMaxEnergy();
+            if (max <= 0) return VehicleMarker.NO_ENERGY;
+            return Mth.clamp(hull.getEnergy() / (float) max, 0.0F, 1.0F);
+        } catch (Throwable ignored) {
+            return VehicleMarker.NO_ENERGY;
+        }
     }
 
     /**
@@ -371,6 +398,8 @@ public final class OwnedVehicleTracker {
         if (engine == EngineType.AIRCRAFT) return VehicleMarker.Kind.FIXED_WING;
         if (engine == EngineType.HELICOPTER) return VehicleMarker.Kind.ROTARY_WING;
         if (engine == EngineType.FIXED) return VehicleMarker.Kind.EMPLACEMENT;
+        if (HullFacts.isMissileSystemHull(hull)) return VehicleMarker.Kind.MISSILE_SYSTEM;
+        if (HullFacts.isAntiAirHull(hull)) return VehicleMarker.Kind.ANTI_AIR;
         // Everything that drives is armour, and an IFV is mechanized infantry — the one distinction
         // the vehicle data cannot make, so it comes off the id clue list HullFacts already owns.
         return HullFacts.isIfvHull(hull) ? VehicleMarker.Kind.MECHANIZED : VehicleMarker.Kind.ARMOR;

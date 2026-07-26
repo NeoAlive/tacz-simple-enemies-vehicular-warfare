@@ -69,3 +69,25 @@ config="tacz_sewv.xaero.mixins.json"
     versionRange="[1.44.0,)"
     ordering="AFTER"
     side="CLIENT"
+
+# Softcompat vehicle addons — optional; pools and softcompat helpers activate when present.
+[[dependencies.tacz_sewv]]
+    modId="fcp"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.tacz_sewv]]
+    modId="mcsp"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.tacz_sewv]]
+    modId="ashvehicle"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"

@@ -66,6 +66,10 @@ public final class VehicleMarkerElements {
     private static final int HEADING_END = 19;
     private static final int HEADING_HALF_WIDTH = 1;
 
+    private static final int BAR_W = 22;
+    private static final int BAR_H = 3;
+    private static final int BAR_ROW = 6;
+
     private static final int SELECTION_COLOR = 0xFFFFFFFF;
     private static final int SELECTION_SHADE = 0x60000000;
 
@@ -155,10 +159,69 @@ public final class VehicleMarkerElements {
 
             int color = factionColor(marker.faction());
             drawHeading(guiGraphics, marker, color);
-            drawSymbol(guiGraphics, marker, color);
+            if (SewvConfig.MAP_SHOW_ICONS.get()) {
+                drawSymbol(guiGraphics, marker, color);
+            }
+            drawPmcVitals(guiGraphics, marker);
 
             pose.popPose();
             return true;
+        }
+
+        /**
+         * Compact ♥ / ⚡ bars under PMC markers only. Independent of faction colouring for the
+         * symbol; values come from the live polled hull state on the wire.
+         */
+        private void drawPmcVitals(GuiGraphics guiGraphics, VehicleMarker marker) {
+            if (marker.faction() != CrewFacts.Faction.PMC) return;
+            // Vehicles only — on-foot PMC markers stay clean.
+            if (isInfantryKind(marker.kind())) return;
+            boolean health = SewvConfig.MAP_SHOW_HEALTH_BAR.get();
+            boolean energy = SewvConfig.MAP_SHOW_ENERGY_BAR.get()
+                    && marker.energyFrac() >= 0.0F;
+            if (!health && !energy) return;
+
+            Minecraft mc = Minecraft.getInstance();
+            int y = HIT_BOX + 1;
+            if (health) {
+                drawVitalBar(guiGraphics, mc, "♥", marker.healthFrac(),
+                        barColor(marker.healthFrac(), true), y);
+                y += BAR_ROW;
+            }
+            if (energy) {
+                drawVitalBar(guiGraphics, mc, "⚡", marker.energyFrac(),
+                        barColor(marker.energyFrac(), false), y);
+            }
+        }
+
+        private static boolean isInfantryKind(VehicleMarker.Kind kind) {
+            return kind == VehicleMarker.Kind.INFANTRY
+                    || kind == VehicleMarker.Kind.INFANTRY_MEDIC
+                    || kind == VehicleMarker.Kind.INFANTRY_ENGINEER;
+        }
+
+        private void drawVitalBar(GuiGraphics guiGraphics, Minecraft mc, String glyph,
+                                  float frac, int fillColor, int y) {
+            int glyphW = mc.font.width(glyph);
+            int barLeft = -BAR_W / 2 + glyphW / 2;
+            int barRight = barLeft + BAR_W;
+            guiGraphics.drawString(mc.font, glyph, barLeft - glyphW - 1, y - 1, 0xFFFFFFFF, false);
+            guiGraphics.fill(barLeft, y, barRight, y + BAR_H, 0xFF202020);
+            int fill = Math.round(BAR_W * Math.max(0.0F, Math.min(1.0F, frac)));
+            if (fill > 0) {
+                guiGraphics.fill(barLeft, y, barLeft + fill, y + BAR_H, fillColor);
+            }
+        }
+
+        /** Health: green→yellow→red. Energy: cyan→amber. */
+        private static int barColor(float frac, boolean health) {
+            if (health) {
+                if (frac > 0.5F) return 0xFF55FF55;
+                if (frac > 0.25F) return 0xFFFFFF55;
+                return 0xFFFF5555;
+            }
+            if (frac > 0.35F) return 0xFF55FFFF;
+            return 0xFFFFAA00;
         }
 
         /** The APP-6 symbol, tinted: black strokes survive the multiply, the white fill becomes {@code color}. */
@@ -296,7 +359,10 @@ public final class VehicleMarkerElements {
         public int getRenderBoxTop(VehicleMarker marker, Ctx context, float partialTicks) { return -RENDER_BOX; }
 
         @Override
-        public int getRenderBoxBottom(VehicleMarker marker, Ctx context, float partialTicks) { return RENDER_BOX; }
+        public int getRenderBoxBottom(VehicleMarker marker, Ctx context, float partialTicks) {
+            // Extra room for PMC ♥/⚡ bars under the symbol.
+            return RENDER_BOX + 14;
+        }
 
         @Override
         public int getLeftSideLength(VehicleMarker marker, Minecraft mc) {

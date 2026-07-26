@@ -46,6 +46,9 @@ public final class VehicleAiGoals {
         // lean out and shoot instead of working the tube. Gates on holding a claim, so it
         // costs a null check on every unit that has none.
         unit.goalSelector.addGoal(1, new ManMortarGoal(unit));
+        // ASH Sapsan: stop, raise pod, fire at a radio/fire-mission mark. DriveVehicleGoal
+        // yields while this engages (see canUse there).
+        unit.goalSelector.addGoal(1, new ManMissileSystemGoal(unit));
         // Walks the unit to a hull it has been ordered onto and seats it. Gates on holding a
         // pending order, so it costs a boolean read on every unit that has none.
         unit.goalSelector.addGoal(1, new BoardVehicleGoal(unit));

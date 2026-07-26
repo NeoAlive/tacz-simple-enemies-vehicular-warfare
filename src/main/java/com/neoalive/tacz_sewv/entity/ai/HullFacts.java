@@ -32,6 +32,8 @@ public final class HullFacts {
     private boolean tracked;
     private boolean ship;
     private boolean ifv;
+    private boolean missileSystem;
+    private boolean antiAir;
     private Set<Integer> crewSeats = Set.of(0);
     private Set<Integer> climbSeats = Set.of();
 
@@ -43,6 +45,8 @@ public final class HullFacts {
         this.tracked = computeTracked(v);
         this.ship = computeShip(v);
         this.ifv = computeIfv(v);
+        this.missileSystem = computeMissileSystem(v);
+        this.antiAir = computeAntiAir(v);
         this.crewSeats = this.ifv ? computeCrewSeats(v) : Set.of(0);
         this.climbSeats = SewvConfig.TANK_RIDER_DISMOUNT_ENABLED.get() ? computeClimbSeats(v) : Set.of();
     }
@@ -92,6 +96,19 @@ public final class HullFacts {
      */
     boolean isIfv() {
         return this.ifv;
+    }
+
+    /**
+     * Coordinate ballistic launcher (ASH Sapsan): no SBW gun loop — stop, arm pod, fire at a mark.
+     * See {@link ManMissileSystemGoal}.
+     */
+    boolean isMissileSystem() {
+        return this.missileSystem;
+    }
+
+    /** Prefers airborne targets (HELICOPTER / AIRCRAFT riders). See {@link CrewTargetPriorityGoal}. */
+    boolean isAntiAir() {
+        return this.antiAir;
     }
 
     /**
@@ -214,11 +231,31 @@ public final class HullFacts {
         return computeIfv(v);
     }
 
+    public static boolean isMissileSystemHull(VehicleEntity v) {
+        return computeMissileSystem(v);
+    }
+
+    public static boolean isAntiAirHull(VehicleEntity v) {
+        return computeAntiAir(v);
+    }
+
     private static boolean computeIfv(VehicleEntity v) {
         if (!SewvConfig.IFV_DISMOUNTS_ENABLED.get()) return false;
+        return idMatchesClues(v, SewvConfig.IFV_NAME_CLUES.get());
+    }
+
+    private static boolean computeMissileSystem(VehicleEntity v) {
+        return idMatchesClues(v, SewvConfig.MISSILE_SYSTEM_NAME_CLUES.get());
+    }
+
+    private static boolean computeAntiAir(VehicleEntity v) {
+        return idMatchesClues(v, SewvConfig.ANTI_AIR_NAME_CLUES.get());
+    }
+
+    private static boolean idMatchesClues(VehicleEntity v, List<? extends String> clues) {
         try {
             String id = ForgeRegistries.ENTITY_TYPES.getKey(v.getType()).toString().toLowerCase(Locale.ROOT);
-            for (String clue : SewvConfig.IFV_NAME_CLUES.get()) {
+            for (String clue : clues) {
                 if (!clue.isBlank() && id.contains(clue.toLowerCase(Locale.ROOT))) return true;
             }
         } catch (Exception ignored) {}
@@ -256,6 +293,11 @@ public final class HullFacts {
      * crew filter, which asks whether a PMC is flying a plane). */
     public static boolean isPlaneHull(VehicleEntity v) {
         return computePlane(v);
+    }
+
+    /** Rotary-wing test for callers with no attached {@link HullFacts} (AA target preference). */
+    public static boolean isHelicopterHull(VehicleEntity v) {
+        return computeHelicopter(v);
     }
 
     private static boolean computeShip(VehicleEntity v) {

@@ -18,7 +18,7 @@
     "MixinVehicleTurretMobility",
     "MixinVehicleEngineMobility",
     "MixinAiAimSpread",
-    "MixinTowTurretAim",
+    "MixinVehicleMissileAim",
     "MixinVehicleTurretNaN",
     "MixinVehiclePassengerNaN",
     "MixinVehicleFactionEnergy",

@@ -11,17 +11,15 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 /**
- * TOW launcher logic shared by {@link ManTowGoal} and
- * {@link com.neoalive.tacz_sewv.mixin.MixinTowTurretAim}.
+ * TOW launcher reload logic used by {@link ManTowGoal}.
  *
  * <p>Unlike a mortar, a TOW is an ordinary crewed vehicle: it has a seat, so a unit rides
  * it and the normal board flow reaches it with no special order. What it does NOT have is
- * anything that loads it — see {@link #reload} — or an aim SBW's AI can use — see
- * {@link #aimVector}.
+ * anything that loads it for a mob — see {@link #reload}. Aim for its wire-guide missile
+ * (and other vehicle ATGMs) is handled by {@link VehicleMissileAim}, not here.
  */
 public final class TowSupport {
 
@@ -131,39 +129,5 @@ public final class TowSupport {
 
         AmmoConsumer consumer = gun.selectedAmmoConsumer();
         return consumer != null && consumer.isAmmoItem(new ItemStack(issued));
-    }
-
-    /**
-     * Where the barrel has to point to put a missile on {@code target}: straight at it.
-     *
-     * <p>This exists to replace the solution SBW's AI turret auto-aim would compute, which
-     * is wrong for this launcher twice over. {@code turretAutoAimFromUuid} feeds
-     * {@code RangeTool.calculateFiringSolution} the weapon's {@code GunProp.GRAVITY} — and
-     * {@code tow.json} never sets Gravity, so the Missile inherits the schema default of
-     * <b>0.05</b>. The solver duly lofts the barrel to arc a shell over the intervening
-     * distance. Measured against the real solver, at the TOW's muzzle velocity of 3 and
-     * against a target at the launcher's own height, the demanded elevation is:
-     *
-     * <pre>  10 blocks: +1.6°   30: +4.8°   50: +8.1°   75: +12.3°   96: +16.1°</pre>
-     *
-     * <p>But a {@code WireGuideMissileEntity} does not arc. {@code MissileProjectile.getGravity()}
-     * returns <b>0</b>: it self-propels, and every tick it steers back onto the line from
-     * the launcher out along {@code getBarrelVector} — it rides the beam. So it flies down
-     * whatever line the barrel is on, and a lofted barrel sends it clean over the target.
-     *
-     * <p>Hence twice over. SBW's native AI fire gate is a hard-coded <b>4°</b> between the
-     * barrel and the straight muzzle-target line, so past about 25 blocks the loft alone
-     * exceeds it and the launcher simply <em>never fires</em>; inside that, and anywhere
-     * {@code aiFireAssistConeDeg} (12° default) waves a shot through, the missile rides the
-     * lofted beam and misses high. Untreated, an AI TOW is a 25-block weapon that misses.
-     * Players never see any of this because manual aim never runs the solver: they point at
-     * the target and the missile rides to it.
-     *
-     * <p>So we point at the target, exactly as a player does. No lead either — the barrel
-     * re-aims every tick and the missile keeps riding it, so the beam tracks a moving target
-     * on its own; leading it would only steer the missile to a point the target has left.
-     */
-    public static Vec3 aimVector(TowEntity tow, Entity controller, Entity target) {
-        return target.getBoundingBox().getCenter().subtract(tow.getShootPos(controller, 1.0F));
     }
 }

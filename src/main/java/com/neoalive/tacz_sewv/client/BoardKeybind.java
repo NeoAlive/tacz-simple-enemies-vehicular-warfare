@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.client;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.FormationShape;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -26,6 +25,8 @@ import java.util.function.Predicate;
 
 /** Board/dismount orders sent from the Tactical Data Terminal ({@link TdtScreen}). */
 public class BoardKeybind {
+
+    private static final double CLIENT_DISCOVERY_RADIUS = 512.0;
 
     /**
      * Order owned units to crew {@code target} — a vehicle to ride or a mortar to stand
@@ -84,7 +85,7 @@ public class BoardKeybind {
      */
     static void withOwnedUnits(Predicate<PmcUnitEntity> filter, String emptyKey,
                                BiConsumer<Player, List<Integer>> order) {
-        withOwnedUnits(SewvConfig.BOARD_SCAN_RADIUS.get(), filter, emptyKey, order);
+        withOwnedUnits(CLIENT_DISCOVERY_RADIUS, filter, emptyKey, order);
     }
 
     /**

@@ -39,7 +39,7 @@ public final class PoolEditorAccess {
             Map<Category, List<String>> defCat = new EnumMap<>(Category.class);
             for (Category cat : Category.values()) {
                 byCat.put(cat, new ArrayList<>(data.list(faction, cat)));
-                defCat.put(cat, new ArrayList<>(WorldVehiclePools.configDefaults(faction, cat)));
+                defCat.put(cat, new ArrayList<>(WorldVehiclePools.builtInDefaults(faction, cat)));
             }
             snapshot.put(faction, byCat);
             defaults.put(faction, defCat);

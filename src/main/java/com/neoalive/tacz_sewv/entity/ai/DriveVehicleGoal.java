@@ -36,6 +36,8 @@ import java.util.Set;
  */
 public class DriveVehicleGoal extends Goal {
 
+    private static final int WEAPON_SWITCH_COOLDOWN_TICKS = 5;
+
     // The standoff rings themselves now live in Facts.preferredRange / Facts.rangeDeadband,
     // because the scorer needs the same numbers to decide whether we are too close or too far
     // and two copies would drift. Infantry is a 10-20 band (15 ± 5); armor holds the far ring
@@ -587,7 +589,7 @@ public class DriveVehicleGoal extends Goal {
     private void selectWeaponForTarget(int seatIndex, LivingEntity target) {
         if (seatIndex < 0 || this.weaponSwitchCooldown > 0) return;
         this.selectedRole = VehicleWeapons.selectWeaponForTarget(this.vehicle, seatIndex, target);
-        this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
+        this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
     }
 
     // Destination resolution — SEM order queue for PMC, current target / ally-assist for

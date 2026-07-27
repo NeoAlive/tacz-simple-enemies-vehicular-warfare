@@ -5,7 +5,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.MapMarkers;
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.util.CrewFacts;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.client.Minecraft;
@@ -94,9 +94,9 @@ public final class VehicleMarkerElements {
      */
     public static int factionColor(CrewFacts.Faction faction) {
         return switch (faction) {
-            case RU -> SewvConfig.parseColor(SewvConfig.COLOR_RU.get(), 0xFFFF5555);
-            case US -> SewvConfig.parseColor(SewvConfig.COLOR_US.get(), 0xFF5555FF);
-            case PMC -> SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), 0xFF55FF55);
+            case RU -> ClientConfig.parseColor(ClientConfig.COLOR_RU.get(), 0xFFFF5555);
+            case US -> ClientConfig.parseColor(ClientConfig.COLOR_US.get(), 0xFF5555FF);
+            case PMC -> ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55);
         };
     }
 
@@ -159,7 +159,7 @@ public final class VehicleMarkerElements {
 
             int color = factionColor(marker.faction());
             drawHeading(guiGraphics, marker, color);
-            if (SewvConfig.MAP_SHOW_ICONS.get()) {
+            if (ClientConfig.MAP_SHOW_ICONS.get()) {
                 drawSymbol(guiGraphics, marker, color);
             }
             drawPmcVitals(guiGraphics, marker);
@@ -176,8 +176,8 @@ public final class VehicleMarkerElements {
             if (marker.faction() != CrewFacts.Faction.PMC) return;
             // Vehicles only — on-foot PMC markers stay clean.
             if (isInfantryKind(marker.kind())) return;
-            boolean health = SewvConfig.MAP_SHOW_HEALTH_BAR.get();
-            boolean energy = SewvConfig.MAP_SHOW_ENERGY_BAR.get()
+            boolean health = ClientConfig.MAP_SHOW_HEALTH_BAR.get();
+            boolean energy = ClientConfig.MAP_SHOW_ENERGY_BAR.get()
                     && marker.energyFrac() >= 0.0F;
             if (!health && !energy) return;
 
@@ -255,7 +255,7 @@ public final class VehicleMarkerElements {
 
         @Override
         public boolean shouldRender(ElementRenderLocation location, boolean shadow) {
-            return !shadow && SewvConfig.MAP_MARKERS_ENABLED.get();
+            return !shadow && ClientConfig.MAP_MARKERS_ENABLED.get();
         }
 
         /** Above Xaero's tracked players (200) — your own units are what you opened the map for. */

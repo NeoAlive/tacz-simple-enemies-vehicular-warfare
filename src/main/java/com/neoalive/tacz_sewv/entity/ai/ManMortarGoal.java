@@ -38,6 +38,9 @@ import java.util.EnumSet;
  */
 public class ManMortarGoal extends Goal {
 
+    private static final int APPROACH_TIMEOUT_TICKS = 300;
+    private static final boolean DEBUG_LOGGING = false;
+
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /**
@@ -350,7 +353,7 @@ public class ManMortarGoal extends Goal {
 
     /** Names the gate the crew is stuck on, once per change, when mortarDebugLogging is on. */
     private void hold(String reason) {
-        if (!SewvConfig.MORTAR_DEBUG_LOGGING.get()) return;
+        if (!DEBUG_LOGGING) return;
         if (reason.equals(this.lastHold)) return;
         this.lastHold = reason;
         LOGGER.info("[mortar] unit {} at mortar {}: {}",
@@ -364,7 +367,7 @@ public class ManMortarGoal extends Goal {
      * mortarDebugLogging is off (the common case).
      */
     private void hold(String fmt, Object... args) {
-        if (!SewvConfig.MORTAR_DEBUG_LOGGING.get()) return;
+        if (!DEBUG_LOGGING) return;
         hold(String.format(fmt, args));
     }
 
@@ -398,7 +401,7 @@ public class ManMortarGoal extends Goal {
     }
 
     private long deadlineFromNow() {
-        return this.unit.level().getGameTime() + SewvConfig.MORTAR_APPROACH_TIMEOUT_TICKS.get();
+        return this.unit.level().getGameTime() + APPROACH_TIMEOUT_TICKS;
     }
 
     @Override

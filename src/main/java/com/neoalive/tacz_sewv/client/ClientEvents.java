@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.client;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketEscort;
@@ -31,6 +30,7 @@ public class ClientEvents {
 
     /** Reach for picking the vehicle to escort — SEM's own selection raytrace distance. */
     private static final double ESCORT_PICK_RANGE = 50.0;
+    private static final double CLIENT_DISCOVERY_RADIUS = 512.0;
     /** Re-show the selection prompt this often (goal-agnostic client ticks) so it doesn't fade mid-mode. */
     private static final int PROMPT_REFRESH_TICKS = 40;
 
@@ -58,7 +58,7 @@ public class ClientEvents {
             units.addAll(selected);
         } else {
             for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class,
-                    player.getBoundingBox().inflate(SewvConfig.BOARD_SCAN_RADIUS.get()))) {
+                    player.getBoundingBox().inflate(CLIENT_DISCOVERY_RADIUS))) {
                 if (pmc.isOwnedBy(player)) units.add(pmc.getId());
             }
         }

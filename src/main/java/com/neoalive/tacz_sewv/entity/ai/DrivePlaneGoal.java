@@ -64,6 +64,12 @@ import java.util.UUID;
  */
 public class DrivePlaneGoal extends Goal {
 
+    private static final double FIRE_CONE_DEG = 45.0;
+    private static final double TAKEOFF_RUNWAY_RADIUS = 64.0;
+    private static final List<String> MISSILE_CLUES = List.of("missile", "agm", "kh_", "atgm", "maverick");
+    private static final List<String> BOMB_CLUES = List.of("bomb");
+    private static final List<String> ROCKET_CLUES = List.of("rocket", "hydra");
+
     // Below this fraction of max health SBW flies the plane into a death spiral on its own; let go.
     private static final float CRASH_HEALTH_FRACTION = 0.10F;
     // RU/US emergency landing: abstract "get down" before the crash spiral, reuse PMC land procedure.
@@ -313,7 +319,7 @@ public class DrivePlaneGoal extends Goal {
         if (combatTarget != null) {
             // Pinned by an order, but take any shot that lines up mid-leg (eased plane cone).
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, combatTarget,
-                    SewvConfig.PLANE_FIRE_CONE_DEG.get());
+                    FIRE_CONE_DEG);
         }
         if (dest == null) {
             loiter(cruiseAltitudeHere());
@@ -467,7 +473,7 @@ public class DrivePlaneGoal extends Goal {
     private boolean fieldClearFrom(BlockPos pad, Vec3 dir) {
         Level level = this.unit.level();
         int base = pad.getY();
-        double length = Math.min(32.0, SewvConfig.PLANE_TAKEOFF_RUNWAY_RADIUS.get());
+        double length = Math.min(32.0, TAKEOFF_RUNWAY_RADIUS);
         for (double d = 2.0; d <= length; d += 2.0) {
             int px = Mth.floor(pad.getX() + 0.5 + dir.x * d);
             int pz = Mth.floor(pad.getZ() + 0.5 + dir.z * d);
@@ -532,7 +538,7 @@ public class DrivePlaneGoal extends Goal {
     // instead compares the surface height ahead to the plane's own — flat ground is always clear, a
     // wall/tree/cliff (a step taller than RUNWAY_MAX_STEP) is not. Fans across headings, nearest first.
     private Vec3 pickRunwayHeading() {
-        double length = SewvConfig.PLANE_TAKEOFF_RUNWAY_RADIUS.get();
+        double length = TAKEOFF_RUNWAY_RADIUS;
         Vec3 facing = forwardFlat();
         for (double offDeg : RUNWAY_FAN_DEG) {
             Vec3 cand = VehicleTargeting.rotateY(facing, Math.toRadians(offDeg));
@@ -686,7 +692,7 @@ public class DrivePlaneGoal extends Goal {
                 this.vehicle.setWeaponIndex(this.vehicle.getSeatIndex(this.unit), this.selWeaponSlot);
             }
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
-                    SewvConfig.PLANE_FIRE_CONE_DEG.get());
+                    FIRE_CONE_DEG);
         }
     }
 
@@ -820,11 +826,11 @@ public class DrivePlaneGoal extends Goal {
             for (int w = 0; w < count; w++) {
                 String raw = this.vehicle.getGunName(seat, w);
                 String name = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
-                if (matchesAny(name, SewvConfig.PLANE_MISSILE_CLUES.get())) {
+                if (matchesAny(name, MISSILE_CLUES)) {
                     this.weapons.add(new PlaneWeapon(w, 3, false, true, raw));
-                } else if (matchesAny(name, SewvConfig.PLANE_BOMB_CLUES.get())) {
+                } else if (matchesAny(name, BOMB_CLUES)) {
                     this.weapons.add(new PlaneWeapon(w, 3, true, false, raw));
-                } else if (matchesAny(name, SewvConfig.PLANE_ROCKET_CLUES.get())) {
+                } else if (matchesAny(name, ROCKET_CLUES)) {
                     this.weapons.add(new PlaneWeapon(w, 2, false, false, raw));
                 } else {
                     // Cannon clue, or unrecognised — either way a light forward gun.

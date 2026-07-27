@@ -35,6 +35,8 @@ import java.util.EnumSet;
  */
 public class AtWeaponGoal extends Goal {
 
+    private static final int AIM_TICKS = 15;
+
     private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
 
     /**
@@ -112,7 +114,7 @@ public class AtWeaponGoal extends Goal {
             this.aimTicks = 0;
             return;
         }
-        if (this.aimTicks < SewvConfig.AT_AIM_TICKS.get()) {
+        if (this.aimTicks < AIM_TICKS) {
             this.aimTicks++;
             return;
         }

@@ -106,7 +106,7 @@ public final class OwnedVehicleTracker {
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || !SewvConfig.MAP_MARKERS_ENABLED.get()) return;
+        if (event.phase != TickEvent.Phase.END) return;
 
         List<ServerPlayer> players = event.getServer().getPlayerList().getPlayers();
         if (players.isEmpty()) return;

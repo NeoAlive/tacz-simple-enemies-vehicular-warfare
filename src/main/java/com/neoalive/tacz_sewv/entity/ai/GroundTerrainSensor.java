@@ -38,6 +38,8 @@ import java.util.List;
  */
 final class GroundTerrainSensor extends TerrainSensor {
 
+    private static final double LOOKAHEAD_DISTANCE = 5.0;
+
     /**
      * How far below the driving level the surface the hull would come to rest on is looked
      * for, purely to classify it as water or lava. A probe reach, NOT a fall limit — a drop
@@ -84,7 +86,7 @@ final class GroundTerrainSensor extends TerrainSensor {
 
     /** Read per call so config edits take effect live. */
     double lookahead() {
-        return SewvConfig.VEHICLE_LOOKAHEAD_DISTANCE.get();
+        return LOOKAHEAD_DISTANCE;
     }
 
     Vec3 chooseClearBearing(Vec3 desired) {

@@ -30,6 +30,8 @@ import java.util.Set;
  */
 public class DriveShipGoal extends Goal {
 
+    private static final int WEAPON_SWITCH_COOLDOWN_TICKS = 5;
+
     private static final double MIN_ANGLE_RAD = Math.toRadians(6.0);
     private static final double MAX_ANGLE_RAD = Math.toRadians(30.0);
     private static final double MIN_DISTANCE = 4.0;
@@ -470,7 +472,7 @@ public class DriveShipGoal extends Goal {
         int seat = this.vehicle.getSeatIndex(this.unit);
         if (seat < 0 || this.weaponSwitchCooldown > 0) return;
         this.selectedRole = VehicleWeapons.selectWeaponForTarget(this.vehicle, seat, target);
-        this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
+        this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
     }
 
     /**

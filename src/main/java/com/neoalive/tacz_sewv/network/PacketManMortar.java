@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.network;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
@@ -62,11 +61,9 @@ public class PacketManMortar {
             }
 
             if (assigned != null) {
-                if (SewvConfig.SHOW_ORDER_FEEDBACK.get()) {
-                    player.displayClientMessage(Component.translatable(
-                            "message.tacz_sewv.mortar.ordered.single", assigned.getDisplayName())
-                            .copy().withStyle(ChatFormatting.GREEN), true);
-                }
+                NetworkHandler.sendOrderFeedback(player, Component.translatable(
+                        "message.tacz_sewv.mortar.ordered.single", assigned.getDisplayName())
+                        .copy().withStyle(ChatFormatting.GREEN));
             } else {
                 // Always shown regardless of the flag: a failure explanation is not the success
                 // spam SHOW_ORDER_FEEDBACK exists to cut, and disabling it shouldn't leave the

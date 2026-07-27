@@ -26,6 +26,10 @@ import java.util.Set;
  */
 public final class HullFacts {
 
+    private static final List<String> IFV_NAME_CLUES = List.of("bradley", "bmp", "bmd", "cv90", "puma", "marder");
+    private static final List<String> MISSILE_SYSTEM_NAME_CLUES = List.of("sapsan", "grim2");
+    private static final List<String> ANTI_AIR_NAME_CLUES = List.of("gepard", "pantsir", "pa_pantsir");
+
     private VehicleEntity vehicle;
     private boolean helicopter;
     private boolean plane;
@@ -241,15 +245,15 @@ public final class HullFacts {
 
     private static boolean computeIfv(VehicleEntity v) {
         if (!SewvConfig.IFV_DISMOUNTS_ENABLED.get()) return false;
-        return idMatchesClues(v, SewvConfig.IFV_NAME_CLUES.get());
+        return idMatchesClues(v, IFV_NAME_CLUES);
     }
 
     private static boolean computeMissileSystem(VehicleEntity v) {
-        return idMatchesClues(v, SewvConfig.MISSILE_SYSTEM_NAME_CLUES.get());
+        return idMatchesClues(v, MISSILE_SYSTEM_NAME_CLUES);
     }
 
     private static boolean computeAntiAir(VehicleEntity v) {
-        return idMatchesClues(v, SewvConfig.ANTI_AIR_NAME_CLUES.get());
+        return idMatchesClues(v, ANTI_AIR_NAME_CLUES);
     }
 
     private static boolean idMatchesClues(VehicleEntity v, List<? extends String> clues) {

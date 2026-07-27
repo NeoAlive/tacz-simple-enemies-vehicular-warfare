@@ -29,6 +29,7 @@ public final class ElectionSelfCheck {
         playerDesignationOverrides();
         deadDesignationFallsThrough();
         commanderWeightsScore();
+        battleFieldCentroidMatchesStage2MeanForElection();
 
         System.out.println("command election self-check: OK");
     }
@@ -144,6 +145,60 @@ public final class ElectionSelfCheck {
         assertTrue(healthy > hurt, "fallback commander weights must be health-dominant");
     }
 
+    /**
+     * Stage 3 regression seam: when {@link BattleField} friendly centroid equals the Stage-2
+     * arithmetic mean of member positions, election fitness (via centrality) and therefore the
+     * elected commander must be identical. Prevents a drifted centroid formula from hiding
+     * behind the influence map.
+     */
+    private static void battleFieldCentroidMatchesStage2MeanForElection() {
+        // Symmetric battlefield: friendlies at mean (10, 20), enemies opposite.
+        List<UnitPos> units = List.of(
+                new UnitPos(1, 0, 5, 20),
+                new UnitPos(2, 0, 15, 20),
+                new UnitPos(3, 0, 10, 20),
+                new UnitPos(10, 1, 10, 80),
+                new UnitPos(11, 1, 12, 80)
+        );
+        InfluenceMap map = new InfluenceMap();
+        BattleField bf = new BattleField();
+        map.rebuildAndDerive(bf, units, 0, 12.0, 256, 24.0);
+        assertTrue(bf.populated, "BF must populate for centroid seam");
+
+        double meanX = (5 + 15 + 10) / 3.0;
+        double meanZ = 20.0;
+        assertNear(meanX, bf.friendlyCentroidX, 1.0e-9, "BF friendly cx == Stage-2 mean");
+        assertNear(meanZ, bf.friendlyCentroidZ, 1.0e-9, "BF friendly cz == Stage-2 mean");
+
+        UtilityWeights w = UtilityWeights.fallback();
+        double maxRadius = 64.0;
+        // Member 1 at edge, 2 at edge, 3 at centroid — 3 must win on centrality when other knobs equal.
+        double c1Mean = CommanderFitness.centrality(5, 20, meanX, meanZ, maxRadius);
+        double c3Mean = CommanderFitness.centrality(10, 20, meanX, meanZ, maxRadius);
+        double c1Bf = CommanderFitness.centrality(5, 20, bf.friendlyCentroidX, bf.friendlyCentroidZ, maxRadius);
+        double c3Bf = CommanderFitness.centrality(10, 20, bf.friendlyCentroidX, bf.friendlyCentroidZ, maxRadius);
+        assertNear(c1Mean, c1Bf, 1.0e-12, "centrality(edge) identical via BF centroid");
+        assertNear(c3Mean, c3Bf, 1.0e-12, "centrality(centre) identical via BF centroid");
+
+        double f1 = CommanderFitness.score(1.0, 1.0, c1Bf, 1.0, w);
+        double f3 = CommanderFitness.score(1.0, 1.0, c3Bf, 1.0, w);
+        List<Election.Candidate> members = List.of(
+                new Election.Candidate(1, true, f1),
+                new Election.Candidate(3, true, f3)
+        );
+        Integer viaBf = Election.electCommander(members, null, MARGIN, null, 1);
+
+        double f1s2 = CommanderFitness.score(1.0, 1.0, c1Mean, 1.0, w);
+        double f3s2 = CommanderFitness.score(1.0, 1.0, c3Mean, 1.0, w);
+        Integer viaMean = Election.electCommander(List.of(
+                new Election.Candidate(1, true, f1s2),
+                new Election.Candidate(3, true, f3s2)
+        ), null, MARGIN, null, 1);
+
+        assertEq(viaMean, viaBf, "election identical for Stage-2 mean vs BF-sourced centroid");
+        assertEq(3, viaBf, "centroid member wins when health/ammo/allies tied");
+    }
+
     private static void assertNull(Integer v, String label) {
         assert v == null : label + ": expected null got " + v;
     }
@@ -159,5 +214,10 @@ public final class ElectionSelfCheck {
 
     private static void assertTrue(boolean cond, String message) {
         assert cond : message;
+    }
+
+    private static void assertNear(double expected, double actual, double tol, String label) {
+        assert Math.abs(actual - expected) <= tol
+                : label + ": expected ~" + expected + " ±" + tol + " got " + actual;
     }
 }

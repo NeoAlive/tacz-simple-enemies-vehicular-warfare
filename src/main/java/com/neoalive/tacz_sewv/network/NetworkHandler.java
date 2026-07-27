@@ -45,7 +45,7 @@ public class NetworkHandler {
     // 17: world vehicle pool editor (open + update).
     // 18: map markers carry PMC health/energy fractions.
     // 19: order feedback became a client-gated S->C packet.
-    private static final String PROTOCOL_VERSION = "20";
+    private static final String PROTOCOL_VERSION = "21";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

@@ -6,6 +6,7 @@ import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
 import com.neoalive.tacz_sewv.client.xaero.VehicleMarkerElements;
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.util.BattleFieldMarker;
 import com.neoalive.tacz_sewv.util.MarkerOrder;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.world.phys.Vec3;
@@ -313,6 +314,9 @@ public abstract class MixinGuiMap extends Screen {
         // overridden); the live drag is the transient line being laid down right now.
         if (ClientConfig.MAP_MARKERS_ENABLED.get()) {
             tacz_sewv$drawStandingPreviews(guiGraphics);
+            if (ClientConfig.MAP_SHOW_COMMAND_DEBUG.get()) {
+                tacz_sewv$drawBattleFieldOverlay(guiGraphics);
+            }
             if (this.tacz_sewv$orderDragging && !CruisePlot.armed()
                     && MapMarkers.selected().size() >= 2) {
                 tacz_sewv$drawDragPreview(guiGraphics);
@@ -389,6 +393,95 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private double tacz_sewv$worldToScreen(double blocks) {
         return blocks * this.scale / this.screenScale;
+    }
+
+    /**
+     * Debug BattleField overlay: friendly/enemy centroids, enemy→us axis chevron, open-flank
+     * marks. Draws wire fields only — no centroid/flank/geometry recomputation.
+     */
+    @Unique
+    private void tacz_sewv$drawBattleFieldOverlay(GuiGraphics guiGraphics) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        ResourceKey<Level> dim = mc.player.level().dimension();
+        final int FRIENDLY = 0xFF55FF55;
+        final int ENEMY = 0xFFFF5555;
+        final int AXIS = 0xFFFFFF55;
+        final int FLANK = 0xFF55FFFF;
+
+        for (BattleFieldMarker bf : MapMarkers.battleFields()) {
+            if (!dim.equals(bf.dimension())) continue;
+
+            int[] friend = tacz_sewv$toScreenXZ(bf.friendlyX(), bf.friendlyZ());
+            int[] enemy = tacz_sewv$toScreenXZ(bf.enemyX(), bf.enemyZ());
+
+            // Axis: dotted leg enemy → friendly, then a chevron at the friendly end.
+            tacz_sewv$drawLeg(guiGraphics, enemy, friend, AXIS);
+            tacz_sewv$drawChevron(guiGraphics, enemy, friend, AXIS);
+
+            // Centroids — distinct marks (enemy diamond, friendly square).
+            tacz_sewv$drawDiamond(guiGraphics, enemy[0], enemy[1], 5, ENEMY);
+            guiGraphics.fill(friend[0] - 4, friend[1] - 4, friend[0] + 4, friend[1] + 4, 0xFF000000);
+            guiGraphics.fill(friend[0] - 3, friend[1] - 3, friend[0] + 3, friend[1] + 3, FRIENDLY);
+
+            if (bf.flankLeft()) {
+                int[] fl = tacz_sewv$toScreenXZ(bf.flankLeftX(), bf.flankLeftZ());
+                tacz_sewv$drawFlankMark(guiGraphics, fl[0], fl[1], FLANK, "L");
+            }
+            if (bf.flankRight()) {
+                int[] fr = tacz_sewv$toScreenXZ(bf.flankRightX(), bf.flankRightZ());
+                tacz_sewv$drawFlankMark(guiGraphics, fr[0], fr[1], FLANK, "R");
+            }
+        }
+    }
+
+    /** Filled diamond centred on (cx,cy) — enemy centroid mark. */
+    @Unique
+    private void tacz_sewv$drawDiamond(GuiGraphics g, int cx, int cy, int r, int color) {
+        for (int dy = -r; dy <= r; dy++) {
+            int half = r - Math.abs(dy);
+            g.fill(cx - half, cy + dy, cx + half + 1, cy + dy + 1, color);
+        }
+        // Thin black outline tips
+        g.fill(cx, cy - r - 1, cx + 1, cy - r, 0xFF000000);
+        g.fill(cx, cy + r, cx + 1, cy + r + 1, 0xFF000000);
+    }
+
+    /** Open-flank marker: cyan ring + L/R label. */
+    @Unique
+    private void tacz_sewv$drawFlankMark(GuiGraphics g, int cx, int cy, int color, String label) {
+        g.fill(cx - 6, cy - 6, cx + 6, cy + 6, 0xFF000000);
+        g.fill(cx - 5, cy - 5, cx + 5, cy + 5, color);
+        g.fill(cx - 2, cy - 2, cx + 2, cy + 2, 0xFF000000);
+        g.drawString(this.font, label, cx + 7, cy - 4, color, false);
+    }
+
+    /**
+     * Chevron at {@code to}, pointing along the segment from→to (enemy→us). Screen-space only —
+     * direction comes from the two centroid positions already on the wire.
+     */
+    @Unique
+    private void tacz_sewv$drawChevron(GuiGraphics g, int[] from, int[] to, int color) {
+        double dx = to[0] - from[0];
+        double dy = to[1] - from[1];
+        double len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 8.0) return;
+        double ux = dx / len;
+        double uy = dy / len;
+        // Perpendicular
+        double px = -uy;
+        double py = ux;
+        int tipX = to[0];
+        int tipY = to[1];
+        int wing = 7;
+        int back = 10;
+        int lx = (int) Math.round(tipX - ux * back + px * wing);
+        int ly = (int) Math.round(tipY - uy * back + py * wing);
+        int rx = (int) Math.round(tipX - ux * back - px * wing);
+        int ry = (int) Math.round(tipY - uy * back - py * wing);
+        tacz_sewv$drawLeg(g, new int[]{lx, ly}, new int[]{tipX, tipY}, color);
+        tacz_sewv$drawLeg(g, new int[]{rx, ry}, new int[]{tipX, tipY}, color);
+        g.fill(tipX - 2, tipY - 2, tipX + 2, tipY + 2, color);
     }
 
     /** A leg as a chain of dots: no rotated quad, and it reads as a route rather than a border. */

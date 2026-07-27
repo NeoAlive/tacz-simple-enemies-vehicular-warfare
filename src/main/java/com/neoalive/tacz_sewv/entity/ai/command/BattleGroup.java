@@ -25,6 +25,17 @@ public final class BattleGroup {
     @Nullable
     private UUID playerDesignatedCommander;
 
+    /** Reused across command-cadence rebuilds — never allocated fresh per scan. */
+    private final InfluenceMap influenceMap = new InfluenceMap();
+    private final BattleField battleField = new BattleField();
+
+    @Nullable
+    private PlayId currentPlay;
+    /** Server tick when {@link #currentPlay} was committed; {@link Long#MIN_VALUE} = none. */
+    private long playStartedTick = Long.MIN_VALUE;
+    @Nullable
+    private Roles currentRoles;
+
     public BattleGroup(int groupId, int faction, int[] memberIds, double centroidX, double centroidZ) {
         this.groupId = groupId;
         this.faction = faction;
@@ -62,6 +73,55 @@ public final class BattleGroup {
 
     public double centroidZ() {
         return this.centroidZ;
+    }
+
+    /** Allocentric influence grid — reused; rebuild only from the coordinator. */
+    public InfluenceMap influenceMap() {
+        return this.influenceMap;
+    }
+
+    /** Derived battle facts — gathers, never decides. Cleared when the group dissolves. */
+    public BattleField battleField() {
+        return this.battleField;
+    }
+
+    /**
+     * Centroid used for commander fitness. Prefers a populated {@link BattleField} friendly
+     * centroid (Stage 3); falls back to the sticky group mean (Stage 1/2) when the map has
+     * not been built yet this scan.
+     */
+    public double fitnessCentroidX() {
+        return this.battleField.populated ? this.battleField.friendlyCentroidX : this.centroidX;
+    }
+
+    public double fitnessCentroidZ() {
+        return this.battleField.populated ? this.battleField.friendlyCentroidZ : this.centroidZ;
+    }
+
+    @Nullable
+    public PlayId currentPlay() {
+        return this.currentPlay;
+    }
+
+    public long playStartedTick() {
+        return this.playStartedTick;
+    }
+
+    @Nullable
+    public Roles currentRoles() {
+        return this.currentRoles;
+    }
+
+    void commitPlay(PlayId play, Roles roles, long nowTick) {
+        this.currentPlay = play;
+        this.currentRoles = roles;
+        this.playStartedTick = nowTick;
+    }
+
+    void clearPlay() {
+        this.currentPlay = null;
+        this.currentRoles = null;
+        this.playStartedTick = Long.MIN_VALUE;
     }
 
     /** Elected commander network id, or empty if election has deferred / never run. */

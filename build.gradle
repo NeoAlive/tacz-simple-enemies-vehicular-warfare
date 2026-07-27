@@ -112,10 +112,28 @@ tasks.register('selfCheckElection', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckInfluence', JavaExec) {
+    group = 'verification'
+    description = 'Runs the command-tier influence-map self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.command.InfluenceMapSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckPlay', JavaExec) {
+    group = 'verification'
+    description = 'Runs the command-tier play-selection self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.command.PlaySelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection'
+    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay'
 }
 
 mixin {

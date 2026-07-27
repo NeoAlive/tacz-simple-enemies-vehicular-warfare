@@ -31,10 +31,11 @@ import java.util.UUID;
 
 /**
  * Server-side owner of battle groups: scans eligible drivers on the utility cadence, battle-gates,
- * and runs the pure {@link Grouping} core.
+ * runs the pure {@link Grouping} core, rebuilds per-group {@link InfluenceMap}/{@link BattleField},
+ * then elects commanders.
  *
- * <p>Stage 1 only — no election, influence, or plays yet. Groups are keyed per dimension so two
- * worlds cannot share a sticky identity.
+ * <p>Influence maps are rebuilt only here (command cadence) and only for live battle-gated groups.
+ * Cell arrays are reused on each {@link BattleGroup}.
  */
 public final class CommandCoordinator {
 
@@ -98,7 +99,7 @@ public final class CommandCoordinator {
         }
 
         for (ServerLevel level : event.getServer().getAllLevels()) {
-            scanLevel(level, params, maxUnits, engagement);
+            scanLevel(level, params, maxUnits, engagement, now);
         }
     }
 
@@ -133,7 +134,42 @@ public final class CommandCoordinator {
     /** Immutable view for map markers — never write through this. */
     public record CommandTag(int groupId, boolean commander) {}
 
-    private static void scanLevel(ServerLevel level, GroupParams params, int maxUnits, double engagement) {
+    /**
+     * Read-only debug snapshots of populated battlefields across all dimensions. Copies field
+     * values only — does not rebuild influence or mutate groups.
+     */
+    public static List<BattleFieldDebug> battleFieldsDebug() {
+        List<BattleFieldDebug> out = new ArrayList<>();
+        for (var e : GROUPS_BY_LEVEL.entrySet()) {
+            ResourceKey<Level> dim = e.getKey();
+            for (BattleGroup g : e.getValue().values()) {
+                BattleField bf = g.battleField();
+                if (!bf.populated) continue;
+                out.add(new BattleFieldDebug(
+                        g.groupId(), dim,
+                        bf.friendlyCentroidX, bf.friendlyCentroidZ,
+                        bf.enemyCentroidX, bf.enemyCentroidZ,
+                        bf.axisX, bf.axisZ,
+                        bf.openFlankLeft, bf.openFlankRight));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Plain copy of {@link BattleField} fields for the map packet. Flank <i>positions</i> are
+     * decided by the tracker when packaging — not here.
+     */
+    public record BattleFieldDebug(
+            int groupId, ResourceKey<Level> dimension,
+            double friendlyX, double friendlyZ,
+            double enemyX, double enemyZ,
+            double axisX, double axisZ,
+            boolean openFlankLeft, boolean openFlankRight
+    ) {}
+
+    private static void scanLevel(ServerLevel level, GroupParams params, int maxUnits, double engagement,
+                                  int nowTick) {
         ResourceKey<Level> dim = level.dimension();
         Map<Integer, BattleGroup> levelGroups = GROUPS_BY_LEVEL.computeIfAbsent(dim, d -> new HashMap<>());
 
@@ -195,7 +231,155 @@ public final class CommandCoordinator {
                 contested, existing, params, () -> nextGroupId++);
 
         applyAssignments(levelGroups, assigned, existing);
+        rebuildBattleFields(level, levelGroups, engagement);
         electCommanders(level, levelGroups, params);
+        selectPlays(level, levelGroups, nowTick);
+    }
+
+    private static void selectPlays(ServerLevel level, Map<Integer, BattleGroup> levelGroups, int nowTick) {
+        int minTicks;
+        double margin;
+        try {
+            minTicks = SewvConfig.MIN_PLAY_TICKS.get();
+            margin = SewvConfig.PLAY_SWITCH_MARGIN.get();
+        } catch (Throwable ignored) {
+            return;
+        }
+        UtilityWeights weights = UtilityWeights.active();
+        for (BattleGroup group : levelGroups.values()) {
+            try {
+                selectPlayOne(level, group, nowTick, minTicks, margin, weights);
+            } catch (Throwable t) {
+                LOGGER.debug("[sewv-command] play select failed group {}: {}",
+                        group.groupId(), t.toString());
+            }
+        }
+    }
+
+    private static void selectPlayOne(ServerLevel level, BattleGroup group, int nowTick,
+                                      int minTicks, double margin, UtilityWeights weights) {
+        if (!group.battleField().populated) {
+            group.clearPlay();
+            return;
+        }
+        int[] ids = group.memberIds();
+        double[] xs = new double[ids.length];
+        double[] zs = new double[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            var e = level.getEntity(ids[i]);
+            if (e != null) {
+                xs[i] = e.getX();
+                zs[i] = e.getZ();
+            } else {
+                xs[i] = group.centroidX();
+                zs[i] = group.centroidZ();
+            }
+        }
+        GroupSnapshot snap = new GroupSnapshot(ids, xs, zs);
+        PlaySelection.Result result = PlaySelection.select(
+                group.battleField(), snap,
+                group.currentPlay(), group.playStartedTick(), nowTick,
+                group.currentRoles(),
+                minTicks, margin, weights);
+        if (result.switched() || group.currentPlay() == null
+                || group.currentPlay() != result.play()) {
+            LOGGER.debug("[sewv-command] play group={} {} play={}",
+                    group.groupId(), result.reason(), result.play().key);
+            group.commitPlay(result.play(), result.roles(), nowTick);
+        } else {
+            // Keep start tick; refresh roles for moving geometry.
+            long started = group.playStartedTick() == Long.MIN_VALUE ? nowTick : group.playStartedTick();
+            group.commitPlay(result.play(), result.roles(), started);
+        }
+    }
+
+    /**
+     * Influence + BattleField for every live group. Groups already passed the battle gate;
+     * a group with no opposing samples this tick still clears rather than keeping a stale map.
+     */
+    private static void rebuildBattleFields(ServerLevel level, Map<Integer, BattleGroup> levelGroups,
+                                            double engagement) {
+        double cell;
+        int maxCells;
+        try {
+            cell = SewvConfig.INFLUENCE_CELL_SIZE.get();
+            maxCells = SewvConfig.INFLUENCE_MAX_CELLS.get();
+        } catch (Throwable ignored) {
+            return;
+        }
+        double margin = Math.max(cell * 2.0, engagement * 0.25);
+
+        for (BattleGroup group : levelGroups.values()) {
+            try {
+                List<UnitPos> samples = collectInfluenceSamples(level, group, engagement);
+                if (samples.isEmpty()) {
+                    group.battleField().clear();
+                    group.clearPlay();
+                    continue;
+                }
+                // Only build when at least one opposing sample is present — mirrors the gate.
+                boolean hasEnemy = false;
+                for (UnitPos u : samples) {
+                    if (u.faction != group.faction()) {
+                        hasEnemy = true;
+                        break;
+                    }
+                }
+                if (!hasEnemy) {
+                    group.battleField().clear();
+                    group.clearPlay();
+                    continue;
+                }
+                group.influenceMap().rebuildAndDerive(
+                        group.battleField(), samples, group.faction(), cell, maxCells, margin);
+            } catch (Throwable t) {
+                group.battleField().clear();
+                LOGGER.debug("[sewv-command] influence rebuild failed group {}: {}",
+                        group.groupId(), t.toString());
+            }
+        }
+    }
+
+    /**
+     * Friendly drivers in the group plus opposing units within engagement of the group centroid
+     * (or any member). Plain {@link UnitPos} — no vehicle types leak into the map.
+     */
+    private static List<UnitPos> collectInfluenceSamples(ServerLevel level, BattleGroup group,
+                                                         double engagement) {
+        List<UnitPos> out = new ArrayList<>();
+        Set<Integer> seen = new HashSet<>();
+        for (int memberId : group.memberIds()) {
+            var e = level.getEntity(memberId);
+            if (e == null) continue;
+            out.add(new UnitPos(memberId, group.faction(), e.getX(), e.getZ()));
+            seen.add(memberId);
+        }
+        if (out.isEmpty()) return out;
+
+        double r = engagement;
+        double y = 64;
+        for (int memberId : group.memberIds()) {
+            var e = level.getEntity(memberId);
+            if (e != null) {
+                y = e.getY();
+                break;
+            }
+        }
+        AABB box = new AABB(group.centroidX() - r, y - 32, group.centroidZ() - r,
+                group.centroidX() + r, y + 32, group.centroidZ() + r);
+        CrewFacts.Faction ours = CrewFacts.Faction.byId(group.faction());
+        double rSq = r * r;
+        for (AbstractUnit other : level.getEntities(EntityTypeTest.forClass(AbstractUnit.class), box, e -> true)) {
+            if (seen.contains(other.getId())) continue;
+            CrewFacts.Faction f = CrewFacts.factionOfCrew(other);
+            if (f == null || f == ours) continue;
+            double dx = other.getX() - group.centroidX();
+            double dz = other.getZ() - group.centroidZ();
+            if (dx * dx + dz * dz > rSq) continue;
+            out.add(new UnitPos(other.getId(), f.ordinal(), other.getX(), other.getZ()));
+            seen.add(other.getId());
+        }
+        return out;
     }
 
     private static void electCommanders(ServerLevel level, Map<Integer, BattleGroup> levelGroups,
@@ -239,7 +423,7 @@ public final class CommandCoordinator {
             double fitness = 0.0;
             if (ready) {
                 fitness = CommanderFitness.score(facts, x, z,
-                        group.centroidX(), group.centroidZ(), maxRadius, weights);
+                        group.fitnessCentroidX(), group.fitnessCentroidZ(), maxRadius, weights);
             }
             members.add(new Election.Candidate(memberId, ready, fitness));
         }

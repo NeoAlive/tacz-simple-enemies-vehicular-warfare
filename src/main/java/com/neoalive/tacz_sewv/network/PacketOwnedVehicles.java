@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.network;
 
 import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.util.BattleFieldMarker;
 import com.neoalive.tacz_sewv.util.CrewFacts;
 import com.neoalive.tacz_sewv.util.MarkerOrder;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
@@ -15,8 +16,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * The only server→client packet on this channel: the crewed vehicles one player's side can see,
- * for the map markers. Sent by {@code OwnedVehicleTracker} on a timer, to that one player.
+ * Server→client map sync: crewed vehicles one player's side can see, plus optional debug
+ * {@link BattleFieldMarker}s for groups those markers belong to.
  *
  * <p>Each player gets their own hulls plus whatever their side has spotted, and <b>never</b> another
  * player's units — a client cannot learn where anyone else's PMC is. Ordering is
@@ -29,9 +30,11 @@ import java.util.function.Supplier;
 public class PacketOwnedVehicles {
 
     private final List<VehicleMarker> markers;
+    private final List<BattleFieldMarker> battleFields;
 
-    public PacketOwnedVehicles(List<VehicleMarker> markers) {
+    public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields) {
         this.markers = markers;
+        this.battleFields = battleFields;
     }
 
     public PacketOwnedVehicles(FriendlyByteBuf buf) {
@@ -56,6 +59,21 @@ public class PacketOwnedVehicles {
                     buf.readVarInt()));
         }
         this.markers = read;
+
+        int bfCount = buf.readVarInt();
+        List<BattleFieldMarker> bfs = new ArrayList<>(bfCount);
+        for (int i = 0; i < bfCount; i++) {
+            bfs.add(new BattleFieldMarker(
+                    buf.readVarInt(),
+                    buf.readResourceKey(Registries.DIMENSION),
+                    buf.readDouble(),
+                    buf.readDouble(), buf.readDouble(),
+                    buf.readDouble(), buf.readDouble(),
+                    buf.readFloat(), buf.readFloat(),
+                    buf.readBoolean(), buf.readDouble(), buf.readDouble(),
+                    buf.readBoolean(), buf.readDouble(), buf.readDouble()));
+        }
+        this.battleFields = bfs;
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -77,11 +95,30 @@ public class PacketOwnedVehicles {
             buf.writeByte(marker.commandRole().ordinal());
             buf.writeVarInt(marker.groupId());
         }
+        buf.writeVarInt(this.battleFields.size());
+        for (BattleFieldMarker bf : this.battleFields) {
+            buf.writeVarInt(bf.groupId());
+            buf.writeResourceKey(bf.dimension());
+            buf.writeDouble(bf.y());
+            buf.writeDouble(bf.friendlyX());
+            buf.writeDouble(bf.friendlyZ());
+            buf.writeDouble(bf.enemyX());
+            buf.writeDouble(bf.enemyZ());
+            buf.writeFloat((float) bf.axisX());
+            buf.writeFloat((float) bf.axisZ());
+            buf.writeBoolean(bf.flankLeft());
+            buf.writeDouble(bf.flankLeftX());
+            buf.writeDouble(bf.flankLeftZ());
+            buf.writeBoolean(bf.flankRight());
+            buf.writeDouble(bf.flankRightX());
+            buf.writeDouble(bf.flankRightZ());
+        }
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() ->
-                DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> MapMarkers.accept(this.markers)));
+                DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                        () -> () -> MapMarkers.accept(this.markers, this.battleFields)));
         ctx.get().setPacketHandled(true);
     }
 }

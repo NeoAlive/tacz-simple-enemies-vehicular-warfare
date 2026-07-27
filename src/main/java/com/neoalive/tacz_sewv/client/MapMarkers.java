@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.client;
 
+import com.neoalive.tacz_sewv.util.BattleFieldMarker;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 
 import java.util.HashSet;
@@ -28,12 +29,14 @@ import java.util.Set;
 public final class MapMarkers {
 
     private static List<VehicleMarker> markers = List.of();
+    private static List<BattleFieldMarker> battleFields = List.of();
     private static final Set<Integer> SELECTED = new HashSet<>();
 
     private MapMarkers() {}
 
-    public static void accept(List<VehicleMarker> incoming) {
+    public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields) {
         markers = List.copyOf(incoming);
+        battleFields = List.copyOf(fields);
         // A selected hull that is gone is not selectable any more, and leaving it in would keep
         // sending orders into the void.
         SELECTED.removeIf(driverId -> markers.stream().noneMatch(m -> m.driverId() == driverId));
@@ -42,11 +45,17 @@ public final class MapMarkers {
     /** Drop everything — call on disconnect so a new world never inherits the last one's picture. */
     public static void clear() {
         markers = List.of();
+        battleFields = List.of();
         SELECTED.clear();
     }
 
     public static List<VehicleMarker> markers() {
         return markers;
+    }
+
+    /** Debug BattleField overlays synced with the vehicle markers — empty when none populated. */
+    public static List<BattleFieldMarker> battleFields() {
+        return battleFields;
     }
 
     public static boolean isSelected(VehicleMarker marker) {

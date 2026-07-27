@@ -35,7 +35,9 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -125,10 +127,67 @@ public final class OwnedVehicleTracker {
 
         double spotRadius = SewvConfig.MAP_SPOT_RADIUS.get();
         double spotRadiusSq = spotRadius * spotRadius;
+        List<CommandCoordinator.BattleFieldDebug> allFields = CommandCoordinator.battleFieldsDebug();
         for (ServerPlayer player : players) {
+            List<VehicleMarker> markers = markersFor(player, candidates, spotRadiusSq);
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                    new PacketOwnedVehicles(markersFor(player, candidates, spotRadiusSq)));
+                    new PacketOwnedVehicles(markers, battleFieldsFor(markers, allFields)));
         }
+    }
+
+    /**
+     * Package populated battlefields whose group appears in this player's marker list. Flank
+     * marker world positions are decided here from the already-computed axis — the client only
+     * draws. Does not call into influence rebuild.
+     */
+    private static List<BattleFieldMarker> battleFieldsFor(
+            List<VehicleMarker> markers, List<CommandCoordinator.BattleFieldDebug> allFields) {
+        if (allFields.isEmpty() || markers.isEmpty()) return List.of();
+        Set<Integer> visibleGroups = new HashSet<>();
+        double ySum = 0.0;
+        int yN = 0;
+        for (VehicleMarker m : markers) {
+            if (m.groupId() == VehicleMarker.NO_GROUP) continue;
+            visibleGroups.add(m.groupId());
+            ySum += m.y();
+            yN++;
+        }
+        if (visibleGroups.isEmpty()) return List.of();
+        double y = yN > 0 ? ySum / yN : 64.0;
+
+        List<BattleFieldMarker> out = new ArrayList<>();
+        for (CommandCoordinator.BattleFieldDebug d : allFields) {
+            if (!visibleGroups.contains(d.groupId())) continue;
+            // Per-group Y from markers in that group when available.
+            double gy = y;
+            double gYSum = 0.0;
+            int gYN = 0;
+            for (VehicleMarker m : markers) {
+                if (m.groupId() != d.groupId()) continue;
+                gYSum += m.y();
+                gYN++;
+            }
+            if (gYN > 0) gy = gYSum / gYN;
+
+            // Left = rotate axis 90° CCW in XZ (same convention as InfluenceMap.scoreFlanks).
+            double flX = 0.0, flZ = 0.0, frX = 0.0, frZ = 0.0;
+            if (d.openFlankLeft()) {
+                flX = BattleFieldMarker.flankMarkX(d.enemyX(), d.axisX(), d.axisZ(), +1);
+                flZ = BattleFieldMarker.flankMarkZ(d.enemyZ(), d.axisX(), d.axisZ(), +1);
+            }
+            if (d.openFlankRight()) {
+                frX = BattleFieldMarker.flankMarkX(d.enemyX(), d.axisX(), d.axisZ(), -1);
+                frZ = BattleFieldMarker.flankMarkZ(d.enemyZ(), d.axisX(), d.axisZ(), -1);
+            }
+            out.add(new BattleFieldMarker(
+                    d.groupId(), d.dimension(), gy,
+                    d.friendlyX(), d.friendlyZ(),
+                    d.enemyX(), d.enemyZ(),
+                    d.axisX(), d.axisZ(),
+                    d.openFlankLeft(), flX, flZ,
+                    d.openFlankRight(), frX, frZ));
+        }
+        return out;
     }
 
     // ponytail: one whole-level entity scan per interval (once a second by default). Fine at the

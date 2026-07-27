@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
+import com.neoalive.tacz_sewv.entity.ai.command.PlayId;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -79,15 +80,22 @@ public final class UtilityWeights {
     private final double[] confidenceAxes;
     /** Commander fitness: health, ammo, centrality, alliesNearby. */
     private final double[] commanderWeights;
+    /** [play][signal] — parallel to action rows; never stored in {@link #signalWeights}. */
+    private final double[][] playSignalWeights;
+    /** [play][doctrine axis] */
+    private final double[][] playAxisWeights;
 
     private UtilityWeights(double[][] signalWeights, double[][] axisWeights,
                            double[] confidenceSignals, double[] confidenceAxes,
-                           double[] commanderWeights) {
+                           double[] commanderWeights,
+                           double[][] playSignalWeights, double[][] playAxisWeights) {
         this.signalWeights = signalWeights;
         this.axisWeights = axisWeights;
         this.confidenceSignals = confidenceSignals;
         this.confidenceAxes = confidenceAxes;
         this.commanderWeights = commanderWeights;
+        this.playSignalWeights = playSignalWeights;
+        this.playAxisWeights = playAxisWeights;
     }
 
     /**
@@ -99,6 +107,21 @@ public final class UtilityWeights {
                 + this.commanderWeights[CMD_AMMO] * ammo
                 + this.commanderWeights[CMD_CENTRALITY] * centrality
                 + this.commanderWeights[CMD_ALLIES] * allies;
+    }
+
+    /** Group-level play utility — same sum arithmetic as {@link #score}. */
+    public double scorePlay(PlayId play, double[] signals, Doctrine doctrine) {
+        int p = play.ordinal();
+        double total = 0.0;
+        double[] weights = this.playSignalWeights[p];
+        for (int s = 0; s < weights.length; s++) {
+            if (weights[s] != 0.0) total += weights[s] * signals[s];
+        }
+        double[] axes = this.playAxisWeights[p];
+        for (int x = 0; x < axes.length; x++) {
+            if (axes[x] != 0.0) total += axes[x] * doctrine.get(Doctrine.Axis.VALUES[x]);
+        }
+        return total;
     }
 
     /**
@@ -176,8 +199,15 @@ public final class UtilityWeights {
         commander[CMD_CENTRALITY] = 0.2;
         commander[CMD_ALLIES] = 0.2;
 
+        // HoldDefend must score a non-zero BASE so selection never returns empty.
+        double[][] playSignals = new double[PlayId.VALUES.length][Signal.VALUES.length];
+        double[][] playAxes = new double[PlayId.VALUES.length][Doctrine.Axis.VALUES.length];
+        playSignals[PlayId.HOLD_DEFEND.ordinal()][Signal.BASE.ordinal()] = 15.0;
+        playSignals[PlayId.FIGHTING_WITHDRAWAL.ordinal()][Signal.BASE.ordinal()] = 5.0;
+        playSignals[PlayId.FIGHTING_WITHDRAWAL.ordinal()][Signal.OUTNUMBERED.ordinal()] = 40.0;
+
         return new UtilityWeights(signals, axes, confSignals,
-                new double[Doctrine.Axis.VALUES.length], commander);
+                new double[Doctrine.Axis.VALUES.length], commander, playSignals, playAxes);
     }
 
     /**
@@ -186,6 +216,11 @@ public final class UtilityWeights {
      * <p>Files are applied in id order and each one overwrites only the actions it names, so a pack
      * can retune a single action without restating the rest. A malformed entry is logged and
      * skipped rather than thrown: a datapack typo should cost one weight, not the whole AI.
+     *
+     * <p>Routing (binding): {@code confidence} → confidence row; {@code commander} → commander
+     * row; {@code play.<name>} → {@link PlayId} play arrays; else → {@link Action}. Plays are never
+     * written into action rows. The built table replaces {@link #active} atomically in
+     * {@link Loader#apply}.
      */
     public static UtilityWeights parse(Map<ResourceLocation, JsonElement> files) {
         double[][] signals = new double[Action.VALUES.length][Signal.VALUES.length];
@@ -193,8 +228,11 @@ public final class UtilityWeights {
         double[] confSignals = new double[Signal.VALUES.length];
         double[] confAxes = new double[Doctrine.Axis.VALUES.length];
         double[] commander = new double[CMD_LEN];
+        double[][] playSignals = new double[PlayId.VALUES.length][Signal.VALUES.length];
+        double[][] playAxes = new double[PlayId.VALUES.length][Doctrine.Axis.VALUES.length];
         int applied = 0;
         boolean commanderApplied = false;
+        boolean holdPlayApplied = false;
 
         for (Map.Entry<ResourceLocation, JsonElement> file : new TreeMap<>(files).entrySet()) {
             JsonObject root;
@@ -216,6 +254,19 @@ public final class UtilityWeights {
                     int n = readCommanderRow(file.getKey(), entry.getValue(), commander);
                     applied += n;
                     if (n > 0) commanderApplied = true;
+                    continue;
+                }
+                if (entry.getKey().startsWith(PlayId.KEY_PREFIX)) {
+                    PlayId play = PlayId.byFullKey(entry.getKey());
+                    if (play == null) {
+                        LOGGER.warn("[sewv] AI weights {}: no such play '{}' — ignored",
+                                file.getKey(), entry.getKey());
+                        continue;
+                    }
+                    int n = readRow(file.getKey(), entry.getKey(), entry.getValue(),
+                            playSignals[play.ordinal()], playAxes[play.ordinal()]);
+                    applied += n;
+                    if (play == PlayId.HOLD_DEFEND && n > 0) holdPlayApplied = true;
                     continue;
                 }
                 Action action = Action.byKey(entry.getKey());
@@ -241,8 +292,12 @@ public final class UtilityWeights {
             commander[CMD_CENTRALITY] = 0.2;
             commander[CMD_ALLIES] = 0.2;
         }
+        if (!holdPlayApplied) {
+            playSignals[PlayId.HOLD_DEFEND.ordinal()][Signal.BASE.ordinal()] = 15.0;
+        }
         LOGGER.info("[sewv] Loaded {} AI utility weights from {} file(s)", applied, files.size());
-        return new UtilityWeights(signals, axes, confSignals, confAxes, commander);
+        return new UtilityWeights(signals, axes, confSignals, confAxes, commander,
+                playSignals, playAxes);
     }
 
     private static int readCommanderRow(ResourceLocation source, JsonElement element, double[] out) {

@@ -186,5 +186,29 @@
     "ammo": 0.35,
     "centrality": 0.25,
     "alliesNearby": 0.25
+  },
+
+  "play.frontal_fix_and_flank": {
+    "base": 40,
+    "enemyVisible": 15,
+    "tooFar": 10
+  },
+  "play.double_envelopment": {
+    "base": 55,
+    "enemyVisible": 10,
+    "confidence": 20
+  },
+  "play.bounding_overwatch_advance": {
+    "base": 30,
+    "enemyVisible": 10,
+    "tooFar": 20
+  },
+  "play.fighting_withdrawal": {
+    "base": 20,
+    "outnumbered": 45,
+    "confidence": -15
+  },
+  "play.hold_defend": {
+    "base": 15
   }
 }

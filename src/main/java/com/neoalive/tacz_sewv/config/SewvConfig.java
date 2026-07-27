@@ -130,6 +130,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue COMMAND_MAX_UNITS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_ENGAGEMENT_RADIUS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_MARGIN;
+    public static final ForgeConfigSpec.DoubleValue INFLUENCE_CELL_SIZE;
+    public static final ForgeConfigSpec.IntValue INFLUENCE_MAX_CELLS;
+    public static final ForgeConfigSpec.IntValue MIN_PLAY_TICKS;
+    public static final ForgeConfigSpec.DoubleValue PLAY_SWITCH_MARGIN;
 
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
@@ -400,6 +404,14 @@ public final class SewvConfig {
                 .defineInRange("commandEngagementRadius", 96.0, 16.0, 256.0);
         COMMAND_MARGIN = builder.comment("Fitness margin a challenger must beat the incumbent by to take command.")
                 .defineInRange("commandMargin", 0.15, 0.0, 2.0);
+        INFLUENCE_CELL_SIZE = builder.comment("Coarse influence-map cell size in blocks (gradients, not accuracy). Raised automatically if a battle AABB would exceed influenceMaxCells.")
+                .defineInRange("influenceCellSize", 12.0, 8.0, 16.0);
+        INFLUENCE_MAX_CELLS = builder.comment("Hard cap on influence-map cells per group; oversized battles downscale cell size instead of growing the array.")
+                .defineInRange("influenceMaxCells", 256, 64, 1024);
+        MIN_PLAY_TICKS = builder.comment("Minimum server ticks a battle play commits before a challenger may preempt (stillValid aborts immediately).")
+                .defineInRange("minPlayTicks", 200, 20, 2400);
+        PLAY_SWITCH_MARGIN = builder.comment("Score margin a challenger play must beat the incumbent by to switch after minPlayTicks.")
+                .defineInRange("playSwitchMargin", 10.0, 0.0, 100.0);
         builder.pop();
 
         builder.push("flight_ai");

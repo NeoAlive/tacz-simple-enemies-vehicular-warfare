@@ -59,7 +59,7 @@ public final class ClientConfig {
                 .comment("Draw energy bars under owned PMC vehicle markers.")
                 .define("mapShowEnergyBar", true);
         MAP_SHOW_COMMAND_DEBUG = builder
-                .comment("Debug: mark battle-group commanders (★) and members (·) plus group id on map icons.")
+                .comment("Debug: commander ★/· + group id on map icons, and BattleField overlay (centroids, axis, open flanks).")
                 .define("mapShowCommandDebug", true);
         builder.pop();
 

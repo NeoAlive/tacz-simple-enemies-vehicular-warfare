@@ -129,6 +129,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue COMMAND_GROUP_MIN_SIZE;
     public static final ForgeConfigSpec.IntValue COMMAND_MAX_UNITS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_ENGAGEMENT_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue COMMAND_MARGIN;
 
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
@@ -397,6 +398,8 @@ public final class SewvConfig {
                 .defineInRange("commandMaxUnits", 64, 4, 256);
         COMMAND_ENGAGEMENT_RADIUS = builder.comment("Opposing forces within this range gate battle-group formation.")
                 .defineInRange("commandEngagementRadius", 96.0, 16.0, 256.0);
+        COMMAND_MARGIN = builder.comment("Fitness margin a challenger must beat the incumbent by to take command.")
+                .defineInRange("commandMargin", 0.15, 0.0, 2.0);
         builder.pop();
 
         builder.push("flight_ai");

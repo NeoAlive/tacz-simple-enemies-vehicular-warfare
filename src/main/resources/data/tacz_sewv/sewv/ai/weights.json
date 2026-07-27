@@ -179,5 +179,12 @@
     "snow": -6,
     "rain": -3,
     "preservation": -12
+  },
+
+  "commander": {
+    "health": 1.0,
+    "ammo": 0.35,
+    "centrality": 0.25,
+    "alliesNearby": 0.25
   }
 }

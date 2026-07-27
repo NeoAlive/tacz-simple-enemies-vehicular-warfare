@@ -66,6 +66,7 @@ public final class TacticalBrain {
      * @return true if the plan was re-scored this tick (the caller's cue to log or react)
      */
     public boolean update(AbstractUnit unit, VehicleEntity hull) {
+        this.facts.bind(unit);
         Doctrine doctrine = Doctrine.forCrew(unit);
         if (!this.facts.refresh(unit, hull)) return false;
 

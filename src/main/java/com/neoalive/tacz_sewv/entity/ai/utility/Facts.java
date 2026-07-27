@@ -90,6 +90,32 @@ public final class Facts {
 
     private long nextRefresh = Long.MIN_VALUE;
     private long nextCommsScan = Long.MIN_VALUE;
+    /** True after at least one successful {@link #refresh} on the current hull. */
+    private boolean populated;
+
+    /** Live Facts by unit network id — command-tier election reads readiness/fitness here. */
+    private static final java.util.concurrent.ConcurrentHashMap<Integer, Facts> LIVE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Whether this crew has completed at least one Facts gather on its current hull. */
+    public boolean ready() {
+        return this.populated;
+    }
+
+    /** Register this instance for {@link #of(int)} lookups while the drive goal is active. */
+    public void bind(AbstractUnit unit) {
+        LIVE.put(unit.getId(), this);
+    }
+
+    public void unbind(AbstractUnit unit) {
+        LIVE.remove(unit.getId(), this);
+    }
+
+    /** The Facts bound to this unit id, or null if the crew has not driven yet this session. */
+    @Nullable
+    public static Facts of(int unitId) {
+        return LIVE.get(unitId);
+    }
 
     // ---- unit status ----
     /** 0..1, clamped: SuperbWarfare lets hull health go negative. */
@@ -197,6 +223,7 @@ public final class Facts {
         readBattlefield(unit, hull);
         readEnvironment(unit, hull);
         readComms(unit, now);
+        this.populated = true;
         return true;
     }
 
@@ -225,6 +252,8 @@ public final class Facts {
     private void attach(VehicleEntity hull) {
         if (this.vehicle == hull) return;
         this.vehicle = hull;
+        this.populated = false;
+        this.nextRefresh = Long.MIN_VALUE;
         try {
             this.maxHealth = hull.getMaxHealth();
             this.hasEnergyStorage = hull.hasEnergyStorage();

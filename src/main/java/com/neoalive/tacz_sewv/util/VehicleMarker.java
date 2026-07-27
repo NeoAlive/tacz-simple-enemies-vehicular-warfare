@@ -14,14 +14,41 @@ import net.minecraft.world.level.Level;
  * <p>{@code healthFrac} is 0..1. {@code energyFrac} is 0..1 when the hull has energy storage,
  * or {@link #NO_ENERGY} when it does not (mortars, some emplacements) so the client can hide
  * the energy bar rather than invent a reading.
+ *
+ * <p>{@code commandRole}/{@code groupId} are debug-only battle-group tags filled read-only from
+ * {@code CommandCoordinator} — they never drive AI.
  */
 public record VehicleMarker(int driverId, int vehicleId, double x, double y, double z, float yaw,
                             VehicleMarker.Kind kind, VehicleMarker.Allegiance allegiance,
                             CrewFacts.Faction faction, MarkerOrder order, ResourceKey<Level> dimension,
-                            float healthFrac, float energyFrac) {
+                            float healthFrac, float energyFrac,
+                            VehicleMarker.CommandRole commandRole, int groupId) {
 
     /** Sentinel: hull has no energy storage — do not draw an energy bar. */
     public static final float NO_ENERGY = -1.0F;
+
+    /** Sentinel: driver is not in a battle group. */
+    public static final int NO_GROUP = -1;
+
+    /**
+     * Command-tier debug role for map markers. Three states on purpose: election can defer
+     * ({@link #MEMBER} in a group with no elected commander), which must not look like
+     * {@link #NONE}.
+     */
+    public enum CommandRole {
+        /** Not in any battle group. */
+        NONE,
+        /** In a group but not the elected commander (includes deferred election). */
+        MEMBER,
+        /** Elected commander of its group. */
+        COMMANDER;
+
+        private static final CommandRole[] VALUES = values();
+
+        public static CommandRole byId(int id) {
+            return id >= 0 && id < VALUES.length ? VALUES[id] : NONE;
+        }
+    }
 
     /**
      * Which NATO symbol to draw. Resolved <b>server-side</b> from the hull's engine type and

@@ -136,6 +136,7 @@ public class DriveVehicleGoal extends Goal {
         this.allyAssist.clear();
         this.driver.clear();
         this.breaker.clear();
+        this.brain.facts().unbind(this.unit);
         this.brain.clear();
     }
 

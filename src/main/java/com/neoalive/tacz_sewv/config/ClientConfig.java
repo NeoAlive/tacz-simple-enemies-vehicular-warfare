@@ -16,6 +16,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ICONS;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_HEALTH_BAR;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
+    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_COMMAND_DEBUG;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -57,6 +58,9 @@ public final class ClientConfig {
         MAP_SHOW_ENERGY_BAR = builder
                 .comment("Draw energy bars under owned PMC vehicle markers.")
                 .define("mapShowEnergyBar", true);
+        MAP_SHOW_COMMAND_DEBUG = builder
+                .comment("Debug: mark battle-group commanders (★) and members (·) plus group id on map icons.")
+                .define("mapShowCommandDebug", true);
         builder.pop();
 
         SPEC = builder.build();

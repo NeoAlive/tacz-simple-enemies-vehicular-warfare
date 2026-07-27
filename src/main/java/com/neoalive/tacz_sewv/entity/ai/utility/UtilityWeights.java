@@ -53,6 +53,23 @@ public final class UtilityWeights {
      */
     public static final String CONFIDENCE_KEY = "confidence";
 
+    /**
+     * Reserved top-level key for commander-election fitness weights (not an action).
+     * Keys inside the row: {@code health}, {@code ammo}, {@code centrality}, {@code alliesNearby}.
+     */
+    public static final String COMMANDER_KEY = "commander";
+
+    public static final String COMMANDER_HEALTH = "health";
+    public static final String COMMANDER_AMMO = "ammo";
+    public static final String COMMANDER_CENTRALITY = "centrality";
+    public static final String COMMANDER_ALLIES = "alliesNearby";
+
+    private static final int CMD_HEALTH = 0;
+    private static final int CMD_AMMO = 1;
+    private static final int CMD_CENTRALITY = 2;
+    private static final int CMD_ALLIES = 3;
+    private static final int CMD_LEN = 4;
+
     /** [action][signal] */
     private final double[][] signalWeights;
     /** [action][doctrine axis] */
@@ -60,13 +77,28 @@ public final class UtilityWeights {
     /** The confidence row: [signal] and [doctrine axis]. */
     private final double[] confidenceSignals;
     private final double[] confidenceAxes;
+    /** Commander fitness: health, ammo, centrality, alliesNearby. */
+    private final double[] commanderWeights;
 
     private UtilityWeights(double[][] signalWeights, double[][] axisWeights,
-                           double[] confidenceSignals, double[] confidenceAxes) {
+                           double[] confidenceSignals, double[] confidenceAxes,
+                           double[] commanderWeights) {
         this.signalWeights = signalWeights;
         this.axisWeights = axisWeights;
         this.confidenceSignals = confidenceSignals;
         this.confidenceAxes = confidenceAxes;
+        this.commanderWeights = commanderWeights;
+    }
+
+    /**
+     * Situational fitness for commander election.
+     * Inputs are already normalised 0..1 (ammo OK=1 / LOW=0.5 / OUT=0).
+     */
+    public double scoreCommander(double health, double ammo, double centrality, double allies) {
+        return this.commanderWeights[CMD_HEALTH] * health
+                + this.commanderWeights[CMD_AMMO] * ammo
+                + this.commanderWeights[CMD_CENTRALITY] * centrality
+                + this.commanderWeights[CMD_ALLIES] * allies;
     }
 
     /**
@@ -137,8 +169,15 @@ public final class UtilityWeights {
         confSignals[Signal.LOW_HEALTH.ordinal()] = -30.0;
         confSignals[Signal.OUTNUMBERED.ordinal()] = -20.0;
 
+        // Health-dominant so a broken datapack still elects the least-hurt hull.
+        double[] commander = new double[CMD_LEN];
+        commander[CMD_HEALTH] = 1.0;
+        commander[CMD_AMMO] = 0.3;
+        commander[CMD_CENTRALITY] = 0.2;
+        commander[CMD_ALLIES] = 0.2;
+
         return new UtilityWeights(signals, axes, confSignals,
-                new double[Doctrine.Axis.VALUES.length]);
+                new double[Doctrine.Axis.VALUES.length], commander);
     }
 
     /**
@@ -153,7 +192,9 @@ public final class UtilityWeights {
         double[][] axes = new double[Action.VALUES.length][Doctrine.Axis.VALUES.length];
         double[] confSignals = new double[Signal.VALUES.length];
         double[] confAxes = new double[Doctrine.Axis.VALUES.length];
+        double[] commander = new double[CMD_LEN];
         int applied = 0;
+        boolean commanderApplied = false;
 
         for (Map.Entry<ResourceLocation, JsonElement> file : new TreeMap<>(files).entrySet()) {
             JsonObject root;
@@ -169,6 +210,12 @@ public final class UtilityWeights {
                 if (CONFIDENCE_KEY.equals(entry.getKey())) {
                     applied += readRow(file.getKey(), CONFIDENCE_KEY, entry.getValue(),
                             confSignals, confAxes);
+                    continue;
+                }
+                if (COMMANDER_KEY.equals(entry.getKey())) {
+                    int n = readCommanderRow(file.getKey(), entry.getValue(), commander);
+                    applied += n;
+                    if (n > 0) commanderApplied = true;
                     continue;
                 }
                 Action action = Action.byKey(entry.getKey());
@@ -187,8 +234,54 @@ public final class UtilityWeights {
                     + "Vehicle crews will fight, but not well.");
             return fallback();
         }
+        if (!commanderApplied) {
+            // Pack omitted commander — keep the health-dominant safety row rather than zeros.
+            commander[CMD_HEALTH] = 1.0;
+            commander[CMD_AMMO] = 0.3;
+            commander[CMD_CENTRALITY] = 0.2;
+            commander[CMD_ALLIES] = 0.2;
+        }
         LOGGER.info("[sewv] Loaded {} AI utility weights from {} file(s)", applied, files.size());
-        return new UtilityWeights(signals, axes, confSignals, confAxes);
+        return new UtilityWeights(signals, axes, confSignals, confAxes, commander);
+    }
+
+    private static int readCommanderRow(ResourceLocation source, JsonElement element, double[] out) {
+        JsonObject modifiers;
+        try {
+            modifiers = GsonHelper.convertToJsonObject(element, COMMANDER_KEY);
+        } catch (RuntimeException e) {
+            LOGGER.error("[sewv] AI weights {}: '{}' is not an object — skipped", source, COMMANDER_KEY);
+            return 0;
+        }
+        java.util.Arrays.fill(out, 0.0);
+        int count = 0;
+        for (Map.Entry<String, JsonElement> modifier : modifiers.entrySet()) {
+            String key = modifier.getKey();
+            double weight;
+            try {
+                weight = GsonHelper.convertToDouble(modifier.getValue(), key);
+            } catch (RuntimeException e) {
+                LOGGER.warn("[sewv] AI weights {}: '{}.{}' is not a number — ignored",
+                        source, COMMANDER_KEY, key);
+                continue;
+            }
+            weight = Mth.clamp(weight, -1000.0, 1000.0);
+            int slot = switch (key) {
+                case COMMANDER_HEALTH -> CMD_HEALTH;
+                case COMMANDER_AMMO -> CMD_AMMO;
+                case COMMANDER_CENTRALITY -> CMD_CENTRALITY;
+                case COMMANDER_ALLIES -> CMD_ALLIES;
+                default -> -1;
+            };
+            if (slot < 0) {
+                LOGGER.warn("[sewv] AI weights {}: '{}.{}' is not a commander factor — ignored",
+                        source, COMMANDER_KEY, key);
+                continue;
+            }
+            out[slot] = weight;
+            count++;
+        }
+        return count;
     }
 
     /** Read one row — an action's modifiers, or the confidence row — into its weight arrays. */

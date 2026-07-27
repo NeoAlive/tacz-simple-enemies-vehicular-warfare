@@ -11,6 +11,7 @@ import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOwnedVehicles;
 import net.minecraft.core.BlockPos;
@@ -314,9 +315,17 @@ public final class OwnedVehicleTracker {
         // The order preview is only for units you command — a FRIENDLY garrison or a HOSTILE crew
         // has no player order to draw, and sending one would leak intent it should not.
         MarkerOrder order = allegiance == VehicleMarker.Allegiance.OWN ? c.order() : MarkerOrder.NONE;
+        VehicleMarker.CommandRole role = VehicleMarker.CommandRole.NONE;
+        int groupId = VehicleMarker.NO_GROUP;
+        // Read-only: tagForDriver never mutates grouping/election.
+        CommandCoordinator.CommandTag tag = CommandCoordinator.tagForDriver(c.driverId());
+        if (tag != null) {
+            groupId = tag.groupId();
+            role = tag.commander() ? VehicleMarker.CommandRole.COMMANDER : VehicleMarker.CommandRole.MEMBER;
+        }
         return new VehicleMarker(c.driverId(), c.vehicleId(), c.x(), c.y(), c.z(), c.yaw(),
                 c.kind(), allegiance, c.faction(), order, c.dimension(),
-                c.healthFrac(), c.energyFrac());
+                c.healthFrac(), c.energyFrac(), role, groupId);
     }
 
     private static float healthFrac(VehicleEntity hull) {

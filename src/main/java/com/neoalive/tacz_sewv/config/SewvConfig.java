@@ -123,6 +123,13 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
 
+    public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_JOIN_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_LEAVE_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_MAX_DIAMETER;
+    public static final ForgeConfigSpec.IntValue COMMAND_GROUP_MIN_SIZE;
+    public static final ForgeConfigSpec.IntValue COMMAND_MAX_UNITS;
+    public static final ForgeConfigSpec.DoubleValue COMMAND_ENGAGEMENT_RADIUS;
+
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
@@ -375,6 +382,21 @@ public final class SewvConfig {
                 .define("factionOrganicComms", true);
         SUPPORT_CALL_INTERVAL_TICKS = builder.comment("Minimum delay between support searches and support requests.")
                 .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
+        builder.pop();
+
+        builder.push("command");
+        COMMAND_GROUP_JOIN_RADIUS = builder.comment("Distance to a group's centroid at which a crew may join.")
+                .defineInRange("commandGroupJoinRadius", 48.0, 8.0, 256.0);
+        COMMAND_GROUP_LEAVE_RADIUS = builder.comment("Distance at which a member leaves (must exceed join radius).")
+                .defineInRange("commandGroupLeaveRadius", 64.0, 8.0, 256.0);
+        COMMAND_GROUP_MAX_DIAMETER = builder.comment("Hard maximum group diameter (must be >= 2× leave radius so the hysteresis band fits inside the ball).")
+                .defineInRange("commandGroupMaxDiameter", 128.0, 16.0, 512.0);
+        COMMAND_GROUP_MIN_SIZE = builder.comment("Minimum drivers for a battle group (lone hulls stay on local AI).")
+                .defineInRange("commandGroupMinSize", 2, 2, 32);
+        COMMAND_MAX_UNITS = builder.comment("Hard cap on drivers considered per command scan.")
+                .defineInRange("commandMaxUnits", 64, 4, 256);
+        COMMAND_ENGAGEMENT_RADIUS = builder.comment("Opposing forces within this range gate battle-group formation.")
+                .defineInRange("commandEngagementRadius", 96.0, 16.0, 256.0);
         builder.pop();
 
         builder.push("flight_ai");

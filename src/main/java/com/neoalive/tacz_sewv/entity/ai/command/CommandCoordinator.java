@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.entity.ai.command;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
+import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 import com.neoalive.tacz_sewv.util.CrewFacts;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -16,6 +18,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -24,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Server-side owner of battle groups: scans eligible drivers on the utility cadence, battle-gates,
@@ -107,6 +111,28 @@ public final class CommandCoordinator {
         return copy;
     }
 
+    /**
+     * Read-only map-debug lookup: which battle group a driver belongs to, and whether it is
+     * the elected commander. Does not mutate grouping or election state.
+     *
+     * <p>{@code commander == false} with a non-null result means in-group but not commander —
+     * including the deferred-election case where the group has no {@code commanderId} yet.
+     */
+    @Nullable
+    public static CommandTag tagForDriver(int driverId) {
+        for (Map<Integer, BattleGroup> levelGroups : GROUPS_BY_LEVEL.values()) {
+            for (BattleGroup g : levelGroups.values()) {
+                if (!g.contains(driverId)) continue;
+                boolean commander = g.hasCommander() && g.commanderId() == driverId;
+                return new CommandTag(g.groupId(), commander);
+            }
+        }
+        return null;
+    }
+
+    /** Immutable view for map markers — never write through this. */
+    public record CommandTag(int groupId, boolean commander) {}
+
     private static void scanLevel(ServerLevel level, GroupParams params, int maxUnits, double engagement) {
         ResourceKey<Level> dim = level.dimension();
         Map<Integer, BattleGroup> levelGroups = GROUPS_BY_LEVEL.computeIfAbsent(dim, d -> new HashMap<>());
@@ -169,6 +195,94 @@ public final class CommandCoordinator {
                 contested, existing, params, () -> nextGroupId++);
 
         applyAssignments(levelGroups, assigned, existing);
+        electCommanders(level, levelGroups, params);
+    }
+
+    private static void electCommanders(ServerLevel level, Map<Integer, BattleGroup> levelGroups,
+                                        GroupParams params) {
+        double margin;
+        int quorum;
+        try {
+            margin = SewvConfig.COMMAND_MARGIN.get();
+            quorum = SewvConfig.COMMAND_GROUP_MIN_SIZE.get();
+        } catch (Throwable ignored) {
+            return;
+        }
+        UtilityWeights weights = UtilityWeights.active();
+        double maxRadius = params.maxRadius();
+
+        for (BattleGroup group : levelGroups.values()) {
+            try {
+                electOne(level, group, margin, quorum, maxRadius, weights);
+            } catch (Throwable t) {
+                LOGGER.debug("[sewv-command] election failed for group {}: {}",
+                        group.groupId(), t.toString());
+            }
+        }
+    }
+
+    private static void electOne(ServerLevel level, BattleGroup group, double margin, int quorum,
+                                 double maxRadius, UtilityWeights weights) {
+        List<Election.Candidate> members = new ArrayList<>();
+        Integer designatedNetId = resolveDesignation(level, group);
+
+        for (int memberId : group.memberIds()) {
+            var entity = level.getEntity(memberId);
+            double x = group.centroidX();
+            double z = group.centroidZ();
+            if (entity != null) {
+                x = entity.getX();
+                z = entity.getZ();
+            }
+            Facts facts = Facts.of(memberId);
+            boolean ready = facts != null && facts.ready();
+            double fitness = 0.0;
+            if (ready) {
+                fitness = CommanderFitness.score(facts, x, z,
+                        group.centroidX(), group.centroidZ(), maxRadius, weights);
+            }
+            members.add(new Election.Candidate(memberId, ready, fitness));
+        }
+
+        Integer incumbent = group.hasCommander() ? group.commanderId() : null;
+        Integer elected = Election.electCommander(members, incumbent, margin, designatedNetId, quorum);
+        if (elected == null) {
+            LOGGER.debug("[sewv-command] election deferred: no ready Facts group={}", group.groupId());
+            return;
+        }
+        if (!group.hasCommander() || group.commanderId() != elected) {
+            int old = group.hasCommander() ? group.commanderId() : -1;
+            String reason = designatedNetId != null && designatedNetId.equals(elected) ? "player"
+                    : (incumbent == null ? "no-incumbent"
+                    : (incumbent == elected ? "kept" : "beaten"));
+            double oldFit = fitnessOf(members, incumbent);
+            double newFit = fitnessOf(members, elected);
+            LOGGER.debug("[sewv-command] command change group={} old={}({}) new={}({}) reason={}",
+                    group.groupId(), old, oldFit, elected, newFit, reason);
+            group.setCommanderId(elected);
+        }
+    }
+
+    private static double fitnessOf(List<Election.Candidate> members, @Nullable Integer id) {
+        if (id == null) return Double.NaN;
+        for (Election.Candidate c : members) {
+            if (c.id == id) return c.ready ? c.fitness : Double.NaN;
+        }
+        return Double.NaN;
+    }
+
+    /**
+     * TODO(command-player-designation): resolve the stub UUID to a live in-group network id.
+     */
+    @Nullable
+    private static Integer resolveDesignation(ServerLevel level, BattleGroup group) {
+        UUID designated = group.playerDesignatedCommander();
+        if (designated == null) return null;
+        for (int memberId : group.memberIds()) {
+            var e = level.getEntity(memberId);
+            if (e != null && designated.equals(e.getUUID())) return memberId;
+        }
+        return null; // dead or left group — fall through to auto
     }
 
     private static void applyAssignments(Map<Integer, BattleGroup> levelGroups,

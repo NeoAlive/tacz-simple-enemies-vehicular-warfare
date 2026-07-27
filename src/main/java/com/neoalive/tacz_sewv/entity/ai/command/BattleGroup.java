@@ -1,12 +1,11 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
+import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.UUID;
 
 /**
  * Sticky battle group — identity persists across scans while a quorum of members stay co-located.
- *
- * <p>Stage 1 only tracks membership and centroid. Commander / play / influence fields land in
- * later stages on this same object.
  */
 public final class BattleGroup {
 
@@ -15,6 +14,16 @@ public final class BattleGroup {
     private int[] memberIds;
     private double centroidX;
     private double centroidZ;
+
+    /** Network id of the elected commander, or {@link Integer#MIN_VALUE} if none yet. */
+    private int commanderId = Integer.MIN_VALUE;
+
+    /**
+     * TODO(command-player-designation): TDT / Xaero menu writes the designated unit's UUID here.
+     * When set and that unit is alive and in-group, election uses it as commander.
+     */
+    @Nullable
+    private UUID playerDesignatedCommander;
 
     public BattleGroup(int groupId, int faction, int[] memberIds, double centroidX, double centroidZ) {
         this.groupId = groupId;
@@ -55,10 +64,41 @@ public final class BattleGroup {
         return this.centroidZ;
     }
 
+    /** Elected commander network id, or empty if election has deferred / never run. */
+    public boolean hasCommander() {
+        return this.commanderId != Integer.MIN_VALUE;
+    }
+
+    public int commanderId() {
+        return this.commanderId;
+    }
+
+    void setCommanderId(int commanderId) {
+        this.commanderId = commanderId;
+    }
+
+    void clearCommander() {
+        this.commanderId = Integer.MIN_VALUE;
+    }
+
+    @Nullable
+    public UUID playerDesignatedCommander() {
+        return this.playerDesignatedCommander;
+    }
+
+    /** TODO(command-player-designation) */
+    public void setPlayerDesignatedCommander(@Nullable UUID uuid) {
+        this.playerDesignatedCommander = uuid;
+    }
+
     void apply(AssignedGroup assigned) {
         this.memberIds = assigned.memberIds.clone();
         this.centroidX = assigned.centroidX;
         this.centroidZ = assigned.centroidZ;
+        // Incumbent left the group — clear so the next election is a no-incumbent case.
+        if (this.commanderId != Integer.MIN_VALUE && !contains(this.commanderId)) {
+            this.commanderId = Integer.MIN_VALUE;
+        }
     }
 
     ExistingGroup toExisting() {
@@ -70,6 +110,7 @@ public final class BattleGroup {
     public String toString() {
         return "BattleGroup{id=" + this.groupId + " faction=" + this.faction
                 + " members=" + Arrays.toString(this.memberIds)
+                + " commander=" + (hasCommander() ? this.commanderId : "none")
                 + " c=(" + this.centroidX + "," + this.centroidZ + ")}";
     }
 }

@@ -162,10 +162,36 @@ public final class VehicleMarkerElements {
             if (ClientConfig.MAP_SHOW_ICONS.get()) {
                 drawSymbol(guiGraphics, marker, color);
             }
+            drawCommandDebug(guiGraphics, marker);
             drawPmcVitals(guiGraphics, marker);
 
             pose.popPose();
             return true;
+        }
+
+        /**
+         * Debug-only battle-group badge at the icon origin: ★ commander, dim · for in-group
+         * non-commander (includes deferred election), nothing when not in a group. Optional
+         * group id above the icon. Reads wire fields only — never mutates command state.
+         */
+        private void drawCommandDebug(GuiGraphics guiGraphics, VehicleMarker marker) {
+            if (!ClientConfig.MAP_SHOW_COMMAND_DEBUG.get()) return;
+            VehicleMarker.CommandRole role = marker.commandRole();
+            if (role == VehicleMarker.CommandRole.NONE) return;
+
+            Minecraft mc = Minecraft.getInstance();
+            String glyph = role == VehicleMarker.CommandRole.COMMANDER ? "★" : "·";
+            int glyphColor = role == VehicleMarker.CommandRole.COMMANDER ? 0xFFFFD700 : 0xFF888888;
+            int glyphW = mc.font.width(glyph);
+            // Top-right of the hit box — relative to icon origin, clear of the APP-6 art centre.
+            guiGraphics.drawString(mc.font, glyph, HIT_BOX - glyphW, -HIT_BOX - 1, glyphColor, false);
+
+            if (marker.groupId() != VehicleMarker.NO_GROUP) {
+                String gid = "g" + marker.groupId();
+                int gw = mc.font.width(gid);
+                guiGraphics.drawString(mc.font, gid, -gw / 2, -HIT_BOX - mc.font.lineHeight - 1,
+                        0xFFCCCCCC, false);
+            }
         }
 
         /**

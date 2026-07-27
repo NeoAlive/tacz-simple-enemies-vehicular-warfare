@@ -103,10 +103,19 @@ tasks.register('selfCheckGrouping', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckElection', JavaExec) {
+    group = 'verification'
+    description = 'Runs the command-tier election self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.command.ElectionSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping'
+    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection'
 }
 
 mixin {

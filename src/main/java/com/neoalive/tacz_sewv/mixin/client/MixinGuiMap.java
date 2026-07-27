@@ -5,7 +5,7 @@ import com.neoalive.tacz_sewv.client.xaero.CruisePlot;
 import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
 import com.neoalive.tacz_sewv.client.xaero.VehicleMarkerElements;
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.util.MarkerOrder;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.world.phys.Vec3;
@@ -223,7 +223,7 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapPress(double mouseX, double mouseY, int button,
                                       CallbackInfoReturnable<Boolean> cir) {
-        if (!SewvConfig.MAP_MARKERS_ENABLED.get() || CruisePlot.armed()) return;
+        if (!ClientConfig.MAP_MARKERS_ENABLED.get() || CruisePlot.armed()) return;
         if (tacz_sewv$dropdownOpen()) return; // the right-click menu (or a toggle-menu) owns this click
         if (this.getChildAt(mouseX, mouseY).isPresent()) return; // a Xaero widget, not the map
 
@@ -297,7 +297,7 @@ public abstract class MixinGuiMap extends Screen {
 
     @Inject(method = "getRightClickOptions", at = @At("RETURN"))
     private void tacz_sewv$orderOptions(CallbackInfoReturnable<ArrayList<RightClickOption>> cir) {
-        if (!SewvConfig.MAP_MARKERS_ENABLED.get()) return;
+        if (!ClientConfig.MAP_MARKERS_ENABLED.get()) return;
         ArrayList<RightClickOption> options = cir.getReturnValue();
         if (options == null) return;
 
@@ -311,7 +311,7 @@ public abstract class MixinGuiMap extends Screen {
         // The order-preview overlay draws independently of cruise plotting. Standing orders come
         // straight from the synced markers (so they clear themselves when an order is dismissed or
         // overridden); the live drag is the transient line being laid down right now.
-        if (SewvConfig.MAP_MARKERS_ENABLED.get()) {
+        if (ClientConfig.MAP_MARKERS_ENABLED.get()) {
             tacz_sewv$drawStandingPreviews(guiGraphics);
             if (this.tacz_sewv$orderDragging && !CruisePlot.armed()
                     && MapMarkers.selected().size() >= 2) {
@@ -328,7 +328,7 @@ public abstract class MixinGuiMap extends Screen {
         if (!armed) return;
 
         List<BlockPos> nodes = CruisePlot.nodes();
-        int color = SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), 0xFF55FF55);
+        int color = ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55);
 
         // A cruise is a loop, so the leg back to the first node is drawn too — the route the crew
         // will actually drive, not the sequence of clicks.
@@ -456,7 +456,7 @@ public abstract class MixinGuiMap extends Screen {
         int n = MapMarkers.selected().size();
         Vec3 a = new Vec3(this.tacz_sewv$dragAx + 0.5, this.tacz_sewv$dragAy, this.tacz_sewv$dragAz + 0.5);
         Vec3 b = new Vec3(this.mouseBlockPosX + 0.5, tacz_sewv$nodeY(), this.mouseBlockPosZ + 0.5);
-        int color = OrderPreview.lowAlpha(SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), 0xFF55FF55));
+        int color = OrderPreview.lowAlpha(ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55));
 
         int[] sa = tacz_sewv$toScreenXZ(a.x, a.z);
         int[] sb = tacz_sewv$toScreenXZ(b.x, b.z);
@@ -504,7 +504,7 @@ public abstract class MixinGuiMap extends Screen {
         int[] a = tacz_sewv$toScreenXZ(this.tacz_sewv$boxAx + 0.5, this.tacz_sewv$boxAz + 0.5);
         int x1 = Math.min(a[0], mouseX), x2 = Math.max(a[0], mouseX);
         int y1 = Math.min(a[1], mouseY), y2 = Math.max(a[1], mouseY);
-        int color = OrderPreview.lowAlpha(SewvConfig.parseColor(SewvConfig.COLOR_PMC.get(), 0xFF55FF55));
+        int color = OrderPreview.lowAlpha(ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55));
         guiGraphics.fill(x1, y1, x2, y2, (color & 0x00FFFFFF) | 0x22000000); // faint interior tint
         guiGraphics.fill(x1, y1, x2, y1 + 1, color);                          // top
         guiGraphics.fill(x1, y2 - 1, x2, y2, color);                          // bottom

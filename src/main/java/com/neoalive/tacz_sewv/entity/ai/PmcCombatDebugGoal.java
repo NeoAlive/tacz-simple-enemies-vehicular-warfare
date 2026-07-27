@@ -26,6 +26,8 @@ import java.util.EnumSet;
  */
 public class PmcCombatDebugGoal extends Goal {
 
+    private static final boolean DEBUG_ENABLED = false;
+
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /** How recently (game ticks) the unit must have been attacked to count as "should be shooting back". */
@@ -47,7 +49,7 @@ public class PmcCombatDebugGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
-        if (!SewvConfig.PMC_COMBAT_DEBUG_LOGGING.get()) return false;
+        if (!DEBUG_ENABLED) return false;
         // Only the player's own units — the report is about the reporter's squad, not hostile PMC.
         if (this.unit.getOwnerUUID() == null) return false;
 

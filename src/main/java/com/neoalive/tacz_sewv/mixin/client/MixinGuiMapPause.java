@@ -1,6 +1,6 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
@@ -34,6 +34,6 @@ public abstract class MixinGuiMapPause extends Screen {
     @Override
     public boolean isPauseScreen() {
         // Live only while the command feature is actually on; otherwise leave the vanilla pause be.
-        return !SewvConfig.MAP_MARKERS_ENABLED.get() || !SewvConfig.MAP_LIVE.get();
+        return !ClientConfig.MAP_MARKERS_ENABLED.get() || !ClientConfig.MAP_LIVE.get();
     }
 }

@@ -1,12 +1,13 @@
 package com.neoalive.tacz_sewv.network;
 
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public class NetworkHandler {
@@ -17,10 +18,17 @@ public class NetworkHandler {
      * of units the SERVER actually accepted, never the client's optimistic guess.
      */
     public static void orderFeedback(Player player, String base, int count, ChatFormatting color, Object... args) {
-        if (!SewvConfig.SHOW_ORDER_FEEDBACK.get()) return;
         String key = base + (count == 0 ? ".none" : count == 1 ? ".single" : ".multiple");
-        player.displayClientMessage(Component.translatable(key, args)
-                .withStyle(count == 0 ? ChatFormatting.GRAY : color), true);
+        sendOrderFeedback(player, Component.translatable(key, args)
+                .withStyle(count == 0 ? ChatFormatting.GRAY : color));
+    }
+
+    public static void sendOrderFeedback(Player player, Component message) {
+        if (player instanceof ServerPlayer serverPlayer) {
+            CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer), new PacketOrderFeedback(message));
+        } else {
+            player.displayClientMessage(message, true);
+        }
     }
 
     // Bumped when the wire format changes (2: list sizes/ids became VarInts; 3: added the mortar
@@ -36,7 +44,8 @@ public class NetworkHandler {
     // 16: added the player doctrine save packet.
     // 17: world vehicle pool editor (open + update).
     // 18: map markers carry PMC health/energy fractions.
-    private static final String PROTOCOL_VERSION = "18";
+    // 19: order feedback became a client-gated S->C packet.
+    private static final String PROTOCOL_VERSION = "19";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -117,6 +126,14 @@ public class NetworkHandler {
                 PacketOwnedVehicles::encode,
                 PacketOwnedVehicles::new,
                 PacketOwnedVehicles::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOrderFeedback.class,
+                PacketOrderFeedback::encode,
+                PacketOrderFeedback::new,
+                PacketOrderFeedback::handle
         );
 
         CHANNEL.registerMessage(

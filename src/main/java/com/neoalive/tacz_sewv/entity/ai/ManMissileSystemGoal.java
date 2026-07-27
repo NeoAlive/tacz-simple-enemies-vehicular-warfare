@@ -19,6 +19,8 @@ import java.util.EnumSet;
  */
 public class ManMissileSystemGoal extends Goal {
 
+    private static final int FIRE_COOLDOWN_TICKS = 100;
+
     private final AbstractUnit unit;
     private VehicleEntity hull;
     private long nextShotTime;
@@ -77,7 +79,7 @@ public class ManMissileSystemGoal extends Goal {
         if (now < this.nextShotTime) return;
 
         if (AshMissileSupport.fire(this.hull, aim)) {
-            this.nextShotTime = now + SewvConfig.MISSILE_SYSTEM_FIRE_COOLDOWN_TICKS.get();
+            this.nextShotTime = now + FIRE_COOLDOWN_TICKS;
         }
     }
 

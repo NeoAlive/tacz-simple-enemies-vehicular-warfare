@@ -19,6 +19,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
  * crews are never passengers of a hull, so this only ever fires from inside a vehicle.
  */
 public final class CrewRadio {
+
+    private static final float VOICELINE_VOLUME = 1.8F;
     /**
      * Per-line minimum gap (ticks) between two of the SAME line on one hull, on top of the shared
      * anti-overlap. DAMAGED is throttled hard because it fires on every hit -- without this it would
@@ -69,7 +71,7 @@ public final class CrewRadio {
         // so the clip tracks the vehicle client-side instead of being left behind by a hull moving at
         // 30 m/s. The hull rather than the speaker because it outlives a crewman who bails or dies
         // mid-line, and while seated the two positions are the same.
-        float volume = SewvConfig.VEHICLE_VOICELINE_VOLUME.get().floatValue();
+        float volume = VOICELINE_VOLUME;
         hull.level().playSound(null, hull, pool.next(), SoundSource.VOICE, volume, 1.0f);
     }
 

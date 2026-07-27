@@ -40,6 +40,8 @@ import java.util.EnumSet;
  */
 public class TurretGunnerGoal extends Goal {
 
+    private static final int WEAPON_SWITCH_COOLDOWN_TICKS = 5;
+
     private final AbstractUnit unit;
     private final HullFacts hull = new HullFacts();
     private VehicleEntity vehicle;
@@ -99,7 +101,7 @@ public class TurretGunnerGoal extends Goal {
             this.weaponSwitchCooldown--;
         } else {
             this.selectedRole = VehicleWeapons.selectWeaponForTarget(this.vehicle, this.seatIndex, target);
-            this.weaponSwitchCooldown = SewvConfig.WEAPON_SWITCH_COOLDOWN_TICKS.get();
+            this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
         }
 
         // Same reasoning as DriveVehicleGoal.fireAssistIfSpecial: a lofted guided-munition

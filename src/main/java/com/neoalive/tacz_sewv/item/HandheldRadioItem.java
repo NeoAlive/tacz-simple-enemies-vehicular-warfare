@@ -97,13 +97,13 @@ public class HandheldRadioItem extends Item {
             player.level().playSound(null, player, ack, SoundSource.NEUTRAL, 1.0F, 1.0F);
         }
 
-        if (!SewvConfig.SHOW_ORDER_FEEDBACK.get()) return;
         Component msg = Component.translatable(
                 call.ordered() == 1
                         ? "message.tacz_sewv.radio.fire_mission.single"
                         : "message.tacz_sewv.radio.fire_mission.multiple",
                 call.ordered(), target.getDisplayName());
-        player.displayClientMessage(msg.copy().withStyle(ChatFormatting.GREEN), true);
+        com.neoalive.tacz_sewv.network.NetworkHandler.sendOrderFeedback(
+                player, msg.copy().withStyle(ChatFormatting.GREEN));
     }
 
     /** Whether a unit is carrying a radio, and so can call missions in on its own. */
@@ -132,13 +132,13 @@ public class HandheldRadioItem extends Item {
         player.level().playSound(null, player, ModSounds.PMC_MORTAR.next(),
                 SoundSource.NEUTRAL, 1.0F, 1.0F);
 
-        if (!SewvConfig.SHOW_ORDER_FEEDBACK.get()) return;
         Component msg = Component.translatable(
                 released == 1
                         ? "message.tacz_sewv.radio.standdown.single"
                         : "message.tacz_sewv.radio.standdown.multiple",
                 released);
-        player.displayClientMessage(msg.copy().withStyle(ChatFormatting.YELLOW), true);
+        com.neoalive.tacz_sewv.network.NetworkHandler.sendOrderFeedback(
+                player, msg.copy().withStyle(ChatFormatting.YELLOW));
     }
 
     /**

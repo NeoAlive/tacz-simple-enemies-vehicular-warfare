@@ -69,6 +69,11 @@ import java.util.EnumSet;
  */
 public class DriveHelicopterGoal extends Goal {
 
+    private static final double ALT_DEADBAND = 2.5;
+    private static final int WEAPON_SWITCH_INTERVAL_TICKS = 60;
+    private static final double ATTACK_HEIGHT = 15.0;
+    private static final double CRUISE_SPEED = 0.6;
+
     // Below this fraction of max health the engine takes over with a crash-spin —
     // nothing the pilot inputs matters, so we stop fighting it.
     private static final float CRASH_HEALTH_FRACTION = 0.10F;
@@ -298,7 +303,7 @@ public class DriveHelicopterGoal extends Goal {
         // target doesn't chase its own altitude the way a getY() offset would.
         if (command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
             double climbTo = cruiseAltitudeHere();
-            if (this.vehicle.getY() >= climbTo - SewvConfig.HELI_ALT_DEADBAND.get()) {
+            if (this.vehicle.getY() >= climbTo - ALT_DEADBAND) {
                 pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
             } else {
                 climbVertically(climbTo);
@@ -377,7 +382,7 @@ public class DriveHelicopterGoal extends Goal {
         if (this.weaponSwitchCooldown <= 0) {
             VehicleWeapons.selectRandomWeapon(
                     this.vehicle, this.vehicle.getSeatIndex(this.unit), this.unit.getRandom());
-            this.weaponSwitchCooldown = SewvConfig.HELI_WEAPON_SWITCH_INTERVAL_TICKS.get();
+            this.weaponSwitchCooldown = WEAPON_SWITCH_INTERVAL_TICKS;
         }
 
         if (horizDist > engage + ENGAGE_DEADBAND) {
@@ -403,7 +408,7 @@ public class DriveHelicopterGoal extends Goal {
     // clamp, fighting SBW's auto-level the whole way, so the fire cone almost
     // never lines up. From ~15 above the target it is a routine 25-45°.
     private double attackAltitude(LivingEntity target) {
-        return target.getY() + SewvConfig.HELI_ATTACK_HEIGHT.get();
+        return target.getY() + ATTACK_HEIGHT;
     }
 
     // Aim platform: two-axis mouse aim that puts the NOSE on the target entity —
@@ -583,7 +588,7 @@ public class DriveHelicopterGoal extends Goal {
         applyCollective(withAvoidFloor(desiredY));
         this.vehicle.setHoverMode(false); // full control authority while moving
 
-        double desiredSpeed = Math.min(SewvConfig.HELI_CRUISE_SPEED.get(), dist * approachGain);
+        double desiredSpeed = Math.min(CRUISE_SPEED, dist * approachGain);
         double evx = travelDir.x * desiredSpeed - vel.x;
         double evz = travelDir.z * desiredSpeed - vel.z;
         double errMag = Math.sqrt(evx * evx + evz * evz);
@@ -643,7 +648,7 @@ public class DriveHelicopterGoal extends Goal {
     // forwardInputDown is the collective on a helicopter, NOT translation.
     private void applyCollective(double desiredY) {
         double dy = desiredY - this.vehicle.getY();
-        double deadband = SewvConfig.HELI_ALT_DEADBAND.get();
+        double deadband = ALT_DEADBAND;
         double vy = this.vehicle.getDeltaMovement().y;
         boolean climb = dy > deadband && vy < CLIMB_RATE_CAP;
         boolean descend = dy < -deadband && vy > -DESCEND_RATE_CAP;

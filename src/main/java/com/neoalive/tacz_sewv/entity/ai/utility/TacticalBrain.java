@@ -27,6 +27,10 @@ import java.util.List;
  */
 public final class TacticalBrain {
 
+    private static final int MIN_PLAN_TICKS = 40;
+    private static final double SWITCH_MARGIN = 10.0;
+    private static final boolean DEBUG_LOGGING = false;
+
     private static final Logger LOGGER = LogUtils.getLogger();
 
     /** How long a hit still counts as "recently hit", for the smoke and retreat signals. */
@@ -228,8 +232,8 @@ public final class TacticalBrain {
         boolean planStillValid = this.feasible[this.plan.ordinal()];
         double current = planStillValid ? this.scores[this.plan.ordinal()] : bestScore;
 
-        boolean committed = Facts.ticksSince(this.planStarted, now) < SewvConfig.UTILITY_MIN_PLAN_TICKS.get();
-        boolean beaten = bestScore > current + SewvConfig.UTILITY_SWITCH_MARGIN.get();
+        boolean committed = Facts.ticksSince(this.planStarted, now) < MIN_PLAN_TICKS;
+        boolean beaten = bestScore > current + SWITCH_MARGIN;
 
         // A plan that has become impossible is dropped at once — neither the switch margin nor the
         // minimum duration may keep a crew committed to something it can no longer carry out.
@@ -241,7 +245,7 @@ public final class TacticalBrain {
             this.planStarted = now;
         }
 
-        if (SewvConfig.UTILITY_DEBUG_LOGGING.get()) logDecision(unit, doctrine);
+        if (DEBUG_LOGGING) logDecision(unit, doctrine);
     }
 
     /**

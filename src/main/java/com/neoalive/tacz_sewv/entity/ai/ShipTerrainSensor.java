@@ -22,6 +22,7 @@ import java.util.List;
  */
 final class ShipTerrainSensor extends TerrainSensor {
 
+    private static final double LOOKAHEAD_DISTANCE = 5.0;
     private static final double SAMPLE_STEP = 1.0;
     /** Extra reach per block/tick of current speed. */
     private static final double SPEED_LOOKAHEAD = 24.0;
@@ -38,7 +39,7 @@ final class ShipTerrainSensor extends TerrainSensor {
     /** Base look-ahead plus a stopping-distance allowance for the speed actually being carried. */
     double lookahead() {
         double speed = this.vehicle == null ? 0.0 : this.vehicle.getDeltaMovement().horizontalDistance();
-        return Math.max(MIN_REACH, SewvConfig.VEHICLE_LOOKAHEAD_DISTANCE.get() + speed * SPEED_LOOKAHEAD);
+        return Math.max(MIN_REACH, LOOKAHEAD_DISTANCE + speed * SPEED_LOOKAHEAD);
     }
 
     Vec3 chooseClearBearing(Vec3 desired) {

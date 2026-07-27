@@ -6,30 +6,11 @@ import net.minecraft.world.entity.Entity;
 
 import javax.annotation.Nullable;
 
-/**
- * How a commander prefers to fight — eight axes that shift the weight of every scored action
- * without changing what any action does.
- *
- * <p>Doctrine belongs to the COMMANDER, not the hull: two identical tanks under different
- * commanders should fight differently, which is the whole reason this is a separate layer from
- * {@link Facts}. Today the commander is the faction, read from a config preset. The design's
- * per-player doctrine editor replaces {@link #forCrew}'s PMC branch and nothing else.
- *
- * <p>Axes are stored raw in their configured -5..+5 range and handed to the scorer
- * {@linkplain #get normalised} to -1..+1, so a weight in the JSON file is "points at full
- * doctrine" and reads the same size as every other modifier beside it.
- */
 public final class Doctrine {
 
-    /** The configured range of every axis, either side of neutral. */
     public static final int AXIS_LIMIT = 5;
 
-    /**
-     * The doctrine axes, in the order the config table and the weights file name them.
-     *
-     * <p>Ordinals index {@link #axes}, so <b>appending only</b> — reordering silently
-     * repoints every existing config value and every weights key at the wrong axis.
-     */
+
     public enum Axis {
         AGGRESSION("aggression",
                 "Willingness to initiate combat, pursue enemies, and tolerate damage."),
@@ -69,17 +50,8 @@ public final class Doctrine {
         }
     }
 
-    /** Every axis neutral: the fallback whenever a crew's faction can't be read. */
     public static final Doctrine NEUTRAL = new Doctrine(new int[Axis.VALUES.length]);
 
-    // Read once from config at server start, for the same reason VehicleTargeting caches SEM's
-    // friendly flags: ConfigValue.get() throws on an unbaked spec, and the scorer runs in an AI
-    // tick where that must never happen. Volatile because the refresh is on the server thread
-    // and crews are scored from it too — but a torn read of a reference is the only hazard.
-    //
-    // Deliberately left NULL until refreshed rather than seeded with defaults here: SewvConfig
-    // reads Axis for its config keys, so seeding would have this class call back into SewvConfig
-    // while SewvConfig's own static initialiser is still running. Null simply means neutral.
     @Nullable
     private static volatile Doctrine[] presets;
 
@@ -89,13 +61,6 @@ public final class Doctrine {
         this.axes = axes;
     }
 
-    /**
-     * A doctrine with the given raw axis values, clamped to the configured range.
-     *
-     * <p>The only way to build one outside the config path. Exists for the scorer self-check,
-     * which needs a doctrine without a baked Forge config behind it, and for whatever eventually
-     * reads a player's own doctrine.
-     */
     public static Doctrine ofAxes(int[] raw) {
         int[] axes = new int[Axis.VALUES.length];
         for (int i = 0; i < axes.length && i < raw.length; i++) {
@@ -114,12 +79,6 @@ public final class Doctrine {
         return this.axes[axis.ordinal()];
     }
 
-    /**
-     * The doctrine commanding this unit.
-     *
-     * <p>A PMC's owning player has no doctrine of its own yet, so all three factions resolve to
-     * a config preset. When the doctrine editor lands, only the PMC branch changes.
-     */
     public static Doctrine forCrew(Entity unit) {
         Doctrine[] snapshot = presets;
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(unit);

@@ -7,11 +7,10 @@ import net.minecraftforge.common.ForgeConfigSpec;
 import java.util.Arrays;
 import java.util.List;
 
-public class SewvConfig {
+public final class SewvConfig {
 
     public static final ForgeConfigSpec SPEC;
 
-    // Event spawning
     public static final ForgeConfigSpec.BooleanValue TANKS_IN_EVENTS;
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_RU;
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_US;
@@ -21,27 +20,22 @@ public class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue CONVOY_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue CONVOY_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue CONVOY_FAILURE_MULTIPLIER;
-
-    // Mortar shelling event (an RU/US battery sets up out of sight and shells your base)
     public static final ForgeConfigSpec.BooleanValue LARGE_COMBAT_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_FAILURE_MULTIPLIER;
     public static final ForgeConfigSpec.IntValue LARGE_COMBAT_VEHICLES;
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_EMPLACEMENT_CHANCE;
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_PLANE_CHANCE;
-
     public static final ForgeConfigSpec.BooleanValue NAVAL_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue NAVAL_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue NAVAL_FAILURE_MULTIPLIER;
     public static final ForgeConfigSpec.IntValue NAVAL_SHIPS_PER_SIDE;
-
     public static final ForgeConfigSpec.BooleanValue INVASION_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue INVASION_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue INVASION_FAILURE_MULTIPLIER;
     public static final ForgeConfigSpec.IntValue INVASION_DEFENDER_INFANTRY;
     public static final ForgeConfigSpec.IntValue INVASION_DEFENDER_TOWS;
     public static final ForgeConfigSpec.IntValue INVASION_DEFENDER_MORTARS;
-
     public static final ForgeConfigSpec.BooleanValue SHELLING_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue SHELLING_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue SHELLING_FAILURE_MULTIPLIER;
@@ -52,42 +46,24 @@ public class SewvConfig {
     public static final ForgeConfigSpec.IntValue SHELLING_DURATION_MAX_TICKS;
     public static final ForgeConfigSpec.ConfigValue<String> HIGH_CHANCE_MORTAR_SHELL;
     public static final ForgeConfigSpec.ConfigValue<String> LOW_CHANCE_MORTAR_SHELL;
-
-    // Derelict vehicle event (a knocked-out hull with survivors camped around it)
     public static final ForgeConfigSpec.BooleanValue DERELICT_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue DERELICT_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue DERELICT_FAILURE_MULTIPLIER;
     public static final ForgeConfigSpec.DoubleValue DERELICT_HEALTH_FRACTION;
     public static final ForgeConfigSpec.IntValue DERELICT_GUARDS;
     public static final ForgeConfigSpec.IntValue DERELICT_AMMO_COUNT;
-
-    // A crewed tank attached to a SimpleEnemyMod village garrison
     public static final ForgeConfigSpec.BooleanValue GARRISON_VEHICLES_ENABLED;
     public static final ForgeConfigSpec.DoubleValue GARRISON_VEHICLE_CHANCE;
 
-    // Vehicle pools — entity ids; one is picked at random per spawn
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_SHIP_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_SHIP_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_SHIP_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_PLANE_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_PLANE_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_PLANE_POOL;
     public static final ForgeConfigSpec.BooleanValue CREATIVE_AMMO_FALLBACK;
-    /** Unlimited energy for RU/US-crewed hulls (including planes). PMC stays on the player economy. */
     public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_ENERGY;
-    /** Unlimited ammo for RU/US-crewed hulls (creative ammo box at spawn). PMC stays finite. */
     public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_AMMO;
 
-    // Armor issued to units on spawn (any unit, mounted or on foot)
     public static final ForgeConfigSpec.BooleanValue NPC_ARMOR_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_ARMOR;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_ARMOR;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_ARMOR;
 
-    // Structure-spawned vehicles (berezka_api soft-compat)
     public static final ForgeConfigSpec.BooleanValue STRUCTURE_VEHICLES_ENABLED;
     public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_MAX_COUNT;
     public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_RAMP_DAYS;
@@ -95,45 +71,24 @@ public class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_STRUCTURES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_STRUCTURES;
 
-    // Crew AI behavior
     public static final ForgeConfigSpec.IntValue AI_FIRE_COOLDOWN_TICKS;
-    public static final ForgeConfigSpec.IntValue WEAPON_SWITCH_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.DoubleValue AI_FIRE_ASSIST_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
     public static final ForgeConfigSpec.ConfigValue<String> AI_AIM_ACCURACY;
     public static final ForgeConfigSpec.DoubleValue AI_AIM_SPREAD_DEG;
-
-    // IFVs (a hull that carries a dismount squad rather than just a crew)
     public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> IFV_NAME_CLUES;
-
-    // Addon softcompat: FCP-style chassis bank, ASH MissileSystem / AntiAir roles
     public static final ForgeConfigSpec.BooleanValue SEM_CREW_DISABLE_INERTIA_ROTATE;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> MISSILE_SYSTEM_NAME_CLUES;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ANTI_AIR_NAME_CLUES;
-    public static final ForgeConfigSpec.IntValue MISSILE_SYSTEM_FIRE_COOLDOWN_TICKS;
-
-    // Tank-rider ("Climb" pose) seats — RU/US only, unrelated to the IFV feature above
     public static final ForgeConfigSpec.BooleanValue TANK_RIDER_DISMOUNT_ENABLED;
-
-    // Anti-tank weapons issued to an RU/US dismount squad
     public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_RU;
     public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_US;
     public static final ForgeConfigSpec.DoubleValue AT_SECOND_GUNNER_CHANCE;
     public static final ForgeConfigSpec.IntValue AT_BACKUP_AMMO;
     public static final ForgeConfigSpec.DoubleValue AT_ENGAGE_RANGE;
-    public static final ForgeConfigSpec.IntValue AT_AIM_TICKS;
-
-    // PMC medics (heal each other out of contact with a SuperbWarfare medical kit)
     public static final ForgeConfigSpec.BooleanValue MEDIC_ENABLED;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SEARCH_RADIUS;
     public static final ForgeConfigSpec.DoubleValue MEDIC_HEAL_PER_TREAT;
-
-    // Health-based mobility (AI-crewed vehicles only)
     public static final ForgeConfigSpec.BooleanValue HEALTH_MOBILITY_ENABLED;
     public static final ForgeConfigSpec.DoubleValue HEALTH_MOBILITY_FLOOR;
-
-    // Medic/engineer support units
     public static final ForgeConfigSpec.DoubleValue MEDIC_SPAWN_CHANCE;
     public static final ForgeConfigSpec.DoubleValue ENGINEER_SPAWN_CHANCE;
     public static final ForgeConfigSpec.DoubleValue SUPPORT_DEDUPE_RADIUS;
@@ -141,8 +96,6 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue ENGINEER_REPAIR_PER_TREAT;
     public static final ForgeConfigSpec.IntValue ENGINEER_REPAIR_COOLDOWN;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ENGINEER_SIDEARM_POOL;
-
-    // RU/US engineer recon drones (SuperbWarfare's DroneEntity, AI-flown — no player, no weapon)
     public static final ForgeConfigSpec.IntValue DRONE_MAX_PER_ENGINEER;
     public static final ForgeConfigSpec.IntValue DRONE_DEPLOY_CHECK_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue DRONE_DEPLOY_CHANCE;
@@ -150,1315 +103,349 @@ public class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue DRONE_DETECTION_RADIUS;
     public static final ForgeConfigSpec.DoubleValue DRONE_BROADCAST_RADIUS;
     public static final ForgeConfigSpec.IntValue DRONE_SCAN_INTERVAL_TICKS;
-
-    // Scavenging an abandoned hull (RU/US only — a PMC boards on the player's order instead)
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_ENABLED;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_MIN_HEALTH_FRACTION;
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_STEALS_PLAYER_VEHICLES;
-
-    // Vehicle formations (player-designated wedge/column on a fixed cardinal)
     public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
-    public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_ARRIVE_RADIUS;
-
-    // Mounted-crew target scan (cylinder around the vehicle)
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_HEIGHT;
     public static final ForgeConfigSpec.IntValue VEHICLE_TARGET_SCAN_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TARGET_REQUIRE_LOS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_ALLY_ASSIST_RANGE;
-
-    // Stalemate breaker (a crew that holds a target it cannot hit repositions itself)
     public static final ForgeConfigSpec.BooleanValue STALEMATE_BREAKER_ENABLED;
     public static final ForgeConfigSpec.IntValue STALEMATE_SILENCE_TICKS;
-
-    // Terrain avoidance (look-ahead sensor while driving)
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
-    public static final ForgeConfigSpec.DoubleValue VEHICLE_LOOKAHEAD_DISTANCE;
-
-    // Patrol order (a ground vehicle wanders valid ground inside a circle)
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
-
-    // Idle behaviour (a crewed hull with nothing to fight and nowhere to be)
     public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
     public static final ForgeConfigSpec.IntValue IDLE_WANDER_RADIUS;
-
-    // Utility AI (crews score every possible action and act on the best one)
     public static final ForgeConfigSpec.IntValue UTILITY_REFRESH_INTERVAL_TICKS;
-    public static final ForgeConfigSpec.DoubleValue UTILITY_SWITCH_MARGIN;
-    public static final ForgeConfigSpec.IntValue UTILITY_MIN_PLAN_TICKS;
     public static final ForgeConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
-    public static final ForgeConfigSpec.BooleanValue UTILITY_DEBUG_LOGGING;
 
-    /**
-     * Commander doctrine, {@code [faction][axis]} — faction by {@code CrewFacts.Faction} ordinal,
-     * axis by {@code Doctrine.Axis} ordinal. A table rather than 24 named fields because it is
-     * genuinely two-dimensional and the axis names already exist on the enum.
-     */
-    public static final ForgeConfigSpec.IntValue[][] DOCTRINE;
-
-    // Declared ABOVE the static initialiser that reads them: static fields initialise in textual
-    // order, so a table declared after the block would still be null when the block runs.
-
-    /** Config sub-section per faction, indexed by {@code CrewFacts.Faction} ordinal. */
-    private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
-
-    /**
-     * Starting doctrine per faction, in {@code Doctrine.Axis} order.
-     *
-     * <p>RU pushes hard and straight: aggressive, cohesive, willing to take losses, and it assaults
-     * rather than flanks. US is the mirror — cautious, methodical, leans on supporting fire and
-     * manoeuvre. PMC is neutral because it is the player's own force and the player has no way to
-     * set its doctrine yet; when the doctrine editor lands it overrides this row alone.
-     */
-    private static final int[][] DOCTRINE_DEFAULTS = {
-            //        aggr pres cohe init supp targ manv risk
-            /* RU  */ {2, -1, 2, -1, 1, 0, -2, 2},
-            /* US  */ {0, 2, 1, 2, 3, 1, 2, -1},
-            /* PMC */ {0, 0, 0, 0, 0, 0, 0, 0},
-    };
-
-    // Helicopter/flight AI
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
-    public static final ForgeConfigSpec.DoubleValue HELI_ALT_DEADBAND;
-    public static final ForgeConfigSpec.DoubleValue HELI_CRUISE_SPEED;
-    public static final ForgeConfigSpec.IntValue HELI_WEAPON_SWITCH_INTERVAL_TICKS;
-    public static final ForgeConfigSpec.DoubleValue HELI_ATTACK_HEIGHT;
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
-    public static final ForgeConfigSpec.IntValue PLANE_TAKEOFF_RUNWAY_RADIUS;
-    public static final ForgeConfigSpec.DoubleValue PLANE_FIRE_CONE_DEG;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_MISSILE_CLUES;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_BOMB_CLUES;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_ROCKET_CLUES;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PLANE_CANNON_CLUES;
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
 
-    // Mortar crew AI (a unit stands beside the mortar, it has no seats to ride)
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
-    public static final ForgeConfigSpec.IntValue MORTAR_APPROACH_TIMEOUT_TICKS;
     public static final ForgeConfigSpec.IntValue MORTAR_FIRE_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue MORTAR_DISPERSION_RADIUS;
     public static final ForgeConfigSpec.BooleanValue MORTAR_REQUIRES_AMMO;
     public static final ForgeConfigSpec.BooleanValue MORTAR_CHUNK_LOADING;
     public static final ForgeConfigSpec.DoubleValue MORTAR_RADIO_RANGE;
-    public static final ForgeConfigSpec.BooleanValue MORTAR_DEBUG_LOGGING;
-    public static final ForgeConfigSpec.BooleanValue PMC_COMBAT_DEBUG_LOGGING;
 
-    // Unit voicelines while crewing a vehicle
     public static final ForgeConfigSpec.BooleanValue VEHICLE_VOICELINES_ENABLED;
-    public static final ForgeConfigSpec.DoubleValue VEHICLE_VOICELINE_VOLUME;
     public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_DELAY_TICKS;
     public static final ForgeConfigSpec.DoubleValue IDLE_VOICELINE_HEALTH_FRACTION;
 
-    // Player interaction
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
-    public static final ForgeConfigSpec.BooleanValue SHOW_ORDER_FEEDBACK;
-
-    // Faction colours on SuperbWarfare's hover overlay
-    public static final ForgeConfigSpec.BooleanValue FACTION_COLORS_ENABLED;
-    public static final ForgeConfigSpec.ConfigValue<String> COLOR_RU;
-    public static final ForgeConfigSpec.ConfigValue<String> COLOR_US;
-    public static final ForgeConfigSpec.ConfigValue<String> COLOR_PMC;
-
-    // Vehicle markers on Xaero's World Map (soft dep)
-    public static final ForgeConfigSpec.BooleanValue MAP_MARKERS_ENABLED;
-    public static final ForgeConfigSpec.BooleanValue MAP_LIVE;
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
-    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ICONS;
-    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_HEALTH_BAR;
-    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
+
+    public static final ForgeConfigSpec.IntValue[][] DOCTRINE;
+
+    private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
+    private static final int[][] DOCTRINE_DEFAULTS = {
+            {2, -1, 2, -1, 1, 0, -2, 2},
+            {0, 2, 1, 2, 3, 1, 2, -1},
+            {0, 0, 0, 0, 0, 0, 0, 0},
+    };
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
 
-        builder.push("event_vehicles");
-
-        TANKS_IN_EVENTS = builder
-                .comment("Allow RU/US tanks to (by default very rarely) spawn in combat events.")
-                .define("tanksInEvents", true);
-
-        TANK_SPAWN_CHANCE_RU = builder
-                .comment("Chance (0.0-1.0) for an RU tank to spawn when a combat event occurs.",
-                         "This is CONDITIONAL: it is rolled only once SimpleEnemyMod's far_combat event has",
-                         "already fired, so the rate you actually see is this number TIMES that event's own",
-                         "chance. It therefore needs to look far too high to come out about right — the old",
-                         "0.02 default worked out to a tank every several hours of play.")
+        builder.push("events");
+        TANKS_IN_EVENTS = builder.comment("Allow rare RU/US tanks in combat events.").define("tanksInEvents", true);
+        TANK_SPAWN_CHANCE_RU = builder.comment("RU tank chance when SEM's far_combat event fires.")
                 .defineInRange("tankSpawnChanceRu", 0.12, 0.0, 1.0);
-
-        TANK_SPAWN_CHANCE_US = builder
-                .comment("Chance (0.0-1.0) for a US tank to spawn when a combat event occurs.",
-                         "Conditional on far_combat having fired, exactly like tankSpawnChanceRu.")
+        TANK_SPAWN_CHANCE_US = builder.comment("US tank chance when SEM's far_combat event fires.")
                 .defineInRange("tankSpawnChanceUs", 0.12, 0.0, 1.0);
-
-        PLANES_IN_EVENTS = builder
-                .comment("Allow rare RU/US planes from the faction plane pools to spawn in far_combat and",
-                         "large_combat. Independent of tanksInEvents so armour and CAS can be toggled apart.")
-                .define("planesInEvents", true);
-
-        PLANE_SPAWN_CHANCE_RU = builder
-                .comment("Chance (0.0-1.0) for an RU plane to spawn when far_combat fires.",
-                         "Conditional on that event succeeding, like tankSpawnChanceRu. Kept far lower than the",
-                         "tank chance — planes are rare battlefield assets, not common spawns.")
+        PLANES_IN_EVENTS = builder.comment("Allow rare RU/US planes in combat events.").define("planesInEvents", true);
+        PLANE_SPAWN_CHANCE_RU = builder.comment("RU plane chance when SEM's far_combat event fires.")
                 .defineInRange("planeSpawnChanceRu", 0.02, 0.0, 1.0);
-
-        PLANE_SPAWN_CHANCE_US = builder
-                .comment("Chance (0.0-1.0) for a US plane to spawn when far_combat fires.",
-                         "Conditional on far_combat having fired, exactly like planeSpawnChanceRu.")
+        PLANE_SPAWN_CHANCE_US = builder.comment("US plane chance when SEM's far_combat event fires.")
                 .defineInRange("planeSpawnChanceUs", 0.02, 0.0, 1.0);
-
-        CONVOY_EVENTS_ENABLED = builder
-                .comment("Enable the standalone convoy event. Each convoy is RU or US only, never PMC.")
-                .define("convoyEventsEnabled", true);
-
-        CONVOY_BASE_CHANCE = builder
-                .comment("Initial chance (0.0-1.0) for the convoy event on each event cycle.",
-                         "SimpleEnemyMod rolls every registered event once per 1200 ticks (60 SECONDS), so this is",
-                         "a per-minute chance, and its chance grows by convoyFailureMultiplier after each miss",
-                         "until it fires. For scale, SEM's own far_combat runs 0.06 base / 0.12 escalation.")
+        CONVOY_EVENTS_ENABLED = builder.comment("Enable convoy events.").define("convoyEventsEnabled", true);
+        CONVOY_BASE_CHANCE = builder.comment("Base convoy event chance per SEM event roll.")
                 .defineInRange("convoyBaseChance", 0.06, 0.0, 1.0);
-
-        CONVOY_FAILURE_MULTIPLIER = builder
-                .comment("Amount added to the convoy event's chance after a missed event roll.",
-                         "Higher = the wait between convoys is more consistent; lower = streakier.")
+        CONVOY_FAILURE_MULTIPLIER = builder.comment("Convoy chance added after a missed roll.")
                 .defineInRange("convoyFailureMultiplier", 0.06, 0.0, 1.0);
-
-        LARGE_COMBAT_EVENTS_ENABLED = builder
-                .comment("Enable the large_combat event: far_combat at three times the scale, with armour.",
-                         "Two platoons of infantry (9-15 a side) with vehicles behind them, and rarely a mortar",
-                         "or TOW on a flank. Independent of far_combat's own rate and toggle.")
-                .define("largeCombatEventsEnabled", true);
-
-        LARGE_COMBAT_BASE_CHANCE = builder
-                .comment("Initial chance (0.0-1.0) for the large_combat event on each event cycle.",
-                         "SimpleEnemyMod rolls every registered event once per 1200 ticks (60 SECONDS). Kept well",
-                         "below the convoy default because this one spawns upward of thirty entities at a time.")
+        LARGE_COMBAT_EVENTS_ENABLED = builder.comment("Enable large combat events.").define("largeCombatEventsEnabled", true);
+        LARGE_COMBAT_BASE_CHANCE = builder.comment("Base large-combat event chance per SEM event roll.")
                 .defineInRange("largeCombatBaseChance", 0.02, 0.0, 1.0);
-
-        LARGE_COMBAT_FAILURE_MULTIPLIER = builder
-                .comment("Amount added to the large_combat event's chance after a missed event roll.")
+        LARGE_COMBAT_FAILURE_MULTIPLIER = builder.comment("Large-combat chance added after a missed roll.")
                 .defineInRange("largeCombatFailureMultiplier", 0.02, 0.0, 1.0);
-
-        LARGE_COMBAT_VEHICLES = builder
-                .comment("Vehicles each side deploys behind its infantry in a large_combat battle.")
+        LARGE_COMBAT_VEHICLES = builder.comment("Vehicles each side gets in large combat.")
                 .defineInRange("largeCombatVehicles", 2, 0, 8);
-
-        LARGE_COMBAT_EMPLACEMENT_CHANCE = builder
-                .comment("Chance (0.0-1.0) PER SIDE that a large_combat battle also has a mortar or a TOW dug in",
-                         "on a flank. Deliberately tiny: a crew-served weapon is something to remember, not a",
-                         "fixture of every battle.")
+        LARGE_COMBAT_EMPLACEMENT_CHANCE = builder.comment("Per-side chance to add a mortar or TOW to large combat.")
                 .defineInRange("largeCombatEmplacementChance", 0.04, 0.0, 1.0);
-
-        LARGE_COMBAT_PLANE_CHANCE = builder
-                .comment("Chance (0.0-1.0) PER SIDE that a large_combat battle also fields one airborne plane",
-                         "from that faction's plane pool. Extreme rarity on purpose — CAS overhead, not a",
-                         "fixture. Gated by planesInEvents.")
+        LARGE_COMBAT_PLANE_CHANCE = builder.comment("Per-side chance to add a plane to large combat.")
                 .defineInRange("largeCombatPlaneChance", 0.03, 0.0, 1.0);
-
-        NAVAL_EVENTS_ENABLED = builder
-                .comment("Enable the naval_battle event: two flotillas from the faction SHIP pools fighting",
-                         "offshore. Only fires in ocean biomes that are not frozen over, and only where the water",
-                         "is actually navigable — so it cannot happen in a swamp or on a lake.")
-                .define("navalEventsEnabled", true);
-
-        NAVAL_BASE_CHANCE = builder
-                .comment("Initial chance (0.0-1.0) for the naval_battle event on each event cycle.",
-                         "Most players are nowhere near an ocean most of the time, and a roll that lands inland",
-                         "simply fails without resetting the accumulated chance, so this can afford to be higher",
-                         "than its share of the world would suggest.")
+        NAVAL_EVENTS_ENABLED = builder.comment("Enable naval battle events.").define("navalEventsEnabled", true);
+        NAVAL_BASE_CHANCE = builder.comment("Base naval event chance per SEM event roll.")
                 .defineInRange("navalBaseChance", 0.05, 0.0, 1.0);
-
-        NAVAL_FAILURE_MULTIPLIER = builder
-                .comment("Amount added to the naval_battle event's chance after a missed event roll.")
+        NAVAL_FAILURE_MULTIPLIER = builder.comment("Naval chance added after a missed roll.")
                 .defineInRange("navalFailureMultiplier", 0.05, 0.0, 1.0);
-
-        NAVAL_SHIPS_PER_SIDE = builder
-                .comment("Ships each faction brings to a naval_battle. Higher than a ground event's vehicle count",
-                         "on purpose: boats are lightly armoured and trade fire in the open, so they deplete fast.")
+        NAVAL_SHIPS_PER_SIDE = builder.comment("Ships each side gets in a naval battle.")
                 .defineInRange("navalShipsPerSide", 4, 1, 12);
-
-        INVASION_EVENTS_ENABLED = builder
-                .comment("Enable the asymmetric_invasion event: two or three vehicles of one faction attacking a",
-                         "dug-in position of the other — infantry, TOWs and mortars, with no vehicles of its own.")
-                .define("invasionEventsEnabled", true);
-
-        INVASION_BASE_CHANCE = builder
-                .comment("Initial chance (0.0-1.0) for the asymmetric_invasion event on each event cycle.")
+        INVASION_EVENTS_ENABLED = builder.comment("Enable asymmetric invasion events.").define("invasionEventsEnabled", true);
+        INVASION_BASE_CHANCE = builder.comment("Base invasion event chance per SEM event roll.")
                 .defineInRange("invasionBaseChance", 0.03, 0.0, 1.0);
-
-        INVASION_FAILURE_MULTIPLIER = builder
-                .comment("Amount added to the asymmetric_invasion event's chance after a missed event roll.")
+        INVASION_FAILURE_MULTIPLIER = builder.comment("Invasion chance added after a missed roll.")
                 .defineInRange("invasionFailureMultiplier", 0.03, 0.0, 1.0);
-
-        INVASION_DEFENDER_INFANTRY = builder
-                .comment("Riflemen holding the position in an asymmetric_invasion.")
+        INVASION_DEFENDER_INFANTRY = builder.comment("Defending infantry in an invasion.")
                 .defineInRange("invasionDefenderInfantry", 6, 0, 32);
-
-        INVASION_DEFENDER_TOWS = builder
-                .comment("TOW launchers sited around the defended position. These are what actually threaten the",
-                         "attacking armour — at zero the defence has almost nothing that can hurt a tank.")
+        INVASION_DEFENDER_TOWS = builder.comment("Defending TOW emplacements in an invasion.")
                 .defineInRange("invasionDefenderTows", 2, 0, 8);
-
-        INVASION_DEFENDER_MORTARS = builder
-                .comment("Mortars sited around the defended position.")
+        INVASION_DEFENDER_MORTARS = builder.comment("Defending mortars in an invasion.")
                 .defineInRange("invasionDefenderMortars", 2, 0, 8);
-
-        SHELLING_EVENTS_ENABLED = builder
-                .comment("Enable the mortar_shelling event: an RU or US mortar battery sets up out of sight and",
-                         "shells your base. It only fires while you are actually at a base — see shellingBaseRadius —",
-                         "so it threatens something you built rather than open ground you happen to be crossing.",
-                         "The crew cannot see that far (96 blocks), so it works a fire mission on the position",
-                         "instead, for shellingDurationMin/MaxTicks, and then leaves its tubes for good. The crews",
-                         "stay put afterwards as ordinary infantry — the barrage ends, the battery doesn't.")
-                .define("shellingEventsEnabled", true);
-
-        SHELLING_BASE_CHANCE = builder
-                .comment("Starting chance for the mortar_shelling event on each of SEM's event rolls (one per",
-                         "60 seconds). Kept below the convoy's because this one is further gated on you being",
-                         "at your base, so a large share of its rolls are discarded before they can fire.")
+        SHELLING_EVENTS_ENABLED = builder.comment("Enable mortar shelling events.").define("shellingEventsEnabled", true);
+        SHELLING_BASE_CHANCE = builder.comment("Base shelling event chance per SEM event roll.")
                 .defineInRange("shellingBaseChance", 0.05, 0.0, 1.0);
-
-        SHELLING_FAILURE_MULTIPLIER = builder
-                .comment("Amount added to the shelling event's chance after a missed event roll.")
+        SHELLING_FAILURE_MULTIPLIER = builder.comment("Shelling chance added after a missed roll.")
                 .defineInRange("shellingFailureMultiplier", 0.04, 0.0, 1.0);
-
-        SHELLING_BASE_RADIUS = builder
-                .comment("How close (in blocks) you must be to your respawn point for the shelling event to fire.",
-                         "Your bed/anchor is the stand-in for 'your base' — it is the one spot the game already",
-                         "knows you chose to call home. Never having slept means the event can never fire.")
+        SHELLING_BASE_RADIUS = builder.comment("How close a player must be to their respawn point for shelling.")
                 .defineInRange("shellingBaseRadius", 48, 8, 256);
-
-        SHELLING_MORTARS = builder
-                .comment("How many mortars a shelling battery sets up (each gets its own crew).")
+        SHELLING_MORTARS = builder.comment("Mortars in a shelling battery.")
                 .defineInRange("shellingMortars", 2, 1, 6);
-
-        SHELLING_GUARDS = builder
-                .comment("Infantry guarding a shelling battery. Killing the crews is the only way to stop the",
-                         "barrage, so the guards are what make that a fight rather than an execution — a mortar",
-                         "crew cannot depress its tube inside about 27 blocks and falls back on its rifle once you",
-                         "are close. 0 leaves the crews on their own.")
+        SHELLING_GUARDS = builder.comment("Infantry guarding a shelling battery.")
                 .defineInRange("shellingGuards", 4, 0, 12);
-
-        SHELLING_DURATION_MIN_TICKS = builder
-                .comment("Shortest a shelling battery works its fire mission before standing down (20 ticks = 1",
-                         "second). One duration is rolled for the whole battery, so its tubes stop together.")
+        SHELLING_DURATION_MIN_TICKS = builder.comment("Minimum shelling duration.")
                 .defineInRange("shellingDurationMinTicks", 600, 20, 24000);
-
-        SHELLING_DURATION_MAX_TICKS = builder
-                .comment("Longest a shelling battery works its fire mission before standing down. When the mission",
-                         "expires the crews leave their tubes for good and revert to ordinary infantry — they do not",
-                         "despawn, so the battery is still there to be cleared out afterwards.",
-                         "Set at or below the minimum for a fixed duration.")
+        SHELLING_DURATION_MAX_TICKS = builder.comment("Maximum shelling duration.")
                 .defineInRange("shellingDurationMaxTicks", 1200, 20, 24000);
-
-        HIGH_CHANCE_MORTAR_SHELL = builder
-                .comment("Item id of the shell a spawned mortar crew usually gets (75% of crews).",
-                         "Rolled once per crew, so a battery can mix but a given tube shoots one thing throughout.",
-                         "Must be a mortar shell the tube will actually accept; anything else falls back to",
-                         "superbwarfare:mortar_shell rather than leaving the crew unable to fire.")
+        HIGH_CHANCE_MORTAR_SHELL = builder.comment("Common shell used by spawned mortar crews.")
                 .define("highChanceMortarShell", "superbwarfare:mortar_shell", SewvConfig::isValidResourceId);
-
-        LOW_CHANCE_MORTAR_SHELL = builder
-                .comment("Item id of the shell a spawned mortar crew occasionally gets (25% of crews).",
-                         "Same rules as highChanceMortarShell. Default is white phosphorus.")
+        LOW_CHANCE_MORTAR_SHELL = builder.comment("Rare shell used by spawned mortar crews.")
                 .define("lowChanceMortarShell", "superbwarfare:mortar_shell_wp", SewvConfig::isValidResourceId);
-
-        DERELICT_EVENTS_ENABLED = builder
-                .comment("Enable the derelict_vehicle event: a knocked-out RU or US hull with its surviving crew",
-                         "camped around it on foot. The hull has no energy, almost no ammunition and is nearly",
-                         "destroyed, so it is salvage rather than a threat — the fight is with the survivors, and",
-                         "the prize is a vehicle you can recover if you can repair and refuel it.",
-                         "This is the counterpart to the convoy event: something between 'a crewed tank attacks",
-                         "you' and 'no vehicle at all'.")
-                .define("derelictEventsEnabled", true);
-
-        DERELICT_BASE_CHANCE = builder
-                .comment("Starting chance for the derelict_vehicle event on each of SEM's event rolls (one per",
-                         "60 seconds), growing by derelictFailureMultiplier after each miss.")
+        DERELICT_EVENTS_ENABLED = builder.comment("Enable derelict vehicle events.").define("derelictEventsEnabled", true);
+        DERELICT_BASE_CHANCE = builder.comment("Base derelict event chance per SEM event roll.")
                 .defineInRange("derelictBaseChance", 0.05, 0.0, 1.0);
-
-        DERELICT_FAILURE_MULTIPLIER = builder
-                .comment("Amount added to the derelict event's chance after a missed event roll.")
+        DERELICT_FAILURE_MULTIPLIER = builder.comment("Derelict chance added after a missed roll.")
                 .defineInRange("derelictFailureMultiplier", 0.05, 0.0, 1.0);
-
-        DERELICT_HEALTH_FRACTION = builder
-                .comment("Health a derelict hull spawns with, as a fraction of its maximum.",
-                         "KEEP THIS BELOW autoBoardMinHealthFraction (default 0.25). That is not a style rule --",
-                         "it is the only thing stopping the survivors from simply climbing back in: scavenging",
-                         "AI refuses any hull below that threshold, and a crewed hull also gets infinite energy",
-                         "from the faction-energy rule, so raising this past it quietly turns this event into",
-                         "'a working tank spawns and attacks you', which the convoy event already is.")
+        DERELICT_HEALTH_FRACTION = builder.comment("Health fraction for spawned derelict hulls. Keep below autoBoardMinHealthFraction.")
                 .defineInRange("derelictHealthFraction", 0.15, 0.01, 1.0);
-
-        DERELICT_GUARDS = builder
-                .comment("Maximum survivors camped around a derelict hull (at least one always spawns).",
-                         "They are ordinary infantry on foot, NOT a crew -- nobody is in the vehicle.")
+        DERELICT_GUARDS = builder.comment("Maximum survivors around a derelict hull.")
                 .defineInRange("derelictGuards", 4, 1, 12);
-
-        DERELICT_AMMO_COUNT = builder
-                .comment("Rounds left in a derelict hull's container. Enough to be worth looting and to make the",
-                         "vehicle briefly useful if you recover it, not enough to fight with.")
+        DERELICT_AMMO_COUNT = builder.comment("Ammo left in a derelict hull.")
                 .defineInRange("derelictAmmoCount", 2, 0, 64);
-
-        GARRISON_VEHICLES_ENABLED = builder
-                .comment("Give a share of SimpleEnemyMod's village garrisons a single crewed tank of the",
-                         "garrison's own faction. Only ONE per village, and it is fully crewed -- deliberately",
-                         "never a parked empty hull, because idle RU/US infantry scavenge empty vehicles on",
-                         "sight (that is why an earlier bare-hull version of this was removed). A crewed hull",
-                         "is occupied, so nothing scavenges it, and stays fuelled on its own.")
+        GARRISON_VEHICLES_ENABLED = builder.comment("Let village garrisons field one crewed tank.")
                 .define("garrisonVehiclesEnabled", true);
-
-        GARRISON_VEHICLE_CHANCE = builder
-                .comment("Chance (0.0-1.0) that a garrisoned village gets its one tank. Rolled once per village",
-                         "(deterministically, so every guard of the same garrison agrees), NOT per guard.")
+        GARRISON_VEHICLE_CHANCE = builder.comment("Chance that a village garrison gets its tank.")
                 .defineInRange("garrisonVehicleChance", 0.5, 0.0, 1.0);
-
         builder.pop();
 
-        builder.push("vehicle_pools");
-
-        // Pools accept any registered SW-based VehicleEntity id, including those from
-        // Superb Warfare addons (e.g. "dragonrise_reforge:...", "fcp:...", "mcsp:...").
-        // Ids from mods that aren't installed are skipped safely, so it's fine to list
-        // addon vehicles here even when the addon may be absent. Ground vehicles and
-        // helicopters are supported here. Fixed-wing planes have their OWN pools below
-        // (ru/us/pmcPlanePool) — do not list them here or they will be rolled into land
-        // spawns. Artillery / indirect-fire hulls like the TOS-1A are still a bad fit
-        // (their AI crew can't self-load and won't fire).
-        //
-        // Mortars don't belong here either, but for a different reason: a mortar has no
-        // seats, so there is nothing for a spawned crew to ride and TankSpawner can't
-        // place anyone in it. Mortars are crewed instead by ordering an existing PMC unit
-        // onto a deployed one with the board key — see the mortar_ai section.
-        RU_VEHICLE_POOL = builder
-                .comment("Vehicle entity ids RU crews can spawn with (e.g. \"superbwarfare:t_90a\").",
-                         "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
-                         "Planes belong in ruPlanePool, not here.",
-                         "Addon ids work too (e.g. \"dragonrise_reforge:t90mh\", \"mcsp:t90a_green\", \"superbwarfare:mi_28\").")
-                .defineList("ruVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:bmp_2", "superbwarfare:mi_28"), SewvConfig::isValidResourceId);
-
-        US_VEHICLE_POOL = builder
-                .comment("Vehicle entity ids US crews can spawn with (e.g. \"superbwarfare:m_1a_2\").",
-                         "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
-                         "Planes belong in usPlanePool, not here.",
-                         "Addon ids work too (e.g. \"dragonrise_reforge:m1a2sepv2\", \"fcp:humvee\", \"superbwarfare:ah_6\").")
-                .defineList("usVehiclePool", List.of("superbwarfare:m_1a_2", "superbwarfare:bradley", "superbwarfare:ah_6"), SewvConfig::isValidResourceId);
-
-        PMC_VEHICLE_POOL = builder
-                .comment("Vehicle entity ids for debug PMC units spawning",
-                         "List several to have one picked at random per spawn. Ground vehicles and helicopters are supported.",
-                         "Planes belong in pmcPlanePool, not here.",
-                         "Addon ids work too (e.g. \"fcp:littlebird\", \"mcsp:m1a2\", \"superbwarfare:ah_6\").")
-                .defineList("pmcVehiclePool", List.of("superbwarfare:t_90a", "superbwarfare:ah_6"), SewvConfig::isValidResourceId);
-
-        // Ships are a DEDICATED pool, separate from the ground/air ones above — a ship must spawn
-        // on water (see TankSpawner.findClearWaterSpawn) and paths over water via its own
-        // evaluator (see ShipVehicleNodeEvaluator), so it is never picked at random for a land
-        // spawn or mixed in with a tank/helicopter roll.
-        RU_SHIP_POOL = builder
-                .comment("Ship entity ids RU crews can spawn with (e.g. \"superbwarfare:speedboat\").",
-                         "List several to have one picked at random per spawn. Spawned on water, not ground —",
-                         "see /sewv spawn ruship.")
-                .defineList("ruShipPool", List.of("superbwarfare:speedboat"), SewvConfig::isValidResourceId);
-
-        US_SHIP_POOL = builder
-                .comment("Ship entity ids US crews can spawn with. Same rules as ruShipPool.")
-                .defineList("usShipPool", List.of("superbwarfare:speedboat"), SewvConfig::isValidResourceId);
-
-        PMC_SHIP_POOL = builder
-                .comment("Ship entity ids for debug PMC units spawning. Same rules as ruShipPool.")
-                .defineList("pmcShipPool", List.of("superbwarfare:speedboat"), SewvConfig::isValidResourceId);
-
-        // Planes are a DEDICATED pool, separate from ground/heli and ship ones — RU/US planes spawn
-        // already airborne (SBW needs airspeed to stay up; they have no player takeoff order), and
-        // mixing them into a land vehicle roll would strand them on the ground. See
-        // TankSpawner.spawnPlaneWithCrew and /sewv spawn ruplane|usplane|pmcplane.
-        // Skip superbwarfare:tom_6 — its engine only answers a Player controller.
-        RU_PLANE_POOL = builder
-                .comment("Fixed-wing entity ids RU crews can spawn with (e.g. \"superbwarfare:kv_16\").",
-                         "List several to have one picked at random per spawn. Spawned airborne for RU/US —",
-                         "see /sewv spawn ruplane. ju_87 is omitted from defaults; add it here only if wanted.")
-                .defineList("ruPlanePool", List.of("superbwarfare:kv_16"), SewvConfig::isValidResourceId);
-
-        US_PLANE_POOL = builder
-                .comment("Fixed-wing entity ids US crews can spawn with. Same rules as ruPlanePool.")
-                .defineList("usPlanePool", List.of("superbwarfare:a_10a"), SewvConfig::isValidResourceId);
-
-        PMC_PLANE_POOL = builder
-                .comment("Fixed-wing entity ids for debug PMC units. PMC planes spawn on the ground and take",
-                         "off via the normal player flight order (they are exempt from airborne spawn).")
-                .defineList("pmcPlanePool", List.of("superbwarfare:a_10a"), SewvConfig::isValidResourceId);
-
-        CREATIVE_AMMO_FALLBACK = builder
-                .comment("A spawned vehicle is stocked with the real, finite, lootable ammunition its guns use.",
-                         "This only decides the fallback when that ammo can't be determined (an energy- or",
-                         "infinite-ammo hull, or unreadable modded gun data): ON gives it a bottomless creative",
-                         "ammo box so it can still fire; turn OFF for a strict survival world (empty container).",
-                         "RU/US hulls also honour factionInfiniteAmmo, which overrides this with a creative box.")
+        builder.push("resources");
+        CREATIVE_AMMO_FALLBACK = builder.comment("Use a creative ammo box when finite vehicle ammo cannot be determined.")
                 .define("creativeAmmoFallback", true);
-
-        FACTION_INFINITE_ENERGY = builder
-                .comment("RU/US-crewed vehicles (tanks, helis, ships, planes) never run out of energy while a",
-                         "faction unit is in the driver's seat. PMC crews stay on the normal fuel/charge economy.",
-                         "Turn OFF to make faction opposition burn fuel like a player hull.")
+        FACTION_INFINITE_ENERGY = builder.comment("RU/US-crewed vehicles never run out of energy.")
                 .define("factionInfiniteEnergy", true);
-
-        FACTION_INFINITE_AMMO = builder
-                .comment("RU/US-crewed vehicles spawn with a bottomless creative ammo box instead of finite",
-                         "stacks, so long fights do not leave them dry. PMC crews keep finite (or creativeAmmoFallback)",
-                         "stocking. Applies to planes the same way as ground hulls.")
+        FACTION_INFINITE_AMMO = builder.comment("RU/US-crewed vehicles use unlimited ammo.")
                 .define("factionInfiniteAmmo", true);
-
         builder.pop();
 
         builder.push("npc_armor");
-
-        NPC_ARMOR_ENABLED = builder
-                .comment("Issue armor to SimpleEnemyMod units when they spawn. Applies to EVERY unit, crewing a",
-                         "vehicle or on foot, however it was spawned (events, structures, /sewv, a spawn egg).",
-                         "Armor is issued once per unit and only into slots that are still empty, so a unit you",
-                         "have re-equipped by hand keeps what you gave it.",
-                         "Turn off to leave units bare — the armor grants SuperbWarfare bullet resistance, so this",
-                         "is the toggle to reach for if infantry feel too tough.")
+        NPC_ARMOR_ENABLED = builder.comment("Issue armor to spawned SEM units.")
                 .define("npcArmorEnabled", true);
-
-        // Each entry is equipped into whatever slot its own item declares, so the lists extend to
-        // legs and boots by themselves if SuperbWarfare (or an addon) ever ships them.
-        //
-        // These want armor that brings its own model — all of SuperbWarfare's does. Plain
-        // texture armor (vanilla iron, most modded sets) equips and grants its protection, but
-        // SimpleEnemyMod only draws that on PMC units, so on an RU or US unit it will be
-        // invisible.
-        RU_ARMOR = builder
-                .comment("Armor item ids every RU unit spawns wearing.")
-                .defineList("ruArmor",
-                        List.of("superbwarfare:ru_helmet_6b47", "superbwarfare:ru_chest_6b43"),
-                        SewvConfig::isValidResourceId);
-
-        US_ARMOR = builder
-                .comment("Armor item ids every US unit spawns wearing.")
-                .defineList("usArmor",
-                        List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"),
-                        SewvConfig::isValidResourceId);
-
-        PMC_ARMOR = builder
-                .comment("Armor item ids every PMC unit spawns wearing. US kit by default — a PMC unit is the",
-                         "player's own, and its armor sits in slots 2-5 of the inventory you can open, so this is",
-                         "a starting loadout you can swap rather than a fixed uniform.")
-                .defineList("pmcArmor",
-                        List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"),
-                        SewvConfig::isValidResourceId);
-
+        RU_ARMOR = builder.comment("Armor item ids for RU units.")
+                .defineList("ruArmor", List.of("superbwarfare:ru_helmet_6b47", "superbwarfare:ru_chest_6b43"), SewvConfig::isValidResourceId);
+        US_ARMOR = builder.comment("Armor item ids for US units.")
+                .defineList("usArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
+        PMC_ARMOR = builder.comment("Armor item ids for PMC units.")
+                .defineList("pmcArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
         builder.pop();
 
         builder.push("structure_vehicles");
-
-        STRUCTURE_VEHICLES_ENABLED = builder
-                .comment("Spawn vehicles from the faction pools when a compatible berezka_api structure generates.",
-                         "Soft compat: does nothing unless berezka_api and a matching structure mod are installed.",
-                         "RU/US structures get a fully crewed, armed, fuelled vehicle; PMC structures get a BARE hull",
-                         "(no crew, no ammo, no energy) for the player to capture and use.")
+        STRUCTURE_VEHICLES_ENABLED = builder.comment("Spawn vehicles at compatible Berezka structures.")
                 .define("structureVehiclesEnabled", true);
-
-        STRUCTURE_VEHICLE_MAX_COUNT = builder
-                .comment("Hard ceiling on how many vehicles one structure can field. The actual count ramps from 1",
-                         "toward this cap as the world ages (see structureVehicleRampDays), with per-vehicle randomness.")
+        STRUCTURE_VEHICLE_MAX_COUNT = builder.comment("Maximum vehicles a structure can field.")
                 .defineInRange("structureVehicleMaxCount", 5, 1, 16);
-
-        STRUCTURE_VEHICLE_RAMP_DAYS = builder
-                .comment("Elapsed in-game days over which the per-structure vehicle count ramps from 1 to the cap.",
-                         "Early on a structure fields a lone vehicle; by this many days it can field the full cap.",
-                         "Measured from total world play time, so it survives sleeping and /time set. 0 = no ramp",
-                         "(always rolls against the full cap).")
+        STRUCTURE_VEHICLE_RAMP_DAYS = builder.comment("World days to ramp structure vehicle counts from 1 to the max.")
                 .defineInRange("structureVehicleRampDays", 24, 0, 1000);
-
-        RU_VEHICLE_STRUCTURES = builder
-                .comment("Structure ids (the namespace:path of the structure's start pool) that field a crewed RU",
-                         "vehicle. Add any berezka_api structure id here to have RU armor spawn at it.")
+        RU_VEHICLE_STRUCTURES = builder.comment("Structure ids that field RU vehicles.")
                 .defineList("ruVehicleStructures", List.of("russian_army_structures:tank"), SewvConfig::isValidResourceId);
-
-        US_VEHICLE_STRUCTURES = builder
-                .comment("Structure ids that field a crewed US vehicle.")
+        US_VEHICLE_STRUCTURES = builder.comment("Structure ids that field US vehicles.")
                 .defineList("usVehicleStructures", List.of("us_army_structures:convoy"), SewvConfig::isValidResourceId);
-
-        PMC_VEHICLE_STRUCTURES = builder
-                .comment("Structure ids that field a BARE PMC vehicle (no crew, ammo or energy) for the player to take.")
+        PMC_VEHICLE_STRUCTURES = builder.comment("Structure ids that field PMC vehicles.")
                 .defineList("pmcVehicleStructures", List.of("pmc_structures:buggy"), SewvConfig::isValidResourceId);
-
         builder.pop();
 
         builder.push("crew_ai");
-
-        AI_FIRE_COOLDOWN_TICKS = builder
-                .comment("Minimum ticks between shots for an AI-crewed vehicle weapon (20 ticks = 1 second).")
+        AI_FIRE_COOLDOWN_TICKS = builder.comment("Minimum delay between AI vehicle shots.")
                 .defineInRange("aiFireCooldownTicks", 5, 1, 200);
-
-        WEAPON_SWITCH_COOLDOWN_TICKS = builder
-                .comment("Minimum ticks between AI weapon switches, prevents rapid cannon/MG spam.")
-                .defineInRange("weaponSwitchCooldownTicks", 5, 1, 200);
-
-        AI_FIRE_ASSIST_CONE_DEG = builder
-                .comment("Defines the radius of accuracy a helicopter should prefer. Lower numbers makes the helicopter's movement less chaotic and unpredictable but also less likely to fire with Helicopter weapons")
+        AI_FIRE_ASSIST_CONE_DEG = builder.comment("How far off target an AI crew may still fire.")
                 .defineInRange("aiFireAssistConeDeg", 12.0, 4.0, 30.0);
-
-        SMOKE_BLOCK_RADIUS = builder
-                .comment("How close (in blocks) a smoke decoy must be to an AI crew's line of fire to block the shot.",
-                         "Larger = smoke screens are wider and more protective.")
+        SMOKE_BLOCK_RADIUS = builder.comment("How close smoke must be to block AI fire.")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
-
-        AI_AIM_ACCURACY = builder
-                .comment("How accurately an AI vehicle crew lays its guns. SuperbWarfare's auto-aim solves a",
-                         "perfect ballistic firing solution with perfect target lead, so an untreated AI crew",
-                         "never misses at any range.",
-                         "  realistic - every crew disperses by aiAimSpreadDegrees, however many of them there are.",
-                         "  scaled    - dispersion is divided by the number of occupied seats, so a full crew",
-                         "              shoots better than a lone survivor (spotter + loader + gunner).",
-                         "  accurate  - no dispersion at all; the pre-1.x behaviour.",
-                         "Only affects units crewing a vehicle. Mortar crews stand beside their tube rather than",
-                         "riding it and are unaffected, as are players.")
-                // Arrays.asList, NOT List.of: when the key is absent from an existing config file
-                // Forge's correct() pass tests the acceptable-values list against null, and
-                // List.of().contains(null) throws NPE — which aborts server start with a config
-                // stack trace that names no mod. Arrays.asList answers false and lets the default apply.
+        AI_AIM_ACCURACY = builder.comment("AI vehicle accuracy mode: realistic, scaled, or accurate.")
                 .defineInList("aiAimAccuracy", "realistic", Arrays.asList("realistic", "scaled", "accurate"));
-
-        AI_AIM_SPREAD_DEG = builder
-                .comment("Dispersion cone, in degrees, added to an AI crew's shots (see aiAimAccuracy).",
-                         "This is ANGULAR, so the miss distance grows with range on its own: 1 degree is roughly",
-                         "0.35 blocks at 20 blocks and 1.75 blocks at 100. Values are a triangular distribution",
-                         "about the true line, so most shots land far nearer than the full cone.",
-                         "For scale, SuperbWarfare's own built-in spreads are 0.02 for a tank cannon, 0.5 for a",
-                         "coaxial MG and 5.0 for grapeshot. Ignored when aiAimAccuracy is 'accurate'.")
+        AI_AIM_SPREAD_DEG = builder.comment("Extra dispersion added in realistic/scaled aim modes.")
                 .defineInRange("aiAimSpreadDegrees", 1.0, 0.0, 30.0);
-
-        IFV_DISMOUNTS_ENABLED = builder
-                .comment("Let infantry fighting vehicles fight like IFVs instead of like small tanks: when the",
-                         "hull comes up against an ARMOURED target it drops its squad, who fight on foot from",
-                         "there while the vehicle keeps working its gun. Against infantry the squad stays aboard,",
-                         "since the hull's own cannon and MGs already cover that.",
-                         "The squad is NOT recalled afterwards -- once out they are ordinary infantry, and picking",
-                         "them back up is whatever you'd normally do to put a unit in a seat. No smoke is fired",
-                         "either: an IFV drops its squad on every contact, so screening each one would leave the",
-                         "whole map permanently fogged.",
-                         "Which hulls count is decided by ifvNameClues. Turn this off to have every hull keep its",
-                         "full crew buttoned up, which is the pre-1.x behaviour.")
+        IFV_DISMOUNTS_ENABLED = builder.comment("Let IFVs dismount squads against armor.")
                 .define("ifvDismountsEnabled", true);
-
-        IFV_NAME_CLUES = builder
-                .comment("Substrings that mark a vehicle id as an IFV. Matched case-insensitively against the",
-                         "whole registry id, so \"bmp\" catches superbwarfare:bmp_2, fcp:bmp1u and mcsp:bmp2_camo",
-                         "alike, and an addon's hull is picked up without naming it explicitly.",
-                         "Keep them SPECIFIC: a clue that also matches a tank id turns that tank into an IFV and",
-                         "its crew will climb out mid-battle. \"m1\" would catch m1a2 for exactly that reason.",
-                         "",
-                         "Who stays aboard is not configurable, because it cannot be read off the seat data",
-                         "reliably: the DRIVER (seat 0) and the TURRET (the seat carrying the most weapons) hold",
-                         "their positions and everyone else dismounts. Seats are not consistent enough for a",
-                         "finer rule -- superbwarfare:bmp_2 gives its six rear seats firing-port MGs, so an",
-                         "\"only weaponless seats dismount\" rule would empty nothing at all, while fcp's BMPs put",
-                         "a WEAPONLESS driver in seat 0 and the turret in seat 1.")
-                .defineList("ifvNameClues",
-                        List.of("bradley", "bmp", "bmd", "cv90", "puma", "marder"),
-                        o -> o instanceof String s && !s.isBlank());
-
-        SEM_CREW_DISABLE_INERTIA_ROTATE = builder
-                .comment("Zero SuperbWarfare's InertiaRotateRate chassis bank while an SEM unit is driving.",
-                         "FCP (and some ASH) hulls set that rate high so the cosmetic lean fights AI steering",
-                         "at speed. Players keep the datapack value. Turn OFF to restore stock bank for AI crews.")
+        SEM_CREW_DISABLE_INERTIA_ROTATE = builder.comment("Disable chassis bank while SEM units drive.")
                 .define("semCrewDisableInertiaRotate", true);
-
-        MISSILE_SYSTEM_NAME_CLUES = builder
-                .comment("Substrings that mark a vehicle id as a coordinate missile system (ASH Sapsan and",
-                         "similar). Matched case-insensitively against the whole registry id. Crews stop, raise",
-                         "the launch pod and fire at a designated target or fire-mission aimpoint.")
-                .defineList("missileSystemNameClues",
-                        List.of("sapsan", "grim2"),
-                        o -> o instanceof String s && !s.isBlank());
-
-        ANTI_AIR_NAME_CLUES = builder
-                .comment("Substrings that mark a vehicle id as an anti-air platform (ASH Gepard/Pantsir and",
-                         "similar). Matched case-insensitively against the whole registry id. Those crews prefer",
-                         "targets riding HELICOPTER or AIRCRAFT engine hulls over ground contacts.")
-                .defineList("antiAirNameClues",
-                        List.of("gepard", "pantsir", "pa_pantsir"),
-                        o -> o instanceof String s && !s.isBlank());
-
-        MISSILE_SYSTEM_FIRE_COOLDOWN_TICKS = builder
-                .comment("Game ticks between ballistic missile launches from a MissileSystem crew. Goals tick",
-                         "every other game tick, so this is wall-clock time (100 = 5 seconds).")
-                .defineInRange("missileSystemFireCooldownTicks", 100, 20, 1200);
-
-        TANK_RIDER_DISMOUNT_ENABLED = builder
-                .comment("Let a tank-rider seat (SuperbWarfare's Pose==\"Climb\" — an exposed handhold, not a real",
-                         "crew station) empty out once the driver holds ANY target, and refill once a nearby idle",
-                         "RU/US unit walks past a hull with a free one. Purely a utilization fix, not an anti-armor",
-                         "tactic like ifvDismountsEnabled: a Climb seat has no weapon and nothing to do mounted, so",
-                         "there is no reason to fight with an idle NPC riding along instead of on foot.",
-                         "No AT launcher is issued (these are spare hitchhikers, not a designated element) and there",
-                         "is no recall — SeekAbandonedVehicleGoal is what lets ANY idle unit reclaim the seat later,",
-                         "not necessarily the one who got off. Identified by pose, not by seat index or \"no weapon\"",
-                         "(which would also empty a weaponless commander seat) — so this works unmodified on any",
-                         "hull using SuperbWarfare's seat schema, addons included.")
+        TANK_RIDER_DISMOUNT_ENABLED = builder.comment("Let exposed climb-seat riders dismount in combat.")
                 .define("tankRiderDismountEnabled", true);
-
-        AT_WEAPON_RU = builder
-                .comment("SuperbWarfare launcher handed to an RU dismount squad's anti-tank gunners.",
-                         "A dismount squad only ever leaves the hull because it met ARMOUR, and a TACZ rifle cannot",
-                         "hurt armour — without this the squad is put on the ground with nothing useful to do.",
-                         "The weapon REPLACES the unit's rifle (there is only one main hand), and it comes with its",
-                         "own ammunition supply (atBackupAmmo) rather than drawing from an inventory, because RU/US",
-                         "units have none. Set blank to leave RU dismounts with their rifles.")
+        AT_WEAPON_RU = builder.comment("Launcher given to RU anti-tank dismounts.")
                 .define("atWeaponRu", "superbwarfare:rpg");
-
-        AT_WEAPON_US = builder
-                .comment("The same, for a US dismount squad. The Javelin is guided and fire-and-forget, so it works",
-                         "at any range the unit can acquire a target at; the RPG is an unguided rocket and wants to",
-                         "be much closer (see atEngageRange). Set blank to leave US dismounts with their rifles.")
+        AT_WEAPON_US = builder.comment("Launcher given to US anti-tank dismounts.")
                 .define("atWeaponUs", "superbwarfare:javelin");
-
-        AT_SECOND_GUNNER_CHANCE = builder
-                .comment("Chance that a dismount squad gets a SECOND anti-tank gunner. The first dismount always",
-                         "gets one; nobody past the second ever does, whatever this is set to.",
-                         "0.0 = always exactly one AT gunner per squad, 1.0 = always two.")
+        AT_SECOND_GUNNER_CHANCE = builder.comment("Chance to give a squad a second anti-tank gunner.")
                 .defineInRange("atSecondGunnerChance", 0.5, 0.0, 1.0);
-
-        AT_BACKUP_AMMO = builder
-                .comment("Rockets/missiles issued with the launcher. RU/US units have no inventory, so this is an",
-                         "ISSUED supply (SuperbWarfare's own item-free ammo channel) rather than carried items —",
-                         "the same way mortar shells and TOW missiles reach these crews. When it runs out the",
-                         "gunner is left with an empty tube; it is not resupplied.")
+        AT_BACKUP_AMMO = builder.comment("Issued rockets or missiles per anti-tank gunner.")
                 .defineInRange("atBackupAmmo", 8, 1, 64);
-
-        AT_ENGAGE_RANGE = builder
-                .comment("Maximum range (in blocks) at which an AT gunner will fire.",
-                         "This is a FIRE gate, not an approach order: SimpleEnemyMod walks a unit to within 90",
-                         "blocks of its target and then stops, so a gunner further out than this simply holds fire",
-                         "rather than wasting its small supply of rockets on shots that fall short.",
-                         "Raise it well past 90 for the Javelin, which is guided and does not care about the drop.")
+        AT_ENGAGE_RANGE = builder.comment("Maximum anti-tank firing range.")
                 .defineInRange("atEngageRange", 48.0, 8.0, 200.0);
-
-        AT_AIM_TICKS = builder
-                .comment("How long an AT gunner tracks its target before the first shot, in goal ticks.",
-                         "Note goals tick every OTHER game tick, so this is roughly 2x its value in game ticks.",
-                         "Purely a feel knob — it stops a launcher going off the instant the unit hits the ground.")
-                .defineInRange("atAimTicks", 15, 0, 200);
-
-        MEDIC_ENABLED = builder
-                .comment("Let PMC units treat themselves and each other with superbwarfare:medical_kit while OUT",
-                         "of contact (neither the medic nor the patient holding a target).",
-                         "Kits are NOT issued automatically — put them in a unit's inventory yourself, and they are",
-                         "consumed one per treatment. A unit with no kit simply never does this.")
+        MEDIC_ENABLED = builder.comment("Allow PMC medics to use medical kits out of combat.")
                 .define("medicEnabled", true);
-
-        MEDIC_SEARCH_RADIUS = builder
-                .comment("How far (in blocks) a medic will look for a wounded same-faction unit to treat.",
-                         "It treats ITSELF first when hurt; only then does it walk to someone else.",
-                         "A dedicated medic roams, so this wants to be generous — too small and it never",
-                         "happens to be near anyone hurt.")
+        MEDIC_SEARCH_RADIUS = builder.comment("How far medics search for wounded allies.")
                 .defineInRange("medicSearchRadius", 24.0, 2.0, 48.0);
-
-        MEDIC_HEAL_PER_TREAT = builder
-                .comment("Health a dedicated medic restores per treatment pulse, repeated every couple of seconds",
-                         "while it stands over a patient. Deliberately modest: the medic works from an unlimited",
-                         "supply, so it tops someone up gradually rather than in one tick.",
-                         "This does NOT apply to a PMC spending a real medical kit from its inventory — that",
-                         "consumes the kit and applies SuperbWarfare's own full heal instead.")
+        MEDIC_HEAL_PER_TREAT = builder.comment("Health restored per dedicated medic treatment pulse.")
                 .defineInRange("medicHealPerTreat", 2.0, 0.5, 20.0);
-
-        HEALTH_MOBILITY_ENABLED = builder
-                .comment("Slow an AI-crewed vehicle's drive speed and turret slew as it loses health.",
-                         "SuperbWarfare already degrades mobility when a specific COMPONENT is knocked out (a dead",
-                         "track/engine/turret), but not gradually with overall damage — this adds that, and only to",
-                         "vehicles a unit is crewing (player-driven hulls are untouched).")
+        HEALTH_MOBILITY_ENABLED = builder.comment("Scale AI vehicle mobility down as health drops.")
                 .define("healthMobilityEnabled", true);
-
-        HEALTH_MOBILITY_FLOOR = builder
-                .comment("Slowest an AI vehicle gets from damage, as a fraction of its full speed/slew, reached at",
-                         "0 health. Mobility scales linearly from 1.0 at full health down to this. Keep it above 0",
-                         "so a near-dead tank still limps and turns rather than freezing in place.")
+        HEALTH_MOBILITY_FLOOR = builder.comment("Minimum mobility fraction at zero health.")
                 .defineInRange("healthMobilityFloor", 0.4, 0.05, 1.0);
-
-        MEDIC_SPAWN_CHANCE = builder
-                .comment("Chance (0.0-1.0) that a freshly-spawned RU/US unit brings a same-faction squad medic with",
-                         "it. Rolled once per unit on first spawn, then suppressed if a friendly medic is already",
-                         "within supportDedupeRadius, so a cluster of units gets about one medic rather than a swarm.",
-                         "Medics are neutral (no faction targets them), carry no weapon, and heal their own side.")
+        MEDIC_SPAWN_CHANCE = builder.comment("Chance an RU/US unit brings a medic companion.")
                 .defineInRange("medicSpawnChance", 0.06, 0.0, 1.0);
-
-        ENGINEER_SPAWN_CHANCE = builder
-                .comment("Chance (0.0-1.0) that a freshly-spawned RU/US unit brings a same-faction mechanical",
-                         "engineer. Same first-spawn roll and dedupe as medics. Engineers carry a repair tool and",
-                         "patch up friendly or empty hulls on foot; they can be targeted like any other unit.")
+        ENGINEER_SPAWN_CHANCE = builder.comment("Chance an RU/US unit brings an engineer companion.")
                 .defineInRange("engineerSpawnChance", 0.05, 0.0, 1.0);
-
-        SUPPORT_DEDUPE_RADIUS = builder
-                .comment("Radius (in blocks) used to avoid stacking support units: a medic/engineer companion is not",
-                         "spawned if one of the same role and faction is already within this distance.")
+        SUPPORT_DEDUPE_RADIUS = builder.comment("Radius used to avoid stacking support companions.")
                 .defineInRange("supportDedupeRadius", 32.0, 4.0, 128.0);
-
-        ENGINEER_SEARCH_RADIUS = builder
-                .comment("How far (in blocks) a mechanical engineer looks for a damaged friendly/empty vehicle to fix.")
+        ENGINEER_SEARCH_RADIUS = builder.comment("How far engineers search for vehicles to repair.")
                 .defineInRange("engineerSearchRadius", 24.0, 4.0, 96.0);
-
-        ENGINEER_REPAIR_PER_TREAT = builder
-                .comment("Vehicle health an engineer restores per repair pulse (SBW vehicle health units; a BMP has",
-                         "300 max). Applied every engineerRepairCooldown goal ticks while it stands by the hull.")
+        ENGINEER_REPAIR_PER_TREAT = builder.comment("Vehicle health restored per engineer repair pulse.")
                 .defineInRange("engineerRepairPerTreat", 4.0, 0.5, 100.0);
-
-        ENGINEER_REPAIR_COOLDOWN = builder
-                .comment("Goal ticks between an engineer's repair pulses (goals tick every OTHER game tick, so this",
-                         "is roughly 2x its value in game ticks).")
+        ENGINEER_REPAIR_COOLDOWN = builder.comment("Goal ticks between engineer repair pulses.")
                 .defineInRange("engineerRepairCooldown", 10, 1, 200);
-
-        ENGINEER_SIDEARM_POOL = builder
-                .comment("Sidearms an engineer may carry, one rolled per unit. It rides in the OFF hand while the",
-                         "engineer works and is drawn into the main hand only once it has a target — SimpleEnemyMod's",
-                         "rifle goal fires whatever TACZ gun is in the MAIN hand, so the swap is what makes a",
-                         "holstered weapon behave like a holstered weapon.",
-                         "",
-                         "These are TACZ GUN IDs — NOT item ids, and NOT item tags. Every TACZ gun is the same",
-                         "item (tacz:modern_kinetic_gun) carrying its gun id in NBT, so \"tacz:m1911\" only means",
-                         "anything through TACZ's own gun registry; an id TACZ does not know simply leaves that",
-                         "engineer without a sidearm rather than erroring.",
-                         "",
-                         "Ammunition is TACZ's DUMMY-ammo channel (an effectively unlimited magazine written onto",
-                         "the gun itself), which is exactly how SimpleEnemyMod supplies its own units: RU/US units",
-                         "have no inventory, so a real ammo item would have nowhere to live and the gun would",
-                         "never fire. There is no ammo item to configure.")
-                .defineList("engineerSidearmPool",
-                        List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"),
-                        SewvConfig::isValidResourceId);
-
-        DRONE_MAX_PER_ENGINEER = builder
-                .comment("Max recon drones a single engineer may have deployed at once. Ownership is tagged on the",
-                         "drone itself and re-counted from the world rather than remembered by the engineer, so this",
-                         "cap survives a chunk reload rather than resetting it.")
+        ENGINEER_SIDEARM_POOL = builder.comment("Possible TACZ sidearm ids for engineers.")
+                .defineList("engineerSidearmPool", List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"), SewvConfig::isValidResourceId);
+        DRONE_MAX_PER_ENGINEER = builder.comment("Maximum recon drones per engineer.")
                 .defineInRange("droneMaxPerEngineer", 2, 0, 8);
-
-        DRONE_DEPLOY_CHECK_INTERVAL_TICKS = builder
-                .comment("Game ticks between an engineer's deploy rolls. Skipped entirely once at droneMaxPerEngineer",
-                         "— an engineer with a full flight never even runs this check.")
+        DRONE_DEPLOY_CHECK_INTERVAL_TICKS = builder.comment("How often engineers roll to deploy drones.")
                 .defineInRange("droneDeployCheckIntervalTicks", 200, 20, 12000);
-
-        DRONE_DEPLOY_CHANCE = builder
-                .comment("Chance (0.0-1.0) that a deploy roll actually launches a drone, rolled once per",
-                         "droneDeployCheckIntervalTicks while under the cap.")
+        DRONE_DEPLOY_CHANCE = builder.comment("Chance that a deploy check launches a drone.")
                 .defineInRange("droneDeployChance", 0.2, 0.0, 1.0);
-
-        DRONE_SCAN_ALTITUDE = builder
-                .comment("Height (in blocks) a drone holds above the engineer it escorts while on station.")
+        DRONE_SCAN_ALTITUDE = builder.comment("Drone station altitude above its engineer.")
                 .defineInRange("droneScanAltitude", 20.0, 5.0, 60.0);
-
-        DRONE_DETECTION_RADIUS = builder
-                .comment("Radius (in blocks) a drone scans around itself for enemies.")
+        DRONE_DETECTION_RADIUS = builder.comment("Drone enemy detection radius.")
                 .defineInRange("droneDetectionRadius", 48.0, 8.0, 128.0);
-
-        DRONE_BROADCAST_RADIUS = builder
-                .comment("Radius (in blocks) around a drone that a spotted enemy is relayed to — every same-faction",
-                         "unit or vehicle crew in range with no target of its own is handed the sighting directly",
-                         "(RU/US have no order queue to route it through, unlike the PMC radio relay).")
+        DRONE_BROADCAST_RADIUS = builder.comment("Radius for relaying drone sightings to allies.")
                 .defineInRange("droneBroadcastRadius", 160.0, 16.0, 384.0);
-
-        DRONE_SCAN_INTERVAL_TICKS = builder
-                .comment("Game ticks between a drone's enemy scans (an area query, the expensive part), throttled",
-                         "independent of flight ticking. Proximity/faction only — no line-of-sight check: a spotted",
-                         "target only makes a receiving unit/vehicle AWARE of it, and firing still gates on that",
-                         "unit's own LOS check at the moment it shoots, so this never causes a tank to shoot",
-                         "through a wall it can't see over.")
+        DRONE_SCAN_INTERVAL_TICKS = builder.comment("How often drones run their expensive enemy scan.")
                 .defineInRange("droneScanIntervalTicks", 20, 5, 200);
-
-        AUTO_BOARD_ENABLED = builder
-                .comment("Let RU/US infantry climb into an abandoned vehicle they walk past, so a hull whose crew",
-                         "bailed out (or one you parked and left) gets crewed again instead of sitting there.",
-                         "A unit only does this while it has NO target — it will not break off a firefight to go",
-                         "looking for a ride. PMC units are unaffected: they board on your order instead.",
-                         "Note this deliberately cannot recall an IFV's dismount squad — the hull they left still",
-                         "holds its driver and gunner, and only a COMPLETELY empty vehicle is scavenged.")
+        AUTO_BOARD_ENABLED = builder.comment("Let idle RU/US infantry claim abandoned vehicles.")
                 .define("autoBoardEnabled", true);
-
-        AUTO_BOARD_SCAN_RADIUS = builder
-                .comment("Radius (in blocks) an idle RU/US unit searches for an abandoned vehicle.",
-                         "This scan is the whole cost of the feature, so keep it modest — it runs on every idle",
-                         "unit on the map. Lower it if you spawn very large numbers of infantry.")
+        AUTO_BOARD_SCAN_RADIUS = builder.comment("Radius used to scan for abandoned vehicles.")
                 .defineInRange("autoBoardScanRadius", 32.0, 4.0, 128.0);
-
-        AUTO_BOARD_MIN_HEALTH_FRACTION = builder
-                .comment("Minimum health (as a fraction of maximum) an abandoned vehicle must still have before a",
-                         "crew will take it. Below this the hull is a burning wreck in waiting and a crew that",
-                         "boarded it would only bail straight back out.")
+        AUTO_BOARD_MIN_HEALTH_FRACTION = builder.comment("Minimum vehicle health fraction required for auto-boarding.")
                 .defineInRange("autoBoardMinHealthFraction", 0.25, 0.0, 1.0);
-
-        AUTO_BOARD_STEALS_PLAYER_VEHICLES = builder
-                .comment("Whether enemies may take a vehicle a PLAYER last drove.",
-                         "SuperbWarfare has no concept of vehicle ownership at all — the last driver is the only",
-                         "signal there is — so turning this on means any hull you step out of is fair game, and",
-                         "leaving it off means a vehicle you have driven even once is permanently off limits.")
+        AUTO_BOARD_STEALS_PLAYER_VEHICLES = builder.comment("Allow RU/US units to take vehicles last driven by a player.")
                 .define("autoBoardStealsPlayerVehicles", false);
-
-        VEHICLE_FORMATION_SPACING = builder
-                .comment("Distance (in blocks) between successive slots in a vehicle wedge or column.",
-                         "This is the step directly astern; a wedge also fans out sideways 1.25x as fast, which is",
-                         "SimpleEnemyMod's own wedge proportion kept at vehicle scale.",
-                         "MUST stay comfortably above your widest hull's width — a T-90A is 4.62 blocks across, and",
-                         "the terrain sensor treats an allied hull as a no-go box reaching a full hull width out from",
-                         "its centre. Set this too low and a column puts each hull's slot inside its leader's no-go",
-                         "box: the follower can never settle there and turns in place beside the formation forever.",
-                         "Larger = a looser, safer formation that covers more ground.")
+        VEHICLE_FORMATION_SPACING = builder.comment("Distance between vehicles in formations.")
                 .defineInRange("vehicleFormationSpacing", 12.0, 5.0, 32.0);
-
-        VEHICLE_FORMATION_ARRIVE_RADIUS = builder
-                .comment("How close (in blocks, measured horizontally) a hull must get to its formation slot to park.",
-                         "Formations need their own arrival distance because the ordinary one is a hull width plus 8",
-                         "blocks — 11.62 for a T-90A, wider than the whole formation, so every hull would count as",
-                         "'arrived' from anywhere in it and the wedge would collapse onto the point man.",
-                         "KEEP THIS BELOW HALF vehicleFormationSpacing, or neighbouring slots' arrival circles overlap",
-                         "and a hull can 'arrive' while sitting in its neighbour's slot.")
-                .defineInRange("vehicleFormationArriveRadius", 3.0, 1.0, 8.0);
-
-        STALEMATE_BREAKER_ENABLED = builder
-                .comment("Let an AI crew reposition on its own initiative when it is holding a target it cannot",
-                         "actually shoot — a turret that can't depress far enough, terrain in the way, or any other",
-                         "reason. Without this two tanks can sit staring at each other forever, since holding still",
-                         "is exactly what the standoff doctrine asks for and nothing notices no shots are coming out.",
-                         "Disable to restore the old behavior of holding the standoff ring unconditionally.")
-                .define("stalemateBreakerEnabled", true);
-
-        STALEMATE_SILENCE_TICKS = builder
-                .comment("How long an AI crew may hold a live target without landing a shot before it assumes it is",
-                         "stuck and repositions (20 ticks = 1 second).",
-                         "MUST stay above the slowest legitimate reload on your hulls, or crews will wander off mid-duel",
-                         "between normal shots: SBW cannon reloads run 6-13 seconds, so the default sits clear of them.",
-                         "Raise it if you run slow-firing modded vehicles. Targets outside the turret's elevation range",
-                         "are detected immediately and don't wait for this timer.")
-                .defineInRange("stalemateSilenceTicks", 300, 40, 2400);
-
-        VEHICLE_TARGET_SCAN_RADIUS = builder
-                .comment("Horizontal radius (in blocks) of the cylindrical target scan used by mounted AI crews.",
-                         "Replaces the vanilla follow-range scan, which is far too short for vehicle engagement ranges.",
-                         "Larger = crews spot enemies farther out, but each scan touches more of the world (Lower this for performance).")
+        VEHICLE_TARGET_SCAN_RADIUS = builder.comment("Horizontal radius of mounted target scans.")
                 .defineInRange("vehicleTargetScanRadius", 96.0, 8.0, 128.0);
-
-        VEHICLE_TARGET_SCAN_HEIGHT = builder
-                .comment("Total height (in blocks) of the target-scan cylinder, centered on the vehicle.",
-                         "Raise it if enemies on tall cliffs should be engaged.")
-                .defineInRange("vehicleTargetScanHeight", 128, 4.0, 128.0);
-
-        VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder
-                .comment("Ticks between target scans per crew member (20 = 1 second).",
-                         "Higher number = cheaper, but crews react slower to threats.")
+        VEHICLE_TARGET_SCAN_HEIGHT = builder.comment("Vertical span of mounted target scans.")
+                .defineInRange("vehicleTargetScanHeight", 128.0, 4.0, 128.0);
+        VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder.comment("How often mounted crews rescan for targets.")
                 .defineInRange("vehicleTargetScanIntervalTicks", 20, 1, 200);
-
-        VEHICLE_TARGET_REQUIRE_LOS = builder
-                .comment("If vehicles should use LineOfSight. Disable to squeeze much more performance, keep enabled for realism.")
+        VEHICLE_TARGET_REQUIRE_LOS = builder.comment("Require line of sight for mounted target scans.")
                 .define("vehicleTargetRequireLineOfSight", true);
-
-        VEHICLE_ALLY_ASSIST_RANGE = builder
-                .comment("Range a vehicle uses to scan for allies in combat")
+        VEHICLE_ALLY_ASSIST_RANGE = builder.comment("Range for counting allied support in combat.")
                 .defineInRange("vehicleAllyAssistRange", 128.0, 0.0, 256.0);
-
-        VEHICLE_TERRAIN_AVOIDANCE = builder
-                .comment("Look ahead while driving and steer AI vehicles around water and lava instead of",
-                         "ploughing straight into them. Drops are deliberately NOT avoided — SBW's fall damage",
-                         "on vehicles is forgiving, so refusing them cost far more mobility than it saved.",
-                         "Disabling restores legacy behavior of driving in a straight line at the destination.")
+        STALEMATE_BREAKER_ENABLED = builder.comment("Let mounted crews reposition when they cannot land shots.")
+                .define("stalemateBreakerEnabled", true);
+        STALEMATE_SILENCE_TICKS = builder.comment("How long a crew may fail to land a shot before repositioning.")
+                .defineInRange("stalemateSilenceTicks", 300, 40, 2400);
+        VEHICLE_TERRAIN_AVOIDANCE = builder.comment("Use terrain avoidance while driving.")
                 .define("vehicleTerrainAvoidance", true);
-
-        VEHICLE_LOOKAHEAD_DISTANCE = builder
-                .comment("How far ahead (in blocks) the terrain sensor probes for hazards.",
-                         "Higher numbers = scans ahead for obstacles at the cost of performance.")
-                .defineInRange("vehicleLookaheadDistance", 5.0, 1.0, 16.0);
-
-        PATROL_ROTATE_INTERVAL_TICKS = builder
-                .comment("How long a patrolling ground vehicle holds a spot before moving to a new random point",
-                         "inside its patrol area (20 ticks = 1 second; default 3600 = 3 minutes).")
+        PATROL_ROTATE_INTERVAL_TICKS = builder.comment("How long patrol crews hold a point before rotating.")
                 .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
-
-        IDLE_WANDER_ENABLED = builder
-                .comment("Let a crewed ground/ship hull with no target and no standing order potter about near",
-                         "where it went idle -- short drives to nearby drivable ground, with pauses where it sits",
-                         "completely still, and a slow turret sweep. Turn off to have idle hulls park like statues.",
-                         "The turret sweep and idle radio chatter are NOT disabled by this; only the driving is.")
+        IDLE_WANDER_ENABLED = builder.comment("Let idle hulls wander locally.")
                 .define("idleWanderEnabled", true);
-
-        IDLE_WANDER_RADIUS = builder
-                .comment("How far (in blocks) an idle hull may drift from the spot it went idle at.",
-                         "Kept small on purpose: this is a crew stretching its legs, not a patrol -- use the",
-                         "Tactical Data Terminal's Patrol order for a real one.")
+        IDLE_WANDER_RADIUS = builder.comment("How far idle hulls may drift from their anchor.")
                 .defineInRange("idleWanderRadius", 16, 4, 64);
-
+        UTILITY_REFRESH_INTERVAL_TICKS = builder.comment("How often vehicle crews reconsider their plan.")
+                .defineInRange("utilityRefreshIntervalTicks", 20, 5, 200);
+        FACTION_ORGANIC_COMMS = builder.comment("Let RU/US crews call support without carrying radios.")
+                .define("factionOrganicComms", true);
+        SUPPORT_CALL_INTERVAL_TICKS = builder.comment("Minimum delay between support searches and support requests.")
+                .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
         builder.pop();
 
         builder.push("flight_ai");
-
-        HELI_ENGAGE_RADIUS = builder
-                .comment("Horizontal standoff (in blocks) a NPC helicopter holds from a combat target while",
-                         "aiming: beyond it the aircraft closes in, inside it the aircraft holds and pitches",
-                         "its nose down onto the target so its weapons bear.")
+        HELI_ENGAGE_RADIUS = builder.comment("Horizontal standoff distance for AI helicopters.")
                 .defineInRange("heliEngageRadius", 32.0, 12.0, 64.0);
-
-        HELI_ALT_DEADBAND = builder
-                .comment("Altitude-hold tolerance (in blocks). The NPC helicopter only applies climb/descend",
-                         "collective when it is more than this far off its target height, so it settles into",
-                         "a stable hover instead of hunting up and down. Smaller = tighter but twitchier.")
-                .defineInRange("heliAltDeadband", 2.5, 0.5, 8.0);
-
-        HELI_CRUISE_SPEED = builder
-                .comment("Target horizontal cruise speed (blocks/tick) an helicopter flies a leg at.",
-                         "The pilot brakes toward this as a ceiling and eases below it on approach so it",
-                         "decelerates onto the destination instead of overshooting. Lower = gentler, safer.")
-                .defineInRange("heliCruiseSpeed", 0.6, 0.1, 2.0);
-
-        HELI_WEAPON_SWITCH_INTERVAL_TICKS = builder
-                .comment("Ticks between weapon switches for an helicopter crew in combat (20 = 1 second).")
-                .defineInRange("heliWeaponSwitchIntervalTicks", 60, 1, 1200);
-
-        HELI_ATTACK_HEIGHT = builder
-                .comment("Height (in blocks) above the TARGET an AI helicopter holds while aiming in combat.",
-                         "Lower = shallower dive needed to bring fixed weapons to bear (fires much more",
-                         "reliably) but a more exposed, terrain-hugging attack profile. Outside the engage",
-                         "ring the aircraft still transits at its normal cruise flight level.")
-                .defineInRange("heliAttackHeight", 15.0, 8.0, 40.0);
-
-        HELI_CHUNK_LOADING = builder
-                .comment("If enabled, helicopters will keep flying even if chunks are unloaded. Can cause performance issues if many helicopters are flying at once.")
+        HELI_CHUNK_LOADING = builder.comment("Keep AI helicopters ticking when no player is nearby.")
                 .define("heliChunkLoading", false);
-
-        PLANE_CHUNK_LOADING = builder
-                .comment("If enabled, planes will keep flying even if chunks are unloaded. Can cause performance issues if many planes are flying at once.")
+        PLANE_CHUNK_LOADING = builder.comment("Keep AI planes ticking when no player is nearby.")
                 .define("planeChunkLoading", false);
-
-        PLANE_TAKEOFF_RUNWAY_RADIUS = builder
-                .comment("Length (in blocks) of clear run a NPC plane needs ahead of it to take off. On the",
-                         "takeoff order it fans across nearby headings for a clear strip this long; if none is",
-                         "found it aborts and reports 'no runway' rather than stalling into an obstacle. A plane",
-                         "does not taxi, so this is a clearance check from where it stands, not a search radius.")
-                .defineInRange("planeTakeoffRunwaySearchRadius", 64, 16, 256);
-
-        PLANE_FIRE_CONE_DEG = builder
-                .comment("How far off its nose a NPC plane's forward weapons (cannon/rockets/missiles) will fire,",
-                         "in degrees. A fast plane sweeps a small ground target through a tight cone in a fraction",
-                         "of a second, so a narrow angle (the 12 deg used elsewhere) almost never fires; this is",
-                         "deliberately generous and lets the weapon's splash do the work. Guided missiles steer",
-                         "out the residual error. Bombs ignore this (they use predictive release, not the nose).")
-                .defineInRange("planeFireConeDeg", 45.0, 4.0, 90.0);
-
-        PLANE_MISSILE_CLUES = builder
-                .comment("Substrings that mark a plane weapon slot as a MISSILE (heaviest tier, guided, reserved",
-                         "for the toughest targets and fired with the highest chance there). Matched",
-                         "case-insensitively against the weapon's name, since SuperbWarfare planes do not order",
-                         "their weapons consistently -- the same clue idea as ifvNameClues.")
-                .defineList("planeMissileWeaponClues",
-                        List.of("missile", "agm", "kh_", "atgm", "maverick"),
-                        o -> o instanceof String s && !s.isBlank());
-
-        PLANE_BOMB_CLUES = builder
-                .comment("Substrings that mark a plane weapon slot as a BOMB (heavy tier, dropped by predictive",
-                         "release rather than fired along the nose).")
-                .defineList("planeBombWeaponClues",
-                        List.of("bomb"),
-                        o -> o instanceof String s && !s.isBlank());
-
-        PLANE_ROCKET_CLUES = builder
-                .comment("Substrings that mark a plane weapon slot as a ROCKET (medium tier, used against infantry).")
-                .defineList("planeRocketWeaponClues",
-                        List.of("rocket", "hydra"),
-                        o -> o instanceof String s && !s.isBlank());
-
-        PLANE_CANNON_CLUES = builder
-                .comment("Substrings that mark a plane weapon slot as a CANNON/gun (lightest tier, used against",
-                         "soft single targets). Any slot matching none of the four clue lists is treated as this.")
-                .defineList("planeCannonWeaponClues",
-                        List.of("cannon", "gau", "machinegun", "mg", "gun", "vulcan"),
-                        o -> o instanceof String s && !s.isBlank());
-
-        PLANE_COMMAND_RADIUS = builder
-                .comment("Range (in blocks) the Tactical Data Terminal reaches to find your own AIRCRAFT (planes",
-                         "and helicopters) for a takeoff/land order. Bigger than the ground boardScanRadius because",
-                         "aircraft fly high and far, and the reach is measured HORIZONTALLY (altitude-independent) so",
-                         "a plane cruising overhead is still found. Note the client only knows entities the server",
-                         "sends it (~render distance), so a value past that cannot reach a plane on the far side of",
-                         "the map -- command those from Xaero's map instead.")
+        PLANE_COMMAND_RADIUS = builder.comment("How far the server accepts player aircraft orders.")
                 .defineInRange("planeCommandRadius", 256.0, 32.0, 1024.0);
-
         builder.pop();
 
         builder.push("mortar_ai");
-
-        MORTAR_USE_DISTANCE = builder
-                .comment("How close (in blocks) a unit must get to a mortar before it can work it. A mortar has",
-                         "no seats, so the crew stands beside it rather than riding it. Raise this if crews take",
-                         "splash damage from their own launches; lower it for a tighter, more natural crew stance.")
+        MORTAR_USE_DISTANCE = builder.comment("How close a crew must stand to work a mortar.")
                 .defineInRange("mortarUseDistance", 2.0, 1.0, 6.0);
-
-        MORTAR_APPROACH_TIMEOUT_TICKS = builder
-                .comment("How long a unit keeps trying to walk to its assigned mortar before giving up and",
-                         "releasing it for someone else (20 ticks = 1 second). The clock only runs while the",
-                         "crew is walking, so a unit already in position never times out.")
-                .defineInRange("mortarApproachTimeoutTicks", 300, 20, 1200);
-
-        MORTAR_FIRE_COOLDOWN_TICKS = builder
-                .comment("Minimum delay between shots from one mortar crew (20 ticks = 1 second). This is on top",
-                         "of the mortar's own ~1.25 s load cycle, so it sets the sustained rate of fire.",
-                         "Lower = faster barrages and heavier ammo drain.")
+        MORTAR_FIRE_COOLDOWN_TICKS = builder.comment("Minimum delay between mortar shots.")
                 .defineInRange("mortarFireCooldownTicks", 60, 1, 1200);
-
-        MORTAR_DISPERSION_RADIUS = builder
-                .comment("Scatter radius (in blocks) an AI crew aims within, around its target. Each shot is",
-                         "re-rolled inside this circle, so a mortar walks its rounds over an area instead of",
-                         "hammering one point. 0 aims dead-on every shot.")
+        MORTAR_DISPERSION_RADIUS = builder.comment("Scatter radius around a mortar target point.")
                 .defineInRange("mortarDispersionRadius", 3, 0, 16);
-
-        MORTAR_REQUIRES_AMMO = builder
-                .comment("Require a crew to carry mortar shells in its inventory (sneak+right-click a unit to open",
-                         "it) and consume one per shot. Disable for unlimited shells — useful for testing.")
+        MORTAR_REQUIRES_AMMO = builder.comment("Require mortar shells in inventory and consume one per shot.")
                 .define("mortarRequiresAmmo", true);
-
-        MORTAR_CHUNK_LOADING = builder
-                .comment("Keep a crewed mortar and its crew loaded and ticking when no player is nearby.",
-                         "This is what lets a radio fire mission be worked from far outside your render distance —",
-                         "without it a mortar simply stops existing once you walk away, and the barrage stops with it.",
-                         "Only chunks with a crewed mortar in them are held, and only until the crew stands down,",
-                         "so the cost scales with how many mortars you have manned, not with the map.",
-                         "Disable if you are manning many mortars at once and the server is struggling.")
+        MORTAR_CHUNK_LOADING = builder.comment("Keep crewed mortars loaded during remote fire missions.")
                 .define("mortarChunkLoading", true);
-
-        MORTAR_RADIO_RANGE = builder
-                .comment("Range (in blocks) of the handheld radio: how far it looks for the mob you are pointing at,",
-                         "and how far its fire mission reaches out to your manned mortars and TOW launchers.",
-                         "A mortar itself can shoot roughly 27-770 blocks, so the default covers most of that.")
+        MORTAR_RADIO_RANGE = builder.comment("Radio range for designating targets and support crews.")
                 .defineInRange("mortarRadioRange", 400.0, 16.0, 1024.0);
-
-        MORTAR_DEBUG_LOGGING = builder
-                .comment("Log why a mortar crew is holding fire (to the server log, once per change of reason).",
-                         "Turn this on if a crew reaches its mortar but won't shoot — it names the exact gate,",
-                         "e.g. no target, out of range, no shells.")
-                .define("mortarDebugLogging", false);
-
-        PMC_COMBAT_DEBUG_LOGGING = builder
-                .comment("Log why one of YOUR PMC units is not shooting back (to the server log, throttled per unit).",
-                         "Turn this on if your PMCs 'stop shooting after a while' — when an owned PMC has been hit",
-                         "recently but holds no live target, it dumps the fields that name the cause: its order,",
-                         "target, held items, whether it is riding a hull (and that hull's health), and support role.")
-                .define("pmcCombatDebugLogging", false);
-
         builder.pop();
 
         builder.push("voicelines");
-
-        VEHICLE_VOICELINES_ENABLED = builder
-                .comment("Master switch for ALL crew radio voicelines. With this on, a hull speaks with ONE voice",
-                         "(the driver) that calls out contact, taking fire (under 60% health), popping smoke,",
-                         "dropping its squad from an IFV, bailing out, and acknowledging player orders -- muffled",
-                         "radio traffic rather than SimpleEnemyMod's shouted infantry lines, which are also muted",
-                         "inside a hull so a loaded carrier doesn't fire one death shout per rider at once.",
-                         "Lines play on the vanilla Voice/Speech volume slider; units on foot are unaffected.",
-                         "Turn off to silence every vehicle voiceline and restore SimpleEnemyMod's own behaviour.")
+        VEHICLE_VOICELINES_ENABLED = builder.comment("Enable mounted crew radio voicelines.")
                 .define("vehicleVoicelinesEnabled", true);
-
-        VEHICLE_VOICELINE_VOLUME = builder
-                .comment("Base emission volume for crew voicelines, so they carry over gunfire.",
-                         "Above 1.0 does NOT raise peak loudness (Minecraft clamps gain to 1.0) but widens the",
-                         "sound's falloff radius, so it attenuates more gently and stays audible further out.",
-                         "The in-game Voice/Speech slider scales this per-player on top.")
-                .defineInRange("vehicleVoicelineVolume", 1.8, 0.5, 4.0);
-
-        IDLE_VOICELINE_DELAY_TICKS = builder
-                .comment("How long a crew must go without a target before it starts idle radio chatter",
-                         "(20 ticks = 1 second). Set high to keep hulls quiet between fights.")
+        IDLE_VOICELINE_DELAY_TICKS = builder.comment("How long crews stay quiet before idle chatter starts.")
                 .defineInRange("idleVoicelineDelayTicks", 200, 20, 12000);
-
-        IDLE_VOICELINE_HEALTH_FRACTION = builder
-                .comment("A hull below this fraction of its max health does not chatter -- a shot-up crew has",
-                         "nothing idle to say. Its damaged/bail lines still play.")
+        IDLE_VOICELINE_HEALTH_FRACTION = builder.comment("Below this health fraction, idle chatter stays off.")
                 .defineInRange("idleVoicelineHealthFraction", 0.3, 0.0, 1.0);
-
         builder.pop();
 
         builder.push("interaction");
-
-        BOARD_SCAN_RADIUS = builder
-                .comment("Radius (in blocks) around the player searched for owned units for any Tactical Data " +
-                        "Terminal ground order (Board, Dismount, Patrol, Search, Dismiss, Formation) and Escort's fallback search.")
+        BOARD_SCAN_RADIUS = builder.comment("How far the server accepts nearby ground-order unit selection.")
                 .defineInRange("boardScanRadius", 64.0, 8.0, 128.0);
-
-        SHOW_ORDER_FEEDBACK = builder
-                .comment("Show an action-bar confirmation when a board/dismount/mortar order is issued.")
-                .define("showOrderFeedback", true);
-
-        builder.pop();
-
-        builder.push("overlay");
-
-        FACTION_COLORS_ENABLED = builder
-                .comment("Colour the name and health bar of SuperbWarfare's hover overlay by who is CREWING the",
-                         "vehicle, so you can tell an enemy tank from your own at a glance.",
-                         "SuperbWarfare colours that overlay from the driver's scoreboard team, and an NPC unit is",
-                         "not on a team, so without this every AI-crewed hull renders the same plain white.",
-                         "Only a hull crewed ENTIRELY by one faction is coloured; an empty, mixed, or",
-                         "player-occupied one keeps SuperbWarfare's own colour.",
-                         "This is a client-side preference — on a server each player sees their own setting.")
-                .define("factionColorsEnabled", true);
-
-        COLOR_RU = builder
-                .comment("Colour for a hull crewed entirely by RU units, as RRGGBB hex. Default is red.")
-                .define("colorRu", "FF5555");
-
-        COLOR_US = builder
-                .comment("Colour for a hull crewed entirely by US units, as RRGGBB hex. Default is blue.")
-                .define("colorUs", "5555FF");
-
-        COLOR_PMC = builder
-                .comment("Colour for a hull crewed entirely by PMC units, as RRGGBB hex. Default is green.")
-                .define("colorPmc", "55FF55");
-
         builder.pop();
 
         builder.push("map");
-
-        MAP_MARKERS_ENABLED = builder
-                .comment("Show your own PMC-crewed vehicles as markers on Xaero's World Map, and let you select",
-                         "them there and right-click the map to order them somewhere.",
-                         "Does nothing without Xaero's World Map installed. The server sends each player only",
-                         "their OWN units' positions, so this cannot be used to scout with.")
-                .define("mapMarkersEnabled", true);
-
-        MAP_LIVE = builder
-                .comment("Keep the game running while Xaero's World Map is open, so your units' positions and",
-                         "orders update LIVE and the commands you give from the map take effect immediately.",
-                         "Without this, in singleplayer the map pauses the server (vanilla behaviour) and nothing",
-                         "you order there happens until you close it. Multiplayer is unaffected either way.",
-                         "Turn OFF if you would rather the map pause the game like a normal screen (the map",
-                         "command features then only work in multiplayer).")
-                .define("mapLive", true);
-
-        MAP_INFANTRY_ENABLED = builder
-                .comment("Also show on-foot units (infantry, medics, engineers) on the map, not just vehicles.",
-                         "Same rules as vehicles: your own always, other factions' only where your side has",
-                         "spotted them. This scans every unit rather than the handful of crewed hulls, so",
-                         "turning it OFF skips that scan entirely — the switch to reach for if a large battle",
-                         "costs you frames.")
+        MAP_INFANTRY_ENABLED = builder.comment("Include on-foot units in map syncs.")
                 .define("mapInfantryEnabled", true);
-
-        MAP_SYNC_INTERVAL_TICKS = builder
-                .comment("How often (in game ticks) the server sends each player the positions of their PMC",
-                         "vehicles. Lower is smoother marker movement and more traffic; 20 is once a second.")
+        MAP_SYNC_INTERVAL_TICKS = builder.comment("How often the server sends map marker updates.")
                 .defineInRange("mapSyncIntervalTicks", 20, 5, 200);
-
-        MAP_SPOT_RADIUS = builder
-                .comment("How far (in blocks) your side can see an OTHER faction's vehicle for it to appear",
-                         "on your map. Measured from you and from each of your own crewed vehicles, so a",
-                         "tank you send forward scouts for you.",
-                         "Set to 0 to show only your own vehicles and never anyone else's.")
+        MAP_SPOT_RADIUS = builder.comment("How far your side can spot enemy markers on the map.")
                 .defineInRange("mapSpotRadius", 128.0, 0.0, 512.0);
-
-        MAP_SHOW_ICONS = builder
-                .comment("Draw APP-6 vehicle/infantry type icons on the map (armor, rotary wing, airplane, …).",
-                         "Selection, heading sticks and PMC vitals bars still work when this is off.")
-                .define("mapShowIcons", true);
-
-        MAP_SHOW_HEALTH_BAR = builder
-                .comment("Draw a compact ♥ health bar under PMC vehicle markers (not RU/US).")
-                .define("mapShowHealthBar", true);
-
-        MAP_SHOW_ENERGY_BAR = builder
-                .comment("Draw a compact ⚡ energy bar under PMC vehicle markers that have energy storage",
-                         "(not RU/US; hidden when the hull has no energy).")
-                .define("mapShowEnergyBar", true);
-
-        // Marker fill colour is the crew's FACTION colour (colorRu / colorUs / colorPmc above), the
-        // same as the in-world team overlay — the map has no separate colour config of its own.
-
-        builder.pop();
-
-        builder.push("utility_ai");
-
-        UTILITY_REFRESH_INTERVAL_TICKS = builder
-                .comment("How often (in game ticks) a vehicle crew re-reads the battlefield and re-scores its",
-                         "options. 20 is once a second. Steering and firing still happen every tick — this is",
-                         "only how often the crew CHANGES ITS MIND.",
-                         "Lower = twitchier, more reactive crews and more CPU; higher = calmer and cheaper.")
-                .defineInRange("utilityRefreshIntervalTicks", 20, 5, 200);
-
-        UTILITY_SWITCH_MARGIN = builder
-                .comment("How many utility points a rival action must beat the current plan by before the crew",
-                         "switches to it. This is what stops a crew flip-flopping between two nearly-equal",
-                         "options every second. Raise it for more committed, stubborn crews.")
-                .defineInRange("utilitySwitchMargin", 10.0, 0.0, 100.0);
-
-        UTILITY_MIN_PLAN_TICKS = builder
-                .comment("Minimum ticks a crew sticks with a chosen action before any rival can replace it,",
-                         "however much better the rival scores. Stops a plan being abandoned before the vehicle",
-                         "has physically had time to begin it (a tank needs a second just to start turning).")
-                .defineInRange("utilityMinPlanTicks", 40, 0, 400);
-
-        FACTION_ORGANIC_COMMS = builder
-                .comment("Let RU and US crews call for mortar, TOW and air support without carrying a radio.",
-                         "They have no inventory a radio could be put in, so without this they can never ask",
-                         "for supporting fire and half their doctrine does nothing.",
-                         "Your own PMC crews always need a real Handheld Radio in the unit's inventory —",
-                         "supporting fire is something you equip them for.",
-                         "Turn OFF to make faction armour fight strictly on its own.")
-                .define("factionOrganicComms", true);
-
-        SUPPORT_CALL_INTERVAL_TICKS = builder
-                .comment("Minimum ticks between one crew's requests for supporting fire. Also how often a",
-                         "crew looks to see whether any supporting weapons are in range at all — that search",
-                         "is the expensive part, so raising this is the cheap way to reduce its cost.")
-                .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
-
-        UTILITY_DEBUG_LOGGING = builder
-                .comment("Log each crew's battlefield reading and its top-scoring actions every time it replans.",
-                         "Very noisy — this is a tuning tool for editing the AI weights, not something to leave on.")
-                .define("utilityDebugLogging", false);
-
         builder.pop();
 
         builder.push("doctrine");
-        builder.comment("How each faction's commanders prefer to fight.",
-                        "Every axis runs from -5 to +5, where 0 is neutral. Doctrine does not add or remove",
-                        "behaviours — it shifts how attractive each one is, so an aggressive commander and a",
-                        "cautious one make different choices from the identical tank in the identical spot.",
-                        "These are read once when the world loads; edit and reload the world to apply.");
-
+        builder.comment("Fallback doctrine presets for RU, US, and PMC commanders.");
         DOCTRINE = new ForgeConfigSpec.IntValue[FACTION_KEYS.length][Doctrine.Axis.VALUES.length];
         for (int f = 0; f < FACTION_KEYS.length; f++) {
             builder.push(FACTION_KEYS[f]);
             for (Doctrine.Axis axis : Doctrine.Axis.VALUES) {
                 DOCTRINE[f][axis.ordinal()] = builder
                         .comment(axis.description)
-                        .defineInRange(axis.key, DOCTRINE_DEFAULTS[f][axis.ordinal()],
-                                -Doctrine.AXIS_LIMIT, Doctrine.AXIS_LIMIT);
+                        .defineInRange(axis.key, DOCTRINE_DEFAULTS[f][axis.ordinal()], -Doctrine.AXIS_LIMIT, Doctrine.AXIS_LIMIT);
             }
             builder.pop();
         }
-
         builder.pop();
 
         SPEC = builder.build();
     }
 
-    // Config-load validation only checks the id is well-formed; whether it resolves to a
-    // real entity type or item is checked at spawn time (registries aren't ready here).
+    private SewvConfig() {}
+
     private static boolean isValidResourceId(Object o) {
         return o instanceof String s && ResourceLocation.tryParse(s) != null;
-    }
-
-    /**
-     * Parse an {@code RRGGBB} config colour into an opaque ARGB int.
-     *
-     * <p>Deliberately lenient: a colour is a cosmetic preference, so a typo falls back to the
-     * overlay's own white rather than throwing out of a render call. The alpha byte is forced
-     * on because SuperbWarfare ORs {@code 255 << 24} onto the text colour for the health bar
-     * and a config value of {@code 000000} would otherwise render as fully transparent.
-     */
-    public static int parseColor(String hex, int fallback) {
-        try {
-            return 0xFF000000 | (Integer.parseInt(hex.trim().replace("#", ""), 16) & 0xFFFFFF);
-        } catch (RuntimeException ignored) {
-            return fallback;
-        }
     }
 }

@@ -7,6 +7,7 @@ import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.data.gun.ProjectileInfo;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.mojang.logging.LogUtils;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -16,9 +17,11 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+import org.slf4j.Logger;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Weapon doctrine for AI crews. Ground crews ({@link DriveVehicleGoal}) classify
@@ -39,6 +42,8 @@ import java.util.Locale;
  */
 public final class VehicleWeapons {
 
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     // Role ids. These also index the role→slot map returned by resolveRoleSlots().
     public static final int WEAPON_CANNON = 0;
     public static final int WEAPON_MG = 1;
@@ -48,21 +53,50 @@ public final class VehicleWeapons {
     // public surface, not just an internal classification miss.
     public static final int UNCLASSIFIED = -1;
 
-    // Substring hints for role classification, matched against the lowercased
-    // projectile id and weapon key. SPECIAL covers guided / launched ordnance that
-    // needs the anti-armor preference and the wider-cone fire assist; direct-fire
-    // beams/lasers deliberately fall through to the CANNON-role fallback instead.
-    // Generic terms cover SW's own and most addon munitions (whose projectiles are
-    // usually SW-namespaced: agm_65, kh_39, ru_9m336_missile, wire_guide_missile...).
-    // The trailing proper-noun hints catch addon guns whose projectile id carries no
-    // generic keyword — e.g. Frontline Combat Pack's "fcp:malyutka" (a BMP-1's ATGM,
-    // which otherwise loses the anti-armor slot to the low-pressure gun and never
-    // fires at tanks), "fcp:sidewinder" and "fcp:lock_on_hellfire".
-    private static final String[] SPECIAL_HINTS = {
-            "missile", "rocket", "torpedo", "bomb", "agm", "kh_", "guide", "mortar",
-            "seek", "swarm", "launcher", "fim", "tow",
-            "malyutka", "sidewinder", "hellfire"
+    // Among roles tied at maxScore, prefer SPECIAL > CANNON > MG (old if-chain order).
+    // Do not break ties by ascending role-index — CANNON=0 would steal every dead heat.
+    private static final int[] TIE_PRIORITY = { WEAPON_SPECIAL, WEAPON_CANNON, WEAPON_MG };
+
+    private static final double WEIGHT_SPECIAL_HINT = 2.0;
+    private static final double WEIGHT_SHELL_TYPE = 1.0;
+    private static final double WEIGHT_CANNON_FAMILY = 2.0;
+    private static final double WEIGHT_MG_AMMO_CLASS = 1.5;
+    private static final double WEIGHT_MG_NAME = 1.0;
+    private static final double WEIGHT_MG_DEFAULT_PROJECTILE = 0.5;
+    private static final double NEAR_TIE_GAP = 0.5;
+
+    // Word-boundary "mg" — raw contains("mg") false-positives inside unrelated tokens.
+    private static final Pattern MG_WORD = Pattern.compile("\\bmg\\b");
+
+    // One classification signal: substring needle, role it votes for, confidence weight.
+    private record RoleHint(int role, double weight, String needle) {}
+
+    // SPECIAL covers guided / launched ordnance (anti-armor preference + wider fire
+    // assist). Generic terms cover SW + most addon munitions; proper-nouns catch FCP
+    // guns whose projectile id carries no generic keyword (malyutka / sidewinder /
+    // hellfire). Matched against name | projectile | ammoId unconditionally.
+    private static final RoleHint[] SPECIAL_HINTS = {
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "missile"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "rocket"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "torpedo"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "bomb"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "agm"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "kh_"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "guide"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "mortar"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "seek"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "swarm"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "launcher"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "fim"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "tow"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "malyutka"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "sidewinder"),
+            hint(WEAPON_SPECIAL, WEIGHT_SPECIAL_HINT, "hellfire"),
     };
+
+    private static RoleHint hint(int role, double weight, String needle) {
+        return new RoleHint(role, weight, needle);
+    }
 
     // FACTION_UNIT = SEM's RU/US faction infantry. (An actual PmcUnitEntity target
     // deliberately falls through to MONSTER — identical doctrine either way.)
@@ -271,20 +305,18 @@ public final class VehicleWeapons {
         return -1;
     }
 
-    // Classify one physical weapon slot into a role, reading the actual GunData so
-    // custom weapon orderings (and most modded weapons that still populate SBW's gun
-    // schema) resolve correctly. Signal order — SPECIAL (guided/launched) first so a
-    // missile is never mistaken for a shell, then CANNON (shell types / cannon
-    // projectiles), then MG (small-arms ammo / plain bullet). Returns UNCLASSIFIED
-    // for anything else. Defensive like specialReady(): getGunData may be null and
-    // this must never crash the AI tick.
+    // Classify one physical weapon slot into a role from GunData. Scoring (not
+    // early-return if-order) so addon hulls with competing name/projectile/ammo
+    // signals resolve by weight. Defensive: unreadable gun data must never crash
+    // the AI tick.
     private static int classifySlot(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
         try {
             GunData gun = vehicle.getGunData(seatIndex, weaponIndex);
             String name = lower(vehicle.getGunName(seatIndex, weaponIndex));
             String shell = "";
             String projectile = "";
-            Ammo ammo = null;
+            String ammoId = "";
+            Ammo ammoClass = null;
             if (gun != null) {
                 shell = lower(gun.get(GunProp.SHELL_TYPE));
                 ProjectileInfo pi = gun.get(GunProp.PROJECTILE);
@@ -292,38 +324,138 @@ public final class VehicleWeapons {
                 List<AmmoConsumer> consumers = gun.get(GunProp.AMMO_CONSUMER);
                 if (consumers != null) {
                     for (AmmoConsumer c : consumers) {
-                        if (c != null && c.getPlayerAmmoType() != null) {
-                            ammo = c.getPlayerAmmoType();
-                            break;
+                        if (c == null) continue;
+                        if (ammoId.isEmpty()) {
+                            String id = lower(c.getAmmo());
+                            if (!id.isEmpty()) ammoId = id;
                         }
+                        if (ammoClass == null && c.getPlayerAmmoType() != null) {
+                            ammoClass = c.getPlayerAmmoType();
+                        }
+                        if (!ammoId.isEmpty() && ammoClass != null) break;
                     }
                 }
             }
-
-            // SPECIAL: guided / launched ordnance.
-            if (matchesAny(projectile, SPECIAL_HINTS) || matchesAny(name, SPECIAL_HINTS)) {
-                return WEAPON_SPECIAL;
-            }
-            // CANNON: a real shell type (AP/HE/GS), a cannon-shell projectile, or a
-            // cannon-named slot.
-            if ((!shell.isEmpty() && !shell.equals("default"))
-                    || projectile.contains("shell")
-                    || name.contains("cannon")) {
-                return WEAPON_CANNON;
-            }
-            // MG: small-arms ammo class, the plain bullet projectile, or an MG-named
-            // slot. Cannon/special are already handled above, so leftover heavy ammo
-            // here is a heavy machine gun.
-            if (ammo == Ammo.RIFLE || ammo == Ammo.HANDGUN || ammo == Ammo.SHOTGUN
-                    || ammo == Ammo.SNIPER || ammo == Ammo.HEAVY
-                    || projectile.equals("superbwarfare:projectile")
-                    || name.contains("machinegun") || name.contains("mg")) {
-                return WEAPON_MG;
-            }
-            return UNCLASSIFIED;
+            int role = classifyFromSignals(name, shell, projectile, ammoId, ammoClass);
+            maybeLogNearTie(vehicle, seatIndex, weaponIndex, name, shell, projectile, ammoId, ammoClass, role);
+            return role;
         } catch (Exception e) {
             return UNCLASSIFIED;
         }
+    }
+
+    /**
+     * Package-visible pure classifier for self-checks (no GunData / world).
+     * Inputs must already be lowercased (or null — treated as empty).
+     */
+    static int classifyFromSignals(String name, String shell, String projectile,
+                                   String ammoId, Ammo ammoClass) {
+        return pickWinner(scoreRoles(
+                emptyToBlank(name), emptyToBlank(shell), emptyToBlank(projectile),
+                emptyToBlank(ammoId), ammoClass));
+    }
+
+    /** Exposed for the self-check dead-heat case (construct equal SPECIAL/CANNON scores). */
+    static int pickWinnerFromScores(double cannon, double mg, double special) {
+        double[] scores = new double[WEAPON_COUNT];
+        scores[WEAPON_CANNON] = cannon;
+        scores[WEAPON_MG] = mg;
+        scores[WEAPON_SPECIAL] = special;
+        return pickWinner(scores);
+    }
+
+    private static String emptyToBlank(String s) {
+        return s == null ? "" : s;
+    }
+
+    private static double[] scoreRoles(String name, String shell, String projectile,
+                                      String ammoId, Ammo ammoClass) {
+        double[] scores = new double[WEAPON_COUNT];
+        boolean specialName = false, specialProj = false, specialAmmo = false;
+
+        for (RoleHint h : SPECIAL_HINTS) {
+            boolean hit = false;
+            if (contains(name, h.needle())) { specialName = true; hit = true; }
+            if (contains(projectile, h.needle())) { specialProj = true; hit = true; }
+            if (contains(ammoId, h.needle())) { specialAmmo = true; hit = true; }
+            if (hit) scores[h.role()] += h.weight();
+        }
+
+        // CANNON shell|cannon family: +2 once, only on haystacks that did not match SPECIAL.
+        if ((!specialName && cannonFamilyHit(name))
+                || (!specialProj && cannonFamilyHit(projectile))
+                || (!specialAmmo && cannonFamilyHit(ammoId))) {
+            scores[WEAPON_CANNON] += WEIGHT_CANNON_FAMILY;
+        }
+
+        // ShellType always applied when present (HE tag, weaker than a SPECIAL word).
+        if (!shell.isEmpty() && !shell.equals("default")) {
+            scores[WEAPON_CANNON] += WEIGHT_SHELL_TYPE;
+        }
+
+        if (ammoClass == Ammo.RIFLE || ammoClass == Ammo.HANDGUN || ammoClass == Ammo.SHOTGUN
+                || ammoClass == Ammo.SNIPER || ammoClass == Ammo.HEAVY) {
+            scores[WEAPON_MG] += WEIGHT_MG_AMMO_CLASS;
+        }
+        if (contains(name, "machinegun") || contains(projectile, "machinegun")
+                || contains(ammoId, "machinegun")
+                || mgWord(name) || mgWord(projectile) || mgWord(ammoId)) {
+            scores[WEAPON_MG] += WEIGHT_MG_NAME;
+        }
+        if (projectile.equals("superbwarfare:projectile")) {
+            scores[WEAPON_MG] += WEIGHT_MG_DEFAULT_PROJECTILE;
+        }
+        return scores;
+    }
+
+    private static int pickWinner(double[] scores) {
+        double maxScore = 0.0;
+        for (double s : scores) {
+            if (s > maxScore) maxScore = s;
+        }
+        if (maxScore <= 0.0) return UNCLASSIFIED;
+        for (int role : TIE_PRIORITY) {
+            if (scores[role] == maxScore) return role;
+        }
+        return UNCLASSIFIED;
+    }
+
+    private static void maybeLogNearTie(VehicleEntity vehicle, int seatIndex, int weaponIndex,
+                                        String name, String shell, String projectile,
+                                        String ammoId, Ammo ammoClass, int winner) {
+        if (winner == UNCLASSIFIED || !LOGGER.isDebugEnabled()) return;
+        double[] scores = scoreRoles(name, shell, projectile, ammoId, ammoClass);
+        double second = 0.0;
+        for (int r = 0; r < WEAPON_COUNT; r++) {
+            if (r == winner) continue;
+            if (scores[r] > second) second = scores[r];
+        }
+        if (scores[winner] - second >= NEAR_TIE_GAP) return;
+        LOGGER.debug("[sewv-weapons] near-tie vehicle={} seat={} weapon={} gun={} scores=[c={}, mg={}, sp={}] picked={}",
+                vehicle.getType(), seatIndex, weaponIndex, name,
+                scores[WEAPON_CANNON], scores[WEAPON_MG], scores[WEAPON_SPECIAL],
+                roleName(winner));
+    }
+
+    private static String roleName(int role) {
+        return switch (role) {
+            case WEAPON_CANNON -> "CANNON";
+            case WEAPON_MG -> "MG";
+            case WEAPON_SPECIAL -> "SPECIAL";
+            default -> "UNCLASSIFIED";
+        };
+    }
+
+    private static boolean cannonFamilyHit(String haystack) {
+        return contains(haystack, "shell") || contains(haystack, "cannon");
+    }
+
+    private static boolean contains(String haystack, String needle) {
+        return !haystack.isEmpty() && haystack.contains(needle);
+    }
+
+    private static boolean mgWord(String haystack) {
+        return !haystack.isEmpty() && MG_WORD.matcher(haystack).find();
     }
 
     /**
@@ -342,6 +474,7 @@ public final class VehicleWeapons {
      * <p>A preference the hull has run out of is skipped rather than selected: an empty
      * chamber the AI can't refill is worse than the wrong shell.
      */
+    // TODO(phase2-ammo-scoring): see VehicleWeapons_ScoreRefactor_PLAN.md
     private static void selectCannonAmmo(VehicleEntity vehicle, int seatIndex, int weaponIndex,
                                          String[] preferences) {
         try {
@@ -386,14 +519,6 @@ public final class VehicleWeapons {
 
     private static String lower(String s) {
         return s == null ? "" : s.toLowerCase(Locale.ROOT);
-    }
-
-    private static boolean matchesAny(String haystack, String[] needles) {
-        if (haystack.isEmpty()) return false;
-        for (String n : needles) {
-            if (haystack.contains(n)) return true;
-        }
-        return false;
     }
 
     /**

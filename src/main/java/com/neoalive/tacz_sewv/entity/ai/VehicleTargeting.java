@@ -41,6 +41,8 @@ import java.util.function.Predicate;
  */
 public final class VehicleTargeting {
 
+    private static final double FORMATION_ARRIVE_RADIUS = 3.0;
+
     private static final org.slf4j.Logger LOGGER = LogUtils.getLogger();
 
     private VehicleTargeting() {}
@@ -144,7 +146,7 @@ public final class VehicleTargeting {
         if (unit instanceof PmcUnitEntity pmc) {
             OrderType order = pmc.getOrder();
             if (order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN) {
-                return SewvConfig.VEHICLE_FORMATION_ARRIVE_RADIUS.get();
+                return FORMATION_ARRIVE_RADIUS;
             }
         }
         return vehicle.getBbWidth() - 1.0 + STOP_DISTANCE;

@@ -54,6 +54,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue DERELICT_AMMO_COUNT;
     public static final ForgeConfigSpec.BooleanValue GARRISON_VEHICLES_ENABLED;
     public static final ForgeConfigSpec.DoubleValue GARRISON_VEHICLE_CHANCE;
+    public static final ForgeConfigSpec.BooleanValue RU_SPAWNS_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue US_SPAWNS_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue PMC_AMBIENT_SPAWNS_ENABLED;
 
     public static final ForgeConfigSpec.BooleanValue CREATIVE_AMMO_FALLBACK;
     public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_ENERGY;
@@ -201,7 +204,7 @@ public final class SewvConfig {
         NAVAL_FAILURE_MULTIPLIER = builder.comment("Naval chance added after a missed roll.")
                 .defineInRange("navalFailureMultiplier", 0.05, 0.0, 1.0);
         NAVAL_SHIPS_PER_SIDE = builder.comment("Ships each side gets in a naval battle.")
-                .defineInRange("navalShipsPerSide", 4, 1, 12);
+                .defineInRange("navalShipsPerSide", 4, 0, 12);
         INVASION_EVENTS_ENABLED = builder.comment("Enable asymmetric invasion events.").define("invasionEventsEnabled", true);
         INVASION_BASE_CHANCE = builder.comment("Base invasion event chance per SEM event roll.")
                 .defineInRange("invasionBaseChance", 0.03, 0.0, 1.0);
@@ -221,7 +224,7 @@ public final class SewvConfig {
         SHELLING_BASE_RADIUS = builder.comment("How close a player must be to their respawn point for shelling.")
                 .defineInRange("shellingBaseRadius", 48, 8, 256);
         SHELLING_MORTARS = builder.comment("Mortars in a shelling battery.")
-                .defineInRange("shellingMortars", 2, 1, 6);
+                .defineInRange("shellingMortars", 2, 0, 6);
         SHELLING_GUARDS = builder.comment("Infantry guarding a shelling battery.")
                 .defineInRange("shellingGuards", 4, 0, 12);
         SHELLING_DURATION_MIN_TICKS = builder.comment("Minimum shelling duration.")
@@ -240,13 +243,23 @@ public final class SewvConfig {
         DERELICT_HEALTH_FRACTION = builder.comment("Health fraction for spawned derelict hulls. Keep below autoBoardMinHealthFraction.")
                 .defineInRange("derelictHealthFraction", 0.15, 0.01, 1.0);
         DERELICT_GUARDS = builder.comment("Maximum survivors around a derelict hull.")
-                .defineInRange("derelictGuards", 4, 1, 12);
+                .defineInRange("derelictGuards", 4, 0, 12);
         DERELICT_AMMO_COUNT = builder.comment("Ammo left in a derelict hull.")
                 .defineInRange("derelictAmmoCount", 2, 0, 64);
         GARRISON_VEHICLES_ENABLED = builder.comment("Let village garrisons field one crewed tank.")
                 .define("garrisonVehiclesEnabled", true);
         GARRISON_VEHICLE_CHANCE = builder.comment("Chance that a village garrison gets its tank.")
                 .defineInRange("garrisonVehicleChance", 0.5, 0.0, 1.0);
+        builder.pop();
+
+        builder.push("spawn_gates");
+        RU_SPAWNS_ENABLED = builder.comment("Global master gate for RU spawns routed through SEWV.")
+                .define("ruSpawnsEnabled", true);
+        US_SPAWNS_ENABLED = builder.comment("Global master gate for US spawns routed through SEWV.")
+                .define("usSpawnsEnabled", true);
+        PMC_AMBIENT_SPAWNS_ENABLED = builder.comment("Global master gate for ambient PMC spawns routed through SEWV.",
+                        "Player-summoned PMC units are not affected. Today this only gates structure compat spawns.")
+                .define("pmcAmbientSpawnsEnabled", true);
         builder.pop();
 
         builder.push("resources");

@@ -43,6 +43,7 @@ public final class BerezkaStructureCompat {
 
         TankSpawner.TankFaction faction = factionFor(event.getStructureName());
         if (faction == null) return; // not a mapped structure — ignore
+        if (faction == TankSpawner.TankFaction.PMC && !SewvConfig.PMC_AMBIENT_SPAWNS_ENABLED.get()) return;
 
         ServerLevel level = API.getCurWorld();
         if (level == null) return;

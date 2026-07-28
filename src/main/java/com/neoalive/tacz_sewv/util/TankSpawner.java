@@ -83,17 +83,28 @@ public final class TankSpawner {
 
     /** True when the faction's configured pool contains at least one loadable SW vehicle. */
     public static boolean hasSpawnableVehicle(ServerLevel level, TankFaction faction) {
+        if (!spawnsEnabled(faction)) return false;
         return hasSpawnable(level, faction.vehiclePool(level));
     }
 
     /** The same, for the faction's separate ship pool — see {@link #spawnShipWithCrew}. */
     public static boolean hasSpawnableShip(ServerLevel level, TankFaction faction) {
+        if (!spawnsEnabled(faction)) return false;
         return hasSpawnable(level, faction.shipPool(level));
     }
 
     /** The same, for the faction's separate plane pool — see {@link #spawnPlaneWithCrew}. */
     public static boolean hasSpawnablePlane(ServerLevel level, TankFaction faction) {
+        if (!spawnsEnabled(faction)) return false;
         return hasSpawnable(level, faction.planePool(level));
+    }
+
+    public static boolean spawnsEnabled(TankFaction faction) {
+        return switch (faction) {
+            case RU -> SewvConfig.RU_SPAWNS_ENABLED.get();
+            case US -> SewvConfig.US_SPAWNS_ENABLED.get();
+            case PMC -> true;
+        };
     }
 
     private static boolean hasSpawnable(ServerLevel level, List<? extends String> pool) {
@@ -160,6 +171,7 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnPlaneWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                    @Nullable UUID ownerId, @Nullable String vehicleId) {
+        if (!spawnsEnabled(faction)) return null;
         EntityType<?> planeType = selectVehicleType(faction.planePool(level), vehicleId, level.random);
         if (planeType == null) return null;
 
@@ -232,6 +244,7 @@ public final class TankSpawner {
     private static VehicleEntity spawnCrewedVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                      @Nullable UUID ownerId, @Nullable String vehicleId,
                                                      List<? extends String> pool, boolean water) {
+        if (!spawnsEnabled(faction)) return null;
         EntityType<?> tankType = selectVehicleType(pool, vehicleId, level.random);
         if (tankType == null) return null; // nothing valid configured/requested — bail safely
 
@@ -316,6 +329,7 @@ public final class TankSpawner {
      */
     @Nullable
     public static VehicleEntity spawnBareVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction) {
+        if (!spawnsEnabled(faction)) return null;
         EntityType<?> type = selectVehicleType(faction.vehiclePool(level), null, level.random);
         if (type == null) return null;
         BlockPos pos = findClearSpawn(level, requestedPos, type);

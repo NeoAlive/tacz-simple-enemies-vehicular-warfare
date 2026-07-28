@@ -445,7 +445,7 @@ public final class SewvConfig {
                 .defineInRange("heliMinStandoff", 28.0, 16.0, 96.0);
         HELI_COMBAT_DEBUG = builder.comment(
                         "Log AI heli firing-run phase changes and keep the hover phase label gated on.")
-                .define("heliCombatDebug", true);
+                .define("heliCombatDebug", false);
         HELI_CHUNK_LOADING = builder.comment("Keep AI helicopters ticking when no player is nearby.")
                 .define("heliChunkLoading", false);
         PLANE_CHUNK_LOADING = builder.comment("Keep AI planes ticking when no player is nearby.")

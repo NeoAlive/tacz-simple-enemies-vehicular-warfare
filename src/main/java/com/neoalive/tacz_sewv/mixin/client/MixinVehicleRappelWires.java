@@ -8,10 +8,9 @@ import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
 import com.neoalive.tacz_sewv.entity.ai.RappelSupport;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Matrix3f;
 import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -19,11 +18,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Rappel ropes: vertical line strands on the hull's local X± faces, drawn inside
+ * Rappel ropes: thin lit ribbons on the hull's local X± faces, drawn inside
  * {@link VehicleRenderer}'s pushed/axis-rotated pose so they bank with the airframe.
- * Length is dynamic — local attach Y down to the same {@link RappelSupport#groundY}
- * the Stage-4 descent uses — so the rope reaches terrain rather than a fixed cage.
+ * Length is {@code min(distance to ground, }{@link #TACZ_SEWV$RAPPEL_WIRE_MAX_LENGTH}{@code)} —
+ * short drops reach terrain; tall drops (cliffs/valleys) cap instead of a huge streamer.
  * Gated solely on {@link HeliRunPhaseClient#isRappelling(int)}.
+ *
+ * <p>Uses {@link RenderType#leash()} ({@code POSITION_COLOR_LIGHTMAP} triangle strip) so the
+ * rope takes the vehicle's {@code packedLight} and darkens in shadow instead of glowing
+ * fullbright like {@link RenderType#lines()}.
  */
 @Mixin(value = VehicleRenderer.class, remap = false)
 public abstract class MixinVehicleRappelWires {
@@ -34,11 +37,15 @@ public abstract class MixinVehicleRappelWires {
     private static final float TACZ_SEWV$G = 0.38F;
     @Unique
     private static final float TACZ_SEWV$B = 0.30F;
+    /** Half-width of the leash-style ribbon (blocks), matching vanilla lead thickness. */
     @Unique
-    private static final float TACZ_SEWV$A = 1.0F;
-    /** Strand offsets in local Z for a thin rope look (not a single hairline). */
+    private static final float TACZ_SEWV$HALF_W = 0.025F;
+    /** Segments along the rope — enough for leash banding, cheap for an 8-block max. */
     @Unique
-    private static final float[] TACZ_SEWV$STRANDS = { -0.04F, 0.0F, 0.04F };
+    private static final int TACZ_SEWV$STEPS = 12;
+    /** Max drawn rope length (blocks). Short drops reach ground; tall drops stop here. */
+    @Unique
+    private static final float TACZ_SEWV$RAPPEL_WIRE_MAX_LENGTH = 8.0F;
 
     @Inject(
             method = "render",
@@ -58,52 +65,80 @@ public abstract class MixinVehicleRappelWires {
 
         double face = RappelSupport.localFaceX(entity);
         double attachY = RappelSupport.localAttachY(entity);
-        VertexConsumer lines = buffer.getBuffer(RenderType.lines());
+        VertexConsumer leash = buffer.getBuffer(RenderType.leash());
+        Matrix4f matrix = poseStack.last().pose();
 
-        tacz_sewv$drawRope(entity, poseStack, lines, -face, attachY);
-        tacz_sewv$drawRope(entity, poseStack, lines, face, attachY);
+        // Same RenderType shares one BufferBuilder — break the strip between faces so the
+        // two ropes do not span a lit sheet across the cabin.
+        boolean drew = tacz_sewv$drawRope(entity, leash, matrix, packedLight, -face, attachY);
+        if (drew) {
+            tacz_sewv$breakStrip(leash, matrix, packedLight, (float) -face, (float) attachY);
+        }
+        tacz_sewv$drawRope(entity, leash, matrix, packedLight, face, attachY);
     }
 
     /**
-     * Rope from local face attach down to world ground under that column, expressed in
-     * local Y (hover is level — local −Y ≈ world down; matches descent {@code groundY}).
+     * Rope from local face attach down toward world ground under that column, capped at
+     * {@link #TACZ_SEWV$RAPPEL_WIRE_MAX_LENGTH}. Descent still uses full {@code groundY};
+     * this is draw length only.
+     *
+     * @return {@code true} if anything was drawn (so the caller can break the strip)
      */
     @Unique
-    private static void tacz_sewv$drawRope(
-            VehicleEntity entity, PoseStack poseStack, VertexConsumer lines,
+    private static boolean tacz_sewv$drawRope(
+            VehicleEntity entity, VertexConsumer leash, Matrix4f matrix, int packedLight,
             double faceX, double attachY) {
-        // World XZ of this face (same column troopers slide on), then surface Y.
         boolean plus = faceX >= 0.0;
         Vec3 top = RappelSupport.ropeTopWorld(entity, plus);
         double ground = RappelSupport.groundY(entity.level(), top.x, top.z);
         float bottomY = (float) (ground - entity.getY());
         float topY = (float) attachY;
-        if (bottomY >= topY) return; // already on/below deck — nothing to draw
+        if (bottomY >= topY) return false;
 
-        PoseStack.Pose pose = poseStack.last();
-        Matrix4f matrix = pose.pose();
-        Matrix3f normal = pose.normal();
+        float lengthToGround = topY - bottomY;
+        float length = Math.min(lengthToGround, TACZ_SEWV$RAPPEL_WIRE_MAX_LENGTH);
+        bottomY = topY - length;
+
         float fx = (float) faceX;
-        for (float zOff : TACZ_SEWV$STRANDS) {
-            tacz_sewv$line(lines, matrix, normal, fx, topY, zOff, fx, bottomY, zOff);
+        // Vanilla leash builds a closed triangle-strip tube: forward then reverse.
+        for (int i = 0; i <= TACZ_SEWV$STEPS; i++) {
+            tacz_sewv$leashPair(leash, matrix, fx, topY, bottomY, packedLight, i, false);
         }
+        for (int i = TACZ_SEWV$STEPS; i >= 0; i--) {
+            tacz_sewv$leashPair(leash, matrix, fx, topY, bottomY, packedLight, i, true);
+        }
+        return true;
+    }
+
+    /** Degenerate verts so the next strip does not connect to this one. */
+    @Unique
+    private static void tacz_sewv$breakStrip(
+            VertexConsumer leash, Matrix4f matrix, int packedLight, float fx, float y) {
+        tacz_sewv$vert(leash, matrix, fx, y, 0.0F, 1.0F, packedLight);
+        tacz_sewv$vert(leash, matrix, fx, y, 0.0F, 1.0F, packedLight);
+    }
+
+    /** One leash strip pair at step {@code i} — mirrors {@code MobRenderer.addVertexPair}. */
+    @Unique
+    private static void tacz_sewv$leashPair(
+            VertexConsumer leash, Matrix4f matrix,
+            float fx, float topY, float bottomY, int packedLight,
+            int i, boolean reverse) {
+        float t = (float) i / (float) TACZ_SEWV$STEPS;
+        float y = Mth.lerp(t, topY, bottomY);
+        float shade = i % 2 == (reverse ? 1 : 0) ? 0.7F : 1.0F;
+        float side = reverse ? 0.0F : TACZ_SEWV$HALF_W;
+        tacz_sewv$vert(leash, matrix, fx - TACZ_SEWV$HALF_W, y + side, 0.0F, shade, packedLight);
+        tacz_sewv$vert(leash, matrix, fx + TACZ_SEWV$HALF_W, y + TACZ_SEWV$HALF_W - side, 0.0F, shade, packedLight);
     }
 
     @Unique
-    private static void tacz_sewv$line(
-            VertexConsumer lines, Matrix4f matrix, Matrix3f normalMatrix,
-            float x1, float y1, float z1, float x2, float y2, float z2) {
-        Vector3f n = new Vector3f(x2 - x1, y2 - y1, z2 - z1);
-        if (n.lengthSquared() < 1.0E-8F) return;
-        n.normalize();
-        normalMatrix.transform(n);
-        lines.vertex(matrix, x1, y1, z1)
-                .color(TACZ_SEWV$R, TACZ_SEWV$G, TACZ_SEWV$B, TACZ_SEWV$A)
-                .normal(n.x(), n.y(), n.z())
-                .endVertex();
-        lines.vertex(matrix, x2, y2, z2)
-                .color(TACZ_SEWV$R, TACZ_SEWV$G, TACZ_SEWV$B, TACZ_SEWV$A)
-                .normal(n.x(), n.y(), n.z())
+    private static void tacz_sewv$vert(
+            VertexConsumer leash, Matrix4f matrix,
+            float x, float y, float z, float shade, int packedLight) {
+        leash.vertex(matrix, x, y, z)
+                .color(TACZ_SEWV$R * shade, TACZ_SEWV$G * shade, TACZ_SEWV$B * shade, 1.0F)
+                .uv2(packedLight)
                 .endVertex();
     }
 }

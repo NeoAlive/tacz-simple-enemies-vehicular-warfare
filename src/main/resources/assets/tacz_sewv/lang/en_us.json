@@ -139,6 +139,10 @@
 
   "key.categories.tacz_sewv": "SBW: Combined Arms",
   "key.tacz_sewv.open_tdt": "Open Tactical Data Terminal",
+  "key.tacz_sewv.toggle_map_markers": "Toggle Map Markers",
+
+  "message.tacz_sewv.map_markers.on": "SEWV map markers: shown",
+  "message.tacz_sewv.map_markers.off": "SEWV map markers: hidden",
 
   "command.tacz_sewv.spawn.success": "Spawned %s at %s",
   "command.tacz_sewv.spawn.fail": "Couldn't spawn the vehicle: no space here, no valid vehicle id in the config pool, or SuperbWarfare isn't loaded.",

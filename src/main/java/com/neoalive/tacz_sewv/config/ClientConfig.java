@@ -59,7 +59,7 @@ public final class ClientConfig {
                 .comment("Draw energy bars under owned PMC vehicle markers.")
                 .define("mapShowEnergyBar", true);
         MAP_SHOW_COMMAND_DEBUG = builder
-                .comment("Debug: commander ★/· + group id on map icons, and BattleField overlay (centroids, axis, open flanks).")
+                .comment("Debug: commander ★/·, BattleField overlay, play name, and per-tank role tags (BoF/MNV/…).")
                 .define("mapShowCommandDebug", true);
         builder.pop();
 

@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.animal.IronGolem;
@@ -37,6 +38,12 @@ public class VehicleTargetScanGoal extends Goal {
     // Acquired targets are only dropped past 1.5x the scan bounds, so a target
     // maneuvering along the cylinder's edge doesn't flicker in and out of lock.
     private static final double DROP_MULT = 1.5;
+
+    /**
+     * Soft focus-fire: treat the commander's priority target as this fraction of its real
+     * distance so it sorts earlier — never a hard setTarget. A much closer other contact still wins.
+     */
+    private static final double FOCUS_DIST_SCALE = 0.35;
 
     // A lock whose target breaks line of sight is held through a short grace period
     // (aim stays on the corner it vanished behind) and then dropped, so the crew
@@ -150,9 +157,10 @@ public class VehicleTargetScanGoal extends Goal {
             return distSq <= radiusSq && distSq >= VehicleMinRangeGoal.MIN_ENGAGE_DISTANCE_SQ;
         });
 
-        // Nearest-first, then the first candidate the crew can actually see (every
-        // candidate, when LOS is off). Raycasts only run down the list until one passes.
-        candidates.sort(Comparator.comparingDouble(e -> horizontalDistSq(v, e)));
+        // Nearest-first (with a soft bias toward the commander's focus id), then the first
+        // candidate the crew can actually see (every candidate, when LOS is off). Raycasts only
+        // run down the list until one passes.
+        candidates.sort(Comparator.comparingDouble(e -> focusAdjustedDistSq(v, e)));
         boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get();
         for (LivingEntity candidate : candidates) {
             if (!needLos || this.unit.getSensing().hasLineOfSight(candidate)) {
@@ -160,6 +168,16 @@ public class VehicleTargetScanGoal extends Goal {
             }
         }
         return null;
+    }
+
+    /** Distance used for ranking — shrinks the commander's priority target without locking it. */
+    private double focusAdjustedDistSq(VehicleEntity v, LivingEntity e) {
+        double d = horizontalDistSq(v, e);
+        Integer focus = CrewAssignment.priorityTargetId(this.unit.getId());
+        if (focus != null && e.getId() == focus) {
+            return d * FOCUS_DIST_SCALE;
+        }
+        return d;
     }
 
     // Mirrors SEM's faction doctrine (from its vanilla target goals): RU/US fight

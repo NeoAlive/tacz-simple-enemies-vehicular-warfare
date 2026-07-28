@@ -163,6 +163,7 @@ public final class VehicleMarkerElements {
                 drawSymbol(guiGraphics, marker, color);
             }
             drawCommandDebug(guiGraphics, marker);
+            drawPlayRoleTag(guiGraphics, marker);
             drawPmcVitals(guiGraphics, marker);
 
             pose.popPose();
@@ -192,6 +193,37 @@ public final class VehicleMarkerElements {
                 guiGraphics.drawString(mc.font, gid, -gw / 2, -HIT_BOX - mc.font.lineHeight - 1,
                         0xFFCCCCCC, false);
             }
+        }
+
+        /**
+         * Stage-4 play element tag (BoF / MNV / …) at bottom-left of the icon — distinct from the
+         * commander star (top-right) and vitals (below). Wire field only.
+         */
+        private void drawPlayRoleTag(GuiGraphics guiGraphics, VehicleMarker marker) {
+            if (!ClientConfig.MAP_SHOW_COMMAND_DEBUG.get()) return;
+            VehicleMarker.PlayRole playRole = marker.playRole();
+            if (playRole == VehicleMarker.PlayRole.NONE) return;
+
+            Minecraft mc = Minecraft.getInstance();
+            String tag = playRole.tag;
+            int color = playRoleColor(playRole);
+            int tw = mc.font.width(tag);
+            int x = -HIT_BOX;
+            int y = HIT_BOX - mc.font.lineHeight + 1;
+            guiGraphics.fill(x - 1, y - 1, x + tw + 1, y + mc.font.lineHeight, 0xC0000000);
+            guiGraphics.drawString(mc.font, tag, x, y, color, false);
+        }
+
+        private static int playRoleColor(VehicleMarker.PlayRole role) {
+            return switch (role) {
+                case BASE_OF_FIRE -> 0xFFFFAA00; // amber
+                case MANEUVER -> 0xFFFF55FF;     // magenta
+                case OVERWATCH -> 0xFFEEEEFF;    // pale
+                case RESERVE -> 0xFF88AAFF;      // soft blue
+                case HOLD -> 0xFFBBBBBB;         // grey
+                case WITHDRAW -> 0xFFFF8855;     // coral
+                case NONE -> 0xFFFFFFFF;
+            };
         }
 
         /**

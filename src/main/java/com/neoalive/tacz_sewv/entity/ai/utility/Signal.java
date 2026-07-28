@@ -97,7 +97,21 @@ public enum Signal {
     /** 0..1 by how steep the ground around the hull is. */
     STEEP_GROUND("steepGround"),
     /** 0..1 by how far above ordinary fighting altitude we are. */
-    HIGH_ALTITUDE("highAltitude");
+    HIGH_ALTITUDE("highAltitude"),
+
+    // ---- command tier (Stage 5) ----
+    // Raised 0/1 from the crew's published assignment. Strong biases, never lockouts —
+    // self-preservation (LOW_HEALTH / RECENTLY_HIT) must still be able to win.
+    /** Commander wants this hull as base-of-fire (hold the ring and shoot). */
+    TASKED_BASE_OF_FIRE("taskedBaseOfFire"),
+    /** Commander wants this hull on a flank maneuver (side comes from the assignment). */
+    TASKED_FLANK("taskedFlank"),
+    /** Commander wants this hull to push forward (bounding advance element). */
+    TASKED_ADVANCE("taskedAdvance"),
+    /** Commander wants this hull to hold / overwatch. */
+    TASKED_HOLD("taskedHold"),
+    /** Commander wants this hull pulling back. */
+    TASKED_WITHDRAW("taskedWithdraw");
 
     /** The key naming this signal in the weights file. */
     public final String key;

@@ -424,6 +424,17 @@ public abstract class MixinGuiMap extends Screen {
             guiGraphics.fill(friend[0] - 4, friend[1] - 4, friend[0] + 4, friend[1] + 4, 0xFF000000);
             guiGraphics.fill(friend[0] - 3, friend[1] - 3, friend[0] + 3, friend[1] + 3, FRIENDLY);
 
+            // Play name — above the friendly centroid, white on dark so it stays legible
+            // beside stars / axis / flanks (not sharing their glyphs).
+            String play = bf.playLabel();
+            if (play != null && !play.isEmpty()) {
+                int pw = this.font.width(play);
+                int px = friend[0] - pw / 2;
+                int py = friend[1] - 16;
+                guiGraphics.fill(px - 2, py - 1, px + pw + 2, py + this.font.lineHeight, 0xC0000000);
+                guiGraphics.drawString(this.font, play, px, py, 0xFFFFFFF0, false);
+            }
+
             if (bf.flankLeft()) {
                 int[] fl = tacz_sewv$toScreenXZ(bf.flankLeftX(), bf.flankLeftZ());
                 tacz_sewv$drawFlankMark(guiGraphics, fl[0], fl[1], FLANK, "L");

@@ -54,6 +54,7 @@ public final class CommandCoordinator {
         nextGroupId = 1;
         GROUPS_BY_LEVEL.clear();
         CommandEligibility.clearCache();
+        CrewAssignment.clearAll();
     }
 
     @SubscribeEvent
@@ -61,6 +62,7 @@ public final class CommandCoordinator {
         nextScan = Integer.MIN_VALUE;
         GROUPS_BY_LEVEL.clear();
         CommandEligibility.clearCache();
+        CrewAssignment.clearAll();
     }
 
     @SubscribeEvent
@@ -101,6 +103,23 @@ public final class CommandCoordinator {
         for (ServerLevel level : event.getServer().getAllLevels()) {
             scanLevel(level, params, maxUnits, engagement, now);
         }
+        syncCrewAssignments();
+    }
+
+    /** Publish every live role into {@link CrewAssignment}; drop units no longer tasked. */
+    private static void syncCrewAssignments() {
+        Set<Integer> keep = new HashSet<>();
+        for (Map<Integer, BattleGroup> levelGroups : GROUPS_BY_LEVEL.values()) {
+            for (BattleGroup g : levelGroups.values()) {
+                Roles roles = g.currentRoles();
+                if (roles == null) continue;
+                for (Assignment a : roles.assignments) {
+                    CrewAssignment.publish(a);
+                    keep.add(a.unitId);
+                }
+            }
+        }
+        CrewAssignment.retainAll(keep);
     }
 
     /** Snapshot of live groups across all dimensions — Stage 2+ read from here. */
@@ -150,10 +169,42 @@ public final class CommandCoordinator {
                         bf.friendlyCentroidX, bf.friendlyCentroidZ,
                         bf.enemyCentroidX, bf.enemyCentroidZ,
                         bf.axisX, bf.axisZ,
-                        bf.openFlankLeft, bf.openFlankRight));
+                        bf.openFlankLeft, bf.openFlankRight,
+                        playLabelOf(g)));
             }
         }
         return out;
+    }
+
+    /** PascalCase play name for the overlay, or empty when none committed. Read-only. */
+    private static String playLabelOf(BattleGroup g) {
+        PlayId play = g.currentPlay();
+        if (play == null) return "";
+        String[] parts = play.key.split("_");
+        StringBuilder sb = new StringBuilder(play.key.length());
+        for (String p : parts) {
+            if (p.isEmpty()) continue;
+            sb.append(Character.toUpperCase(p.charAt(0)));
+            if (p.length() > 1) sb.append(p.substring(1));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Read-only: the Stage-4 assignment role for a driver, if any. Does not mutate play state.
+     */
+    @Nullable
+    public static Assignment.Role assignmentRoleForDriver(int driverId) {
+        for (Map<Integer, BattleGroup> levelGroups : GROUPS_BY_LEVEL.values()) {
+            for (BattleGroup g : levelGroups.values()) {
+                Roles roles = g.currentRoles();
+                if (roles == null) continue;
+                for (Assignment a : roles.assignments) {
+                    if (a.unitId == driverId) return a.role;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -165,7 +216,8 @@ public final class CommandCoordinator {
             double friendlyX, double friendlyZ,
             double enemyX, double enemyZ,
             double axisX, double axisZ,
-            boolean openFlankLeft, boolean openFlankRight
+            boolean openFlankLeft, boolean openFlankRight,
+            String playLabel
     ) {}
 
     private static void scanLevel(ServerLevel level, GroupParams params, int maxUnits, double engagement,
@@ -281,16 +333,70 @@ public final class CommandCoordinator {
                 group.currentPlay(), group.playStartedTick(), nowTick,
                 group.currentRoles(),
                 minTicks, margin, weights);
+        Roles roles = withFocusFire(level, group, result.roles());
         if (result.switched() || group.currentPlay() == null
                 || group.currentPlay() != result.play()) {
             LOGGER.debug("[sewv-command] play group={} {} play={}",
                     group.groupId(), result.reason(), result.play().key);
-            group.commitPlay(result.play(), result.roles(), nowTick);
+            group.commitPlay(result.play(), roles, nowTick);
         } else {
             // Keep start tick; refresh roles for moving geometry.
             long started = group.playStartedTick() == Long.MIN_VALUE ? nowTick : group.playStartedTick();
-            group.commitPlay(result.play(), result.roles(), started);
+            group.commitPlay(result.play(), roles, started);
         }
+    }
+
+    /**
+     * Soft focus-fire: stamp every role with the nearest opposing unit to the enemy centroid.
+     * Does not hard-set {@code unit.setTarget} — only biases acquisition when the id is still live.
+     */
+    private static Roles withFocusFire(ServerLevel level, BattleGroup group, Roles roles) {
+        if (roles == null || roles.size() == 0) return roles;
+        Integer focus = nearestOpposingId(level, group);
+        if (focus == null) return roles;
+        Assignment[] out = new Assignment[roles.assignments.length];
+        for (int i = 0; i < roles.assignments.length; i++) {
+            Assignment a = roles.assignments[i];
+            out[i] = new Assignment(a.unitId, a.role, focus, a.flankSide, a.destX, a.destZ);
+        }
+        return new Roles(out);
+    }
+
+    @Nullable
+    private static Integer nearestOpposingId(ServerLevel level, BattleGroup group) {
+        BattleField bf = group.battleField();
+        if (!bf.populated) return null;
+        CrewFacts.Faction ours = CrewFacts.Faction.byId(group.faction());
+        double cx = bf.enemyCentroidX;
+        double cz = bf.enemyCentroidZ;
+        double best = Double.POSITIVE_INFINITY;
+        Integer bestId = null;
+        double r = 96.0;
+        try {
+            r = SewvConfig.COMMAND_ENGAGEMENT_RADIUS.get();
+        } catch (Throwable ignored) {
+        }
+        double y = 64.0;
+        for (int memberId : group.memberIds()) {
+            var e = level.getEntity(memberId);
+            if (e != null) {
+                y = e.getY();
+                break;
+            }
+        }
+        AABB box = new AABB(cx - r, y - 32, cz - r, cx + r, y + 32, cz + r);
+        for (AbstractUnit other : level.getEntities(EntityTypeTest.forClass(AbstractUnit.class), box, e -> true)) {
+            CrewFacts.Faction f = CrewFacts.factionOfCrew(other);
+            if (f == null || f == ours) continue;
+            double dx = other.getX() - cx;
+            double dz = other.getZ() - cz;
+            double d = dx * dx + dz * dz;
+            if (d < best || (d == best && (bestId == null || other.getId() < bestId))) {
+                best = d;
+                bestId = other.getId();
+            }
+        }
+        return bestId;
     }
 
     /**

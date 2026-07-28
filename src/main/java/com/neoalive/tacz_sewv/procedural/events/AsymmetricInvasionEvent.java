@@ -71,6 +71,10 @@ public final class AsymmetricInvasionEvent extends DynamicEvent {
     @Override
     public boolean execute(ServerLevel level, ServerPlayer player, BlockPos centerPos) {
         if (!SpawnHelper.isValidSpawn(level, centerPos)) return false;
+        if (!TankSpawner.spawnsEnabled(TankSpawner.TankFaction.RU)
+                || !TankSpawner.spawnsEnabled(TankSpawner.TankFaction.US)) {
+            return false;
+        }
 
         // The attacker is whoever has armour to attack with; the defender needs no pool at all,
         // which is what lets this event still fire on a server that emptied one side's vehicles.

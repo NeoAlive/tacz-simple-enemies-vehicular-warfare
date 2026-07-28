@@ -123,7 +123,8 @@ public final class DerelictVehicleEvent extends DynamicEvent {
 
         // Survivors are put on the ground and never mounted — see the class doc; a mounted crew
         // would refuel the very hull this event exists to leave dry.
-        int survivors = 1 + level.random.nextInt(SewvConfig.DERELICT_GUARDS.get());
+        int maxSurvivors = SewvConfig.DERELICT_GUARDS.get();
+        int survivors = maxSurvivors <= 0 ? 0 : 1 + level.random.nextInt(maxSurvivors);
         for (int i = 0; i < survivors; i++) {
             EventSpawns.infantry(level, hullPos, faction, GUARD_SCATTER);
         }

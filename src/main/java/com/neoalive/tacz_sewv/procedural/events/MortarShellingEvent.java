@@ -104,9 +104,8 @@ public final class MortarShellingEvent extends DynamicEvent {
 
         // A battery is one side's, like a convoy. PMC is intentionally not a candidate:
         // these are the player's own units.
-        TankSpawner.TankFaction faction = level.random.nextBoolean()
-                ? TankSpawner.TankFaction.RU
-                : TankSpawner.TankFaction.US;
+        TankSpawner.TankFaction faction = EventSpawns.pickAmbientFaction(level);
+        if (faction == null) return false;
 
         // One roll for the whole battery, not per tube: a battery fires its mission and
         // displaces together. Rolling per crew would trail the barrage off tube by tube,

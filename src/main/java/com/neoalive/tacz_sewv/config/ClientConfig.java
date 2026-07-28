@@ -59,8 +59,8 @@ public final class ClientConfig {
                 .comment("Draw energy bars under owned PMC vehicle markers.")
                 .define("mapShowEnergyBar", true);
         MAP_SHOW_COMMAND_DEBUG = builder
-                .comment("Debug: commander ★/·, BattleField overlay, play name, and per-tank role tags (BoF/MNV/…).")
-                .define("mapShowCommandDebug", true);
+                .comment("Debug: commander ★/·, BattleField overlay, play name, per-tank role tags (BoF/MNV/…).")
+                .define("mapShowCommandDebug", false);
         builder.pop();
 
         SPEC = builder.build();

@@ -139,6 +139,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PLAY_SWITCH_MARGIN;
 
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue HELI_MAX_DEPRESSION_DEG;
+    public static final ForgeConfigSpec.DoubleValue HELI_MIN_STANDOFF;
+    public static final ForgeConfigSpec.BooleanValue HELI_COMBAT_DEBUG;
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
@@ -428,8 +431,21 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("flight_ai");
-        HELI_ENGAGE_RADIUS = builder.comment("Horizontal standoff distance for AI helicopters.")
+        HELI_ENGAGE_RADIUS = builder.comment(
+                        "Horizontal standoff for unguided helicopter combat (cannon/rockets). "
+                                + "Guided engagements use heliMinStandoff + heliMaxDepressionDeg geometry instead.")
                 .defineInRange("heliEngageRadius", 32.0, 12.0, 64.0);
+        HELI_MAX_DEPRESSION_DEG = builder.comment(
+                        "Max nose-down angle for guided heli standoff (degrees). Ring = height/tan(this); "
+                                + "default 45 leaves margin under the 60° combat dive clamp.")
+                .defineInRange("heliMaxDepressionDeg", 45.0, 20.0, 55.0);
+        HELI_MIN_STANDOFF = builder.comment(
+                        "Hard minimum horizontal range for guided heli standoff. Floor when the target "
+                                + "is on a peak and height-above-target (hence the angle ring) collapses.")
+                .defineInRange("heliMinStandoff", 28.0, 16.0, 96.0);
+        HELI_COMBAT_DEBUG = builder.comment(
+                        "Log AI heli firing-run phase changes and keep the hover phase label gated on.")
+                .define("heliCombatDebug", true);
         HELI_CHUNK_LOADING = builder.comment("Keep AI helicopters ticking when no player is nearby.")
                 .define("heliChunkLoading", false);
         PLANE_CHUNK_LOADING = builder.comment("Keep AI planes ticking when no player is nearby.")

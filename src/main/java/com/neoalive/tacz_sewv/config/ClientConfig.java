@@ -17,6 +17,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_HEALTH_BAR;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_COMMAND_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -40,6 +41,9 @@ public final class ClientConfig {
         COLOR_PMC = builder
                 .comment("PMC overlay/map color as RRGGBB.")
                 .define("colorPmc", "55FF55");
+        HELI_SHOW_RUN_PHASE = builder
+                .comment("Append AI helicopter firing-run phase (INGRESS/ATTACK/BREAK/…) to the hover name.")
+                .define("heliShowRunPhase", true);
         builder.pop();
 
         builder.push("map");

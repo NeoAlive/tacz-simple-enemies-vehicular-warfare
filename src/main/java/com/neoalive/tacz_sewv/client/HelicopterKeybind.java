@@ -5,13 +5,14 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
+import com.neoalive.tacz_sewv.network.PacketRappelHelicopter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
-/** Helicopter takeoff/land orders sent from the Tactical Data Terminal ({@link TdtScreen}). */
+/** Helicopter takeoff/land/rappel orders sent from the Tactical Data Terminal ({@link TdtScreen}). */
 public class HelicopterKeybind {
 
     // How far out the landing-pad pick reaches. mc.hitResult only covers the player's
@@ -42,6 +43,13 @@ public class HelicopterKeybind {
                 HelicopterKeybind::isHelicopterPilot, "message.tacz_sewv.heli.land.none",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
                         new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_LANDING, pad, 0)));
+    }
+
+    /** Order owned helicopter pilots to rappel weaponless passengers (Stages 1–5 sequence). */
+    public static void orderRappel() {
+        BoardKeybind.withOwnedUnits(CLIENT_DISCOVERY_RADIUS,
+                HelicopterKeybind::isHelicopterPilot, "message.tacz_sewv.heli.rappel.none",
+                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketRappelHelicopter(unitIds)));
     }
 
     // Only the unit AT THE STICK (seat 0 of a helicopter): gunners, passengers and ground

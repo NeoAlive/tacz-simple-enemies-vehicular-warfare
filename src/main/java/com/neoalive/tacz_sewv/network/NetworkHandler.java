@@ -45,7 +45,10 @@ public class NetworkHandler {
     // 17: world vehicle pool editor (open + update).
     // 18: map markers carry PMC health/energy fractions.
     // 19: order feedback became a client-gated S->C packet.
-    private static final String PROTOCOL_VERSION = "22";
+    // 20–22: prior bumps.
+    // 23: heli firing-run phase sync for hover overlay.
+    // 24: PMC rappel order packet.
+    private static final String PROTOCOL_VERSION = "24";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -158,6 +161,22 @@ public class NetworkHandler {
                 PacketUpdateVehiclePools::encode,
                 PacketUpdateVehiclePools::new,
                 PacketUpdateVehiclePools::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketHeliRunPhase.class,
+                PacketHeliRunPhase::encode,
+                PacketHeliRunPhase::new,
+                PacketHeliRunPhase::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRappelHelicopter.class,
+                PacketRappelHelicopter::encode,
+                PacketRappelHelicopter::new,
+                PacketRappelHelicopter::handle
         );
     }
 }

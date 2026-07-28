@@ -139,10 +139,28 @@ tasks.register('selfCheckSeam', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckHeli', JavaExec) {
+    group = 'verification'
+    description = 'Runs the guided-heli standoff geometry self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.HeliStandoffSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckHeliArmament', JavaExec) {
+    group = 'verification'
+    description = 'Runs the heli pilot armament discriminator self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.HeliArmamentSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam'
+    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament'
 }
 
 mixin {

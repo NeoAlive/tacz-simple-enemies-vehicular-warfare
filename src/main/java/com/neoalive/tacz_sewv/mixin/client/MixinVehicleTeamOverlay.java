@@ -2,8 +2,12 @@ package com.neoalive.tacz_sewv.mixin.client;
 
 import com.atsuishio.superbwarfare.client.overlay.VehicleTeamOverlay;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.util.CrewFacts;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -26,44 +30,37 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
  * {@code RenderHelper.fill}. Two {@code @ModifyArg}s, no layout code, and SuperbWarfare keeps
  * ownership of everything about how the thing looks.
  *
- * <p>Deliberately not {@code @ModifyVariable} on the overlay's local {@code color}: it is a
- * Kotlin local with three assignment sites, and slot indices there are exactly the kind of thing
- * that shifts silently when upstream recompiles.
- *
- * <p><b>A status word (escort/patrol/formation) was deliberately NOT added here.</b> That state
- * ({@code IEscort}/{@code IVehiclePatrol}/{@code IFormationMember}) lives in transient mixin
- * fields or Forge persistent NBT, same as {@code IMortarCrew}/{@code IHelicopterPilot} — server-side
- * only, with no packet or {@code SynchedEntityData} syncing it to the client. Reading it from a
- * client-side mixin would silently read the client's own always-empty copy and never display
- * anything; {@code /sewv status} (a server-side command) is the correct home for that instead.
- * Do not add it here without first wiring real sync.
+ * <p>Also appends the AI helicopter firing-run phase to the name line when enabled — phase is
+ * synced via {@code PacketHeliRunPhase} because Forge persistent NBT is not client-visible.
  */
 @Mixin(value = VehicleTeamOverlay.class, remap = false)
 public abstract class MixinVehicleTeamOverlay {
 
     /**
      * The vehicle under the crosshair, resolved once per client tick by the overlay's own
-     * raycast in {@code onVehicleTeamOverlayClientTick}. Shadowed rather than re-traced: the
-     * answer is already sitting there, and running a second raycast per frame to rediscover it
-     * would be both slower and capable of disagreeing with the thing being drawn.
-     *
-     * <p>Deliberately a {@code @Shadow} field rather than a static {@code @Accessor} on a
-     * separate interface mixin. Mixin renames an added accessor inside the target class, so a
-     * <em>static</em> one invoked through the interface resolves to the interface's own body
-     * instead of the generated accessor — it would compile, load, apply without complaint, and
-     * then never return the entity. A shadowed field has no such gap: this mixin already targets
-     * the class the field lives in.
+     * raycast in {@code onVehicleTeamOverlayClientTick}. Shadowed rather than re-traced.
      */
     @Shadow
     private static Entity lookingEntity;
 
-    /**
-     * The half-transparent black SuperbWarfare fills the empty part of the health bar with. It is
-     * a hardcoded literal rather than the team colour, so recolouring it would paint over the
-     * whole bar and destroy the very reading the bar exists to give.
-     */
     @Unique
     private static final int TACZ_SEWV$BAR_BACKGROUND = 0x80000000;
+
+    @ModifyArg(
+            method = "render(Lcom/atsuishio/superbwarfare/client/overlay/RenderContext;)V",
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/client/gui/GuiGraphics;drawString(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;IIIZ)I",
+                    remap = true),
+            index = 1)
+    private Component tacz_sewv$appendHeliPhase(Component text) {
+        if (!ClientConfig.HELI_SHOW_RUN_PHASE.get() && !SewvConfig.HELI_COMBAT_DEBUG.get()) {
+            return text;
+        }
+        if (!(lookingEntity instanceof VehicleEntity vehicle)) return text;
+        DriveHelicopterGoal.RunPhase phase = HeliRunPhaseClient.get(vehicle.getId());
+        if (phase == null || phase == DriveHelicopterGoal.RunPhase.IDLE) return text;
+        return text.copy().append(Component.literal(" [" + phase.name() + "]"));
+    }
 
     @ModifyArg(
             method = "render(Lcom/atsuishio/superbwarfare/client/overlay/RenderContext;)V",
@@ -87,22 +84,6 @@ public abstract class MixinVehicleTeamOverlay {
         return faction == null ? argb : faction;
     }
 
-    /**
-     * The colour of the faction crewing the hovered vehicle, or null to leave SuperbWarfare's own
-     * choice alone.
-     *
-     * <p>Answers null unless <b>every</b> passenger is a unit of one and the same faction. A hull
-     * with a player aboard is the player's business and keeps its team colour; an empty one has no
-     * owner to report; a mixed crew (a captured vehicle mid-fight) is genuinely ambiguous and
-     * saying so by staying white beats picking a side. Note "empty" is filtered by the same test
-     * that requires a faction: an empty list has no first element to match against.
-     *
-     * <p>This is safe on the client despite reading passengers and entity classes: vanilla syncs
-     * passengers to the client, and the three SEM unit classes are common-source (the existing
-     * {@code MixinClientGlowManager} already does exactly this). Nothing extra is sent — the
-     * faction IS the entity class. A unit hidden by its seat's {@code hidePassenger} is still in
-     * the passenger list, only unrendered, so hulls that conceal their crew still colour.
-     */
     @Unique
     private static Integer tacz_sewv$factionColor() {
         if (!ClientConfig.FACTION_COLORS_ENABLED.get()) return null;

@@ -11,6 +11,8 @@ import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.DriveHelicopterGoal;
+import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import com.neoalive.tacz_sewv.util.EmplacementSpawner;
 import com.neoalive.tacz_sewv.util.EmplacementSpawner.Emplacement;
 import com.neoalive.tacz_sewv.util.SupportSpawner;
@@ -25,6 +27,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import javax.annotation.Nullable;
@@ -62,6 +68,10 @@ public class SewvCommand {
                 .then(Commands.literal("pool")
                         .requires(source -> source.hasPermission(2))
                         .executes(ctx -> openPoolEditor(ctx.getSource())))
+                .then(Commands.literal("debug")
+                        .requires(source -> source.hasPermission(2))
+                        .then(Commands.literal("rappel")
+                                .executes(ctx -> debugRappel(ctx.getSource()))))
         );
     }
 
@@ -71,6 +81,53 @@ public class SewvCommand {
             return 0;
         }
         return com.neoalive.tacz_sewv.util.PoolEditorAccess.open(player);
+    }
+
+    /** Stage-1 rappel: toggle hover-lock on the looked-at / nearest helicopter. */
+    private static int debugRappel(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.rappel.player_only"));
+            return 0;
+        }
+        VehicleEntity heli = findDebugHelicopter(player);
+        if (heli == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.rappel.none"));
+            return 0;
+        }
+        boolean next = !DriveHelicopterGoal.isRappelRequested(heli);
+        DriveHelicopterGoal.setRappelRequested(heli, next);
+        source.sendSuccess(() -> Component.translatable(
+                next ? "command.tacz_sewv.debug.rappel.on" : "command.tacz_sewv.debug.rappel.off",
+                heli.getDisplayName(), heli.getId()), true);
+        return 1;
+    }
+
+    private static final double DEBUG_HELI_RANGE = 64.0;
+
+    @Nullable
+    private static VehicleEntity findDebugHelicopter(ServerPlayer player) {
+        Vec3 eye = player.getEyePosition();
+        Vec3 end = eye.add(player.getLookAngle().scale(DEBUG_HELI_RANGE));
+        AABB sweep = player.getBoundingBox().expandTowards(end.subtract(eye)).inflate(1.0);
+        EntityHitResult hit = ProjectileUtil.getEntityHitResult(
+                player, eye, end, sweep,
+                e -> e instanceof VehicleEntity v && HullFacts.isHelicopterHull(v) && e.isAlive(),
+                DEBUG_HELI_RANGE * DEBUG_HELI_RANGE);
+        if (hit != null && hit.getEntity() instanceof VehicleEntity looked) {
+            return looked;
+        }
+        VehicleEntity nearest = null;
+        double best = DEBUG_HELI_RANGE * DEBUG_HELI_RANGE;
+        for (VehicleEntity v : player.level().getEntitiesOfClass(VehicleEntity.class,
+                player.getBoundingBox().inflate(DEBUG_HELI_RANGE),
+                e -> HullFacts.isHelicopterHull(e) && e.isAlive())) {
+            double d = v.distanceToSqr(player);
+            if (d < best) {
+                best = d;
+                nearest = v;
+            }
+        }
+        return nearest;
     }
 
     // Reports each nearby owned PMC unit's current standing order, in the same precedence the

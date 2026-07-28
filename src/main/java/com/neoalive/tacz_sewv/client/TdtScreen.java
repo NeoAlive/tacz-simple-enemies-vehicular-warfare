@@ -177,7 +177,7 @@ public class TdtScreen extends Screen {
                 () -> BoardKeybind.orderAreaTask(0, PacketPatrolVehicle.MODE_DISMISS),
                 "gui.tacz_sewv.tdt.dismiss.tip");
 
-        // Air column: takeoff, its live cruise-altitude stepper, then land.
+        // Air column: takeoff, its live cruise-altitude stepper, land, then rappel.
         addColumnButton(this.midX, btnY, "gui.tacz_sewv.tdt.takeoff",
                 () -> HelicopterKeybind.orderTakeoff(heliAltitude));
         addStepper(this.midX, rowY(btnY, 1), () -> heliAltitude, v -> heliAltitude = v,
@@ -185,6 +185,8 @@ public class TdtScreen extends Screen {
                 "gui.tacz_sewv.tdt.altitude.tip");
         addColumnButton(this.midX, rowY(btnY, 2), "gui.tacz_sewv.tdt.land",
                 () -> HelicopterKeybind.orderLand(this.landPad));
+        addColumnButton(this.midX, rowY(btnY, 3), "gui.tacz_sewv.tdt.rappel",
+                HelicopterKeybind::orderRappel, "gui.tacz_sewv.tdt.rappel.tip");
 
         // Formations column: wedge / column / line + its row-size stepper / echelon left / right.
         addFormationButton(this.rightX, btnY, "gui.tacz_sewv.tdt.wedge", FormationShape.WEDGE);

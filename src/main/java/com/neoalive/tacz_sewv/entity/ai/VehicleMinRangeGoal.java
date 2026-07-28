@@ -11,6 +11,9 @@ import java.util.EnumSet;
  * While mounted in a vehicle, drops targets that are too close for the
  * vehicle's weapons to physically engage (e.g. a mob on top of the turret).
  * Prevents the tank locking up trying to aim at an unhittable hugger.
+ *
+ * <p>Helicopters in an active firing run are exempt: ATTACK is supposed to
+ * overfly inside this band, and clearing the lock mid-pass aborts the racetrack.
  */
 public class VehicleMinRangeGoal extends Goal {
 
@@ -51,6 +54,11 @@ public class VehicleMinRangeGoal extends Goal {
         double dz = target.getZ() - this.vehicle.getZ();
         double distSq = dx * dx + dz * dz;
         if (distSq < MIN_ENGAGE_DISTANCE_SQ) {
+            // Firing-run overfly is intentional — keep the lock for the pass.
+            if (HullFacts.isHelicopterHull(this.vehicle)
+                    && DriveHelicopterGoal.inFiringRun(this.vehicle)) {
+                return;
+            }
             // Too close for the vehicle to aim, drop it so targeting picks something else
             this.unit.setTarget(null);
         }

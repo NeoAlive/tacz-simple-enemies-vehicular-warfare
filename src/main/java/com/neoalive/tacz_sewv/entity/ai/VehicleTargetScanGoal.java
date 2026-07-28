@@ -20,6 +20,8 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Target acquisition for mounted crews: a flat cylinder scan around the VEHICLE
  * (configurable radius and height) instead of the vanilla follow-range scan SEM
@@ -105,12 +107,17 @@ public class VehicleTargetScanGoal extends Goal {
         // LOS is re-checked for the whole life of the lock, not just at acquisition —
         // otherwise a target stepping behind a wall stays locked forever. Sensing
         // caches the raycast per tick, so this costs one clip per crew per tick.
-        if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()) {
+        // Suspended during an active heli firing run: pitch/bank occludes the pilot's
+        // own ray without the target having left — dropping then would abort the pass.
+        if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+                && !DriveHelicopterGoal.inFiringRun(this.vehicle)) {
             if (this.unit.getSensing().hasLineOfSight(target)) {
                 this.ticksWithoutLos = 0;
             } else if (++this.ticksWithoutLos > LOS_GRACE_TICKS) {
                 return false; // hidden too long — release the lock and rescan
             }
+        } else {
+            this.ticksWithoutLos = 0;
         }
 
         double dropRadius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get() * DROP_MULT;
@@ -138,36 +145,89 @@ public class VehicleTargetScanGoal extends Goal {
     // LOS raycasts (when enabled) only run down the sorted list until the first
     // visible candidate, not against everything found.
     private LivingEntity scanCylinder(VehicleEntity v) {
-        double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
-        double halfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
-        double radiusSq = radius * radius;
-
-        // Aircraft extend the cylinder down to the terrain: centered on the hull, a
-        // helicopter at cruise altitude would otherwise scan nothing but sky while
-        // every actual target sits on the ground below the bottom face.
-        AABB bounds = new AABB(
-                v.getX() - radius, v.getY() - halfHeight - altitudeSlack(v), v.getZ() - radius,
-                v.getX() + radius, v.getY() + halfHeight, v.getZ() + radius);
-
-        List<LivingEntity> candidates = this.unit.level().getEntitiesOfClass(LivingEntity.class, bounds, e -> {
-            if (!isValidTarget(v, e)) return false;
-            double distSq = horizontalDistSq(v, e);
-            // Skip anything already inside the vehicle's dead zone — otherwise this
-            // scan and VehicleMinRangeGoal would trade the same hugger back and forth.
-            return distSq <= radiusSq && distSq >= VehicleMinRangeGoal.MIN_ENGAGE_DISTANCE_SQ;
-        });
-
+        List<LivingEntity> candidates = collectCylinderCandidates(v, DriveHelicopterGoal.inFiringRun(v));
         // Nearest-first (with a soft bias toward the commander's focus id), then the first
         // candidate the crew can actually see (every candidate, when LOS is off). Raycasts only
         // run down the list until one passes.
         candidates.sort(Comparator.comparingDouble(e -> focusAdjustedDistSq(v, e)));
-        boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get();
+        // Mid firing-run reacquire must not demand LOS every scan interval — the same
+        // pitch/bank that flickered the lock would block re-lock for the whole pass.
+        boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+                && !DriveHelicopterGoal.inFiringRun(v);
         for (LivingEntity candidate : candidates) {
             if (!needLos || this.unit.getSensing().hasLineOfSight(candidate)) {
                 return candidate;
             }
         }
         return null;
+    }
+
+    /**
+     * Debug probe at abandon time: is there still a valid enemy in the mounted scan
+     * cylinder, and can the pilot see it? Separates false losses (inRange=true) from
+     * genuine end-of-fight (inRange=false). Includes the min-range dead zone so an
+     * overfly-close live target still counts as something we should have kept.
+     */
+    public record RelockProbe(boolean inRange, boolean hasLos, int id) {
+        static final RelockProbe NONE = new RelockProbe(false, false, -1);
+    }
+
+    /** Nearest valid in-cylinder enemy for abandon diagnostics — never assigns a target. */
+    public static RelockProbe probeRelock(AbstractUnit unit, VehicleEntity v) {
+        LivingEntity best = findHandoffTarget(unit, v);
+        if (best == null) return RelockProbe.NONE;
+        boolean los = unit.getSensing().hasLineOfSight(best);
+        return new RelockProbe(true, los, best.getId());
+    }
+
+    /**
+     * Best handoff / relock candidate in the mounted cylinder. During a firing run
+     * LOS is not required (same rule as mid-pass reacquire); otherwise respects
+     * {@link SewvConfig#VEHICLE_TARGET_REQUIRE_LOS}. Never assigns the target.
+     */
+    @Nullable
+    public static LivingEntity findHandoffTarget(AbstractUnit unit, VehicleEntity v) {
+        if (unit == null || v == null) return null;
+        try {
+            VehicleTargetScanGoal probe = new VehicleTargetScanGoal(unit);
+            probe.vehicle = v;
+            boolean inRun = DriveHelicopterGoal.inFiringRun(v);
+            List<LivingEntity> candidates = probe.collectCylinderCandidates(v, true);
+            if (candidates.isEmpty()) return null;
+            candidates.sort(Comparator.comparingDouble(e -> probe.focusAdjustedDistSq(v, e)));
+            boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get() && !inRun;
+            for (LivingEntity candidate : candidates) {
+                if (!needLos || unit.getSensing().hasLineOfSight(candidate)) {
+                    return candidate;
+                }
+            }
+            return null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * @param includeClose when true, keep candidates inside {@link VehicleMinRangeGoal}'s
+     *                     dead zone (firing-run overfly / abandon probe). Acquisition while
+     *                     idle still excludes them so MinRange doesn't thrash the lock.
+     */
+    private List<LivingEntity> collectCylinderCandidates(VehicleEntity v, boolean includeClose) {
+        double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
+        double halfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
+        double radiusSq = radius * radius;
+        // Aircraft extend the cylinder down to the terrain: centered on the hull, a
+        // helicopter at cruise altitude would otherwise scan nothing but sky while
+        // every actual target sits on the ground below the bottom face.
+        AABB bounds = new AABB(
+                v.getX() - radius, v.getY() - halfHeight - altitudeSlack(v), v.getZ() - radius,
+                v.getX() + radius, v.getY() + halfHeight, v.getZ() + radius);
+        return this.unit.level().getEntitiesOfClass(LivingEntity.class, bounds, e -> {
+            if (!isValidTarget(v, e)) return false;
+            double distSq = horizontalDistSq(v, e);
+            if (distSq > radiusSq) return false;
+            return includeClose || distSq >= VehicleMinRangeGoal.MIN_ENGAGE_DISTANCE_SQ;
+        });
     }
 
     /** Distance used for ranking — shrinks the commander's priority target without locking it. */

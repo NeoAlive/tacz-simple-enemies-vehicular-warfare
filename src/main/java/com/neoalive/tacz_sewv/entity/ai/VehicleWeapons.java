@@ -285,7 +285,8 @@ public final class VehicleWeapons {
      * the AI tick. On error assume the slot IS real — the mixin still backstops the
      * NaN, and silently disarming a working weapon is the worse failure.
      */
-    private static boolean isRealWeapon(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
+    /** Package-visible for {@link HeliArmament} (same placeholder / zero-velocity gate). */
+    static boolean isRealWeapon(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
         try {
             GunData gun = vehicle.getGunData(seatIndex, weaponIndex);
             if (gun == null) return false; // no data at all — nothing to aim or fire
@@ -538,33 +539,51 @@ public final class VehicleWeapons {
      */
     public static boolean tryAiFireAssist(VehicleEntity vehicle, AbstractUnit unit,
                                           LivingEntity target, double coneDeg) {
+        return tryAiFireAssistResult(vehicle, unit, target, coneDeg) == FireGate.FIRED;
+    }
+
+    /** Why {@link #tryAiFireAssist} did or did not shoot — for heli combat debug. */
+    public enum FireGate {
+        FIRED, RPM_WAIT, CANNOT_SHOOT, BAD_VECTOR, CONE, ERROR
+    }
+
+    /**
+     * Same as {@link #tryAiFireAssist} but returns the gate that blocked the shot.
+     * {@link FireGate#CANNOT_SHOOT} covers MixinVehicleFireCooldown (CEASE_FIRE,
+     * AI cooldown, LOS/smoke) and SBW ammo/reload — dig with canShoot alone if needed.
+     */
+    public static FireGate tryAiFireAssistResult(VehicleEntity vehicle, AbstractUnit unit,
+                                                 LivingEntity target, double coneDeg) {
         try {
             int rpm = Math.max(1, vehicle.vehicleWeaponRpm(unit));
             int interval = Math.max(1, (int) Math.ceil(1200.0F / rpm));
-            if (vehicle.tickCount % interval != 0) return false;
-            if (!vehicle.canShoot(unit)) return false;
+            if (vehicle.tickCount % interval != 0) return FireGate.RPM_WAIT;
+            if (!vehicle.canShoot(unit)) return FireGate.CANNOT_SHOOT;
 
             Vec3 shootDir = vehicle.getShootDirectionForHud(unit, 1.0F);
             Vec3 toTarget = target.getBoundingBox().getCenter()
                     .subtract(vehicle.getShootPos(unit, 1.0F));
-            if (shootDir.lengthSqr() < 1.0E-6 || toTarget.lengthSqr() < 1.0E-6) return false;
+            if (shootDir.lengthSqr() < 1.0E-6 || toTarget.lengthSqr() < 1.0E-6) {
+                return FireGate.BAD_VECTOR;
+            }
 
             double cos = shootDir.normalize().dot(toTarget.normalize());
             double angleDeg = Math.toDegrees(Math.acos(Mth.clamp(cos, -1.0, 1.0)));
-            if (angleDeg >= coneDeg) return false;
+            if (angleDeg >= coneDeg) return FireGate.CONE;
 
             vehicle.vehicleShoot(unit, target.getUUID(), null);
-            return true;
+            return FireGate.FIRED;
         } catch (Exception e) {
-            return false; // missing seat/weapon data — never let the assist crash the AI tick
+            return FireGate.ERROR;
         }
     }
 
     /**
-     * Gunship doctrine ({@link DriveHelicopterGoal}): pick a RANDOM slot among the
-     * weapons the seat actually has, regardless of the target's type. Bounded by
-     * the seat's real weapon count for the same reason as above — setWeaponIndex()
-     * doesn't bounds-check and an invalid index silently disarms the seat.
+     * Formerly gunship doctrine ({@link DriveHelicopterGoal}): pick a RANDOM slot.
+     * Helicopter combat v1 now uses {@link #selectWeaponForTarget}; this remains for
+     * any caller that still wants a uniform real-slot pick. Bounded by the seat's
+     * real weapon count — setWeaponIndex() doesn't bounds-check and an invalid index
+     * silently disarms the seat.
      *
      * <p>Placeholder slots are excluded (see isRealWeapon): a uniform pick over every
      * slot would sooner or later land on one and permanently freeze the turret.

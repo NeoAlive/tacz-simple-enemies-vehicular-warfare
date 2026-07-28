@@ -99,16 +99,28 @@ public final class VehicleMissileAim {
         if (projectileId == null || projectileId.isEmpty()) return null;
 
         // Prefer registry class — covers addon subclasses of WireGuide / seekers.
-        ResourceLocation rl = ResourceLocation.tryParse(projectileId);
-        if (rl != null && ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
-            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
-            if (type != null) {
-                AimMode fromClass = modeOfClass(type.getBaseClass());
-                if (fromClass != null) return fromClass;
+        try {
+            ResourceLocation rl = ResourceLocation.tryParse(projectileId);
+            if (rl != null && ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
+                EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+                if (type != null) {
+                    AimMode fromClass = modeOfClass(type.getBaseClass());
+                    if (fromClass != null) return fromClass;
+                }
             }
+        } catch (Throwable ignored) {
+            // Headless / unbootstrapped — fall through to id tokens.
         }
+        return modeOfProjectileId(projectileId);
+    }
 
-        // Id fallback when the type is not loaded or getBaseClass is too generic.
+    /**
+     * Id-token guided detection only (no registry). Safe for headless self-checks.
+     * Same needles as the fallback half of {@link #modeOfProjectile}.
+     */
+    @Nullable
+    static AimMode modeOfProjectileId(@Nullable String projectileId) {
+        if (projectileId == null || projectileId.isEmpty()) return null;
         String id = projectileId.toLowerCase();
         if (id.contains("wire_guide")) return AimMode.BEAM_RIDER;
         if (id.contains("ru_9m336") || id.contains("igla") || id.contains("javelin")

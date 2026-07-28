@@ -29,13 +29,14 @@
     "MixinCommanderOrderGoal",
     "MixinWalkNodeEvaluator"
   ],
-  "client": [
+    "client": [
     "client.MixinClientGlowManager",
     "client.MixinClientGlowRenderHandler",
     "client.MixinUnitRenderer",
     "client.MixinUniversalArmorLayer",
     "client.MixinUnitModelSeatPose",
-    "client.MixinVehicleTeamOverlay"
+    "client.MixinVehicleTeamOverlay",
+    "client.MixinVehicleRappelWires"
   ],
   "server": [],
   "injectors": {

@@ -211,6 +211,8 @@ public class DriveHelicopterGoal extends Goal {
      * not the old 12–48 knife band that fought the firing-run gate).
      */
     private static final double RAPPEL_INSERT_RADIUS = 64.0;
+    /** Same cap as {@link DriveVehicleGoal}'s IFV dismount — one or two AT gunners per insert. */
+    private static final int MAX_AT_GUNNERS = 2;
     /** Ticks holding an in-range enemy before dropping — not first-contact insta-rappel. */
     private static final int RAPPEL_ENGAGE_DEBOUNCE_TICKS = 40;
     /** After any rappel ends, don't autonomous-retrigger while still in the same scrap. */
@@ -285,6 +287,8 @@ public class DriveHelicopterGoal extends Goal {
     private long rappelEngageSince = Long.MIN_VALUE;
     /** Don't autonomous-rappel again before this game time (set on every exitRappel). */
     private long rappelAutonomousCooldownUntil = Long.MIN_VALUE;
+    /** AT launchers handed out this RAPPEL session (mirrors IFV {@code dismountSquad} armed count). */
+    private int rappelAtIssued;
 
     public DriveHelicopterGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -1033,6 +1037,7 @@ public class DriveHelicopterGoal extends Goal {
         this.rappelLockZ = this.vehicle.getZ();
         this.rappelStartedAt = this.unit.level().getGameTime();
         this.rappelStableAt = Long.MIN_VALUE;
+        this.rappelAtIssued = 0;
         setRunPhase(RunPhase.RAPPEL);
     }
 
@@ -1058,6 +1063,7 @@ public class DriveHelicopterGoal extends Goal {
         this.rappelStartedAt = Long.MIN_VALUE;
         this.rappelStableAt = Long.MIN_VALUE;
         this.rappelEngageSince = Long.MIN_VALUE;
+        this.rappelAtIssued = 0;
         // Keeps RU/US from immediately re-arming after a timeout/abort that left cargo aboard.
         this.rappelAutonomousCooldownUntil =
                 this.unit.level().getGameTime() + RAPPEL_AUTONOMOUS_COOLDOWN_TICKS;
@@ -1107,6 +1113,13 @@ public class DriveHelicopterGoal extends Goal {
             if (!(passenger instanceof AbstractUnit unit)) continue;
             int id = unit.getId();
             if (id == this.rappelRopeMinusId || id == this.rappelRopePlusId) continue;
+
+            // Same AT issue seam as DriveVehicleGoal.dismountSquad — first always, second rolls,
+            // max two per RAPPEL session. issueAtWeapon no-ops for PMC / already-armed.
+            if (this.rappelAtIssued == 0 || (this.rappelAtIssued < MAX_AT_GUNNERS
+                    && unit.getRandom().nextDouble() < SewvConfig.AT_SECOND_GUNNER_CHANCE.get())) {
+                if (SmallArmsSupport.issueAtWeapon(unit)) this.rappelAtIssued++;
+            }
 
             Vec3 top = RappelSupport.ropeTopWorld(this.vehicle, plusX);
             unit.stopRiding();

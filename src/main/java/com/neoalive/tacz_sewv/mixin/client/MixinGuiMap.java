@@ -224,7 +224,7 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapPress(double mouseX, double mouseY, int button,
                                       CallbackInfoReturnable<Boolean> cir) {
-        if (!ClientConfig.MAP_MARKERS_ENABLED.get() || CruisePlot.armed()) return;
+        if (!ClientConfig.mapMarkersEnabled() || CruisePlot.armed()) return;
         if (tacz_sewv$dropdownOpen()) return; // the right-click menu (or a toggle-menu) owns this click
         if (this.getChildAt(mouseX, mouseY).isPresent()) return; // a Xaero widget, not the map
 
@@ -298,7 +298,7 @@ public abstract class MixinGuiMap extends Screen {
 
     @Inject(method = "getRightClickOptions", at = @At("RETURN"))
     private void tacz_sewv$orderOptions(CallbackInfoReturnable<ArrayList<RightClickOption>> cir) {
-        if (!ClientConfig.MAP_MARKERS_ENABLED.get()) return;
+        if (!ClientConfig.mapMarkersEnabled()) return;
         ArrayList<RightClickOption> options = cir.getReturnValue();
         if (options == null) return;
 
@@ -312,7 +312,7 @@ public abstract class MixinGuiMap extends Screen {
         // The order-preview overlay draws independently of cruise plotting. Standing orders come
         // straight from the synced markers (so they clear themselves when an order is dismissed or
         // overridden); the live drag is the transient line being laid down right now.
-        if (ClientConfig.MAP_MARKERS_ENABLED.get()) {
+        if (ClientConfig.mapMarkersEnabled()) {
             tacz_sewv$drawStandingPreviews(guiGraphics);
             if (ClientConfig.MAP_SHOW_COMMAND_DEBUG.get()) {
                 tacz_sewv$drawBattleFieldOverlay(guiGraphics);

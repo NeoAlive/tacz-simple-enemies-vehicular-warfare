@@ -313,7 +313,7 @@ public final class VehicleMarkerElements {
 
         @Override
         public boolean shouldRender(ElementRenderLocation location, boolean shadow) {
-            return !shadow && ClientConfig.MAP_MARKERS_ENABLED.get();
+            return !shadow && ClientConfig.mapMarkersEnabled();
         }
 
         /** Above Xaero's tracked players (200) — your own units are what you opened the map for. */

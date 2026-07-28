@@ -2,6 +2,8 @@ package com.neoalive.tacz_sewv.config;
 
 import net.minecraftforge.common.ForgeConfigSpec;
 
+import javax.annotation.Nullable;
+
 public final class ClientConfig {
 
     public static final ForgeConfigSpec SPEC;
@@ -18,6 +20,10 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_COMMAND_DEBUG;
     public static final ForgeConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
+
+    /** Session flip for the map-markers keybind; {@code null} means “use config”. */
+    @Nullable
+    private static volatile Boolean MAP_MARKERS_SESSION_OVERRIDE;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -48,7 +54,8 @@ public final class ClientConfig {
 
         builder.push("map");
         MAP_MARKERS_ENABLED = builder
-                .comment("Show SEWV markers and map ordering UI in Xaero's World Map.")
+                .comment("Show SEWV unit/vehicle markers and map ordering UI on Xaero's World Map.",
+                        "User-facing clutter toggle (not debug). Toggle in-game with the map markers keybind.")
                 .define("mapMarkersEnabled", true);
         MAP_LIVE = builder
                 .comment("Keep singleplayer running while Xaero's map is open.")
@@ -71,6 +78,22 @@ public final class ClientConfig {
     }
 
     private ClientConfig() {}
+
+    /**
+     * Effective map-marker visibility. Prefer this over {@link #MAP_MARKERS_ENABLED}{@code .get()}
+     * so the in-game keybind session override is honoured without rewriting the toml every press.
+     */
+    public static boolean mapMarkersEnabled() {
+        Boolean override = MAP_MARKERS_SESSION_OVERRIDE;
+        return override != null ? override : MAP_MARKERS_ENABLED.get();
+    }
+
+    /** Toggle markers for this client session; returns the new visible state. */
+    public static boolean toggleMapMarkersSession() {
+        boolean next = !mapMarkersEnabled();
+        MAP_MARKERS_SESSION_OVERRIDE = next;
+        return next;
+    }
 
     public static int parseColor(String hex, int fallback) {
         try {

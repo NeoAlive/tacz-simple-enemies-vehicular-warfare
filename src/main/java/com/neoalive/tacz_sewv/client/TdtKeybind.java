@@ -66,6 +66,7 @@ public final class TdtKeybind {
         @SubscribeEvent
         public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
             event.register(OPEN_TDT);
+            event.register(MapMarkersKeybind.TOGGLE_MAP_MARKERS);
         }
     }
 

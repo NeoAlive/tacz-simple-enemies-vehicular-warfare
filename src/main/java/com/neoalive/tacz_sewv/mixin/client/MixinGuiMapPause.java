@@ -34,6 +34,6 @@ public abstract class MixinGuiMapPause extends Screen {
     @Override
     public boolean isPauseScreen() {
         // Live only while the command feature is actually on; otherwise leave the vanilla pause be.
-        return !ClientConfig.MAP_MARKERS_ENABLED.get() || !ClientConfig.MAP_LIVE.get();
+        return !ClientConfig.mapMarkersEnabled() || !ClientConfig.MAP_LIVE.get();
     }
 }

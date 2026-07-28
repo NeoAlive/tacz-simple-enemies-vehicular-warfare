@@ -56,7 +56,8 @@ public class PacketOwnedVehicles {
                     buf.readFloat(),
                     buf.readFloat(),
                     VehicleMarker.CommandRole.byId(buf.readByte()),
-                    buf.readVarInt()));
+                    buf.readVarInt(),
+                    VehicleMarker.PlayRole.byId(buf.readByte())));
         }
         this.markers = read;
 
@@ -71,7 +72,8 @@ public class PacketOwnedVehicles {
                     buf.readDouble(), buf.readDouble(),
                     buf.readFloat(), buf.readFloat(),
                     buf.readBoolean(), buf.readDouble(), buf.readDouble(),
-                    buf.readBoolean(), buf.readDouble(), buf.readDouble()));
+                    buf.readBoolean(), buf.readDouble(), buf.readDouble(),
+                    buf.readUtf(64)));
         }
         this.battleFields = bfs;
     }
@@ -94,6 +96,7 @@ public class PacketOwnedVehicles {
             buf.writeFloat(marker.energyFrac());
             buf.writeByte(marker.commandRole().ordinal());
             buf.writeVarInt(marker.groupId());
+            buf.writeByte(marker.playRole().ordinal());
         }
         buf.writeVarInt(this.battleFields.size());
         for (BattleFieldMarker bf : this.battleFields) {
@@ -112,6 +115,7 @@ public class PacketOwnedVehicles {
             buf.writeBoolean(bf.flankRight());
             buf.writeDouble(bf.flankRightX());
             buf.writeDouble(bf.flankRightZ());
+            buf.writeUtf(bf.playLabel() != null ? bf.playLabel() : "", 64);
         }
     }
 

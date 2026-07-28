@@ -178,13 +178,21 @@ public final class UtilityWeights {
         double[][] axes = new double[Action.VALUES.length][Doctrine.Axis.VALUES.length];
 
         signals[Action.ATTACK.ordinal()][Signal.ENEMY_VISIBLE.ordinal()] = 50.0;
+        signals[Action.ATTACK.ordinal()][Signal.TASKED_BASE_OF_FIRE.ordinal()] = 35.0;
         signals[Action.ADVANCE.ordinal()][Signal.TOO_FAR.ordinal()] = 60.0;
+        signals[Action.ADVANCE.ordinal()][Signal.TASKED_ADVANCE.ordinal()] = 45.0;
         signals[Action.RETREAT.ordinal()][Signal.LOW_HEALTH.ordinal()] = 90.0;
         signals[Action.RETREAT.ordinal()][Signal.TOO_CLOSE.ordinal()] = 40.0;
+        signals[Action.RETREAT.ordinal()][Signal.TASKED_WITHDRAW.ordinal()] = 45.0;
         signals[Action.DEPLOY_SMOKE.ordinal()][Signal.LOW_HEALTH.ordinal()] = 60.0;
+        signals[Action.DEPLOY_SMOKE.ordinal()][Signal.RECENTLY_HIT.ordinal()] = 25.0;
         signals[Action.DEPLOY_SMOKE.ordinal()][Signal.SMOKE_READY.ordinal()] = 10.0;
         signals[Action.DEPLOY_SMOKE.ordinal()][Signal.SCREENED.ordinal()] = -200.0;
         signals[Action.HOLD.ordinal()][Signal.BASE.ordinal()] = 5.0;
+        signals[Action.HOLD.ordinal()][Signal.TASKED_HOLD.ordinal()] = 40.0;
+        signals[Action.HOLD.ordinal()][Signal.TASKED_BASE_OF_FIRE.ordinal()] = 25.0;
+        signals[Action.FLANK_LEFT.ordinal()][Signal.TASKED_FLANK.ordinal()] = 55.0;
+        signals[Action.FLANK_RIGHT.ordinal()][Signal.TASKED_FLANK.ordinal()] = 55.0;
         // Out of contact, keep working the standing destination rather than parking.
         signals[Action.PATROL.ordinal()][Signal.BASE.ordinal()] = 20.0;
 

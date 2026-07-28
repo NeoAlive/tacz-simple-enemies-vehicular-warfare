@@ -11,6 +11,7 @@ import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
 import com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOwnedVehicles;
@@ -185,7 +186,8 @@ public final class OwnedVehicleTracker {
                     d.enemyX(), d.enemyZ(),
                     d.axisX(), d.axisZ(),
                     d.openFlankLeft(), flX, flZ,
-                    d.openFlankRight(), frX, frZ));
+                    d.openFlankRight(), frX, frZ,
+                    d.playLabel() != null ? d.playLabel() : ""));
         }
         return out;
     }
@@ -376,15 +378,28 @@ public final class OwnedVehicleTracker {
         MarkerOrder order = allegiance == VehicleMarker.Allegiance.OWN ? c.order() : MarkerOrder.NONE;
         VehicleMarker.CommandRole role = VehicleMarker.CommandRole.NONE;
         int groupId = VehicleMarker.NO_GROUP;
-        // Read-only: tagForDriver never mutates grouping/election.
+        // Read-only: tagForDriver / assignmentRoleForDriver never mutate command state.
         CommandCoordinator.CommandTag tag = CommandCoordinator.tagForDriver(c.driverId());
         if (tag != null) {
             groupId = tag.groupId();
             role = tag.commander() ? VehicleMarker.CommandRole.COMMANDER : VehicleMarker.CommandRole.MEMBER;
         }
+        VehicleMarker.PlayRole playRole = playRoleOf(CommandCoordinator.assignmentRoleForDriver(c.driverId()));
         return new VehicleMarker(c.driverId(), c.vehicleId(), c.x(), c.y(), c.z(), c.yaw(),
                 c.kind(), allegiance, c.faction(), order, c.dimension(),
-                c.healthFrac(), c.energyFrac(), role, groupId);
+                c.healthFrac(), c.energyFrac(), role, groupId, playRole);
+    }
+
+    private static VehicleMarker.PlayRole playRoleOf(@javax.annotation.Nullable Assignment.Role role) {
+        if (role == null) return VehicleMarker.PlayRole.NONE;
+        return switch (role) {
+            case BASE_OF_FIRE -> VehicleMarker.PlayRole.BASE_OF_FIRE;
+            case MANEUVER -> VehicleMarker.PlayRole.MANEUVER;
+            case OVERWATCH -> VehicleMarker.PlayRole.OVERWATCH;
+            case RESERVE -> VehicleMarker.PlayRole.RESERVE;
+            case HOLD -> VehicleMarker.PlayRole.HOLD;
+            case WITHDRAW -> VehicleMarker.PlayRole.WITHDRAW;
+        };
     }
 
     private static float healthFrac(VehicleEntity hull) {

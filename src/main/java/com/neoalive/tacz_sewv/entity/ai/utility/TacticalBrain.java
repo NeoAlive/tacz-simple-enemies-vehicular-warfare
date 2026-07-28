@@ -5,6 +5,8 @@ import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
+import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import net.minecraft.util.Mth;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
@@ -75,7 +77,7 @@ public final class TacticalBrain {
 
         // Order matters: the facts are projected onto signals, confidence is judged from those,
         // and only then are the actions scored — because confidence is itself an input to them.
-        sample(this.facts, now);
+        sample(unit, this.facts, now);
         this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights);
         this.signals[Signal.CONFIDENCE.ordinal()] = Confidence.asSignal(this.facts.confidence);
 
@@ -120,7 +122,7 @@ public final class TacticalBrain {
      * flees. Graded signals are also what make the switch margin meaningful — a cliff would jump
      * straight past it.
      */
-    private void sample(Facts f, long now) {
+    private void sample(AbstractUnit unit, Facts f, long now) {
         double[] s = this.signals;
         Arrays.fill(s, 0.0);
         this.lastSampledTick = now;
@@ -194,12 +196,15 @@ public final class TacticalBrain {
         // and the exact number stops meaning anything.
         s[Signal.STEEP_GROUND.ordinal()] = Mth.clamp(f.slope / 3.0, 0.0, 1.0);
         s[Signal.HIGH_ALTITUDE.ordinal()] = f.altitude;
+
+        // Command-tier tasking: one projection line — raise the matching TASKED_* or none.
+        CrewAssignment.raiseTaskSignals(unit.getId(), s);
     }
 
     private void decide(AbstractUnit unit, Doctrine doctrine, UtilityWeights weights, long now) {
-        // Which way this crew goes round. Fixed per unit, not re-rolled, so a crew commits to one
-        // direction instead of rocking back and forth over the same ground.
-        Action preferredFlank = (unit.getId() & 1) == 0 ? Action.FLANK_LEFT : Action.FLANK_RIGHT;
+        // Which way this crew goes round. Id-parity by default so a platoon splits both ways;
+        // a TASKED_FLANK assignment overrides so the group flanks the commander's way.
+        Action preferredFlank = preferredFlankOf(unit.getId());
 
         Action best = null;
         double bestScore = 0.0;
@@ -288,6 +293,18 @@ public final class TacticalBrain {
     private boolean canRequest(FireMissionSupport.Kind kind) {
         return this.facts.support.contains(kind)
                 && !this.facts.memory.recentlyCalledSupport(this.lastSampledTick);
+    }
+
+    /**
+     * Flank direction for the tiebreak. Reads the published assignment's side when this crew is
+     * a flank maneuver element; otherwise entity-id parity. Not a new brain branch — the same
+     * preferredFlank slot the scorer already had.
+     */
+    public static Action preferredFlankOf(int unitId) {
+        Assignment.FlankSide side = CrewAssignment.taskedFlankSide(unitId);
+        if (side == Assignment.FlankSide.LEFT) return Action.FLANK_LEFT;
+        if (side == Assignment.FlankSide.RIGHT) return Action.FLANK_RIGHT;
+        return (unitId & 1) == 0 ? Action.FLANK_LEFT : Action.FLANK_RIGHT;
     }
 
     /**

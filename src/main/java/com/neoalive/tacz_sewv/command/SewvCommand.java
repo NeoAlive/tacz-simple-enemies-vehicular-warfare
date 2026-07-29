@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
+import com.neoalive.tacz_sewv.debug.GunCacheProbe;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IEscort;
@@ -29,6 +30,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
@@ -73,7 +75,9 @@ public class SewvCommand {
                 .then(Commands.literal("debug")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("rappel")
-                                .executes(ctx -> debugRappel(ctx.getSource()))))
+                                .executes(ctx -> debugRappel(ctx.getSource())))
+                        .then(Commands.literal("guncache")
+                                .executes(ctx -> debugGunCache(ctx.getSource()))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("add")
@@ -216,6 +220,36 @@ public class SewvCommand {
                 next ? "command.tacz_sewv.debug.rappel.on" : "command.tacz_sewv.debug.rappel.off",
                 heli.getDisplayName(), heli.getId()), true);
         return 1;
+    }
+
+    /**
+     * Spawns a temporary RU crewed hull (or probes the nearest vehicle) and verifies the
+     * per-tick gun-map cache stays coherent across weapon-index and ammo switches.
+     */
+    private static int debugGunCache(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        BlockPos near = source.getEntity() != null
+                ? source.getEntity().blockPosition()
+                : level.getSharedSpawnPos();
+        VehicleEntity existing = null;
+        double best = 32.0 * 32.0;
+        for (VehicleEntity v : level.getEntitiesOfClass(VehicleEntity.class,
+                new AABB(near).inflate(32.0), Entity::isAlive)) {
+            double d = v.distanceToSqr(near.getX() + 0.5, near.getY(), near.getZ() + 0.5);
+            if (d < best) {
+                best = d;
+                existing = v;
+            }
+        }
+        String result = existing != null
+                ? GunCacheProbe.probeHull(existing)
+                : GunCacheProbe.run(level, near);
+        if (result.startsWith("PASS")) {
+            source.sendSuccess(() -> Component.literal(result), true);
+            return 1;
+        }
+        source.sendFailure(Component.literal(result));
+        return 0;
     }
 
     private static final double DEBUG_HELI_RANGE = 64.0;

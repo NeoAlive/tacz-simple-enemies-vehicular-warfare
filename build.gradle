@@ -75,6 +75,10 @@ minecraft {
             workingDirectory project.file('run-server-dev')
             // '--nogui' is inherited from the parent server run; no need to repeat it.
             property 'forge.server.address', '127.0.0.1'
+            // One-shot gun-map cache probe: ./gradlew runServerDev -PguncacheProbe
+            if (project.hasProperty('guncacheProbe')) {
+                property 'sewv.guncacheProbe', 'true'
+            }
         }
 
         // This run config launches GameTestServer and runs all registered gametests, then exits.

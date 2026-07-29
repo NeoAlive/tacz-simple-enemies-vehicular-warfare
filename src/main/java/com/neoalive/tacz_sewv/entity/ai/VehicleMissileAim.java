@@ -84,7 +84,7 @@ public final class VehicleMissileAim {
             int seat = vehicle.getSeatIndex(controller);
             if (seat < 0) return null;
             int weapon = vehicle.getSelectedWeapon(seat);
-            GunData gun = vehicle.getGunData(seat, weapon);
+            GunData gun = VehicleWeapons.gunData(vehicle, seat, weapon);
             if (gun == null) return null;
             ProjectileInfo pi = gun.get(GunProp.PROJECTILE);
             if (pi == null) return null;

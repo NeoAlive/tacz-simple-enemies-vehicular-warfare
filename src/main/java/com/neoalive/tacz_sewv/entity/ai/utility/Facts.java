@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -282,20 +283,21 @@ public final class Facts {
                 : 1.0F;
 
         int seat = hull.getSeatIndex(unit);
-        this.ammoCount = readAmmoCount(hull, seat);
-        this.ammo = classifyAmmo(this.ammoCount, readMagazine(hull, seat));
+        GunData selected = seat >= 0 ? VehicleWeapons.gunData(hull, seat) : null;
+        this.ammoCount = readAmmoCount(hull, seat, selected);
+        this.ammo = classifyAmmo(this.ammoCount, readMagazine(selected));
         this.canShoot = seat >= 0 && safeCanShoot(hull, unit);
         this.smokeReady = this.hasDecoy && safeDecoyReady(hull);
         this.speed = hull.getLastTickSpeed();
     }
 
     /** Rounds available to this seat's selected weapon, or -1 when the seat has no weapon. */
-    private static int readAmmoCount(VehicleEntity hull, int seat) {
+    private static int readAmmoCount(VehicleEntity hull, int seat, GunData selected) {
         if (seat < 0) return -1;
         try {
             // "No such weapon" and "empty magazine" both count as 0, so the null check is what
             // stops a weaponless seat reporting itself permanently out of ammo.
-            if (hull.getGunData(seat) == null) return -1;
+            if (selected == null) return -1;
             return hull.getAmmoCount(seat);
         } catch (Throwable ignored) {
             return -1;
@@ -303,11 +305,9 @@ public final class Facts {
     }
 
     /** The weapon's magazine capacity, or -1 when it cannot be read. */
-    private static int readMagazine(VehicleEntity hull, int seat) {
-        if (seat < 0) return -1;
+    private static int readMagazine(GunData gun) {
+        if (gun == null) return -1;
         try {
-            var gun = hull.getGunData(seat);
-            if (gun == null) return -1;
             Integer magazine = gun.get(GunProp.MAGAZINE);
             return magazine == null ? -1 : magazine;
         } catch (Throwable ignored) {

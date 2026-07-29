@@ -8,7 +8,9 @@ import com.neoalive.tacz_sewv.client.xaero.VehicleMarkerElements;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.util.BattleFieldMarker;
 import com.neoalive.tacz_sewv.util.MarkerOrder;
+import com.neoalive.tacz_sewv.util.SweepOverlayState;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -319,6 +321,7 @@ public abstract class MixinGuiMap extends Screen {
         // overridden); the live drag is the transient line being laid down right now.
         if (ClientConfig.mapMarkersEnabled()) {
             tacz_sewv$drawStandingPreviews(guiGraphics);
+            tacz_sewv$drawSweepOverlay(guiGraphics);
             if (ClientConfig.MAP_SHOW_COMMAND_DEBUG.get()) {
                 tacz_sewv$drawBattleFieldOverlay(guiGraphics);
             }
@@ -398,6 +401,78 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private double tacz_sewv$worldToScreen(double blocks) {
         return blocks * this.scale / this.screenScale;
+    }
+
+    /**
+     * Active Sweep &amp; Advance: full-rect translucent fill + tiled chevrons.
+     * Color: GRAY→GREEN lerp on quiet progress; RED solid when contested.
+     */
+    @Unique
+    private void tacz_sewv$drawSweepOverlay(GuiGraphics guiGraphics) {
+        SweepOverlayState sweep = MapMarkers.sweepOverlay();
+        if (sweep == null) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || !sweep.dimension().equals(mc.player.level().dimension())) return;
+
+        double minX = sweep.left() << 4;
+        double maxX = (sweep.right() << 4) + 16;
+        double minZ = sweep.top() << 4;
+        double maxZ = (sweep.bottom() << 4) + 16;
+
+        int baseRgb;
+        if (sweep.contested()) {
+            baseRgb = 0xFFFF5555; // RED override
+        } else {
+            float need = Math.max(1, sweep.quietNeed());
+            float t = Mth.clamp(sweep.quietSeconds() / need, 0.0F, 1.0F);
+            // GRAY 0x888888 → GREEN 0x55FF55
+            int r = Mth.clamp(Math.round(Mth.lerp(t, 0x88, 0x55)), 0, 255);
+            int g = Mth.clamp(Math.round(Mth.lerp(t, 0x88, 0xFF)), 0, 255);
+            int b = Mth.clamp(Math.round(Mth.lerp(t, 0x88, 0x55)), 0, 255);
+            baseRgb = 0xFF000000 | (r << 16) | (g << 8) | b;
+        }
+        int color = OrderPreview.withPulse(baseRgb, 140, 242);
+
+        int[] tl = tacz_sewv$toScreenXZ(minX, minZ);
+        int[] br = tacz_sewv$toScreenXZ(maxX, maxZ);
+        int x0 = Math.min(tl[0], br[0]);
+        int y0 = Math.min(tl[1], br[1]);
+        int x1 = Math.max(tl[0], br[0]);
+        int y1 = Math.max(tl[1], br[1]);
+        int fill = (color & 0x00FFFFFF) | 0x22000000;
+        guiGraphics.fill(x0, y0, x1, y1, fill);
+        // Thin border
+        guiGraphics.fill(x0, y0, x1, y0 + 1, color);
+        guiGraphics.fill(x0, y1 - 1, x1, y1, color);
+        guiGraphics.fill(x0, y0, x0 + 1, y1, color);
+        guiGraphics.fill(x1 - 1, y0, x1, y1, color);
+
+        // Tile chevrons along the longer axis (ties → +Z).
+        double width = maxX - minX;
+        double height = maxZ - minZ;
+        boolean alongZ = height >= width;
+        double spacing = 16.0;
+        int maxMarks = 32;
+        int nx = Math.max(1, Math.min(maxMarks, (int) Math.floor(width / spacing)));
+        int nz = Math.max(1, Math.min(maxMarks, (int) Math.floor(height / spacing)));
+        double stepX = width / nx;
+        double stepZ = height / nz;
+        double tipLen = 10.0; // world blocks for chevron stem projection
+
+        for (int ix = 0; ix < nx; ix++) {
+            for (int iz = 0; iz < nz; iz++) {
+                double cx = minX + (ix + 0.5) * stepX;
+                double cz = minZ + (iz + 0.5) * stepZ;
+                int[] tip = tacz_sewv$toScreenXZ(cx, cz);
+                int[] from;
+                if (alongZ) {
+                    from = tacz_sewv$toScreenXZ(cx, cz - tipLen);
+                } else {
+                    from = tacz_sewv$toScreenXZ(cx - tipLen, cz);
+                }
+                tacz_sewv$drawChevron(guiGraphics, from, tip, color);
+            }
+        }
     }
 
     /**

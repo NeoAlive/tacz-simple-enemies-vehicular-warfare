@@ -74,10 +74,23 @@ public final class OrderPreview {
 
     /** A pulsing pip at an order's target — the "blinking dot on the MOVE block". */
     public static void blinkingDot(GuiGraphics g, int x, int y, int color) {
-        double t = (System.currentTimeMillis() % BLINK_PERIOD_MS) / (double) BLINK_PERIOD_MS;
-        int alpha = Mth.clamp((int) (140 + 115 * Math.sin(t * Math.PI * 2.0)), 40, 230);
+        int alpha = pulseAlpha(40, 230);
         g.fill(x - 3, y - 3, x + 3, y + 3, 0x50000000);
         g.fill(x - 2, y - 2, x + 2, y + 2, (color & 0x00FFFFFF) | (alpha << 24));
+    }
+
+    /**
+     * Subtle wall-clock opacity pulse (period {@link #BLINK_PERIOD_MS}). Used by order pips and the
+     * Sweep &amp; Advance hatch so animation stays consistent across map overlays.
+     */
+    public static int pulseAlpha(int min, int max) {
+        double t = (System.currentTimeMillis() % BLINK_PERIOD_MS) / (double) BLINK_PERIOD_MS;
+        return Mth.clamp((int) (min + (max - min) * (0.5 + 0.5 * Math.sin(t * Math.PI * 2.0))), min, max);
+    }
+
+    /** Apply {@link #pulseAlpha} to an opaque ARGB colour's alpha channel. */
+    public static int withPulse(int opaqueArgb, int minAlpha, int maxAlpha) {
+        return (opaqueArgb & 0x00FFFFFF) | (pulseAlpha(minAlpha, maxAlpha) << 24);
     }
 
     /** A static pip — a route node, or a unit's destination in the drag preview. */

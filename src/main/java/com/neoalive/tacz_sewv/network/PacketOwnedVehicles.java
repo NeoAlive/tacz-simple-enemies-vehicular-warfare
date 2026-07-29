@@ -4,6 +4,7 @@ import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.util.BattleFieldMarker;
 import com.neoalive.tacz_sewv.util.CrewFacts;
 import com.neoalive.tacz_sewv.util.MarkerOrder;
+import com.neoalive.tacz_sewv.util.SweepOverlayState;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
@@ -11,13 +12,14 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Server→client map sync: crewed vehicles one player's side can see, plus optional debug
- * {@link BattleFieldMarker}s for groups those markers belong to.
+ * Server→client map sync: crewed vehicles one player's side can see, optional debug
+ * {@link BattleFieldMarker}s, and optional active Sweep &amp; Advance overlay state.
  *
  * <p>Each player gets their own hulls plus whatever their side has spotted, and <b>never</b> another
  * player's units — a client cannot learn where anyone else's PMC is. Ordering is
@@ -31,10 +33,18 @@ public class PacketOwnedVehicles {
 
     private final List<VehicleMarker> markers;
     private final List<BattleFieldMarker> battleFields;
+    @Nullable
+    private final SweepOverlayState sweepOverlay;
 
     public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields) {
+        this(markers, battleFields, null);
+    }
+
+    public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields,
+                               @Nullable SweepOverlayState sweepOverlay) {
         this.markers = markers;
         this.battleFields = battleFields;
+        this.sweepOverlay = sweepOverlay;
     }
 
     public PacketOwnedVehicles(FriendlyByteBuf buf) {
@@ -77,6 +87,7 @@ public class PacketOwnedVehicles {
                     buf.readUtf(64)));
         }
         this.battleFields = bfs;
+        this.sweepOverlay = SweepOverlayState.decodeOptional(buf);
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -119,12 +130,13 @@ public class PacketOwnedVehicles {
             buf.writeDouble(bf.flankRightZ());
             buf.writeUtf(bf.playLabel() != null ? bf.playLabel() : "", 64);
         }
+        SweepOverlayState.encodeOptional(buf, this.sweepOverlay);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() ->
                 DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                        () -> () -> MapMarkers.accept(this.markers, this.battleFields)));
+                        () -> () -> MapMarkers.accept(this.markers, this.battleFields, this.sweepOverlay)));
         ctx.get().setPacketHandled(true);
     }
 }

@@ -6,6 +6,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.HullFacts;
@@ -16,6 +17,7 @@ import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
 import com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOwnedVehicles;
+import com.neoalive.tacz_sewv.sweep.SweepAdvancement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -36,6 +38,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -133,9 +136,20 @@ public final class OwnedVehicleTracker {
         List<CommandCoordinator.BattleFieldDebug> allFields = CommandCoordinator.battleFieldsDebug();
         for (ServerPlayer player : players) {
             List<VehicleMarker> markers = markersFor(player, candidates, spotRadiusSq);
+            SweepOverlayState sweep = sweepOverlayFor(player);
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                    new PacketOwnedVehicles(markers, battleFieldsFor(markers, allFields)));
+                    new PacketOwnedVehicles(markers, battleFieldsFor(markers, allFields), sweep));
         }
+    }
+
+    @Nullable
+    private static SweepOverlayState sweepOverlayFor(ServerPlayer player) {
+        SweepAdvancement.OverlayState snap = SweepAdvancement.overlaySnapshot(player);
+        if (snap == null) return null;
+        SweepAdvancement.ChunkRect r = snap.rect();
+        return new SweepOverlayState(
+                snap.dim(), r.left(), r.top(), r.right(), r.bottom(),
+                snap.quietSeconds(), snap.quietNeed(), snap.contested());
     }
 
     /**
@@ -445,8 +459,11 @@ public final class OwnedVehicleTracker {
      */
     private static MarkerOrder orderPreviewOf(AbstractUnit unit) {
         if (!(unit instanceof PmcUnitEntity pmc)) return MarkerOrder.NONE;
+        // Sweep & Advance has its own rect overlay — do not paint the PATROL/SEARCH ring on top.
+        if (((ISweepInfantry) pmc).sewv$hasInfantrySweep()) return MarkerOrder.NONE;
         IVehiclePatrol patrol = (IVehiclePatrol) pmc;
         if (patrol.sewv$isPatrolling()) {
+            if (patrol.sewv$getPatrolMode() == IVehiclePatrol.MODE_SWEEP) return MarkerOrder.NONE;
             if (patrol.sewv$getPatrolMode() == IVehiclePatrol.MODE_CRUISE) {
                 return MarkerOrder.cruise(patrol.sewv$getCruiseRoute());
             }

@@ -1,9 +1,11 @@
 package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
 import com.neoalive.tacz_sewv.util.CrewRadio;
+import com.neoalive.tacz_sewv.util.OrderAuth;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.network.NetworkEvent;
@@ -43,12 +45,14 @@ public abstract class MixinPacketIssueOrder {
         ServerPlayer sender = ctx.get().getSender();
         if (sender == null) return;
         Entity ordered = sender.level().getEntity(((AccessorPacketIssueOrder) packet).tacz_sewv$entityId());
-        if (!(ordered instanceof PmcUnitEntity pmc) || !sender.getUUID().equals(pmc.getOwnerUUID())) return;
+        if (!(ordered instanceof PmcUnitEntity pmc)) return;
+        if (!OrderAuth.check(sender, pmc, "PacketIssueOrder")) return;
 
         // Cleared for any ordered unit, mounted or not: an area task only means anything to a
         // driver, but clearing one that was never set costs nothing and never has to ask.
-        if (((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null) {
-            PatrolSupport.clear(pmc);
+        if (((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
+                || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
+            PatrolSupport.clearSweepMembership(pmc);
         }
 
         if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {

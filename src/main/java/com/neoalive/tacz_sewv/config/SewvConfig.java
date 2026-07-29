@@ -161,6 +161,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
+    public static final ForgeConfigSpec.IntValue SWEEP_QUIET_SECONDS;
+    public static final ForgeConfigSpec.IntValue SWEEP_MAX_CHUNK_AREA;
 
     public static final ForgeConfigSpec.IntValue[][] DOCTRINE;
 
@@ -490,6 +492,16 @@ public final class SewvConfig {
                 .defineInRange("mapSyncIntervalTicks", 20, 5, 200);
         MAP_SPOT_RADIUS = builder.comment("How far your side can spot enemy markers on the map.")
                 .defineInRange("mapSpotRadius", 128.0, 0.0, 512.0);
+        builder.pop();
+
+        builder.push("sweep");
+        SWEEP_QUIET_SECONDS = builder.comment(
+                        "Seconds with no assignee holding a live target before Sweep & Advance "
+                                + "runs the defensive clear-check and claims.")
+                .defineInRange("quietSeconds", 15, 1, 300);
+        SWEEP_MAX_CHUNK_AREA = builder.comment(
+                        "Max chunks in a Sweep & Advance MapTileSelection (width*height).")
+                .defineInRange("maxChunkArea", 256, 1, 1024);
         builder.pop();
 
         builder.push("doctrine");

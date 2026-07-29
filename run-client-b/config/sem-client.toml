@@ -1,0 +1,7 @@
+
+[unit_render_distance]
+	#Max Render Distance (in Blocks) for Units
+	#Important!!: Render Distance => Detection Range
+	#Range: 32 ~ 192
+	renderDistance = 128
+

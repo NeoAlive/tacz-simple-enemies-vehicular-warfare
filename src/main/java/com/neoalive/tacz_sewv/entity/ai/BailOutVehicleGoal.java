@@ -150,7 +150,7 @@ public class BailOutVehicleGoal extends Goal {
             ((com.neoalive.tacz_sewv.bridge.IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
             // Same for a standing patrol/search area task (also PMC-only) — PacketDismountVehicle
             // clears this too, but a hull destroyed in combat only ever runs through here.
-            PatrolSupport.clear(pmc);
+            PatrolSupport.clearSweepMembership(pmc);
             // setMoveToTarget flips the order to MOVE_TO_POSITION itself.
             if (this.escapePos != null) pmc.setMoveToTarget(escapeTarget());
         } else if (this.escapePos != null) {

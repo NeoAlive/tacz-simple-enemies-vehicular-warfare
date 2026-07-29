@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -84,14 +85,28 @@ public class VehicleTargetScanGoal extends Goal {
 
         this.vehicle = v;
         this.pendingTarget = scanCylinder(v);
+        SewvDiag.scan(
+                "VehicleTargetScanGoal.canUse unit={}#{} vehicle={}#{} pendingTarget={}#{} (null=no lock this scan)",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                v.getName().getString(), v.getId(),
+                this.pendingTarget == null ? "null" : this.pendingTarget.getClass().getSimpleName(),
+                this.pendingTarget == null ? -1 : this.pendingTarget.getId());
         return this.pendingTarget != null;
     }
 
     @Override
     public void start() {
+        SewvDiag.scan("VehicleTargetScanGoal.start → setTarget unit={}#{} target={}#{}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.pendingTarget.getClass().getSimpleName(), this.pendingTarget.getId());
         // SPOTTED is announced from setTarget itself (MixinUnitVoicelines), which catches every path
         // a vehicle lock arrives through -- this scan, the priority goal, or a player order.
         this.unit.setTarget(this.pendingTarget);
+        LivingEntity after = this.unit.getTarget();
+        SewvDiag.scan("VehicleTargetScanGoal.start AFTER setTarget getTarget={}#{} accepted={}",
+                after == null ? "null" : after.getClass().getSimpleName(),
+                after == null ? -1 : after.getId(),
+                after == this.pendingTarget);
         this.pendingTarget = null;
         this.ticksWithoutLos = 0;
     }
@@ -146,6 +161,11 @@ public class VehicleTargetScanGoal extends Goal {
     // visible candidate, not against everything found.
     private LivingEntity scanCylinder(VehicleEntity v) {
         List<LivingEntity> candidates = collectCylinderCandidates(v, DriveHelicopterGoal.inFiringRun(v));
+        SewvDiag.scan(
+                "VehicleTargetScanGoal.scanCylinder unit={}#{} rawCandidates={} ids={}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                candidates.size(),
+                candidates.stream().map(e -> e.getClass().getSimpleName() + "#" + e.getId()).toList());
         // Nearest-first (with a soft bias toward the commander's focus id), then the first
         // candidate the crew can actually see (every candidate, when LOS is off). Raycasts only
         // run down the list until one passes.
@@ -155,10 +175,19 @@ public class VehicleTargetScanGoal extends Goal {
         boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
                 && !DriveHelicopterGoal.inFiringRun(v);
         for (LivingEntity candidate : candidates) {
-            if (!needLos || this.unit.getSensing().hasLineOfSight(candidate)) {
+            boolean los = !needLos || this.unit.getSensing().hasLineOfSight(candidate);
+            if (los) {
+                SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK unit={}#{} candidate={}#{} needLos={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        candidate.getClass().getSimpleName(), candidate.getId(), needLos);
                 return candidate;
             }
+            SewvDiag.scan("VehicleTargetScanGoal.scanCylinder SKIP_LOS unit={}#{} candidate={}#{}",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    candidate.getClass().getSimpleName(), candidate.getId());
         }
+        SewvDiag.scan("VehicleTargetScanGoal.scanCylinder NO_PICK unit={}#{} (empty or all failed LOS)",
+                this.unit.getClass().getSimpleName(), this.unit.getId());
         return null;
     }
 
@@ -246,16 +275,49 @@ public class VehicleTargetScanGoal extends Goal {
     // AbstractUnit extends Monster, so the Enemy check covers opposing units too —
     // each branch just has to carve its own faction back out.
     private boolean isValidTarget(VehicleEntity v, LivingEntity e) {
-        if (e == this.unit || !e.isAlive() || !e.isAttackable()) return false;
+        if (e == this.unit || !e.isAlive() || !e.isAttackable()) {
+            return false;
+        }
         if (e.getVehicle() == v) return false; // riding our own hull — crewmate or min-range hugger
         // Honour SEM's per-faction friendly flag before the explicit Player branch below would
         // otherwise lock any player — the reported "friendly US helicopter fires on the player"
         // bug. Excludes friendly players/PMC here (not just at setTarget) so the scan skips them
         // and moves on to the next candidate rather than spinning on one it can never lock.
-        if (VehicleTargeting.isNonHostile(this.unit, e)) return false;
+        boolean nonHostile = VehicleTargeting.isNonHostile(this.unit, e);
+        if (nonHostile) {
+            // Only spam for PMC↔PMC — the gap under investigation.
+            if (this.unit instanceof PmcUnitEntity && e instanceof PmcUnitEntity) {
+                SewvDiag.scan(
+                        "VehicleTargetScanGoal.isValidTarget REJECT isNonHostile=true unit={}#{} cand={}#{}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        e.getClass().getSimpleName(), e.getId());
+            }
+            return false;
+        }
 
         if (this.unit instanceof PmcUnitEntity) {
-            return e instanceof Enemy && !(e instanceof PmcUnitEntity);
+            // SEM doctrine: PMC never auto-targets other PMC — except Stage 4 ENEMY pairs,
+            // which isNonHostile already admits and which must reach the candidate list.
+            if (e instanceof PmcUnitEntity) {
+                if (VehicleTargeting.isDiplomacyEnemy(this.unit, e)) {
+                    SewvDiag.scan(
+                            "VehicleTargetScanGoal.isValidTarget ALLOW diplomacyEnemy Pmc "
+                                    + "unit={}#{} cand={}#{} isNonHostile=false instanceofEnemy={}",
+                            this.unit.getClass().getSimpleName(), this.unit.getId(),
+                            e.getClass().getSimpleName(), e.getId(),
+                            e instanceof Enemy);
+                    return e instanceof Enemy;
+                }
+                SewvDiag.scan(
+                        "VehicleTargetScanGoal.isValidTarget REJECT hardPmcExclusion "
+                                + "unit={}#{} cand={}#{} isNonHostile=false instanceofEnemy={} "
+                                + "diplomacyEnemy=false → DROP (ALLY/NEUTRAL/unresolved)",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        e.getClass().getSimpleName(), e.getId(),
+                        e instanceof Enemy);
+                return false;
+            }
+            return e instanceof Enemy;
         }
         if (e instanceof Player p) return !p.isCreative() && !p.isSpectator();
         if (e instanceof IronGolem) return true;

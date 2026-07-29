@@ -6,6 +6,7 @@ import com.mojang.math.Axis;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.util.FactionColors;
 import com.neoalive.tacz_sewv.util.CrewFacts;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.client.Minecraft;
@@ -93,11 +94,11 @@ public final class VehicleMarkerElements {
      * are your side. Public because the order-preview overlay tints its lines the same way.
      */
     public static int factionColor(CrewFacts.Faction faction) {
-        return switch (faction) {
-            case RU -> ClientConfig.parseColor(ClientConfig.COLOR_RU.get(), 0xFFFF5555);
-            case US -> ClientConfig.parseColor(ClientConfig.COLOR_US.get(), 0xFF5555FF);
-            case PMC -> ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55);
-        };
+        return FactionColors.configArgb(faction);
+    }
+
+    public static int markerColor(VehicleMarker marker) {
+        return FactionColors.displayArgb(marker.faction(), marker.tintRgb());
     }
 
     /**
@@ -157,7 +158,7 @@ public final class VehicleMarkerElements {
                 guiGraphics.fill(-HIT_BOX + 1, -HIT_BOX + 1, HIT_BOX - 1, HIT_BOX - 1, SELECTION_SHADE);
             }
 
-            int color = factionColor(marker.faction());
+            int color = markerColor(marker);
             drawHeading(guiGraphics, marker, color);
             if (ClientConfig.MAP_SHOW_ICONS.get()) {
                 drawSymbol(guiGraphics, marker, color);
@@ -444,7 +445,7 @@ public final class VehicleMarkerElements {
 
         @Override
         public int getRightClickTitleBackgroundColor(VehicleMarker marker) {
-            return factionColor(marker.faction());
+            return markerColor(marker);
         }
 
         @Override

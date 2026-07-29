@@ -54,8 +54,10 @@ import java.util.List;
  * pass is for things that persist and want hover, and this is a transient overlay that wants
  * neither.
  *
- * <p>Lives in a separate, <b>non-required</b> mixin config: Xaero is optional, and the main config
- * is {@code required: true}, which would turn a missing map mod into a startup crash.
+ * <p>Lives in {@code tacz_sewv.xaero.mixins.json} ({@code required: false} +
+ * {@link com.neoalive.tacz_sewv.mixin.XaeroMixinPlugin}): Xaero is optional, and the main config is
+ * {@code required: true}, which would turn a missing map mod into a startup crash. The plugin is
+ * what stops Mixin's missing-target warning when World Map is absent.
  */
 @Mixin(value = GuiMap.class, remap = false)
 public abstract class MixinGuiMap extends Screen {
@@ -78,6 +80,9 @@ public abstract class MixinGuiMap extends Screen {
 
     @Shadow
     private ResourceKey<Level> rightClickDim;
+
+    @Shadow
+    private xaero.map.gui.MapTileSelection mapTileSelection;
 
     @Shadow
     private int mouseBlockPosX;
@@ -304,7 +309,7 @@ public abstract class MixinGuiMap extends Screen {
 
         options.addAll(UnitOrderOption.allFor(options.size(), (GuiMap) (Object) this,
                 this.rightClickX, this.rightClickY, this.rightClickZ, this.rightClickDim,
-                MapMarkers.selected().size()));
+                MapMarkers.selected().size(), this.mapTileSelection));
     }
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)

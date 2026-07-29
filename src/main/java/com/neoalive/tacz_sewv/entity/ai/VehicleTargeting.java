@@ -4,7 +4,10 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
@@ -415,9 +418,129 @@ public final class VehicleTargeting {
      * had been missing it — a unit or drone attacking a creative player is the kind of "extremely
      * unusual" behavior a builder/admin testing the map should never see.
      */
+    /**
+     * Whether a mounted crew must not PROACTIVELY acquire {@code target} — the shared exclusion
+     * for both auto-target paths ({@link VehicleTargetScanGoal} and {@link CrewTargetPriorityGoal}).
+     *
+     * <p>Also shields a creative/spectator player unconditionally, regardless of faction or the
+     * friendly toggle — nothing in this mod's AI should ever proactively engage one, the same
+     * convention {@code VehicleTargetScanGoal}/{@code CrewTargetPriorityGoal} already apply inline.
+     * Centralized here rather than duplicated a third and fourth time in the engineer's own
+     * targeting goals and the recon drone's scan, which is exactly the pair of new call sites that
+     * had been missing it — a unit or drone attacking a creative player is the kind of "extremely
+     * unusual" behavior a builder/admin testing the map should never see.
+     *
+     * <p>Stage 4: {@link DiplomacyData} {@code ENEMY} is checked <b>before</b> SEM's same-entity-class
+     * shortcut ({@link #isFriendly}). Two {@code PmcUnitEntity} crews whose owners are diplomatic
+     * enemies are hostile even though they share a class. Combat must not use raw
+     * {@link OpenPacCompat#allied} — that stays for Stage 2 map/colour; war/peace is DiplomacyData.
+     */
     public static boolean isNonHostile(AbstractUnit unit, LivingEntity target) {
         if (target instanceof Player p && (p.isCreative() || p.isSpectator())) return true;
-        return isFriendly(unit, target) || friendlyFlagShields(unit, target);
+
+        DiplomacyEval dipl = diplomacyEval(unit, target);
+        if (dipl.relation == DiplomacyData.Relation.ENEMY) {
+            logTargetingDiag(unit, target, dipl, false, isFriendly(unit, target),
+                    friendlyFlagShields(unit, target), false, true, "ENEMY");
+            return false;
+        }
+
+        boolean sameFaction = isFriendly(unit, target);
+        boolean friendlyFlag = friendlyFlagShields(unit, target);
+        boolean result = sameFaction || friendlyFlag;
+        String deciding = sameFaction ? "sameFaction" : friendlyFlag ? "friendlyFlag" : "none";
+        // Diplomacy was consulted when names resolve, but only ENEMY overrides the decision.
+        logTargetingDiag(unit, target, dipl, false, sameFaction, friendlyFlag, result, false, deciding);
+        return result;
+    }
+
+    /**
+     * True when Stage 4 diplomacy says these two are enemies. Used by {@code MixinAbstractUnit}'s
+     * setTarget veto so an ENEMY pair is not cancelled by the SEM same-class friendly gate.
+     */
+    public static boolean isDiplomacyEnemy(AbstractUnit unit, LivingEntity target) {
+        return diplomacyEval(unit, target).relation == DiplomacyData.Relation.ENEMY;
+    }
+
+    private record DiplomacyEval(
+            @Nullable DiplomacyData.Relation relation,
+            boolean consulted,
+            @Nullable String selfFaction,
+            @Nullable String otherFaction,
+            @Nullable UUID owner,
+            @Nullable UUID otherOwner,
+            @Nullable String otherKind) {
+        static final DiplomacyEval NONE = new DiplomacyEval(null, false, null, null, null, null, null);
+    }
+
+    /**
+     * Resolve OpenPAC faction names for both sides and read {@link DiplomacyData}. Does not use
+     * {@link OpenPacCompat#allied}. Returns {@link DiplomacyEval#NONE} when diplomacy cannot apply
+     * (non-PMC, missing owners/names, client side).
+     */
+    private static DiplomacyEval diplomacyEval(AbstractUnit unit, LivingEntity target) {
+        if (!(unit instanceof PmcUnitEntity pmc)) return DiplomacyEval.NONE;
+        UUID owner = pmc.getOwnerUUID();
+        if (owner == null || unit.level().isClientSide || unit.getServer() == null) {
+            return DiplomacyEval.NONE;
+        }
+
+        UUID otherOwner;
+        String otherKind;
+        if (target instanceof Player player) {
+            otherOwner = player.getUUID();
+            otherKind = "Player";
+        } else if (target instanceof PmcUnitEntity otherPmc) {
+            otherOwner = otherPmc.getOwnerUUID();
+            otherKind = "PmcUnit";
+            if (otherOwner == null) return DiplomacyEval.NONE;
+        } else {
+            return DiplomacyEval.NONE;
+        }
+
+        String selfFaction = OpenPacCompat.factionName(unit.getServer(), owner);
+        String otherFaction = OpenPacCompat.factionName(unit.getServer(), otherOwner);
+        if (selfFaction == null || otherFaction == null) {
+            return new DiplomacyEval(null, false, selfFaction, otherFaction, owner, otherOwner, otherKind);
+        }
+        DiplomacyData.Relation rel = DiplomacyData.get(unit.level()).relation(selfFaction, otherFaction);
+        return new DiplomacyEval(rel, true, selfFaction, otherFaction, owner, otherOwner, otherKind);
+    }
+
+    /** Throttle key → last gameTime logged. */
+    private static final java.util.Map<String, Long> TARGET_DIAG_LAST = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static void logTargetingDiag(AbstractUnit unit, LivingEntity target, DiplomacyEval dipl,
+                                         boolean openPacShieldUnused, boolean sameFaction,
+                                         boolean friendlyFlag, boolean finalNonHostile,
+                                         boolean usesDiplomacyForDecision, String decidingFactor) {
+        if (dipl.owner == null || dipl.otherOwner == null) return;
+
+        long now = unit.level().getGameTime();
+        String key = dipl.owner + ">" + dipl.otherOwner;
+        Long last = TARGET_DIAG_LAST.get(key);
+        if (last != null && now - last < 40) return;
+        TARGET_DIAG_LAST.put(key, now);
+
+        boolean openPacAllied = unit.getServer() != null
+                && OpenPacCompat.allied(unit.getServer(), dipl.owner, dipl.otherOwner);
+
+        String diplomacyNote = dipl.consulted
+                ? "DiplomacyData.relation(" + dipl.selfFaction + "," + dipl.otherFaction + ")=" + dipl.relation
+                : "DiplomacyData NOT applied (self=" + dipl.selfFaction + " other=" + dipl.otherFaction + ")";
+
+        SewvDiag.targeting(
+                "isNonHostile unit={}#{} owner={} target={}#{} otherOwner={} otherKind={} "
+                        + "openPacAllied={} (NOT used for combat decision) openPacShieldUnused={} "
+                        + "sameFaction(isFriendly)={} friendlyFlagShield={} "
+                        + "FINAL_isNonHostile={} USES_DIPLOMACY_DATA_FOR_DECISION={} decidingFactor={} "
+                        + "openPacFactionSelf={} openPacFactionOther={} {} gameTime={}",
+                unit.getClass().getSimpleName(), unit.getId(), dipl.owner,
+                target.getClass().getSimpleName(), target.getId(), dipl.otherOwner, dipl.otherKind,
+                openPacAllied, openPacShieldUnused,
+                sameFaction, friendlyFlag,
+                finalNonHostile, usesDiplomacyForDecision, decidingFactor,
+                dipl.selfFaction, dipl.otherFaction, diplomacyNote, now);
     }
 
     /**

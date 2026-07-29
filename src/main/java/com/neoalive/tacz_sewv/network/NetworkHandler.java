@@ -48,7 +48,10 @@ public class NetworkHandler {
     // 20–22: prior bumps.
     // 23: heli firing-run phase sync for hover overlay.
     // 24: PMC rappel order packet.
-    private static final String PROTOCOL_VERSION = "24";
+    // 25: map markers carry optional OpenPAC tint RGB.
+    // 26: removed PacketToggleAdvancing (autonomous KotH scrapped).
+    // 27: PacketSweepAndAdvance (player-triggered sweep + claim).
+    private static final String PROTOCOL_VERSION = "27";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -177,6 +180,14 @@ public class NetworkHandler {
                 PacketRappelHelicopter::encode,
                 PacketRappelHelicopter::new,
                 PacketRappelHelicopter::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSweepAndAdvance.class,
+                PacketSweepAndAdvance::encode,
+                PacketSweepAndAdvance::new,
+                PacketSweepAndAdvance::handle
         );
     }
 }

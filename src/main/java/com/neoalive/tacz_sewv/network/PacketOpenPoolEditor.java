@@ -1,9 +1,8 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.client.gui.PoolEditorScreen;
+import com.neoalive.tacz_sewv.client.PoolEditorClient;
 import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
@@ -43,9 +42,8 @@ public class PacketOpenPoolEditor {
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                Minecraft.getInstance().setScreen(
-                        new PoolEditorScreen(this.pools, this.defaults, this.catalog))));
+        ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                () -> () -> PoolEditorClient.openScreen(this.pools, this.defaults, this.catalog)));
         ctx.get().setPacketHandled(true);
     }
 

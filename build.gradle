@@ -50,9 +50,31 @@ minecraft {
             property 'forge.enabledGameTestNamespaces', mod_id
         }
 
+        // Multiplayer test client A — separate game dir, username SEWV_Test_A
+        clientA {
+            parent runs.client
+            workingDirectory project.file('run-client-a')
+            args '--username', 'SEWV_Test_A'
+        }
+
+        // Multiplayer test client B — separate game dir, username SEWV_Test_B
+        clientB {
+            parent runs.client
+            workingDirectory project.file('run-client-b')
+            args '--username', 'SEWV_Test_B'
+        }
+
         server {
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
+        }
+
+        // Dedicated dev server — separate game dir, bound to localhost
+        serverDev {
+            parent runs.server
+            workingDirectory project.file('run-server-dev')
+            // '--nogui' is inherited from the parent server run; no need to repeat it.
+            property 'forge.server.address', '127.0.0.1'
         }
 
         // This run config launches GameTestServer and runs all registered gametests, then exits.
@@ -69,6 +91,16 @@ minecraft {
             // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
             args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
         }
+    }
+}
+
+// Forward stdin to the dev server so console commands (op, stop, etc.) work interactively.
+// Gradle's JavaExec tasks default to an empty stdin; this wires the real terminal through.
+// configureEach fires lazily when each task is registered — safe regardless of when
+// ForgeGradle adds its run tasks (afterEvaluate ordering is not guaranteed).
+tasks.configureEach { task ->
+    if (task.name == 'runServerDev' && task instanceof JavaExec) {
+        task.standardInput = System.in
     }
 }
 
@@ -166,8 +198,7 @@ tasks.register('selfCheck') {
 mixin {
     add sourceSets.main, "tacz_sewv.refmap.json"
     config "tacz_sewv.mixins.json"
-    // Separate config because it is "required": false — Xaero's World Map is optional, and the
-    // main config is required, which would make a missing map mod a startup crash.
+    // Separate config + XaeroMixinPlugin gate — World Map is optional; main config is required.
     config "tacz_sewv.xaero.mixins.json"
 }
 
@@ -206,8 +237,22 @@ dependencies {
     implementation fg.deobf("blank:simpleenemymod:1.0")
     implementation fg.deobf("blank:tacz:1.0")
     compileOnly fg.deobf("blank:berezka_api:1.0")
+    // Soft: compile against OpenPAC API, keep off the published jar (same pattern as berezka_api).
+    // runtimeOnly puts it on every run classpath for local testing with OpenPAC present.
+    // Absent-path verification: ./gradlew runServerDev -PnoOpenPac  (skips runtimeOnly;
+    // rename/remove libs/openpac.jar is the nuclear alternative if the property is ignored).
+    compileOnly fg.deobf("blank:openpac:1.0")
+    if (!project.hasProperty('noOpenPac')) {
+        runtimeOnly fg.deobf("blank:openpac:1.0")
+    }
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-    implementation "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
+    // Soft: compile against Xaero's World Map; keep it off installs that omit it.
+    // Absent-path verification: ./gradlew runClient -PnoXaero  (skips runtimeOnly;
+    // XaeroMixinPlugin then refuses MixinGuiMap* so no "target was not found" warning).
+    compileOnly "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
+    if (!project.hasProperty('noXaero')) {
+        runtimeOnly "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
+    }
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

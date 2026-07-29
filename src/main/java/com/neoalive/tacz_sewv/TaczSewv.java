@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv;
 
 import com.neoalive.tacz_sewv.command.SewvCommand;
 import com.neoalive.tacz_sewv.compat.BerezkaStructureCompat;
+import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModEntities;
@@ -57,6 +58,7 @@ public class TaczSewv {
         MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.PlayerJoinHandler.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.sweep.SweepAdvancement.class);
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, SewvConfig.SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
         // SEM is loaded before this bridge (see mods.toml), so these become normal
@@ -79,6 +81,9 @@ public class TaczSewv {
     if (ModList.get().isLoaded(BerezkaStructureCompat.MODID)) {
         BerezkaStructureCompat.register();
     }
+    // Soft compat: OpenPAC is compileOnly; only the facade may touch xaero.pac.*, and only
+    // after isLoaded(). reportAvailability() never classloads Access when the mod is absent.
+    OpenPacCompat.reportAvailability();
     LOGGER.info("SEM<->SW vehicle bridge loading");
     }
 

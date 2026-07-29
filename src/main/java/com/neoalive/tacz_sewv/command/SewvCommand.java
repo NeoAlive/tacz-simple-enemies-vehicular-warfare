@@ -5,6 +5,8 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import com.neoalive.tacz_sewv.compat.OpenPacCompat;
+import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
@@ -72,6 +74,24 @@ public class SewvCommand {
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("rappel")
                                 .executes(ctx -> debugRappel(ctx.getSource()))))
+                .then(Commands.literal("diplomacy")
+                        .requires(source -> source.hasPermission(2))
+                        .then(Commands.literal("add")
+                                .then(Commands.argument("relation", StringArgumentType.word())
+                                        .suggests((ctx, b) -> SharedSuggestionProvider.suggest(
+                                                new String[]{"ally", "enemy"}, b))
+                                        .then(Commands.argument("faction", StringArgumentType.greedyString())
+                                                .suggests(SewvCommand::suggestOpenPacFactions)
+                                                .executes(ctx -> diplomacyAdd(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "relation"),
+                                                        StringArgumentType.getString(ctx, "faction"))))))
+                        .then(Commands.literal("remove")
+                                .then(Commands.argument("faction", StringArgumentType.greedyString())
+                                        .suggests(SewvCommand::suggestOpenPacFactions)
+                                        .executes(ctx -> diplomacyRemove(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "faction")))))
+                        .then(Commands.literal("list")
+                                .executes(ctx -> diplomacyList(ctx.getSource()))))
         );
     }
 
@@ -81,6 +101,102 @@ public class SewvCommand {
             return 0;
         }
         return com.neoalive.tacz_sewv.util.PoolEditorAccess.open(player);
+    }
+
+    private static CompletableFuture<Suggestions> suggestOpenPacFactions(
+            com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx,
+            SuggestionsBuilder builder) {
+        if (!OpenPacCompat.isLoaded()) {
+            return Suggestions.empty();
+        }
+        return SharedSuggestionProvider.suggest(
+                OpenPacCompat.factionNames(ctx.getSource().getServer()), builder);
+    }
+
+    private static int diplomacyAdd(CommandSourceStack source, String relationWord, String otherFaction) {
+        if (!OpenPacCompat.isLoaded()) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.no_openpac"));
+            return 0;
+        }
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.player_only"));
+            return 0;
+        }
+        String self = OpenPacCompat.factionName(source.getServer(), player.getUUID());
+        if (self == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.no_party"));
+            return 0;
+        }
+        String resolved = resolveFactionName(source.getServer(), otherFaction);
+        if (resolved == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.unknown_faction", otherFaction));
+            return 0;
+        }
+        DiplomacyData.Relation relation = "ally".equalsIgnoreCase(relationWord)
+                ? DiplomacyData.Relation.ALLY
+                : "enemy".equalsIgnoreCase(relationWord) ? DiplomacyData.Relation.ENEMY : null;
+        if (relation == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.bad_relation"));
+            return 0;
+        }
+        DiplomacyData data = DiplomacyData.get(source.getLevel());
+        if (!data.set(self, resolved, relation)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.failed"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.added",
+                relation.name().toLowerCase(), resolved), true);
+        return 1;
+    }
+
+    private static int diplomacyRemove(CommandSourceStack source, String otherFaction) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.player_only"));
+            return 0;
+        }
+        String self = OpenPacCompat.isLoaded()
+                ? OpenPacCompat.factionName(source.getServer(), player.getUUID())
+                : null;
+        if (self == null) {
+            source.sendFailure(Component.translatable(
+                    OpenPacCompat.isLoaded()
+                            ? "command.tacz_sewv.diplomacy.no_party"
+                            : "command.tacz_sewv.diplomacy.no_openpac"));
+            return 0;
+        }
+        String resolved = resolveFactionName(source.getServer(), otherFaction);
+        if (resolved == null) resolved = otherFaction.trim();
+        final String name = resolved;
+        DiplomacyData data = DiplomacyData.get(source.getLevel());
+        if (!data.remove(self, name)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.not_found", name));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.removed", name), true);
+        return 1;
+    }
+
+    private static int diplomacyList(CommandSourceStack source) {
+        DiplomacyData data = DiplomacyData.get(source.getLevel());
+        var snap = data.snapshot();
+        if (snap.isEmpty()) {
+            source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.empty"), false);
+            return 1;
+        }
+        snap.forEach((key, rel) -> source.sendSuccess(
+                () -> Component.literal(DiplomacyData.formatPair(key, rel)), false));
+        return snap.size();
+    }
+
+    @Nullable
+    private static String resolveFactionName(net.minecraft.server.MinecraftServer server, String raw) {
+        if (!OpenPacCompat.isLoaded()) return null;
+        for (String name : OpenPacCompat.factionNames(server)) {
+            if (name.equalsIgnoreCase(raw.trim())) return name;
+        }
+        return null;
     }
 
     /** Stage-1 rappel: toggle hover-lock on the looked-at / nearest helicopter. */

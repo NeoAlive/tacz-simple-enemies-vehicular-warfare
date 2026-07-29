@@ -1,0 +1,490 @@
+
+[events]
+	#Allow rare RU/US tanks in combat events.
+	tanksInEvents = true
+	#RU tank chance when SEM's far_combat event fires.
+	#Range: 0.0 ~ 1.0
+	tankSpawnChanceRu = 0.12
+	#US tank chance when SEM's far_combat event fires.
+	#Range: 0.0 ~ 1.0
+	tankSpawnChanceUs = 0.12
+	#Allow rare RU/US planes in combat events.
+	planesInEvents = true
+	#RU plane chance when SEM's far_combat event fires.
+	#Range: 0.0 ~ 1.0
+	planeSpawnChanceRu = 0.02
+	#US plane chance when SEM's far_combat event fires.
+	#Range: 0.0 ~ 1.0
+	planeSpawnChanceUs = 0.02
+	#Enable convoy events.
+	convoyEventsEnabled = true
+	#Base convoy event chance per SEM event roll.
+	#Range: 0.0 ~ 1.0
+	convoyBaseChance = 0.06
+	#Convoy chance added after a missed roll.
+	#Range: 0.0 ~ 1.0
+	convoyFailureMultiplier = 0.06
+	#Enable large combat events.
+	largeCombatEventsEnabled = true
+	#Base large-combat event chance per SEM event roll.
+	#Range: 0.0 ~ 1.0
+	largeCombatBaseChance = 0.02
+	#Large-combat chance added after a missed roll.
+	#Range: 0.0 ~ 1.0
+	largeCombatFailureMultiplier = 0.02
+	#Vehicles each side gets in large combat.
+	#Range: 0 ~ 8
+	largeCombatVehicles = 2
+	#Per-side chance to add a mortar or TOW to large combat.
+	#Range: 0.0 ~ 1.0
+	largeCombatEmplacementChance = 0.04
+	#Per-side chance to add a plane to large combat.
+	#Range: 0.0 ~ 1.0
+	largeCombatPlaneChance = 0.03
+	#Enable naval battle events.
+	navalEventsEnabled = true
+	#Base naval event chance per SEM event roll.
+	#Range: 0.0 ~ 1.0
+	navalBaseChance = 0.05
+	#Naval chance added after a missed roll.
+	#Range: 0.0 ~ 1.0
+	navalFailureMultiplier = 0.05
+	#Ships each side gets in a naval battle.
+	#Range: 0 ~ 12
+	navalShipsPerSide = 4
+	#Enable asymmetric invasion events.
+	invasionEventsEnabled = true
+	#Base invasion event chance per SEM event roll.
+	#Range: 0.0 ~ 1.0
+	invasionBaseChance = 0.03
+	#Invasion chance added after a missed roll.
+	#Range: 0.0 ~ 1.0
+	invasionFailureMultiplier = 0.03
+	#Defending infantry in an invasion.
+	#Range: 0 ~ 32
+	invasionDefenderInfantry = 6
+	#Defending TOW emplacements in an invasion.
+	#Range: 0 ~ 8
+	invasionDefenderTows = 2
+	#Defending mortars in an invasion.
+	#Range: 0 ~ 8
+	invasionDefenderMortars = 2
+	#Enable mortar shelling events.
+	shellingEventsEnabled = true
+	#Base shelling event chance per SEM event roll.
+	#Range: 0.0 ~ 1.0
+	shellingBaseChance = 0.05
+	#Shelling chance added after a missed roll.
+	#Range: 0.0 ~ 1.0
+	shellingFailureMultiplier = 0.04
+	#How close a player must be to their respawn point for shelling.
+	#Range: 8 ~ 256
+	shellingBaseRadius = 48
+	#Mortars in a shelling battery.
+	#Range: 0 ~ 6
+	shellingMortars = 2
+	#Infantry guarding a shelling battery.
+	#Range: 0 ~ 12
+	shellingGuards = 4
+	#Minimum shelling duration.
+	#Range: 20 ~ 24000
+	shellingDurationMinTicks = 600
+	#Maximum shelling duration.
+	#Range: 20 ~ 24000
+	shellingDurationMaxTicks = 1200
+	#Common shell used by spawned mortar crews.
+	highChanceMortarShell = "superbwarfare:mortar_shell"
+	#Rare shell used by spawned mortar crews.
+	lowChanceMortarShell = "superbwarfare:mortar_shell_wp"
+	#Enable derelict vehicle events.
+	derelictEventsEnabled = true
+	#Base derelict event chance per SEM event roll.
+	#Range: 0.0 ~ 1.0
+	derelictBaseChance = 0.05
+	#Derelict chance added after a missed roll.
+	#Range: 0.0 ~ 1.0
+	derelictFailureMultiplier = 0.05
+	#Health fraction for spawned derelict hulls. Keep below autoBoardMinHealthFraction.
+	#Range: 0.01 ~ 1.0
+	derelictHealthFraction = 0.15
+	#Maximum survivors around a derelict hull.
+	#Range: 0 ~ 12
+	derelictGuards = 4
+	#Ammo left in a derelict hull.
+	#Range: 0 ~ 64
+	derelictAmmoCount = 2
+	#Let village garrisons field one crewed tank.
+	garrisonVehiclesEnabled = true
+	#Chance that a village garrison gets its tank.
+	#Range: 0.0 ~ 1.0
+	garrisonVehicleChance = 0.5
+
+[spawn_gates]
+	#Global master gate for RU spawns routed through SEWV.
+	ruSpawnsEnabled = true
+	#Global master gate for US spawns routed through SEWV.
+	usSpawnsEnabled = true
+	#Global master gate for ambient PMC spawns routed through SEWV.
+	#Player-summoned PMC units are not affected. Today this only gates structure compat spawns.
+	pmcAmbientSpawnsEnabled = true
+
+[resources]
+	#Use a creative ammo box when finite vehicle ammo cannot be determined.
+	creativeAmmoFallback = true
+	#RU/US-crewed vehicles never run out of energy.
+	factionInfiniteEnergy = true
+	#RU/US-crewed vehicles use unlimited ammo.
+	factionInfiniteAmmo = true
+
+[npc_armor]
+	#Issue armor to spawned SEM units.
+	npcArmorEnabled = true
+	#Armor item ids for RU units.
+	ruArmor = ["superbwarfare:ru_helmet_6b47", "superbwarfare:ru_chest_6b43"]
+	#Armor item ids for US units.
+	usArmor = ["superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"]
+	#Armor item ids for PMC units.
+	pmcArmor = ["superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"]
+
+[structure_vehicles]
+	#Spawn vehicles at compatible Berezka structures.
+	structureVehiclesEnabled = true
+	#Maximum vehicles a structure can field.
+	#Range: 1 ~ 16
+	structureVehicleMaxCount = 5
+	#World days to ramp structure vehicle counts from 1 to the max.
+	#Range: 0 ~ 1000
+	structureVehicleRampDays = 24
+	#Structure ids that field RU vehicles.
+	ruVehicleStructures = ["russian_army_structures:tank"]
+	#Structure ids that field US vehicles.
+	usVehicleStructures = ["us_army_structures:convoy"]
+	#Structure ids that field PMC vehicles.
+	pmcVehicleStructures = ["pmc_structures:buggy"]
+
+[crew_ai]
+	#Minimum delay between AI vehicle shots.
+	#Range: 1 ~ 200
+	aiFireCooldownTicks = 5
+	#How far off target an AI crew may still fire.
+	#Range: 4.0 ~ 30.0
+	aiFireAssistConeDeg = 12.0
+	#How close smoke must be to block AI fire.
+	#Range: 1.0 ~ 16.0
+	smokeBlockRadius = 6.0
+	#AI vehicle accuracy mode: realistic, scaled, or accurate.
+	aiAimAccuracy = "realistic"
+	#Extra dispersion added in realistic/scaled aim modes.
+	#Range: 0.0 ~ 30.0
+	aiAimSpreadDegrees = 1.0
+	#Let IFVs dismount squads against armor.
+	ifvDismountsEnabled = true
+	#Disable chassis bank while SEM units drive.
+	semCrewDisableInertiaRotate = true
+	#Let exposed climb-seat riders dismount in combat.
+	tankRiderDismountEnabled = true
+	#Launcher given to RU anti-tank dismounts.
+	atWeaponRu = "superbwarfare:rpg"
+	#Launcher given to US anti-tank dismounts.
+	atWeaponUs = "superbwarfare:javelin"
+	#Chance to give a squad a second anti-tank gunner.
+	#Range: 0.0 ~ 1.0
+	atSecondGunnerChance = 0.5
+	#Issued rockets or missiles per anti-tank gunner.
+	#Range: 1 ~ 64
+	atBackupAmmo = 8
+	#Maximum anti-tank firing range.
+	#Range: 8.0 ~ 200.0
+	atEngageRange = 48.0
+	#Allow PMC medics to use medical kits out of combat.
+	medicEnabled = true
+	#How far medics search for wounded allies.
+	#Range: 2.0 ~ 48.0
+	medicSearchRadius = 24.0
+	#Health restored per dedicated medic treatment pulse.
+	#Range: 0.5 ~ 20.0
+	medicHealPerTreat = 2.0
+	#Scale AI vehicle mobility down as health drops.
+	healthMobilityEnabled = true
+	#Minimum mobility fraction at zero health.
+	#Range: 0.05 ~ 1.0
+	healthMobilityFloor = 0.4
+	#Chance an RU/US unit brings a medic companion.
+	#Range: 0.0 ~ 1.0
+	medicSpawnChance = 0.06
+	#Chance an RU/US unit brings an engineer companion.
+	#Range: 0.0 ~ 1.0
+	engineerSpawnChance = 0.05
+	#Radius used to avoid stacking support companions.
+	#Range: 4.0 ~ 128.0
+	supportDedupeRadius = 32.0
+	#How far engineers search for vehicles to repair.
+	#Range: 4.0 ~ 96.0
+	engineerSearchRadius = 24.0
+	#Vehicle health restored per engineer repair pulse.
+	#Range: 0.5 ~ 100.0
+	engineerRepairPerTreat = 4.0
+	#Goal ticks between engineer repair pulses.
+	#Range: 1 ~ 200
+	engineerRepairCooldown = 10
+	#Possible TACZ sidearm ids for engineers.
+	engineerSidearmPool = ["tacz:m9a1", "tacz:m1911", "tacz:glock_17"]
+	#Maximum recon drones per engineer.
+	#Range: 0 ~ 8
+	droneMaxPerEngineer = 2
+	#How often engineers roll to deploy drones.
+	#Range: 20 ~ 12000
+	droneDeployCheckIntervalTicks = 200
+	#Chance that a deploy check launches a drone.
+	#Range: 0.0 ~ 1.0
+	droneDeployChance = 0.2
+	#Drone station altitude above its engineer.
+	#Range: 5.0 ~ 60.0
+	droneScanAltitude = 20.0
+	#Drone enemy detection radius.
+	#Range: 8.0 ~ 128.0
+	droneDetectionRadius = 48.0
+	#Radius for relaying drone sightings to allies.
+	#Range: 16.0 ~ 384.0
+	droneBroadcastRadius = 160.0
+	#How often drones run their expensive enemy scan.
+	#Range: 5 ~ 200
+	droneScanIntervalTicks = 20
+	#Let idle RU/US infantry claim abandoned vehicles.
+	autoBoardEnabled = true
+	#Radius used to scan for abandoned vehicles.
+	#Range: 4.0 ~ 128.0
+	autoBoardScanRadius = 32.0
+	#Minimum vehicle health fraction required for auto-boarding.
+	#Range: 0.0 ~ 1.0
+	autoBoardMinHealthFraction = 0.25
+	#Allow RU/US units to take vehicles last driven by a player.
+	autoBoardStealsPlayerVehicles = false
+	#Distance between vehicles in formations.
+	#Range: 5.0 ~ 32.0
+	vehicleFormationSpacing = 12.0
+	#Horizontal radius of mounted target scans.
+	#Range: 8.0 ~ 128.0
+	vehicleTargetScanRadius = 96.0
+	#Vertical span of mounted target scans.
+	#Range: 4.0 ~ 128.0
+	vehicleTargetScanHeight = 128.0
+	#How often mounted crews rescan for targets.
+	#Range: 1 ~ 200
+	vehicleTargetScanIntervalTicks = 20
+	#Require line of sight for mounted target scans.
+	vehicleTargetRequireLineOfSight = true
+	#Range for counting allied support in combat.
+	#Range: 0.0 ~ 256.0
+	vehicleAllyAssistRange = 128.0
+	#Let mounted crews reposition when they cannot land shots.
+	stalemateBreakerEnabled = true
+	#How long a crew may fail to land a shot before repositioning.
+	#Range: 40 ~ 2400
+	stalemateSilenceTicks = 300
+	#Use terrain avoidance while driving.
+	vehicleTerrainAvoidance = true
+	#How long patrol crews hold a point before rotating.
+	#Range: 200 ~ 24000
+	patrolRotateIntervalTicks = 3600
+	#Let idle hulls wander locally.
+	idleWanderEnabled = true
+	#How far idle hulls may drift from their anchor.
+	#Range: 4 ~ 64
+	idleWanderRadius = 16
+	#How often vehicle crews reconsider their plan.
+	#Range: 5 ~ 200
+	utilityRefreshIntervalTicks = 20
+	#Let RU/US crews call support without carrying radios.
+	factionOrganicComms = true
+	#Minimum delay between support searches and support requests.
+	#Range: 20 ~ 2400
+	supportCallIntervalTicks = 200
+
+[command]
+	#Distance to a group's centroid at which a crew may join.
+	#Range: 8.0 ~ 256.0
+	commandGroupJoinRadius = 48.0
+	#Distance at which a member leaves (must exceed join radius).
+	#Range: 8.0 ~ 256.0
+	commandGroupLeaveRadius = 64.0
+	#Hard maximum group diameter (must be >= 2× leave radius so the hysteresis band fits inside the ball).
+	#Range: 16.0 ~ 512.0
+	commandGroupMaxDiameter = 128.0
+	#Minimum drivers for a battle group (lone hulls stay on local AI).
+	#Range: 2 ~ 32
+	commandGroupMinSize = 2
+	#Hard cap on drivers considered per command scan.
+	#Range: 4 ~ 256
+	commandMaxUnits = 64
+	#Opposing forces within this range gate battle-group formation.
+	#Range: 16.0 ~ 256.0
+	commandEngagementRadius = 96.0
+	#Fitness margin a challenger must beat the incumbent by to take command.
+	#Range: 0.0 ~ 2.0
+	commandMargin = 0.15
+	#Coarse influence-map cell size in blocks (gradients, not accuracy). Raised automatically if a battle AABB would exceed influenceMaxCells.
+	#Range: 8.0 ~ 16.0
+	influenceCellSize = 12.0
+	#Hard cap on influence-map cells per group; oversized battles downscale cell size instead of growing the array.
+	#Range: 64 ~ 1024
+	influenceMaxCells = 256
+	#Minimum server ticks a battle play commits before a challenger may preempt (stillValid aborts immediately).
+	#Range: 20 ~ 2400
+	minPlayTicks = 200
+	#Score margin a challenger play must beat the incumbent by to switch after minPlayTicks.
+	#Range: 0.0 ~ 100.0
+	playSwitchMargin = 10.0
+
+[flight_ai]
+	#Horizontal standoff for unguided helicopter combat (cannon/rockets). Guided engagements use heliMinStandoff + heliMaxDepressionDeg geometry instead.
+	#Range: 12.0 ~ 64.0
+	heliEngageRadius = 32.0
+	#Max nose-down angle for guided heli standoff (degrees). Ring = height/tan(this); default 45 leaves margin under the 60° combat dive clamp.
+	#Range: 20.0 ~ 55.0
+	heliMaxDepressionDeg = 45.0
+	#Hard minimum horizontal range for guided heli standoff. Floor when the target is on a peak and height-above-target (hence the angle ring) collapses.
+	#Range: 16.0 ~ 96.0
+	heliMinStandoff = 28.0
+	#Log AI heli firing-run phase changes and keep the hover phase label gated on.
+	heliCombatDebug = false
+	#Keep AI helicopters ticking when no player is nearby.
+	heliChunkLoading = false
+	#Keep AI planes ticking when no player is nearby.
+	planeChunkLoading = false
+	#How far the server accepts player aircraft orders.
+	#Range: 32.0 ~ 1024.0
+	planeCommandRadius = 256.0
+
+[mortar_ai]
+	#How close a crew must stand to work a mortar.
+	#Range: 1.0 ~ 6.0
+	mortarUseDistance = 2.0
+	#Minimum delay between mortar shots.
+	#Range: 1 ~ 1200
+	mortarFireCooldownTicks = 60
+	#Scatter radius around a mortar target point.
+	#Range: 0 ~ 16
+	mortarDispersionRadius = 3
+	#Require mortar shells in inventory and consume one per shot.
+	mortarRequiresAmmo = true
+	#Keep crewed mortars loaded during remote fire missions.
+	mortarChunkLoading = true
+	#Radio range for designating targets and support crews.
+	#Range: 16.0 ~ 1024.0
+	mortarRadioRange = 400.0
+
+[voicelines]
+	#Enable mounted crew radio voicelines.
+	vehicleVoicelinesEnabled = true
+	#How long crews stay quiet before idle chatter starts.
+	#Range: 20 ~ 12000
+	idleVoicelineDelayTicks = 200
+	#Below this health fraction, idle chatter stays off.
+	#Range: 0.0 ~ 1.0
+	idleVoicelineHealthFraction = 0.3
+
+[interaction]
+	#How far the server accepts nearby ground-order unit selection.
+	#Range: 8.0 ~ 128.0
+	boardScanRadius = 64.0
+
+[map]
+	#Include on-foot units in map syncs.
+	mapInfantryEnabled = true
+	#How often the server sends map marker updates.
+	#Range: 5 ~ 200
+	mapSyncIntervalTicks = 20
+	#How far your side can spot enemy markers on the map.
+	#Range: 0.0 ~ 512.0
+	mapSpotRadius = 128.0
+
+[sweep]
+	#Seconds with no assignee holding a live target before Sweep & Advance runs the defensive clear-check and claims.
+	#Range: 1 ~ 300
+	quietSeconds = 15
+	#Max chunks in a Sweep & Advance MapTileSelection (width*height).
+	#Range: 1 ~ 1024
+	maxChunkArea = 256
+
+[doctrine]
+
+	#Fallback doctrine presets for RU, US, and PMC commanders.
+	[doctrine.ru]
+		#Willingness to initiate combat, pursue enemies, and tolerate damage.
+		#Range: -5 ~ 5
+		aggression = 2
+		#How valuable the vehicle is considered: retreat timing, smoke, casualty tolerance.
+		#Range: -5 ~ 5
+		preservation = -1
+		#Formation discipline, reinforcement, and willingness to operate alone.
+		#Range: -5 ~ 5
+		cohesion = 2
+		#How aggressively opportunities are exploited and contacts investigated.
+		#Range: -5 ~ 5
+		initiative = -1
+		#Dependence on indirect fire: mortar, TOW and air support requests.
+		#Range: -5 ~ 5
+		supportReliance = 1
+		#Negative prioritises infantry, positive prioritises armored targets.
+		#Range: -5 ~ 5
+		targetPriority = 0
+		#Negative favours direct assault, positive increases flanking preference.
+		#Range: -5 ~ 5
+		maneuver = -2
+		#Willingness to attack under poor odds and cross exposed terrain.
+		#Range: -5 ~ 5
+		riskTolerance = 2
+
+	[doctrine.us]
+		#Willingness to initiate combat, pursue enemies, and tolerate damage.
+		#Range: -5 ~ 5
+		aggression = 0
+		#How valuable the vehicle is considered: retreat timing, smoke, casualty tolerance.
+		#Range: -5 ~ 5
+		preservation = 2
+		#Formation discipline, reinforcement, and willingness to operate alone.
+		#Range: -5 ~ 5
+		cohesion = 1
+		#How aggressively opportunities are exploited and contacts investigated.
+		#Range: -5 ~ 5
+		initiative = 2
+		#Dependence on indirect fire: mortar, TOW and air support requests.
+		#Range: -5 ~ 5
+		supportReliance = 3
+		#Negative prioritises infantry, positive prioritises armored targets.
+		#Range: -5 ~ 5
+		targetPriority = 1
+		#Negative favours direct assault, positive increases flanking preference.
+		#Range: -5 ~ 5
+		maneuver = 2
+		#Willingness to attack under poor odds and cross exposed terrain.
+		#Range: -5 ~ 5
+		riskTolerance = -1
+
+	[doctrine.pmc]
+		#Willingness to initiate combat, pursue enemies, and tolerate damage.
+		#Range: -5 ~ 5
+		aggression = 0
+		#How valuable the vehicle is considered: retreat timing, smoke, casualty tolerance.
+		#Range: -5 ~ 5
+		preservation = 0
+		#Formation discipline, reinforcement, and willingness to operate alone.
+		#Range: -5 ~ 5
+		cohesion = 0
+		#How aggressively opportunities are exploited and contacts investigated.
+		#Range: -5 ~ 5
+		initiative = 0
+		#Dependence on indirect fire: mortar, TOW and air support requests.
+		#Range: -5 ~ 5
+		supportReliance = 0
+		#Negative prioritises infantry, positive prioritises armored targets.
+		#Range: -5 ~ 5
+		targetPriority = 0
+		#Negative favours direct assault, positive increases flanking preference.
+		#Range: -5 ~ 5
+		maneuver = 0
+		#Willingness to attack under poor odds and cross exposed terrain.
+		#Range: -5 ~ 5
+		riskTolerance = 0
+

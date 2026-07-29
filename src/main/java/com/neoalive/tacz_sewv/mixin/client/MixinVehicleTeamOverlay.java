@@ -3,10 +3,13 @@ package com.neoalive.tacz_sewv.mixin.client;
 import com.atsuishio.superbwarfare.client.overlay.VehicleTeamOverlay;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
+import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.util.CrewFacts;
+import com.neoalive.tacz_sewv.util.FactionColors;
+import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -92,10 +95,13 @@ public abstract class MixinVehicleTeamOverlay {
 
         CrewFacts.Faction faction = CrewFacts.factionOf(vehicle);
         if (faction == null) return null;
-        return switch (faction) {
-            case RU -> ClientConfig.parseColor(ClientConfig.COLOR_RU.get(), -1);
-            case US -> ClientConfig.parseColor(ClientConfig.COLOR_US.get(), -1);
-            case PMC -> ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), -1);
-        };
+
+        // Prefer server-synced OpenPAC tint from map markers when this hull is known.
+        for (VehicleMarker marker : MapMarkers.markers()) {
+            if (marker.vehicleId() == vehicle.getId()) {
+                return FactionColors.displayArgb(faction, marker.tintRgb());
+            }
+        }
+        return FactionColors.configArgb(faction);
     }
 }

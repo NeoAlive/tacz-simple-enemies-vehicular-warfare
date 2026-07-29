@@ -1,0 +1,105 @@
+
+[general_settings]
+	#When set to true, soldiers will spawn in villages. 
+	#When set to false, the event is disabled
+	enableVillageGarrison = true
+
+[Factions]
+	#If true, Ru Units will be friendly with Players and PMC Units
+	ruUnitsFriendly = false
+	#If true, Us Units will be friendly with Players and PMC Units
+	usUnitsFriendly = false
+
+[ai_difficulty]
+	#AI Difficulty preset.
+	#Does NOT affect soldiers accuracy.
+	#Only affects tactical maneuver timers and movement speeds.
+	#
+	#NORMAL: More static soldiers, slower combat pacing.
+	#ADVANCED: More dynamic and aggressive soldiers.
+	#Allowed Values: NORMAL, ADVANCED
+	difficulty = "NORMAL"
+
+[unit_attributes]
+	#Max Health for All Units
+	#Range: 1.0 ~ 200.0
+	health = 20.0
+	#--------------------------------------------------
+	#Walk Speed for All Units
+	#Range: 0.05 ~ 1.5
+	speed = 0.27
+	#--------------------------------------------------
+	#Detection Range for All Units
+	#Range: 32.0 ~ 192.0
+	detectionRange = 96.0
+
+[gun_ai_shooting_config]
+	#--------------------------------------------------
+	#Maximum shooting distance
+	#Range: 10.0 ~ 200.0
+	maxShootDistance = 90.0
+	#--------------------------------------------------
+	#Base bullet spread (lower = more accurate)
+	#Range: 0.0 ~ 10.0
+	baseSpread = 1.4
+	#--------------------------------------------------
+	#Spread increase per block of distance to target (accuracy penalty at range)
+	#Range: 0.0 ~ 1.0
+	spreadIncrease = 0.012
+	#--------------------------------------------------
+	#Minimum shots per burst
+	#Range: 1 ~ 20
+	minBurst = 3
+	#--------------------------------------------------
+	#Maximum shots per burst
+	#Range: 1 ~ 30
+	maxBurst = 5
+	#--------------------------------------------------
+	#Minimum cooldown between bursts (ticks)
+	#Range: 0 ~ 200
+	minBurstCooldown = 10
+	#--------------------------------------------------
+	#Maximum cooldown between bursts (ticks)
+	#Range: 0 ~ 400
+	maxBurstCooldown = 15
+
+[event_spawn]
+	#--------------------------------------------------
+	#Base spawn chance for Patrol Event (per minute)
+	#Range: 0.01 ~ 1.0
+	patrolBaseChance = 0.1
+	#--------------------------------------------------
+	#Chance accumulation rate on failure for Patrol Event
+	#Range: 0.01 ~ 0.5
+	patrolFailureMultiplier = 0.15
+	#--------------------------------------------------
+	#Base spawn chance for Combat Event (per minute)
+	#Range: 0.01 ~ 1.0
+	combatBaseChance = 0.06
+	#--------------------------------------------------
+	#Chance accumulation rate on failure for Combat Event
+	#Range: 0.01 ~ 0.5
+	combatFailureMultiplier = 0.12
+	#--------------------------------------------------
+	#Base spawn chance for Cave Extraction Event (per minute)
+	#Range: 0.01 ~ 1.0
+	caveBaseChance = 0.08
+	#--------------------------------------------------
+	#Chance accumulation rate on failure for Cave Extraction Event
+	#Range: 0.01 ~ 0.5
+	caveFailureMultiplier = 0.2
+
+[Drops]
+	#Enables or disables modified weapon drops for Units.
+	enableCustomDrops = true
+	#Probability that a Unit will drop its TACZ weapon upon death (0.0 to 1.0)
+	#Range: 0.0 ~ 1.0
+	gunDropChance = 1.0
+	#Probability that a Unit will drop extra ammo upon death (0.0 to 1.0).
+	#Range: 0.0 ~ 1.0
+	ammoDropChance = 0.5
+
+["Visual Effects"]
+	#Activate or deactivate the visual suppression effect
+	enableSuppression = true
+

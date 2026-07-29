@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -38,11 +39,50 @@ import java.util.regex.Pattern;
  * role→slot map; they are NOT assumptions about a slot's position. A slot that
  * can't be classified falls back to the CANNON role (a usable direct-fire primary).
  *
- * <p>The switch cooldown stays in each goal (per-crew state); this utility is stateless.
+ * <p>The switch cooldown stays in each goal (per-crew state). Gun-data reads go through
+ * {@link #gunData} — a per-thread, per-vehicle, per-tick snapshot of SBW's
+ * {@code getGunDataMap()} — so one selection cycle (and every other seat on the same hull
+ * that tick) does not rebuild SBW's gun map on every classifier probe. That map rebuild
+ * mutates a static non-thread-safe HashMap inside {@code GunData.from}; we cannot fix that,
+ * but we stop amplifying it.
  */
 public final class VehicleWeapons {
 
     private static final Logger LOGGER = LogUtils.getLogger();
+
+    /**
+     * One {@code getGunDataMap()} per vehicle per game tick per thread. Client and server
+     * each have their own ThreadLocal, so singleplayer's two tickers never share this cache
+     * (they still race inside SBW's static map — that is theirs).
+     */
+    private static final ThreadLocal<GunMapCache> GUN_MAP = ThreadLocal.withInitial(GunMapCache::new);
+
+    private static final class GunMapCache {
+        private int vehicleId = Integer.MIN_VALUE;
+        private long gameTime = Long.MIN_VALUE;
+        private Map<String, GunData> map;
+
+        Map<String, GunData> mapFor(VehicleEntity vehicle) {
+            int id = vehicle.getId();
+            long time = vehicle.level().getGameTime();
+            if (map == null || id != vehicleId || time != gameTime) {
+                vehicleId = id;
+                gameTime = time;
+                map = vehicle.getGunDataMap();
+            }
+            return map;
+        }
+
+        /** After {@code modifyGunData} the synched map moved — next read must rebuild. */
+        void invalidate() {
+            map = null;
+        }
+    }
+
+    /** Package/test hook: drop the current thread's gun-map snapshot. */
+    public static void invalidateGunMapCache() {
+        GUN_MAP.get().invalidate();
+    }
 
     // Role ids. These also index the role→slot map returned by resolveRoleSlots().
     public static final int WEAPON_CANNON = 0;
@@ -118,6 +158,38 @@ public final class VehicleWeapons {
     private static final String[] AMMO_ANTI_INFANTRY = {"_gs", "_he", "_ap"};
 
     private VehicleWeapons() {}
+
+    /**
+     * Cached {@code vehicle.getGunData(seat, weapon)} for this thread's current game tick.
+     * First touch of a hull in a tick pays one {@code getGunDataMap()}; later probes are map lookups.
+     */
+    @javax.annotation.Nullable
+    public static GunData gunData(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
+        if (vehicle == null || seatIndex < 0 || weaponIndex < 0) return null;
+        try {
+            SeatInfo seat = vehicle.getSeat(seatIndex);
+            if (seat == null) return null;
+            List<String> names = seat.weapons();
+            if (weaponIndex >= names.size()) return null;
+            String name = names.get(weaponIndex);
+            if (name == null || name.isEmpty()) return null;
+            return GUN_MAP.get().mapFor(vehicle).get(name);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Selected weapon on {@code seatIndex}, same tick cache as {@link #gunData(VehicleEntity, int, int)}. */
+    @javax.annotation.Nullable
+    public static GunData gunData(VehicleEntity vehicle, int seatIndex) {
+        if (vehicle == null || seatIndex < 0) return null;
+        try {
+            int weapon = vehicle.getSelectedWeapon(seatIndex);
+            return gunData(vehicle, seatIndex, weapon);
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     /**
      * True when {@code mob} is crewing an SBW vehicle in a role that fires a VEHICLE
@@ -288,7 +360,7 @@ public final class VehicleWeapons {
     /** Package-visible for {@link HeliArmament} (same placeholder / zero-velocity gate). */
     static boolean isRealWeapon(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
         try {
-            GunData gun = vehicle.getGunData(seatIndex, weaponIndex);
+            GunData gun = gunData(vehicle, seatIndex, weaponIndex);
             if (gun == null) return false; // no data at all — nothing to aim or fire
             Double velocity = gun.get(GunProp.VELOCITY);
             return velocity != null && velocity != 0.0;
@@ -312,7 +384,7 @@ public final class VehicleWeapons {
     // the AI tick.
     private static int classifySlot(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
         try {
-            GunData gun = vehicle.getGunData(seatIndex, weaponIndex);
+            GunData gun = gunData(vehicle, seatIndex, weaponIndex);
             String name = lower(vehicle.getGunName(seatIndex, weaponIndex));
             String shell = "";
             String projectile = "";
@@ -479,7 +551,7 @@ public final class VehicleWeapons {
     private static void selectCannonAmmo(VehicleEntity vehicle, int seatIndex, int weaponIndex,
                                          String[] preferences) {
         try {
-            GunData gun = vehicle.getGunData(seatIndex, weaponIndex);
+            GunData gun = gunData(vehicle, seatIndex, weaponIndex);
             if (gun == null) return;
             List<AmmoConsumer> consumers = gun.get(GunProp.AMMO_CONSUMER);
             if (consumers == null || consumers.size() < 2) return; // single-ammo weapon
@@ -495,6 +567,8 @@ public final class VehicleWeapons {
                     int index = i;
                     vehicle.modifyGunData(seatIndex, weaponIndex,
                             d -> d.changeAmmoConsumer(index, source));
+                    // Synched gun map changed — do not serve the pre-switch snapshot later this tick.
+                    GUN_MAP.get().invalidate();
                     return;
                 }
             }
@@ -509,7 +583,7 @@ public final class VehicleWeapons {
     // back to the hull itself.
     private static boolean specialReady(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
         try {
-            GunData special = vehicle.getGunData(seatIndex, weaponIndex);
+            GunData special = gunData(vehicle, seatIndex, weaponIndex);
             if (special == null) return false;
             Entity supplier = vehicle.getAmmoSupplier();
             return special.canShoot(supplier != null ? supplier : vehicle);

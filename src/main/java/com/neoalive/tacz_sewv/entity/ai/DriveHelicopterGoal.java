@@ -1310,7 +1310,7 @@ public class DriveHelicopterGoal extends Goal {
     private boolean heldWeaponDepleted(int seat) {
         if (seat < 0 || this.heldWeaponSlot < 0) return true;
         try {
-            GunData gun = this.vehicle.getGunData(seat, this.heldWeaponSlot);
+            GunData gun = VehicleWeapons.gunData(this.vehicle, seat, this.heldWeaponSlot);
             if (gun == null) return true;
             if (gun.reloading()) return false;
             Entity supplier = this.vehicle.getAmmoSupplier();

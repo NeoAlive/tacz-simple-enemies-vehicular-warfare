@@ -142,7 +142,7 @@ public final class HeliArmament {
 
     static Signals readSignals(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
         try {
-            GunData gun = vehicle.getGunData(seatIndex, weaponIndex);
+            GunData gun = VehicleWeapons.gunData(vehicle, seatIndex, weaponIndex);
             if (gun == null) return new Signals("", "", 0.0, false);
             String projectile = "";
             ProjectileInfo pi = gun.get(GunProp.PROJECTILE);
@@ -182,7 +182,7 @@ public final class HeliArmament {
 
     private static boolean slotReady(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
         try {
-            GunData gun = vehicle.getGunData(seatIndex, weaponIndex);
+            GunData gun = VehicleWeapons.gunData(vehicle, seatIndex, weaponIndex);
             if (gun == null) return false;
             Entity supplier = vehicle.getAmmoSupplier();
             return gun.canShoot(supplier != null ? supplier : vehicle);

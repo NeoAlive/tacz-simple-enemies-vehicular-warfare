@@ -23,7 +23,9 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
                             CrewFacts.Faction faction, MarkerOrder order, ResourceKey<Level> dimension,
                             float healthFrac, float energyFrac,
                             VehicleMarker.CommandRole commandRole, int groupId,
-                            VehicleMarker.PlayRole playRole) {
+                            VehicleMarker.PlayRole playRole,
+                            /** 0 = client uses config colour; else 0xRRGGBB from OpenPAC (server). */
+                            int tintRgb) {
 
     /** Sentinel: hull has no energy storage — do not draw an energy bar. */
     public static final float NO_ENERGY = -1.0F;

@@ -4,6 +4,7 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
+import com.neoalive.tacz_sewv.util.OrderAuth;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -115,10 +116,8 @@ public class PacketPatrolVehicle {
             List<PmcUnitEntity> crews = new ArrayList<>();
             for (int unitId : this.unitIds) {
                 Entity e = player.level().getEntity(unitId);
-                // Ownership-checked per unit (a spoofed id can't task another player's crews), and
-                // only the driver of a ground hull — a gunner/passenger doesn't drive, and a
-                // helicopter is flown by DriveHelicopterGoal, which doesn't read area tasks.
-                if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)
+                if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) continue;
+                if (e instanceof PmcUnitEntity pmc && OrderAuth.check(sp, pmc, "PacketPatrolVehicle")
                         && pmc.getVehicle() instanceof VehicleEntity v
                         && v.getFirstPassenger() == pmc
                         && !(v.getEngineInfo() instanceof EngineInfo.Helicopter)) {
@@ -161,7 +160,8 @@ public class PacketPatrolVehicle {
         int ordered = 0;
         for (int unitId : this.unitIds) {
             Entity e = player.level().getEntity(unitId);
-            if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)
+            if (e instanceof PmcUnitEntity pmc && player instanceof net.minecraft.server.level.ServerPlayer sp
+                    && OrderAuth.check(sp, pmc, "PacketPatrolVehicle")
                     && pmc.getVehicle() instanceof VehicleEntity v
                     && v.getFirstPassenger() == pmc
                     && !(v.getEngineInfo() instanceof EngineInfo.Helicopter)) {
@@ -183,10 +183,12 @@ public class PacketPatrolVehicle {
     private void dismiss(Player player) {
         int dismissed = 0;
         for (int unitId : this.unitIds) {
-            if (player.level().getEntity(unitId) instanceof PmcUnitEntity pmc
-                    && pmc.isOwnedBy(player)
-                    && ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null) {
-                PatrolSupport.clear(pmc);
+            if (!(player.level().getEntity(unitId) instanceof PmcUnitEntity pmc)
+                    || !pmc.isOwnedBy(player)) continue;
+            boolean had = ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
+                    || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep();
+            if (had) {
+                PatrolSupport.clearSweepMembership(pmc);
                 dismissed++;
             }
         }

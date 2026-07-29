@@ -5,6 +5,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IEscort;
+import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.EscortGoal;
@@ -13,6 +14,7 @@ import com.neoalive.tacz_sewv.entity.ai.MedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.PmcCombatDebugGoal;
 import com.neoalive.tacz_sewv.entity.ai.RepairGoal;
 import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
+import com.neoalive.tacz_sewv.entity.ai.SweepInfantryGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -34,7 +36,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // player actually gave it — which is the whole point of hand-loading one.
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity
-        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember, IVehiclePatrol, IEscort {
+        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember,
+        IVehiclePatrol, IEscort, ISweepInfantry {
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
@@ -147,6 +150,9 @@ public abstract class MixinPmcUnitEntity
         // prio 3, holds MOVE for ANY order) and the chase goal (MoveToAttackRangeGoal, prio 3) so a
         // glued escort is never dragged off. PMC-only because escort is a player order. See EscortGoal.
         ((Mob) self).goalSelector.addGoal(1, new EscortGoal(self));
+        // Sweep & Advance on-foot: same priority band as escort so MoveToAttackRange cannot yank
+        // infantry out of the selected rectangle while the sweep is active.
+        ((Mob) self).goalSelector.addGoal(1, new SweepInfantryGoal(self));
         // Diagnostic only (off unless pmcCombatDebugLogging is set): logs why an owned PMC that was
         // just shot isn't shooting back. Claims no flags and always declines to run — see the class.
         ((Mob) self).goalSelector.addGoal(1, new PmcCombatDebugGoal(self));

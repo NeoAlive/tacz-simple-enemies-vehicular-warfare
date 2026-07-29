@@ -1,9 +1,11 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import net.minecraft.world.entity.LivingEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -44,13 +46,42 @@ public abstract class MixinAbstractUnit {
         // would sit neither fighting nor supporting. isFriendly/isMedic already pass a null through.
         if (target == null) return;
         AbstractUnit self = (AbstractUnit) (Object) this;
+
+        boolean diplEnemy = VehicleTargeting.isDiplomacyEnemy(self, target);
+        boolean sameClassFriendly = VehicleTargeting.isFriendly(self, target);
+        boolean medic = VehicleTargeting.isMedic(target);
+        boolean supportRefuse = SupportRole.refusesTarget(self, target);
+
+        // Stage 4 ENEMY pairs must reach setTarget even when SEM class says "same faction" (PMC↔PMC).
+        if (diplEnemy) {
+            if (self instanceof PmcUnitEntity && target instanceof PmcUnitEntity) {
+                SewvDiag.setTarget(
+                        "MixinAbstractUnit APPROVE diplomacyEnemy=true self={}#{} target={}#{} "
+                                + "sameClassFriendly={} (would have blocked without ENEMY exception)",
+                        self.getClass().getSimpleName(), self.getId(),
+                        target.getClass().getSimpleName(), target.getId(),
+                        sameClassFriendly);
+            }
+            return;
+        }
         // Same-faction friends and medics (neutral to everyone) are never taken as a target.
-        if (VehicleTargeting.isFriendly(self, target) || VehicleTargeting.isMedic(target)) {
+        if (sameClassFriendly || medic) {
+            if (self instanceof PmcUnitEntity && target instanceof PmcUnitEntity) {
+                SewvDiag.setTarget(
+                        "MixinAbstractUnit BLOCK sameClassFriendly={} medic={} self={}#{} target={}#{}",
+                        sameClassFriendly, medic,
+                        self.getClass().getSimpleName(), self.getId(),
+                        target.getClass().getSimpleName(), target.getId());
+            }
             ci.cancel();
             return;
         }
         // ...and a unit whose own hands say it is not here to fight refuses the target outright.
-        if (SupportRole.refusesTarget(self, target)) {
+        if (supportRefuse) {
+            SewvDiag.setTarget(
+                    "MixinAbstractUnit BLOCK supportRoleRefuse self={}#{} target={}#{}",
+                    self.getClass().getSimpleName(), self.getId(),
+                    target.getClass().getSimpleName(), target.getId());
             ci.cancel();
         }
     }

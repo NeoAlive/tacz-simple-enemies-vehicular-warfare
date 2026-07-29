@@ -91,7 +91,8 @@ public final class PatrolSupport {
         if (origin == null) return null;
 
         return switch (task.sewv$getPatrolMode()) {
-            case IVehiclePatrol.MODE_SEARCH -> searchWaypoint(pmc, vehicle, task, origin);
+            case IVehiclePatrol.MODE_SEARCH, IVehiclePatrol.MODE_SWEEP ->
+                    searchWaypoint(pmc, vehicle, task, origin);
             case IVehiclePatrol.MODE_CRUISE -> cruiseWaypoint(pmc, vehicle, task);
             default -> patrolWaypoint(pmc, task, origin);
         };
@@ -150,7 +151,8 @@ public final class PatrolSupport {
         // EVERY hull on the order answer the call rather than only those that happen to be close.
         double reach = areaReach(task.sewv$getPatrolRadius());
 
-        if (task.sewv$getPatrolMode() == IVehiclePatrol.MODE_SEARCH) {
+        if (task.sewv$getPatrolMode() == IVehiclePatrol.MODE_SEARCH
+                || task.sewv$getPatrolMode() == IVehiclePatrol.MODE_SWEEP) {
             // Sweeping hulls support each other equally — any ally in contact — but only commit to a
             // new one on the cooldown, so the sweep survives its own first contact.
             return assist.assistTargetPos(pmc, vehicle, null, SEARCH_ASSIST_COOLDOWN, reach);
@@ -176,6 +178,12 @@ public final class PatrolSupport {
         ((IVehiclePatrol) pmc).sewv$setAreaTask(origin, radius, IVehiclePatrol.MODE_SEARCH, sector, sectorCount);
     }
 
+    /** Sweep &amp; Advance: zig-zag inside a chunk AABB (same contact/alert behaviour as search). */
+    public static void beginSweep(PmcUnitEntity pmc, int left, int top, int right, int bottom,
+                                  int sector, int sectorCount) {
+        ((IVehiclePatrol) pmc).sewv$setSweepRect(left, top, right, bottom, sector, sectorCount);
+    }
+
     /** Loop these waypoints in order, endlessly, until dismissed. */
     public static void beginCruise(PmcUnitEntity pmc, List<BlockPos> route) {
         ((IVehiclePatrol) pmc).sewv$setCruise(route);
@@ -195,6 +203,15 @@ public final class PatrolSupport {
 
     public static void clear(PmcUnitEntity pmc) {
         ((IVehiclePatrol) pmc).sewv$clearPatrol();
+    }
+
+    /** Dismiss / SEM order / bail: drop both mounted and infantry sweep membership. */
+    public static void clearSweepMembership(PmcUnitEntity pmc) {
+        clear(pmc);
+        if (((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
+            ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$clearInfantrySweep();
+        }
+        com.neoalive.tacz_sewv.sweep.SweepAdvancement.unregisterUnit(pmc);
     }
 
     // --- Patrol: endless random wander, re-rolled on the config interval ---------------------
@@ -260,11 +277,14 @@ public final class PatrolSupport {
         }
 
         // Advance to the next leg that actually has drivable ground; skipping a dud beats stalling.
-        int radius = task.sewv$getPatrolRadius();
         int sector = task.sewv$getPatrolSector();
         int sectorCount = task.sewv$getPatrolSectorCount();
+        boolean rect = task.sewv$getPatrolMode() == IVehiclePatrol.MODE_SWEEP && task.sewv$hasSweepRect();
         while (step < SWEEP_STEPS) {
-            BlockPos next = sweepPoint(pmc.level(), origin, radius, sector, sectorCount, step, pmc.getRandom());
+            BlockPos next = rect
+                    ? rectSweepPoint(pmc.level(), task, sector, sectorCount, step, pmc.getRandom())
+                    : sweepPoint(pmc.level(), origin, task.sewv$getPatrolRadius(),
+                            sector, sectorCount, step, pmc.getRandom());
             if (next != null) {
                 task.sewv$setPatrolStep(step);
                 task.sewv$setPatrolWaypoint(next);
@@ -276,6 +296,23 @@ public final class PatrolSupport {
 
         clear(pmc); // sector swept and nothing found — a one-time assignment ends here
         return null;
+    }
+
+    /** Zig-zag legs sampled inside the chunk rectangle (MODE_SWEEP). */
+    @Nullable
+    private static BlockPos rectSweepPoint(Level level, IVehiclePatrol task,
+                                           int sector, int sectorCount, int step, RandomSource random) {
+        int left = task.sewv$getSweepLeft() << 4;
+        int right = (task.sewv$getSweepRight() << 4) + 15;
+        int top = task.sewv$getSweepTop() << 4;
+        int bottom = (task.sewv$getSweepBottom() << 4) + 15;
+        double sectorWidth = 1.0 / Math.max(1, sectorCount);
+        double u0 = sectorWidth * sector;
+        double u = u0 + sectorWidth * ((step + 0.5) / SWEEP_STEPS);
+        double v = step % 2 == 0 ? 0.85 : 0.35;
+        double x = left + (right - left) * u;
+        double z = top + (bottom - top) * v;
+        return findDrivableNear(level, x, z, random);
     }
 
     /**
@@ -313,8 +350,9 @@ public final class PatrolSupport {
             if (!owner.equals(other.getOwnerUUID())) continue;
 
             IVehiclePatrol otherTask = (IVehiclePatrol) other;
-            if (otherTask.sewv$getPatrolOrigin() == null
-                    || otherTask.sewv$getPatrolMode() != IVehiclePatrol.MODE_SEARCH) continue;
+            if (otherTask.sewv$getPatrolOrigin() == null) continue;
+            int mode = otherTask.sewv$getPatrolMode();
+            if (mode != IVehiclePatrol.MODE_SEARCH && mode != IVehiclePatrol.MODE_SWEEP) continue;
 
             otherTask.sewv$clearPatrol();
             other.setAttackTargetId(target.getId());

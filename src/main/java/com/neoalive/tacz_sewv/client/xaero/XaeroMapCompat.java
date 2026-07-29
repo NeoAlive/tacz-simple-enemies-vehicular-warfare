@@ -24,10 +24,13 @@ import xaero.map.gui.GuiMap;
  *
  * <p>This class and {@code MixinGuiMap} are the only two places Xaero types are named, and both are
  * reached only when the mod is present: this one behind {@code ModList.isLoaded} in
- * {@code ClientModEvents}, the mixin behind its own non-required config.
+ * {@code ClientModEvents}, the mixins behind {@code XaeroMixinPlugin} on
+ * {@code tacz_sewv.xaero.mixins.json} (LoadingModList gate — {@code "required": false} alone still
+ * warned on a missing target).
  */
 public final class XaeroMapCompat {
 
+    /** Forge mod id for Xaero's World Map. Not Minimap ({@code xaerominimap}). */
     public static final String MODID = "xaeroworldmap";
 
     /** The handler we last called {@code add} on; null means not hung yet. */

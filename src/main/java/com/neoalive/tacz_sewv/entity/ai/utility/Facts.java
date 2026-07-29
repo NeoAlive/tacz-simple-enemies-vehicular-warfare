@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai.utility;
 import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons;
@@ -420,6 +421,17 @@ public final class Facts {
                     radio = HandheldRadioItem.isCarriedBy(mate);
                 }
             } else if (!VehicleTargeting.isNonHostile(unit, other)) {
+                // Note: this isNonHostile call feeds force-ratio / utility Facts — it does NOT
+                // assign a combat target. PMC↔PMC ENEMY reads here explain targeting-diag spam
+                // without any setTarget.
+                if (unit instanceof PmcUnitEntity && other instanceof PmcUnitEntity
+                        && unit.level().getGameTime() % 40 == 0) {
+                    SewvDiag.scan(
+                            "Facts.forceRatio path: isNonHostile=false unit={}#{} other={}#{} "
+                                    + "(utility count only — not VehicleTargetScanGoal)",
+                            unit.getClass().getSimpleName(), unit.getId(),
+                            other.getClass().getSimpleName(), other.getId());
+                }
                 enemyCount++;
             }
         }

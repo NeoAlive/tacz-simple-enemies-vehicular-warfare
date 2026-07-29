@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -189,7 +190,23 @@ public class CrewTargetPriorityGoal extends Goal {
         }
 
         if (this.unit instanceof PmcUnitEntity) {
-            return e instanceof Enemy && !(e instanceof PmcUnitEntity);
+            if (e instanceof PmcUnitEntity) {
+                if (VehicleTargeting.isDiplomacyEnemy(this.unit, e)) {
+                    SewvDiag.scan(
+                            "CrewTargetPriorityGoal.isValidTarget ALLOW diplomacyEnemy Pmc "
+                                    + "unit={}#{} cand={}#{}",
+                            this.unit.getClass().getSimpleName(), this.unit.getId(),
+                            e.getClass().getSimpleName(), e.getId());
+                    return e instanceof Enemy;
+                }
+                SewvDiag.scan(
+                        "CrewTargetPriorityGoal.isValidTarget REJECT hardPmcExclusion "
+                                + "unit={}#{} cand={}#{} isNonHostile=false → DROP (ALLY/NEUTRAL/unresolved)",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        e.getClass().getSimpleName(), e.getId());
+                return false;
+            }
+            return e instanceof Enemy;
         }
         if (e instanceof Player p) return !p.isCreative() && !p.isSpectator();
         return e instanceof Enemy;

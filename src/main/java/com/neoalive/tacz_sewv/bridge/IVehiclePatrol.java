@@ -26,6 +26,8 @@ public interface IVehiclePatrol {
     int MODE_SEARCH = 1;
     /** Endless loop of player-plotted waypoints, in order. Uses {@link #TAG_ROUTE}. */
     int MODE_CRUISE = 2;
+    /** Sweep &amp; Advance: one-time sector zig-zag inside a chunk rectangle (not a circle). */
+    int MODE_SWEEP = 3;
 
     String TAG_ORIGIN = "tacz_sewv_patrol_origin";
     String TAG_RADIUS = "tacz_sewv_patrol_radius";
@@ -37,6 +39,10 @@ public interface IVehiclePatrol {
     String TAG_STEP = "tacz_sewv_patrol_step";
     String TAG_STEP_DEADLINE = "tacz_sewv_patrol_step_deadline";
     String TAG_ROUTE = "tacz_sewv_patrol_route";
+    String TAG_SWEEP_LEFT = "tacz_sewv_sweep_left";
+    String TAG_SWEEP_TOP = "tacz_sewv_sweep_top";
+    String TAG_SWEEP_RIGHT = "tacz_sewv_sweep_right";
+    String TAG_SWEEP_BOTTOM = "tacz_sewv_sweep_bottom";
 
     /**
      * Begin (or replace) an area task. Clears the waypoint and sweep progress so the next resolve
@@ -54,6 +60,45 @@ public interface IVehiclePatrol {
         tag.remove(TAG_WAYPOINT);
         tag.remove(TAG_NEXT_ROTATE);
         tag.remove(TAG_STEP_DEADLINE);
+        tag.remove(TAG_ROUTE);
+        tag.remove(TAG_SWEEP_LEFT);
+        tag.remove(TAG_SWEEP_TOP);
+        tag.remove(TAG_SWEEP_RIGHT);
+        tag.remove(TAG_SWEEP_BOTTOM);
+    }
+
+    /** Begin a rect sweep (MODE_SWEEP). Origin/radius are derived for assist reach. */
+    default void sewv$setSweepRect(int left, int top, int right, int bottom,
+                                   int sector, int sectorCount) {
+        int midX = ((left + right + 1) << 4) >> 1;
+        int midZ = ((top + bottom + 1) << 4) >> 1;
+        int radius = Math.max(16, Math.max((right - left + 1) << 3, (bottom - top + 1) << 3));
+        sewv$setAreaTask(new BlockPos(midX, 64, midZ), radius, MODE_SWEEP, sector, sectorCount);
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        tag.putInt(TAG_SWEEP_LEFT, left);
+        tag.putInt(TAG_SWEEP_TOP, top);
+        tag.putInt(TAG_SWEEP_RIGHT, right);
+        tag.putInt(TAG_SWEEP_BOTTOM, bottom);
+    }
+
+    default boolean sewv$hasSweepRect() {
+        return ((Entity) this).getPersistentData().contains(TAG_SWEEP_LEFT);
+    }
+
+    default int sewv$getSweepLeft() {
+        return ((Entity) this).getPersistentData().getInt(TAG_SWEEP_LEFT);
+    }
+
+    default int sewv$getSweepTop() {
+        return ((Entity) this).getPersistentData().getInt(TAG_SWEEP_TOP);
+    }
+
+    default int sewv$getSweepRight() {
+        return ((Entity) this).getPersistentData().getInt(TAG_SWEEP_RIGHT);
+    }
+
+    default int sewv$getSweepBottom() {
+        return ((Entity) this).getPersistentData().getInt(TAG_SWEEP_BOTTOM);
     }
 
     /**
@@ -96,6 +141,10 @@ public interface IVehiclePatrol {
         tag.remove(TAG_STEP);
         tag.remove(TAG_STEP_DEADLINE);
         tag.remove(TAG_ROUTE);
+        tag.remove(TAG_SWEEP_LEFT);
+        tag.remove(TAG_SWEEP_TOP);
+        tag.remove(TAG_SWEEP_RIGHT);
+        tag.remove(TAG_SWEEP_BOTTOM);
     }
 
     default int sewv$getPatrolMode() {

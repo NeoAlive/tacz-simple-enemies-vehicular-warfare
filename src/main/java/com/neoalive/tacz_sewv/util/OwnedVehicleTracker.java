@@ -4,6 +4,7 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.DroneSupport;
@@ -106,7 +107,8 @@ public final class OwnedVehicleTracker {
     private record Candidate(VehicleMarker.Kind kind, CrewFacts.Faction faction, UUID pmcOwner,
                              boolean factionFriendly, MarkerOrder order, int driverId, int vehicleId,
                              double x, double y, double z, float yaw,
-                             ResourceKey<Level> dimension, float healthFrac, float energyFrac) {}
+                             ResourceKey<Level> dimension, float healthFrac, float energyFrac,
+                             int tintRgb) {}
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
@@ -220,7 +222,8 @@ public final class OwnedVehicleTracker {
                     VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
                     driver.getId(), hull.getId(),
                     hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension(),
-                    healthFrac(hull), energyFrac(hull)));
+                    healthFrac(hull), energyFrac(hull),
+                    FactionColors.wireTint(level.getServer(), CrewFacts.pmcOwner(hull))));
         }
     }
 
@@ -242,13 +245,15 @@ public final class OwnedVehicleTracker {
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(crew);
         if (faction == null) return;
 
+        UUID pmcOwner = crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
         candidates.add(new Candidate(
                 VehicleMarker.Kind.EMPLACEMENT, faction,
-                crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
+                pmcOwner,
                 VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
                 crew.getId(), mortar.getId(),
                 mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension(),
-                healthFrac(mortar), energyFrac(mortar)));
+                healthFrac(mortar), energyFrac(mortar),
+                FactionColors.wireTint(level.getServer(), pmcOwner)));
     }
 
     /**
@@ -264,13 +269,15 @@ public final class OwnedVehicleTracker {
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(crew);
         if (faction == null) return;
 
+        UUID pmcOwner = crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
         candidates.add(new Candidate(
                 VehicleMarker.Kind.ROTARY_WING, faction,
-                crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
+                pmcOwner,
                 VehicleTargeting.isFactionFriendly(crew), MarkerOrder.NONE,
                 crew.getId(), drone.getId(),
                 drone.getX(), drone.getY(), drone.getZ(), drone.getYRot(), level.dimension(),
-                healthFrac(drone), energyFrac(drone)));
+                healthFrac(drone), energyFrac(drone),
+                FactionColors.wireTint(level.getServer(), pmcOwner)));
     }
 
     /**
@@ -289,14 +296,16 @@ public final class OwnedVehicleTracker {
             CrewFacts.Faction faction = CrewFacts.factionOfCrew(unit);
             if (faction == null) continue;
 
+            UUID pmcOwner = unit instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
             candidates.add(new Candidate(
                     infantryKind(unit), faction,
-                    unit instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null,
+                    pmcOwner,
                     VehicleTargeting.isFactionFriendly(unit), orderPreviewOf(unit),
                     unit.getId(), unit.getId(),
                     unit.getX(), unit.getY(), unit.getZ(), unit.getYRot(), level.dimension(),
                     Mth.clamp(unit.getHealth() / unit.getMaxHealth(), 0.0F, 1.0F),
-                    VehicleMarker.NO_ENERGY));
+                    VehicleMarker.NO_ENERGY,
+                    FactionColors.wireTint(level.getServer(), pmcOwner)));
         }
     }
 
@@ -322,8 +331,8 @@ public final class OwnedVehicleTracker {
      * <b>spotted</b>: within the configured radius of the player or of one of their own crews,
      * which is "your side noticed it" in the cheapest form that still reads as a sighting picture.
      *
-     * <p>Another player's PMC hulls are never sent, spotted or not — that would hand out their unit
-     * positions, which no part of this feature is allowed to do.
+     * <p>Another player's PMC hulls are only sent when OpenPAC says they are the same party or
+     * allied (Stage 2) <b>and</b> spotted — never as {@link VehicleMarker.Allegiance#OWN}.
      */
     private static List<VehicleMarker> markersFor(ServerPlayer player, List<Candidate> candidates,
                                                   double spotRadiusSq) {
@@ -341,7 +350,13 @@ public final class OwnedVehicleTracker {
 
         for (Candidate c : candidates) {
             if (markers.size() >= MAX_MARKERS) break;
-            if (c.pmcOwner() != null) continue; // yours (already added) or another player's (never sent)
+            if (c.pmcOwner() != null) {
+                if (player.getUUID().equals(c.pmcOwner())) continue;
+                if (!OpenPacCompat.allied(player.server, player.getUUID(), c.pmcOwner())) continue;
+                if (!spotted(player, own, c, spotRadiusSq)) continue;
+                markers.add(marker(c, VehicleMarker.Allegiance.FRIENDLY));
+                continue;
+            }
             if (!spotted(player, own, c, spotRadiusSq)) continue;
             markers.add(marker(c, allegianceOf(c)));
         }
@@ -387,7 +402,7 @@ public final class OwnedVehicleTracker {
         VehicleMarker.PlayRole playRole = playRoleOf(CommandCoordinator.assignmentRoleForDriver(c.driverId()));
         return new VehicleMarker(c.driverId(), c.vehicleId(), c.x(), c.y(), c.z(), c.yaw(),
                 c.kind(), allegiance, c.faction(), order, c.dimension(),
-                c.healthFrac(), c.energyFrac(), role, groupId, playRole);
+                c.healthFrac(), c.energyFrac(), role, groupId, playRole, c.tintRgb());
     }
 
     private static VehicleMarker.PlayRole playRoleOf(@javax.annotation.Nullable Assignment.Role role) {

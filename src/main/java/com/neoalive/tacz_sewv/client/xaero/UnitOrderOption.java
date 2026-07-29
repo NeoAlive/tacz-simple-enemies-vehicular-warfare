@@ -7,6 +7,7 @@ import com.neoalive.tacz_sewv.client.TdtScreen;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
+import com.neoalive.tacz_sewv.network.PacketSweepAndAdvance;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
@@ -21,6 +22,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.network.ModNetworking;
 import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
 import xaero.map.gui.IRightClickableElement;
+import xaero.map.gui.MapTileSelection;
 import xaero.map.gui.dropdown.rightclick.RightClickOption;
 
 import java.util.ArrayList;
@@ -98,6 +100,7 @@ public class UnitOrderOption extends RightClickOption {
         LAND_HERE("land_here", null, true, Category.AIR),
         PATROL_HERE("patrol_here", null, true, Category.AREA_TASK),
         SAD_HERE("sad_here", null, true, Category.AREA_TASK),
+        SWEEP_AND_ADVANCE("sweep_and_advance", null, true, Category.AREA_TASK),
         CRUISE("cruise", null, false, Category.MOVEMENT),
         DISMISS("dismiss", null, false, Category.STAND_DOWN);
 
@@ -119,16 +122,36 @@ public class UnitOrderOption extends RightClickOption {
     private final int y;
     private final int z;
     private final ResourceKey<Level> dimension;
+    private final int selLeft;
+    private final int selTop;
+    private final int selRight;
+    private final int selBottom;
+    private final boolean hasTileSelection;
 
     public UnitOrderOption(int index, IRightClickableElement target, Action action,
-                           int x, int y, int z, ResourceKey<Level> dimension, int selectedCount) {
+                           int x, int y, int z, ResourceKey<Level> dimension, int selectedCount,
+                           MapTileSelection tileSelection) {
         super(action.labelKey, action.category.style, index, target);
         this.action = action;
         this.x = x;
         this.y = y;
         this.z = z;
         this.dimension = dimension;
-        setActive(selectedCount > 0);
+        if (tileSelection != null) {
+            this.hasTileSelection = true;
+            this.selLeft = tileSelection.getLeft();
+            this.selTop = tileSelection.getTop();
+            this.selRight = tileSelection.getRight();
+            this.selBottom = tileSelection.getBottom();
+        } else {
+            this.hasTileSelection = false;
+            this.selLeft = this.selTop = this.selRight = this.selBottom = 0;
+        }
+        boolean active = selectedCount > 0;
+        if (action == Action.SWEEP_AND_ADVANCE) {
+            active = active && hasTileSelection;
+        }
+        setActive(active);
         setNameFormatArgs(selectedCount);
     }
 
@@ -175,6 +198,18 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
+        if (this.action == Action.SWEEP_AND_ADVANCE) {
+            if (!this.hasTileSelection) {
+                hint("message.tacz_sewv.sweep.need_selection");
+                return;
+            }
+            ResourceKey<Level> dim = this.dimension != null ? this.dimension : player.level().dimension();
+            NetworkHandler.CHANNEL.sendToServer(new PacketSweepAndAdvance(
+                    new ArrayList<>(drivers), dim.location(),
+                    this.selLeft, this.selTop, this.selRight, this.selBottom));
+            return;
+        }
+
         if (this.action == Action.TAKEOFF) {
             // This mod's own channel: flight state is IHelicopterPilot, not a SEM order. The server
             // filters the selection down to actual aircraft pilots and reports the count itself.
@@ -208,7 +243,7 @@ public class UnitOrderOption extends RightClickOption {
             case HOLD -> OrderType.HOLD_POSITION;
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
-            case TAKEOFF, LAND_HERE, PATROL_HERE, SAD_HERE, CRUISE, DISMISS ->
+            case TAKEOFF, LAND_HERE, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE, CRUISE, DISMISS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
         };
     }
@@ -234,11 +269,11 @@ public class UnitOrderOption extends RightClickOption {
     /** Every order entry, in menu order, for the position the player right-clicked. */
     public static List<RightClickOption> allFor(int firstIndex, IRightClickableElement target,
                                                 int x, int y, int z, ResourceKey<Level> dimension,
-                                                int selectedCount) {
+                                                int selectedCount, MapTileSelection tileSelection) {
         List<RightClickOption> options = new ArrayList<>();
         for (Action action : Action.values()) {
             options.add(new UnitOrderOption(firstIndex + options.size(), target, action,
-                    x, y, z, dimension, selectedCount));
+                    x, y, z, dimension, selectedCount, tileSelection));
         }
         return options;
     }

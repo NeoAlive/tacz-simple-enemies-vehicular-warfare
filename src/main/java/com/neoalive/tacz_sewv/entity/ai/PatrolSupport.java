@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -11,7 +12,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.pathfinder.BlockPathTypes;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
@@ -191,9 +191,9 @@ public final class PatrolSupport {
 
     /**
      * Whether this crew is on a plotted cruise, which is the one area task that does <b>not</b>
-     * yield the wheel to a contact — see {@code DriveVehicleGoal.tick}. A patrol may be broken off
-     * to fight and a sweep ends outright on contact, but a cruise is a route the player laid down
-     * and expects to keep being driven; the crew fights from it, on the move.
+     * yield the wheel to a contact — see {@code DriveVehicleGoal.tick}. Prefer
+     * {@link #holdsCourseThroughContact} for new call sites: patrol / search / sweep now share
+     * that same commitment (fight from the area, do not abandon it to chase).
      */
     public static boolean isCruising(AbstractUnit unit) {
         return unit instanceof PmcUnitEntity
@@ -201,17 +201,103 @@ public final class PatrolSupport {
                 && ((IVehiclePatrol) unit).sewv$getPatrolMode() == IVehiclePatrol.MODE_CRUISE;
     }
 
-    public static void clear(PmcUnitEntity pmc) {
-        ((IVehiclePatrol) pmc).sewv$clearPatrol();
+    /**
+     * Mounted equivalent of {@link FollowLeash}: any live area task (patrol / S&amp;D / sweep /
+     * cruise) keeps steering the area destination through contact. Weapon selection and fire
+     * assist still run; only movement stays on the order. Badly-hurt crews still break off via
+     * {@code DriveVehicleGoal}'s low-health path.
+     */
+    public static boolean holdsCourseThroughContact(AbstractUnit unit) {
+        return unit instanceof PmcUnitEntity pmc
+                && ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null;
     }
 
-    /** Dismiss / SEM order / bail: drop both mounted and infantry sweep membership. */
-    public static void clearSweepMembership(PmcUnitEntity pmc) {
-        clear(pmc);
+    /**
+     * True when {@code pos} lies inside this crew's standing area task (chunk rect for sweep,
+     * origin+radius disk for patrol/search). Cruise has no disk — always true while cruising.
+     * Used to refuse target locks outside the ordered ground so a sweep does not chase every
+     * zombie on the horizon.
+     */
+    public static boolean isInsideAreaTask(PmcUnitEntity pmc, double x, double z) {
+        IVehiclePatrol task = (IVehiclePatrol) pmc;
+        if (task.sewv$getPatrolOrigin() == null) return true;
+        int mode = task.sewv$getPatrolMode();
+        if (mode == IVehiclePatrol.MODE_CRUISE) return true;
+        if (mode == IVehiclePatrol.MODE_SWEEP && task.sewv$hasSweepRect()) {
+            int minX = task.sewv$getSweepLeft() << 4;
+            int maxX = (task.sewv$getSweepRight() << 4) + 16;
+            int minZ = task.sewv$getSweepTop() << 4;
+            int maxZ = (task.sewv$getSweepBottom() << 4) + 16;
+            return x >= minX && x < maxX && z >= minZ && z < maxZ;
+        }
+        BlockPos origin = task.sewv$getPatrolOrigin();
+        int radius = task.sewv$getPatrolRadius();
+        double dx = x - origin.getX();
+        double dz = z - origin.getZ();
+        return dx * dx + dz * dz <= (double) radius * radius;
+    }
+
+    public static boolean isInsideAreaTask(PmcUnitEntity pmc, LivingEntity e) {
+        return isInsideAreaTask(pmc, e.getX(), e.getZ());
+    }
+
+    /**
+     * True when this unit is on a bounded area task and {@code target} lies outside it — callers
+     * should refuse the lock. Cruise is unbounded (route, not a disk); returns false there.
+     */
+    public static boolean refusesOutOfAreaTarget(PmcUnitEntity pmc, LivingEntity target) {
         if (((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
+            var sweep = (com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc;
+            int minX = sweep.sewv$getInfSweepLeft() << 4;
+            int maxX = (sweep.sewv$getInfSweepRight() << 4) + 16;
+            int minZ = sweep.sewv$getInfSweepTop() << 4;
+            int maxZ = (sweep.sewv$getInfSweepBottom() << 4) + 16;
+            double x = target.getX();
+            double z = target.getZ();
+            return !(x >= minX && x < maxX && z >= minZ && z < maxZ);
+        }
+        IVehiclePatrol task = (IVehiclePatrol) pmc;
+        if (task.sewv$getPatrolOrigin() == null) return false;
+        if (task.sewv$getPatrolMode() == IVehiclePatrol.MODE_CRUISE) return false;
+        return !isInsideAreaTask(pmc, target);
+    }
+
+    public static void clear(PmcUnitEntity pmc) {
+        IVehiclePatrol task = (IVehiclePatrol) pmc;
+        int mode = task.sewv$getPatrolOrigin() == null ? -1 : task.sewv$getPatrolMode();
+        boolean hadSweepRect = task.sewv$hasSweepRect();
+        task.sewv$clearPatrol();
+        if (mode == IVehiclePatrol.MODE_SWEEP || hadSweepRect) {
+            SewvDiag.sweep(
+                    "areaTaskClear ONLY (not membership) unit={}#{} priorMode={} hadRect={} "
+                            + "— SweepAdvancement assignees UNCHANGED; claim is NOT this path",
+                    pmc.getClass().getSimpleName(), pmc.getId(), mode, hadSweepRect);
+        }
+    }
+
+    /**
+     * Dismiss / SEM order / bail / dismount: drop area task + infantry sweep + operation assignee.
+     * {@code reason} is logged so a live run can tell cancel-without-claim from completion.
+     */
+    public static void clearSweepMembership(PmcUnitEntity pmc, String reason) {
+        boolean hadMounted = ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
+                || ((IVehiclePatrol) pmc).sewv$hasSweepRect();
+        boolean hadInf = ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep();
+        SewvDiag.sweep(
+                "clearSweepMembership reason={} unit={}#{} hadMountedTask={} hadInfSweep={} "
+                        + "→ unregisterUnit (cancel op if last assignee; NO claim)",
+                reason, pmc.getClass().getSimpleName(), pmc.getId(), hadMounted, hadInf);
+        clear(pmc);
+        if (hadInf) {
             ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$clearInfantrySweep();
         }
-        com.neoalive.tacz_sewv.sweep.SweepAdvancement.unregisterUnit(pmc);
+        com.neoalive.tacz_sewv.sweep.SweepAdvancement.unregisterUnit(pmc, reason);
+    }
+
+    /** @deprecated use {@link #clearSweepMembership(PmcUnitEntity, String)} */
+    @Deprecated
+    public static void clearSweepMembership(PmcUnitEntity pmc) {
+        clearSweepMembership(pmc, "unspecified");
     }
 
     // --- Patrol: endless random wander, re-rolled on the config interval ---------------------
@@ -253,16 +339,17 @@ public final class PatrolSupport {
         return null;
     }
 
-    // --- Search & destroy: one-time sector sweep, ending on contact ---------------------------
+    // --- Search & destroy / Sweep & Advance: sector or rect legs; fight from the area on contact ---
 
     @Nullable
     private static BlockPos searchWaypoint(PmcUnitEntity pmc, @Nullable VehicleEntity vehicle,
                                            IVehiclePatrol task, BlockPos origin) {
-        // Contact is the whole point of the sweep: pass it to the rest of the group and stand down.
+        // Contact: share with the group, but keep working the sector/rect. Returning null here
+        // used to park the hull (getTargetPos null → stop) and, with the old alertGroup clear,
+        // permanently ended the area task so quiet never resolved.
         LivingEntity target = pmc.getTarget();
         if (target != null && target.isAlive()) {
             alertGroup(pmc, task, target);
-            return null; // resolveDestination now falls through to the ATTACK_THAT_TARGET we just set
         }
 
         long now = pmc.level().getGameTime();
@@ -294,7 +381,12 @@ public final class PatrolSupport {
             step++;
         }
 
-        clear(pmc); // sector swept and nothing found — a one-time assignment ends here
+        int exhaustedMode = task.sewv$getPatrolMode();
+        SewvDiag.sweep(
+                "sectorExhausted → areaTaskClear unit={}#{} modeWas={} — units go idle/FREE here; "
+                        + "claim still depends on SweepAdvancement quiet+defensive (assignees kept)",
+                pmc.getClass().getSimpleName(), pmc.getId(), exhaustedMode);
+        clear(pmc); // sector swept — ends the area task only; Sweep & Advance claim is independent
         return null;
     }
 
@@ -332,16 +424,15 @@ public final class PatrolSupport {
                 random);
     }
 
-    /** Alert every other hull on this sweep, end the task for all of them, and hand them the contact. */
+    /** Share a contact with the rest of the search/sweep group without abandoning the area task. */
     private static void alertGroup(PmcUnitEntity finder, IVehiclePatrol task, LivingEntity target) {
         double range = areaReach(task.sewv$getPatrolRadius());
         UUID owner = finder.getOwnerUUID();
 
-        // The finder stands down too, and gets pinned on what it found (SEM's AttackSpecificTargetGoal
-        // re-forces the target from this id, so the contact isn't lost to a rescan).
-        clear(finder);
-        finder.setAttackTargetId(target.getId());
-        finder.setOrder(OrderType.ATTACK_THAT_TARGET);
+        // Commitment: do NOT clear the area task. Clearing used to hand movement to chase AI and
+        // permanently leave Sweep & Advance / S&D — quiet never resolved. Fight from the area;
+        // DriveVehicleGoal holds course via holdsCourseThroughContact.
+        finder.setTarget(target);
         if (owner == null) return;
 
         for (PmcUnitEntity other : finder.level().getEntitiesOfClass(
@@ -354,9 +445,7 @@ public final class PatrolSupport {
             int mode = otherTask.sewv$getPatrolMode();
             if (mode != IVehiclePatrol.MODE_SEARCH && mode != IVehiclePatrol.MODE_SWEEP) continue;
 
-            otherTask.sewv$clearPatrol();
-            other.setAttackTargetId(target.getId());
-            other.setOrder(OrderType.ATTACK_THAT_TARGET);
+            other.setTarget(target);
         }
     }
 

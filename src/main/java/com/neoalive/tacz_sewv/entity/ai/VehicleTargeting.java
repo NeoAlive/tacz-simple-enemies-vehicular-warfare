@@ -71,10 +71,10 @@ public final class VehicleTargeting {
             return aid != null ? aid : IdleSupport.wanderPos(unit, vehicle);
         }
 
-        // An area task (patrol / search & destroy) is a standing TDT order that outranks the SEM
-        // order queue: while it is set the hull works its area. Combat still preempts it — the drive
-        // goal fights its live target and only falls back to this destination when there is none —
-        // and dismount, a formation order, or a finished sweep all clear it.
+        // An area task (patrol / search & destroy / sweep) is a standing TDT order that outranks
+        // the SEM order queue: while it is set the hull works its area. Contact no longer yields
+        // the wheel (see DriveVehicleGoal + PatrolSupport.holdsCourseThroughContact) — the crew
+        // fights from the ordered ground. Dismount, a formation order, or a finished sector clear it.
         BlockPos areaTask = PatrolSupport.currentWaypoint(pmc, vehicle);
         if (areaTask != null) {
             // Backing up an ally already in contact beats carrying on with our own leg of the area,

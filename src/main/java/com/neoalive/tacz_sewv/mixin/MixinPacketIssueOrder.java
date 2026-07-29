@@ -52,7 +52,7 @@ public abstract class MixinPacketIssueOrder {
         // driver, but clearing one that was never set costs nothing and never has to ask.
         if (((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
                 || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
-            PatrolSupport.clearSweepMembership(pmc);
+            PatrolSupport.clearSweepMembership(pmc, "PacketIssueOrder");
         }
 
         if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {

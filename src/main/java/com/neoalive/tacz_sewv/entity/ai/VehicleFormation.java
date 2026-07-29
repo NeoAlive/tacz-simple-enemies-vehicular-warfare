@@ -207,7 +207,7 @@ public final class VehicleFormation {
         // A formation is an explicit movement order, so it supersedes any standing patrol — which
         // otherwise wins in resolveDestination (checked before the order queue) and would silently
         // eat the formation.
-        PatrolSupport.clearSweepMembership(pmc);
+            PatrolSupport.clearSweepMembership(pmc, "VehicleFormation.dismiss");
         pmc.releaseMovementLock();
         pmc.setFormationIndex(slot);
         // Axis, shape and row size all go in AFTER the index — MixinPmcUnitEntity clears the axis on

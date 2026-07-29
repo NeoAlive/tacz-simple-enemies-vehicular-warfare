@@ -53,7 +53,7 @@ public class PacketDismountVehicle {
                 // mortar the unit was holding — otherwise nothing else could ever be
                 // assigned to that tube — and cancels any standing patrol order.
                 MortarSupport.releaseClaim(pmc);
-                PatrolSupport.clearSweepMembership(pmc);
+                PatrolSupport.clearSweepMembership(pmc, "PacketDismountVehicle");
                 // Likewise any escort order — dismount stands a unit fully down.
                 ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
                 if (wasMounted) dismounted++;

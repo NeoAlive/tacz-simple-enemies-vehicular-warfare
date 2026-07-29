@@ -279,6 +279,14 @@ public class VehicleTargetScanGoal extends Goal {
             return false;
         }
         if (e.getVehicle() == v) return false; // riding our own hull — crewmate or min-range hugger
+        // Area task commitment: only lock contacts inside the ordered ground (rect / disk).
+        // The scan cylinder reaches far past a sweep AABB; without this a distant zombie steals
+        // the lock, quiet never settles, and Sweep & Advance never claims.
+        if (this.unit instanceof PmcUnitEntity pmc
+                && PatrolSupport.holdsCourseThroughContact(pmc)
+                && !PatrolSupport.isInsideAreaTask(pmc, e)) {
+            return false;
+        }
         // Honour SEM's per-faction friendly flag before the explicit Player branch below would
         // otherwise lock any player — the reported "friendly US helicopter fires on the player"
         // bug. Excludes friendly players/PMC here (not just at setTarget) so the scan skips them

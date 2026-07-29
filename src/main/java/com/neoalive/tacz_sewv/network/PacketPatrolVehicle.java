@@ -188,7 +188,7 @@ public class PacketPatrolVehicle {
             boolean had = ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
                     || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep();
             if (had) {
-                PatrolSupport.clearSweepMembership(pmc);
+                PatrolSupport.clearSweepMembership(pmc, "PacketPatrolVehicle");
                 dismissed++;
             }
         }

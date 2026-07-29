@@ -51,7 +51,8 @@ public class NetworkHandler {
     // 25: map markers carry optional OpenPAC tint RGB.
     // 26: removed PacketToggleAdvancing (autonomous KotH scrapped).
     // 27: PacketSweepAndAdvance (player-triggered sweep + claim).
-    private static final String PROTOCOL_VERSION = "27";
+    // 28: PacketOwnedVehicles optional SweepOverlayState.
+    private static final String PROTOCOL_VERSION = "28";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

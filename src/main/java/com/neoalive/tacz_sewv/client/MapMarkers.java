@@ -1,8 +1,10 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.neoalive.tacz_sewv.util.BattleFieldMarker;
+import com.neoalive.tacz_sewv.util.SweepOverlayState;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 
+import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -30,13 +32,21 @@ public final class MapMarkers {
 
     private static List<VehicleMarker> markers = List.of();
     private static List<BattleFieldMarker> battleFields = List.of();
+    @Nullable
+    private static SweepOverlayState sweepOverlay;
     private static final Set<Integer> SELECTED = new HashSet<>();
 
     private MapMarkers() {}
 
     public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields) {
+        accept(incoming, fields, null);
+    }
+
+    public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields,
+                              @Nullable SweepOverlayState sweep) {
         markers = List.copyOf(incoming);
         battleFields = List.copyOf(fields);
+        sweepOverlay = sweep;
         // A selected hull that is gone is not selectable any more, and leaving it in would keep
         // sending orders into the void.
         SELECTED.removeIf(driverId -> markers.stream().noneMatch(m -> m.driverId() == driverId));
@@ -46,6 +56,7 @@ public final class MapMarkers {
     public static void clear() {
         markers = List.of();
         battleFields = List.of();
+        sweepOverlay = null;
         SELECTED.clear();
     }
 
@@ -56,6 +67,12 @@ public final class MapMarkers {
     /** Debug BattleField overlays synced with the vehicle markers — empty when none populated. */
     public static List<BattleFieldMarker> battleFields() {
         return battleFields;
+    }
+
+    /** Active Sweep &amp; Advance rect overlay for this player, or null when none. */
+    @Nullable
+    public static SweepOverlayState sweepOverlay() {
+        return sweepOverlay;
     }
 
     public static boolean isSelected(VehicleMarker marker) {

@@ -183,13 +183,15 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
 
-        // A cruise is the one task a contact does not take the wheel away from: the route is the
-        // player's standing instruction and the crew fights from it, on the move. Everything the
-        // fight needs that is NOT movement still runs — weapon choice and the fire assist — and the
-        // hull then carries straight on to its leg below. A badly hurt crew is the exception: that
-        // is not "engaging", it is dying, and preserveRetreat inside fightTick still wins.
+        // An area task (patrol / S&D / sweep / cruise) does not yield the wheel to a contact:
+        // the ordered ground is the player's standing instruction and the crew fights from it.
+        // Everything the fight needs that is NOT movement still runs — weapon choice and the fire
+        // assist — and the hull then carries straight on to its leg below. A badly hurt crew is
+        // the exception: that is not "engaging", it is dying, and preserveRetreat inside fightTick
+        // still wins. (Same shape as the old cruise-only exception; extended so Sweep & Advance
+        // / S&D / patrol stop abandoning the area to chase every nearby mob.)
         if (target != null) {
-            if (PatrolSupport.isCruising(this.unit) && !isLowHealth()) {
+            if (PatrolSupport.holdsCourseThroughContact(this.unit) && !isLowHealth()) {
                 selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
                 fireAssistIfSpecial(target);
             } else {

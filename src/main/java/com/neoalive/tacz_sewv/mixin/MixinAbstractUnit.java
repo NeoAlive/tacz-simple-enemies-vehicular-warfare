@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.mixin;
 
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import net.minecraft.world.entity.LivingEntity;
@@ -80,6 +81,16 @@ public abstract class MixinAbstractUnit {
         if (supportRefuse) {
             SewvDiag.setTarget(
                     "MixinAbstractUnit BLOCK supportRoleRefuse self={}#{} target={}#{}",
+                    self.getClass().getSimpleName(), self.getId(),
+                    target.getClass().getSimpleName(), target.getId());
+            ci.cancel();
+            return;
+        }
+        // Sweep / patrol / S&D: refuse locks outside the ordered ground so SEM's infantry scan
+        // (and any other setTarget path) cannot pin a distant mob and stall Sweep & Advance quiet.
+        if (self instanceof PmcUnitEntity pmc && PatrolSupport.refusesOutOfAreaTarget(pmc, target)) {
+            SewvDiag.setTarget(
+                    "MixinAbstractUnit BLOCK outOfAreaTask self={}#{} target={}#{}",
                     self.getClass().getSimpleName(), self.getId(),
                     target.getClass().getSimpleName(), target.getId());
             ci.cancel();

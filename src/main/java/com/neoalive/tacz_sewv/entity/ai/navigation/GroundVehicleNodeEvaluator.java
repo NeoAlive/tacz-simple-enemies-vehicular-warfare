@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.navigation;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
@@ -41,6 +42,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     // and everything around it, so every search from in the water fails, and the drive goal is
     // left steering blind at the destination. Keeping water out is only a rule for a dry hull.
     private boolean inWater;
+    private boolean loggedWaterMarginBlockThisSearch;
 
     // ponytail: step/jump/fall limits stay the crewman's (vanilla reads them off this.mob),
     // not the hull's — a >1.125-block ledge may not path, but the drive goal steers straight
@@ -50,12 +52,16 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     public void prepare(PathNavigationRegion region, Mob mob) {
         super.prepare(region, mob);
         this.inWater = false;
+        this.loggedWaterMarginBlockThisSearch = false;
         if (mob.getVehicle() instanceof VehicleEntity vehicle) {
             this.inWater = vehicle.isInWater();
             // The path is searched for the HULL's footprint, not the crewman's.
             this.entityWidth = Mth.floor(vehicle.getBbWidth() + 1.0F);
             this.entityHeight = Mth.floor(vehicle.getBbHeight() + 1.0F);
             this.entityDepth = Mth.floor(vehicle.getBbWidth() + 1.0F);
+            SewvDiag.water("prepare vehicle={}#{} inWater={} size={}x{}x{} pos={}",
+                    vehicle.getName().getString(), vehicle.getId(), this.inWater,
+                    this.entityWidth, this.entityHeight, this.entityDepth, vehicle.blockPosition());
         }
     }
 
@@ -67,6 +73,13 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         // cached per node by the inherited getCachedBlockType, so this runs at most once per
         // unique node per search.
         if (!this.inWater && this.hasWaterWithinMargin(level, x, y, z)) {
+            if (!this.loggedWaterMarginBlockThisSearch) {
+                this.loggedWaterMarginBlockThisSearch = true;
+                SewvDiag.water("waterMargin BLOCKED mob={}#{} node={}, {},{} inWater={} margin={} footprint={}x{}x{}",
+                        mob.getClass().getSimpleName(), mob.getId(),
+                        x, y, z, this.inWater, WATER_MARGIN,
+                        this.entityWidth, this.entityHeight, this.entityDepth);
+            }
             return BlockPathTypes.BLOCKED;
         }
 

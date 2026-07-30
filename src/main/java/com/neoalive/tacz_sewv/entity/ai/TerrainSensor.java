@@ -33,7 +33,7 @@ import java.util.List;
 abstract class TerrainSensor {
 
     /** Preferred bearing first, then alternating flanks at growing deflection. */
-    private static final double[] WHISKER_OFFSETS_DEG = {0.0, 25.0, -25.0, 50.0, -50.0, 75.0, -75.0};
+    protected static final double[] WHISKER_OFFSETS_DEG = {0.0, 25.0, -25.0, 50.0, -50.0, 75.0, -75.0};
 
     protected final AbstractUnit unit;
     protected VehicleEntity vehicle;
@@ -66,7 +66,7 @@ abstract class TerrainSensor {
      * The nearest clear bearing to {@code desired}, or null when the whole forward cone is
      * blocked. A zero-length request (already on the point) is passed straight back.
      */
-    final Vec3 chooseClearBearing(Vec3 desired, double probeDistance) {
+    Vec3 chooseClearBearing(Vec3 desired, double probeDistance) {
         if (desired.lengthSqr() < 1.0E-8) return desired;
         for (double offDeg : WHISKER_OFFSETS_DEG) {
             Vec3 candidate = VehicleTargeting.rotateY(desired, Math.toRadians(offDeg));

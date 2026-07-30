@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -69,6 +70,19 @@ final class VehicleDriver {
     private static final float STUCK_YAW_EPSILON_DEG = 1.0F;  // <1° turned = no rotation
     private static final int UNSTICK_DURATION = 16;           // reverse-and-swing for ~0.8s
 
+    // Bank-lip faceplant: post-debounce dry-over-water center + full whisker fan blocked, with no
+    // positional progress. Distinct from ordinary stuck (which ignores rotation) and from the wet
+    // escape hatch (isInWater / amphibious). ~2s of full-fan rejection before reversing off the lip.
+    private static final int BANK_LIP_BLOCK_TICKS = 40;
+    private static final int BANK_LIP_REVERSE_DURATION = 24; // ~1.2s straight reverse off the lip
+
+    // Hull-fan faceplant: full whisker fan blocked for hull-dominated reasons (another vehicle /
+    // wreck in the inflated AABB), with no positional progress. Parallel to bank-lip — not merged.
+    // Reverse only after headingClear on a retreat bearing (-desired, then ±25°).
+    private static final int HULL_FAN_BLOCK_TICKS = 40;
+    private static final int HULL_FAN_REVERSE_DURATION = 24;
+    private static final double[] HULL_FAN_RETREAT_OFFSETS_DEG = {0.0, 25.0, -25.0};
+
     private final AbstractUnit unit;
     private final HullFacts hull;
     private final GroundTerrainSensor sensor;
@@ -87,6 +101,17 @@ final class VehicleDriver {
     private int stuckTicks;
     private int unstickTicksLeft;
     private boolean unstickSwingLeft;
+    private BlockPos lastLoggedSteerTarget;
+
+    private int bankLipFanBlockedTicks;
+    private int bankLipReverseTicksLeft;
+    private Vec3 lastBankLipPos;
+    private Vec3 bankLipReverseAway; // horizontal direction to keep facing while reversing
+
+    private int hullFanBlockedTicks;
+    private int hullFanReverseTicksLeft;
+    private Vec3 lastHullFanPos;
+    private Vec3 hullFanFaceDesired; // face the fouled goal / obstacle while reversing
 
     VehicleDriver(AbstractUnit unit, HullFacts hull) {
         this.unit = unit;
@@ -114,6 +139,51 @@ final class VehicleDriver {
      * which reset the turn ramp constantly and left the tank pivoting in place forever.
      */
     void navigateTo(BlockPos dest, double distanceSq) {
+        // Bank-lip reverse: face the blocked destination (usually into the water) and reverse off
+        // the overhang. Runs ahead of ordinary stuck recovery because holdAtEdge rotation would
+        // otherwise keep updateStuck from ever firing. Abort if SBW reports wet — that is the
+        // existing escape-hatch case, not this recovery.
+        if (this.bankLipReverseTicksLeft > 0) {
+            if (this.vehicle.isInWater()) {
+                SewvDiag.water("bankLip reverse ABORT wet unit={}#{} vehicle={}#{} pos={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        this.vehicle.blockPosition());
+                this.bankLipReverseTicksLeft = 0;
+                this.bankLipFanBlockedTicks = 0;
+            } else {
+                this.bankLipReverseTicksLeft--;
+                driveFaceAndReverse(this.bankLipReverseAway);
+                if (this.bankLipReverseTicksLeft == 0) {
+                    this.currentPath = null;
+                    this.pathRecalcCooldown = 0;
+                    this.bankLipFanBlockedTicks = 0;
+                    SewvDiag.water("bankLip reverse END unit={}#{} vehicle={}#{} pos={} — resume pathing",
+                            this.unit.getClass().getSimpleName(), this.unit.getId(),
+                            this.vehicle.getName().getString(), this.vehicle.getId(),
+                            this.vehicle.blockPosition());
+                }
+                return;
+            }
+        }
+
+        // Hull-fan reverse: face the fouled desired bearing and reverse along a pre-cleared
+        // retreat. Same holdAtEdge trap as bank-lip (yaw clears stuck), separate gate.
+        if (this.hullFanReverseTicksLeft > 0) {
+            this.hullFanReverseTicksLeft--;
+            driveFaceAndReverse(this.hullFanFaceDesired);
+            if (this.hullFanReverseTicksLeft == 0) {
+                this.currentPath = null;
+                this.pathRecalcCooldown = 0;
+                this.hullFanBlockedTicks = 0;
+                SewvDiag.pathing("hullFan reverse END unit={}#{} vehicle={}#{} pos={} — resume pathing",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        this.vehicle.blockPosition());
+            }
+            return;
+        }
+
         // Wedged on terrain: back up and swing the tail for a moment, then repath. Inputs stay
         // engaged throughout, so this never stalls the steering ramp.
         if (this.unstickTicksLeft > 0) {
@@ -130,6 +200,10 @@ final class VehicleDriver {
             this.unstickSwingLeft = !this.unstickSwingLeft;
             this.unstickTicksLeft = UNSTICK_DURATION;
             this.stuckTicks = 0;
+            SewvDiag.pathing("stuck unit={}#{} vehicle={}#{} pos={} yaw={} -> unstick swingLeft={} dropPath",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(),
+                    this.vehicle.blockPosition(), this.vehicle.getYRot(), this.unstickSwingLeft);
             this.currentPath = null;      // the route we were on led into the wall
             this.pathRecalcCooldown = 0;  // let it repath the instant we're free
             return;
@@ -214,6 +288,14 @@ final class VehicleDriver {
         this.stuckTicks = 0;
         this.unstickTicksLeft = 0;
         this.lastStuckPos = null;
+        this.bankLipFanBlockedTicks = 0;
+        this.bankLipReverseTicksLeft = 0;
+        this.lastBankLipPos = null;
+        this.bankLipReverseAway = null;
+        this.hullFanBlockedTicks = 0;
+        this.hullFanReverseTicksLeft = 0;
+        this.lastHullFanPos = null;
+        this.hullFanFaceDesired = null;
     }
 
     /** Forget the hull entirely, for a crew leaving its seat. */
@@ -221,6 +303,7 @@ final class VehicleDriver {
         this.vehicle = null;
         this.currentPath = null;
         this.lastPathTarget = null;
+        this.lastLoggedSteerTarget = null;
         this.pathRecalcCooldown = 0;
         this.sensor.clear();
         clearRecovery();
@@ -248,11 +331,30 @@ final class VehicleDriver {
         // to where the target was a few blocks ago is still a fine approximation) so steering
         // stays continuous.
         if (pathStale && (this.pathRecalcCooldown <= 0 || destJumped)) {
+            SewvDiag.pathing("repath START unit={}#{} vehicle={}#{} dest={} stale={} done={} age={} cooldown={} driftSq={} destJumped={} pathNull={}",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(),
+                    dest,
+                    pathStale,
+                    this.currentPath != null && this.currentPath.isDone(),
+                    this.pathAge,
+                    this.pathRecalcCooldown,
+                    targetDriftSq,
+                    destJumped,
+                    this.currentPath == null);
             recomputePath(dest);
             this.lastPathTarget = dest;
             this.pathAge = 0;
             // Terrain won't have changed next tick — back off harder after a failed search.
             this.pathRecalcCooldown = this.currentPath == null ? PATH_FAIL_COOLDOWN : PATH_RECALC_COOLDOWN;
+            SewvDiag.pathing("repath RESULT unit={}#{} vehicle={}#{} found={} nextNode={} nextIndex={} nodeCount={} cooldown={}",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(),
+                    this.currentPath != null,
+                    nextNode(this.currentPath),
+                    nextIndex(this.currentPath),
+                    nodeCount(this.currentPath),
+                    this.pathRecalcCooldown);
         }
 
         // Consume every node we've already reached (measured from the LIVE hull position), then aim
@@ -263,9 +365,17 @@ final class VehicleDriver {
             BlockPos node = this.currentPath.getNextNodePos();
             double nodeDistSq = this.vehicle.distanceToSqr(
                     node.getX() + 0.5, this.vehicle.getY(), node.getZ() + 0.5);
-            if (nodeDistSq >= NODE_REACHED_SQ) return node;
+            if (nodeDistSq >= NODE_REACHED_SQ) {
+                logSteerTarget("pathNode", node);
+                return node;
+            }
+            SewvDiag.pathing("path advance unit={}#{} vehicle={}#{} reachedNode={} distSq={} nextIndex={} nodeCount={}",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(),
+                    node, nodeDistSq, nextIndex(this.currentPath), nodeCount(this.currentPath));
             this.currentPath.advance();
         }
+        logSteerTarget("directDest", dest);
         return dest; // no usable path (or path exhausted) — steer straight at the goal
     }
 
@@ -325,11 +435,23 @@ final class VehicleDriver {
                 // progress to updateStuck, so nothing else would ever repath this hull — it would
                 // pivot at the wall for good. The recalc cooldown bounds how often that costs a
                 // search.
+                SewvDiag.pathing("bearing BLOCKED unit={}#{} vehicle={}#{} target={} desired={} dropPath holdAtEdge inWater={} pos={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        targetPos, desired, this.vehicle.isInWater(), this.vehicle.blockPosition());
                 this.currentPath = null;
+                if (noteBankLipFanBlocked(desired)) {
+                    return; // reverse recovery started — inputs already set
+                }
+                if (noteHullFanBlocked(desired)) {
+                    return; // reverse armed — inputs already set
+                }
                 holdAtEdge(desired);
                 return;
             }
         }
+        this.bankLipFanBlockedTicks = 0;
+        this.hullFanBlockedTicks = 0;
 
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, steer);
@@ -347,6 +469,12 @@ final class VehicleDriver {
                 this.vehicle.setLeftInputDown(false);
                 this.vehicle.setRightInputDown(false);
             } else {
+                SewvDiag.pathing("forward BLOCKED unit={}#{} vehicle={}#{} target={} desired={} steer={} angleDeg={} thresholdDeg={} inWater={} pos={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        targetPos, desired, steer,
+                        Math.toDegrees(angle), Math.toDegrees(angleThreshold),
+                        this.vehicle.isInWater(), this.vehicle.blockPosition());
                 holdAtEdge(steer);
             }
         } else {
@@ -372,6 +500,141 @@ final class VehicleDriver {
         this.vehicle.setRightInputDown(!left);
     }
 
+    /**
+     * Count sustained full-fan blocks while the center column is a dry bank-lip hazard. Returns
+     * true if reverse recovery has been armed this tick (caller must not also holdAtEdge).
+     */
+    private boolean noteBankLipFanBlocked(Vec3 desired) {
+        if (!this.sensor.isDryBankLipHazard()) {
+            this.bankLipFanBlockedTicks = 0;
+            this.lastBankLipPos = null;
+            return false;
+        }
+        Vec3 pos = this.vehicle.position();
+        boolean moved = this.lastBankLipPos != null
+                && pos.distanceToSqr(this.lastBankLipPos) > STUCK_MOVE_EPSILON_SQ;
+        if (moved) {
+            this.bankLipFanBlockedTicks = 0;
+            this.lastBankLipPos = pos;
+            return false;
+        }
+        if (this.lastBankLipPos == null) this.lastBankLipPos = pos;
+        this.bankLipFanBlockedTicks++;
+        if (this.bankLipFanBlockedTicks < BANK_LIP_BLOCK_TICKS) return false;
+
+        this.bankLipReverseAway = desired;
+        this.bankLipReverseTicksLeft = BANK_LIP_REVERSE_DURATION;
+        this.bankLipFanBlockedTicks = 0;
+        SewvDiag.water(
+                "bankLip reverse START unit={}#{} vehicle={}#{} pos={} inWater={} desired={} "
+                        + "threshold={} duration={} — dry bank lip, full fan blocked, no progress",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.vehicle.getName().getString(), this.vehicle.getId(),
+                this.vehicle.blockPosition(), this.vehicle.isInWater(), desired,
+                BANK_LIP_BLOCK_TICKS, BANK_LIP_REVERSE_DURATION);
+        driveFaceAndReverse(this.bankLipReverseAway);
+        return true;
+    }
+
+    /**
+     * Sustained hull-dominated full-fan block with no positional progress. Bank-lip owns its
+     * cases first; this must not fire when {@link GroundTerrainSensor#isDryBankLipHazard()} is
+     * true. Hull-dominated means {@code hullCount * 2 > n} on the fan summary (strictly more
+     * than half of failed offsets are {@code hull}).
+     *
+     * <p>Before reversing, probes retreat bearings {@code -desired}, then ±25°. First clear
+     * wins. If all fail, logs {@code SKIP allRetreatBlocked} and returns false so the caller
+     * can {@link #holdAtEdge} — never blind-reverse into a second hull.
+     *
+     * @return true when reverse was armed this tick (inputs already set); false when the gate
+     *         did not apply, the threshold is not reached, or retreat was skipped
+     */
+    private boolean noteHullFanBlocked(Vec3 desired) {
+        if (this.sensor.isDryBankLipHazard() || !this.sensor.isLastFanHullDominated()) {
+            this.hullFanBlockedTicks = 0;
+            this.lastHullFanPos = null;
+            return false;
+        }
+        Vec3 pos = this.vehicle.position();
+        boolean moved = this.lastHullFanPos != null
+                && pos.distanceToSqr(this.lastHullFanPos) > STUCK_MOVE_EPSILON_SQ;
+        if (moved) {
+            this.hullFanBlockedTicks = 0;
+            this.lastHullFanPos = pos;
+            return false;
+        }
+        if (this.lastHullFanPos == null) this.lastHullFanPos = pos;
+        this.hullFanBlockedTicks++;
+        if (this.hullFanBlockedTicks < HULL_FAN_BLOCK_TICKS) return false;
+
+        Vec3 retreatBase = desired.scale(-1.0);
+        if (retreatBase.lengthSqr() < 1.0E-8) {
+            Vector3f forward = this.vehicle.getForwardDirection().normalize();
+            retreatBase = new Vec3(-forward.x, 0, -forward.z);
+        } else {
+            retreatBase = retreatBase.normalize();
+        }
+
+        double look = this.sensor.lookahead();
+        Vec3 chosenRetreat = null;
+        for (double offDeg : HULL_FAN_RETREAT_OFFSETS_DEG) {
+            Vec3 candidate = offDeg == 0.0
+                    ? retreatBase
+                    : VehicleTargeting.rotateY(retreatBase, Math.toRadians(offDeg));
+            if (this.sensor.headingClear(candidate, look)) {
+                chosenRetreat = candidate;
+                break;
+            }
+        }
+
+        this.hullFanBlockedTicks = 0;
+        if (chosenRetreat == null) {
+            SewvDiag.pathing(
+                    "hullFan reverse SKIP allRetreatBlocked unit={}#{} vehicle={}#{} pos={} "
+                            + "desired={} reasons=[{}] rule=hullCount*2>n "
+                            + "probed=-desired,+25,-25 — holdAtEdge, no blind reverse",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(),
+                    this.vehicle.blockPosition(), desired, this.sensor.lastFanReasons());
+            return false;
+        }
+
+        // Face opposite the cleared retreat so reverse translation follows that bearing
+        // (straight -desired when that probe won; a ±25° diagonal otherwise).
+        this.hullFanFaceDesired = chosenRetreat.scale(-1.0).normalize();
+        this.hullFanReverseTicksLeft = HULL_FAN_REVERSE_DURATION;
+        SewvDiag.pathing(
+                "hullFan reverse START unit={}#{} vehicle={}#{} pos={} desired={} retreat={} face={} "
+                        + "reasons=[{}] rule=hullCount*2>n hullDominated=true "
+                        + "threshold={} duration={} — face opposite retreat, reverse along cleared bearing",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.vehicle.getName().getString(), this.vehicle.getId(),
+                this.vehicle.blockPosition(), desired, chosenRetreat, this.hullFanFaceDesired,
+                this.sensor.lastFanReasons(),
+                HULL_FAN_BLOCK_TICKS, HULL_FAN_REVERSE_DURATION);
+        driveFaceAndReverse(this.hullFanFaceDesired);
+        return true;
+    }
+
+    /**
+     * Face {@code face} (fouled goal / hazard) and reverse. Shared by bank-lip and hull-fan
+     * recoveries — same "gun toward trouble, open distance the other way" shape.
+     */
+    private void driveFaceAndReverse(Vec3 face) {
+        Vec3 away = face;
+        if (away == null || away.lengthSqr() < 1.0E-8) {
+            Vector3f forward = this.vehicle.getForwardDirection().normalize();
+            away = new Vec3(forward.x, 0, forward.z);
+        }
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        double angle = VehicleTargeting.signedAngleTo(forward, away);
+        boolean aligned = Math.abs(angle) < FACING_DEADBAND_RAD;
+        this.vehicle.setLeftInputDown(!aligned && angle > 0);
+        this.vehicle.setRightInputDown(!aligned && angle < 0);
+        this.vehicle.setForwardInputDown(false);
+        this.vehicle.setBackInputDown(true);
+    }
+
     private double getRotationStopAngle(double distanceSq) {
         return Mth.clampedLerp(MIN_ANGLE_RAD, MAX_ANGLE_RAD,
                 Mth.inverseLerp(Math.sqrt(distanceSq), MIN_DISTANCE, MAX_DISTANCE));
@@ -379,5 +642,30 @@ final class VehicleDriver {
 
     private static Vec3 horizontalFacing(Vector3f forward) {
         return new Vec3(forward.x, 0, forward.z).normalize();
+    }
+
+    private void logSteerTarget(String reason, BlockPos target) {
+        if (target.equals(this.lastLoggedSteerTarget)) return;
+        this.lastLoggedSteerTarget = target;
+        SewvDiag.pathing("steerTarget {} unit={}#{} vehicle={}#{} target={} pathPresent={} nextIndex={} nodeCount={}",
+                reason,
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.vehicle.getName().getString(), this.vehicle.getId(),
+                target,
+                this.currentPath != null,
+                nextIndex(this.currentPath),
+                nodeCount(this.currentPath));
+    }
+
+    private static BlockPos nextNode(Path path) {
+        return path == null || path.isDone() ? null : path.getNextNodePos();
+    }
+
+    private static int nextIndex(Path path) {
+        return path == null ? -1 : path.getNextNodeIndex();
+    }
+
+    private static int nodeCount(Path path) {
+        return path == null ? -1 : path.getNodeCount();
     }
 }

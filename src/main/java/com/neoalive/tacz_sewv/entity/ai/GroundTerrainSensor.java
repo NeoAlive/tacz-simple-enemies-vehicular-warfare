@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
@@ -68,6 +69,19 @@ final class GroundTerrainSensor extends TerrainSensor {
      * driven under, which is why the probe does not simply scan from the sky down.
      */
     private int hullTop = 1;
+    private long lastBlockedDiagTick = Long.MIN_VALUE;
+    /** Once-per-tick shoreline snapshot; also used to detect center-floor flicker. */
+    private long lastShoreDiagTick = Long.MIN_VALUE;
+    private int lastShoreFloor = Integer.MIN_VALUE + 1; // not a real probe result
+    private static final int CENTER_HAZARD_DEBOUNCE_TICKS = 2;
+    private int centerHazardTicks;
+    private int lastStableCenterFloor = NO_SURFACE;
+    /** Last post-debounce center-floor result fed into {@link #headingClear}. */
+    private int lastEffectiveCenterFloor = NO_SURFACE;
+    /** Set by each failed {@link #headingClear} call; consumed by the fan summary. */
+    private String lastRejectReason = "unknown";
+    private boolean lastFanHullDominated;
+    private String lastFanReasons = "";
 
     GroundTerrainSensor(AbstractUnit unit) {
         super(unit);
@@ -78,6 +92,35 @@ final class GroundTerrainSensor extends TerrainSensor {
         this.amphibious = computeAmphibious(v);
         this.climbHeight = Math.max(1, Mth.ceil(v.maxUpStep()));
         this.hullTop = Math.max(1, Mth.ceil(v.getBbHeight()) - 1);
+        this.centerHazardTicks = 0;
+        this.lastStableCenterFloor = NO_SURFACE;
+        this.lastEffectiveCenterFloor = NO_SURFACE;
+        this.lastFanHullDominated = false;
+        this.lastFanReasons = "";
+    }
+
+    /**
+     * True once the hull-center column is a sustained (post-debounce) fluid hazard while SBW still
+     * says the hull is dry. That is the bank-overhang / water-lip case — not the wet escape hatch,
+     * and not amphibious crossings.
+     */
+    boolean isDryBankLipHazard() {
+        return this.vehicle != null
+                && !this.amphibious
+                && !this.vehicle.isInWater()
+                && this.lastEffectiveCenterFloor == HAZARD;
+    }
+
+    /**
+     * True when the most recent full-fan miss was hull-dominated: strictly more than half of the
+     * failed offsets rejected with {@code reason=hull} ({@code hullCount * 2 > n}).
+     */
+    boolean isLastFanHullDominated() {
+        return this.lastFanHullDominated;
+    }
+
+    String lastFanReasons() {
+        return this.lastFanReasons;
     }
 
     boolean enabled() {
@@ -93,29 +136,99 @@ final class GroundTerrainSensor extends TerrainSensor {
         return chooseClearBearing(desired, lookahead());
     }
 
+    /**
+     * Ground fan with per-offset reject reasons. A full miss logs one summary so a frozen
+     * preferred-bearing line cannot masquerade as "only one heading was tried".
+     */
+    @Override
+    Vec3 chooseClearBearing(Vec3 desired, double probeDistance) {
+        if (desired.lengthSqr() < 1.0E-8) return desired;
+        this.lastFanHullDominated = false;
+        this.lastFanReasons = "";
+        StringBuilder reasons = new StringBuilder();
+        int hullCount = 0;
+        int n = 0;
+        for (double offDeg : WHISKER_OFFSETS_DEG) {
+            Vec3 candidate = VehicleTargeting.rotateY(desired, Math.toRadians(offDeg));
+            this.lastRejectReason = "unknown";
+            if (headingClear(candidate, probeDistance)) {
+                this.lastFanHullDominated = false;
+                this.lastFanReasons = "";
+                return candidate;
+            }
+            if (n > 0) reasons.append(',');
+            reasons.append(this.lastRejectReason);
+            if ("hull".equals(this.lastRejectReason)) hullCount++;
+            n++;
+        }
+        // Strictly more than half of failed offsets are hull: hullCount*2 > n.
+        this.lastFanHullDominated = n > 0 && hullCount * 2 > n;
+        this.lastFanReasons = reasons.toString();
+        SewvDiag.pathing(
+                "fan BLOCKED unit={}#{} vehicle={}#{} offsets={} reasons=[{}] "
+                        + "hull={}/{} hullDominated={} rule=hullCount*2>n desired={}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.vehicle.getName().getString(), this.vehicle.getId(),
+                n, this.lastFanReasons, hullCount, n, this.lastFanHullDominated, desired);
+        return null;
+    }
+
     @Override
     boolean headingClear(Vec3 dir, double distance) {
         Level level = this.unit.level();
         double startX = this.vehicle.getX();
         double startZ = this.vehicle.getZ();
         int baseY = this.vehicle.getBlockY();
+        int colX = Mth.floor(startX);
+        int colZ = Mth.floor(startZ);
         double half = halfWidth();
         List<AABB> hulls = obstacles(distance);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        StringBuilder trace = new StringBuilder();
 
         // The footing under the hull itself, which the first sample is measured against.
-        int floor = probeColumn(level, pos, Mth.floor(startX), Mth.floor(startZ), baseY);
+        int rawFloor = probeColumn(level, pos, colX, colZ, baseY);
+        int floor = stabilizeCenterFloor(rawFloor);
+        this.lastEffectiveCenterFloor = floor;
+        logShorelineCenter(level, pos, startX, startZ, colX, colZ, baseY, rawFloor, floor);
 
         // Step ~1 block at a time from just past the hull edge out to the look-ahead range.
+        boolean crossedDrop = false;
         for (double d = half + 0.5; d <= half + distance; d += 1.0) {
             double sampleX = startX + dir.x * d;
             double sampleZ = startZ + dir.z * d;
-            if (isBlockedByHull(hulls, sampleX, sampleZ)) return false;
+            if (isBlockedByHull(hulls, sampleX, sampleZ)) {
+                this.lastRejectReason = "hull";
+                trace.append(" hull@").append(Mth.floor(sampleX)).append(',').append(Mth.floor(sampleZ));
+                logBlockedHeading(dir, distance, baseY, floor, "hull", trace);
+                return false;
+            }
 
             int surface = probeColumn(level, pos, Mth.floor(sampleX), Mth.floor(sampleZ), baseY);
-            if (surface == HAZARD) return false;
-            if (surface == NO_SURFACE) continue; // a drop: allowed, and nothing to measure a step against
-            if (floor != NO_SURFACE && surface - floor > this.climbHeight) return false; // a wall
+            if (surface == HAZARD) {
+                this.lastRejectReason = "fluid";
+                trace.append(" hazard@").append(Mth.floor(sampleX)).append(',').append(Mth.floor(sampleZ));
+                logBlockedHeading(dir, distance, baseY, floor, "fluid", trace);
+                return false;
+            }
+            if (surface == NO_SURFACE) {
+                trace.append(" drop@").append(Mth.floor(sampleX)).append(',').append(Mth.floor(sampleZ));
+                crossedDrop = true;
+                continue; // a drop: allowed, and nothing to measure a step against
+            }
+            if (crossedDrop) {
+                trace.append(" land@").append(Mth.floor(sampleX)).append(',').append(Mth.floor(sampleZ));
+                floor = surface;
+                crossedDrop = false;
+                continue;
+            }
+            if (floor != NO_SURFACE && floor != HAZARD && surface - floor > this.climbHeight) {
+                this.lastRejectReason = "step";
+                trace.append(" wall@").append(Mth.floor(sampleX)).append(',').append(Mth.floor(sampleZ))
+                        .append(" step=").append(surface - floor);
+                logBlockedHeading(dir, distance, baseY, floor, "step", trace);
+                return false; // a wall
+            }
             floor = surface;
         }
         return true;
@@ -169,6 +282,88 @@ final class GroundTerrainSensor extends TerrainSensor {
      */
     private boolean waterIsHazard() {
         return !this.amphibious && !this.vehicle.isInWater();
+    }
+
+    private int stabilizeCenterFloor(int rawFloor) {
+        if (rawFloor == HAZARD && !this.vehicle.isInWater()) {
+            this.centerHazardTicks++;
+            if (this.centerHazardTicks < CENTER_HAZARD_DEBOUNCE_TICKS) {
+                return this.lastStableCenterFloor;
+            }
+            return HAZARD;
+        }
+        this.centerHazardTicks = 0;
+        if (rawFloor != HAZARD) {
+            this.lastStableCenterFloor = rawFloor;
+        }
+        return rawFloor;
+    }
+
+    private void logBlockedHeading(Vec3 dir, double distance, int baseY, int floor, String reason, StringBuilder trace) {
+        long now = this.unit.level().getGameTime();
+        if (now == this.lastBlockedDiagTick) return;
+        this.lastBlockedDiagTick = now;
+        SewvDiag.pathing("headingClear BLOCKED unit={}#{} vehicle={}#{} reason={} dir={} distance={} baseY={} floor={} floorKind={} climbHeight={} amphibious={} inWater={} waterHazard={} trace={}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.vehicle.getName().getString(), this.vehicle.getId(),
+                reason, dir, distance, baseY, floor, floorKind(floor), this.climbHeight,
+                this.amphibious, this.vehicle.isInWater(), waterIsHazard(), trace.toString().trim());
+    }
+
+    /**
+     * Shoreline mismatch probe: raw fluid at the hull-center column vs SBW's {@code isInWater()}.
+     * Once per game tick, and also whenever the center-floor classification flips (the flicker case).
+     */
+    private void logShorelineCenter(Level level, BlockPos.MutableBlockPos pos,
+                                    double startX, double startZ, int colX, int colZ,
+                                    int baseY, int rawFloor, int effectiveFloor) {
+        FluidState atBase = level.getFluidState(pos.set(colX, baseY, colZ));
+        FluidState below = level.getFluidState(pos.set(colX, baseY - 1, colZ));
+        boolean waterAtBase = atBase.is(FluidTags.WATER);
+        boolean waterBelow = below.is(FluidTags.WATER);
+        boolean lavaAtBase = atBase.is(FluidTags.LAVA);
+        boolean lavaBelow = below.is(FluidTags.LAVA);
+        boolean fluidNear = waterAtBase || waterBelow || lavaAtBase || lavaBelow;
+        boolean floorFlipped = rawFloor != this.lastShoreFloor;
+        boolean hazardInvolved = rawFloor == HAZARD || this.lastShoreFloor == HAZARD;
+        long now = level.getGameTime();
+        // Dry inland driving: stay quiet. Log at shoreline / when center floor flaps into or
+        // out of HAZARD / once a tick while the center column is already HAZARD.
+        if (!fluidNear && !hazardInvolved) return;
+        if (now == this.lastShoreDiagTick && !floorFlipped) return;
+        this.lastShoreDiagTick = now;
+        this.lastShoreFloor = rawFloor;
+
+        boolean inWater = this.vehicle.isInWater();
+        boolean probeHazard = rawFloor == HAZARD;
+        SewvDiag.water(
+                "shoreCenter unit={}#{} vehicle={}#{} "
+                        + "rawX={} rawZ={} floorX={} floorZ={} blockY={} "
+                        + "fluidBaseY={} fluidBaseY-1={} "
+                        + "waterAtBase={} waterBelow={} lavaAtBase={} lavaBelow={} "
+                        + "probeFloor={} floorKind={} effectiveFloor={} effectiveKind={} "
+                        + "probeHazard={} isInWater={} waterHazard={} amphibious={} mismatch={} centerHazardTicks={}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.vehicle.getName().getString(), this.vehicle.getId(),
+                startX, startZ, colX, colZ, baseY,
+                fluidLabel(atBase), fluidLabel(below),
+                waterAtBase, waterBelow, lavaAtBase, lavaBelow,
+                rawFloor, floorKind(rawFloor), effectiveFloor, floorKind(effectiveFloor),
+                probeHazard, inWater, waterIsHazard(), this.amphibious,
+                probeHazard != inWater, this.centerHazardTicks);
+    }
+
+    private static String floorKind(int floor) {
+        if (floor == HAZARD) return "HAZARD";
+        if (floor == NO_SURFACE) return "NO_SURFACE";
+        return "Y";
+    }
+
+    private static String fluidLabel(FluidState fluid) {
+        if (fluid.is(FluidTags.WATER)) return "WATER";
+        if (fluid.is(FluidTags.LAVA)) return "LAVA";
+        if (fluid.isEmpty()) return "EMPTY";
+        return fluid.getType().toString();
     }
 
     /**

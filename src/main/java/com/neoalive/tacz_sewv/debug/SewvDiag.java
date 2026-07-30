@@ -40,4 +40,12 @@ public final class SewvDiag {
     public static void diplomacy(String msg, Object... args) {
         LOG.info("[sewv-diag][diplomacy] " + msg, args);
     }
+
+    public static void pathing(String msg, Object... args) {
+        LOG.info("[sewv-diag][pathing] " + msg, args);
+    }
+
+    public static void water(String msg, Object... args) {
+        LOG.info("[sewv-diag][water] " + msg, args);
+    }
 }

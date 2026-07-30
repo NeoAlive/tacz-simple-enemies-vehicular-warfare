@@ -193,9 +193,12 @@ public class DriveVehicleGoal extends Goal {
         // / S&D / patrol stop abandoning the area to chase every nearby mob.)
         if (target != null) {
             boolean captureHold = CaptureOrderSupport.holdsCourseThroughContact(this.unit);
-            if ((PatrolSupport.holdsCourseThroughContact(this.unit) || captureHold)
+            // Command-tier play (envelopment / flank / BoF): honour the assignment in fightTick
+            // so invasion fleets still get advanced tactics; capture destination resumes via
+            // resolveDestination when the contact ends. Untasked capture crews hold the approach.
+            boolean tasked = com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment.of(this.unit.getId()) != null;
+            if ((PatrolSupport.holdsCourseThroughContact(this.unit) || (captureHold && !tasked))
                     && !isLowHealth()) {
-                // Stage F acceptance: prove the capture pipeline does not yield the wheel under fire.
                 if (captureHold && this.unit.level() instanceof ServerLevel sl
                         && sl.getGameTime() % 40L == 0L) {
                     com.neoalive.tacz_sewv.debug.SewvDiag.invasion(

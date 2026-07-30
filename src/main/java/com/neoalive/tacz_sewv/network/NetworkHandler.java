@@ -57,7 +57,9 @@ public class NetworkHandler {
     // 31: team_base aiVehicleCount on open/save packets.
     // 32: PacketInvasionHud replaces billboards; capture_point open/save drop billboard fields.
     // 33: invisible toggle on capture_point / team_base open+save packets.
-    private static final String PROTOCOL_VERSION = "33";
+    // 34: PacketInvasionHud carries team names + per-vehicle side colours for overlay.
+    // 35: team_base endInvasionOnCapture on open+save packets.
+    private static final String PROTOCOL_VERSION = "35";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

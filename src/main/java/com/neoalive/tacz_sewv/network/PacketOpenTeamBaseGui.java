@@ -24,6 +24,7 @@ public class PacketOpenTeamBaseGui {
     private final int radiusInBlocks;
     private final String ownedTeam;
     private final boolean invisible;
+    private final boolean endInvasionOnCapture;
     private final List<String> vehiclePool;
     private final List<String> teams;
     private final List<String> catalog;
@@ -31,8 +32,8 @@ public class PacketOpenTeamBaseGui {
     public PacketOpenTeamBaseGui(BlockPos pos, String assignedTeam, boolean playerOwned,
                                  boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                                  int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
-                                 String ownedTeam, boolean invisible, List<String> vehiclePool,
-                                 List<String> teams, List<String> catalog) {
+                                 String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
+                                 List<String> vehiclePool, List<String> teams, List<String> catalog) {
         this.pos = pos;
         this.assignedTeam = assignedTeam == null ? "" : assignedTeam;
         this.playerOwned = playerOwned;
@@ -43,6 +44,7 @@ public class PacketOpenTeamBaseGui {
         this.radiusInBlocks = radiusInBlocks;
         this.ownedTeam = ownedTeam == null ? "" : ownedTeam;
         this.invisible = invisible;
+        this.endInvasionOnCapture = endInvasionOnCapture;
         this.vehiclePool = vehiclePool;
         this.teams = teams;
         this.catalog = catalog;
@@ -59,6 +61,7 @@ public class PacketOpenTeamBaseGui {
         this.radiusInBlocks = buf.readVarInt();
         this.ownedTeam = buf.readUtf();
         this.invisible = buf.readBoolean();
+        this.endInvasionOnCapture = buf.readBoolean();
         this.vehiclePool = PacketOpenPoolEditor.readStringList(buf);
         this.teams = PacketOpenPoolEditor.readStringList(buf);
         this.catalog = PacketOpenPoolEditor.readStringList(buf);
@@ -75,6 +78,7 @@ public class PacketOpenTeamBaseGui {
         buf.writeVarInt(this.radiusInBlocks);
         buf.writeUtf(this.ownedTeam);
         buf.writeBoolean(this.invisible);
+        buf.writeBoolean(this.endInvasionOnCapture);
         PacketOpenPoolEditor.writeStringList(buf, this.vehiclePool);
         PacketOpenPoolEditor.writeStringList(buf, this.teams);
         PacketOpenPoolEditor.writeStringList(buf, this.catalog);
@@ -85,8 +89,8 @@ public class PacketOpenTeamBaseGui {
                 InvasionEditorClient.openTeamBase(
                         this.pos, this.assignedTeam, this.playerOwned, this.spawnPlayerOwnedTanksWithNpc,
                         this.crewFaction, this.aiVehicleCount, this.timeToCaptureSeconds,
-                        this.radiusInBlocks, this.ownedTeam, this.invisible, this.vehiclePool,
-                        this.teams, this.catalog)));
+                        this.radiusInBlocks, this.ownedTeam, this.invisible, this.endInvasionOnCapture,
+                        this.vehiclePool, this.teams, this.catalog)));
         ctx.get().setPacketHandled(true);
     }
 }

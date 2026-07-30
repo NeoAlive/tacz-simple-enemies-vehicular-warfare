@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.client.xaero;
 
+import com.neoalive.tacz_sewv.client.InvasionHudClient;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.ChatFormatting;
@@ -142,6 +143,10 @@ public final class OrderPreview {
      * Rides SEM's own {@code PacketIssueOrder}, exactly like the single-target MOVE order does.
      */
     public static void dispatchMoveLine(Vec3 a, Vec3 b) {
+        if (InvasionHudClient.isActive()) {
+            hint("message.tacz_sewv.invasion.orders_locked");
+            return;
+        }
         Set<Integer> selected = MapMarkers.selected();
         if (selected.size() < 2) return;
 

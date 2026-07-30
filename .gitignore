@@ -24,6 +24,7 @@ docs/
 run-client-a/
 run-client-b/
 logs/
+run-server-dev/
 
 # Generated files
 out/

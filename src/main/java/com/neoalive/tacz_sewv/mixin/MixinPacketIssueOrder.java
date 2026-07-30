@@ -4,6 +4,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
+import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 import com.neoalive.tacz_sewv.util.CrewRadio;
 import com.neoalive.tacz_sewv.util.OrderAuth;
 import net.minecraft.server.level.ServerPlayer;
@@ -40,10 +41,14 @@ import java.util.function.Supplier;
 @Mixin(PacketIssueOrder.class)
 public abstract class MixinPacketIssueOrder {
 
-    @Inject(method = "lambda$handle$0", at = @At("HEAD"), remap = false, require = 0)
+    @Inject(method = "lambda$handle$0", at = @At("HEAD"), remap = false, require = 0, cancellable = true)
     private static void tacz_sewv$orderVoice(Supplier<NetworkEvent.Context> ctx, PacketIssueOrder packet, CallbackInfo ci) {
         ServerPlayer sender = ctx.get().getSender();
         if (sender == null) return;
+        if (InvasionOrderGate.denyIfActive(sender)) {
+            ci.cancel();
+            return;
+        }
         Entity ordered = sender.level().getEntity(((AccessorPacketIssueOrder) packet).tacz_sewv$entityId());
         if (!(ordered instanceof PmcUnitEntity pmc)) return;
         if (!OrderAuth.check(sender, pmc, "PacketIssueOrder")) return;

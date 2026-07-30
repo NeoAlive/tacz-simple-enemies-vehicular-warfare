@@ -64,6 +64,7 @@ public class CrewTargetPriorityGoal extends Goal {
     private Doctrine doctrine() {
         if (TowSupport.isCrewing(this.unit)) return Doctrine.ARMOR;
         if (MortarSupport.hasMortarClaim(this.unit)) return Doctrine.TROOPS;
+        if (VehicleMortarSupport.isCrewing(this.unit)) return Doctrine.TROOPS;
         if (this.unit.getVehicle() instanceof VehicleEntity v && HullFacts.isAntiAirHull(v)) {
             return Doctrine.AIR;
         }

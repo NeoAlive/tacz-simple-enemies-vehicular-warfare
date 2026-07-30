@@ -23,7 +23,7 @@ public final class InvasionHudTracker {
         InvasionHud.Layout layout = session.hudLayout();
         if (layout == null) return;
         InvasionHud.Snapshot snap = InvasionHud.snapshot(level, layout);
-        PacketInvasionHud packet = PacketInvasionHud.snapshot(snap);
+        PacketInvasionHud packet = PacketInvasionHud.of(level, snap, layout);
         for (ServerPlayer player : level.players()) {
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
         }

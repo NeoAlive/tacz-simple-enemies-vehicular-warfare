@@ -159,9 +159,9 @@ public final class InvasionSession {
     }
 
     public void onBaseCaptured(ServerLevel level, TeamBaseBlockEntity base, String capturingTeam) {
-        SewvDiag.invasion("baseCaptured pos={} assigned={} playerOwned={} capturer={}",
-                base.getBlockPos(), base.getAssignedTeam(), base.isPlayerOwned(), capturingTeam);
-        if (!base.isPlayerOwned()) return;
+        SewvDiag.invasion("baseCaptured pos={} assigned={} endOnCapture={} capturer={}",
+                base.getBlockPos(), base.getAssignedTeam(), base.isEndInvasionOnCapture(), capturingTeam);
+        if (!base.isEndInvasionOnCapture()) return;
 
         for (ServerPlayer player : level.players()) {
             player.displayClientMessage(Component.translatable(

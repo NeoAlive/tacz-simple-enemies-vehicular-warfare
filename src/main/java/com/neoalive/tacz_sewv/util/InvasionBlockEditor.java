@@ -68,6 +68,7 @@ public final class InvasionBlockEditor {
                         be.getRadiusInBlocks(),
                         be.getOwnedTeam(),
                         be.isInvisible(),
+                        be.isEndInvasionOnCapture(),
                         new ArrayList<>(be.getVehiclePool()),
                         scoreboardTeamNames(player),
                         PoolEditorAccess.catalog()));

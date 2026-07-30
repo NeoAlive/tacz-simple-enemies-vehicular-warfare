@@ -74,6 +74,7 @@ public final class FireMissionSupport {
     @Nullable
     public static Kind kindOf(AbstractUnit unit) {
         if (MortarSupport.hasMortarClaim(unit)) return Kind.MORTAR;
+        if (VehicleMortarSupport.isCrewing(unit)) return Kind.MORTAR;
         if (TowSupport.isCrewing(unit)) return Kind.TOW;
         if (AshMissileSupport.isCrewing(unit)) return Kind.MISSILE_SYSTEM;
         if (isPlanePilot(unit)) return Kind.CAS;

@@ -55,11 +55,14 @@ public final class InvasionHud {
     }
 
     public record Snapshot(int colorA, int colorB, int colorNeutral,
+                           String teamA, String teamB,
                            List<Slot> slots, List<SlotState> states) {
         public void encode(FriendlyByteBuf buf) {
             buf.writeInt(colorA);
             buf.writeInt(colorB);
             buf.writeInt(colorNeutral);
+            buf.writeUtf(teamA == null ? "" : teamA);
+            buf.writeUtf(teamB == null ? "" : teamB);
             buf.writeVarInt(slots.size());
             for (int i = 0; i < slots.size(); i++) {
                 slots.get(i).encode(buf);
@@ -71,6 +74,8 @@ public final class InvasionHud {
             int colorA = buf.readInt();
             int colorB = buf.readInt();
             int colorNeutral = buf.readInt();
+            String teamA = buf.readUtf();
+            String teamB = buf.readUtf();
             int n = buf.readVarInt();
             List<Slot> slots = new ArrayList<>(n);
             List<SlotState> states = new ArrayList<>(n);
@@ -78,7 +83,25 @@ public final class InvasionHud {
                 slots.add(Slot.decode(buf));
                 states.add(SlotState.decode(buf));
             }
-            return new Snapshot(colorA, colorB, colorNeutral, slots, states);
+            return new Snapshot(colorA, colorB, colorNeutral, teamA, teamB, slots, states);
+        }
+
+        /** ARGB for a scoreboard / invasion team name, or null if unknown. */
+        @Nullable
+        public Integer colorForTeam(String team) {
+            if (team == null || team.isEmpty()) return null;
+            if (team.equals(teamA)) return 0xFF000000 | colorA;
+            if (team.equals(teamB)) return 0xFF000000 | colorB;
+            return null;
+        }
+
+        @Nullable
+        public Integer colorForSide(byte side) {
+            return switch (side) {
+                case SIDE_A -> 0xFF000000 | colorA;
+                case SIDE_B -> 0xFF000000 | colorB;
+                default -> null;
+            };
         }
     }
 
@@ -134,7 +157,15 @@ public final class InvasionHud {
         for (Slot slot : layout.slots()) {
             states.add(stateOf(level, slot, layout.teamA(), layout.teamB()));
         }
-        return new Snapshot(colorA, colorB, colorN, layout.slots(), List.copyOf(states));
+        return new Snapshot(colorA, colorB, colorN, layout.teamA(), layout.teamB(),
+                layout.slots(), List.copyOf(states));
+    }
+
+    public static byte sideOfTeam(String team, String teamA, String teamB) {
+        if (team == null || team.isEmpty()) return SIDE_NEUTRAL;
+        if (team.equals(teamA)) return SIDE_A;
+        if (team.equals(teamB)) return SIDE_B;
+        return SIDE_NEUTRAL;
     }
 
     private static SlotState stateOf(ServerLevel level, Slot slot, String teamA, String teamB) {
@@ -144,28 +175,20 @@ public final class InvasionHud {
         }
 
         String holder = CaptureSupport.holdingTeam(zone);
-        byte owner = sideOf(holder, teamA, teamB);
+        byte owner = sideOfTeam(holder, teamA, teamB);
 
         boolean capturing = !zone.isContested()
                 && !zone.getAdvancingTeam().isEmpty()
                 && zone.getProgress() > 0f
                 && zone.getProgress() < 1f;
-        // Also treat mid-advance at 0+ after first tick — advancingTeam set is enough.
         if (!zone.isContested() && !zone.getAdvancingTeam().isEmpty()
                 && !zone.getAdvancingTeam().equals(holder)) {
             capturing = true;
         }
 
-        byte conquer = capturing ? sideOf(zone.getAdvancingTeam(), teamA, teamB) : SIDE_NEUTRAL;
+        byte conquer = capturing ? sideOfTeam(zone.getAdvancingTeam(), teamA, teamB) : SIDE_NEUTRAL;
         float progress = capturing ? zone.getProgress() : 0f;
         return new SlotState(owner, conquer, progress, capturing);
-    }
-
-    private static byte sideOf(String team, String teamA, String teamB) {
-        if (team == null || team.isEmpty()) return SIDE_NEUTRAL;
-        if (team.equals(teamA)) return SIDE_A;
-        if (team.equals(teamB)) return SIDE_B;
-        return SIDE_NEUTRAL;
     }
 
     private static int rgb(String hex, int fallbackRgb) {

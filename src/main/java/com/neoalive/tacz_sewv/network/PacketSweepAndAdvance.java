@@ -69,6 +69,7 @@ public class PacketSweepAndAdvance {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
             if (player == null) return;
+            if (com.neoalive.tacz_sewv.invasion.InvasionOrderGate.denyIfActive(player)) return;
 
             if (!OpenPacCompat.isLoaded()) {
                 NetworkHandler.sendOrderFeedback(player,

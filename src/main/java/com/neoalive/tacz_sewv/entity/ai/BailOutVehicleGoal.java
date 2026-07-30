@@ -5,6 +5,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleMotionUtils;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.invasion.InvasionTags;
 import com.neoalive.tacz_sewv.util.CrewRadio;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -101,6 +102,9 @@ public class BailOutVehicleGoal extends Goal {
     @Override
     public boolean canUse() {
         if (!(this.unit.getVehicle() instanceof VehicleEntity vehicle)) return false;
+        // Invasion-spawned hulls stay crewed until wrecked/despawned — a bail leaves an
+        // empty tagged hull that still counts toward the base's fleet / wreck top-up.
+        if (vehicle.getPersistentData().getBoolean(InvasionTags.SPAWN)) return false;
         return isWrittenOff(vehicle);
     }
 

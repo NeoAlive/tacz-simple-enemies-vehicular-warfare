@@ -58,7 +58,8 @@ public class PacketHelicopterCommand {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
-            if (player == null) return;
+            if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
+            if (com.neoalive.tacz_sewv.invasion.InvasionOrderGate.denyIfActive(sp)) return;
 
             int ordered = 0;
             for (int unitId : this.unitIds) {

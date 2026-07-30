@@ -687,6 +687,10 @@ public final class VehicleTargeting {
      * <p>Always false for RU/US, which have no order queue for an order to arrive through.
      */
     public static boolean underStandingOrder(AbstractUnit unit) {
+        // Invasion capture is a standing commitment — same hard-gate as a PMC order so the
+        // utility layer cannot REGROUP/SEARCH off the pipeline. Command-tier TASKED_* still
+        // scores inside fightTick when the coordinator has assigned a play (DriveVehicleGoal).
+        if (CaptureOrderSupport.holdsCourseThroughContact(unit)) return true;
         if (!(unit instanceof PmcUnitEntity pmc)) return false;
         return ((IVehiclePatrol) pmc).sewv$isPatrolling() || pmc.getOrder() != OrderType.FREE_FIRE;
     }

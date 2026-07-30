@@ -18,7 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * One invasion base per vanilla scoreboard team. Capturing a player-owned base is the loss condition.
+ * One invasion base per vanilla scoreboard team.
+ * Whether capturing it ends the match is {@link #endInvasionOnCapture} (not implied by player-owned).
  */
 public class TeamBaseBlockEntity extends CapturableBlockEntity {
 
@@ -31,6 +32,11 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
     private TankFaction crewFaction = TankFaction.US;
     /** How many AI-crewed hulls this base fields (and keeps topped up) while a session is active. */
     private int aiVehicleCount = DEFAULT_AI_VEHICLE_COUNT;
+    /**
+     * When true, an enemy completing capture of this base ends the invasion session.
+     * Legacy worlds without the NBT key inherit the old rule ({@code playerOwned}).
+     */
+    private boolean endInvasionOnCapture;
     private final List<String> vehiclePool = new ArrayList<>();
 
     public TeamBaseBlockEntity(BlockPos pos, BlockState state) {
@@ -92,6 +98,15 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         return playerOwned ? 0 : 1;
     }
 
+    public boolean isEndInvasionOnCapture() {
+        return endInvasionOnCapture;
+    }
+
+    public void setEndInvasionOnCapture(boolean endInvasionOnCapture) {
+        this.endInvasionOnCapture = endInvasionOnCapture;
+        setChanged();
+    }
+
     public List<String> getVehiclePool() {
         return vehiclePool;
     }
@@ -125,6 +140,7 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         tag.putBoolean("SpawnPlayerOwnedTanksWithNpc", spawnPlayerOwnedTanksWithNpc);
         tag.putString("CrewFaction", crewFaction.name());
         tag.putInt("AiVehicleCount", aiVehicleCount);
+        tag.putBoolean("EndInvasionOnCapture", endInvasionOnCapture);
         ListTag pool = new ListTag();
         for (String id : vehiclePool) {
             pool.add(StringTag.valueOf(id));
@@ -149,6 +165,10 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         // Re-clamp against playerOwned (loaded above) so legacy "1" stays valid for both modes.
         int min = playerOwned ? 0 : 1;
         aiVehicleCount = Math.max(min, Math.min(MAX_AI_VEHICLE_COUNT, aiVehicleCount));
+        // Pre-toggle worlds: only player-owned bases ended the match.
+        endInvasionOnCapture = tag.contains("EndInvasionOnCapture")
+                ? tag.getBoolean("EndInvasionOnCapture")
+                : playerOwned;
         vehiclePool.clear();
         if (tag.contains("VehiclePool", Tag.TAG_LIST)) {
             ListTag pool = tag.getList("VehiclePool", Tag.TAG_STRING);

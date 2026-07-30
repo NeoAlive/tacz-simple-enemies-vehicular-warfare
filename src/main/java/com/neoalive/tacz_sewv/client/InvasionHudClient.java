@@ -1,9 +1,17 @@
 package com.neoalive.tacz_sewv.client;
 
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.invasion.InvasionHud;
+import com.neoalive.tacz_sewv.invasion.InvasionTags;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.scores.PlayerTeam;
 
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Client store for the invasion match HUD. Entrance animation state lives here;
@@ -21,19 +29,27 @@ public final class InvasionHudClient {
     private static float[] targetX;
     private static boolean entranceDone;
     private static long lastFrameNanos;
+    private static final Map<Integer, Byte> vehicleSides = new HashMap<>();
 
     private InvasionHudClient() {}
 
-    public static void accept(InvasionHud.Snapshot incoming) {
+    public static boolean isActive() {
+        return snapshot != null;
+    }
+
+    public static void accept(InvasionHud.Snapshot incoming, List<int[]> sides) {
         boolean first = snapshot == null;
         snapshot = incoming;
+        vehicleSides.clear();
+        for (int[] pair : sides) {
+            vehicleSides.put(pair[0], (byte) pair[1]);
+        }
         int n = incoming.slots().size();
         if (first || currentX == null || currentX.length != n) {
             currentX = new float[n];
             targetX = new float[n];
             entranceDone = false;
             lastFrameNanos = 0L;
-            // Start stacked at centre; overlay fills targetX then lerps out.
             Arrays.fill(currentX, Float.NaN);
         }
     }
@@ -44,6 +60,41 @@ public final class InvasionHudClient {
         targetX = null;
         entranceDone = false;
         lastFrameNanos = 0L;
+        vehicleSides.clear();
+    }
+
+    /**
+     * HUD team colour for a looked-at hull during an active invasion, or null to keep the
+     * normal faction overlay colour.
+     */
+    @Nullable
+    public static Integer overlayColor(VehicleEntity vehicle) {
+        InvasionHud.Snapshot snap = snapshot;
+        if (snap == null) return null;
+
+        Byte side = vehicleSides.get(vehicle.getId());
+        if (side != null) {
+            Integer c = snap.colorForSide(side);
+            if (c != null) return c;
+        }
+
+        // Player seat-0: scoreboard team → A/B (SPAWN tag is never on the player).
+        Entity driver = vehicle.getFirstPassenger();
+        if (driver instanceof Player player) {
+            PlayerTeam team = player.level().getScoreboard().getPlayersTeam(player.getScoreboardName());
+            if (team != null) {
+                Integer c = snap.colorForTeam(team.getName());
+                if (c != null) return c;
+            }
+        }
+
+        // Fallback: passenger NBT if the client ever sees it (integrated / rare sync paths).
+        for (Entity passenger : vehicle.getPassengers()) {
+            String team = passenger.getPersistentData().getString(InvasionTags.TEAM);
+            Integer c = snap.colorForTeam(team);
+            if (c != null) return c;
+        }
+        return null;
     }
 
     @Nullable
@@ -69,7 +120,6 @@ public final class InvasionHudClient {
         entranceDone = true;
     }
 
-    /** Seconds since last overlay frame (clamped). First call returns a small default. */
     public static float deltaSeconds() {
         long now = System.nanoTime();
         if (lastFrameNanos == 0L) {

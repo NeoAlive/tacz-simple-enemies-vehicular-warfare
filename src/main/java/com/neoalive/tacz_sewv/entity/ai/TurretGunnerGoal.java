@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -107,7 +108,10 @@ public class TurretGunnerGoal extends Goal {
         // Same reasoning as DriveVehicleGoal.fireAssistIfSpecial: a lofted guided-munition
         // solution can't pass SBW's native 4° straight-line gate at range, so this fires it
         // directly within the wider configured cone. Cannon/MG keep firing through the native gate.
-        if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL) {
+        // FCP mortar vehicles: ManVehicleMortarGoal owns the trigger — a flat cone shot from a
+        // tube that has not finished laying spends shells into the dirt.
+        if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL
+                && !FcpMortarCompat.isMortarHull(this.vehicle)) {
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                     SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
         }

@@ -32,10 +32,11 @@ import java.util.List;
  * Forward observer's radio: point it at a mob to call every mortar and TOW crew you own
  * within range onto that target, or sneak-use it to call them off.
  *
- * <p>This exists because those weapons outrange the eyes behind them — a mortar shoots
- * ~770 blocks while SEM's targeting reaches {@code FOLLOW_RANGE} (96 blocks) and only ±4
- * blocks vertically. The radio hands the crew a target it could never have spotted, which
- * is the whole point of indirect fire; {@link FireMissionSupport} has the rest.
+ * <p>This exists because those weapons outrange the eyes behind them — Fixed mortars shoot
+ * ~770 blocks and FCP vehicle mortars cannot engage inside ~366 blocks (85° pitch floor),
+ * while SEM's targeting reaches {@code FOLLOW_RANGE} (96 blocks) and only ±4 blocks
+ * vertically. The radio hands the crew a target it could never have spotted, which is the
+ * whole point of indirect fire; {@link FireMissionSupport} has the rest.
  */
 public class HandheldRadioItem extends Item {
 

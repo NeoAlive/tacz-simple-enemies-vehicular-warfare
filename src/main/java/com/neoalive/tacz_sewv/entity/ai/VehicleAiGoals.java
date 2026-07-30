@@ -46,6 +46,9 @@ public final class VehicleAiGoals {
         // lean out and shoot instead of working the tube. Gates on holding a claim, so it
         // costs a null check on every unit that has none.
         unit.goalSelector.addGoal(1, new ManMortarGoal(unit));
+        // FCP wheeled mortar vehicles (Hilux / Stryker): gunner seat reloads, lays, fires.
+        // Soft-gated; no-op without those entity types. Flagless — boarding is ordinary.
+        unit.goalSelector.addGoal(1, new ManVehicleMortarGoal(unit));
         // ASH Sapsan: stop, raise pod, fire at a radio/fire-mission mark. DriveVehicleGoal
         // yields while this engages (see canUse there).
         unit.goalSelector.addGoal(1, new ManMissileSystemGoal(unit));

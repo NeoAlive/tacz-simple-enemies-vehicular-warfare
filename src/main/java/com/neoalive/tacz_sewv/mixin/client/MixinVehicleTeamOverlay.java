@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.mixin.client;
 import com.atsuishio.superbwarfare.client.overlay.VehicleTeamOverlay;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
+import com.neoalive.tacz_sewv.client.InvasionHudClient;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -92,6 +93,10 @@ public abstract class MixinVehicleTeamOverlay {
         if (!ClientConfig.FACTION_COLORS_ENABLED.get()) return null;
 
         if (!(lookingEntity instanceof VehicleEntity vehicle)) return null;
+
+        // Invasion match: HUD A/B palette overrides SEM faction colours.
+        Integer invasion = InvasionHudClient.overlayColor(vehicle);
+        if (invasion != null) return invasion;
 
         CrewFacts.Faction faction = CrewFacts.factionOf(vehicle);
         if (faction == null) return null;

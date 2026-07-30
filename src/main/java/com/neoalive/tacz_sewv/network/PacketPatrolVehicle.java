@@ -4,6 +4,7 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
+import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 import com.neoalive.tacz_sewv.util.OrderAuth;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -95,7 +96,8 @@ public class PacketPatrolVehicle {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
-            if (player == null) return;
+            if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
+            if (InvasionOrderGate.denyIfActive(sp)) return;
 
             if (this.mode == MODE_DISMISS) {
                 dismiss(player);
@@ -116,7 +118,6 @@ public class PacketPatrolVehicle {
             List<PmcUnitEntity> crews = new ArrayList<>();
             for (int unitId : this.unitIds) {
                 Entity e = player.level().getEntity(unitId);
-                if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) continue;
                 if (e instanceof PmcUnitEntity pmc && OrderAuth.check(sp, pmc, "PacketPatrolVehicle")
                         && pmc.getVehicle() instanceof VehicleEntity v
                         && v.getFirstPassenger() == pmc

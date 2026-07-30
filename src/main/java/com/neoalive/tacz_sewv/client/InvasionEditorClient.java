@@ -25,11 +25,11 @@ public final class InvasionEditorClient {
     public static void openTeamBase(BlockPos pos, String assignedTeam, boolean playerOwned,
                                     boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                                     int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
-                                    String ownedTeam, boolean invisible, List<String> vehiclePool,
-                                    List<String> teams, List<String> catalog) {
+                                    String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
+                                    List<String> vehiclePool, List<String> teams, List<String> catalog) {
         Minecraft.getInstance().setScreen(new TeamBaseScreen(
                 pos, assignedTeam, playerOwned, spawnPlayerOwnedTanksWithNpc, crewFaction,
                 aiVehicleCount, timeToCaptureSeconds, radiusInBlocks, ownedTeam, invisible,
-                vehiclePool, teams, catalog));
+                endInvasionOnCapture, vehiclePool, teams, catalog));
     }
 }

@@ -476,10 +476,16 @@ public final class SewvConfig {
                 .defineInRange("mortarDispersionRadius", 3, 0, 16);
         MORTAR_REQUIRES_AMMO = builder.comment("Require mortar shells in inventory and consume one per shot.")
                 .define("mortarRequiresAmmo", true);
-        MORTAR_CHUNK_LOADING = builder.comment("Keep crewed mortars loaded during remote fire missions.")
+        MORTAR_CHUNK_LOADING = builder.comment(
+                        "Keep crewed Fixed mortars and FCP mortar vehicles chunk-loaded during "
+                                + "remote fire missions (crew/hull would otherwise unload past "
+                                + "simulation distance).")
                 .define("mortarChunkLoading", true);
-        MORTAR_RADIO_RANGE = builder.comment("Radio range for designating targets and support crews.")
-                .defineInRange("mortarRadioRange", 400.0, 16.0, 1024.0);
+        MORTAR_RADIO_RANGE = builder.comment(
+                        "Radio range for designating targets and finding support crews. Must clear "
+                                + "FCP vehicle-mortar minimum engagement (~366 blocks at 85° pitch); "
+                                + "raise toward ~2000 for their max arc.")
+                .defineInRange("mortarRadioRange", 768.0, 16.0, 2048.0);
         builder.pop();
 
         builder.push("voicelines");

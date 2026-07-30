@@ -20,6 +20,9 @@ CLAUDE.md
 # Minecraft
 run/
 runs/
+docs/
+run-client-a/
+run-client-b/
 
 # Generated files
 out/

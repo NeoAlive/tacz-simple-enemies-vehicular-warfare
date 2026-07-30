@@ -12,6 +12,7 @@ import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
+import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Entity;
@@ -62,6 +63,11 @@ public final class VehicleTargeting {
     // to go (holding position, no target, nothing to reinforce). `assist` carries
     // the stateful ally scan and may be null to opt out of mutual support.
     public static BlockPos resolveDestination(AbstractUnit unit, VehicleEntity vehicle, AllyAssist assist) {
+        // Invasion capture pipeline — event-spawned AI fleets and PMC. Before chase / idle / SEM
+        // orders so a capture commitment cannot be abandoned for FREE_FIRE wander.
+        BlockPos capture = CaptureOrderSupport.currentDestination(unit, vehicle);
+        if (capture != null) return capture;
+
         if (!(unit instanceof PmcUnitEntity pmc)) {
             LivingEntity target = unit.getTarget();
             if (target != null) return target.blockPosition();

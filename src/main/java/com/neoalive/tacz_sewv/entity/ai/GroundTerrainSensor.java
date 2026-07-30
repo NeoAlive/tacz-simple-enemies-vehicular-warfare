@@ -78,6 +78,18 @@ final class GroundTerrainSensor extends TerrainSensor {
     private int lastStableCenterFloor = NO_SURFACE;
     /** Last post-debounce center-floor result fed into {@link #headingClear}. */
     private int lastEffectiveCenterFloor = NO_SURFACE;
+    /**
+     * Game time of the last {@link #centerHazardTicks} increment. Debounce is tick-scoped:
+     * many {@code headingClear} calls in one tick must not advance the counter more than once.
+     */
+    private long lastCenterHazardIncrementTick = Long.MIN_VALUE;
+    /** Per-tick cache of the hull-center column probe + debounced effective floor. */
+    private long centerFloorCacheTick = Long.MIN_VALUE;
+    private int centerFloorCacheColX;
+    private int centerFloorCacheColZ;
+    private int centerFloorCacheBaseY;
+    private int cachedRawCenterFloor = NO_SURFACE;
+    private int cachedEffectiveCenterFloor = NO_SURFACE;
     /** Set by each failed {@link #headingClear} call; consumed by the fan summary. */
     private String lastRejectReason = "unknown";
     private boolean lastFanHullDominated;
@@ -95,6 +107,8 @@ final class GroundTerrainSensor extends TerrainSensor {
         this.centerHazardTicks = 0;
         this.lastStableCenterFloor = NO_SURFACE;
         this.lastEffectiveCenterFloor = NO_SURFACE;
+        this.lastCenterHazardIncrementTick = Long.MIN_VALUE;
+        this.centerFloorCacheTick = Long.MIN_VALUE;
         this.lastFanHullDominated = false;
         this.lastFanReasons = "";
     }
@@ -164,7 +178,7 @@ final class GroundTerrainSensor extends TerrainSensor {
         // Strictly more than half of failed offsets are hull: hullCount*2 > n.
         this.lastFanHullDominated = n > 0 && hullCount * 2 > n;
         this.lastFanReasons = reasons.toString();
-        SewvDiag.pathing(
+        SewvDiag.pathingEvent(
                 "fan BLOCKED unit={}#{} vehicle={}#{} offsets={} reasons=[{}] "
                         + "hull={}/{} hullDominated={} rule=hullCount*2>n desired={}",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
@@ -187,10 +201,14 @@ final class GroundTerrainSensor extends TerrainSensor {
         StringBuilder trace = new StringBuilder();
 
         // The footing under the hull itself, which the first sample is measured against.
-        int rawFloor = probeColumn(level, pos, colX, colZ, baseY);
-        int floor = stabilizeCenterFloor(rawFloor);
-        this.lastEffectiveCenterFloor = floor;
-        logShorelineCenter(level, pos, startX, startZ, colX, colZ, baseY, rawFloor, floor);
+        // Probed + debounced once per game tick (shared by every fan offset / facingClear /
+        // retreat probe this tick) — see {@link #ensureCenterFloor}.
+        ensureCenterFloor(level, pos, colX, colZ, baseY);
+        int rawFloor = this.cachedRawCenterFloor;
+        int floor = this.cachedEffectiveCenterFloor;
+        if (SewvDiag.groundPathingVerbose()) {
+            logShorelineCenter(level, pos, startX, startZ, colX, colZ, baseY, rawFloor, floor);
+        }
 
         // Step ~1 block at a time from just past the hull edge out to the look-ahead range.
         boolean crossedDrop = false;
@@ -284,9 +302,52 @@ final class GroundTerrainSensor extends TerrainSensor {
         return !this.amphibious && !this.vehicle.isInWater();
     }
 
-    private int stabilizeCenterFloor(int rawFloor) {
+    /**
+     * Probe + debounce the hull-center column at most once per game tick for a given column.
+     * Fan offsets, {@code facingClear}, and hull-fan retreat probes all share this result.
+     */
+    private void ensureCenterFloor(Level level, BlockPos.MutableBlockPos pos,
+                                   int colX, int colZ, int baseY) {
+        long now = level.getGameTime();
+        if (now == this.centerFloorCacheTick
+                && colX == this.centerFloorCacheColX
+                && colZ == this.centerFloorCacheColZ
+                && baseY == this.centerFloorCacheBaseY) {
+            return;
+        }
+        int raw = probeColumn(level, pos, colX, colZ, baseY);
+        int effective = stabilizeCenterFloor(raw, now);
+        this.centerFloorCacheTick = now;
+        this.centerFloorCacheColX = colX;
+        this.centerFloorCacheColZ = colZ;
+        this.centerFloorCacheBaseY = baseY;
+        this.cachedRawCenterFloor = raw;
+        this.cachedEffectiveCenterFloor = effective;
+        this.lastEffectiveCenterFloor = effective;
+    }
+
+    /**
+     * Debounce a dry-over-water center HAZARD across real game ticks. {@code centerHazardTicks}
+     * increments at most once per {@code now} value, no matter how many callers share the
+     * cached center probe within that tick.
+     */
+    private int stabilizeCenterFloor(int rawFloor, long now) {
         if (rawFloor == HAZARD && !this.vehicle.isInWater()) {
-            this.centerHazardTicks++;
+            if (now != this.lastCenterHazardIncrementTick) {
+                this.centerHazardTicks++;
+                this.lastCenterHazardIncrementTick = now;
+                // Always log through the latch window (proves +1/gameTime); verbose after that.
+                boolean latched = this.centerHazardTicks >= CENTER_HAZARD_DEBOUNCE_TICKS;
+                if (this.centerHazardTicks <= CENTER_HAZARD_DEBOUNCE_TICKS
+                        || SewvDiag.groundPathingVerbose()) {
+                    SewvDiag.waterEvent(
+                            "centerDebounce INC unit={}#{} vehicle={}#{} gameTime={} centerHazardTicks={} "
+                                    + "threshold={} latched={}",
+                            this.unit.getClass().getSimpleName(), this.unit.getId(),
+                            this.vehicle.getName().getString(), this.vehicle.getId(),
+                            now, this.centerHazardTicks, CENTER_HAZARD_DEBOUNCE_TICKS, latched);
+                }
+            }
             if (this.centerHazardTicks < CENTER_HAZARD_DEBOUNCE_TICKS) {
                 return this.lastStableCenterFloor;
             }
@@ -300,6 +361,7 @@ final class GroundTerrainSensor extends TerrainSensor {
     }
 
     private void logBlockedHeading(Vec3 dir, double distance, int baseY, int floor, String reason, StringBuilder trace) {
+        if (!SewvDiag.groundPathingVerbose()) return;
         long now = this.unit.level().getGameTime();
         if (now == this.lastBlockedDiagTick) return;
         this.lastBlockedDiagTick = now;
@@ -313,6 +375,7 @@ final class GroundTerrainSensor extends TerrainSensor {
     /**
      * Shoreline mismatch probe: raw fluid at the hull-center column vs SBW's {@code isInWater()}.
      * Once per game tick, and also whenever the center-floor classification flips (the flicker case).
+     * Caller must already have checked {@link SewvDiag#groundPathingVerbose()}.
      */
     private void logShorelineCenter(Level level, BlockPos.MutableBlockPos pos,
                                     double startX, double startZ, int colX, int colZ,

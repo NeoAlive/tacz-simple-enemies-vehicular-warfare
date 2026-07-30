@@ -145,7 +145,7 @@ final class VehicleDriver {
         // existing escape-hatch case, not this recovery.
         if (this.bankLipReverseTicksLeft > 0) {
             if (this.vehicle.isInWater()) {
-                SewvDiag.water("bankLip reverse ABORT wet unit={}#{} vehicle={}#{} pos={}",
+                SewvDiag.waterEvent("bankLip reverse ABORT wet unit={}#{} vehicle={}#{} pos={}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         this.vehicle.getName().getString(), this.vehicle.getId(),
                         this.vehicle.blockPosition());
@@ -158,7 +158,7 @@ final class VehicleDriver {
                     this.currentPath = null;
                     this.pathRecalcCooldown = 0;
                     this.bankLipFanBlockedTicks = 0;
-                    SewvDiag.water("bankLip reverse END unit={}#{} vehicle={}#{} pos={} — resume pathing",
+                    SewvDiag.waterEvent("bankLip reverse END unit={}#{} vehicle={}#{} pos={} — resume pathing",
                             this.unit.getClass().getSimpleName(), this.unit.getId(),
                             this.vehicle.getName().getString(), this.vehicle.getId(),
                             this.vehicle.blockPosition());
@@ -176,7 +176,7 @@ final class VehicleDriver {
                 this.currentPath = null;
                 this.pathRecalcCooldown = 0;
                 this.hullFanBlockedTicks = 0;
-                SewvDiag.pathing("hullFan reverse END unit={}#{} vehicle={}#{} pos={} — resume pathing",
+                SewvDiag.pathingEvent("hullFan reverse END unit={}#{} vehicle={}#{} pos={} — resume pathing",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         this.vehicle.getName().getString(), this.vehicle.getId(),
                         this.vehicle.blockPosition());
@@ -200,10 +200,12 @@ final class VehicleDriver {
             this.unstickSwingLeft = !this.unstickSwingLeft;
             this.unstickTicksLeft = UNSTICK_DURATION;
             this.stuckTicks = 0;
-            SewvDiag.pathing("stuck unit={}#{} vehicle={}#{} pos={} yaw={} -> unstick swingLeft={} dropPath",
-                    this.unit.getClass().getSimpleName(), this.unit.getId(),
-                    this.vehicle.getName().getString(), this.vehicle.getId(),
-                    this.vehicle.blockPosition(), this.vehicle.getYRot(), this.unstickSwingLeft);
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("stuck unit={}#{} vehicle={}#{} pos={} yaw={} -> unstick swingLeft={} dropPath",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        this.vehicle.blockPosition(), this.vehicle.getYRot(), this.unstickSwingLeft);
+            }
             this.currentPath = null;      // the route we were on led into the wall
             this.pathRecalcCooldown = 0;  // let it repath the instant we're free
             return;
@@ -331,30 +333,34 @@ final class VehicleDriver {
         // to where the target was a few blocks ago is still a fine approximation) so steering
         // stays continuous.
         if (pathStale && (this.pathRecalcCooldown <= 0 || destJumped)) {
-            SewvDiag.pathing("repath START unit={}#{} vehicle={}#{} dest={} stale={} done={} age={} cooldown={} driftSq={} destJumped={} pathNull={}",
-                    this.unit.getClass().getSimpleName(), this.unit.getId(),
-                    this.vehicle.getName().getString(), this.vehicle.getId(),
-                    dest,
-                    pathStale,
-                    this.currentPath != null && this.currentPath.isDone(),
-                    this.pathAge,
-                    this.pathRecalcCooldown,
-                    targetDriftSq,
-                    destJumped,
-                    this.currentPath == null);
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("repath START unit={}#{} vehicle={}#{} dest={} stale={} done={} age={} cooldown={} driftSq={} destJumped={} pathNull={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        dest,
+                        pathStale,
+                        this.currentPath != null && this.currentPath.isDone(),
+                        this.pathAge,
+                        this.pathRecalcCooldown,
+                        targetDriftSq,
+                        destJumped,
+                        this.currentPath == null);
+            }
             recomputePath(dest);
             this.lastPathTarget = dest;
             this.pathAge = 0;
             // Terrain won't have changed next tick — back off harder after a failed search.
             this.pathRecalcCooldown = this.currentPath == null ? PATH_FAIL_COOLDOWN : PATH_RECALC_COOLDOWN;
-            SewvDiag.pathing("repath RESULT unit={}#{} vehicle={}#{} found={} nextNode={} nextIndex={} nodeCount={} cooldown={}",
-                    this.unit.getClass().getSimpleName(), this.unit.getId(),
-                    this.vehicle.getName().getString(), this.vehicle.getId(),
-                    this.currentPath != null,
-                    nextNode(this.currentPath),
-                    nextIndex(this.currentPath),
-                    nodeCount(this.currentPath),
-                    this.pathRecalcCooldown);
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("repath RESULT unit={}#{} vehicle={}#{} found={} nextNode={} nextIndex={} nodeCount={} cooldown={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        this.currentPath != null,
+                        nextNode(this.currentPath),
+                        nextIndex(this.currentPath),
+                        nodeCount(this.currentPath),
+                        this.pathRecalcCooldown);
+            }
         }
 
         // Consume every node we've already reached (measured from the LIVE hull position), then aim
@@ -369,10 +375,12 @@ final class VehicleDriver {
                 logSteerTarget("pathNode", node);
                 return node;
             }
-            SewvDiag.pathing("path advance unit={}#{} vehicle={}#{} reachedNode={} distSq={} nextIndex={} nodeCount={}",
-                    this.unit.getClass().getSimpleName(), this.unit.getId(),
-                    this.vehicle.getName().getString(), this.vehicle.getId(),
-                    node, nodeDistSq, nextIndex(this.currentPath), nodeCount(this.currentPath));
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("path advance unit={}#{} vehicle={}#{} reachedNode={} distSq={} nextIndex={} nodeCount={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        node, nodeDistSq, nextIndex(this.currentPath), nodeCount(this.currentPath));
+            }
             this.currentPath.advance();
         }
         logSteerTarget("directDest", dest);
@@ -435,10 +443,12 @@ final class VehicleDriver {
                 // progress to updateStuck, so nothing else would ever repath this hull — it would
                 // pivot at the wall for good. The recalc cooldown bounds how often that costs a
                 // search.
-                SewvDiag.pathing("bearing BLOCKED unit={}#{} vehicle={}#{} target={} desired={} dropPath holdAtEdge inWater={} pos={}",
-                        this.unit.getClass().getSimpleName(), this.unit.getId(),
-                        this.vehicle.getName().getString(), this.vehicle.getId(),
-                        targetPos, desired, this.vehicle.isInWater(), this.vehicle.blockPosition());
+                if (SewvDiag.groundPathingVerbose()) {
+                    SewvDiag.pathing("bearing BLOCKED unit={}#{} vehicle={}#{} target={} desired={} dropPath holdAtEdge inWater={} pos={}",
+                            this.unit.getClass().getSimpleName(), this.unit.getId(),
+                            this.vehicle.getName().getString(), this.vehicle.getId(),
+                            targetPos, desired, this.vehicle.isInWater(), this.vehicle.blockPosition());
+                }
                 this.currentPath = null;
                 if (noteBankLipFanBlocked(desired)) {
                     return; // reverse recovery started — inputs already set
@@ -469,12 +479,14 @@ final class VehicleDriver {
                 this.vehicle.setLeftInputDown(false);
                 this.vehicle.setRightInputDown(false);
             } else {
-                SewvDiag.pathing("forward BLOCKED unit={}#{} vehicle={}#{} target={} desired={} steer={} angleDeg={} thresholdDeg={} inWater={} pos={}",
-                        this.unit.getClass().getSimpleName(), this.unit.getId(),
-                        this.vehicle.getName().getString(), this.vehicle.getId(),
-                        targetPos, desired, steer,
-                        Math.toDegrees(angle), Math.toDegrees(angleThreshold),
-                        this.vehicle.isInWater(), this.vehicle.blockPosition());
+                if (SewvDiag.groundPathingVerbose()) {
+                    SewvDiag.pathing("forward BLOCKED unit={}#{} vehicle={}#{} target={} desired={} steer={} angleDeg={} thresholdDeg={} inWater={} pos={}",
+                            this.unit.getClass().getSimpleName(), this.unit.getId(),
+                            this.vehicle.getName().getString(), this.vehicle.getId(),
+                            targetPos, desired, steer,
+                            Math.toDegrees(angle), Math.toDegrees(angleThreshold),
+                            this.vehicle.isInWater(), this.vehicle.blockPosition());
+                }
                 holdAtEdge(steer);
             }
         } else {
@@ -525,7 +537,7 @@ final class VehicleDriver {
         this.bankLipReverseAway = desired;
         this.bankLipReverseTicksLeft = BANK_LIP_REVERSE_DURATION;
         this.bankLipFanBlockedTicks = 0;
-        SewvDiag.water(
+        SewvDiag.waterEvent(
                 "bankLip reverse START unit={}#{} vehicle={}#{} pos={} inWater={} desired={} "
                         + "threshold={} duration={} — dry bank lip, full fan blocked, no progress",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
@@ -589,7 +601,7 @@ final class VehicleDriver {
 
         this.hullFanBlockedTicks = 0;
         if (chosenRetreat == null) {
-            SewvDiag.pathing(
+            SewvDiag.pathingEvent(
                     "hullFan reverse SKIP allRetreatBlocked unit={}#{} vehicle={}#{} pos={} "
                             + "desired={} reasons=[{}] rule=hullCount*2>n "
                             + "probed=-desired,+25,-25 — holdAtEdge, no blind reverse",
@@ -603,7 +615,7 @@ final class VehicleDriver {
         // (straight -desired when that probe won; a ±25° diagonal otherwise).
         this.hullFanFaceDesired = chosenRetreat.scale(-1.0).normalize();
         this.hullFanReverseTicksLeft = HULL_FAN_REVERSE_DURATION;
-        SewvDiag.pathing(
+        SewvDiag.pathingEvent(
                 "hullFan reverse START unit={}#{} vehicle={}#{} pos={} desired={} retreat={} face={} "
                         + "reasons=[{}] rule=hullCount*2>n hullDominated=true "
                         + "threshold={} duration={} — face opposite retreat, reverse along cleared bearing",
@@ -645,6 +657,7 @@ final class VehicleDriver {
     }
 
     private void logSteerTarget(String reason, BlockPos target) {
+        if (!SewvDiag.groundPathingVerbose()) return;
         if (target.equals(this.lastLoggedSteerTarget)) return;
         this.lastLoggedSteerTarget = target;
         SewvDiag.pathing("steerTarget {} unit={}#{} vehicle={}#{} target={} pathPresent={} nextIndex={} nodeCount={}",

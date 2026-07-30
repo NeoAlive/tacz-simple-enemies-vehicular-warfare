@@ -59,9 +59,11 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             this.entityWidth = Mth.floor(vehicle.getBbWidth() + 1.0F);
             this.entityHeight = Mth.floor(vehicle.getBbHeight() + 1.0F);
             this.entityDepth = Mth.floor(vehicle.getBbWidth() + 1.0F);
-            SewvDiag.water("prepare vehicle={}#{} inWater={} size={}x{}x{} pos={}",
-                    vehicle.getName().getString(), vehicle.getId(), this.inWater,
-                    this.entityWidth, this.entityHeight, this.entityDepth, vehicle.blockPosition());
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.water("prepare vehicle={}#{} inWater={} size={}x{}x{} pos={}",
+                        vehicle.getName().getString(), vehicle.getId(), this.inWater,
+                        this.entityWidth, this.entityHeight, this.entityDepth, vehicle.blockPosition());
+            }
         }
     }
 
@@ -73,7 +75,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         // cached per node by the inherited getCachedBlockType, so this runs at most once per
         // unique node per search.
         if (!this.inWater && this.hasWaterWithinMargin(level, x, y, z)) {
-            if (!this.loggedWaterMarginBlockThisSearch) {
+            if (SewvDiag.groundPathingVerbose() && !this.loggedWaterMarginBlockThisSearch) {
                 this.loggedWaterMarginBlockThisSearch = true;
                 SewvDiag.water("waterMargin BLOCKED mob={}#{} node={}, {},{} inWater={} margin={} footprint={}x{}x{}",
                         mob.getClass().getSimpleName(), mob.getId(),

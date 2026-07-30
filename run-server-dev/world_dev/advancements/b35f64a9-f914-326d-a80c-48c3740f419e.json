@@ -1,0 +1,24 @@
+{
+  "minecraft:recipes/decorations/crafting_table": {
+    "criteria": {
+      "unlock_right_away": "2026-07-29 11:25:07 +0200"
+    },
+    "done": true
+  },
+  "superbwarfare:main/root": {
+    "criteria": {
+      "0": "2026-07-29 11:25:07 +0200"
+    },
+    "done": true
+  },
+  "minecraft:adventure/adventuring_time": {
+    "criteria": {
+      "minecraft:river": "2026-07-29 13:43:38 +0200",
+      "minecraft:forest": "2026-07-29 11:25:08 +0200",
+      "minecraft:meadow": "2026-07-29 11:30:13 +0200",
+      "minecraft:plains": "2026-07-29 11:44:59 +0200"
+    },
+    "done": false
+  },
+  "DataVersion": 3465
+}

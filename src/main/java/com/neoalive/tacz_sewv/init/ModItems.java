@@ -5,6 +5,7 @@ import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.PoolClipboardItem;
 import com.neoalive.tacz_sewv.item.TacticalDataTerminalItem;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.common.ForgeSpawnEggItem;
@@ -39,6 +40,12 @@ public class ModItems {
     public static final RegistryObject<Item> POOL_CLIPBOARD =
             ITEMS.register("pool_clipboard", PoolClipboardItem::new);
 
+    public static final RegistryObject<Item> CAPTURE_POINT = ITEMS.register("capture_point",
+            () -> new BlockItem(ModBlocks.CAPTURE_POINT.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> TEAM_BASE = ITEMS.register("team_base",
+            () -> new BlockItem(ModBlocks.TEAM_BASE.get(), new Item.Properties()));
+
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",
@@ -57,6 +64,10 @@ public class ModItems {
             event.accept(TACTICAL_DATA_TERMINAL);
             event.accept(DOCTRINE_LEDGER);
             event.accept(POOL_CLIPBOARD);
+        }
+        if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
+            event.accept(CAPTURE_POINT);
+            event.accept(TEAM_BASE);
         }
         if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
             event.accept(RU_MEDIC_SPAWN_EGG);

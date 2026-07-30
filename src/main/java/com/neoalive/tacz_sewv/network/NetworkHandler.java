@@ -52,7 +52,10 @@ public class NetworkHandler {
     // 26: removed PacketToggleAdvancing (autonomous KotH scrapped).
     // 27: PacketSweepAndAdvance (player-triggered sweep + claim).
     // 28: PacketOwnedVehicles optional SweepOverlayState.
-    private static final String PROTOCOL_VERSION = "28";
+    // 29: capture_point / team_base config GUIs (open + save).
+    // 30: PacketInvasionBillboards (world-space capture UI).
+    // 31: team_base aiVehicleCount on open/save packets.
+    private static final String PROTOCOL_VERSION = "31";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -189,6 +192,42 @@ public class NetworkHandler {
                 PacketSweepAndAdvance::encode,
                 PacketSweepAndAdvance::new,
                 PacketSweepAndAdvance::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenCapturePointGui.class,
+                PacketOpenCapturePointGui::encode,
+                PacketOpenCapturePointGui::new,
+                PacketOpenCapturePointGui::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSaveCapturePoint.class,
+                PacketSaveCapturePoint::encode,
+                PacketSaveCapturePoint::new,
+                PacketSaveCapturePoint::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenTeamBaseGui.class,
+                PacketOpenTeamBaseGui::encode,
+                PacketOpenTeamBaseGui::new,
+                PacketOpenTeamBaseGui::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSaveTeamBase.class,
+                PacketSaveTeamBase::encode,
+                PacketSaveTeamBase::new,
+                PacketSaveTeamBase::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketInvasionBillboards.class,
+                PacketInvasionBillboards::encode,
+                PacketInvasionBillboards::new,
+                PacketInvasionBillboards::handle
         );
     }
 }

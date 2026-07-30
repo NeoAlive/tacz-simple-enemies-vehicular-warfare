@@ -7,6 +7,7 @@ import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.utility.Action;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalBrain;
+import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 import com.neoalive.tacz_sewv.util.CrewRadio;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -191,7 +192,16 @@ public class DriveVehicleGoal extends Goal {
         // still wins. (Same shape as the old cruise-only exception; extended so Sweep & Advance
         // / S&D / patrol stop abandoning the area to chase every nearby mob.)
         if (target != null) {
-            if (PatrolSupport.holdsCourseThroughContact(this.unit) && !isLowHealth()) {
+            boolean captureHold = CaptureOrderSupport.holdsCourseThroughContact(this.unit);
+            if ((PatrolSupport.holdsCourseThroughContact(this.unit) || captureHold)
+                    && !isLowHealth()) {
+                // Stage F acceptance: prove the capture pipeline does not yield the wheel under fire.
+                if (captureHold && this.unit.level() instanceof ServerLevel sl
+                        && sl.getGameTime() % 40L == 0L) {
+                    com.neoalive.tacz_sewv.debug.SewvDiag.invasion(
+                            "captureHoldUnderFire unit={} target={} dest={}",
+                            this.unit.getId(), target.getId(), targetPos);
+                }
                 selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
                 fireAssistIfSpecial(target);
             } else {

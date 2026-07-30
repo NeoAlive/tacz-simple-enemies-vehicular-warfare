@@ -16,6 +16,10 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.HullFacts;
+import com.neoalive.tacz_sewv.invasion.CaptureSupport;
+import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
+import com.neoalive.tacz_sewv.invasion.InvasionSession;
+import com.neoalive.tacz_sewv.invasion.InvasionSpawn;
 import com.neoalive.tacz_sewv.util.EmplacementSpawner;
 import com.neoalive.tacz_sewv.util.EmplacementSpawner.Emplacement;
 import com.neoalive.tacz_sewv.util.SupportSpawner;
@@ -96,7 +100,96 @@ public class SewvCommand {
                                                 StringArgumentType.getString(ctx, "faction")))))
                         .then(Commands.literal("list")
                                 .executes(ctx -> diplomacyList(ctx.getSource()))))
+                // Stage E: spawn + capture tick. Stage G adds full validation/teleport/tickets.
+                .then(Commands.literal("invasion")
+                        .requires(source -> source.hasPermission(2))
+                        .then(Commands.literal("start")
+                                .executes(ctx -> invasionStart(ctx.getSource())))
+                        .then(Commands.literal("stop")
+                                .executes(ctx -> invasionStop(ctx.getSource())))
+                        .then(Commands.literal("status")
+                                .executes(ctx -> invasionStatus(ctx.getSource()))))
         );
+    }
+
+    private static int invasionStart(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        if (InvasionSession.isActive(level)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.invasion.already_active"));
+            return 0;
+        }
+        InvasionSpawn.Result result = InvasionSession.activate(level);
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.started",
+                result.bases(), result.aiVehicles(), result.playerVehicles()), true);
+        return 1;
+    }
+
+    private static int invasionStop(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        if (!InvasionSession.isActive(level)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.invasion.not_active"));
+            return 0;
+        }
+        InvasionSession.deactivate(level);
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.stopped"), true);
+        return 1;
+    }
+
+    private static int invasionStatus(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        boolean active = InvasionSession.isActive(level);
+        source.sendSuccess(() -> Component.translatable(
+                active ? "command.tacz_sewv.invasion.status.active"
+                        : "command.tacz_sewv.invasion.status.idle"), false);
+
+        BlockPos origin = BlockPos.containing(source.getPosition());
+        int reported = 0;
+        int cx = origin.getX() >> 4;
+        int cz = origin.getZ() >> 4;
+        for (int x = cx - 3; x <= cx + 3 && reported < 12; x++) {
+            for (int z = cz - 3; z <= cz + 3 && reported < 12; z++) {
+                if (!level.hasChunk(x, z)) continue;
+                for (var be : level.getChunk(x, z).getBlockEntities().values()) {
+                    if (!(be instanceof CapturableBlockEntity capturable)) continue;
+                    if (capturable.getBlockPos().distSqr(origin) > 64 * 64) continue;
+                    String line = CaptureSupport.describe(capturable);
+                    source.sendSuccess(() -> Component.literal(line), false);
+                    reported++;
+                    if (reported >= 12) break;
+                }
+            }
+        }
+        if (reported == 0) {
+            source.sendSuccess(() -> Component.translatable(
+                    "command.tacz_sewv.invasion.status.none_nearby"), false);
+        }
+        if (source.getEntity() instanceof ServerPlayer player) {
+            var team = level.getScoreboard().getPlayersTeam(player.getScoreboardName());
+            String teamName = team == null ? "none" : team.getName();
+            source.sendSuccess(() -> Component.translatable(
+                    "command.tacz_sewv.invasion.status.you",
+                    player.gameMode.getGameModeForPlayer().getName(),
+                    teamName), false);
+            BlockPos respawn = player.getRespawnPosition();
+            String respawnDim = player.getRespawnDimension().location().toString();
+            source.sendSuccess(() -> Component.literal(String.format(
+                    "respawn=%s @ %s",
+                    respawn == null ? "cleared" : respawn.toShortString(),
+                    respawnDim)), false);
+        }
+        if (active) {
+            int hulls = 0, crew = 0;
+            for (Entity entity : level.getAllEntities()) {
+                if (!entity.getPersistentData().getBoolean(
+                        com.neoalive.tacz_sewv.invasion.InvasionTags.SPAWN)) continue;
+                if (entity instanceof VehicleEntity) hulls++;
+                else if (!(entity instanceof ServerPlayer)) crew++;
+            }
+            int h = hulls, c = crew;
+            source.sendSuccess(() -> Component.literal(
+                    "invasion_spawn tagged: hulls=" + h + " crew=" + c), false);
+        }
+        return active ? 1 : 0;
     }
 
     private static int openPoolEditor(CommandSourceStack source) {

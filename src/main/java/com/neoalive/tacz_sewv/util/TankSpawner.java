@@ -14,6 +14,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -130,7 +131,7 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.vehiclePool(level), false);
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.vehiclePool(level), false, true);
     }
 
     /**
@@ -143,7 +144,7 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnShipWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(level), true);
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(level), true, true);
     }
 
     /**
@@ -243,8 +244,9 @@ public final class TankSpawner {
     @Nullable
     private static VehicleEntity spawnCrewedVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                      @Nullable UUID ownerId, @Nullable String vehicleId,
-                                                     List<? extends String> pool, boolean water) {
-        if (!spawnsEnabled(faction)) return null;
+                                                     List<? extends String> pool, boolean water,
+                                                     boolean requireSpawnsEnabled) {
+        if (requireSpawnsEnabled && !spawnsEnabled(faction)) return null;
         EntityType<?> tankType = selectVehicleType(pool, vehicleId, level.random);
         if (tankType == null) return null; // nothing valid configured/requested — bail safely
 
@@ -315,6 +317,81 @@ public final class TankSpawner {
             }
         } catch (Exception ignored) {
             // Unreadable vehicle data — leave it on the ground rather than abort the spawn.
+        }
+
+        return tank;
+    }
+
+    /**
+     * Like {@link #spawnTankWithCrew} but draws from an explicit pool list (e.g. a team_base's
+     * configured entries) instead of the world faction pool.
+     */
+    @Nullable
+    public static VehicleEntity spawnTankWithCrewFromPool(ServerLevel level, BlockPos requestedPos,
+                                                          TankFaction faction, @Nullable UUID ownerId,
+                                                          @Nullable String vehicleId,
+                                                          List<? extends String> pool) {
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, pool, false, false);
+    }
+
+    /**
+     * Spawns a fuelled/armed hull from {@code pool}, mounts {@code player} in seat 0, and optionally
+     * fills remaining seats with PMC owned by that player. Returns the hull, or null on failure.
+     */
+    @Nullable
+    public static VehicleEntity spawnPlayerDrivenWithOptionalCrew(ServerLevel level, BlockPos requestedPos,
+                                                                   ServerPlayer player, @Nullable String vehicleId,
+                                                                   List<? extends String> pool, boolean withPmcCrew) {
+        EntityType<?> type = selectVehicleType(pool, vehicleId, level.random);
+        if (type == null) {
+            // Allow a random pick when vehicleId is null; when non-null and missing from pool, fail.
+            if (vehicleId != null) return null;
+            type = pickVehicleType(pool, level.random);
+        }
+        if (type == null) return null;
+
+        BlockPos pos = findClearSpawn(level, requestedPos, type);
+        if (pos == null) return null;
+
+        Entity entity = type.create(level);
+        if (!(entity instanceof VehicleEntity tank)) return null;
+
+        tank.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        level.addFreshEntity(tank);
+
+        if (tank.hasEnergyStorage()) {
+            tank.setEnergy(tank.getMaxEnergy());
+        }
+        stockAmmo(tank, TankFaction.PMC);
+
+        // Player first → seat 0 (driver). startRiding relocates the player onto the hull.
+        if (!player.startRiding(tank)) {
+            tank.discard();
+            return null;
+        }
+
+        if (withPmcCrew) {
+            int seats = Math.max(1, tank.getMaxPassengers());
+            UUID ownerId = player.getUUID();
+            for (int i = 1; i < seats; i++) {
+                AbstractUnit crew = createCrewUnit(level, TankFaction.PMC, ownerId);
+                crew.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+                crew.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null, null);
+                level.addFreshEntity(crew);
+                if (!crew.startRiding(tank)) {
+                    crew.discard();
+                    break;
+                }
+            }
+        }
+
+        try {
+            if (tank.computed().getEngineType() == EngineType.HELICOPTER
+                    && tank.getFirstPassenger() instanceof IHelicopterPilot pilot) {
+                pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_TAKEOFF);
+            }
+        } catch (Exception ignored) {
+            // leave on the ground
         }
 
         return tank;

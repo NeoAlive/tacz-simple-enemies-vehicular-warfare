@@ -23,6 +23,7 @@ runs/
 docs/
 run-client-a/
 run-client-b/
+logs/
 
 # Generated files
 out/

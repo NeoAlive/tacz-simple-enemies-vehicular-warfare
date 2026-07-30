@@ -119,6 +119,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue STALEMATE_BREAKER_ENABLED;
     public static final ForgeConfigSpec.IntValue STALEMATE_SILENCE_TICKS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
+    public static final ForgeConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
     public static final ForgeConfigSpec.IntValue IDLE_WANDER_RADIUS;
@@ -393,6 +394,11 @@ public final class SewvConfig {
                 .defineInRange("stalemateSilenceTicks", 300, 40, 2400);
         VEHICLE_TERRAIN_AVOIDANCE = builder.comment("Use terrain avoidance while driving.")
                 .define("vehicleTerrainAvoidance", true);
+        GROUND_PATHING_DEBUG = builder.comment(
+                        "Verbose ground-pathing / shoreline diagnosis logs ([sewv-diag][pathing]/[water]). "
+                                + "Default off. Recovery transitions (bankLip/hullFan START/END/SKIP) and "
+                                + "full-fan summaries still log without this.")
+                .define("groundPathingDebug", false);
         PATROL_ROTATE_INTERVAL_TICKS = builder.comment("How long patrol crews hold a point before rotating.")
                 .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
         IDLE_WANDER_ENABLED = builder.comment("Let idle hulls wander locally.")

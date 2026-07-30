@@ -1,0 +1,20 @@
+[
+  {
+    "uuid": "b35f64a9-f914-326d-a80c-48c3740f419e",
+    "name": "SEWV_Test_B",
+    "level": 4,
+    "bypassesPlayerLimit": false
+  },
+  {
+    "uuid": "d7f3852b-497d-3780-905f-20b1f76ddcaa",
+    "name": "SEWV_Test_A",
+    "level": 4,
+    "bypassesPlayerLimit": false
+  },
+  {
+    "uuid": "d158722f-b9ae-33d9-8e6b-0610d8975261",
+    "name": "swev_test_a",
+    "level": 4,
+    "bypassesPlayerLimit": false
+  }
+]

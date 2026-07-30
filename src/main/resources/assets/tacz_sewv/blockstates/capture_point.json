@@ -1,5 +1,6 @@
 {
   "variants": {
-    "": { "model": "tacz_sewv:block/capture_point" }
+    "invisible=false": { "model": "tacz_sewv:block/capture_point" },
+    "invisible=true": { "model": "tacz_sewv:block/capture_point" }
   }
 }

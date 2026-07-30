@@ -3,12 +3,14 @@ package com.neoalive.tacz_sewv.block;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
+import com.neoalive.tacz_sewv.invasion.InvasionLayout;
 import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -105,6 +107,14 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
     /** Presence / capture tick while an {@link com.neoalive.tacz_sewv.invasion.InvasionSession} is active. */
     public static void serverTick(Level level, BlockPos pos, BlockState state, TeamBaseBlockEntity be) {
         CaptureSupport.tick(be);
+    }
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        if (level instanceof ServerLevel serverLevel) {
+            InvasionLayout.get(serverLevel).noteTeamBase(getBlockPos());
+        }
     }
 
     @Override

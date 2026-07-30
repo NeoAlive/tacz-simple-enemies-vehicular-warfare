@@ -44,11 +44,10 @@ public final class InvasionBlockEditor {
                 new PacketOpenCapturePointGui(
                         be.getBlockPos(),
                         be.getPointId(),
-                        be.isShowBillboard(),
-                        be.getBillboardYOffset(),
                         be.getTimeToCaptureSeconds(),
                         be.getRadiusInBlocks(),
                         be.getOwnedTeam(),
+                        be.isInvisible(),
                         scoreboardTeamNames(player)));
     }
 
@@ -68,6 +67,7 @@ public final class InvasionBlockEditor {
                         be.getTimeToCaptureSeconds(),
                         be.getRadiusInBlocks(),
                         be.getOwnedTeam(),
+                        be.isInvisible(),
                         new ArrayList<>(be.getVehiclePool()),
                         scoreboardTeamNames(player),
                         PoolEditorAccess.catalog()));

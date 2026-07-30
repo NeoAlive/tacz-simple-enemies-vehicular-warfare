@@ -60,8 +60,8 @@ public class TaczSewv {
         // Server-side half of the map markers: it only ever SENDS, so it is registered
         // unconditionally — a client with no map mod simply ignores the packet.
         MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionBillboardTracker.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionHudTracker.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.PlayerJoinHandler.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.sweep.SweepAdvancement.class);

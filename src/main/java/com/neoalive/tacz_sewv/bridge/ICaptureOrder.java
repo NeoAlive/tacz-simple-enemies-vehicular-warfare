@@ -6,10 +6,8 @@ import net.minecraft.world.entity.Entity;
 
 /**
  * Persistent invasion CAPTURE_POINT pipeline for AI-fleet crews.
- * Id-free (point id + BlockPos), so it survives reload mid-match — same shape as
- * {@link IVehiclePatrol} / fire missions, not an entity-network-id order.
- *
- * <p>Only written for units tagged {@code sewv:invasion_ai}. Inactive = no tags = zero behaviour change.
+ * Target is a {@link BlockPos} (survives reload) — order among points is vicinity to the
+ * crew's own team_base, not a point id.
  */
 public interface ICaptureOrder {
 
@@ -17,11 +15,10 @@ public interface ICaptureOrder {
     /** Current objective centre ({@link BlockPos#asLong()}). */
     String TAG_TARGET = "tacz_sewv_capture_target";
     /**
-     * Objective kind: {@link #KIND_POINT} = capture_point by id, {@link #KIND_BASE} = team_base pos,
+     * Objective kind: {@link #KIND_POINT} = capture_point, {@link #KIND_BASE} = team_base,
      * {@link #KIND_NONE} = nothing left (hold last).
      */
     String TAG_KIND = "tacz_sewv_capture_kind";
-    String TAG_POINT_ID = "tacz_sewv_capture_point_id";
 
     int KIND_NONE = 0;
     int KIND_POINT = 1;
@@ -36,7 +33,7 @@ public interface ICaptureOrder {
         tag.putBoolean(TAG_ACTIVE, true);
         tag.remove(TAG_TARGET);
         tag.putInt(TAG_KIND, KIND_NONE);
-        tag.remove(TAG_POINT_ID);
+        tag.remove("tacz_sewv_capture_point_id"); // legacy Stage F tag
     }
 
     default void sewv$clearCaptureOrder() {
@@ -44,17 +41,11 @@ public interface ICaptureOrder {
         tag.remove(TAG_ACTIVE);
         tag.remove(TAG_TARGET);
         tag.remove(TAG_KIND);
-        tag.remove(TAG_POINT_ID);
+        tag.remove("tacz_sewv_capture_point_id");
     }
 
     default int sewv$getCaptureKind() {
         return ((Entity) this).getPersistentData().getInt(TAG_KIND);
-    }
-
-    default int sewv$getCapturePointId() {
-        return ((Entity) this).getPersistentData().contains(TAG_POINT_ID)
-                ? ((Entity) this).getPersistentData().getInt(TAG_POINT_ID)
-                : -1;
     }
 
     @javax.annotation.Nullable
@@ -64,20 +55,20 @@ public interface ICaptureOrder {
         return BlockPos.of(tag.getLong(TAG_TARGET));
     }
 
-    default void sewv$setCapturePoint(int pointId, BlockPos pos) {
+    default void sewv$setCapturePoint(BlockPos pos) {
         CompoundTag tag = ((Entity) this).getPersistentData();
         tag.putBoolean(TAG_ACTIVE, true);
         tag.putInt(TAG_KIND, KIND_POINT);
-        tag.putInt(TAG_POINT_ID, pointId);
         tag.putLong(TAG_TARGET, pos.asLong());
+        tag.remove("tacz_sewv_capture_point_id");
     }
 
     default void sewv$setCaptureBase(BlockPos pos) {
         CompoundTag tag = ((Entity) this).getPersistentData();
         tag.putBoolean(TAG_ACTIVE, true);
         tag.putInt(TAG_KIND, KIND_BASE);
-        tag.remove(TAG_POINT_ID);
         tag.putLong(TAG_TARGET, pos.asLong());
+        tag.remove("tacz_sewv_capture_point_id");
     }
 
     /** No remaining objectives — keep the last TARGET if any so the hull holds ground. */
@@ -85,7 +76,6 @@ public interface ICaptureOrder {
         CompoundTag tag = ((Entity) this).getPersistentData();
         tag.putBoolean(TAG_ACTIVE, true);
         tag.putInt(TAG_KIND, KIND_NONE);
-        tag.remove(TAG_POINT_ID);
-        // leave TAG_TARGET so destination can still hold the last point
+        tag.remove("tacz_sewv_capture_point_id");
     }
 }

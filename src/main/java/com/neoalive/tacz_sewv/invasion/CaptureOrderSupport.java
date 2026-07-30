@@ -142,23 +142,30 @@ public final class CaptureOrderSupport {
 
         List<CapturePointBlockEntity> points = new ArrayList<>();
         List<TeamBaseBlockEntity> enemyBases = new ArrayList<>();
+        BlockPos homePos = null;
         for (CapturableBlockEntity zone : zones) {
-            if (zone instanceof CapturePointBlockEntity point && point.getPointId() >= 0) {
+            if (zone instanceof CapturePointBlockEntity point) {
                 points.add(point);
-            } else if (zone instanceof TeamBaseBlockEntity base
-                    && base.isPlayerOwned()
-                    && !team.isEmpty()
-                    && !team.equals(base.getAssignedTeam())) {
-                enemyBases.add(base);
+            } else if (zone instanceof TeamBaseBlockEntity base) {
+                if (!team.isEmpty() && team.equals(base.getAssignedTeam())) {
+                    homePos = base.getBlockPos();
+                } else if (base.isPlayerOwned()
+                        && !team.isEmpty()
+                        && !team.equals(base.getAssignedTeam())) {
+                    enemyBases.add(base);
+                }
             }
         }
-        points.sort(Comparator.comparingInt(CapturePointBlockEntity::getPointId));
+
+        // Vicinity: closest unheld capture_point to this team's own base first.
+        BlockPos origin = homePos != null ? homePos : unit.blockPosition();
+        points.sort(Comparator.comparingDouble(p -> p.getBlockPos().distSqr(origin)));
 
         for (CapturePointBlockEntity point : points) {
             if (team.equals(CaptureSupport.holdingTeam(point))) continue;
-            order.sewv$setCapturePoint(point.getPointId(), point.getBlockPos());
-            SewvDiag.invasion("captureOrder objective POINT id={} pos={} team={}",
-                    point.getPointId(), point.getBlockPos(), team);
+            order.sewv$setCapturePoint(point.getBlockPos());
+            SewvDiag.invasion("captureOrder objective POINT pos={} dist2={} team={}",
+                    point.getBlockPos(), point.getBlockPos().distSqr(origin), team);
             return;
         }
 
@@ -170,7 +177,6 @@ public final class CaptureOrderSupport {
             return;
         }
 
-        // All done — hold last target if any.
         order.sewv$setCaptureDone();
         SewvDiag.invasion("captureOrder done team={} unit={} holding={}",
                 team, unit.getId(), order.sewv$getCaptureTarget());

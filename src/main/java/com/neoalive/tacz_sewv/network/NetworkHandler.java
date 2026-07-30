@@ -53,9 +53,11 @@ public class NetworkHandler {
     // 27: PacketSweepAndAdvance (player-triggered sweep + claim).
     // 28: PacketOwnedVehicles optional SweepOverlayState.
     // 29: capture_point / team_base config GUIs (open + save).
-    // 30: PacketInvasionBillboards (world-space capture UI).
+    // 30: PacketInvasionBillboards (world-space capture UI) — removed in 32.
     // 31: team_base aiVehicleCount on open/save packets.
-    private static final String PROTOCOL_VERSION = "31";
+    // 32: PacketInvasionHud replaces billboards; capture_point open/save drop billboard fields.
+    // 33: invisible toggle on capture_point / team_base open+save packets.
+    private static final String PROTOCOL_VERSION = "33";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -224,10 +226,10 @@ public class NetworkHandler {
         );
         CHANNEL.registerMessage(
                 nextId(),
-                PacketInvasionBillboards.class,
-                PacketInvasionBillboards::encode,
-                PacketInvasionBillboards::new,
-                PacketInvasionBillboards::handle
+                PacketInvasionHud.class,
+                PacketInvasionHud::encode,
+                PacketInvasionHud::new,
+                PacketInvasionHud::handle
         );
     }
 }

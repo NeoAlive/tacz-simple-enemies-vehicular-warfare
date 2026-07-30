@@ -32,9 +32,36 @@ public abstract class CapturableBlockEntity extends BlockEntity {
     private long lastScanGameTime = Long.MIN_VALUE;
     /** Session-volatile: team currently advancing progress. Not saved. */
     private String advancingTeam = "";
+    /** When true the block model is hidden (still solid / interactable). */
+    private boolean invisible;
 
     protected CapturableBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
+        if (state.hasProperty(com.neoalive.tacz_sewv.block.InvasionBlockProps.INVISIBLE)) {
+            this.invisible = state.getValue(com.neoalive.tacz_sewv.block.InvasionBlockProps.INVISIBLE);
+        }
+    }
+
+    public boolean isInvisible() {
+        return invisible;
+    }
+
+    public void setInvisible(boolean invisible) {
+        if (this.invisible == invisible) return;
+        this.invisible = invisible;
+        setChanged();
+        syncInvisibleState();
+    }
+
+    /** Keep blockstate {@code invisible} in sync so {@link net.minecraft.world.level.block.RenderShape} can hide it. */
+    public void syncInvisibleState() {
+        if (level == null || level.isClientSide) return;
+        BlockState state = getBlockState();
+        if (!state.hasProperty(com.neoalive.tacz_sewv.block.InvasionBlockProps.INVISIBLE)) return;
+        if (state.getValue(com.neoalive.tacz_sewv.block.InvasionBlockProps.INVISIBLE) == invisible) return;
+        level.setBlock(worldPosition,
+                state.setValue(com.neoalive.tacz_sewv.block.InvasionBlockProps.INVISIBLE, invisible),
+                2);
     }
 
     public int getRadiusInBlocks() {
@@ -136,6 +163,7 @@ public abstract class CapturableBlockEntity extends BlockEntity {
         tag.putString("OwnedTeam", ownedTeam);
         tag.putFloat("Progress", progress);
         tag.putBoolean("Contested", contested);
+        tag.putBoolean("Invisible", invisible);
     }
 
     @Override
@@ -148,6 +176,13 @@ public abstract class CapturableBlockEntity extends BlockEntity {
         ownedTeam = tag.getString("OwnedTeam");
         progress = tag.getFloat("Progress");
         contested = tag.getBoolean("Contested");
+        invisible = tag.getBoolean("Invisible");
+    }
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        syncInvisibleState();
     }
 
     @Nullable

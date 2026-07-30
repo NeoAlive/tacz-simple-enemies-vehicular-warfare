@@ -18,6 +18,7 @@ import com.neoalive.tacz_sewv.entity.ai.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
 import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
+import com.neoalive.tacz_sewv.invasion.InvasionLayout;
 import com.neoalive.tacz_sewv.invasion.InvasionSession;
 import com.neoalive.tacz_sewv.invasion.InvasionSpawn;
 import com.neoalive.tacz_sewv.util.EmplacementSpawner;
@@ -100,7 +101,7 @@ public class SewvCommand {
                                                 StringArgumentType.getString(ctx, "faction")))))
                         .then(Commands.literal("list")
                                 .executes(ctx -> diplomacyList(ctx.getSource()))))
-                // Stage E: spawn + capture tick. Stage G adds full validation/teleport/tickets.
+                // Stage G: validate → ticket → teleport → spawn; stop clears tickets/orders/spawns.
                 .then(Commands.literal("invasion")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("start")
@@ -114,25 +115,54 @@ public class SewvCommand {
 
     private static int invasionStart(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
-        if (InvasionSession.isActive(level)) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.invasion.already_active"));
+        InvasionSession.StartResult result = InvasionSession.start(level);
+        if (result instanceof InvasionSession.StartResult.Fail fail) {
+            for (String error : fail.errors()) {
+                source.sendFailure(invasionErrorComponent(error));
+            }
             return 0;
         }
-        InvasionSpawn.Result result = InvasionSession.activate(level);
+        InvasionSession.StartResult.Ok ok = (InvasionSession.StartResult.Ok) result;
+        for (String warn : ok.warnings()) {
+            source.sendSuccess(() -> invasionWarnComponent(warn), false);
+        }
+        InvasionSpawn.Result spawn = ok.spawn();
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.started",
-                result.bases(), result.aiVehicles(), result.playerVehicles()), true);
+                spawn.bases(), spawn.aiVehicles(), spawn.playerVehicles()), true);
         return 1;
     }
 
     private static int invasionStop(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
-        if (!InvasionSession.isActive(level)) {
+        boolean memoryActive = InvasionSession.isActive(level);
+        boolean savedActive = InvasionLayout.get(level).isSessionActive();
+        if (!memoryActive && !savedActive) {
             source.sendFailure(Component.translatable("command.tacz_sewv.invasion.not_active"));
             return 0;
         }
         InvasionSession.deactivate(level);
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.stopped"), true);
         return 1;
+    }
+
+    private static Component invasionErrorComponent(String code) {
+        return Component.translatable(invasionMessageKey("fail", code), invasionMessageArg(code));
+    }
+
+    private static Component invasionWarnComponent(String code) {
+        return Component.translatable(invasionMessageKey("warn", code), invasionMessageArg(code));
+    }
+
+    /** Map {@code key:detail} codes from {@link InvasionValidate} onto lang keys. */
+    private static String invasionMessageKey(String kind, String code) {
+        int colon = code.indexOf(':');
+        String head = colon < 0 ? code : code.substring(0, colon);
+        return "command.tacz_sewv.invasion." + kind + "." + head;
+    }
+
+    private static Object invasionMessageArg(String code) {
+        int colon = code.indexOf(':');
+        return colon < 0 ? "" : code.substring(colon + 1);
     }
 
     private static int invasionStatus(CommandSourceStack source) {

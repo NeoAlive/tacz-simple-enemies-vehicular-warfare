@@ -29,12 +29,13 @@ public class PacketSaveTeamBase {
     private final int timeToCaptureSeconds;
     private final int radiusInBlocks;
     private final String ownedTeam;
+    private final boolean invisible;
     private final List<String> vehiclePool;
 
     public PacketSaveTeamBase(BlockPos pos, String assignedTeam, boolean playerOwned,
                               boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                               int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
-                              String ownedTeam, List<String> vehiclePool) {
+                              String ownedTeam, boolean invisible, List<String> vehiclePool) {
         this.pos = pos;
         this.assignedTeam = assignedTeam == null ? "" : assignedTeam;
         this.playerOwned = playerOwned;
@@ -44,6 +45,7 @@ public class PacketSaveTeamBase {
         this.timeToCaptureSeconds = timeToCaptureSeconds;
         this.radiusInBlocks = radiusInBlocks;
         this.ownedTeam = ownedTeam == null ? "" : ownedTeam;
+        this.invisible = invisible;
         this.vehiclePool = vehiclePool;
     }
 
@@ -57,6 +59,7 @@ public class PacketSaveTeamBase {
         this.timeToCaptureSeconds = buf.readVarInt();
         this.radiusInBlocks = buf.readVarInt();
         this.ownedTeam = buf.readUtf();
+        this.invisible = buf.readBoolean();
         this.vehiclePool = PacketOpenPoolEditor.readStringList(buf);
     }
 
@@ -70,6 +73,7 @@ public class PacketSaveTeamBase {
         buf.writeVarInt(this.timeToCaptureSeconds);
         buf.writeVarInt(this.radiusInBlocks);
         buf.writeUtf(this.ownedTeam);
+        buf.writeBoolean(this.invisible);
         PacketOpenPoolEditor.writeStringList(buf, this.vehiclePool);
     }
 
@@ -89,6 +93,7 @@ public class PacketSaveTeamBase {
             be.setTimeToCaptureSeconds(Math.max(1, this.timeToCaptureSeconds));
             be.setRadiusInBlocks(Math.max(1, this.radiusInBlocks));
             be.setOwnedTeam(this.ownedTeam);
+            be.setInvisible(this.invisible);
 
             List<String> cleaned = new ArrayList<>();
             for (String id : this.vehiclePool) {

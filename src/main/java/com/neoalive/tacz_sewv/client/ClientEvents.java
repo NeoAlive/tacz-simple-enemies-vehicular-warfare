@@ -143,7 +143,7 @@ public class ClientEvents {
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         MapMarkers.clear();
-        InvasionBillboards.clear();
+        InvasionHudClient.clear();
         clearEscort();
     }
 

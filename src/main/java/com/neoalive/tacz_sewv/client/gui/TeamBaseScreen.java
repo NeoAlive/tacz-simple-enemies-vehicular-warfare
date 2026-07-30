@@ -31,6 +31,7 @@ public class TeamBaseScreen extends Screen {
     private int timeToCaptureSeconds;
     private int radiusInBlocks;
     private String ownedTeam;
+    private boolean invisible;
     private final List<String> vehiclePool;
     private final List<String> teams;
     private final List<String> catalog;
@@ -43,6 +44,7 @@ public class TeamBaseScreen extends Screen {
     private Button spawnNpcButton;
     private Button factionButton;
     private Button ownedTeamButton;
+    private Button invisibleButton;
     private Button aiCountLabel;
     private int scroll;
     private int selected = -1;
@@ -52,8 +54,8 @@ public class TeamBaseScreen extends Screen {
     public TeamBaseScreen(BlockPos pos, String assignedTeam, boolean playerOwned,
                           boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                           int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
-                          String ownedTeam, List<String> vehiclePool, List<String> teams,
-                          List<String> catalog) {
+                          String ownedTeam, boolean invisible, List<String> vehiclePool,
+                          List<String> teams, List<String> catalog) {
         super(Component.translatable("gui.tacz_sewv.invasion.team_base.title"));
         this.pos = pos;
         this.assignedTeam = assignedTeam == null ? "" : assignedTeam;
@@ -67,6 +69,7 @@ public class TeamBaseScreen extends Screen {
         this.timeToCaptureSeconds = timeToCaptureSeconds;
         this.radiusInBlocks = radiusInBlocks;
         this.ownedTeam = ownedTeam == null ? "" : ownedTeam;
+        this.invisible = invisible;
         this.vehiclePool = new ArrayList<>(vehiclePool);
         this.teams = new ArrayList<>(teams);
         this.catalog = List.copyOf(catalog);
@@ -125,6 +128,12 @@ public class TeamBaseScreen extends Screen {
         this.radiusBox.setValue(Integer.toString(this.radiusInBlocks));
         this.radiusBox.setMaxLength(8);
         addRenderableWidget(this.radiusBox);
+        y += 24;
+
+        this.invisibleButton = addRenderableWidget(Button.builder(invisibleLabel(), b -> {
+            this.invisible = !this.invisible;
+            this.invisibleButton.setMessage(invisibleLabel());
+        }).bounds(left, y, PANEL_W, 20).build());
         y += 28;
 
         this.listTop = y;
@@ -187,6 +196,12 @@ public class TeamBaseScreen extends Screen {
     private Component ownedLabel() {
         String name = this.ownedTeam.isEmpty() ? "—" : this.ownedTeam;
         return Component.translatable("gui.tacz_sewv.invasion.owned_team", name);
+    }
+
+    private Component invisibleLabel() {
+        return Component.translatable(this.invisible
+                ? "gui.tacz_sewv.invasion.invisible.on"
+                : "gui.tacz_sewv.invasion.invisible.off");
     }
 
     private Component aiCountLabel() {
@@ -257,7 +272,7 @@ public class TeamBaseScreen extends Screen {
         NetworkHandler.CHANNEL.sendToServer(new PacketSaveTeamBase(
                 this.pos, this.assignedTeam, this.playerOwned, this.spawnPlayerOwnedTanksWithNpc,
                 this.crewFaction, this.aiVehicleCount, this.timeToCaptureSeconds, this.radiusInBlocks,
-                this.ownedTeam, this.vehiclePool));
+                this.ownedTeam, this.invisible, this.vehiclePool));
         onClose();
     }
 
@@ -290,7 +305,7 @@ public class TeamBaseScreen extends Screen {
         int left = (this.width - PANEL_W) / 2;
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
 
-        int timeY = this.listTop - 28;
+        int timeY = this.listTop - 52;
         graphics.drawString(this.font, "Time (s)", left, timeY + 6, 0xA0A0A0, false);
         graphics.drawString(this.font, "Radius", left + 170, timeY + 6, 0xA0A0A0, false);
 

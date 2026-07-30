@@ -18,41 +18,37 @@ public class PacketSaveCapturePoint {
 
     private final BlockPos pos;
     private final int pointId;
-    private final boolean showBillboard;
-    private final double billboardYOffset;
     private final int timeToCaptureSeconds;
     private final int radiusInBlocks;
     private final String ownedTeam;
+    private final boolean invisible;
 
-    public PacketSaveCapturePoint(BlockPos pos, int pointId, boolean showBillboard, double billboardYOffset,
-                                  int timeToCaptureSeconds, int radiusInBlocks, String ownedTeam) {
+    public PacketSaveCapturePoint(BlockPos pos, int pointId, int timeToCaptureSeconds, int radiusInBlocks,
+                                  String ownedTeam, boolean invisible) {
         this.pos = pos;
         this.pointId = pointId;
-        this.showBillboard = showBillboard;
-        this.billboardYOffset = billboardYOffset;
         this.timeToCaptureSeconds = timeToCaptureSeconds;
         this.radiusInBlocks = radiusInBlocks;
         this.ownedTeam = ownedTeam == null ? "" : ownedTeam;
+        this.invisible = invisible;
     }
 
     public PacketSaveCapturePoint(FriendlyByteBuf buf) {
         this.pos = buf.readBlockPos();
         this.pointId = buf.readVarInt();
-        this.showBillboard = buf.readBoolean();
-        this.billboardYOffset = buf.readDouble();
         this.timeToCaptureSeconds = buf.readVarInt();
         this.radiusInBlocks = buf.readVarInt();
         this.ownedTeam = buf.readUtf();
+        this.invisible = buf.readBoolean();
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeBlockPos(this.pos);
         buf.writeVarInt(this.pointId);
-        buf.writeBoolean(this.showBillboard);
-        buf.writeDouble(this.billboardYOffset);
         buf.writeVarInt(this.timeToCaptureSeconds);
         buf.writeVarInt(this.radiusInBlocks);
         buf.writeUtf(this.ownedTeam);
+        buf.writeBoolean(this.invisible);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -64,11 +60,10 @@ public class PacketSaveCapturePoint {
             if (!(raw instanceof CapturePointBlockEntity be)) return;
 
             be.setPointId(this.pointId);
-            be.setShowBillboard(this.showBillboard);
-            be.setBillboardYOffset(this.billboardYOffset);
             be.setTimeToCaptureSeconds(Math.max(1, this.timeToCaptureSeconds));
             be.setRadiusInBlocks(Math.max(1, this.radiusInBlocks));
             be.setOwnedTeam(this.ownedTeam);
+            be.setInvisible(this.invisible);
 
             BlockState state = level.getBlockState(this.pos);
             level.sendBlockUpdated(this.pos, state, state, 3);

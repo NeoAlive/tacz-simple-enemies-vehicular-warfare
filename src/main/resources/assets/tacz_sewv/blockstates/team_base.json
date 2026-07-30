@@ -1,5 +1,6 @@
 {
   "variants": {
-    "": { "model": "tacz_sewv:block/team_base" }
+    "invisible=false": { "model": "tacz_sewv:block/team_base" },
+    "invisible=true": { "model": "tacz_sewv:block/team_base" }
   }
 }

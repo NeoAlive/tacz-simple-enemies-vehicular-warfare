@@ -165,6 +165,11 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue SWEEP_QUIET_SECONDS;
     public static final ForgeConfigSpec.IntValue SWEEP_MAX_CHUNK_AREA;
 
+    /** Invasion match HUD palette (hex RGB, no alpha). Team A/B follow layout bookend order. */
+    public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_TEAM_A_COLOR;
+    public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_TEAM_B_COLOR;
+    public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_NEUTRAL_COLOR;
+
     public static final ForgeConfigSpec.IntValue[][] DOCTRINE;
 
     private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
@@ -508,6 +513,18 @@ public final class SewvConfig {
         SWEEP_MAX_CHUNK_AREA = builder.comment(
                         "Max chunks in a Sweep & Advance MapTileSelection (width*height).")
                 .defineInRange("maxChunkArea", 256, 1, 1024);
+        builder.pop();
+
+        builder.push("invasion");
+        INVASION_HUD_TEAM_A_COLOR = builder.comment(
+                        "HUD colour for layout team A (left bookend). Hex RGB.")
+                .define("hudTeamAColor", "5555FF");
+        INVASION_HUD_TEAM_B_COLOR = builder.comment(
+                        "HUD colour for layout team B (right bookend). Hex RGB.")
+                .define("hudTeamBColor", "FF5555");
+        INVASION_HUD_NEUTRAL_COLOR = builder.comment(
+                        "HUD colour for unowned capture points. Hex RGB.")
+                .define("hudNeutralColor", "AAAAAA");
         builder.pop();
 
         builder.push("doctrine");

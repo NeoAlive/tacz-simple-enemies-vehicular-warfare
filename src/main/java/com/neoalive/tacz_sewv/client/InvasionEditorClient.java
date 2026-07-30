@@ -16,22 +16,20 @@ public final class InvasionEditorClient {
 
     private InvasionEditorClient() {}
 
-    public static void openCapturePoint(BlockPos pos, int pointId, boolean showBillboard, double billboardYOffset,
-                                        int timeToCaptureSeconds, int radiusInBlocks, String ownedTeam,
-                                        List<String> teams) {
+    public static void openCapturePoint(BlockPos pos, int pointId, int timeToCaptureSeconds, int radiusInBlocks,
+                                        String ownedTeam, boolean invisible, List<String> teams) {
         Minecraft.getInstance().setScreen(new CapturePointScreen(
-                pos, pointId, showBillboard, billboardYOffset, timeToCaptureSeconds, radiusInBlocks,
-                ownedTeam, teams));
+                pos, pointId, timeToCaptureSeconds, radiusInBlocks, ownedTeam, invisible, teams));
     }
 
     public static void openTeamBase(BlockPos pos, String assignedTeam, boolean playerOwned,
                                     boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                                     int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
-                                    String ownedTeam, List<String> vehiclePool, List<String> teams,
-                                    List<String> catalog) {
+                                    String ownedTeam, boolean invisible, List<String> vehiclePool,
+                                    List<String> teams, List<String> catalog) {
         Minecraft.getInstance().setScreen(new TeamBaseScreen(
                 pos, assignedTeam, playerOwned, spawnPlayerOwnedTanksWithNpc, crewFaction,
-                aiVehicleCount, timeToCaptureSeconds, radiusInBlocks, ownedTeam, vehiclePool, teams,
-                catalog));
+                aiVehicleCount, timeToCaptureSeconds, radiusInBlocks, ownedTeam, invisible,
+                vehiclePool, teams, catalog));
     }
 }

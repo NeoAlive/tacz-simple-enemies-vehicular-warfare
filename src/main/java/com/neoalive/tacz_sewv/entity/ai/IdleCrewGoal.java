@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.util.CrewRadio;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
@@ -94,9 +95,30 @@ public class IdleCrewGoal extends Goal {
      * <p>Uncontended: SBW's tick aims an AI-crewed turret through {@code turretAutoAimFromUuid}, and
      * SBW clears that UUID to "undefined" the moment the controller's target goes null (its
      * {@code LivingChangeTargetEvent} handler), which makes the call return before touching anything.
+     *
+     * <p>Outer-ring glance wins briefly when armed: a fixed bearing from the poll that spotted
+     * something, held for a few dozen ticks so the barrel can settle, then this resumes its
+     * random sweep. Never setTarget — cosmetic only. Skipped while {@code getTarget() != null}
+     * because this goal does not run then (engagement owns the turret via UUID aim).
      */
     private void sweepTurret(long now) {
         if (!this.vehicle.hasTurret() || !isTurretController(this.vehicle)) return;
+
+        Facts facts = null;
+        // Outer ring / Facts live on the driver; on FCP BMPs the turret seat is not seat 0.
+        if (this.vehicle.getFirstPassenger() instanceof AbstractUnit driver) {
+            facts = Facts.of(driver.getId());
+        }
+        if (facts == null) {
+            facts = Facts.of(this.unit.getId());
+        }
+        if (facts != null && facts.outerGlanceBearing != null && now < facts.outerGlanceUntil) {
+            this.vehicle.turretAutoAimFromVector(facts.outerGlanceBearing);
+            // Don't roll a random bearing the tick the glance ends.
+            this.nextSweep = Math.max(this.nextSweep, facts.outerGlanceUntil);
+            return;
+        }
+
         if (now >= this.nextSweep) {
             this.nextSweep = now + SWEEP_TICKS + this.unit.getRandom().nextInt(SWEEP_JITTER);
             float yaw = this.unit.getRandom().nextFloat() * 360.0F;

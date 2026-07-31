@@ -203,6 +203,25 @@ public final class Facts {
      */
     public double confidence = Confidence.NEUTRAL;
 
+    /**
+     * Outer-ring awareness (never an engageable lock). Written by {@link com.neoalive.tacz_sewv.entity.ai.OuterRingAwareness};
+     * independent of {@link #enemies} / force-ratio math.
+     */
+    public boolean outerSpotFresh;
+    /** Horizontal blocks to the outer spot, or {@link Double#MAX_VALUE} when none. */
+    public double outerSpotDist = Double.MAX_VALUE;
+    /** 0..1 band strength for {@link Signal#DISTANT_CONTACT}; 0 when no fresh spot. */
+    public double outerSpotStrength;
+    /**
+     * Fixed look vector for a one-shot cosmetic turret glance after an outer poll spot.
+     * Null when no glance is armed. Consumed by {@link com.neoalive.tacz_sewv.entity.ai.IdleCrewGoal} only —
+     * never setTarget / fire.
+     */
+    @Nullable
+    public Vec3 outerGlanceBearing;
+    /** Game time when {@link #outerGlanceBearing} expires; {@link Long#MIN_VALUE} if none. */
+    public long outerGlanceUntil = Long.MIN_VALUE;
+
     public final Memory memory = new Memory();
 
     /**
@@ -539,6 +558,11 @@ public final class Facts {
         this.nearestAlly = null;
         this.underOrders = false;
         this.confidence = Confidence.NEUTRAL;
+        this.outerSpotFresh = false;
+        this.outerSpotDist = Double.MAX_VALUE;
+        this.outerSpotStrength = 0.0;
+        this.outerGlanceBearing = null;
+        this.outerGlanceUntil = Long.MIN_VALUE;
         this.memory.clear();
     }
 
@@ -591,6 +615,18 @@ public final class Facts {
                 Vec3 flat = new Vec3(from.x, 0.0, from.z);
                 this.threatBearing = flat.lengthSqr() > 1.0E-4 ? flat.normalize() : null;
             }
+        }
+
+        /**
+         * Record an outer-ring (or other non-lock) sighting. Does not set a combat target.
+         *
+         * <p>Callers must not overwrite a live engagement: {@link com.neoalive.tacz_sewv.entity.ai.OuterRingAwareness}
+         * only invokes this when {@code getTarget() == null}.
+         */
+        public void noteSpot(BlockPos pos, long now) {
+            if (pos == null) return;
+            this.lastEnemyPos = pos;
+            this.lastContactTick = now;
         }
 
         /** True while a contact is recent enough to still be worth searching for. */

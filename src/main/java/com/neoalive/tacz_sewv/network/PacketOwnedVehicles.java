@@ -68,7 +68,8 @@ public class PacketOwnedVehicles {
                     VehicleMarker.CommandRole.byId(buf.readByte()),
                     buf.readVarInt(),
                     VehicleMarker.PlayRole.byId(buf.readByte()),
-                    buf.readInt() & 0xFFFFFF));
+                    buf.readInt() & 0xFFFFFF,
+                    buf.readBoolean()));
         }
         this.markers = read;
 
@@ -110,6 +111,7 @@ public class PacketOwnedVehicles {
             buf.writeVarInt(marker.groupId());
             buf.writeByte(marker.playRole().ordinal());
             buf.writeInt(marker.tintRgb() & 0xFFFFFF);
+            buf.writeBoolean(marker.hasGuard());
         }
         buf.writeVarInt(this.battleFields.size());
         for (BattleFieldMarker bf : this.battleFields) {

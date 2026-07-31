@@ -9,6 +9,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.DroneSupport;
+import com.neoalive.tacz_sewv.entity.ai.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.SupportRole;
@@ -111,7 +112,7 @@ public final class OwnedVehicleTracker {
                              boolean factionFriendly, MarkerOrder order, int driverId, int vehicleId,
                              double x, double y, double z, float yaw,
                              ResourceKey<Level> dimension, float healthFrac, float energyFrac,
-                             int tintRgb) {}
+                             int tintRgb, boolean hasGuard) {}
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
@@ -237,7 +238,8 @@ public final class OwnedVehicleTracker {
                     driver.getId(), hull.getId(),
                     hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension(),
                     healthFrac(hull), energyFrac(hull),
-                    FactionColors.wireTint(level.getServer(), CrewFacts.pmcOwner(hull))));
+                    FactionColors.wireTint(level.getServer(), CrewFacts.pmcOwner(hull)),
+                    GuardSupport.has(hull)));
         }
     }
 
@@ -267,7 +269,8 @@ public final class OwnedVehicleTracker {
                 crew.getId(), mortar.getId(),
                 mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension(),
                 healthFrac(mortar), energyFrac(mortar),
-                FactionColors.wireTint(level.getServer(), pmcOwner)));
+                FactionColors.wireTint(level.getServer(), pmcOwner),
+                false));
     }
 
     /**
@@ -291,7 +294,8 @@ public final class OwnedVehicleTracker {
                 crew.getId(), drone.getId(),
                 drone.getX(), drone.getY(), drone.getZ(), drone.getYRot(), level.dimension(),
                 healthFrac(drone), energyFrac(drone),
-                FactionColors.wireTint(level.getServer(), pmcOwner)));
+                FactionColors.wireTint(level.getServer(), pmcOwner),
+                false));
     }
 
     /**
@@ -319,7 +323,8 @@ public final class OwnedVehicleTracker {
                     unit.getX(), unit.getY(), unit.getZ(), unit.getYRot(), level.dimension(),
                     Mth.clamp(unit.getHealth() / unit.getMaxHealth(), 0.0F, 1.0F),
                     VehicleMarker.NO_ENERGY,
-                    FactionColors.wireTint(level.getServer(), pmcOwner)));
+                    FactionColors.wireTint(level.getServer(), pmcOwner),
+                    false));
         }
     }
 
@@ -416,7 +421,7 @@ public final class OwnedVehicleTracker {
         VehicleMarker.PlayRole playRole = playRoleOf(CommandCoordinator.assignmentRoleForDriver(c.driverId()));
         return new VehicleMarker(c.driverId(), c.vehicleId(), c.x(), c.y(), c.z(), c.yaw(),
                 c.kind(), allegiance, c.faction(), order, c.dimension(),
-                c.healthFrac(), c.energyFrac(), role, groupId, playRole, c.tintRgb());
+                c.healthFrac(), c.energyFrac(), role, groupId, playRole, c.tintRgb(), c.hasGuard());
     }
 
     private static VehicleMarker.PlayRole playRoleOf(@javax.annotation.Nullable Assignment.Role role) {

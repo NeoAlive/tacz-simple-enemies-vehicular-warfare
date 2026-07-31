@@ -54,6 +54,7 @@ public final class XaeroMapCompat {
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         CruisePlot.cancel();
+        GuardPlot.cancel();
         // Force a re-hang if Xaero builds a fresh handler for the next world.
         hungOn = null;
     }

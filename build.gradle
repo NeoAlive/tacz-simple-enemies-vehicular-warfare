@@ -193,10 +193,19 @@ tasks.register('selfCheckHeliArmament', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckOuterRing', JavaExec) {
+    group = 'verification'
+    description = 'Runs the outer-ring band stagger self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.OuterRingAwarenessSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament'
+    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckOuterRing'
 }
 
 mixin {

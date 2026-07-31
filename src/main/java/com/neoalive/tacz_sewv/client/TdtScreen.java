@@ -9,7 +9,10 @@ import com.neoalive.tacz_sewv.client.InvasionHudClient;
 import com.neoalive.tacz_sewv.entity.ai.FormationShape;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
+import com.neoalive.tacz_sewv.network.PacketReachGuard;
 import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -159,6 +162,11 @@ public class TdtScreen extends Screen {
         // itself via addColumnButton's onClose().
         addColumnButton(this.leftX, y, "gui.tacz_sewv.tdt.escort",
                 ClientEvents::armEscort, "gui.tacz_sewv.tdt.escort.tip");
+        y += ROW_H;
+        addColumnButton(this.leftX, y, "gui.tacz_sewv.tdt.set_guard",
+                ClientEvents::armGuardPosition, "gui.tacz_sewv.tdt.set_guard.tip");
+        y += ROW_H;
+        addReachGuardButton(this.leftX, y);
         y += ROW_H + GROUP_GAP;
 
         addButton(this.leftX, y, "gui.tacz_sewv.tdt.patrol",
@@ -207,6 +215,29 @@ public class TdtScreen extends Screen {
 
     private static int rowY(int firstRowY, int row) {
         return firstRowY + row * ROW_H;
+    }
+
+    private void addReachGuardButton(int x, int y) {
+        Button.Builder builder = Button.builder(Component.translatable("gui.tacz_sewv.tdt.reach_guard"), b -> {
+            BoardKeybind.withOwnedUnits(pmc -> true, "message.tacz_sewv.guard.reach.none",
+                    (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketReachGuard(unitIds)));
+            onClose();
+        }).bounds(x, y, COL_W, BTN_H)
+                .tooltip(Tooltip.create(Component.translatable("gui.tacz_sewv.tdt.reach_guard.tip")));
+        Button button = builder.build();
+        // Grey when map sync knows OWN hulls and none have a guard cached.
+        boolean knownOwn = false;
+        boolean anyGuard = false;
+        for (VehicleMarker m : MapMarkers.markers()) {
+            if (m.allegiance() != VehicleMarker.Allegiance.OWN) continue;
+            knownOwn = true;
+            if (m.hasGuard()) {
+                anyGuard = true;
+                break;
+            }
+        }
+        button.active = !knownOwn || anyGuard;
+        addRenderableWidget(button);
     }
 
     private void addColumnButton(int x, int y, String key, Runnable order) {

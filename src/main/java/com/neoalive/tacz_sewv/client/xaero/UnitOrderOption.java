@@ -8,7 +8,9 @@ import com.neoalive.tacz_sewv.client.TdtScreen;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
+import com.neoalive.tacz_sewv.network.PacketReachGuard;
 import com.neoalive.tacz_sewv.network.PacketSweepAndAdvance;
+import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
@@ -103,6 +105,8 @@ public class UnitOrderOption extends RightClickOption {
         SAD_HERE("sad_here", null, true, Category.AREA_TASK),
         SWEEP_AND_ADVANCE("sweep_and_advance", null, true, Category.AREA_TASK),
         CRUISE("cruise", null, false, Category.MOVEMENT),
+        SET_GUARD("set_guard", null, false, Category.MOVEMENT),
+        REACH_GUARD("reach_guard", null, false, Category.MOVEMENT),
         DISMISS("dismiss", null, false, Category.STAND_DOWN);
 
         final String labelKey;
@@ -152,6 +156,9 @@ public class UnitOrderOption extends RightClickOption {
         if (action == Action.SWEEP_AND_ADVANCE) {
             active = active && hasTileSelection;
         }
+        if (action == Action.REACH_GUARD) {
+            active = active && selectedHaveGuard();
+        }
         setActive(active);
         setNameFormatArgs(selectedCount);
     }
@@ -177,9 +184,17 @@ public class UnitOrderOption extends RightClickOption {
         }
 
         if (this.action == Action.CRUISE) {
-            // Arms the plotting mode instead of ordering anything: the route does not exist yet.
-            // MixinGuiMap owns everything from here — clicks, the drawn route, confirm and cancel.
             if (CruisePlot.arm()) hint("message.tacz_sewv.cruise.plotting", 0);
+            return;
+        }
+
+        if (this.action == Action.SET_GUARD) {
+            if (GuardPlot.arm()) hint("message.tacz_sewv.guard.plotting");
+            return;
+        }
+
+        if (this.action == Action.REACH_GUARD) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketReachGuard(new ArrayList<>(drivers)));
             return;
         }
 
@@ -248,9 +263,27 @@ public class UnitOrderOption extends RightClickOption {
             case HOLD -> OrderType.HOLD_POSITION;
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
-            case TAKEOFF, LAND_HERE, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE, CRUISE, DISMISS ->
+            case TAKEOFF, LAND_HERE, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE, CRUISE,
+                    SET_GUARD, REACH_GUARD, DISMISS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
         };
+    }
+
+    /** True when every currently selected OWN marker reports a cached guard position. */
+    private static boolean selectedHaveGuard() {
+        Set<Integer> selected = MapMarkers.selected();
+        if (selected.isEmpty()) return false;
+        for (int id : selected) {
+            boolean found = false;
+            for (VehicleMarker m : MapMarkers.markers()) {
+                if (m.driverId() != id) continue;
+                found = true;
+                if (!m.hasGuard()) return false;
+                break;
+            }
+            if (!found) return false;
+        }
+        return true;
     }
 
     /**

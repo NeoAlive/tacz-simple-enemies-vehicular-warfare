@@ -43,6 +43,7 @@
     "steepGround": 10,
     "taskedHold": 45,
     "taskedBaseOfFire": 25,
+    "distantContact": 10,
     "aggression": -10,
     "initiative": -10
   },
@@ -152,6 +153,7 @@
 
   "searchLastKnown": {
     "lostContact": 45,
+    "distantContact": 25,
     "initiative": 35,
     "aggression": 20,
     "riskTolerance": 10,
@@ -176,6 +178,7 @@
     "lowHealth": -30,
     "outnumbered": -20,
     "threatDensity": -12,
+    "distantContact": -6,
     "recentlyHit": -10,
     "lowAmmo": -18,
     "lowEnergy": -10,

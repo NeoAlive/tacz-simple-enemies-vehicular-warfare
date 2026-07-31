@@ -157,6 +157,7 @@ public final class TacticalBrain {
         s[Signal.ALONE.ordinal()] = f.allies == 0 ? 1.0 : 0.0;
 
         s[Signal.LOST_CONTACT.ordinal()] = f.target == null && f.memory.hasFreshContact(now) ? 1.0 : 0.0;
+        s[Signal.DISTANT_CONTACT.ordinal()] = f.outerSpotFresh ? f.outerSpotStrength : 0.0;
         s[Signal.UNDER_ORDERS.ordinal()] = f.underOrders ? 1.0 : 0.0;
 
         // rangeError is signed and already normalised against the preferred range, so one field

@@ -34,6 +34,7 @@ public final class CruisePlot {
     public static boolean arm() {
         Set<Integer> selected = MapMarkers.selected();
         if (selected.isEmpty()) return false;
+        GuardPlot.cancel();
         crews = List.copyOf(selected);
         NODES.clear();
         armed = true;

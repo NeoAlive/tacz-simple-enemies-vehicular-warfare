@@ -61,6 +61,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue CREATIVE_AMMO_FALLBACK;
     public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_ENERGY;
     public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_AMMO;
+    public static final ForgeConfigSpec.ConfigValue<String> VEHICLE_DEATH_DROPS;
 
     public static final ForgeConfigSpec.BooleanValue NPC_ARMOR_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_ARMOR;
@@ -280,6 +281,14 @@ public final class SewvConfig {
                 .define("factionInfiniteEnergy", true);
         FACTION_INFINITE_AMMO = builder.comment("RU/US-crewed vehicles use unlimited ammo.")
                 .define("factionInfiniteAmmo", true);
+        // Existing installs keep whatever is already in serverconfig until the key is written;
+        // delete the toml (or the key) to pick up a new default.
+        VEHICLE_DEATH_DROPS = builder.comment(
+                        "Hull container drops on destroy, and inventory drops for units tagged sewv:gated_drops",
+                        "(/sewv spawn and berezka structure crews). disable = nothing; reduced = 1/4 of each",
+                        "stack (default); everything = full stacks. superbwarfare:creative_ammo_box never drops.")
+                .defineInList("vehicleDeathDrops", "reduced",
+                        Arrays.asList("disable", "reduced", "everything"));
         builder.pop();
 
         builder.push("npc_armor");
@@ -317,8 +326,9 @@ public final class SewvConfig {
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
         AI_AIM_ACCURACY = builder.comment("AI vehicle accuracy mode: realistic, scaled, or accurate.")
                 .defineInList("aiAimAccuracy", "realistic", Arrays.asList("realistic", "scaled", "accurate"));
-        AI_AIM_SPREAD_DEG = builder.comment("Extra dispersion added in realistic/scaled aim modes.")
-                .defineInRange("aiAimSpreadDegrees", 1.0, 0.0, 30.0);
+        // Existing serverconfig tomls keep the old value until edited or deleted.
+        AI_AIM_SPREAD_DEG = builder.comment("Extra dispersion (degrees) added in realistic/scaled aim modes.")
+                .defineInRange("aiAimSpreadDegrees", 4.0, 0.0, 30.0);
         IFV_DISMOUNTS_ENABLED = builder.comment("Let IFVs dismount squads against armor.")
                 .define("ifvDismountsEnabled", true);
         SEM_CREW_DISABLE_INERTIA_ROTATE = builder.comment("Disable chassis bank while SEM units drive.")

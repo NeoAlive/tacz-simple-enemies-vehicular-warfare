@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.mixin;
 import com.atsuishio.superbwarfare.data.gun.ShootParameters;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
@@ -82,10 +83,9 @@ public abstract class MixinAiAimSpread {
 
         double added = SewvConfig.AI_AIM_SPREAD_DEG.get();
         if (TACZ_SEWV$SCALED.equals(mode)) {
-            // Occupied seats, not total seats: a hull's seat count is fixed, so dividing by it
-            // would make the setting a constant. Crew losses are what this mode is about.
-            // Never zero — the shooter is itself a passenger, so this is at least 1.
-            added /= Math.max(1, vehicle.getPassengers().size());
+            // Design crew seats (driver + turret on an IFV), not raw passengers — a loaded
+            // IFV's squad riders would otherwise collapse this to nearly accurate.
+            added /= HullFacts.crewSeatCount(vehicle);
         }
         return spread + added;
     }

@@ -34,6 +34,7 @@
   "gui.tacz_sewv.map.land_here": "▼ Land here (%s selected)",
   "gui.tacz_sewv.map.patrol_here": "◯ Patrol here (%s selected)",
   "gui.tacz_sewv.map.sad_here": "⚔ Search & destroy here (%s selected)",
+  "gui.tacz_sewv.map.sweep_and_advance": "⇉ Sweep & Advance (%s selected)",
   "gui.tacz_sewv.map.cruise": "↻ Cruise: plot a route (%s selected)",
   "gui.tacz_sewv.map.dismiss": "✕ Dismiss area task (%s selected)",
   "gui.tacz_sewv.map.cruise.confirm": "Confirm route",
@@ -258,7 +259,6 @@
   "gui.tacz_sewv.pool.hint": "%s · %s · %s entries",
   "gui.tacz_sewv.pool.next_add": "Add will insert: %s",
 
-  "gui.tacz_sewv.map.sweep_and_advance": "Sweep & Advance",
   "message.tacz_sewv.sweep.need_selection": "Drag a chunk rectangle on the map first (RMB).",
   "message.tacz_sewv.sweep.too_large": "Sweep area too large (max %s chunks).",
   "message.tacz_sewv.sweep.started": "Sweep & Advance: %s mounted, %s on foot.",

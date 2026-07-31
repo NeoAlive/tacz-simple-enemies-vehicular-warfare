@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.util.SupportSpawner;
 import com.neoalive.tacz_sewv.util.SupportSpawner.SupportRole;
 import com.neoalive.tacz_sewv.util.TankSpawner;
 import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.VehicleDrops;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -517,10 +518,12 @@ public class SewvCommand {
                 ? explicitPos
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
 
-        if (EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null) == null) {
+        VehicleEntity weapon = EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null);
+        if (weapon == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.emplacement_fail"));
             return 0;
         }
+        VehicleDrops.markCrewAndHull(weapon);
 
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.spawn.success", faction.name(), pos.toShortString()), true);
@@ -633,6 +636,7 @@ public class SewvCommand {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
             return 0;
         }
+        VehicleDrops.markCrewAndHull(tank);
 
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.spawn.success", faction.name(), pos.toShortString()), true);
         return 1;
@@ -661,6 +665,7 @@ public class SewvCommand {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
             return 0;
         }
+        VehicleDrops.markCrewAndHull(ship);
 
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.spawn.success", faction.name(), ship.blockPosition().toShortString()), true);
@@ -688,6 +693,7 @@ public class SewvCommand {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
             return 0;
         }
+        VehicleDrops.markCrewAndHull(plane);
 
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.spawn.success", faction.name(), plane.blockPosition().toShortString()), true);

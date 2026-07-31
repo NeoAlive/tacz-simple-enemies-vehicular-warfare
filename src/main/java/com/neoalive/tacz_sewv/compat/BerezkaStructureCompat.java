@@ -2,6 +2,8 @@ package com.neoalive.tacz_sewv.compat;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.TankSpawner;
+import com.neoalive.tacz_sewv.util.VehicleDrops;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -76,7 +78,8 @@ public final class BerezkaStructureCompat {
             // Every faction gets a crewed, fuelled, armed hull — a PMC structure fields friendly
             // PMC crew (ownerId null = FRIENDLY_DEFAULT, ownerless), the same as RU/US and the
             // village garrisons. See the class doc for why crewed and not a parked bare hull.
-            TankSpawner.spawnTankWithCrew(level, pos, faction, null);
+            VehicleEntity hull = TankSpawner.spawnTankWithCrew(level, pos, faction, null);
+            if (hull != null) VehicleDrops.markCrewAndHull(hull);
         }
     }
 

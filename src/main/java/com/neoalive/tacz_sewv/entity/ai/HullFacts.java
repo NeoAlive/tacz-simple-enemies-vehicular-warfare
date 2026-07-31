@@ -243,6 +243,16 @@ public final class HullFacts {
         return computeAntiAir(v);
     }
 
+    /**
+     * Design crew-seat count for AI aim scaling — driver (+ turret on IFVs), never the
+     * infantry squad hanging in rear seats. At least 1.
+     */
+    public static int crewSeatCount(VehicleEntity v) {
+        HullFacts facts = new HullFacts();
+        facts.attach(v);
+        return Math.max(1, facts.crewSeats().size());
+    }
+
     private static boolean computeIfv(VehicleEntity v) {
         if (!SewvConfig.IFV_DISMOUNTS_ENABLED.get()) return false;
         return idMatchesClues(v, IFV_NAME_CLUES);

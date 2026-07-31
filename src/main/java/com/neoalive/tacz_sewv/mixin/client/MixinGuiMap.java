@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.mixin.client;
 import com.neoalive.tacz_sewv.client.InvasionHudClient;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.xaero.CruisePlot;
+import com.neoalive.tacz_sewv.client.xaero.GuardPlot;
 import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
 import com.neoalive.tacz_sewv.client.xaero.VehicleMarkerElements;
@@ -186,13 +187,24 @@ public abstract class MixinGuiMap extends Screen {
         int y = this.height - 28;
         this.tacz_sewv$confirmButton = this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.tacz_sewv.map.cruise.confirm"),
-                b -> tacz_sewv$hint("message.tacz_sewv.cruise.plotted", CruisePlot.confirm()))
+                b -> {
+                    if (GuardPlot.armed()) {
+                        tacz_sewv$hint("message.tacz_sewv.guard.plotted", GuardPlot.confirm());
+                    } else {
+                        tacz_sewv$hint("message.tacz_sewv.cruise.plotted", CruisePlot.confirm());
+                    }
+                })
                 .bounds(this.width / 2 - 104, y, 100, 20).build());
         this.tacz_sewv$cancelButton = this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.tacz_sewv.map.cruise.cancel"),
                 b -> {
-                    CruisePlot.cancel();
-                    tacz_sewv$hint("message.tacz_sewv.cruise.cancelled");
+                    if (GuardPlot.armed()) {
+                        GuardPlot.cancel();
+                        tacz_sewv$hint("message.tacz_sewv.guard.cancelled");
+                    } else {
+                        CruisePlot.cancel();
+                        tacz_sewv$hint("message.tacz_sewv.cruise.cancelled");
+                    }
                 })
                 .bounds(this.width / 2 + 4, y, 100, 20).build());
         this.tacz_sewv$confirmButton.visible = false;
@@ -208,7 +220,16 @@ public abstract class MixinGuiMap extends Screen {
             } else {
                 CruisePlot.removeNear(this.mouseBlockPosX, this.mouseBlockPosZ, TACZ_SEWV$NODE_PICK_REACH);
             }
-            ci.cancel(); // never fall through to selection or to the right-click menu
+            ci.cancel();
+            return;
+        }
+        if (GuardPlot.armed()) {
+            if (button == 0) {
+                GuardPlot.set(new BlockPos(this.mouseBlockPosX, tacz_sewv$nodeY(), this.mouseBlockPosZ));
+            } else {
+                GuardPlot.clearPoint();
+            }
+            ci.cancel();
             return;
         }
 
@@ -232,7 +253,7 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapPress(double mouseX, double mouseY, int button,
                                       CallbackInfoReturnable<Boolean> cir) {
-        if (!ClientConfig.mapMarkersEnabled() || CruisePlot.armed()) return;
+        if (!ClientConfig.mapMarkersEnabled() || CruisePlot.armed() || GuardPlot.armed()) return;
         if (tacz_sewv$dropdownOpen()) return; // the right-click menu (or a toggle-menu) owns this click
         if (this.getChildAt(mouseX, mouseY).isPresent()) return; // a Xaero widget, not the map
 
@@ -327,25 +348,38 @@ public abstract class MixinGuiMap extends Screen {
             if (ClientConfig.MAP_SHOW_COMMAND_DEBUG.get()) {
                 tacz_sewv$drawBattleFieldOverlay(guiGraphics);
             }
-            if (this.tacz_sewv$orderDragging && !CruisePlot.armed()
+            if (this.tacz_sewv$orderDragging && !CruisePlot.armed() && !GuardPlot.armed()
                     && MapMarkers.selected().size() >= 2) {
                 tacz_sewv$drawDragPreview(guiGraphics);
             }
-            if (this.tacz_sewv$boxSelecting && !CruisePlot.armed()) {
+            if (this.tacz_sewv$boxSelecting && !CruisePlot.armed() && !GuardPlot.armed()) {
                 tacz_sewv$drawSelectionBox(guiGraphics, mouseX, mouseY);
             }
         }
 
-        boolean armed = CruisePlot.armed();
+        boolean cruiseArmed = CruisePlot.armed();
+        boolean guardArmed = GuardPlot.armed();
+        boolean armed = cruiseArmed || guardArmed;
         if (this.tacz_sewv$confirmButton != null) this.tacz_sewv$confirmButton.visible = armed;
         if (this.tacz_sewv$cancelButton != null) this.tacz_sewv$cancelButton.visible = armed;
         if (!armed) return;
 
-        List<BlockPos> nodes = CruisePlot.nodes();
         int color = ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55);
 
-        // A cruise is a loop, so the leg back to the first node is drawn too — the route the crew
-        // will actually drive, not the sequence of clicks.
+        if (guardArmed) {
+            BlockPos point = GuardPlot.point();
+            if (point != null) {
+                int[] at = tacz_sewv$toScreen(point);
+                guiGraphics.fill(at[0] - 5, at[1] - 5, at[0] + 5, at[1] + 5, 0xFF000000);
+                guiGraphics.fill(at[0] - 4, at[1] - 4, at[0] + 4, at[1] + 4, color);
+            }
+            guiGraphics.drawCenteredString(this.font,
+                    Component.translatable("message.tacz_sewv.guard.plotting"),
+                    this.width / 2, this.height - 42, 0xFFFFFFFF);
+            return;
+        }
+
+        List<BlockPos> nodes = CruisePlot.nodes();
         for (int i = 0; i < nodes.size(); i++) {
             int[] from = tacz_sewv$toScreen(nodes.get(i));
             int[] to = tacz_sewv$toScreen(nodes.get((i + 1) % nodes.size()));

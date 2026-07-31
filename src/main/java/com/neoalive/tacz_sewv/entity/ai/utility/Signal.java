@@ -72,6 +72,13 @@ public enum Signal {
     // ---- out of contact ----
     /** We remember where an enemy was, recently enough to be worth going to look. */
     LOST_CONTACT("lostContact"),
+    /**
+     * Something hostile was coarsely spotted beyond the inner engage ring.
+     *
+     * <p>Independent of {@link #LOST_CONTACT}: can be raised while still holding an inner lock.
+     * Never means the contact is engageable — only situational awareness for scoring.
+     */
+    DISTANT_CONTACT("distantContact"),
     /** A player order or area task is standing, so where we go is not ours to choose. */
     UNDER_ORDERS("underOrders"),
 

@@ -25,7 +25,9 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
                             VehicleMarker.CommandRole commandRole, int groupId,
                             VehicleMarker.PlayRole playRole,
                             /** 0 = client uses config colour; else 0xRRGGBB from OpenPAC (server). */
-                            int tintRgb) {
+                            int tintRgb,
+                            /** Hull has a cached GUARD_POSITION (OWN markers only matter for greying). */
+                            boolean hasGuard) {
 
     /** Sentinel: hull has no energy storage — do not draw an energy bar. */
     public static final float NO_ENERGY = -1.0F;

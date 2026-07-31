@@ -59,7 +59,8 @@ public class NetworkHandler {
     // 33: invisible toggle on capture_point / team_base open+save packets.
     // 34: PacketInvasionHud carries team names + per-vehicle side colours for overlay.
     // 35: team_base endInvasionOnCapture on open+save packets.
-    private static final String PROTOCOL_VERSION = "35";
+    // 36: GUARD_POSITION / REACH_GUARD packets; VehicleMarker.hasGuard.
+    private static final String PROTOCOL_VERSION = "36";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -232,6 +233,21 @@ public class NetworkHandler {
                 PacketInvasionHud::encode,
                 PacketInvasionHud::new,
                 PacketInvasionHud::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSetGuardPosition.class,
+                PacketSetGuardPosition::encode,
+                PacketSetGuardPosition::new,
+                PacketSetGuardPosition::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketReachGuard.class,
+                PacketReachGuard::encode,
+                PacketReachGuard::new,
+                PacketReachGuard::handle
         );
     }
 }

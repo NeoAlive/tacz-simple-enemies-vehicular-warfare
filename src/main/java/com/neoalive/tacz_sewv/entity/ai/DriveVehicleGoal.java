@@ -15,7 +15,9 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -71,6 +73,8 @@ public class DriveVehicleGoal extends Goal {
     // Mutual support scanner (idle crew reinforces an allied crew in combat), shared with
     // DriveHelicopterGoal via VehicleTargeting.
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
+    /** Outer awareness ring — spots only, never setTarget. See {@link OuterRingAwareness}. */
+    private final OuterRingAwareness outerRing = new OuterRingAwareness();
 
     /** Everything about actually making the hull go somewhere. See {@link VehicleDriver}. */
     private final VehicleDriver driver;
@@ -137,6 +141,7 @@ public class DriveVehicleGoal extends Goal {
         this.allyAssist.clear();
         this.driver.clear();
         this.breaker.clear();
+        this.outerRing.clear();
         this.brain.facts().unbind(this.unit);
         this.brain.clear();
     }
@@ -146,6 +151,9 @@ public class DriveVehicleGoal extends Goal {
         if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
         this.driver.tickTimers();
 
+        // Spots before re-score so DISTANT_CONTACT sees this tick's outer fields. noteSpot is
+        // gated on getTarget()==null; observe (inside update) still owns Memory when locked.
+        this.outerRing.tick(this.unit, this.vehicle, this.brain.facts());
         // Re-read the battlefield and, on its own ~1s cadence, re-decide. Cheap on the ticks it
         // does nothing, which is most of them.
         this.brain.update(this.unit, this.vehicle);
@@ -264,7 +272,18 @@ public class DriveVehicleGoal extends Goal {
         } else {
             parkOnStation();
             this.driver.clearRecovery(); // parked at destination
+            tryPromoteReachGuard();
         }
+    }
+
+    /**
+     * REACH_GUARD: after MOVE parks, flip to HOLD_POSITION. No other arrival uses this path.
+     */
+    private void tryPromoteReachGuard() {
+        if (!GuardSupport.isReaching(this.unit)) return;
+        if (!(this.unit instanceof PmcUnitEntity pmc)) return;
+        GuardSupport.clearReach(pmc);
+        pmc.setOrder(OrderType.HOLD_POSITION);
     }
 
     /**

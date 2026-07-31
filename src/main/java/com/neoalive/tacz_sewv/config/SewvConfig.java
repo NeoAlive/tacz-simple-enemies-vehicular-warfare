@@ -128,6 +128,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue UTILITY_REFRESH_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.BooleanValue OUTER_RING_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue OUTER_RING_MAX_BLOCKS;
+    public static final ForgeConfigSpec.BooleanValue OUTER_RING_DEBUG_LOGGING;
 
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_JOIN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_LEAVE_RADIUS;
@@ -431,6 +434,14 @@ public final class SewvConfig {
                 .define("factionOrganicComms", true);
         SUPPORT_CALL_INTERVAL_TICKS = builder.comment("Minimum delay between support searches and support requests.")
                 .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
+        OUTER_RING_ENABLED = builder.comment(
+                        "Outer awareness ring beyond the mounted target-scan cylinder. Spots only — never setTarget / fire.")
+                .define("outerRingEnabled", true);
+        OUTER_RING_MAX_BLOCKS = builder.comment(
+                        "Outer ring max horizontal radius in blocks, also clamped to server simulation distance.")
+                .defineInRange("outerRingMaxBlocks", 192.0, 96.0, 512.0);
+        OUTER_RING_DEBUG_LOGGING = builder.comment("Log outer-ring band polls, spots, and occlusion rejects.")
+                .define("outerRingDebugLogging", false);
         builder.pop();
 
         builder.push("command");

@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.mixin;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.entity.ai.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 import com.neoalive.tacz_sewv.util.CrewRadio;
@@ -59,6 +60,8 @@ public abstract class MixinPacketIssueOrder {
                 || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
             PatrolSupport.clearSweepMembership(pmc, "PacketIssueOrder");
         }
+        // Any player SEM order cancels an in-flight REACH promote (FREE_FIRE included).
+        GuardSupport.clearReach(pmc);
 
         if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
             CrewRadio.play(hull, CrewRadio.Line.ORDERS);

@@ -8,14 +8,13 @@ import org.slf4j.Logger;
  * Temporary Stage 3–5 diagnosis logs. Prefix {@code [sewv-diag]} for grepping.
  * Observe-only — callers must not change control flow based on this class.
  *
- * <p>Ground-pathing investigation noise is split in two tiers:
+ * <p>All channels are config-gated (default off):
  * <ul>
- *   <li>{@link #pathing}/{@link #water} — verbose, gated by
- *       {@code groundPathingDebug} (default off). Per-tick / per-search spam.</li>
- *   <li>{@link #pathingEvent}/{@link #waterEvent} — rare recovery / fan-summary
- *       transitions; always on, fire only on state changes.</li>
+ *   <li>{@link #pathing}/{@link #water}/{@link #pathingEvent}/{@link #waterEvent} —
+ *       {@code groundPathingDebug}</li>
+ *   <li>Everything else — {@code sewvDiagDebug}</li>
  * </ul>
- * Callers of the verbose tier should still guard expensive arg construction with
+ * Callers of the verbose pathing tier should still guard expensive arg construction with
  * {@link #groundPathingVerbose()} — Java evaluates arguments before the early return.
  */
 public final class SewvDiag {
@@ -26,38 +25,53 @@ public final class SewvDiag {
 
     /** Heavy ground-pathing / shoreline investigation logs. Default off. */
     public static boolean groundPathingVerbose() {
-        return SewvConfig.GROUND_PATHING_DEBUG.get();
+        // OpenPacCompat (and similar) may call SewvDiag during COMMON_SETUP before the
+        // server config is baked — ConfigValue.get() throws in that window in userdev.
+        return SewvConfig.SPEC.isLoaded() && SewvConfig.GROUND_PATHING_DEBUG.get();
+    }
+
+    /** Non-pathing [sewv-diag] channels. Default off. */
+    public static boolean diagEnabled() {
+        return SewvConfig.SPEC.isLoaded() && SewvConfig.SEWV_DIAG_DEBUG.get();
     }
 
     public static void targeting(String msg, Object... args) {
+        if (!diagEnabled()) return;
         LOG.info("[sewv-diag][targeting] " + msg, args);
     }
 
     public static void scan(String msg, Object... args) {
+        if (!diagEnabled()) return;
         LOG.info("[sewv-diag][scan] " + msg, args);
     }
 
     public static void setTarget(String msg, Object... args) {
+        if (!diagEnabled()) return;
         LOG.info("[sewv-diag][setTarget] " + msg, args);
     }
 
     public static void claim(String msg, Object... args) {
+        if (!diagEnabled()) return;
         LOG.info("[sewv-diag][claim] " + msg, args);
     }
 
     public static void sweep(String msg, Object... args) {
+        if (!diagEnabled()) return;
         LOG.info("[sewv-diag][sweep] " + msg, args);
     }
 
     public static void invasion(String msg, Object... args) {
+        if (!diagEnabled()) return;
         LOG.info("[sewv-diag][invasion] " + msg, args);
     }
 
     public static void orderAuth(String msg, Object... args) {
+        if (!diagEnabled()) return;
         LOG.info("[sewv-diag][orderAuth] " + msg, args);
     }
 
     public static void diplomacy(String msg, Object... args) {
+        if (!diagEnabled()) return;
         LOG.info("[sewv-diag][diplomacy] " + msg, args);
     }
 
@@ -74,17 +88,20 @@ public final class SewvDiag {
     }
 
     /**
-     * Rare pathing events (fan summary, hullFan reverse START/END/SKIP). Always on —
-     * only fire on transitions / full-fan misses, not every tick.
+     * Rare pathing events (fan summary, hullFan reverse START/END/SKIP). Same gate as
+     * {@link #pathing} — {@code groundPathingDebug}.
      */
     public static void pathingEvent(String msg, Object... args) {
+        if (!groundPathingVerbose()) return;
         LOG.info("[sewv-diag][pathing] " + msg, args);
     }
 
     /**
-     * Rare water events (bankLip reverse START/END/ABORT). Always on — transition-only.
+     * Rare water events (bankLip reverse START/END/ABORT). Same gate as {@link #water} —
+     * {@code groundPathingDebug}.
      */
     public static void waterEvent(String msg, Object... args) {
+        if (!groundPathingVerbose()) return;
         LOG.info("[sewv-diag][water] " + msg, args);
     }
 }

@@ -121,6 +121,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue STALEMATE_SILENCE_TICKS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
     public static final ForgeConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue SEWV_DIAG_DEBUG;
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
     public static final ForgeConfigSpec.IntValue IDLE_WANDER_RADIUS;
@@ -410,10 +411,14 @@ public final class SewvConfig {
         VEHICLE_TERRAIN_AVOIDANCE = builder.comment("Use terrain avoidance while driving.")
                 .define("vehicleTerrainAvoidance", true);
         GROUND_PATHING_DEBUG = builder.comment(
-                        "Verbose ground-pathing / shoreline diagnosis logs ([sewv-diag][pathing]/[water]). "
-                                + "Default off. Recovery transitions (bankLip/hullFan START/END/SKIP) and "
-                                + "full-fan summaries still log without this.")
+                        "Ground-pathing / shoreline diagnosis logs ([sewv-diag][pathing]/[water]), "
+                                + "including recovery transitions (bankLip/hullFan START/END/SKIP) and "
+                                + "full-fan summaries. Default off.")
                 .define("groundPathingDebug", false);
+        SEWV_DIAG_DEBUG = builder.comment(
+                        "Other [sewv-diag] channels: targeting, scan, setTarget, claim, sweep, "
+                                + "invasion, orderAuth, diplomacy. Default off. Pathing uses groundPathingDebug.")
+                .define("sewvDiagDebug", false);
         PATROL_ROTATE_INTERVAL_TICKS = builder.comment("How long patrol crews hold a point before rotating.")
                 .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
         IDLE_WANDER_ENABLED = builder.comment("Let idle hulls wander locally.")

@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.mixin;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.util.TankSpawner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -23,7 +24,7 @@ public abstract class MixinCombatEvent {
 
         int separation = 24;
 
-        if (SewvConfig.TANKS_IN_EVENTS.get()) {
+        if (level.getGameRules().getBoolean(ModGameRules.TANKS_IN_EVENTS)) {
             if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_RU.get()) {
                 BlockPos posRu = TankSpawner.adjustHeight(level, centerPos.offset(separation, 0, 0));
                 TankSpawner.spawnTankWithCrew(level, posRu, TankSpawner.TankFaction.RU, null);

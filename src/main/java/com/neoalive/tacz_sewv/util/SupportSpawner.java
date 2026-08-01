@@ -32,7 +32,7 @@ public final class SupportSpawner {
     /** Spawn a support unit of the given faction/role at {@code pos}, kitted and ready. */
     @Nullable
     public static AbstractUnit spawn(ServerLevel level, BlockPos pos, boolean ru, SupportRole role) {
-        if (!TankSpawner.spawnsEnabled(ru ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US)) return null;
+        if (!TankSpawner.spawnsEnabled(level, ru ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US)) return null;
         EntityType<?> type = typeFor(ru, role);
         if (!(type.create(level) instanceof AbstractUnit unit)) return null;
         unit.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);

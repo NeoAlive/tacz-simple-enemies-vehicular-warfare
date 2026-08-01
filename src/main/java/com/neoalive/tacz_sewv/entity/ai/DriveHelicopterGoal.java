@@ -5,6 +5,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHeliRunPhase;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
@@ -140,8 +141,8 @@ public class DriveHelicopterGoal extends Goal {
     private static final double PITCH_STICK_PER_DEG = 0.8;
     private static final float MAX_PITCH_STICK = 15.0F;
     private static final double APPROACH_GAIN = 0.1;
+    /** Along-track speed error below this → level pitch (no accelerate/brake). */
     private static final double VEL_ERR_DEADBAND = 0.03;
-    private static final double ERR_BEHIND_DEG = 100.0;
 
     // --- Collective (vertical) ---
     private static final double CLIMB_RATE_CAP = 0.22;
@@ -288,6 +289,17 @@ public class DriveHelicopterGoal extends Goal {
     /** AT launchers handed out this RAPPEL session (mirrors IFV {@code dismountSquad} armed count). */
     private int rappelAtIssued;
 
+    // --- Flight-quality diagnosis (heliFlightDebug) — observe-only ---
+    private static final int FLIGHT_LOG_INTERVAL_TICKS = 10;
+    private String flightHoverMode = "";
+    private String flightBranch = "";
+    private long flightLastLogAt = Long.MIN_VALUE;
+    private int flightTicksAlign;
+    private int flightTicksTrack;
+    private int flightTicksWhisker;
+    private boolean flightWasArriveHover;
+    private boolean flightAvoidFloorWasActive;
+
     public DriveHelicopterGoal(AbstractUnit unit) {
         this.unit = unit;
         this.sensor = new AirTerrainSensor(unit);
@@ -360,6 +372,7 @@ public class DriveHelicopterGoal extends Goal {
         this.landingCapture = false;
         clearWeaponHold();
         clearRun();
+        clearFlightDiag();
         this.allyAssist.clear();
         this.sensor.clear();
     }
@@ -515,6 +528,7 @@ public class DriveHelicopterGoal extends Goal {
         }
 
         if (dest == null) {
+            noteHoverMode("IDLE_HOVER");
             holdHover(cruiseAltitudeHere());
             return;
         }
@@ -524,12 +538,17 @@ public class DriveHelicopterGoal extends Goal {
             // Arrived — hold overhead: cruise level above the ground HERE, never
             // closer than the fixed clearance over the destination (a followed
             // commander's head included).
+            noteHoverMode("ARRIVE_HOVER");
             holdHover(Math.max(cruiseAltitudeHere(), dest.getY() + MIN_OVER_DEST));
         } else {
+            if (this.flightWasArriveHover) {
+                noteArriveThrash();
+            }
             double px = dest.getX() + 0.5;
             double pz = dest.getZ() + 0.5;
             flyToward(px, pz,
-                    Math.max(cruiseAltitudeToward(px, pz), dest.getY() + MIN_OVER_DEST));
+                    Math.max(cruiseAltitudeToward(px, pz), dest.getY() + MIN_OVER_DEST),
+                    "transit");
         }
     }
 
@@ -650,8 +669,9 @@ public class DriveHelicopterGoal extends Goal {
         double dx = target.getX() - this.vehicle.getX();
         double dz = target.getZ() - this.vehicle.getZ();
         if (dx * dx + dz * dz > ARRIVE_RADIUS * ARRIVE_RADIUS) {
-            flyToward(target.getX(), target.getZ(), holdY);
+            flyToward(target.getX(), target.getZ(), holdY, "hold_cruise");
         } else {
+            noteHoverMode("ARRIVE_HOVER");
             holdHover(holdY);
         }
     }
@@ -682,13 +702,13 @@ public class DriveHelicopterGoal extends Goal {
                 SewvConfig.HELI_MIN_STANDOFF.get());
 
         if (horizDist > engage + ENGAGE_DEADBAND) {
-            flyToward(target.getX(), target.getZ(), holdY);
+            flyToward(target.getX(), target.getZ(), holdY, "guided_engage");
             return;
         }
         if (horizDist < BREAK_RANGE) {
             BlockPos out = VehicleTargeting.computeStandoffPoint(
                     this.vehicle, target.blockPosition(), engage);
-            flyToward(out.getX() + 0.5, out.getZ() + 0.5, holdY);
+            flyToward(out.getX() + 0.5, out.getZ() + 0.5, holdY, "guided_break");
             return;
         }
         aimAtTarget(target, horizDist, holdY);
@@ -719,7 +739,7 @@ public class DriveHelicopterGoal extends Goal {
             attackPassTick(target);
             return;
         }
-        flyToward(target.getX(), target.getZ(), cruiseY);
+        flyToward(target.getX(), target.getZ(), cruiseY, "ingress");
     }
 
     private void startAttackRun(LivingEntity target) {
@@ -762,9 +782,7 @@ public class DriveHelicopterGoal extends Goal {
 
         // ATTACK pass: collective holds run altitude; nose is owned by aimNoseOnly so
         // hull-fixed weapons (rockets) sit inside the fire-assist cone. Do NOT call
-        // flyToward here — its velocity-error steering crabs the nose onto the
-        // sideways error and fails CONE for slot-0 dumb rockets. Transit/INGRESS
-        // keep flyToward unchanged (that crab-brake is what stops pirouettes there).
+        // flyToward here — ATTACK needs the nose on the target, not the travel path.
         double runY = Math.max(groundRef + RUN_ALTITUDE, target.getY() + MIN_OVER_DEST);
         applyCollective(withAvoidFloor(runY));
         this.vehicle.setHoverMode(false);
@@ -850,7 +868,7 @@ public class DriveHelicopterGoal extends Goal {
             return;
         }
         // Whisker abort during reposition still climbs via flyToward's avoid floor.
-        flyToward(this.repositionX, this.repositionZ, holdY);
+        flyToward(this.repositionX, this.repositionZ, holdY, "reposition");
     }
 
     private Vec3 forwardFlat() {
@@ -1385,6 +1403,7 @@ public class DriveHelicopterGoal extends Goal {
                     || this.vehicle.horizontalCollision
                     || this.vehicle.getCollisionCoolDown() > 0) {
                 this.landingCapture = false; // grounded short or bounced — go around
+                logLandingPhase("CAPTURE_ABORT", dist, surfaceY);
             } else {
                 captureTick(surfaceY, dx, dz, dist);
                 return;
@@ -1393,6 +1412,8 @@ public class DriveHelicopterGoal extends Goal {
                 && this.vehicle.getCollisionCoolDown() == 0
                 && (dist < 1.0E-4 || this.sensor.headingClear(new Vec3(dx / dist, 0, dz / dist), dist))) {
             this.landingCapture = true;
+            noteHoverMode("LANDING_CAPTURE");
+            logLandingPhase("CAPTURE_ENTER", dist, surfaceY);
             captureTick(surfaceY, dx, dz, dist);
             return;
         }
@@ -1400,7 +1421,8 @@ public class DriveHelicopterGoal extends Goal {
         double glideY = surfaceY + Mth.clamp(dist * LAND_GLIDE_RATIO, MIN_OVER_DEST, flightAltitude());
         double clearY = AirframeSupport.highestGroundToward(
                 this.vehicle, px, pz, TERRAIN_LOOKAHEAD) + MIN_OVER_DEST;
-        flyToward(px, pz, Math.max(glideY, clearY), LAND_APPROACH_GAIN);
+        // Same flyToward body as transit — tag for post-nose-decouple landing re-verify.
+        flyToward(px, pz, Math.max(glideY, clearY), LAND_APPROACH_GAIN, "landing");
     }
 
     // Terminal guidance by direct velocity command: SBW's engine integrates
@@ -1435,6 +1457,8 @@ public class DriveHelicopterGoal extends Goal {
     // Touchdown → sticky LANDED; the hull stays down until a new takeoff order
     // rather than immediately resuming FOLLOW/MOVE orders.
     private void settleLanded(IHelicopterPilot pilot) {
+        noteHoverMode("LANDING_SETTLED");
+        logLandingPhase("SETTLED", 0.0, this.vehicle.getY());
         AirframeSupport.releaseInputs(this.vehicle);
         this.vehicle.setHoverMode(false);
         pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
@@ -1458,16 +1482,25 @@ public class DriveHelicopterGoal extends Goal {
         return pad.getY() + 1.0;
     }
 
-    // The one lateral primitive: whisker-check the bearing, then fly velocity-error
-    // guidance along the clear direction while the collective holds desiredY.
-    // Desired velocity tapers with distance so the hull decelerates onto the point;
-    // steering at the velocity ERROR (not the point) actively brakes sideways drift,
-    // which is what prevents endless circling around a destination.
+    // The one lateral primitive: whisker-check the bearing, point the nose at the
+    // clear travel direction, and pitch only for along-track speed error while the
+    // collective holds desiredY. Desired speed tapers with distance so the hull
+    // decelerates onto the point. Nose is never aimed at the 2D velocity-error
+    // vector — that crabs/reverse-thrusts (see heli flight-quality diagnosis).
     private void flyToward(double steerX, double steerZ, double desiredY) {
-        flyToward(steerX, steerZ, desiredY, APPROACH_GAIN);
+        flyToward(steerX, steerZ, desiredY, APPROACH_GAIN, null);
+    }
+
+    private void flyToward(double steerX, double steerZ, double desiredY, String caller) {
+        flyToward(steerX, steerZ, desiredY, APPROACH_GAIN, caller);
     }
 
     private void flyToward(double steerX, double steerZ, double desiredY, double approachGain) {
+        flyToward(steerX, steerZ, desiredY, approachGain, null);
+    }
+
+    private void flyToward(double steerX, double steerZ, double desiredY, double approachGain,
+            @Nullable String caller) {
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
@@ -1492,43 +1525,45 @@ public class DriveHelicopterGoal extends Goal {
                 Math.max(dist, 4.0));
         Vec3 travelDir = this.sensor.chooseClearBearing(dirToDest, probe);
         if (travelDir == null) {
+            noteAvoidFloorSet(this.vehicle.getY() + AVOID_CLIMB_STEP);
             this.avoidFloorY = this.vehicle.getY() + AVOID_CLIMB_STEP;
+            noteHoverMode("WHISKER_AVOID_HOVER");
             holdHover(this.avoidFloorY);
+            logFlyToward(caller, "WHISKER_BLOCKED", dirToDest, null, dist, groundSpeed, probe,
+                    0.0, 0.0, 0.0, 0.0, 0.0F, vel);
             return;
+        }
+
+        if (caller != null) {
+            noteHoverMode("landing".equals(caller) ? "LANDING_GLIDE" : "TRANSIT_FLY");
         }
 
         applyCollective(withAvoidFloor(desiredY));
         this.vehicle.setHoverMode(false); // full control authority while moving
 
         double desiredSpeed = Math.min(CRUISE_SPEED, dist * approachGain);
-        double evx = travelDir.x * desiredSpeed - vel.x;
-        double evz = travelDir.z * desiredSpeed - vel.z;
-        double errMag = Math.sqrt(evx * evx + evz * evz);
+        double speedAlong = vel.x * travelDir.x + vel.z * travelDir.z;
+        double speedErr = desiredSpeed - speedAlong;
 
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, travelDir));
 
-        // Flying the requested profile — keep the nose on the way ahead, level out.
-        if (errMag < VEL_ERR_DEADBAND) {
-            steerNose(forward, travelDir, 0.0F);
-            return;
-        }
-
-        Vec3 errDir = new Vec3(evx / errMag, 0, evz / errMag);
-        double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, errDir));
-        float attitudeMag = (float) Mth.clamp(errMag * PITCH_DEG_PER_SPEED_ERR, 0.0, MAX_ATTITUDE_DEG);
-
-        if (Math.abs(yawErrDeg) <= ERR_BEHIND_DEG) {
-            // Error ahead: nose toward it, gentle pitch into it once roughly aligned.
-            steerNose(forward, errDir,
-                    Math.abs(yawErrDeg) < ALIGN_THRESHOLD_DEG ? attitudeMag : 0.0F);
+        // Yaw always onto the clear path. Pitch only once roughly aligned, and only
+        // from the 1D along-track speed error (accelerate / brake without crabbing).
+        float attitudeCmd = 0.0F;
+        String branch;
+        if (Math.abs(yawErrDeg) >= ALIGN_THRESHOLD_DEG) {
+            branch = "ALIGN";
         } else {
-            // Error behind the hull (braking / killing sideways drift): keep the nose
-            // where it is and pitch UP to thrust backward — no 180° pirouette.
-            Vec3 back = new Vec3(-errDir.x, 0, -errDir.z);
-            double backErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, back));
-            steerNose(forward, back,
-                    Math.abs(backErrDeg) < ALIGN_THRESHOLD_DEG ? -attitudeMag : 0.0F);
+            branch = "TRACK";
+            if (Math.abs(speedErr) >= VEL_ERR_DEADBAND) {
+                attitudeCmd = (float) Mth.clamp(
+                        speedErr * PITCH_DEG_PER_SPEED_ERR, -MAX_ATTITUDE_DEG, MAX_ATTITUDE_DEG);
+            }
         }
+        steerNose(forward, travelDir, attitudeCmd);
+        logFlyToward(caller, branch, dirToDest, travelDir, dist, groundSpeed, probe,
+                desiredSpeed, speedAlong, speedErr, yawErrDeg, attitudeCmd, vel);
     }
 
     // Hold a stationary hover at targetY: hover mode auto-levels and damps drift,
@@ -1541,6 +1576,7 @@ public class DriveHelicopterGoal extends Goal {
         this.vehicle.setMouseMoveSpeedX(0.0F);
         this.vehicle.setMouseMoveSpeedY(0.0F);
         this.vehicle.setHoverMode(true);
+        logHoldHoverSample(targetY);
     }
 
     // Pure vertical climb (takeoff): collective only, hover mode keeping it level
@@ -1608,13 +1644,198 @@ public class DriveHelicopterGoal extends Goal {
     // The active hold height including the whisker climb floor, which decays about
     // a block per second so surplus avoidance altitude is given back gently.
     private double withAvoidFloor(double desiredY) {
-        if (Double.isNaN(this.avoidFloorY)) return desiredY;
+        if (Double.isNaN(this.avoidFloorY)) {
+            return desiredY;
+        }
         this.avoidFloorY -= AVOID_FLOOR_DECAY;
         if (this.avoidFloorY <= desiredY) {
             this.avoidFloorY = Double.NaN;
+            noteAvoidFloorClear(desiredY);
             return desiredY;
         }
+        this.flightAvoidFloorWasActive = true;
         return this.avoidFloorY;
+    }
+
+    private void clearFlightDiag() {
+        this.flightHoverMode = "";
+        this.flightBranch = "";
+        this.flightLastLogAt = Long.MIN_VALUE;
+        this.flightTicksAlign = 0;
+        this.flightTicksTrack = 0;
+        this.flightTicksWhisker = 0;
+        this.flightWasArriveHover = false;
+        this.flightAvoidFloorWasActive = false;
+    }
+
+    private void noteHoverMode(String mode) {
+        if (!SewvDiag.heliFlightVerbose()) {
+            this.flightHoverMode = mode;
+            this.flightWasArriveHover = "ARRIVE_HOVER".equals(mode);
+            return;
+        }
+        if (!mode.equals(this.flightHoverMode)) {
+            Vec3 vel = this.vehicle.getDeltaMovement();
+            SewvDiag.flight("{}#{} mode {} -> {} pos={}/{}/{} spdXZ={} avoidFloor={}",
+                    this.unit.getName().getString(), this.unit.getId(),
+                    this.flightHoverMode.isEmpty() ? "-" : this.flightHoverMode, mode,
+                    fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
+                    fmt(Math.sqrt(vel.x * vel.x + vel.z * vel.z)),
+                    Double.isNaN(this.avoidFloorY) ? "-" : fmt(this.avoidFloorY));
+            // Leaving a flyToward session — dump branch dwell so a transit/landing leg is readable.
+            boolean wasFly = "TRANSIT_FLY".equals(this.flightHoverMode)
+                    || "LANDING_GLIDE".equals(this.flightHoverMode);
+            boolean stillFly = "TRANSIT_FLY".equals(mode) || "LANDING_GLIDE".equals(mode);
+            if (wasFly && !stillFly) {
+                SewvDiag.flight("{}#{} branchDwell end mode={} align={} track={} whisker={}",
+                        this.unit.getName().getString(), this.unit.getId(), mode,
+                        this.flightTicksAlign, this.flightTicksTrack, this.flightTicksWhisker);
+                this.flightTicksAlign = 0;
+                this.flightTicksTrack = 0;
+                this.flightTicksWhisker = 0;
+                this.flightBranch = "";
+            }
+            this.flightHoverMode = mode;
+        }
+        this.flightWasArriveHover = "ARRIVE_HOVER".equals(mode);
+    }
+
+    private void noteArriveThrash() {
+        if (!SewvDiag.heliFlightVerbose()) return;
+        Vec3 vel = this.vehicle.getDeltaMovement();
+        SewvDiag.flight("{}#{} ARRIVE_THRASH left radius={} pos={}/{}/{} spdXZ={} yaw={} xRot={}",
+                this.unit.getName().getString(), this.unit.getId(),
+                fmt(ARRIVE_RADIUS),
+                fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
+                fmt(Math.sqrt(vel.x * vel.x + vel.z * vel.z)),
+                fmt(this.vehicle.getYRot()), fmt(this.vehicle.getXRot()));
+    }
+
+    /** Landing phase transitions for post-nose-decouple re-verify (observe-only). */
+    private void logLandingPhase(String phase, double dist, double surfaceY) {
+        if (!SewvDiag.heliFlightVerbose() || this.vehicle == null) return;
+        Vec3 vel = this.vehicle.getDeltaMovement();
+        SewvDiag.flight(
+                "{}#{} land {} dist={} pos={}/{}/{} surfaceY={} spdXZ={} yaw={} xRot={} capture={}",
+                this.unit.getName().getString(), this.unit.getId(), phase,
+                fmt(dist),
+                fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
+                fmt(surfaceY),
+                fmt(Math.sqrt(vel.x * vel.x + vel.z * vel.z)),
+                fmt(this.vehicle.getYRot()), fmt(this.vehicle.getXRot()),
+                this.landingCapture);
+    }
+
+    private void noteAvoidFloorSet(double floorY) {
+        if (!SewvDiag.heliFlightVerbose()) {
+            this.flightAvoidFloorWasActive = true;
+            return;
+        }
+        if (!this.flightAvoidFloorWasActive) {
+            SewvDiag.flight("{}#{} avoidFloor SET y={} climbStep={}",
+                    this.unit.getName().getString(), this.unit.getId(),
+                    fmt(floorY), fmt(AVOID_CLIMB_STEP));
+        }
+        this.flightAvoidFloorWasActive = true;
+    }
+
+    private void noteAvoidFloorClear(double desiredY) {
+        if (!this.flightAvoidFloorWasActive) return;
+        this.flightAvoidFloorWasActive = false;
+        if (!SewvDiag.heliFlightVerbose()) return;
+        SewvDiag.flight("{}#{} avoidFloor CLEAR desiredY={}",
+                this.unit.getName().getString(), this.unit.getId(), fmt(desiredY));
+    }
+
+    private void logHoldHoverSample(double targetY) {
+        if (!SewvDiag.heliFlightVerbose()) return;
+        long now = this.vehicle.level().getGameTime();
+        if (this.flightLastLogAt != Long.MIN_VALUE
+                && now - this.flightLastLogAt < FLIGHT_LOG_INTERVAL_TICKS) {
+            return;
+        }
+        // Only sample while in a hover mode we care about for the idle repro.
+        if (!"IDLE_HOVER".equals(this.flightHoverMode)
+                && !"ARRIVE_HOVER".equals(this.flightHoverMode)
+                && !"WHISKER_AVOID_HOVER".equals(this.flightHoverMode)) {
+            return;
+        }
+        this.flightLastLogAt = now;
+        Vec3 vel = this.vehicle.getDeltaMovement();
+        double spd = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+        SewvDiag.flight(
+                "{}#{} hover mode={} pos={}/{}/{} targetY={} spdXZ={} velHdg={} yaw={} xRot={} avoidFloor={}",
+                this.unit.getName().getString(), this.unit.getId(),
+                this.flightHoverMode,
+                fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
+                fmt(targetY), fmt(spd),
+                spd > 1.0E-4 ? fmt(Math.toDegrees(Math.atan2(vel.z, vel.x))) : "-",
+                fmt(this.vehicle.getYRot()), fmt(this.vehicle.getXRot()),
+                Double.isNaN(this.avoidFloorY) ? "-" : fmt(this.avoidFloorY));
+    }
+
+    private void logFlyToward(@Nullable String caller, String branch,
+            Vec3 dirToDest, @Nullable Vec3 travelDir,
+            double dist, double groundSpeed, double probe,
+            double desiredSpeed, double speedAlong, double speedErr,
+            double yawErrDeg, float attitudeCmd, Vec3 vel) {
+        switch (branch) {
+            case "ALIGN" -> this.flightTicksAlign++;
+            case "TRACK" -> this.flightTicksTrack++;
+            case "WHISKER_BLOCKED" -> this.flightTicksWhisker++;
+            default -> {
+            }
+        }
+        if (!SewvDiag.heliFlightVerbose()) {
+            this.flightBranch = branch;
+            return;
+        }
+        long now = this.vehicle.level().getGameTime();
+        boolean transition = !branch.equals(this.flightBranch);
+        boolean throttle = this.flightLastLogAt == Long.MIN_VALUE
+                || now - this.flightLastLogAt >= FLIGHT_LOG_INTERVAL_TICKS;
+        if (!transition && !throttle) {
+            this.flightBranch = branch;
+            return;
+        }
+        this.flightLastLogAt = now;
+        this.flightBranch = branch;
+
+        String tag = caller != null ? caller : "untagged";
+        double noseYaw = this.vehicle.getYRot();
+        double velHdg = groundSpeed > 1.0E-4
+                ? Math.toDegrees(Math.atan2(vel.z, vel.x)) : Double.NaN;
+        double noseVelDeg = Double.isNaN(velHdg)
+                ? Double.NaN : Mth.wrapDegrees(velHdg - noseYaw);
+        double destHdg = dirToDest.lengthSqr() > 1.0E-8
+                ? Math.toDegrees(Math.atan2(dirToDest.z, dirToDest.x)) : Double.NaN;
+        double travelHdg = travelDir != null && travelDir.lengthSqr() > 1.0E-8
+                ? Math.toDegrees(Math.atan2(travelDir.z, travelDir.x)) : Double.NaN;
+
+        SewvDiag.flight(
+                "{}#{} fly caller={} branch={} pos={}/{}/{} dist={} spd={} probe={} "
+                        + "dirDest={} travel={} desSpd={} speedAlong={} speedErr={} "
+                        + "yawErr={} attCmd={} noseYaw={} xRot={} velHdg={} noseVelDeg={} "
+                        + "dwell[align={} track={} w={}] avoidFloor={}",
+                this.unit.getName().getString(), this.unit.getId(),
+                tag, branch,
+                fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
+                fmt(dist), fmt(groundSpeed), fmt(probe),
+                fmtDeg(destHdg), fmtDeg(travelHdg),
+                fmt(desiredSpeed), fmt(speedAlong), fmt(speedErr),
+                fmt(yawErrDeg), fmt(attitudeCmd),
+                fmt(noseYaw), fmt(this.vehicle.getXRot()),
+                fmtDeg(velHdg), fmtDeg(noseVelDeg),
+                this.flightTicksAlign, this.flightTicksTrack, this.flightTicksWhisker,
+                Double.isNaN(this.avoidFloorY) ? "-" : fmt(this.avoidFloorY));
+    }
+
+    private static String fmt(double v) {
+        return String.format(java.util.Locale.ROOT, "%.2f", v);
+    }
+
+    private static String fmtDeg(double v) {
+        return Double.isNaN(v) ? "-" : fmt(v);
     }
 
     // Terrain-relative cruise offset: the pilot's own live cruise altitude (set by the takeoff

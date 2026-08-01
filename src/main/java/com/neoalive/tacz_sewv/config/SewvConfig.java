@@ -12,7 +12,6 @@ public final class SewvConfig {
     // Forge preserves existing toml values; delete the relevant toml to receive retuned defaults.
     public static final ForgeConfigSpec SPEC;
 
-    public static final ForgeConfigSpec.BooleanValue TANKS_IN_EVENTS;
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_RU;
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_US;
     public static final ForgeConfigSpec.BooleanValue PLANES_IN_EVENTS;
@@ -55,9 +54,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue DERELICT_AMMO_COUNT;
     public static final ForgeConfigSpec.BooleanValue GARRISON_VEHICLES_ENABLED;
     public static final ForgeConfigSpec.DoubleValue GARRISON_VEHICLE_CHANCE;
-    public static final ForgeConfigSpec.BooleanValue RU_SPAWNS_ENABLED;
-    public static final ForgeConfigSpec.BooleanValue US_SPAWNS_ENABLED;
-    public static final ForgeConfigSpec.BooleanValue PMC_AMBIENT_SPAWNS_ENABLED;
 
     public static final ForgeConfigSpec.BooleanValue CREATIVE_AMMO_FALLBACK;
     public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_ENERGY;
@@ -149,6 +145,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue HELI_MAX_DEPRESSION_DEG;
     public static final ForgeConfigSpec.DoubleValue HELI_MIN_STANDOFF;
     public static final ForgeConfigSpec.BooleanValue HELI_COMBAT_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue HELI_FLIGHT_DEBUG;
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
@@ -172,6 +169,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue SWEEP_MAX_CHUNK_AREA;
 
     /** Invasion match HUD palette (hex RGB, no alpha). Team A/B follow layout bookend order. */
+    public static final ForgeConfigSpec.BooleanValue UNLIMITED_TEAM_BASES;
     public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_TEAM_A_COLOR;
     public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_TEAM_B_COLOR;
     public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_NEUTRAL_COLOR;
@@ -189,10 +187,11 @@ public final class SewvConfig {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
 
         builder.push("events");
-        TANKS_IN_EVENTS = builder.comment("Allow rare RU/US tanks in combat events.").define("tanksInEvents", true);
-        TANK_SPAWN_CHANCE_RU = builder.comment("RU tank chance when SEM's far_combat event fires.")
+        TANK_SPAWN_CHANCE_RU = builder.comment("RU tank chance when SEM's far_combat event fires.",
+                        "Master on/off is the sewvTanksInEvents gamerule.")
                 .defineInRange("tankSpawnChanceRu", 0.12, 0.0, 1.0);
-        TANK_SPAWN_CHANCE_US = builder.comment("US tank chance when SEM's far_combat event fires.")
+        TANK_SPAWN_CHANCE_US = builder.comment("US tank chance when SEM's far_combat event fires.",
+                        "Master on/off is the sewvTanksInEvents gamerule.")
                 .defineInRange("tankSpawnChanceUs", 0.12, 0.0, 1.0);
         PLANES_IN_EVENTS = builder.comment("Allow rare RU/US planes in combat events.").define("planesInEvents", true);
         PLANE_SPAWN_CHANCE_RU = builder.comment("RU plane chance when SEM's far_combat event fires.")
@@ -267,16 +266,6 @@ public final class SewvConfig {
                 .define("garrisonVehiclesEnabled", true);
         GARRISON_VEHICLE_CHANCE = builder.comment("Chance that a village garrison gets its tank.")
                 .defineInRange("garrisonVehicleChance", 0.5, 0.0, 1.0);
-        builder.pop();
-
-        builder.push("spawn_gates");
-        RU_SPAWNS_ENABLED = builder.comment("Global master gate for RU spawns routed through SEWV.")
-                .define("ruSpawnsEnabled", true);
-        US_SPAWNS_ENABLED = builder.comment("Global master gate for US spawns routed through SEWV.")
-                .define("usSpawnsEnabled", true);
-        PMC_AMBIENT_SPAWNS_ENABLED = builder.comment("Global master gate for ambient PMC spawns routed through SEWV.",
-                        "Player-summoned PMC units are not affected. Today this only gates structure compat spawns.")
-                .define("pmcAmbientSpawnsEnabled", true);
         builder.pop();
 
         builder.push("resources");
@@ -486,6 +475,10 @@ public final class SewvConfig {
         HELI_COMBAT_DEBUG = builder.comment(
                         "Log AI heli firing-run phase changes and keep the hover phase label gated on.")
                 .define("heliCombatDebug", false);
+        HELI_FLIGHT_DEBUG = builder.comment(
+                        "Helicopter flyToward / hover diagnosis logs ([sewv-diag][flight]): "
+                                + "velocity-error branch, whisker avoid, arrive thrash. Default off.")
+                .define("heliFlightDebug", false);
         HELI_CHUNK_LOADING = builder.comment("Keep AI helicopters ticking when no player is nearby.")
                 .define("heliChunkLoading", false);
         PLANE_CHUNK_LOADING = builder.comment("Keep AI planes ticking when no player is nearby.")
@@ -549,6 +542,10 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("invasion");
+        UNLIMITED_TEAM_BASES = builder.comment(
+                        "When true, skip the 2-per-dimension team_base placement cap "
+                                + "(useful for map building). Invasion start still expects exactly 2.")
+                .define("unlimitedTeamBases", false);
         INVASION_HUD_TEAM_A_COLOR = builder.comment(
                         "HUD colour for layout team A (left bookend). Hex RGB.")
                 .define("hudTeamAColor", "5555FF");

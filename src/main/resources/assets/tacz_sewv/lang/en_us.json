@@ -295,5 +295,14 @@
   "command.tacz_sewv.diplomacy.added": "Diplomacy: %s with %s.",
   "command.tacz_sewv.diplomacy.removed": "Cleared diplomacy with %s (now neutral).",
   "command.tacz_sewv.diplomacy.not_found": "No diplomacy entry for %s.",
-  "command.tacz_sewv.diplomacy.empty": "No diplomacy pairs set."
+  "command.tacz_sewv.diplomacy.empty": "No diplomacy pairs set.",
+
+  "gamerule.sewvRuSpawns": "SEWV RU spawns",
+  "gamerule.sewvRuSpawns.description": "Allow RU faction spawns routed through SEWV.",
+  "gamerule.sewvUsSpawns": "SEWV US spawns",
+  "gamerule.sewvUsSpawns.description": "Allow US faction spawns routed through SEWV.",
+  "gamerule.sewvPmcAmbientSpawns": "SEWV ambient PMC spawns",
+  "gamerule.sewvPmcAmbientSpawns.description": "Allow ambient PMC structure spawns. Player-summoned PMC units are unaffected.",
+  "gamerule.sewvTanksInEvents": "SEWV tanks in combat events",
+  "gamerule.sewvTanksInEvents.description": "Allow rare RU/US tanks when SEM far_combat fires."
 }

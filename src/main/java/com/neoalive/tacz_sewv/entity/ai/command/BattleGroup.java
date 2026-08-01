@@ -28,6 +28,10 @@ public final class BattleGroup {
     /** Reused across command-cadence rebuilds — never allocated fresh per scan. */
     private final InfluenceMap influenceMap = new InfluenceMap();
     private final BattleField battleField = new BattleField();
+    private double lastInfluenceCentroidX = Double.NaN;
+    private double lastInfluenceCentroidZ = Double.NaN;
+    private int lastMemberFingerprint;
+    private boolean hasInfluenceStamp;
 
     @Nullable
     private PlayId currentPlay;
@@ -80,6 +84,29 @@ public final class BattleGroup {
         return this.influenceMap;
     }
 
+    /** True when the group changed enough that its cached influence field is no longer reusable. */
+    boolean needsInfluenceRebuild(double movementThreshold) {
+        int fingerprint = memberFingerprint();
+        if (!this.hasInfluenceStamp || fingerprint != this.lastMemberFingerprint) return true;
+        double dx = this.centroidX - this.lastInfluenceCentroidX;
+        double dz = this.centroidZ - this.lastInfluenceCentroidZ;
+        return dx * dx + dz * dz > movementThreshold * movementThreshold;
+    }
+
+    /** Stamp only after a successful influence rebuild. */
+    void markInfluenceRebuilt() {
+        this.lastInfluenceCentroidX = this.centroidX;
+        this.lastInfluenceCentroidZ = this.centroidZ;
+        this.lastMemberFingerprint = memberFingerprint();
+        this.hasInfluenceStamp = true;
+    }
+
+    private int memberFingerprint() {
+        int[] sorted = this.memberIds.clone();
+        Arrays.sort(sorted);
+        return Arrays.hashCode(sorted);
+    }
+
     /** Derived battle facts — gathers, never decides. Cleared when the group dissolves. */
     public BattleField battleField() {
         return this.battleField;
@@ -122,6 +149,7 @@ public final class BattleGroup {
         this.currentPlay = null;
         this.currentRoles = null;
         this.playStartedTick = Long.MIN_VALUE;
+        this.hasInfluenceStamp = false;
     }
 
     /** Elected commander network id, or empty if election has deferred / never run. */

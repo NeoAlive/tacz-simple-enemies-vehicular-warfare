@@ -17,15 +17,34 @@ import java.util.UUID;
  */
 public final class FactionColors {
 
+    private static volatile int ruArgb = 0xFFFF5555;
+    private static volatile int usArgb = 0xFF5555FF;
+    private static volatile int pmcArgb = 0xFF55FF55;
+
     private FactionColors() {}
 
     /** ARGB from client config for a SEM faction. */
     public static int configArgb(CrewFacts.Faction faction) {
         return switch (faction) {
-            case RU -> ClientConfig.parseColor(ClientConfig.COLOR_RU.get(), 0xFFFF5555);
-            case US -> ClientConfig.parseColor(ClientConfig.COLOR_US.get(), 0xFF5555FF);
-            case PMC -> ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55);
+            case RU -> ruArgb;
+            case US -> usArgb;
+            case PMC -> pmcArgb;
         };
+    }
+
+    /** Refresh client-config colours after Forge has baked or reloaded the config. */
+    public static void refreshConfigArgb() {
+        ruArgb = readConfigColor(ClientConfig.COLOR_RU, 0xFFFF5555);
+        usArgb = readConfigColor(ClientConfig.COLOR_US, 0xFF5555FF);
+        pmcArgb = readConfigColor(ClientConfig.COLOR_PMC, 0xFF55FF55);
+    }
+
+    private static int readConfigColor(net.minecraftforge.common.ForgeConfigSpec.ConfigValue<String> value, int fallback) {
+        try {
+            return ClientConfig.parseColor(value.get(), fallback);
+        } catch (RuntimeException ignored) {
+            return fallback;
+        }
     }
 
     /**

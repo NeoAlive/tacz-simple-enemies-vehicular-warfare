@@ -42,9 +42,11 @@ public class SeekAbandonedVehicleGoal extends Goal {
      * an hour can wait another two seconds.
      */
     private static final int SCAN_INTERVAL = 40;
+    private static final int MAX_SCAN_INTERVAL = 200;
 
     private final AbstractUnit unit;
     private int scanCooldown;
+    private int scanInterval = SCAN_INTERVAL;
 
     public SeekAbandonedVehicleGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -60,9 +62,12 @@ public class SeekAbandonedVehicleGoal extends Goal {
     public boolean canUse() {
         if (!shouldScan()) return false;
         if (this.scanCooldown-- > 0) return false;
-        this.scanCooldown = SCAN_INTERVAL;
 
         VehicleEntity hull = findAbandonedVehicle();
+        this.scanInterval = hull == null
+                ? Math.min(MAX_SCAN_INTERVAL, this.scanInterval * 2)
+                : SCAN_INTERVAL;
+        this.scanCooldown = this.scanInterval;
         if (hull != null) {
             IVehicleBoarder boarder = (IVehicleBoarder) this.unit;
             boarder.tacz_sewv$setMountTargetId(hull.getId());

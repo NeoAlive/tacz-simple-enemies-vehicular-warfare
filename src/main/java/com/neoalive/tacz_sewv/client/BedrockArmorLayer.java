@@ -72,6 +72,18 @@ public class BedrockArmorLayer<T extends LivingEntity, M extends EntityModel<T>>
                        float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks,
                        float netHeadYaw, float headPitch) {
 
+        boolean hasCustomArmor = false;
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
+            ItemStack stack = entity.getItemBySlot(slot);
+            if (stack.isEmpty()) continue;
+            if (GeckoCompat.LOADED && GeckoCompatClient.isGeckoArmor(stack)) continue;
+            if (ArmorModelSupport.hasCustomModel(entity, stack, slot, this.pose)) {
+                hasCustomArmor = true;
+                break;
+            }
+        }
+        if (!hasCustomArmor) return;
+
         if (!(this.getParentModel() instanceof HierarchicalModel<?> model)) return;
 
         ModelPart fakeRoot = model.root();
@@ -82,6 +94,7 @@ public class BedrockArmorLayer<T extends LivingEntity, M extends EntityModel<T>>
             ItemStack stack = entity.getItemBySlot(slot);
             if (stack.isEmpty()) continue;
             if (GeckoCompat.LOADED && GeckoCompatClient.isGeckoArmor(stack)) continue;
+            if (!ArmorModelSupport.hasCustomModel(entity, stack, slot, this.pose)) continue;
 
             copyPose(unit);
 

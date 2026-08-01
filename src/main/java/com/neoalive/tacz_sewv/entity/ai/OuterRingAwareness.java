@@ -43,7 +43,7 @@ public final class OuterRingAwareness {
     private static final double BAND_WIDTH = 32.0;
     /** Near / mid / far / edge poll intervals (game ticks). Not config — tested defaults. */
     private static final int[] BAND_INTERVAL_TICKS = {40, 80, 120, 200};
-    private static final int OCCLUSION_SAMPLES = 7;
+    private static final int OCCLUSION_SAMPLES = 2;
     private static final int MAX_CANDIDATES = 8;
     /**
      * How long IdleCrewGoal keeps handing SBW the fixed glance bearing so the turret can slew
@@ -82,11 +82,11 @@ public final class OuterRingAwareness {
      */
     public void tick(AbstractUnit unit, VehicleEntity vehicle, Facts facts) {
         if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.OUTER_RING_ENABLED.get()) {
-            facts.outerSpotFresh = false;
-            facts.outerSpotDist = Double.MAX_VALUE;
-            facts.outerSpotStrength = 0.0;
-            facts.outerGlanceBearing = null;
-            facts.outerGlanceUntil = Long.MIN_VALUE;
+            clearFacts(facts);
+            return;
+        }
+        if (unit.getTarget() != null || facts.underOrders) {
+            clearFacts(facts);
             return;
         }
 
@@ -306,7 +306,7 @@ public final class OuterRingAwareness {
      * Unloaded sample chunks → not visible. Fence-post false positives are acceptable.
      */
     static boolean coarseVisible(Level level, Vec3 from, Vec3 to, int samples) {
-        int n = Mth.clamp(samples, 5, 10);
+        int n = Mth.clamp(samples, 1, 10);
         for (int i = 1; i <= n; i++) {
             double t = i / (double) (n + 1);
             int x = Mth.floor(from.x + (to.x - from.x) * t);
@@ -372,6 +372,14 @@ public final class OuterRingAwareness {
         this.spotBand = -1;
         this.glanceBearing = null;
         this.glanceUntil = Long.MIN_VALUE;
+    }
+
+    private static void clearFacts(Facts facts) {
+        facts.outerSpotFresh = false;
+        facts.outerSpotDist = Double.MAX_VALUE;
+        facts.outerSpotStrength = 0.0;
+        facts.outerGlanceBearing = null;
+        facts.outerGlanceUntil = Long.MIN_VALUE;
     }
 
     private static void debug(String msg, Object... args) {

@@ -156,13 +156,20 @@ final class GroundTerrainSensor extends TerrainSensor {
      */
     @Override
     Vec3 chooseClearBearing(Vec3 desired, double probeDistance) {
+        return chooseClearBearing(desired, probeDistance, false);
+    }
+
+    @Override
+    Vec3 chooseClearBearing(Vec3 desired, double probeDistance, boolean stuck) {
         if (desired.lengthSqr() < 1.0E-8) return desired;
         this.lastFanHullDominated = false;
         this.lastFanReasons = "";
         StringBuilder reasons = new StringBuilder();
         int hullCount = 0;
         int n = 0;
-        for (double offDeg : WHISKER_OFFSETS_DEG) {
+        int end = stuck || isHardTurn(desired) ? WHISKER_OFFSETS_DEG.length : 1;
+        for (int i = 0; i < end; i++) {
+            double offDeg = WHISKER_OFFSETS_DEG[i];
             Vec3 candidate = VehicleTargeting.rotateY(desired, Math.toRadians(offDeg));
             this.lastRejectReason = "unknown";
             if (headingClear(candidate, probeDistance)) {
@@ -175,6 +182,22 @@ final class GroundTerrainSensor extends TerrainSensor {
             if ("hull".equals(this.lastRejectReason)) hullCount++;
             n++;
         }
+        if (end < WHISKER_OFFSETS_DEG.length) {
+            for (int i = 1; i < WHISKER_OFFSETS_DEG.length; i++) {
+                double offDeg = WHISKER_OFFSETS_DEG[i];
+                Vec3 candidate = VehicleTargeting.rotateY(desired, Math.toRadians(offDeg));
+                this.lastRejectReason = "unknown";
+                if (headingClear(candidate, probeDistance)) {
+                    this.lastFanHullDominated = false;
+                    this.lastFanReasons = "";
+                    return candidate;
+                }
+                if (n > 0) reasons.append(',');
+                reasons.append(this.lastRejectReason);
+                if ("hull".equals(this.lastRejectReason)) hullCount++;
+                n++;
+            }
+        }
         // Strictly more than half of failed offsets are hull: hullCount*2 > n.
         this.lastFanHullDominated = n > 0 && hullCount * 2 > n;
         this.lastFanReasons = reasons.toString();
@@ -185,6 +208,11 @@ final class GroundTerrainSensor extends TerrainSensor {
                 this.vehicle.getName().getString(), this.vehicle.getId(),
                 n, this.lastFanReasons, hullCount, n, this.lastFanHullDominated, desired);
         return null;
+    }
+
+    private boolean isHardTurn(Vec3 desired) {
+        return Math.abs(Math.toDegrees(VehicleTargeting.signedAngleTo(
+                this.vehicle.getForwardDirection().normalize(), desired))) >= 25.0;
     }
 
     @Override

@@ -86,24 +86,19 @@ public class DroneOperatorGoal extends Goal {
     // reasoning as VehicleTargetScanGoal's "already engaged — don't retarget every scan": most
     // engineers, most of the time, already have their cap and there's nothing to decide.
     private void maybeDeploy() {
+        if (!(this.unit.level() instanceof ServerLevel level)) return;
+        List<DroneEntity> owned = DroneSupport.findOwnedDrones(level, this.unit);
+        this.drones.retainAll(owned);
+        for (DroneEntity drone : owned) {
+            if (!this.drones.contains(drone)) this.drones.add(drone);
+        }
+
         int max = SewvConfig.DRONE_MAX_PER_ENGINEER.get();
         if (this.drones.size() >= max) return;
 
         long now = this.unit.level().getGameTime();
         if (now < this.nextDeployCheck) return;
         this.nextDeployCheck = now + SewvConfig.DRONE_DEPLOY_CHECK_INTERVAL_TICKS.get();
-
-        if (!(this.unit.level() instanceof ServerLevel level)) return;
-
-        // Re-adopt anything of mine still alive that isn't cached yet — this, not the cache
-        // itself, is what makes the cap survive the engineer's goal instance being rebuilt on
-        // a chunk reload (see DroneSupport's class doc). Runs every check, win or lose the roll
-        // below, so a reload's worth of orphaned drones is picked back up within one interval
-        // rather than waiting on a lucky roll.
-        for (DroneEntity owned : DroneSupport.findOwnedDrones(level, this.unit)) {
-            if (!this.drones.contains(owned)) this.drones.add(owned);
-        }
-        if (this.drones.size() >= max) return;
 
         if (this.unit.getRandom().nextFloat() >= SewvConfig.DRONE_DEPLOY_CHANCE.get()) return; // rolled no this cycle
 

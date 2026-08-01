@@ -102,11 +102,8 @@ public abstract class MixinVehicleTeamOverlay {
         if (faction == null) return null;
 
         // Prefer server-synced OpenPAC tint from map markers when this hull is known.
-        for (VehicleMarker marker : MapMarkers.markers()) {
-            if (marker.vehicleId() == vehicle.getId()) {
-                return FactionColors.displayArgb(faction, marker.tintRgb());
-            }
-        }
+        VehicleMarker marker = MapMarkers.markerForVehicle(vehicle.getId());
+        if (marker != null) return FactionColors.displayArgb(faction, marker.tintRgb());
         return FactionColors.configArgb(faction);
     }
 }

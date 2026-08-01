@@ -14,8 +14,11 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -30,16 +33,16 @@ import java.util.UUID;
  * {@link DriveHelicopterGoal} already puppets for helicopters — only yaw/pitch update is
  * gated behind that (absent) controller, so the goal sets those directly too.
  *
- * <p>Ownership is a persistent-NBT tag on the DRONE itself (its deploying engineer's UUID),
- * not state kept on the engineer — the same self-healing shape {@code IMortarCrew} uses for
- * a mortar claim: nothing has to notice the engineer died or the drone despawned, a re-count
- * from the world just naturally excludes it, and the cap survives the engineer's own goal
- * instance being rebuilt on a chunk reload (a network id would not).
+ * <p>Ownership is a persistent-NBT tag on the DRONE itself (its deploying engineer's UUID).
+ * A reload-local network-id list avoids a world scan for the usual cap check, while the NBT tag
+ * remains the source of truth when that list is empty or stale.
  */
 public final class DroneSupport {
 
     private static final String OWNER_TAG = "sewv_drone_owner";
     private static final ResourceLocation DRONE_ID = new ResourceLocation("superbwarfare", "drone");
+    /** Fast, reload-local lookup; persistent owner NBT remains the source of truth. */
+    private static final Map<UUID, List<Integer>> OWNED_DRONE_IDS = new HashMap<>();
 
     private DroneSupport() {}
 
@@ -61,16 +64,33 @@ public final class DroneSupport {
     }
 
     /**
-     * Every currently-alive drone tagged as belonging to {@code owner}, found by scanning near
-     * it. Reuses the broadcast radius as the search box rather than adding a config entry just
-     * for this — a drone escorts within a few blocks of its owner, so it's generous on purpose.
+     * Every currently-alive drone tagged as belonging to {@code owner}. Resolve the soft network-id
+     * list first; only a stale id (despawn, reload or unload) falls back to the nearby world scan.
      */
     static List<DroneEntity> findOwnedDrones(ServerLevel level, AbstractUnit owner) {
+        UUID ownerId = owner.getUUID();
+        List<Integer> ids = OWNED_DRONE_IDS.computeIfAbsent(ownerId, ignored -> new ArrayList<>());
+        List<DroneEntity> resolved = new ArrayList<>(ids.size());
+        boolean mismatch = ids.isEmpty();
+        for (int id : ids) {
+            Entity entity = level.getEntity(id);
+            if (entity instanceof DroneEntity drone && drone.isAlive() && ownerId.equals(readOwner(drone))) {
+                resolved.add(drone);
+            } else {
+                mismatch = true;
+            }
+        }
+        if (!mismatch) return resolved;
+
         double radius = SewvConfig.DRONE_BROADCAST_RADIUS.get();
         AABB box = AABB.ofSize(owner.position(), radius * 2, radius * 2, radius * 2);
-        UUID ownerId = owner.getUUID();
-        return level.getEntitiesOfClass(DroneEntity.class, box,
+        List<DroneEntity> scanned = level.getEntitiesOfClass(DroneEntity.class, box,
                 d -> d.isAlive() && ownerId.equals(readOwner(d)));
+        ids.clear();
+        for (DroneEntity drone : scanned) {
+            ids.add(drone.getId());
+        }
+        return scanned;
     }
 
     /** Spawns one unarmed, AI-flown drone beside {@code owner} and tags it as belonging to them. */
@@ -84,6 +104,7 @@ public final class DroneSupport {
         drone.setYRot(owner.getYRot());
         drone.getPersistentData().putUUID(OWNER_TAG, owner.getUUID());
         level.addFreshEntity(drone);
+        OWNED_DRONE_IDS.computeIfAbsent(owner.getUUID(), ignored -> new ArrayList<>()).add(drone.getId());
         return drone;
     }
 

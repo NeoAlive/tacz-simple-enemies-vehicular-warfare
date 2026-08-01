@@ -9,6 +9,7 @@ import java.util.List;
 
 public final class SewvConfig {
 
+    // Forge preserves existing toml values; delete the relevant toml to receive retuned defaults.
     public static final ForgeConfigSpec SPEC;
 
     public static final ForgeConfigSpec.BooleanValue TANKS_IN_EVENTS;
@@ -402,7 +403,7 @@ public final class SewvConfig {
         VEHICLE_TARGET_SCAN_HEIGHT = builder.comment("Vertical span of mounted target scans.")
                 .defineInRange("vehicleTargetScanHeight", 128.0, 4.0, 128.0);
         VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder.comment("How often mounted crews rescan for targets.")
-                .defineInRange("vehicleTargetScanIntervalTicks", 20, 1, 200);
+                .defineInRange("vehicleTargetScanIntervalTicks", 30, 1, 200);
         VEHICLE_TARGET_REQUIRE_LOS = builder.comment("Require line of sight for mounted target scans.")
                 .define("vehicleTargetRequireLineOfSight", true);
         VEHICLE_ALLY_ASSIST_RANGE = builder.comment("Range for counting allied support in combat.")
@@ -429,7 +430,7 @@ public final class SewvConfig {
         IDLE_WANDER_RADIUS = builder.comment("How far idle hulls may drift from their anchor.")
                 .defineInRange("idleWanderRadius", 16, 4, 64);
         UTILITY_REFRESH_INTERVAL_TICKS = builder.comment("How often vehicle crews reconsider their plan.")
-                .defineInRange("utilityRefreshIntervalTicks", 20, 5, 200);
+                .defineInRange("utilityRefreshIntervalTicks", 30, 5, 200);
         FACTION_ORGANIC_COMMS = builder.comment("Let RU/US crews call support without carrying radios.")
                 .define("factionOrganicComms", true);
         SUPPORT_CALL_INTERVAL_TICKS = builder.comment("Minimum delay between support searches and support requests.")

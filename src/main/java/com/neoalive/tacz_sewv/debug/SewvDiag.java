@@ -12,10 +12,12 @@ import org.slf4j.Logger;
  * <ul>
  *   <li>{@link #pathing}/{@link #water}/{@link #pathingEvent}/{@link #waterEvent} —
  *       {@code groundPathingDebug}</li>
+ *   <li>{@link #flight} — {@code heliFlightDebug}</li>
  *   <li>Everything else — {@code sewvDiagDebug}</li>
  * </ul>
- * Callers of the verbose pathing tier should still guard expensive arg construction with
- * {@link #groundPathingVerbose()} — Java evaluates arguments before the early return.
+ * Callers of the verbose pathing / flight tiers should still guard expensive arg construction with
+ * {@link #groundPathingVerbose()} / {@link #heliFlightVerbose()} — Java evaluates arguments
+ * before the early return.
  */
 public final class SewvDiag {
 
@@ -28,6 +30,11 @@ public final class SewvDiag {
         // OpenPacCompat (and similar) may call SewvDiag during COMMON_SETUP before the
         // server config is baked — ConfigValue.get() throws in that window in userdev.
         return SewvConfig.SPEC.isLoaded() && SewvConfig.GROUND_PATHING_DEBUG.get();
+    }
+
+    /** Helicopter flyToward / hover investigation logs. Default off. */
+    public static boolean heliFlightVerbose() {
+        return SewvConfig.SPEC.isLoaded() && SewvConfig.HELI_FLIGHT_DEBUG.get();
     }
 
     /** Non-pathing [sewv-diag] channels. Default off. */
@@ -103,5 +110,11 @@ public final class SewvDiag {
     public static void waterEvent(String msg, Object... args) {
         if (!groundPathingVerbose()) return;
         LOG.info("[sewv-diag][water] " + msg, args);
+    }
+
+    /** Helicopter flight-steering / hover diagnosis. No-op when {@link #heliFlightVerbose()} is false. */
+    public static void flight(String msg, Object... args) {
+        if (!heliFlightVerbose()) return;
+        LOG.info("[sewv-diag][flight] " + msg, args);
     }
 }

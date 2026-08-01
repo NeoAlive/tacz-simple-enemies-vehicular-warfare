@@ -11,6 +11,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.compat.AshAmmoCompat;
 import com.neoalive.tacz_sewv.compat.McspAmmoCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -84,26 +85,27 @@ public final class TankSpawner {
 
     /** True when the faction's configured pool contains at least one loadable SW vehicle. */
     public static boolean hasSpawnableVehicle(ServerLevel level, TankFaction faction) {
-        if (!spawnsEnabled(faction)) return false;
+        if (!spawnsEnabled(level, faction)) return false;
         return hasSpawnable(level, faction.vehiclePool(level));
     }
 
     /** The same, for the faction's separate ship pool — see {@link #spawnShipWithCrew}. */
     public static boolean hasSpawnableShip(ServerLevel level, TankFaction faction) {
-        if (!spawnsEnabled(faction)) return false;
+        if (!spawnsEnabled(level, faction)) return false;
         return hasSpawnable(level, faction.shipPool(level));
     }
 
     /** The same, for the faction's separate plane pool — see {@link #spawnPlaneWithCrew}. */
     public static boolean hasSpawnablePlane(ServerLevel level, TankFaction faction) {
-        if (!spawnsEnabled(faction)) return false;
+        if (!spawnsEnabled(level, faction)) return false;
         return hasSpawnable(level, faction.planePool(level));
     }
 
-    public static boolean spawnsEnabled(TankFaction faction) {
+    /** Per-world spawn gate ({@code /gamerule sewvRuSpawns} / {@code sewvUsSpawns}). PMC is always on here. */
+    public static boolean spawnsEnabled(ServerLevel level, TankFaction faction) {
         return switch (faction) {
-            case RU -> SewvConfig.RU_SPAWNS_ENABLED.get();
-            case US -> SewvConfig.US_SPAWNS_ENABLED.get();
+            case RU -> level.getGameRules().getBoolean(ModGameRules.RU_SPAWNS);
+            case US -> level.getGameRules().getBoolean(ModGameRules.US_SPAWNS);
             case PMC -> true;
         };
     }
@@ -172,7 +174,7 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnPlaneWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                    @Nullable UUID ownerId, @Nullable String vehicleId) {
-        if (!spawnsEnabled(faction)) return null;
+        if (!spawnsEnabled(level, faction)) return null;
         EntityType<?> planeType = selectVehicleType(faction.planePool(level), vehicleId, level.random);
         if (planeType == null) return null;
 
@@ -246,7 +248,7 @@ public final class TankSpawner {
                                                      @Nullable UUID ownerId, @Nullable String vehicleId,
                                                      List<? extends String> pool, boolean water,
                                                      boolean requireSpawnsEnabled) {
-        if (requireSpawnsEnabled && !spawnsEnabled(faction)) return null;
+        if (requireSpawnsEnabled && !spawnsEnabled(level, faction)) return null;
         EntityType<?> tankType = selectVehicleType(pool, vehicleId, level.random);
         if (tankType == null) return null; // nothing valid configured/requested — bail safely
 
@@ -406,7 +408,7 @@ public final class TankSpawner {
      */
     @Nullable
     public static VehicleEntity spawnBareVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction) {
-        if (!spawnsEnabled(faction)) return null;
+        if (!spawnsEnabled(level, faction)) return null;
         EntityType<?> type = selectVehicleType(faction.vehiclePool(level), null, level.random);
         if (type == null) return null;
         BlockPos pos = findClearSpawn(level, requestedPos, type);

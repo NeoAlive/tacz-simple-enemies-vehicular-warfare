@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.compat;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.util.TankSpawner;
 import com.neoalive.tacz_sewv.util.VehicleDrops;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
@@ -45,10 +46,13 @@ public final class BerezkaStructureCompat {
 
         TankSpawner.TankFaction faction = factionFor(event.getStructureName());
         if (faction == null) return; // not a mapped structure — ignore
-        if (faction == TankSpawner.TankFaction.PMC && !SewvConfig.PMC_AMBIENT_SPAWNS_ENABLED.get()) return;
 
         ServerLevel level = API.getCurWorld();
         if (level == null) return;
+        if (faction == TankSpawner.TankFaction.PMC
+                && !level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)) {
+            return;
+        }
         BlockPos anchor = event.getBlockPos();
         if (anchor == null) return;
         // Footprint of the just-generated structure — hulls spawn just OUTSIDE it, not at the

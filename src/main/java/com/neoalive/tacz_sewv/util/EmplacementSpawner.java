@@ -73,7 +73,7 @@ public final class EmplacementSpawner {
     public static VehicleEntity spawn(ServerLevel level, BlockPos requestedPos, Emplacement type,
                                       TankSpawner.TankFaction faction, @Nullable UUID ownerId,
                                       @Nullable FireMission fireMission) {
-        if (!TankSpawner.spawnsEnabled(faction)) return null;
+        if (!TankSpawner.spawnsEnabled(level, faction)) return null;
         EntityType<? extends VehicleEntity> entityType =
                 type == Emplacement.MORTAR ? ModEntities.MORTAR.get() : ModEntities.TOW.get();
         BlockPos pos = TankSpawner.findClearSpawn(level, requestedPos, entityType);

@@ -29,7 +29,7 @@ final class EventSpawns {
     /** One rifleman of {@code faction}, scattered up to {@code scatter} blocks around {@code anchor}. */
     @Nullable
     static AbstractUnit infantry(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction, int scatter) {
-        if (!TankSpawner.spawnsEnabled(faction)) return null;
+        if (!TankSpawner.spawnsEnabled(level, faction)) return null;
         AbstractUnit unit = faction == TankSpawner.TankFaction.RU
                 ? new RUunitEntity(ModEntities.RUUNIT.get(), level)
                 : new USunitEntity(ModEntities.USUNIT.get(), level);
@@ -60,8 +60,8 @@ final class EventSpawns {
 
     @Nullable
     static TankSpawner.TankFaction pickAmbientFaction(ServerLevel level) {
-        boolean ru = TankSpawner.spawnsEnabled(TankSpawner.TankFaction.RU);
-        boolean us = TankSpawner.spawnsEnabled(TankSpawner.TankFaction.US);
+        boolean ru = TankSpawner.spawnsEnabled(level, TankSpawner.TankFaction.RU);
+        boolean us = TankSpawner.spawnsEnabled(level, TankSpawner.TankFaction.US);
         if (ru && us) return level.random.nextBoolean() ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
         if (ru) return TankSpawner.TankFaction.RU;
         return us ? TankSpawner.TankFaction.US : null;

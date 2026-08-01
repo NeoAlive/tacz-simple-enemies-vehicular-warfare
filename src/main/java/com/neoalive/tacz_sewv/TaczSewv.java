@@ -8,6 +8,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModBlocks;
 import com.neoalive.tacz_sewv.init.ModEntities;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.util.ChunkTicketSweep;
@@ -81,6 +82,7 @@ public class TaczSewv {
 
     private void commonSetup(final FMLCommonSetupEvent event) {
     event.enqueueWork(() -> {
+        ModGameRules.bootstrap();
         NetworkHandler.register();
     });
     ChunkTicketSweep.register(event);

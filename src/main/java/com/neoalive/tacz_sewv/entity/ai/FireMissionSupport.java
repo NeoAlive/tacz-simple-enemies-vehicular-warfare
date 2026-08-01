@@ -2,13 +2,15 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 import com.neoalive.tacz_sewv.util.CrewFacts;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -16,10 +18,14 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -65,6 +71,10 @@ public final class FireMissionSupport {
     /** Ask for anything that will answer. */
     public static final Set<Kind> ANY = EnumSet.allOf(Kind.class);
 
+    /** Supporting crews, rebuilt slowly instead of once per caller in each caller's range box. */
+    private static final Map<Level, SupportRoster> ROSTERS =
+            Collections.synchronizedMap(new WeakHashMap<>());
+
     /**
      * What this unit is manning, or null if a fire mission would mean nothing to it.
      *
@@ -82,9 +92,8 @@ public final class FireMissionSupport {
     }
 
     private static boolean isPlanePilot(AbstractUnit unit) {
-        return unit.getVehicle() instanceof VehicleEntity v
-                && v.getFirstPassenger() == unit
-                && HullFacts.isPlaneHull(v);
+        if (!(unit.getVehicle() instanceof VehicleEntity v) || v.getFirstPassenger() != unit) return false;
+        return HullFacts.isPlaneHull(v);
     }
 
     /**
@@ -106,20 +115,8 @@ public final class FireMissionSupport {
         if (faction == CrewFacts.Faction.PMC && owner == null) return List.of();
 
         List<AbstractUnit> crews = new ArrayList<>();
-        AABB box = new AABB(origin, origin).inflate(range, range + VERTICAL_REACH, range);
-        double rangeSq = range * range;
-        for (AbstractUnit unit : level.getEntitiesOfClass(AbstractUnit.class, box)) {
-            if (!unit.isAlive() || CrewFacts.factionOfCrew(unit) != faction) continue;
-            if (faction == CrewFacts.Faction.PMC
-                    && !(unit instanceof PmcUnitEntity pmc && owner.equals(pmc.getOwnerUUID()))) {
-                continue;
-            }
-            Kind kind = kindOf(unit);
-            if (kind == null || !kinds.contains(kind)) continue;
-
-            double dx = unit.getX() - origin.x;
-            double dz = unit.getZ() - origin.z;
-            if (dx * dx + dz * dz <= rangeSq) crews.add(unit); // horizontal — altitude-independent
+        for (SupportCrew crew : supportInRange(level, faction, owner, origin, range, kinds)) {
+            crews.add(crew.unit);
         }
         return crews;
     }
@@ -133,9 +130,8 @@ public final class FireMissionSupport {
     public static Set<Kind> availableSupport(Level level, @Nullable CrewFacts.Faction faction,
                                              @Nullable UUID owner, Vec3 origin, double range) {
         EnumSet<Kind> available = EnumSet.noneOf(Kind.class);
-        for (AbstractUnit crew : crewsInRange(level, faction, owner, origin, range, ANY)) {
-            Kind kind = kindOf(crew);
-            if (kind != null) available.add(kind);
+        for (SupportCrew crew : supportInRange(level, faction, owner, origin, range, ANY)) {
+            available.add(crew.kind);
         }
         return available;
     }
@@ -152,11 +148,11 @@ public final class FireMissionSupport {
     public static Call callFireMission(Level level, @Nullable CrewFacts.Faction faction,
                                        @Nullable UUID owner, Vec3 origin, double range,
                                        LivingEntity target, Set<Kind> kinds) {
-        List<AbstractUnit> crews = crewsInRange(level, faction, owner, origin, range, kinds);
+        List<SupportCrew> crews = supportInRange(level, faction, owner, origin, range, kinds);
         EnumSet<Kind> triggered = EnumSet.noneOf(Kind.class);
-        for (AbstractUnit crew : crews) {
-            Kind kind = kindOf(crew);
-            if (kind != null) triggered.add(kind);
+        for (SupportCrew support : crews) {
+            AbstractUnit crew = support.unit;
+            triggered.add(support.kind);
             if (crew instanceof PmcUnitEntity pmc) {
                 pmc.setAttackTargetId(target.getId());
                 pmc.setOrder(OrderType.ATTACK_THAT_TARGET);
@@ -219,5 +215,63 @@ public final class FireMissionSupport {
             released++;
         }
         return released;
+    }
+
+    private static List<SupportCrew> supportInRange(Level level, CrewFacts.Faction faction, UUID owner,
+                                                    Vec3 origin, double range, Set<Kind> kinds) {
+        if (faction == null || kinds.isEmpty()) return List.of();
+        if (faction == CrewFacts.Faction.PMC && owner == null) return List.of();
+
+        SupportRoster roster = ROSTERS.computeIfAbsent(level, ignored -> new SupportRoster());
+        long now = level.getGameTime();
+        if (now >= roster.nextRefresh) rebuildRoster(level, roster, now);
+
+        List<SupportCrew> crews = new ArrayList<>();
+        double rangeSq = range * range;
+        for (RosterEntry entry : roster.byFaction.get(faction)) {
+            if (!kinds.contains(entry.kind) || !(level.getEntity(entry.id) instanceof AbstractUnit unit)
+                    || !unit.isAlive()) {
+                continue;
+            }
+            if (faction == CrewFacts.Faction.PMC
+                    && (!(unit instanceof PmcUnitEntity pmc) || !owner.equals(pmc.getOwnerUUID()))) {
+                continue;
+            }
+            if (Math.abs(unit.getY() - origin.y) > range + VERTICAL_REACH) continue;
+            double dx = unit.getX() - origin.x;
+            double dz = unit.getZ() - origin.z;
+            if (dx * dx + dz * dz <= rangeSq) crews.add(new SupportCrew(unit, entry.kind));
+        }
+        return crews;
+    }
+
+    private static void rebuildRoster(Level level, SupportRoster roster, long now) {
+        for (List<RosterEntry> entries : roster.byFaction.values()) entries.clear();
+        if (!(level instanceof ServerLevel server)) {
+            roster.nextRefresh = now + SewvConfig.SUPPORT_CALL_INTERVAL_TICKS.get();
+            return;
+        }
+        for (AbstractUnit unit : server.getEntities(EntityTypeTest.forClass(AbstractUnit.class), e -> true)) {
+            CrewFacts.Faction faction = CrewFacts.factionOfCrew(unit);
+            Kind kind = faction != null && unit.isAlive() ? kindOf(unit) : null;
+            if (kind != null) roster.byFaction.get(faction).add(new RosterEntry(unit.getId(), kind));
+        }
+        roster.nextRefresh = now + SewvConfig.SUPPORT_CALL_INTERVAL_TICKS.get();
+    }
+
+    private record SupportCrew(AbstractUnit unit, Kind kind) {}
+
+    private record RosterEntry(int id, Kind kind) {}
+
+    private static final class SupportRoster {
+        final EnumMap<CrewFacts.Faction, List<RosterEntry>> byFaction =
+                new EnumMap<>(CrewFacts.Faction.class);
+        long nextRefresh = Long.MIN_VALUE;
+
+        SupportRoster() {
+            for (CrewFacts.Faction faction : CrewFacts.Faction.values()) {
+                this.byFaction.put(faction, new ArrayList<>());
+            }
+        }
     }
 }

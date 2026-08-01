@@ -49,6 +49,7 @@ public final class OrderPreview {
     private static final long BLINK_PERIOD_MS = 2000L;
     /** Seconds for an area ring to turn once. Slow — a rotating dashed circle should barely drift. */
     private static final double RING_SECONDS_PER_RAD = 2.4;
+    private static final int MAX_RING_SEGMENTS = 64;
 
     public static int lowAlpha(int color) {
         return (color & 0x00FFFFFF) | (PREVIEW_ALPHA << 24);
@@ -106,7 +107,7 @@ public final class OrderPreview {
             g.fill(cx - 1, cy - 1, cx + 1, cy + 1, argb);
             return;
         }
-        int segs = Math.max(48, (int) (r * 0.9));
+        int segs = Mth.clamp((int) (r * 0.9), 48, MAX_RING_SEGMENTS);
         double march = System.currentTimeMillis() / 1000.0 / RING_SECONDS_PER_RAD;
         for (int i = 0; i < segs; i++) {
             if ((i & 1) == 0) continue; // every other segment → dashed

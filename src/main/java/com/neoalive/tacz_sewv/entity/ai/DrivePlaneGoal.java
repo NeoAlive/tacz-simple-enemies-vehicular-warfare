@@ -91,7 +91,6 @@ public class DrivePlaneGoal extends Goal {
     private static final double MIN_FLIGHT_ALT = 90.0;
     private static final double MAX_FLIGHT_ALT = 180.0;
     private static final double MIN_OVER_DEST = 20.0;
-    private static final double TERRAIN_SAMPLE_STEP = 8.0;
     private static final double TERRAIN_LOOKAHEAD = 64.0;
     // Altitude-hold: degrees of pitch per block of altitude error, and the gentle cruise ceiling.
     private static final double ALT_PITCH_PER_BLOCK = 2.0;
@@ -219,8 +218,8 @@ public class DrivePlaneGoal extends Goal {
     @Override
     public void stop() {
         if (this.vehicle != null) {
-            releaseInputs();
-            this.vehicle.setDecoyInputDown(false);
+            AirframeSupport.releaseInputs(this.vehicle);
+            AirframeSupport.clearDecoy(this.vehicle);
             this.chunkTicket.release(this.vehicle);
         }
         this.vehicle = null;
@@ -235,8 +234,9 @@ public class DrivePlaneGoal extends Goal {
 
     @Override
     public void tick() {
-        updateChunkLoading();
-        updateDecoy(); // before the crash guard: a burning plane keeps popping flares on the way down
+        AirframeSupport.updateChunkLoading(this.chunkTicket, this.vehicle, SewvConfig.PLANE_CHUNK_LOADING.get());
+        AirframeSupport.updateDecoy(this.vehicle, this.unit, this.flares,
+                DECOY_HEALTH_FRACTION, PRESERVE_DECOY_CHANCE);
 
         float max = this.vehicle.getMaxHealth();
         if (max > 0.0F && this.vehicle.getHealth() < max * CRASH_HEALTH_FRACTION) {
@@ -651,7 +651,8 @@ public class DrivePlaneGoal extends Goal {
         // Predictive pull-up floor: anticipate the sink during recovery from the CURRENT descent rate,
         // so a fast/steep dive breaks earlier (heavy-plane momentum) while a shallow one presses close.
         int groundRef = Math.max(surfaceBelow(),
-                highestGroundToward(gx + this.runDirX * 24.0, gz + this.runDirZ * 24.0));
+                AirframeSupport.highestGroundToward(
+                        this.vehicle, gx + this.runDirX * 24.0, gz + this.runDirZ * 24.0, TERRAIN_LOOKAHEAD));
         double clearance = this.vehicle.getY() - groundRef;
         double descentRate = Math.max(0.0, -this.vehicle.getDeltaMovement().y);
         double pullupTrigger = MIN_ATTACK_CLEARANCE + descentRate * PULLUP_LEAD_TICKS;
@@ -957,43 +958,18 @@ public class DrivePlaneGoal extends Goal {
     }
 
     private void releaseInputs() {
-        this.vehicle.setForwardInputDown(false);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        this.vehicle.setDownInputDown(false);
-        this.vehicle.setMouseMoveSpeedX(0.0F);
-        this.vehicle.setMouseMoveSpeedY(0.0F);
+        AirframeSupport.releaseInputs(this.vehicle);
     }
 
     // --- Altitude / terrain (same terrain-relative model as the helicopter goal) -----------------
 
     private double cruiseAltitudeHere() {
-        return surfaceBelow() + flightAltitude();
+        return AirframeSupport.cruiseAltitudeHere(this.vehicle, flightAltitude());
     }
 
     private double cruiseAltitudeToward(double toX, double toZ) {
-        return highestGroundToward(toX, toZ) + flightAltitude();
-    }
-
-    private int highestGroundToward(double toX, double toZ) {
-        int highest = surfaceBelow();
-        double dx = toX - this.vehicle.getX();
-        double dz = toZ - this.vehicle.getZ();
-        double dist = Math.sqrt(dx * dx + dz * dz);
-        if (dist > 1.0E-4) {
-            Level level = this.unit.level();
-            double nx = dx / dist;
-            double nz = dz / dist;
-            double reach = Math.min(dist, TERRAIN_LOOKAHEAD);
-            for (double d = TERRAIN_SAMPLE_STEP; d <= reach; d += TERRAIN_SAMPLE_STEP) {
-                int h = level.getHeight(Heightmap.Types.WORLD_SURFACE,
-                        Mth.floor(this.vehicle.getX() + nx * d),
-                        Mth.floor(this.vehicle.getZ() + nz * d));
-                if (h > highest) highest = h;
-            }
-        }
-        return highest;
+        return AirframeSupport.cruiseAltitudeToward(
+                this.vehicle, toX, toZ, flightAltitude(), TERRAIN_LOOKAHEAD);
     }
 
     private double flightAltitude() {
@@ -1003,32 +979,7 @@ public class DrivePlaneGoal extends Goal {
     }
 
     private int surfaceBelow() {
-        return this.unit.level().getHeight(
-                Heightmap.Types.WORLD_SURFACE, this.vehicle.getBlockX(), this.vehicle.getBlockZ());
-    }
-
-    // --- Decoy / chunk loading (shared shape with the helicopter goal) ---------------------------
-
-    private void updateDecoy() {
-        float max = this.vehicle.getMaxHealth();
-        boolean low = max > 0.0F && this.vehicle.getHealth() <= max * DECOY_HEALTH_FRACTION;
-        if (!low || this.vehicle.onGround()) {
-            this.vehicle.setDecoyInputDown(false);
-            return;
-        }
-        boolean flare = this.flares.roll(
-                this.unit.level().getGameTime(), this.unit.getRandom(), PRESERVE_DECOY_CHANCE);
-        if (flare && this.vehicle.hasDecoy()) {
-            this.vehicle.setDecoyInputDown(true);
-        }
-    }
-
-    private void updateChunkLoading() {
-        if (SewvConfig.PLANE_CHUNK_LOADING.get()) {
-            this.chunkTicket.follow(this.vehicle);
-        } else {
-            this.chunkTicket.release(this.vehicle);
-        }
+        return AirframeSupport.surfaceBelow(this.vehicle);
     }
 
     // A seat weapon on the scoring ladder: tier 1 (cannon/gun) .. 3 (missile/bomb), with the two

@@ -11,7 +11,6 @@ import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
@@ -81,10 +80,18 @@ public class VehicleTargetScanGoal extends Goal {
             this.scanCooldown--;
             return false;
         }
-        this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
 
         this.vehicle = v;
-        this.pendingTarget = scanCylinder(v);
+
+        // Driver owns the cylinder scan. Other seats copy the driver's lock (one AABB per hull)
+        // and only fall back to a rare own scan when that lock fails seat LoS — see plan PR A.
+        if (v.getFirstPassenger() != this.unit) {
+            this.pendingTarget = copyDriverLockOrRareScan(v);
+        } else {
+            this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
+            this.pendingTarget = scanCylinder(v);
+        }
+
         SewvDiag.scan(
                 "VehicleTargetScanGoal.canUse unit={}#{} vehicle={}#{} pendingTarget={}#{} (null=no lock this scan)",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
@@ -92,6 +99,28 @@ public class VehicleTargetScanGoal extends Goal {
                 this.pendingTarget == null ? "null" : this.pendingTarget.getClass().getSimpleName(),
                 this.pendingTarget == null ? -1 : this.pendingTarget.getId());
         return this.pendingTarget != null;
+    }
+
+    /**
+     * Prefer the driver's live lock when this seat can see it; otherwise a 2×-interval own
+     * cylinder scan so a gunner behind cover is not stuck silent forever.
+     */
+    @Nullable
+    private LivingEntity copyDriverLockOrRareScan(VehicleEntity v) {
+        if (v.getFirstPassenger() instanceof AbstractUnit driver) {
+            LivingEntity lock = driver.getTarget();
+            if (lock != null && lock.isAlive() && isValidTarget(v, lock)) {
+                boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+                        && !DriveHelicopterGoal.inFiringRun(v);
+                if (!needLos || this.unit.getSensing().hasLineOfSight(lock)) {
+                    this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
+                    return lock;
+                }
+            }
+        }
+        // No usable shared lock (absent, invalid, or occluded from this seat) — rare own scan.
+        this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get() * 2;
+        return scanCylinder(v);
     }
 
     @Override
@@ -243,20 +272,18 @@ public class VehicleTargetScanGoal extends Goal {
      */
     private List<LivingEntity> collectCylinderCandidates(VehicleEntity v, boolean includeClose) {
         double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
-        double halfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
         double radiusSq = radius * radius;
-        // Aircraft extend the cylinder down to the terrain: centered on the hull, a
-        // helicopter at cruise altitude would otherwise scan nothing but sky while
-        // every actual target sits on the ground below the bottom face.
-        AABB bounds = new AABB(
-                v.getX() - radius, v.getY() - halfHeight - altitudeSlack(v), v.getZ() - radius,
-                v.getX() + radius, v.getY() + halfHeight, v.getZ() + radius);
-        return this.unit.level().getEntitiesOfClass(LivingEntity.class, bounds, e -> {
-            if (!isValidTarget(v, e)) return false;
+        // Shared per-hull LivingEntity fill — driver scan and Facts force counts reuse it.
+        List<LivingEntity> raw = HullLocalScan.livingInScanCylinder(v);
+        List<LivingEntity> out = new java.util.ArrayList<>(Math.min(raw.size(), 16));
+        for (LivingEntity e : raw) {
+            if (!isValidTarget(v, e)) continue;
             double distSq = horizontalDistSq(v, e);
-            if (distSq > radiusSq) return false;
-            return includeClose || distSq >= VehicleMinRangeGoal.MIN_ENGAGE_DISTANCE_SQ;
-        });
+            if (distSq > radiusSq) continue;
+            if (!includeClose && distSq < VehicleMinRangeGoal.MIN_ENGAGE_DISTANCE_SQ) continue;
+            out.add(e);
+        }
+        return out;
     }
 
     /** Distance used for ranking — shrinks the commander's priority target without locking it. */

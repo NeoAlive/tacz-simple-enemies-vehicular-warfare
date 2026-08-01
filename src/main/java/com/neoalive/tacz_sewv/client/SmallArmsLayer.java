@@ -48,6 +48,9 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
     private static final String UNIT_PART_NAME = "unit";
     private static final String RIGHT_ARM_PART_NAME = "rightArm";
 
+    private HierarchicalModel<?> armModel;
+    private ModelPart rightArm;
+
     public SmallArmsLayer(RenderLayerParent<T, M> parent) {
         super(parent);
     }
@@ -66,15 +69,18 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
 
         if (!(this.getParentModel() instanceof HierarchicalModel<?> model)) return;
 
-        ModelPart rightArm;
-        try {
-            rightArm = model.root().getChild(UNIT_PART_NAME).getChild(RIGHT_ARM_PART_NAME);
-        } catch (NoSuchElementException e) {
-            return; // a model shaped differently than SEM's: draw nothing rather than crash the frame
+        if (model != this.armModel) {
+            this.armModel = model;
+            try {
+                this.rightArm = model.root().getChild(UNIT_PART_NAME).getChild(RIGHT_ARM_PART_NAME);
+            } catch (NoSuchElementException e) {
+                this.rightArm = null; // a model shaped differently than SEM's: draw nothing rather than crash
+            }
         }
+        if (this.rightArm == null) return;
 
         poseStack.pushPose();
-        rightArm.translateAndRotate(poseStack);
+        this.rightArm.translateAndRotate(poseStack);
 
         poseStack.translate(-0.06D, 0.73D, 0.3D);
         poseStack.mulPose(Axis.YP.rotationDegrees(-180));

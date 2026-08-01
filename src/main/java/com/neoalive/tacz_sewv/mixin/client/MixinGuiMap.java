@@ -179,6 +179,9 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private static final double TACZ_SEWV$BOX_MIN_PX = 6.0;
 
+    @Unique
+    private static final int TACZ_SEWV$MAX_SWEEP_CHEVRONS = 64;
+
     // remap = true on this one and on render: the class is remap = false for Xaero's own members,
     // but init/render are VANILLA methods and are SRG-named in production, so the literal name
     // would simply never be found.
@@ -488,9 +491,12 @@ public abstract class MixinGuiMap extends Screen {
         double height = maxZ - minZ;
         boolean alongZ = height >= width;
         double spacing = 16.0;
-        int maxMarks = 32;
-        int nx = Math.max(1, Math.min(maxMarks, (int) Math.floor(width / spacing)));
-        int nz = Math.max(1, Math.min(maxMarks, (int) Math.floor(height / spacing)));
+        int rawNx = Math.max(1, (int) Math.floor(width / spacing));
+        int rawNz = Math.max(1, (int) Math.floor(height / spacing));
+        double reduction = Math.min(1.0,
+                Math.sqrt(TACZ_SEWV$MAX_SWEEP_CHEVRONS / (double) (rawNx * rawNz)));
+        int nx = Math.max(1, (int) Math.floor(rawNx * reduction));
+        int nz = Math.max(1, (int) Math.floor(rawNz * reduction));
         double stepX = width / nx;
         double stepZ = height / nz;
         double tipLen = 10.0; // world blocks for chevron stem projection
@@ -641,8 +647,9 @@ public abstract class MixinGuiMap extends Screen {
             MarkerOrder order = marker.order();
             if (order.type() == MarkerOrder.Type.NONE || !dim.equals(marker.dimension())) continue;
 
-            int color = OrderPreview.lowAlpha(VehicleMarkerElements.factionColor(marker.faction()));
             int[] unit = tacz_sewv$toScreenXZ(marker.x(), marker.z());
+            if (!tacz_sewv$onScreen(unit)) continue;
+            int color = OrderPreview.lowAlpha(VehicleMarkerElements.factionColor(marker.faction()));
             switch (order.type()) {
                 case MOVE -> {
                     int[] t = tacz_sewv$toScreen(order.target());
@@ -668,6 +675,12 @@ public abstract class MixinGuiMap extends Screen {
                 case NONE -> { }
             }
         }
+    }
+
+    @Unique
+    private boolean tacz_sewv$onScreen(int[] point) {
+        return point[0] >= -16 && point[0] <= this.width + 16
+                && point[1] >= -16 && point[1] <= this.height + 16;
     }
 
     /** The line being laid down right now: A→B with a pip at each unit's arc-length destination. */

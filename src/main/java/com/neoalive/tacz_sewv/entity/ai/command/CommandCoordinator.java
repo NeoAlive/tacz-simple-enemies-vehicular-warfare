@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai.command;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 import com.neoalive.tacz_sewv.util.CrewFacts;
@@ -417,6 +418,11 @@ public final class CommandCoordinator {
 
         for (BattleGroup group : levelGroups.values()) {
             try {
+                // Skip sample collection + rebuild when membership/centroid are unchanged —
+                // samples are the expensive half of a stable stalemate.
+                if (group.battleField().populated && !group.needsInfluenceRebuild(cell * 0.5)) {
+                    continue;
+                }
                 List<UnitPos> samples = collectInfluenceSamples(level, group, engagement);
                 if (samples.isEmpty()) {
                     group.battleField().clear();
@@ -438,6 +444,7 @@ public final class CommandCoordinator {
                 }
                 group.influenceMap().rebuildAndDerive(
                         group.battleField(), samples, group.faction(), cell, maxCells, margin);
+                group.markInfluenceRebuilt();
             } catch (Throwable t) {
                 group.battleField().clear();
                 LOGGER.debug("[sewv-command] influence rebuild failed group {}: {}",
@@ -619,9 +626,12 @@ public final class CommandCoordinator {
     private static List<Candidate> collectDrivers(ServerLevel level) {
         List<Candidate> out = new ArrayList<>();
         try {
-            for (VehicleEntity hull : level.getEntities(EntityTypeTest.forClass(VehicleEntity.class), h -> true)) {
-                AbstractUnit driver = CommandEligibility.eligibleDriver(hull);
-                if (driver == null) continue;
+            for (int unitId : Facts.liveUnitIds()) {
+                if (!(level.getEntity(unitId) instanceof AbstractUnit driver)
+                        || !(driver.getVehicle() instanceof VehicleEntity hull)
+                        || CommandEligibility.eligibleDriver(hull) != driver) {
+                    continue;
+                }
                 CrewFacts.Faction faction = CrewFacts.factionOfCrew(driver);
                 if (faction == null) continue;
                 out.add(new Candidate(driver.getId(), faction, hull.getX(), hull.getZ(), hull));
@@ -635,6 +645,17 @@ public final class CommandCoordinator {
     private static boolean hasOpposingNearby(ServerLevel level, Candidate c, double radiusSq) {
         try {
             double r = Math.sqrt(radiusSq);
+            if (r <= SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get()) {
+                for (AbstractUnit other : HullLocalScan.unitsInScanBox(c.hull)) {
+                    if (other.getId() == c.unitId || Math.abs(other.getY() - c.hull.getY()) > 32.0) continue;
+                    CrewFacts.Faction f = CrewFacts.factionOfCrew(other);
+                    if (f == null || f == c.faction) continue;
+                    double dx = other.getX() - c.x;
+                    double dz = other.getZ() - c.z;
+                    if (dx * dx + dz * dz <= radiusSq) return true;
+                }
+                return false;
+            }
             AABB box = new AABB(c.x - r, c.hull.getY() - 32, c.z - r,
                     c.x + r, c.hull.getY() + 32, c.z + r);
             for (AbstractUnit other : level.getEntities(EntityTypeTest.forClass(AbstractUnit.class), box, e -> true)) {

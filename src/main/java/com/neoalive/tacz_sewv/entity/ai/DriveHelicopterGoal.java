@@ -16,7 +16,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
@@ -158,7 +157,6 @@ public class DriveHelicopterGoal extends Goal {
     // how far ahead along the leg the highest ground is looked for. The lookahead
     // outranges the longest whisker probe, so ridge climbs start on the collective
     // before the whiskers ever have to veto the bearing.
-    private static final double TERRAIN_SAMPLE_STEP = 8.0;
     private static final double TERRAIN_LOOKAHEAD = 48.0;
 
     // --- Whiskers (see AirTerrainSensor for what counts as blocked) ---
@@ -349,10 +347,10 @@ public class DriveHelicopterGoal extends Goal {
     @Override
     public void stop() {
         if (this.vehicle != null) {
-            releaseInputs();
+            AirframeSupport.releaseInputs(this.vehicle);
             // releaseInputs leaves the decoy latch alone (crash-spin flares must
             // survive its per-tick calls) — but a crew leaving the seat lets go.
-            this.vehicle.setDecoyInputDown(false);
+            AirframeSupport.clearDecoy(this.vehicle);
             setRappelRequested(this.vehicle, false);
             // Hand the chunk back before we drop the vehicle the ticket is keyed to.
             this.chunkTicket.release(this.vehicle);
@@ -370,21 +368,22 @@ public class DriveHelicopterGoal extends Goal {
     public void tick() {
         // Independent of flight state: hold the airframe's chunk loaded (if enabled)
         // whether it is cruising, fighting, spiraling in, or parked.
-        updateChunkLoading();
+        AirframeSupport.updateChunkLoading(this.chunkTicket, this.vehicle, SewvConfig.HELI_CHUNK_LOADING.get());
 
         // Before the crash guard on purpose: a burning airframe spiraling in keeps
         // popping flares all the way down.
-        updateDecoy();
+        AirframeSupport.updateDecoy(this.vehicle, this.unit, this.flares,
+                DECOY_HEALTH_FRACTION, PRESERVE_DECOY_CHANCE);
 
         // Sub-10% health: the engine flies it into the ground on its own. Let go.
         float max = this.vehicle.getMaxHealth();
         if (max > 0.0F && this.vehicle.getHealth() < max * CRASH_HEALTH_FRACTION) {
-            releaseInputs();
+            AirframeSupport.releaseInputs(this.vehicle);
             return;
         }
         // No power to the rotor — inputs do nothing anyway; don't pretend to fly.
         if (this.vehicle.getEnergy() <= 0) {
-            releaseInputs();
+            AirframeSupport.releaseInputs(this.vehicle);
             return;
         }
 
@@ -409,7 +408,7 @@ public class DriveHelicopterGoal extends Goal {
         // LANDED is sticky: stay shut down on the ground — no hover, no order-driven
         // flying — until the player issues a new takeoff (L) or landing (CTRL+L).
         if (command == IHelicopterPilot.HELI_CMD_LANDED) {
-            releaseInputs();
+            AirframeSupport.releaseInputs(this.vehicle);
             this.vehicle.setHoverMode(false);
             return;
         }
@@ -745,7 +744,8 @@ public class DriveHelicopterGoal extends Goal {
         boolean passedTarget = planeAlong > targetAlong + OVERFLY_MARGIN;
 
         int groundRef = Math.max(surfaceBelow(),
-                highestGroundToward(gx + this.runDirX * 24.0, gz + this.runDirZ * 24.0));
+                AirframeSupport.highestGroundToward(
+                        this.vehicle, gx + this.runDirX * 24.0, gz + this.runDirZ * 24.0, TERRAIN_LOOKAHEAD));
         double clearance = this.vehicle.getY() - groundRef;
         double descentRate = Math.max(0.0, -this.vehicle.getDeltaMovement().y);
         double pullupTrigger = PULLUP_FLOOR + descentRate * PULLUP_LEAD_TICKS;
@@ -1398,7 +1398,8 @@ public class DriveHelicopterGoal extends Goal {
         }
 
         double glideY = surfaceY + Mth.clamp(dist * LAND_GLIDE_RATIO, MIN_OVER_DEST, flightAltitude());
-        double clearY = highestGroundToward(px, pz) + MIN_OVER_DEST;
+        double clearY = AirframeSupport.highestGroundToward(
+                this.vehicle, px, pz, TERRAIN_LOOKAHEAD) + MIN_OVER_DEST;
         flyToward(px, pz, Math.max(glideY, clearY), LAND_APPROACH_GAIN);
     }
 
@@ -1408,7 +1409,7 @@ public class DriveHelicopterGoal extends Goal {
     // cycle. Hover mode keeps the hull level; downInput pins collective power
     // at its floor so the auto-throttle can't fight the commanded sink.
     private void captureTick(double surfaceY, double dx, double dz, double dist) {
-        releaseInputs();
+        AirframeSupport.releaseInputs(this.vehicle);
         this.vehicle.setHoverMode(true);
 
         double speed = Math.min(CAPTURE_MAX_SPEED, dist * CAPTURE_GAIN);
@@ -1434,7 +1435,7 @@ public class DriveHelicopterGoal extends Goal {
     // Touchdown → sticky LANDED; the hull stays down until a new takeoff order
     // rather than immediately resuming FOLLOW/MOVE orders.
     private void settleLanded(IHelicopterPilot pilot) {
-        releaseInputs();
+        AirframeSupport.releaseInputs(this.vehicle);
         this.vehicle.setHoverMode(false);
         pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
         pilot.sewv$setHeliLandPos(null);
@@ -1585,38 +1586,13 @@ public class DriveHelicopterGoal extends Goal {
                 (float) Mth.clamp(attitudeErr * PITCH_STICK_PER_DEG, -MAX_PITCH_STICK, MAX_PITCH_STICK));
     }
 
-    // Cosmetic self-preservation flares (cf. the ground goal's retreat smoke, which
-    // this deliberately leaves untouched): from half health down, an airborne hull
-    // holds the decoy input — the launcher's own ready/reload gating turns that
-    // into a volley per reload. Flight behavior is not altered here.
-    private void updateDecoy() {
-        float max = this.vehicle.getMaxHealth();
-        boolean low = max > 0.0F && this.vehicle.getHealth() <= max * DECOY_HEALTH_FRACTION;
-        if (!low || this.vehicle.onGround()) {
-            this.vehicle.setDecoyInputDown(false); // unlatch once healed/repaired or parked
-            return;
-        }
-
-        boolean flare = this.flares.roll(
-                this.unit.level().getGameTime(), this.unit.getRandom(), PRESERVE_DECOY_CHANCE);
-        if (flare && this.vehicle.hasDecoy()) {
-            this.vehicle.setDecoyInputDown(true);
-        }
-    }
-
     private void releaseInputs() {
-        this.vehicle.setForwardInputDown(false);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        this.vehicle.setDownInputDown(false);
-        this.vehicle.setMouseMoveSpeedX(0.0F);
-        this.vehicle.setMouseMoveSpeedY(0.0F);
+        AirframeSupport.releaseInputs(this.vehicle);
     }
 
     // Terrain-relative cruise level over the hull's own column.
     private double cruiseAltitudeHere() {
-        return surfaceBelow() + flightAltitude();
+        return AirframeSupport.cruiseAltitudeHere(this.vehicle, flightAltitude());
     }
 
     // Terrain-relative cruise level for a leg toward (toX, toZ): the configured
@@ -1625,29 +1601,8 @@ public class DriveHelicopterGoal extends Goal {
     // falls away — instead of holding an absolute level anchored at the takeoff
     // origin into terrain it knows nothing about.
     private double cruiseAltitudeToward(double toX, double toZ) {
-        return highestGroundToward(toX, toZ) + flightAltitude();
-    }
-
-    // Highest heightmap ground between the hull's column and (toX, toZ), sampled
-    // every few blocks out to the lookahead (capped at the destination).
-    private int highestGroundToward(double toX, double toZ) {
-        int highest = surfaceBelow();
-        double dx = toX - this.vehicle.getX();
-        double dz = toZ - this.vehicle.getZ();
-        double dist = Math.sqrt(dx * dx + dz * dz);
-        if (dist > 1.0E-4) {
-            Level level = this.unit.level();
-            double nx = dx / dist;
-            double nz = dz / dist;
-            double reach = Math.min(dist, TERRAIN_LOOKAHEAD);
-            for (double d = TERRAIN_SAMPLE_STEP; d <= reach; d += TERRAIN_SAMPLE_STEP) {
-                int h = level.getHeight(Heightmap.Types.WORLD_SURFACE,
-                        Mth.floor(this.vehicle.getX() + nx * d),
-                        Mth.floor(this.vehicle.getZ() + nz * d));
-                if (h > highest) highest = h;
-            }
-        }
-        return highest;
+        return AirframeSupport.cruiseAltitudeToward(
+                this.vehicle, toX, toZ, flightAltitude(), TERRAIN_LOOKAHEAD);
     }
 
     // The active hold height including the whisker climb floor, which decays about
@@ -1673,17 +1628,6 @@ public class DriveHelicopterGoal extends Goal {
     }
 
     private int surfaceBelow() {
-        return this.unit.level().getHeight(
-                Heightmap.Types.WORLD_SURFACE, this.vehicle.getBlockX(), this.vehicle.getBlockZ());
-    }
-
-    // Optional force-loading (config-gated, default off): keep the chunk the airframe
-    // is over loaded and ticking so it keeps flying when no player is nearby.
-    private void updateChunkLoading() {
-        if (SewvConfig.HELI_CHUNK_LOADING.get()) {
-            this.chunkTicket.follow(this.vehicle);
-        } else {
-            this.chunkTicket.release(this.vehicle); // switched off at runtime — hand it back
-        }
+        return AirframeSupport.surfaceBelow(this.vehicle);
     }
 }

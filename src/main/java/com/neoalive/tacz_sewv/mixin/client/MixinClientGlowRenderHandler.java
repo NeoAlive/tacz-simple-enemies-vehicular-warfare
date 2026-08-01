@@ -20,7 +20,7 @@ public abstract class MixinClientGlowRenderHandler {
     private static final DustParticleOptions tacz_sewv$SELECTION_PARTICLE =
             new DustParticleOptions(new Vector3f(0.0F, 1.0F, 0.3F), 1.0F);
     private static final double tacz_sewv$OUTLINE_MARGIN = 0.35;
-    private static final double tacz_sewv$PARTICLE_SPACING = 0.75;
+    private static final double tacz_sewv$PARTICLE_SPACING = 1.5;
 
     @Inject(method = "spawnCircle", at = @At("HEAD"), cancellable = true, remap = false)
     private static void tacz_sewv$spawnVehicleOutline(Level level, Entity entity, CallbackInfo ci) {

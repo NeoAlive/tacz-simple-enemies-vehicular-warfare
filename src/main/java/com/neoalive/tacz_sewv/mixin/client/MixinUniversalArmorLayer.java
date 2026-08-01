@@ -1,12 +1,12 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.neoalive.tacz_sewv.client.ArmorModelSupport;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.client.ForgeHooksClient;
 import net.nekoyuni.SimpleEnemyMod.entity.client.util.UniversalArmorLayer;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.spongepowered.asm.mixin.Mixin;
@@ -27,7 +27,7 @@ public abstract class MixinUniversalArmorLayer {
         ItemStack stack = entity.getItemBySlot(slot);
         if (stack.isEmpty()) return;
 
-        if (ForgeHooksClient.getArmorModel(entity, stack, slot, defaultModel) != defaultModel) {
+        if (ArmorModelSupport.hasCustomModel(entity, stack, slot, defaultModel)) {
             ci.cancel();
         }
     }

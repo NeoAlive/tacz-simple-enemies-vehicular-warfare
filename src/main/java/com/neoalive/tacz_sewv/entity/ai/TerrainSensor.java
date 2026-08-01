@@ -4,6 +4,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import org.joml.Vector3f;
 
 import java.util.List;
 
@@ -34,6 +35,7 @@ abstract class TerrainSensor {
 
     /** Preferred bearing first, then alternating flanks at growing deflection. */
     protected static final double[] WHISKER_OFFSETS_DEG = {0.0, 25.0, -25.0, 50.0, -50.0, 75.0, -75.0};
+    private static final double HARD_TURN_DEG = 25.0;
 
     protected final AbstractUnit unit;
     protected VehicleEntity vehicle;
@@ -67,12 +69,32 @@ abstract class TerrainSensor {
      * blocked. A zero-length request (already on the point) is passed straight back.
      */
     Vec3 chooseClearBearing(Vec3 desired, double probeDistance) {
+        return chooseClearBearing(desired, probeDistance, false);
+    }
+
+    Vec3 chooseClearBearing(Vec3 desired, double probeDistance, boolean stuck) {
         if (desired.lengthSqr() < 1.0E-8) return desired;
-        for (double offDeg : WHISKER_OFFSETS_DEG) {
+        boolean wide = stuck || isHardTurn(desired);
+        int start = 0;
+        int end = wide ? WHISKER_OFFSETS_DEG.length : 1;
+        for (int i = start; i < end; i++) {
+            double offDeg = WHISKER_OFFSETS_DEG[i];
             Vec3 candidate = VehicleTargeting.rotateY(desired, Math.toRadians(offDeg));
             if (headingClear(candidate, probeDistance)) return candidate;
         }
+        if (!wide) {
+            for (int i = 1; i < WHISKER_OFFSETS_DEG.length; i++) {
+                double offDeg = WHISKER_OFFSETS_DEG[i];
+                Vec3 candidate = VehicleTargeting.rotateY(desired, Math.toRadians(offDeg));
+                if (headingClear(candidate, probeDistance)) return candidate;
+            }
+        }
         return null;
+    }
+
+    private boolean isHardTurn(Vec3 desired) {
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        return Math.abs(Math.toDegrees(VehicleTargeting.signedAngleTo(forward, desired))) >= HARD_TURN_DEG;
     }
 
     /** True when travelling {@code distance} blocks along {@code dir} crosses nothing to avoid. */

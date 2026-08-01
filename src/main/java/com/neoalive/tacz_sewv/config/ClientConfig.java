@@ -1,9 +1,16 @@
 package com.neoalive.tacz_sewv.config;
 
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.util.FactionColors;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import javax.annotation.Nullable;
 
+@Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class ClientConfig {
 
     public static final ForgeConfigSpec SPEC;
@@ -101,5 +108,10 @@ public final class ClientConfig {
         } catch (RuntimeException ignored) {
             return fallback;
         }
+    }
+
+    @SubscribeEvent
+    public static void onConfigReload(ModConfigEvent event) {
+        if (event.getConfig().getSpec() == SPEC) FactionColors.refreshConfigArgb();
     }
 }

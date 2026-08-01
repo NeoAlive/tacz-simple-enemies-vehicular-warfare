@@ -432,7 +432,7 @@ final class VehicleDriver {
         boolean avoidance = this.sensor.enabled();
         Vec3 steer = desired;
         if (avoidance) {
-            steer = this.sensor.chooseClearBearing(desired);
+            steer = this.sensor.chooseClearBearing(desired, this.sensor.lookahead(), this.stuckTicks > 0);
             if (steer == null) {
                 // Boxed in on every probed bearing — hold at the edge, turning in place toward the
                 // goal rather than ploughing in.

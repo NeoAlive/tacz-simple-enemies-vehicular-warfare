@@ -6,6 +6,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.FireMissionSupport;
+import com.neoalive.tacz_sewv.entity.ai.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
@@ -23,7 +24,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -117,6 +117,11 @@ public final class Facts {
     @Nullable
     public static Facts of(int unitId) {
         return LIVE.get(unitId);
+    }
+
+    /** Unit network ids currently bound to a live Facts (mounted utility drivers). */
+    public static java.util.Set<Integer> liveUnitIds() {
+        return java.util.Collections.unmodifiableSet(LIVE.keySet());
     }
 
     // ---- unit status ----
@@ -405,10 +410,6 @@ public final class Facts {
      * missed by the thing that matters.
      */
     private void countForces(AbstractUnit unit, VehicleEntity hull) {
-        double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
-        double height = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get();
-        AABB box = new AABB(hull.position(), hull.position()).inflate(radius, height, radius);
-
         CrewFacts.Faction own = CrewFacts.factionOfCrew(unit);
         int allyCount = 0;
         int enemyCount = 0;
@@ -423,7 +424,8 @@ public final class Facts {
         boolean radio = organic
                 || (unit instanceof PmcUnitEntity self && HandheldRadioItem.isCarriedBy(self));
 
-        List<AbstractUnit> nearby = unit.level().getEntitiesOfClass(AbstractUnit.class, box);
+        // Reuse the per-hull LivingEntity fill from HullLocalScan (same box as target scan).
+        List<AbstractUnit> nearby = HullLocalScan.unitsInScanBox(hull);
         for (AbstractUnit other : nearby) {
             if (other == unit || !other.isAlive()) continue;
             if (own != null && CrewFacts.factionOfCrew(other) == own) {

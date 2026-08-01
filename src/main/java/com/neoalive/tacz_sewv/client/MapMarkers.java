@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.client;
 import com.neoalive.tacz_sewv.util.BattleFieldMarker;
 import com.neoalive.tacz_sewv.util.SweepOverlayState;
 import com.neoalive.tacz_sewv.util.VehicleMarker;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
 import javax.annotation.Nullable;
 import java.util.HashSet;
@@ -31,6 +32,7 @@ import java.util.Set;
 public final class MapMarkers {
 
     private static List<VehicleMarker> markers = List.of();
+    private static final Int2ObjectOpenHashMap<VehicleMarker> BY_VEHICLE_ID = new Int2ObjectOpenHashMap<>();
     private static List<BattleFieldMarker> battleFields = List.of();
     @Nullable
     private static SweepOverlayState sweepOverlay;
@@ -45,6 +47,8 @@ public final class MapMarkers {
     public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields,
                               @Nullable SweepOverlayState sweep) {
         markers = List.copyOf(incoming);
+        BY_VEHICLE_ID.clear();
+        for (VehicleMarker marker : markers) BY_VEHICLE_ID.put(marker.vehicleId(), marker);
         battleFields = List.copyOf(fields);
         sweepOverlay = sweep;
         // A selected hull that is gone is not selectable any more, and leaving it in would keep
@@ -55,6 +59,7 @@ public final class MapMarkers {
     /** Drop everything — call on disconnect so a new world never inherits the last one's picture. */
     public static void clear() {
         markers = List.of();
+        BY_VEHICLE_ID.clear();
         battleFields = List.of();
         sweepOverlay = null;
         SELECTED.clear();
@@ -62,6 +67,11 @@ public final class MapMarkers {
 
     public static List<VehicleMarker> markers() {
         return markers;
+    }
+
+    @Nullable
+    public static VehicleMarker markerForVehicle(int vehicleId) {
+        return BY_VEHICLE_ID.get(vehicleId);
     }
 
     /** Debug BattleField overlays synced with the vehicle markers — empty when none populated. */

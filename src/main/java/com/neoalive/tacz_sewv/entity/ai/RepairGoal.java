@@ -4,6 +4,8 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModParticleTypes;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.CrewFacts;
+import com.neoalive.tacz_sewv.util.VehicleSkinSupport;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -105,6 +107,9 @@ public class RepairGoal extends Goal {
             return;
         }
         this.target.heal(SewvConfig.ENGINEER_REPAIR_PER_TREAT.get().floatValue());
+        // Sticky faction paint: an engineer repairing a hull paints it in their colours when a
+        // filesystem skin exists for that hull+faction (client no-ops if the PNG is missing).
+        VehicleSkinSupport.apply(this.target, CrewFacts.factionOfCrew(this.unit));
         showRepairEffects();
         this.cooldown = SewvConfig.ENGINEER_REPAIR_COOLDOWN.get();
     }

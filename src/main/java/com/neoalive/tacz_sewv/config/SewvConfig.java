@@ -65,6 +65,12 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_ARMOR;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_ARMOR;
 
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> NVG_ELIGIBLE_ITEMS;
+    public static final ForgeConfigSpec.DoubleValue NVG_SPAWN_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue DARK_ACCURACY_FRACTION;
+    public static final ForgeConfigSpec.DoubleValue NVG_ACCURACY_FRACTION;
+    public static final ForgeConfigSpec.IntValue DARK_BLOCK_LIGHT_MAX;
+
     public static final ForgeConfigSpec.BooleanValue STRUCTURE_VEHICLES_ENABLED;
     public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_MAX_COUNT;
     public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_RAMP_DAYS;
@@ -77,6 +83,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
     public static final ForgeConfigSpec.ConfigValue<String> AI_AIM_ACCURACY;
     public static final ForgeConfigSpec.DoubleValue AI_AIM_SPREAD_DEG;
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_SKIN_MOUNT_CHANCE;
     public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
     public static final ForgeConfigSpec.BooleanValue SEM_CREW_DISABLE_INERTIA_ROTATE;
     public static final ForgeConfigSpec.BooleanValue TANK_RIDER_DISMOUNT_ENABLED;
@@ -296,6 +303,26 @@ public final class SewvConfig {
                 .defineList("pmcArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
         builder.pop();
 
+        builder.push("nvg");
+        NVG_ELIGIBLE_ITEMS = builder.comment(
+                        "Item ids that count as NVG for darkness-accuracy mitigation and night spawn equip.",
+                        "May be Curios-slot or armor-slot items; darkness logic never hardcodes a specific id.")
+                .defineList("nvgEligibleItems",
+                        List.of("superbwarfare:thermal_imaging_goggles"), SewvConfig::isValidResourceId);
+        NVG_SPAWN_CHANCE = builder.comment("Chance a SEM unit joining at night spawns wearing an NVG-eligible item.")
+                .defineInRange("nvgSpawnChance", 0.20, 0.0, 1.0);
+        DARK_ACCURACY_FRACTION = builder.comment(
+                        "AI vehicle accuracy multiplier in darkness with no rendered-seat NVG (0.30 = -70%).")
+                .defineInRange("darkAccuracyFraction", 0.30, 0.05, 1.0);
+        NVG_ACCURACY_FRACTION = builder.comment(
+                        "AI vehicle accuracy multiplier in darkness when any rendered-seat occupant has NVG (0.60 = -40%).")
+                .defineInRange("nvgAccuracyFraction", 0.60, 0.05, 1.0);
+        DARK_BLOCK_LIGHT_MAX = builder.comment(
+                        "Max combined sky+block light (inclusive) that still counts as darkness in daytime;",
+                        "nighttime always counts. Outdoors in daylight is bright via sky light, not block light.")
+                .defineInRange("darkBlockLightMax", 4, 0, 15);
+        builder.pop();
+
         builder.push("structure_vehicles");
         STRUCTURE_VEHICLES_ENABLED = builder.comment("Spawn vehicles at compatible Berezka structures.")
                 .define("structureVehiclesEnabled", true);
@@ -323,6 +350,9 @@ public final class SewvConfig {
         // Existing serverconfig tomls keep the old value until edited or deleted.
         AI_AIM_SPREAD_DEG = builder.comment("Extra dispersion (degrees) added in realistic/scaled aim modes.")
                 .defineInRange("aiAimSpreadDegrees", 4.0, 0.0, 30.0);
+        VEHICLE_SKIN_MOUNT_CHANCE = builder.comment(
+                        "Chance an SEM unit boarding an empty hull applies its faction skin (config/tacz_sewv/vehicle_skins/).")
+                .defineInRange("vehicleSkinMountChance", 0.60, 0.0, 1.0);
         IFV_DISMOUNTS_ENABLED = builder.comment("Let IFVs dismount squads against armor.")
                 .define("ifvDismountsEnabled", true);
         SEM_CREW_DISABLE_INERTIA_ROTATE = builder.comment("Disable chassis bank while SEM units drive.")

@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.procedural.events.NavalBattleEvent;
 import com.neoalive.tacz_sewv.procedural.events.DerelictVehicleEvent;
 import com.neoalive.tacz_sewv.procedural.events.MortarShellingEvent;
 import com.neoalive.tacz_sewv.util.NpcArmor;
+import com.neoalive.tacz_sewv.util.NpcNvg;
 import com.mojang.logging.LogUtils;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager;
@@ -136,6 +137,7 @@ public class TaczSewv {
         if (event.getLevel().isClientSide) return;
         if (event.getEntity() instanceof AbstractUnit unit) {
             NpcArmor.issue(unit);
+            NpcNvg.issue(unit);
             // Every spawn path surfaces a unit here, so this is also the one place a squad can pick up
             // a medic/engineer companion regardless of which door it came in by.
             SupportSpawner.maybeSpawnCompanions(unit);

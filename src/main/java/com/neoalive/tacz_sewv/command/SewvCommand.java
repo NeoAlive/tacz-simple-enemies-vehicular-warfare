@@ -8,6 +8,8 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.debug.GunCacheProbe;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
@@ -37,6 +39,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraftforge.network.PacketDistributor;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
@@ -83,7 +86,9 @@ public class SewvCommand {
                         .then(Commands.literal("rappel")
                                 .executes(ctx -> debugRappel(ctx.getSource())))
                         .then(Commands.literal("guncache")
-                                .executes(ctx -> debugGunCache(ctx.getSource()))))
+                                .executes(ctx -> debugGunCache(ctx.getSource())))
+                        .then(Commands.literal("reloadSkins")
+                                .executes(ctx -> debugReloadSkins(ctx.getSource()))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("add")
@@ -374,6 +379,20 @@ public class SewvCommand {
         }
         source.sendFailure(Component.literal(result));
         return 0;
+    }
+
+    /** Tell clients to re-scan config/tacz_sewv/vehicle_skins/ without a restart. */
+    private static int debugReloadSkins(CommandSourceStack source) {
+        PacketReloadVehicleSkins packet = new PacketReloadVehicleSkins();
+        if (source.getEntity() instanceof ServerPlayer player) {
+            NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
+        } else if (source.getServer() != null) {
+            for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
+                NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
+            }
+        }
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.reload_skins"), true);
+        return 1;
     }
 
     private static final double DEBUG_HELI_RANGE = 64.0;

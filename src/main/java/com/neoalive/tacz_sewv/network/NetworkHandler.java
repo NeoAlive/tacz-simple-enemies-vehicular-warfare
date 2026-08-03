@@ -60,7 +60,9 @@ public class NetworkHandler {
     // 34: PacketInvasionHud carries team names + per-vehicle side colours for overlay.
     // 35: team_base endInvasionOnCapture on open+save packets.
     // 36: GUARD_POSITION / REACH_GUARD packets; VehicleMarker.hasGuard.
-    private static final String PROTOCOL_VERSION = "36";
+    // 37: vehicle faction skin sticky tag sync + reloadSkins.
+    // 38: C→S PacketSetVehicleSkin (sneak-right-click repair tool cycle).
+    private static final String PROTOCOL_VERSION = "38";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -248,6 +250,28 @@ public class NetworkHandler {
                 PacketReachGuard::encode,
                 PacketReachGuard::new,
                 PacketReachGuard::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketVehicleSkin.class,
+                PacketVehicleSkin::encode,
+                PacketVehicleSkin::new,
+                PacketVehicleSkin::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketReloadVehicleSkins.class,
+                PacketReloadVehicleSkins::encode,
+                PacketReloadVehicleSkins::new,
+                PacketReloadVehicleSkins::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSetVehicleSkin.class,
+                PacketSetVehicleSkin::encode,
+                PacketSetVehicleSkin::new,
+                PacketSetVehicleSkin::handle
         );
     }
 }

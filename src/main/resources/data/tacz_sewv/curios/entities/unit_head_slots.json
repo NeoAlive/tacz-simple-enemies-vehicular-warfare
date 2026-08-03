@@ -1,0 +1,13 @@
+{
+  "entities": [
+    "simpleenemymod:ruunit",
+    "simpleenemymod:usunit",
+    "tacz_sewv:ru_medic",
+    "tacz_sewv:us_medic",
+    "tacz_sewv:ru_engineer",
+    "tacz_sewv:us_engineer"
+  ],
+  "slots": [
+    "head"
+  ]
+}

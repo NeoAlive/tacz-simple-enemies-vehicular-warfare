@@ -17,14 +17,15 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 /**
  * MOD bus, client dist. Registers renderers for this mod's support-unit entities (reusing SEM's own
- * faction renderers — a renderer for the supertype draws the subtype fine) and hangs the two extra
+ * faction renderers — a renderer for the supertype draws the subtype fine) and hangs the extra
  * render layers on all of them plus SEM's three unit renderers.
  *
- * <p>Both layers exist because SEM's renderers only know how to draw SEM's own kit.
+ * <p>The layers exist because SEM's renderers only know how to draw SEM's own kit.
  * {@link BedrockArmorLayer} covers armor that supplies its own model (SBW's kit) — without it RU/US
  * armor is equipped and invisible; {@link SmallArmsLayer} covers SuperbWarfare guns, which is what
  * draws an engineer's repair tool (SEM's held-item layer returns immediately unless the item is a
- * TACZ gun).
+ * TACZ gun); {@link CuriosHeadLayer} draws Curios head items (thermal goggles) that Curios' own
+ * player-only layer never reaches on SEM units.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientModEvents {
@@ -47,6 +48,7 @@ public class ClientModEvents {
      */
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
+        event.enqueueWork(VehicleSkinRegistry::reload);
         if (ModList.get().isLoaded(XaeroMapCompat.MODID)) {
             XaeroMapCompat.register();
         }
@@ -76,6 +78,7 @@ public class ClientModEvents {
         if (renderer != null) {
             renderer.addLayer(new BedrockArmorLayer<>(renderer));
             renderer.addLayer(new SmallArmsLayer<>(renderer));
+            renderer.addLayer(new CuriosHeadLayer<>(renderer));
         }
     }
 }

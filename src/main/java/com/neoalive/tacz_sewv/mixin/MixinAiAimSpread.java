@@ -4,6 +4,7 @@ import com.atsuishio.superbwarfare.data.gun.ShootParameters;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.HullFacts;
+import com.neoalive.tacz_sewv.util.VehicleDarknessAccuracy;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
@@ -43,6 +44,10 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * in a Kotlin lambda ({@code vehicleShoot$lambda$20}) whose synthetic name would not survive an
  * SBW recompile; this field read is stable.
  *
+ * <p>Darkness scales the final spread by {@code 1 / accuracyFraction} (see
+ * {@link VehicleDarknessAccuracy}) — environmental, so it still applies in {@code accurate}
+ * mode. The fraction itself is cached per hull (~1s), not recomputed per pellet.
+ *
  * <p>Deliberately NOT affected:
  * <ul>
  *   <li><b>Players</b> — they aim by hand, and this is a difficulty knob for the AI.</li>
@@ -79,14 +84,20 @@ public abstract class MixinAiAimSpread {
         if (!(unit.getVehicle() instanceof VehicleEntity vehicle)) return spread;
 
         String mode = SewvConfig.AI_AIM_ACCURACY.get();
-        if (TACZ_SEWV$ACCURATE.equals(mode)) return spread;
-
-        double added = SewvConfig.AI_AIM_SPREAD_DEG.get();
-        if (TACZ_SEWV$SCALED.equals(mode)) {
-            // Design crew seats (driver + turret on an IFV), not raw passengers — a loaded
-            // IFV's squad riders would otherwise collapse this to nearly accurate.
-            added /= HullFacts.crewSeatCount(vehicle);
+        if (!TACZ_SEWV$ACCURATE.equals(mode)) {
+            double added = SewvConfig.AI_AIM_SPREAD_DEG.get();
+            if (TACZ_SEWV$SCALED.equals(mode)) {
+                // Design crew seats (driver + turret on an IFV), not raw passengers — a loaded
+                // IFV's squad riders would otherwise collapse this to nearly accurate.
+                added /= HullFacts.crewSeatCount(vehicle);
+            }
+            spread += added;
         }
-        return spread + added;
+
+        double accuracy = VehicleDarknessAccuracy.accuracyFraction(vehicle);
+        if (accuracy < 1.0 && accuracy > 0.0) {
+            spread /= accuracy;
+        }
+        return spread;
     }
 }

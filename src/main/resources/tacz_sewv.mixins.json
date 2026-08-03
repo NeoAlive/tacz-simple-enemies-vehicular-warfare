@@ -37,7 +37,8 @@
     "client.MixinUniversalArmorLayer",
     "client.MixinUnitModelSeatPose",
     "client.MixinVehicleTeamOverlay",
-    "client.MixinVehicleRappelWires"
+    "client.MixinVehicleRappelWires",
+    "client.MixinVehicleRenderer"
   ],
   "server": [],
   "injectors": {

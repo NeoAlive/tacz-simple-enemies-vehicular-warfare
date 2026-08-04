@@ -2,16 +2,43 @@ package com.neoalive.tacz_sewv.entity.unit;
 
 import com.neoalive.tacz_sewv.entity.ai.EngineerLoadout;
 import com.neoalive.tacz_sewv.entity.ai.SupportUnitGoals;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.level.Level;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
-/** US mechanical engineer. See {@link RuEngineerEntity} — same design, US faction. */
+/** US mechanical engineer. See {@link RuEngineerEntity}. */
 public class UsEngineerEntity extends USunitEntity {
+
+    public static final EntityDataAccessor<Boolean> DRONE_CONTROL_LOCKED =
+            SynchedEntityData.defineId(UsEngineerEntity.class, EntityDataSerializers.BOOLEAN);
 
     public UsEngineerEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
+    }
+
+    @Override
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+        this.entityData.define(DRONE_CONTROL_LOCKED, false);
+    }
+
+    @Override
+    public void addAdditionalSaveData(CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
+        tag.putBoolean("SewvDroneControlLocked", this.entityData.get(DRONE_CONTROL_LOCKED));
+    }
+
+    @Override
+    public void readAdditionalSaveData(CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
+        if (tag.contains("SewvDroneControlLocked")) {
+            this.entityData.set(DRONE_CONTROL_LOCKED, tag.getBoolean("SewvDroneControlLocked"));
+        }
     }
 
     @Override
@@ -24,7 +51,6 @@ public class UsEngineerEntity extends USunitEntity {
         SupportUnitGoals.engineer(this, this.goalSelector, this.targetSelector);
     }
 
-    // See RuEngineerEntity — the holster swap is a per-tick state check, not a goal.
     @Override
     public void aiStep() {
         super.aiStep();

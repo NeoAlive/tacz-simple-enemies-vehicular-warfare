@@ -1,0 +1,62 @@
+package com.neoalive.tacz_sewv.mixin;
+
+import com.atsuishio.superbwarfare.data.drone_attachment.DroneAttachmentData;
+import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
+import com.neoalive.tacz_sewv.entity.ai.DroneControl;
+import com.neoalive.tacz_sewv.entity.ai.DroneSupport;
+import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import java.util.UUID;
+
+/**
+ * AI kamikaze drones: skip warhead unless dive-armed; never entity-crash the owner/friendlies
+ * (or anyone during spawn grace).
+ */
+@Mixin(value = DroneEntity.class, remap = false)
+public abstract class MixinDroneKamikaze {
+
+    @Redirect(
+            method = "destroy",
+            at = @At(
+                    value = "FIELD",
+                    target = "Lcom/atsuishio/superbwarfare/data/drone_attachment/DroneAttachmentData;isKamikaze:Z"
+            )
+    )
+    private boolean tacz_sewv$gateKamikaze(DroneAttachmentData data) {
+        DroneEntity self = (DroneEntity) (Object) this;
+        if (DroneControl.isAiOwned(self) && !DroneControl.isDiveArmed(self)) {
+            return false;
+        }
+        return data.isKamikaze;
+    }
+
+    @Inject(method = "hitEntityCrash", at = @At("HEAD"), cancellable = true)
+    private void tacz_sewv$ignoreOwnerCrash(Player player, Entity target, CallbackInfo ci) {
+        DroneEntity self = (DroneEntity) (Object) this;
+        if (!DroneControl.isAiOwned(self)) return;
+        if (DroneControl.inSpawnGrace(self)) {
+            ci.cancel();
+            return;
+        }
+        UUID ownerId = DroneControl.readOwnerId(self);
+        if (ownerId != null && ownerId.equals(target.getUUID())) {
+            ci.cancel();
+            return;
+        }
+        if (target instanceof LivingEntity living) {
+            AbstractUnit crew = DroneSupport.crewOf(self);
+            if (crew != null && VehicleTargeting.isNonHostile(crew, living)) {
+                ci.cancel();
+            }
+        }
+    }
+}

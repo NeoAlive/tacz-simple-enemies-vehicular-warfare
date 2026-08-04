@@ -28,7 +28,8 @@
     "MixinRangedGunAttackGoal",
     "MixinMoveToAttackRangeGoal",
     "MixinCommanderOrderGoal",
-    "MixinWalkNodeEvaluator"
+    "MixinWalkNodeEvaluator",
+    "MixinDroneKamikaze"
   ],
     "client": [
     "client.MixinClientGlowManager",
@@ -36,6 +37,9 @@
     "client.MixinUnitRenderer",
     "client.MixinUniversalArmorLayer",
     "client.MixinUnitModelSeatPose",
+    "client.MixinUnitModelDroneSit",
+    "client.AccessorHierarchicalModel",
+    "client.MixinLayeredAnimationWeaponPose",
     "client.MixinVehicleTeamOverlay",
     "client.MixinVehicleRappelWires",
     "client.MixinVehicleRenderer"

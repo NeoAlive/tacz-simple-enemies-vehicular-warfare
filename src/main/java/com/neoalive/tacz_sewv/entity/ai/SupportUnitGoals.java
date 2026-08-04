@@ -16,8 +16,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
  * crews anything).
  *
  * <p>A <b>medic</b> gets no targetSelector at all: it is neutral, so it must never pick a fight and
- * never retaliates. An <b>engineer</b> repairs by default but fights when engaged, so it gets SEM's
- * own infantry kit plus targeting restricted to infantry.
+ * never retaliates. An <b>engineer</b> repairs by default, fights when engaged, and may operate one
+ * kamikaze drone while locked to a Monitor.
  */
 public final class SupportUnitGoals {
 
@@ -33,19 +33,19 @@ public final class SupportUnitGoals {
     public static void engineer(AbstractUnit unit, GoalSelector goals, GoalSelector targets) {
         reset(unit, goals, targets);
 
+        // Priority -1 beats FloatGoal (0) for MOVE in water — see DroneControlLockGoal.
+        goals.addGoal(-1, new DroneControlLockGoal(unit));
+
         // Repair outranks the combat kit, but stands down on its own the instant the unit holds a
         // target (RepairGoal's canUse bails on it), so this reads as "repair by default, fight when
         // engaged" without either side needing to know about the other.
         goals.addGoal(1, new RepairGoal(unit));
 
         // Draws the holstered sidearm when a fight starts and puts it away when it ends. Claims no
-        // flags — see EngineerLoadout.HolsterGoal.
+        // flags — see EngineerLoadout.HolsterGoal. Also enforces Monitor while drone-locked.
         goals.addGoal(1, new EngineerLoadout.HolsterGoal(unit));
 
-        // Deploys and flies up to a couple of unarmed recon drones that relay spotted enemies
-        // to nearby same-faction units/vehicle crews. Claims no flags — it only ever acts on
-        // the drones it owns, never on the engineer — so it runs alongside repair and combat
-        // with nothing to arbitrate.
+        // Deploys and flies one kamikaze drone. Claims no flags — freeze is DroneControlLockGoal.
         goals.addGoal(1, new DroneOperatorGoal(unit));
 
         // SEM's own infantry goals — cover, movement, look, stroll, and RangedGunAttackGoal, which

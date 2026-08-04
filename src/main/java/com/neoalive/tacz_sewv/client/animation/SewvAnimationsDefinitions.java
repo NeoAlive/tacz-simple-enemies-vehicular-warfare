@@ -13,7 +13,7 @@ public final class SewvAnimationsDefinitions {
 
     private SewvAnimationsDefinitions() {}
 
-    /** Standard sit — played on {@code idleAnimationState} while drone-control locked. */
+    /** Standard sit — played on the engineer's dedicated {@code droneSitAnimationState} while locked. */
     public static final AnimationDefinition UNIT_SIT = AnimationDefinition.Builder.withLength(2.0F).looping()
             .addAnimation("unit", new AnimationChannel(AnimationChannel.Targets.POSITION,
                     new Keyframe(0.0F, KeyframeAnimations.posVec(0.0F, -10.0F, 0.0F), AnimationChannel.Interpolations.LINEAR),

@@ -5,6 +5,7 @@ import com.mojang.logging.LogUtils;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.util.CrewFacts;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.ResourceLocation;
@@ -45,6 +46,8 @@ public final class VehicleSkinRegistry {
 
     /** vehicle registry path + faction → registered texture id. */
     private static final Map<String, ResourceLocation> TEXTURES = new HashMap<>();
+    /** skin id → darkened DynamicTexture for wreck rendering (never goes through ResourceManager). */
+    private static final Map<ResourceLocation, ResourceLocation> DARKENED = new HashMap<>();
 
     private VehicleSkinRegistry() {
     }
@@ -59,7 +62,11 @@ public final class VehicleSkinRegistry {
         for (ResourceLocation id : TEXTURES.values()) {
             textures.release(id);
         }
+        for (ResourceLocation id : DARKENED.values()) {
+            textures.release(id);
+        }
         TEXTURES.clear();
+        DARKENED.clear();
 
         Path dir = skinsDirectory();
         try {
@@ -101,6 +108,45 @@ public final class VehicleSkinRegistry {
 
     public static int size() {
         return TEXTURES.size();
+    }
+
+    /**
+     * Wreck darkening for TextureManager-only skins. SBW's {@code TextureBrightnessHandler}
+     * cannot see these (ResourceManager only), so we multiply pixels here and register a sibling
+     * DynamicTexture. Falls back to {@code skin} on any failure — never throws.
+     */
+    public static ResourceLocation darkened(ResourceLocation skin, float multiplier) {
+        ResourceLocation cached = DARKENED.get(skin);
+        if (cached != null) return cached;
+
+        try {
+            AbstractTexture tex = Minecraft.getInstance().getTextureManager().getTexture(skin);
+            if (!(tex instanceof DynamicTexture dynamic)) return skin;
+            NativeImage src = dynamic.getPixels();
+            if (src == null) return skin;
+
+            NativeImage dark = new NativeImage(src.getWidth(), src.getHeight(), false);
+            for (int x = 0; x < src.getWidth(); x++) {
+                for (int y = 0; y < src.getHeight(); y++) {
+                    int color = src.getPixelRGBA(x, y);
+                    int a = (color >> 24) & 0xFF;
+                    int r = Math.min(255, (int) (((color >> 16) & 0xFF) * multiplier));
+                    int g = Math.min(255, (int) (((color >> 8) & 0xFF) * multiplier));
+                    int b = Math.min(255, (int) ((color & 0xFF) * multiplier));
+                    dark.setPixelRGBA(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+                }
+            }
+
+            String path = skin.getPath();
+            ResourceLocation darkId = new ResourceLocation(skin.getNamespace(),
+                    path.endsWith(".png") ? path.substring(0, path.length() - 4) + "_dark.png" : path + "_dark");
+            Minecraft.getInstance().getTextureManager().register(darkId, new DynamicTexture(dark));
+            DARKENED.put(skin, darkId);
+            return darkId;
+        } catch (Exception e) {
+            LOGGER.warn("{} could not darken {}: {}", LOG_PREFIX, skin, e.toString());
+            return skin;
+        }
     }
 
     /**

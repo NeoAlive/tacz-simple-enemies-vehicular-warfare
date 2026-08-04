@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.data.drone_attachment.DroneAttachmentData;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.entity.ai.DroneControl;
 import com.neoalive.tacz_sewv.entity.ai.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
@@ -52,11 +53,17 @@ public abstract class MixinDroneKamikaze {
             ci.cancel();
             return;
         }
+        AbstractUnit crew = DroneSupport.crewOf(self);
+        if (crew == null) return;
         if (target instanceof LivingEntity living) {
-            AbstractUnit crew = DroneSupport.crewOf(self);
-            if (crew != null && VehicleTargeting.isNonHostile(crew, living)) {
+            if (VehicleTargeting.isNonHostile(crew, living)) {
                 ci.cancel();
             }
+            return;
+        }
+        // Friendly-crewed hulls (no hostile passenger) must not detonate on bump.
+        if (target instanceof VehicleEntity hull && !DroneSupport.hasHostilePassenger(crew, hull)) {
+            ci.cancel();
         }
     }
 }

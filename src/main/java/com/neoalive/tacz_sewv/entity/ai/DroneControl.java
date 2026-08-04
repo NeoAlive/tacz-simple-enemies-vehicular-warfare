@@ -4,6 +4,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -56,6 +57,14 @@ public final class DroneControl {
 
     public static boolean isEngineer(LivingEntity entity) {
         return entity instanceof RuEngineerEntity || entity instanceof UsEngineerEntity;
+    }
+
+    /** Dedicated sit {@link AnimationState}, or null when the entity is not an engineer. */
+    @Nullable
+    public static AnimationState sitAnimationState(Entity entity) {
+        if (entity instanceof RuEngineerEntity ru) return ru.droneSitAnimationState;
+        if (entity instanceof UsEngineerEntity us) return us.droneSitAnimationState;
+        return null;
     }
 
     public static void rememberDrone(AbstractUnit owner, DroneEntity drone) {

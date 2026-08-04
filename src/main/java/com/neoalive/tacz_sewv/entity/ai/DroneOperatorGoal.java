@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
@@ -19,15 +20,27 @@ import java.util.List;
 /**
  * Deploys and flies one kamikaze drone for an RU/US engineer. Claims no flags — engineer freeze
  * is {@link DroneControlLockGoal}; this goal only steers the hull and owns lock enter/exit.
+ *
+ * <p>SBW drone {@code travel()} ignores forward/strafe while {@code onGround()}, and a held
+ * {@code up} input grows {@code holdTickY} unboundedly (~0.05×ticks vertical impulse — ~18
+ * blocks in one second of continuous hold). Steering therefore uses short pulses and always
+ * takeoffs before lateral input.
  */
 public class DroneOperatorGoal extends Goal {
 
     private static final double ARRIVE_RADIUS = 4.0;
-    private static final double ALT_DEADBAND = 1.5;
-    private static final double MAX_YAW_STEP_DEG = 6.0;
-    private static final double FACE_THRESHOLD_DEG = 15.0;
+    /** Middle ground: continuous hold overshoots; light pulses feel sluggish. */
+    private static final double ALT_DEADBAND = 2.0;
+    private static final double MAX_YAW_STEP_DEG = 5.0;
+    private static final double FACE_THRESHOLD_DEG = 16.0;
     private static final double WANDER_RADIUS = 24.0;
     private static final int WANDER_REPICK_TICKS = 80;
+    /** Below this AGL (or {@code onGround}), only climb — lateral inputs are inert on the deck. */
+    private static final double TAKEOFF_AGL = 2.5;
+
+    /** ~60–75% duty: enough authority, still resets holdTick before it runs away. */
+    private static final int ALT_PERIOD = 6;
+    private static final int FWD_PERIOD = 5;
 
     private final AbstractUnit unit;
     private final List<DroneEntity> drones = new ArrayList<>();
@@ -38,7 +51,7 @@ public class DroneOperatorGoal extends Goal {
     private double wanderX = Double.NaN;
     private double wanderZ = Double.NaN;
     @javax.annotation.Nullable
-    private LivingEntity diveTarget;
+    private VehicleEntity diveTarget;
 
     public DroneOperatorGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -165,15 +178,21 @@ public class DroneOperatorGoal extends Goal {
     }
 
     private void flyLocked(DroneEntity drone) {
+        // Deck: SBW ignores forward/strafe while onGround — climb clear before anything else.
+        if (needsTakeoff(drone)) {
+            DroneControl.setDiveArmed(drone, false);
+            takeoff(drone);
+            return;
+        }
+
         if (this.scanCooldown > 0) this.scanCooldown--;
         if (this.scanCooldown <= 0) {
             this.scanCooldown = SewvConfig.DRONE_SCAN_INTERVAL_TICKS.get();
-            LivingEntity contact = DroneSupport.findInnerRingEnemy(drone, this.unit);
-            this.diveTarget = contact;
+            this.diveTarget = DroneSupport.findHostileVehicle(drone, this.unit);
         }
 
-        if (this.diveTarget != null && this.diveTarget.isAlive()
-                && !VehicleTargeting.isNonHostile(this.unit, this.diveTarget)) {
+        if (this.diveTarget != null && this.diveTarget.isAlive() && !this.diveTarget.isWreck()
+                && DroneSupport.hasHostilePassenger(this.unit, this.diveTarget)) {
             DroneControl.setDiveArmed(drone, true);
             diveAt(drone, this.diveTarget);
             return;
@@ -192,8 +211,8 @@ public class DroneOperatorGoal extends Goal {
 
         long now = this.unit.level().getGameTime();
         if (distHome > leash) {
-            steerHorizontal(drone, dxHome, dzHome, distHome);
-            holdAltitude(drone, cruiseAlt(drone));
+            steerHorizontal(drone, dxHome, dzHome, distHome, 3);
+            pulseAltitude(drone, cruiseAlt(drone), 4);
             return;
         }
 
@@ -211,17 +230,17 @@ public class DroneOperatorGoal extends Goal {
         double dz = this.wanderZ - drone.getZ();
         double dist = Math.sqrt(dx * dx + dz * dz);
         if (dist > ARRIVE_RADIUS) {
-            steerHorizontal(drone, dx, dz, dist);
+            steerHorizontal(drone, dx, dz, dist, 3);
         } else {
             drone.setForwardInputDown(false);
             drone.setBackInputDown(false);
             drone.setLeftInputDown(false);
             drone.setRightInputDown(false);
         }
-        holdAltitude(drone, cruiseAlt(drone));
+        pulseAltitude(drone, cruiseAlt(drone), 4);
     }
 
-    private void diveAt(DroneEntity drone, LivingEntity target) {
+    private void diveAt(DroneEntity drone, VehicleEntity target) {
         double dx = target.getX() - drone.getX();
         double dy = target.getY() + target.getBbHeight() * 0.5 - drone.getY();
         double dz = target.getZ() - drone.getZ();
@@ -235,18 +254,30 @@ public class DroneOperatorGoal extends Goal {
             Vec3 dir = new Vec3(dx / horiz, 0, dz / horiz);
             Vector3f forward = drone.getForwardDirection().normalize();
             double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, dir));
-            double step = Mth.clamp(-yawErrDeg, -MAX_YAW_STEP_DEG * 2.0, MAX_YAW_STEP_DEG * 2.0);
+            double step = Mth.clamp(-yawErrDeg, -MAX_YAW_STEP_DEG * 1.5, MAX_YAW_STEP_DEG * 1.5);
             drone.setYRot((float) (drone.getYRot() + step));
-            drone.setForwardInputDown(Math.abs(yawErrDeg) < FACE_THRESHOLD_DEG * 2.0);
+            // Dive: denser forward pulse once roughly aimed; still not a continuous hold.
+            boolean aimed = Math.abs(yawErrDeg) < FACE_THRESHOLD_DEG * 2.0;
+            drone.setForwardInputDown(aimed && pulse(drone.tickCount, FWD_PERIOD, 4));
         } else {
-            drone.setForwardInputDown(true);
+            drone.setForwardInputDown(pulse(drone.tickCount, FWD_PERIOD, 4));
         }
 
-        drone.setUpInputDown(dy > ALT_DEADBAND);
-        drone.setDownInputDown(dy < -ALT_DEADBAND);
+        // Dive altitude: denser pulses than wander; brief off ticks still reset holdTickY.
+        drone.setUpInputDown(false);
+        drone.setDownInputDown(false);
+        if (dy > ALT_DEADBAND) {
+            drone.setUpInputDown(pulse(drone.tickCount, ALT_PERIOD, 5));
+        } else if (dy < -ALT_DEADBAND) {
+            drone.setDownInputDown(pulse(drone.tickCount, ALT_PERIOD, 5));
+        }
     }
 
-    private void steerHorizontal(DroneEntity drone, double dx, double dz, double dist) {
+    /**
+     * Yaw toward destination; forward only on a short duty cycle once roughly facing it.
+     * {@code fwdOn} = consecutive forward ticks per {@link #FWD_PERIOD}.
+     */
+    private void steerHorizontal(DroneEntity drone, double dx, double dz, double dist, int fwdOn) {
         drone.setBackInputDown(false);
         drone.setLeftInputDown(false);
         drone.setRightInputDown(false);
@@ -256,13 +287,43 @@ public class DroneOperatorGoal extends Goal {
         double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, dirToDest));
         double step = Mth.clamp(-yawErrDeg, -MAX_YAW_STEP_DEG, MAX_YAW_STEP_DEG);
         drone.setYRot((float) (drone.getYRot() + step));
-        drone.setForwardInputDown(Math.abs(yawErrDeg) < FACE_THRESHOLD_DEG);
+        boolean aimed = Math.abs(yawErrDeg) < FACE_THRESHOLD_DEG;
+        drone.setForwardInputDown(aimed && pulse(drone.tickCount, FWD_PERIOD, fwdOn));
     }
 
-    private void holdAltitude(DroneEntity drone, double targetY) {
+    private void pulseAltitude(DroneEntity drone, double targetY, int onTicks) {
         double dy = targetY - drone.getY();
-        drone.setUpInputDown(dy > ALT_DEADBAND);
-        drone.setDownInputDown(dy < -ALT_DEADBAND);
+        drone.setUpInputDown(false);
+        drone.setDownInputDown(false);
+        if (Math.abs(dy) <= ALT_DEADBAND) return;
+        // Extra on-tick for large errors — still leave ≥1 off tick so holdTickY resets.
+        int on = Math.abs(dy) > 12.0 ? Math.min(onTicks + 1, ALT_PERIOD - 1) : onTicks;
+        if (dy > 0) {
+            drone.setUpInputDown(pulse(drone.tickCount, ALT_PERIOD, on));
+        } else {
+            drone.setDownInputDown(pulse(drone.tickCount, ALT_PERIOD, on));
+        }
+    }
+
+    /** Climb-only until clear of the deck (lateral inputs do nothing while grounded). */
+    private void takeoff(DroneEntity drone) {
+        DroneControl.zeroInputs(drone);
+        drone.setUpInputDown(pulse(drone.tickCount, ALT_PERIOD, 4));
+    }
+
+    private static boolean needsTakeoff(DroneEntity drone) {
+        if (drone.onGround()) return true;
+        return agl(drone) < TAKEOFF_AGL;
+    }
+
+    private static double agl(DroneEntity drone) {
+        int surface = drone.level().getHeight(Heightmap.Types.WORLD_SURFACE, drone.getBlockX(), drone.getBlockZ());
+        return drone.getY() - surface;
+    }
+
+    private static boolean pulse(int tick, int period, int onTicks) {
+        int on = Mth.clamp(onTicks, 1, period - 1);
+        return (tick % period) < on;
     }
 
     private static double cruiseAlt(DroneEntity drone) {

@@ -49,6 +49,14 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
     private static final String UNIT_PART_NAME = "unit";
     private static final String RIGHT_ARM_PART_NAME = "rightArm";
 
+    // --- Monitor (drone tablet) placement — tweak these, then rebuild/reload client ---
+    private static final double MONITOR_TX = 0.05D;
+    private static final double MONITOR_TY = 0.35D;
+    private static final double MONITOR_TZ = 0.12D;
+    private static final float MONITOR_YAW = -90.0F;
+    private static final float MONITOR_PITCH = -20.0F;
+    private static final float MONITOR_SCALE = 0.7F;
+
     private HierarchicalModel<?> armModel;
     private ModelPart rightArm;
 
@@ -85,10 +93,23 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
         poseStack.pushPose();
         this.rightArm.translateAndRotate(poseStack);
 
-        poseStack.translate(-0.06D, 0.73D, 0.3D);
-        poseStack.mulPose(Axis.YP.rotationDegrees(-180));
-        poseStack.mulPose(Axis.XP.rotationDegrees(-90));
-        poseStack.scale(1.0F, -1.0F, -1.0F);
+        if (stack.getItem() instanceof MonitorItem) {
+            // Tunable lap/hand placement under UNIT_SIT (gun offsets put this above the head).
+            // Axes are AFTER rightArm.translateAndRotate — local to the folded arm bone:
+            //   X = left(+)/right(-) of the arm   Y = along the arm toward fingertips(+)
+            //   Z = forward(+)/back of the palm plane
+            // Rotations: YP spins the tablet face; XP tips it toward/away from the lap.
+            // Scale: negative Y/Z match SBW third-person item convention (same as guns).
+            poseStack.translate(MONITOR_TX, MONITOR_TY, MONITOR_TZ);
+            poseStack.mulPose(Axis.YP.rotationDegrees(MONITOR_YAW));
+            poseStack.mulPose(Axis.XP.rotationDegrees(MONITOR_PITCH));
+            poseStack.scale(MONITOR_SCALE, -MONITOR_SCALE, -MONITOR_SCALE);
+        } else {
+            poseStack.translate(-0.06D, 0.73D, 0.3D);
+            poseStack.mulPose(Axis.YP.rotationDegrees(-180));
+            poseStack.mulPose(Axis.XP.rotationDegrees(-90));
+            poseStack.scale(1.0F, -1.0F, -1.0F);
+        }
 
         // renderStatic is what ItemInHandRenderer delegates to, and it honours the item's custom
         // renderer — which matters here, because every SBW gun supplies its own geo model through

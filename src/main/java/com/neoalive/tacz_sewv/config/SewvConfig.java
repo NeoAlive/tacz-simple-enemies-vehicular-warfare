@@ -313,11 +313,11 @@ public final class SewvConfig {
         NVG_SPAWN_CHANCE = builder.comment("Chance a SEM unit joining at night spawns wearing an NVG-eligible item.")
                 .defineInRange("nvgSpawnChance", 0.20, 0.0, 1.0);
         DARK_ACCURACY_FRACTION = builder.comment(
-                        "AI vehicle accuracy multiplier in darkness with no rendered-seat NVG (0.30 = -70%).")
-                .defineInRange("darkAccuracyFraction", 0.30, 0.05, 1.0);
+                        "AI vehicle accuracy multiplier in darkness with no rendered-seat NVG (0.375 ≈ -62.5%).")
+                .defineInRange("darkAccuracyFraction", 0.375, 0.05, 1.0);
         NVG_ACCURACY_FRACTION = builder.comment(
-                        "AI vehicle accuracy multiplier in darkness when any rendered-seat occupant has NVG (0.60 = -40%).")
-                .defineInRange("nvgAccuracyFraction", 0.60, 0.05, 1.0);
+                        "AI vehicle accuracy multiplier in darkness when any rendered-seat occupant has NVG (0.75 = -25%).")
+                .defineInRange("nvgAccuracyFraction", 0.75, 0.05, 1.0);
         DARK_BLOCK_LIGHT_MAX = builder.comment(
                         "Max combined sky+block light (inclusive) that still counts as darkness in daytime;",
                         "nighttime always counts. Outdoors in daylight is bright via sky light, not block light.")
@@ -342,8 +342,10 @@ public final class SewvConfig {
         builder.push("crew_ai");
         AI_FIRE_COOLDOWN_TICKS = builder.comment("Minimum delay between AI vehicle shots.")
                 .defineInRange("aiFireCooldownTicks", 5, 1, 200);
-        AI_FIRE_ASSIST_CONE_DEG = builder.comment("How far off target an AI crew may still fire.")
-                .defineInRange("aiFireAssistConeDeg", 12.0, 4.0, 30.0);
+        AI_FIRE_ASSIST_CONE_DEG = builder.comment(
+                        "How far off target an AI (NPC) crew may still fire. Splash beats silence — "
+                                + "existing tomls keep their old value until edited; code also floors NPC assist.")
+                .defineInRange("aiFireAssistConeDeg", 35.0, 4.0, 90.0);
         SMOKE_BLOCK_RADIUS = builder.comment("How close smoke must be to block AI fire.")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
         AI_AIM_ACCURACY = builder.comment("AI vehicle accuracy mode: realistic, scaled, or accurate.")

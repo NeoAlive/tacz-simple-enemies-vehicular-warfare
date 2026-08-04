@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.world.entity.LivingEntity;
@@ -24,20 +25,14 @@ import java.util.EnumSet;
  *
  * <p>Claims NO flags: the native loop already owns aiming and pulling the trigger for this
  * seat, so this only ever intervenes on weapon selection — {@link VehicleWeapons#selectWeaponForTarget}
- * and {@link VehicleWeapons#tryAiFireAssist} are already seat-agnostic (they act on whichever
- * {@code unit}/{@code seatIndex} is passed in, not hardcoded to the driver).
+ * / {@link HeliArmament#pickGroundWeapon} and {@link VehicleWeapons#tryAiFireAssist} are
+ * seat-agnostic.
  *
- * <p><b>GROUND/SHIP HULLS ONLY — helicopters are deliberately excluded.</b> This was first
- * written to also cover helicopter gunner seats (e.g. {@code superbwarfare:mi_28}'s seat 1,
- * armed with Cannon/PassengerMissile/SeekMissile, distinct from the pilot's own weapons in seat
- * 0), on the theory that {@link VehicleWeapons} is seat-agnostic so one goal class could cover
- * both. In practice, a gunner firing mid-flight destabilized {@link DriveHelicopterGoal}'s
- * landing approach — a helicopter ordered to land would circle the pad instead of touching down.
- * {@code mi_28} is a DEFAULT pool entry ({@code ruVehiclePool}), so this was reachable out of the
- * box. Root-caused no further than "the gunner seat is the only new thing that fires mid-flight
- * here" — do not re-enable for helicopters without first understanding that interaction (likely
- * firing recoil/backblast perturbing the vehicle's velocity, which {@code doLanding}'s capture
- * phase isn't robust against).
+ * <p>Eligibility is the inverse of rappel cargo ({@link RappelSupport#isRappelEligible}): any
+ * passenger that {@link VehicleWeapons#controlsVehicleWeapon} (armed seat) who is not the
+ * driver. Helicopters are included; weapon work is suspended while the pilot is in a
+ * LANDING/LANDED command so a gunner salvo cannot perturb {@link DriveHelicopterGoal}'s
+ * capture approach (the original regression that kept helis excluded).
  */
 public class TurretGunnerGoal extends Goal {
 
@@ -62,15 +57,17 @@ public class TurretGunnerGoal extends Goal {
     @Override
     public boolean canUse() {
         if (!(this.unit.getVehicle() instanceof VehicleEntity v)) return false;
-        if (v.getFirstPassenger() == this.unit) return false; // driver's own goal handles that seat
+        // Driver / pure passengers: rappel cargo fails controlsVehicleWeapon; driver is first passenger.
+        if (v.getFirstPassenger() == this.unit) return false;
+        if (!VehicleWeapons.controlsVehicleWeapon(this.unit)) return false;
 
         this.hull.attach(v);
-        if (this.hull.isHelicopter()) return false; // see class doc — landing interaction regression
+        if (this.hull.isHelicopter() && heliLanding(v)) return false;
 
         int seat = v.getSeatIndex(this.unit);
         if (seat < 0) return false;
         SeatInfo info = v.getSeat(seat);
-        if (info == null || info.weapons().isEmpty()) return false; // nothing to select here
+        if (info == null || info.weapons().isEmpty()) return false;
 
         this.vehicle = v;
         this.seatIndex = seat;
@@ -82,7 +79,8 @@ public class TurretGunnerGoal extends Goal {
         return this.vehicle != null
                 && this.unit.getVehicle() == this.vehicle
                 && !this.vehicle.isWreck()
-                && this.unit.getTarget() != null;
+                && this.unit.getTarget() != null
+                && !(this.hull.isHelicopter() && heliLanding(this.vehicle));
     }
 
     @Override
@@ -97,6 +95,12 @@ public class TurretGunnerGoal extends Goal {
     public void tick() {
         LivingEntity target = this.unit.getTarget();
         if (target == null) return;
+        if (this.hull.isHelicopter() && heliLanding(this.vehicle)) return;
+
+        if (this.hull.isHelicopter()) {
+            heliGunnerTick(target);
+            return;
+        }
 
         if (this.weaponSwitchCooldown > 0) {
             this.weaponSwitchCooldown--;
@@ -115,5 +119,26 @@ public class TurretGunnerGoal extends Goal {
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                     SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
         }
+    }
+
+    /** Heli gunner seats use pilot armament doctrine; always fire-assist (hull-fixed pods). */
+    private void heliGunnerTick(LivingEntity target) {
+        if (this.weaponSwitchCooldown > 0) {
+            this.weaponSwitchCooldown--;
+        } else {
+            int slot = HeliArmament.pickGroundWeapon(this.vehicle, this.seatIndex, target);
+            if (slot >= 0) {
+                this.vehicle.setWeaponIndex(this.seatIndex, slot);
+            }
+            this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
+        }
+        VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
+                SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+    }
+
+    private static boolean heliLanding(VehicleEntity v) {
+        if (!(v.getFirstPassenger() instanceof IHelicopterPilot pilot)) return false;
+        int cmd = pilot.sewv$getHeliCommand();
+        return cmd == IHelicopterPilot.HELI_CMD_LANDING || cmd == IHelicopterPilot.HELI_CMD_LANDED;
     }
 }

@@ -27,13 +27,8 @@ public final class VehicleAiGoals {
         unit.goalSelector.addGoal(1, new DriveHelicopterGoal(unit));
         unit.goalSelector.addGoal(1, new DrivePlaneGoal(unit));
         unit.goalSelector.addGoal(1, new DriveShipGoal(unit));
-        // Both drive goals above only ever act for the FIRST passenger (the driver/steering
-        // seat); this covers everyone else in a weapon-bearing seat — a separate turret seat,
-        // firing ports — with the same ammo doctrine and fire-assist, claiming no flags since
-        // SBW's native per-seat loop already aims and fires that seat. GROUND/SHIP HULLS ONLY —
-        // see the class doc on TurretGunnerGoal: a helicopter gunner firing mid-flight was found
-        // to destabilize DriveHelicopterGoal's landing approach, so helicopters are excluded
-        // there until that interaction is understood.
+        // GROUND/SHIP/HELI armed non-driver seats — inverse of rappel cargo eligibility.
+        // Helis pause this goal while LANDING/LANDED (see TurretGunnerGoal).
         unit.goalSelector.addGoal(1, new TurretGunnerGoal(unit));
         unit.goalSelector.addGoal(1, new VehicleMinRangeGoal(unit));
         // Gates on the mounted hull being a TOW, the same way the two drive goals gate on

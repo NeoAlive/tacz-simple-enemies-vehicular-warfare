@@ -19,6 +19,8 @@ public final class HeliArmamentSelfCheck {
         softPrefersRocket();
         armorLatchesGuidedWhenRocketsReady();
         aaNeverPicked();
+        ah6ArmorPrefersRocketOverCannon();
+        ah6SoftPrefersCannon();
 
         System.out.println("heli armament self-check: OK");
     }
@@ -29,6 +31,9 @@ public final class HeliArmamentSelfCheck {
                 sig("superbwarfare:small_rocket", "superbwarfare:small_rocket", 0, false), true,
                 "rocket");
         assert !HeliArmament.isGuidedProjectile("superbwarfare:small_rocket") : "rocket not guided";
+        assert HeliArmament.isRocketSignals(
+                sig("superbwarfare:small_rocket", "superbwarfare:small_rocket", 0, false))
+                : "small_rocket is rocket";
 
         // DriverMissile after @Missile merge — wire-guide AG
         assertKind(HeliArmament.Kind.GROUND_USABLE,
@@ -63,6 +68,7 @@ public final class HeliArmamentSelfCheck {
     }
 
     private static void softPrefersRocket() {
+        // Pilot seat has rockets but no cannon — soft still lands on Rocket (slot 0).
         int pick = HeliArmament.pickFromCandidates(mi28PilotAllReady(), false);
         assert pick == 0 : "mi_28 vs soft must prefer Rocket (slot 0), got " + pick;
     }
@@ -73,9 +79,9 @@ public final class HeliArmamentSelfCheck {
      */
     private static void armorLatchesGuidedWhenRocketsReady() {
         List<HeliArmament.Candidate> mi28 = List.of(
-                new HeliArmament.Candidate(0, HeliArmament.Kind.GROUND_USABLE, false, true),
-                new HeliArmament.Candidate(1, HeliArmament.Kind.GROUND_USABLE, true, false),
-                new HeliArmament.Candidate(2, HeliArmament.Kind.AIR_ONLY, true, true));
+                new HeliArmament.Candidate(0, HeliArmament.Kind.GROUND_USABLE, false, true, true),
+                new HeliArmament.Candidate(1, HeliArmament.Kind.GROUND_USABLE, true, false, false),
+                new HeliArmament.Candidate(2, HeliArmament.Kind.AIR_ONLY, true, true, false));
         int pick = HeliArmament.pickFromCandidates(mi28, true);
         assert pick == 1 : "armor must latch DriverMissile while reloading, got " + pick;
     }
@@ -84,20 +90,38 @@ public final class HeliArmamentSelfCheck {
         // Guided depleted, unguided depleted, only AA ready — still must not pick AA;
         // latch prefers guided slot even when not ready (reload wait), never AIR_ONLY.
         List<HeliArmament.Candidate> mi28 = List.of(
-                new HeliArmament.Candidate(0, HeliArmament.Kind.GROUND_USABLE, false, false),
-                new HeliArmament.Candidate(1, HeliArmament.Kind.GROUND_USABLE, true, false),
-                new HeliArmament.Candidate(2, HeliArmament.Kind.AIR_ONLY, true, true));
+                new HeliArmament.Candidate(0, HeliArmament.Kind.GROUND_USABLE, false, false, true),
+                new HeliArmament.Candidate(1, HeliArmament.Kind.GROUND_USABLE, true, false, false),
+                new HeliArmament.Candidate(2, HeliArmament.Kind.AIR_ONLY, true, true, false));
         int pick = HeliArmament.pickFromCandidates(mi28, true);
         assert pick == 1 : "armor latch must be guided AG slot, not AA, got " + pick;
         assert pick != 2 : "must never pick AIR_ONLY";
     }
 
+    /** ah_6 seat 0: Cannon then Rocket — armor must not stick on the cannon. */
+    private static void ah6ArmorPrefersRocketOverCannon() {
+        List<HeliArmament.Candidate> ah6 = List.of(
+                new HeliArmament.Candidate(0, HeliArmament.Kind.GROUND_USABLE, false, true, false),
+                new HeliArmament.Candidate(1, HeliArmament.Kind.GROUND_USABLE, false, true, true));
+        int pick = HeliArmament.pickFromCandidates(ah6, true);
+        assert pick == 1 : "ah_6 vs armor must pick Rocket (slot 1), got " + pick;
+    }
+
+    /** Soft contacts keep the cannon when both are ready. */
+    private static void ah6SoftPrefersCannon() {
+        List<HeliArmament.Candidate> ah6 = List.of(
+                new HeliArmament.Candidate(0, HeliArmament.Kind.GROUND_USABLE, false, true, false),
+                new HeliArmament.Candidate(1, HeliArmament.Kind.GROUND_USABLE, false, true, true));
+        int pick = HeliArmament.pickFromCandidates(ah6, false);
+        assert pick == 0 : "ah_6 vs soft must prefer Cannon (slot 0), got " + pick;
+    }
+
     private static List<HeliArmament.Candidate> mi28PilotAllReady() {
         // Seat 0 order: Rocket, DriverMissile, DriverAAMissile — matches mi_28.json
         return List.of(
-                new HeliArmament.Candidate(0, HeliArmament.Kind.GROUND_USABLE, false, true),
-                new HeliArmament.Candidate(1, HeliArmament.Kind.GROUND_USABLE, true, true),
-                new HeliArmament.Candidate(2, HeliArmament.Kind.AIR_ONLY, true, true));
+                new HeliArmament.Candidate(0, HeliArmament.Kind.GROUND_USABLE, false, true, true),
+                new HeliArmament.Candidate(1, HeliArmament.Kind.GROUND_USABLE, true, true, false),
+                new HeliArmament.Candidate(2, HeliArmament.Kind.AIR_ONLY, true, true, false));
     }
 
     private static HeliArmament.Signals sig(String proj, String ammo, double minH, boolean seek) {

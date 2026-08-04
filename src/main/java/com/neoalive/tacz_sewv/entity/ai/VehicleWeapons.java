@@ -626,9 +626,23 @@ public final class VehicleWeapons {
      * {@link FireGate#CANNOT_SHOOT} covers MixinVehicleFireCooldown (CEASE_FIRE,
      * AI cooldown, LOS/smoke) and SBW ammo/reload — dig with canShoot alone if needed.
      */
+    /**
+     * Minimum assist cone for SEM crews. Splash from a loose shot beats never firing;
+     * floors even when an old {@code aiFireAssistConeDeg} toml still says 12°.
+     */
+    public static final double NPC_ASSIST_CONE_FLOOR_DEG = 35.0;
+
+    /** Effective cone for an NPC-crewed seat: max(requested, {@link #NPC_ASSIST_CONE_FLOOR_DEG}). */
+    public static double npcAssistConeDeg(double requestedDeg) {
+        return Math.max(requestedDeg, NPC_ASSIST_CONE_FLOOR_DEG);
+    }
+
     public static FireGate tryAiFireAssistResult(VehicleEntity vehicle, AbstractUnit unit,
                                                  LivingEntity target, double coneDeg) {
         try {
+            // NPC seat only reaches this path — enlarge so inaccurate fire still goes out.
+            double effectiveCone = npcAssistConeDeg(coneDeg);
+
             int rpm = Math.max(1, vehicle.vehicleWeaponRpm(unit));
             int interval = Math.max(1, (int) Math.ceil(1200.0F / rpm));
             if (vehicle.tickCount % interval != 0) return FireGate.RPM_WAIT;
@@ -643,7 +657,7 @@ public final class VehicleWeapons {
 
             double cos = shootDir.normalize().dot(toTarget.normalize());
             double angleDeg = Math.toDegrees(Math.acos(Mth.clamp(cos, -1.0, 1.0)));
-            if (angleDeg >= coneDeg) return FireGate.CONE;
+            if (angleDeg >= effectiveCone) return FireGate.CONE;
 
             vehicle.vehicleShoot(unit, target.getUUID(), null);
             return FireGate.FIRED;

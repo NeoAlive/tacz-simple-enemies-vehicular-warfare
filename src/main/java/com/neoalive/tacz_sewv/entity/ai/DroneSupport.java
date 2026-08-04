@@ -2,7 +2,9 @@ package com.neoalive.tacz_sewv.entity.ai;
 
 import com.atsuishio.superbwarfare.data.CustomData;
 import com.atsuishio.superbwarfare.data.drone_attachment.DroneAttachmentData;
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.nbt.CompoundTag;
@@ -12,6 +14,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -20,7 +23,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -178,29 +180,57 @@ public final class DroneSupport {
     }
 
     /**
-     * Nearest hostile in the ground-vehicle inner-ring cylinder ({@link HullLocalScan}), no LOS.
+     * Nearest hostile-crewed vehicle with a real {@link EngineType} (not {@code EMPTY}).
+     * Dedicated aerial AABB — does not reuse {@link HullLocalScan}'s LivingEntity fill.
+     * Vertical reach includes AGL slack so a drone at cruise altitude still sees ground hulls.
      */
     @Nullable
-    static LivingEntity findInnerRingEnemy(DroneEntity drone, AbstractUnit owner) {
+    static VehicleEntity findHostileVehicle(DroneEntity drone, AbstractUnit owner) {
         double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
-        double radiusSq = radius * radius;
         double halfH = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
-        List<LivingEntity> raw = HullLocalScan.livingInScanCylinder(drone);
-        LivingEntity best = null;
+        int surface = drone.level().getHeight(Heightmap.Types.WORLD_SURFACE, drone.getBlockX(), drone.getBlockZ());
+        double slack = Math.max(0.0, drone.getY() - surface);
+        AABB bounds = new AABB(
+                drone.getX() - radius, drone.getY() - halfH - slack, drone.getZ() - radius,
+                drone.getX() + radius, drone.getY() + halfH, drone.getZ() + radius);
+
+        VehicleEntity best = null;
         double bestDist = Double.MAX_VALUE;
-        for (LivingEntity e : raw) {
-            if (!e.isAlive() || !e.isAttackable()) continue;
-            if (VehicleTargeting.isNonHostile(owner, e)) continue;
-            double dy = Math.abs(e.getY() - drone.getY());
-            if (dy > halfH) continue;
-            double d = e.distanceToSqr(drone);
-            if (d > radiusSq) continue;
+        for (VehicleEntity hull : drone.level().getEntitiesOfClass(VehicleEntity.class, bounds)) {
+            if (hull == drone || !hull.isAlive() || hull.isWreck()) continue;
+            if (!hasRealEngine(hull)) continue;
+            if (!hasHostilePassenger(owner, hull)) continue;
+            double d = hull.distanceToSqr(drone);
             if (d < bestDist) {
                 bestDist = d;
-                best = e;
+                best = hull;
             }
         }
         return best;
+    }
+
+    /** {@code EngineType != EMPTY} — excludes Type:Drone hulls (default EMPTY) and bare placeholders. */
+    private static boolean hasRealEngine(VehicleEntity hull) {
+        try {
+            return hull.computed().getEngineType() != EngineType.EMPTY;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * True when at least one passenger fails {@link VehicleTargeting#isNonHostile}.
+     * Empty / same-faction-only hulls are skipped.
+     */
+    public static boolean hasHostilePassenger(AbstractUnit owner, VehicleEntity hull) {
+        for (Entity passenger : hull.getPassengers()) {
+            if (passenger instanceof LivingEntity living
+                    && living.isAlive()
+                    && !VehicleTargeting.isNonHostile(owner, living)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

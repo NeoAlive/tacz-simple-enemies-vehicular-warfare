@@ -178,9 +178,15 @@ public class DriveHelicopterGoal extends Goal {
     private static final double BREAK_RANGE = 14.0;
     private static final float MAX_COMBAT_DIVE_DEG = 60.0F;
     private static final float MAX_CLIMB_AIM_DEG = 15.0F;
-    private static final double AIM_STICK_PER_DEG = 1.0;
-    private static final float MAX_AIM_PITCH_STICK = 30.0F;
-    private static final float MAX_AIM_YAW_STICK = 40.0F;
+    // Combat aim: light, high-gain — orbiting helis sweep bearing fast and the 12° fire
+    // cone drops shots unless the nose snaps back every tick. Engine yaw saturates
+    // around stick≈5 airborne anyway; the gain is for small in-cone errors.
+    private static final double AIM_YAW_PER_DEG = 3.0;
+    private static final double AIM_PITCH_PER_DEG = 2.5;
+    private static final float MAX_AIM_PITCH_STICK = 45.0F;
+    private static final float MAX_AIM_YAW_STICK = 60.0F;
+    /** Lead own + target motion so the cone tracks through a turn/orbit. */
+    private static final double AIM_LEAD_TICKS = 3.0;
     // Bounded pass: commanded AGL vs pull-up abort floor must stay apart — when they
     // shared one constant (22), ATTACK steered into the abort band and self-terminated
     // on arrival (~1s passes, no time to fire). Gap = RUN_ALTITUDE - PULLUP_FLOOR = 16.
@@ -1361,22 +1367,34 @@ public class DriveHelicopterGoal extends Goal {
         logAiFire(target, SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
     }
 
-    // Nose onto target without touching collective / lateral sticks (ATTACK layers this on flyToward).
+    // Nose onto the fire-assist aimpoint (shootPos → target, with short motion lead).
+    // Does not touch collective / lateral sticks — ATTACK / guided hold own those.
     private void aimNoseOnly(LivingEntity target, double horizDist) {
         this.vehicle.setHoverMode(false);
-        Vec3 dir = new Vec3(target.getX() - this.vehicle.getX(), 0, target.getZ() - this.vehicle.getZ());
-        if (dir.lengthSqr() > 1.0E-6) dir = dir.normalize();
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
-        double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, dir));
 
-        double targetCenterY = target.getY() + target.getBbHeight() * 0.5;
-        double depressionDeg = Math.toDegrees(Math.atan2(
-                this.vehicle.getY() - targetCenterY, Math.max(horizDist, 1.0)));
-        float aimAttitude = (float) Mth.clamp(depressionDeg, -MAX_CLIMB_AIM_DEG, MAX_COMBAT_DIVE_DEG);
+        Vec3 ownLead = this.vehicle.getDeltaMovement().scale(AIM_LEAD_TICKS);
+        Vec3 tgtLead = target.getDeltaMovement().scale(AIM_LEAD_TICKS);
+        Vec3 shootPos = this.vehicle.getShootPos(this.unit, 1.0F).add(ownLead);
+        Vec3 aimPoint = target.getBoundingBox().getCenter().add(tgtLead);
+        Vec3 toTarget = aimPoint.subtract(shootPos);
+        double horiz = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
+        if (horiz < 1.0E-4 && Math.abs(toTarget.y) < 1.0E-4) return;
+
+        Vec3 toFlat = horiz > 1.0E-4
+                ? new Vec3(toTarget.x / horiz, 0, toTarget.z / horiz)
+                : Vec3.ZERO;
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        double yawErrDeg = toFlat == Vec3.ZERO
+                ? 0.0
+                : Math.toDegrees(VehicleTargeting.signedAngleTo(forward, toFlat));
+
+        // Positive xRot = nose down. Target below → positive desired pitch.
+        double desiredPitch = Math.toDegrees(Math.atan2(-toTarget.y, Math.max(horiz, 1.0)));
+        float aimAttitude = (float) Mth.clamp(desiredPitch, -MAX_CLIMB_AIM_DEG, MAX_COMBAT_DIVE_DEG);
         float attitudeErr = aimAttitude - this.vehicle.getXRot();
 
-        float mouseX = (float) Mth.clamp(-YAW_STICK_PER_DEG * 2.0 * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK);
-        float mouseY = (float) Mth.clamp(attitudeErr * AIM_STICK_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK);
+        float mouseX = (float) Mth.clamp(-AIM_YAW_PER_DEG * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK);
+        float mouseY = (float) Mth.clamp(attitudeErr * AIM_PITCH_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK);
         this.vehicle.mouseInput(mouseX, mouseY);
     }
 

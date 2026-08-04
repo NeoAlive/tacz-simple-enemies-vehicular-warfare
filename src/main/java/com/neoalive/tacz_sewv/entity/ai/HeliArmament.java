@@ -16,8 +16,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Pilot-seat armament doctrine for helicopter combat: which weapons the driver can fire at
- * <em>ground</em> targets, vs air-only lock missiles the picker must never select for that job.
+ * Pilot/gunner seat armament doctrine for helicopter combat: which weapons a crewed seat
+ * can fire at <em>ground</em> targets, vs air-only lock missiles the picker must never
+ * select for that job.
  *
  * <p>SBW has no dedicated air/ground flag. Air-only is proxied primarily by
  * {@code SeekWeaponInfo.minTargetHeight > 0} (player seek height floor), with ammo-id /
@@ -44,7 +45,12 @@ public final class HeliArmament {
     public record Signals(String projectileId, String ammoId, double minTargetHeight, boolean hasSeekInfo) {}
 
     /** One classified pilot-seat candidate for {@link #pickFromCandidates}. */
-    public record Candidate(int slot, Kind kind, boolean guided, boolean ready) {}
+    public record Candidate(int slot, Kind kind, boolean guided, boolean ready, boolean rocket) {
+        /** Back-compat for tests that omit the rocket bit. */
+        public Candidate(int slot, Kind kind, boolean guided, boolean ready) {
+            this(slot, kind, guided, ready, false);
+        }
+    }
 
     private HeliArmament() {}
 
@@ -63,14 +69,23 @@ public final class HeliArmament {
         return VehicleMissileAim.modeOfProjectileId(projectileId) != null;
     }
 
+    /** Ballistic rocket pods (ah_6 / mi_28 {@code small_rocket}) — not guided AG. */
+    public static boolean isRocketSignals(Signals s) {
+        if (isGuidedProjectile(s.projectileId)) return false;
+        String proj = lower(s.projectileId);
+        String ammo = lower(s.ammoId);
+        return proj.contains("rocket") || ammo.contains("rocket");
+    }
+
     /**
-     * Pick a pilot-seat ground weapon for {@code target}.
-     * Armor → prefer ready guided AG; soft → prefer ready unguided; never AIR_ONLY.
+     * Pick a seat ground weapon for {@code target}.
+     * Armor (any SBW hull rider) → guided AG, else rockets, else other unguided; soft → unguided
+     * (cannon before rockets when both ready); never AIR_ONLY.
      *
      * @return physical slot index, or -1 when nothing ground-usable exists
      */
     public static int pickGroundWeapon(VehicleEntity vehicle, int seatIndex, LivingEntity target) {
-        List<Candidate> cands = scanPilotCandidates(vehicle, seatIndex);
+        List<Candidate> cands = scanSeatCandidates(vehicle, seatIndex);
         boolean armor = target.getVehicle() instanceof VehicleEntity;
         return pickFromCandidates(cands, armor);
     }
@@ -87,22 +102,32 @@ public final class HeliArmament {
         if (ground.isEmpty()) return -1;
 
         if (armorTarget) {
-            int guided = firstReady(ground, true);
+            int guided = firstReady(ground, Pref.GUIDED);
             if (guided >= 0) return guided;
             // Latch guided AG even while reloading — do NOT fall through to ready rockets
             // against armor (that was the live mi_28 vs-tank divergence from the self-check).
             for (Candidate c : ground) {
                 if (c.guided) return c.slot;
             }
-            int unguided = firstReady(ground, false);
+            // ah_6: Cannon and Rocket are both unguided; rockets must beat the cannon vs hulls.
+            int rocket = firstReady(ground, Pref.ROCKET);
+            if (rocket >= 0) return rocket;
+            for (Candidate c : ground) {
+                if (c.rocket) return c.slot;
+            }
+            int unguided = firstReady(ground, Pref.OTHER_UNGUIDED);
             if (unguided >= 0) return unguided;
         } else {
-            int unguided = firstReady(ground, false);
-            if (unguided >= 0) return unguided;
+            // Soft: prefer ready cannon/MG-style unguided before rockets, then latch unguided,
+            // then guided as last resort.
+            int gun = firstReady(ground, Pref.OTHER_UNGUIDED);
+            if (gun >= 0) return gun;
+            int rocket = firstReady(ground, Pref.ROCKET);
+            if (rocket >= 0) return rocket;
             for (Candidate c : ground) {
                 if (!c.guided) return c.slot;
             }
-            int guided = firstReady(ground, true);
+            int guided = firstReady(ground, Pref.GUIDED);
             if (guided >= 0) return guided;
         }
         return ground.get(0).slot;
@@ -117,14 +142,23 @@ public final class HeliArmament {
         return classifySignals(readSignals(vehicle, seatIndex, weaponIndex), true);
     }
 
-    private static int firstReady(List<Candidate> ground, boolean wantGuided) {
+    private enum Pref { GUIDED, ROCKET, OTHER_UNGUIDED }
+
+    private static int firstReady(List<Candidate> ground, Pref pref) {
         for (Candidate c : ground) {
-            if (c.guided == wantGuided && c.ready) return c.slot;
+            if (!c.ready) continue;
+            boolean match = switch (pref) {
+                case GUIDED -> c.guided;
+                case ROCKET -> !c.guided && c.rocket;
+                case OTHER_UNGUIDED -> !c.guided && !c.rocket;
+            };
+            if (match) return c.slot;
         }
         return -1;
     }
 
-    private static List<Candidate> scanPilotCandidates(VehicleEntity vehicle, int seatIndex) {
+    /** All real weapons on {@code seatIndex} (pilot or gunner). */
+    private static List<Candidate> scanSeatCandidates(VehicleEntity vehicle, int seatIndex) {
         List<Candidate> out = new ArrayList<>();
         SeatInfo seat = vehicle.getSeat(seatIndex);
         int n = seat == null ? 0 : seat.weapons().size();
@@ -134,8 +168,9 @@ public final class HeliArmament {
             Kind kind = classifySignals(sig, real);
             if (kind == Kind.PLACEHOLDER) continue;
             boolean guided = kind == Kind.GROUND_USABLE && isGuidedProjectile(sig.projectileId);
+            boolean rocket = kind == Kind.GROUND_USABLE && isRocketSignals(sig);
             boolean ready = kind != Kind.AIR_ONLY && slotReady(vehicle, seatIndex, w);
-            out.add(new Candidate(w, kind, guided, ready));
+            out.add(new Candidate(w, kind, guided, ready, rocket));
         }
         return out;
     }

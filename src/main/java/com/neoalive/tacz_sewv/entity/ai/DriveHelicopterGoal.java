@@ -48,10 +48,14 @@ import java.util.List;
  *     forward cone answers with a climb (vertical avoidance).</li>
  * <li><b>Combat.</b> Pilot ground armament via {@link HeliArmament} (not
  *     {@code selectWeaponForTarget} — that latches rockets over AG missiles).
- *     <em>Guided</em> AG holds cruise + geometry standoff (v1). <em>Unguided</em>
- *     runs a committed INGRESS→ATTACK→BREAK→REPOSITION firing pass — never a
- *     static low hover. Hover mode OFF while aiming/breaking. Whiskers can force
- *     BREAK at any time.</li>
+ *     Each engagement cycle picks <em>ORBIT</em> or <em>STRAFE</em> 50/50:
+ *     ORBIT holds cruise + geometry standoff and yaws/pitches the nose onto the
+ *     target; STRAFE is a short plane-like INGRESS→ATTACK→BREAK→REPOSITION pass
+ *     where yaw locks the run axis and pitch alone tracks the target into the
+ *     fire cone. Re-rolls after each racetrack or a short orbit dwell. After two
+ *     aim cycles that saw CONE and never fired, {@code compensationManeuver} arms:
+ *     longer momentum lead plus yaw/pitch margin from the last miss. Hover mode
+ *     OFF while aiming/breaking. Whiskers can force BREAK at any time.</li>
  * <li><b>Orders outrank auto-acquired targets.</b> A PMC pilot under an explicit
  *     movement order (move-to, follow, formation, hold, cease-fire) keeps flying
  *     the order: a retaliation target must not hijack the hull into the combat
@@ -82,6 +86,11 @@ public class DriveHelicopterGoal extends Goal {
     /** Synced / NBT / overlay phase names — ordinals must stay stable. */
     public enum RunPhase {
         IDLE, INGRESS, ATTACK, BREAK, REPOSITION, RAPPEL
+    }
+
+    /** Per-cycle combat shape — picked 50/50, independent of guided vs unguided. */
+    private enum CombatManeuver {
+        UNSET, ORBIT, STRAFE
     }
 
     public static final String TAG_HELI_RUN_PHASE = "sewv:heli_run_phase";
@@ -126,7 +135,7 @@ public class DriveHelicopterGoal extends Goal {
     }
 
     private static final double ALT_DEADBAND = 2.5;
-    private static final double CRUISE_SPEED = 0.6;
+    private static final double CRUISE_SPEED = 0.85;
 
     // Below this fraction of max health the engine takes over with a crash-spin —
     // nothing the pilot inputs matters, so we stop fighting it.
@@ -143,6 +152,12 @@ public class DriveHelicopterGoal extends Goal {
     private static final double APPROACH_GAIN = 0.1;
     /** Along-track speed error below this → level pitch (no accelerate/brake). */
     private static final double VEL_ERR_DEADBAND = 0.03;
+    /**
+     * Pitch brake (nose-up) only inside this remaining horizontal distance.
+     * Mid-cruise overspeed coasts level — SBW lift does not shed speed under the
+     * cruise cap reliably, so continuous braking latches nose-up mid-air.
+     */
+    private static final double BRAKE_HORIZON = 40.0;
 
     // --- Collective (vertical) ---
     private static final double CLIMB_RATE_CAP = 0.22;
@@ -178,21 +193,35 @@ public class DriveHelicopterGoal extends Goal {
     private static final double BREAK_RANGE = 14.0;
     private static final float MAX_COMBAT_DIVE_DEG = 60.0F;
     private static final float MAX_CLIMB_AIM_DEG = 15.0F;
-    // Combat aim: light, high-gain — orbiting helis sweep bearing fast and the 12° fire
-    // cone drops shots unless the nose snaps back every tick. Engine yaw saturates
-    // around stick≈5 airborne anyway; the gain is for small in-cone errors.
-    private static final double AIM_YAW_PER_DEG = 3.0;
-    private static final double AIM_PITCH_PER_DEG = 2.5;
+    // Combat aim: high-gain — orbit bearing sweeps fast and the 12° fire cone drops
+    // shots unless the nose snaps back every tick. Engine yaw saturates around
+    // stick≈5 airborne; gain is for small in-cone errors. Strafe yaw uses the same
+    // stick onto the locked run axis (pitch alone tracks the target).
+    private static final double AIM_YAW_PER_DEG = 6.0;
+    private static final double AIM_PITCH_PER_DEG = 3.5;
     private static final float MAX_AIM_PITCH_STICK = 45.0F;
     private static final float MAX_AIM_YAW_STICK = 60.0F;
     /** Lead own + target motion so the cone tracks through a turn/orbit. */
     private static final double AIM_LEAD_TICKS = 3.0;
+    /** After this many aim cycles that saw CONE and never fired, arm compensation. */
+    private static final int CONE_FAIL_ATTEMPTS_BEFORE_COMPENSATION = 2;
+    /** Extra motion lead once compensation is armed (control lag + drift). */
+    private static final double COMPENSATION_EXTRA_LEAD_TICKS = 5.0;
+    /** Flat angular bias (deg) added in the direction of the last cone yaw miss. */
+    private static final double COMPENSATION_YAW_MARGIN_DEG = 8.0;
+    /** Fraction of the measured yaw miss folded back into the aim bias. */
+    private static final double COMPENSATION_YAW_MISS_SCALE = 0.35;
+    /** Extra nose-down (deg) bias from the last cone pitch miss when compensating. */
+    private static final double COMPENSATION_PITCH_MARGIN_DEG = 4.0;
+    /** Leave ORBIT and re-roll maneuver so STRAFE/ORBIT swap often. */
+    private static final int ORBIT_MAX_TICKS = 80;
     // Bounded pass: commanded AGL vs pull-up abort floor must stay apart — when they
     // shared one constant (22), ATTACK steered into the abort band and self-terminated
     // on arrival (~1s passes, no time to fire). Gap = RUN_ALTITUDE - PULLUP_FLOOR = 16.
     private static final double RUN_ALTITUDE = 34.0;   // fly the pass at this AGL
     private static final double PULLUP_FLOOR = 18.0;   // abort when clearance <= this (+ sink lead)
-    private static final double RUN_LENGTH = 80.0;
+    /** Shorter than the plane's ~440-block run — heli can re-attack quickly. */
+    private static final double RUN_LENGTH = 60.0;
     private static final double OVERFLY_MARGIN = 8.0;
     private static final double PULLUP_LEAD_TICKS = 12.0;
     private static final float BREAK_YAW_STICK = 12.0F;   // capped — yaw also rolls
@@ -263,6 +292,19 @@ public class DriveHelicopterGoal extends Goal {
     private int heldTargetId = Integer.MIN_VALUE;
 
     private RunPhase runPhase = RunPhase.IDLE;
+    private CombatManeuver combatManeuver = CombatManeuver.UNSET;
+    /** Goal ticks spent in the current ORBIT cycle (re-roll after {@link #ORBIT_MAX_TICKS}). */
+    private int orbitTicks;
+    /** Aim cycles that saw {@link VehicleWeapons.FireGate#CONE} and never fired. */
+    private int coneFailAttempts;
+    /** After {@link #CONE_FAIL_ATTEMPTS_BEFORE_COMPENSATION} fails — predictive aim + margin. */
+    private boolean compensationActive;
+    private boolean cycleFired;
+    private boolean cycleHadCone;
+    /** Signed yaw from muzzle→target (deg); + = target right of shootDir. Last CONE sample. */
+    private double lastConeYawMissDeg;
+    /** Pitch miss (desired depression − shoot pitch); + = need more nose-down. */
+    private double lastConePitchMissDeg;
     private double runDirX = Double.NaN;
     private double runDirZ = Double.NaN;
     private double runStartX;
@@ -574,7 +616,7 @@ public class DriveHelicopterGoal extends Goal {
                 || order == OrderType.CEASE_FIRE;
     }
 
-    // Combat: pick/hold a ground-usable pilot weapon, then guided standoff or firing run.
+    // Combat: pick/hold a ground-usable pilot weapon, then ORBIT standoff or STRAFE run.
     private void combatTick(LivingEntity target) {
         updateWeaponHold(target);
         if (this.heldWeaponSlot < 0) {
@@ -591,20 +633,33 @@ public class DriveHelicopterGoal extends Goal {
             return;
         }
         this.runHoldMisses = 0;
-        if (heldWeaponGuided()) {
-            // Guided standoff only from IDLE. Mid-run a re-pick to AG missiles
-            // (rockets dry → DriverMissile) used to force IDLE and skip BREAK —
-            // finish the racetrack on the held slot instead.
-            if (this.runPhase == RunPhase.IDLE) {
-                guidedCombatTick(target);
+
+        if (this.runPhase == RunPhase.IDLE) {
+            if (this.combatManeuver == CombatManeuver.UNSET) {
+                pickCombatManeuver();
+            }
+            if (this.combatManeuver == CombatManeuver.ORBIT) {
+                orbitCombatTick(target);
                 return;
             }
-            this.runGateMisses = 0;
-            runStateMachine(target);
-            return;
+            // STRAFE — fall through to the racetrack.
         }
         this.runGateMisses = 0;
         runStateMachine(target);
+    }
+
+    /** Coin-flip each cycle so ORBIT and STRAFE alternate often across engagements. */
+    private void pickCombatManeuver() {
+        this.combatManeuver = this.unit.getRandom().nextBoolean()
+                ? CombatManeuver.ORBIT
+                : CombatManeuver.STRAFE;
+        this.orbitTicks = 0;
+        if (SewvConfig.HELI_COMBAT_DEBUG.get() && this.vehicle != null) {
+            LOGGER.info("[sewv heli] {}#{} maneuver={}",
+                    this.vehicle.getName().getString(),
+                    this.vehicle.getId(),
+                    this.combatManeuver);
+        }
     }
 
     /** Last engagement target still alive in-world, or null. Used only for run-gate grace. */
@@ -695,7 +750,19 @@ public class DriveHelicopterGoal extends Goal {
         return Math.max(minStandoff, heightAboveTarget / tan);
     }
 
-    private void guidedCombatTick(LivingEntity target) {
+    private void orbitCombatTick(LivingEntity target) {
+        this.orbitTicks++;
+        if (this.orbitTicks >= ORBIT_MAX_TICKS) {
+            noteAimCycleEnd();
+            // Dwell done — re-roll; STRAFE starts the racetrack, ORBIT resets the timer.
+            pickCombatManeuver();
+            if (this.combatManeuver == CombatManeuver.STRAFE) {
+                setRunPhase(RunPhase.INGRESS);
+                runStateMachine(target);
+                return;
+            }
+        }
+
         double dx = target.getX() - this.vehicle.getX();
         double dz = target.getZ() - this.vehicle.getZ();
         double horizDist = Math.sqrt(dx * dx + dz * dz);
@@ -786,9 +853,9 @@ public class DriveHelicopterGoal extends Goal {
             return;
         }
 
-        // ATTACK pass: collective holds run altitude; nose is owned by aimNoseOnly so
-        // hull-fixed weapons (rockets) sit inside the fire-assist cone. Do NOT call
-        // flyToward here — ATTACK needs the nose on the target, not the travel path.
+        // STRAFE pass: collective holds run altitude. Default: yaw locks run axis, pitch
+        // tracks elevation. After two cone-fail cycles, compensation frees both axes onto
+        // a momentum/yaw-margin aimpoint so the fire cone can finally land.
         double runY = Math.max(groundRef + RUN_ALTITUDE, target.getY() + MIN_OVER_DEST);
         applyCollective(withAvoidFloor(runY));
         this.vehicle.setHoverMode(false);
@@ -796,12 +863,18 @@ public class DriveHelicopterGoal extends Goal {
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
 
-        double horiz = Math.hypot(target.getX() - gx, target.getZ() - gz);
-        aimNoseOnly(target, horiz);
+        if (this.compensationActive) {
+            aimCompensated(target);
+        } else {
+            aimStrafePass(target);
+        }
         logAiFire(target, SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
     }
 
     private void enterBreak(LivingEntity target) {
+        if (this.runPhase == RunPhase.ATTACK) {
+            noteAimCycleEnd();
+        }
         clearRunAxis();
         setRunPhase(RunPhase.BREAK);
         breakTick(target);
@@ -870,7 +943,14 @@ public class DriveHelicopterGoal extends Goal {
         if (dx * dx + dz * dz <= REPOSITION_ARRIVE * REPOSITION_ARRIVE) {
             this.repositionX = Double.NaN;
             this.repositionZ = Double.NaN;
-            setRunPhase(RunPhase.INGRESS);
+            // End of racetrack — re-roll ORBIT vs STRAFE for the next cycle.
+            pickCombatManeuver();
+            if (this.combatManeuver == CombatManeuver.ORBIT) {
+                clearRunAxis();
+                setRunPhase(RunPhase.IDLE);
+            } else {
+                setRunPhase(RunPhase.INGRESS);
+            }
             return;
         }
         // Whisker abort during reposition still climbs via flyToward's avoid floor.
@@ -896,6 +976,14 @@ public class DriveHelicopterGoal extends Goal {
         this.lastRunTargetId = Integer.MIN_VALUE;
         this.runGateMisses = 0;
         this.runHoldMisses = 0;
+        this.combatManeuver = CombatManeuver.UNSET;
+        this.orbitTicks = 0;
+        this.coneFailAttempts = 0;
+        this.compensationActive = false;
+        this.cycleFired = false;
+        this.cycleHadCone = false;
+        this.lastConeYawMissDeg = 0.0;
+        this.lastConePitchMissDeg = 0.0;
         this.rappelLockX = Double.NaN;
         this.rappelLockZ = Double.NaN;
         this.rappelStartedAt = Long.MIN_VALUE;
@@ -1303,10 +1391,19 @@ public class DriveHelicopterGoal extends Goal {
     /**
      * Fire assist + optional debug. Logs FIRED with the selected slot, or the gate
      * (skips RPM_WAIT spam — only interesting rejects and actual shots).
+     * Tracks cone-fail cycles for {@link #compensationActive}.
      */
     private void logAiFire(LivingEntity target, double coneDeg) {
         VehicleWeapons.FireGate gate = VehicleWeapons.tryAiFireAssistResult(
                 this.vehicle, this.unit, target, coneDeg);
+        if (gate == VehicleWeapons.FireGate.FIRED) {
+            this.cycleFired = true;
+            this.coneFailAttempts = 0;
+            this.compensationActive = false;
+        } else if (gate == VehicleWeapons.FireGate.CONE) {
+            this.cycleHadCone = true;
+            sampleConeMiss(target);
+        }
         if (!SewvConfig.HELI_COMBAT_DEBUG.get()) return;
         if (gate == VehicleWeapons.FireGate.RPM_WAIT) return;
         int seat = this.vehicle.getSeatIndex(this.unit);
@@ -1320,15 +1417,65 @@ public class DriveHelicopterGoal extends Goal {
                     this.runPhase,
                     target.getId());
         } else {
-            LOGGER.info("[sewv heli] {}#{} NOFIRE gate={} slot={} selected={} phase={} target={}",
+            LOGGER.info("[sewv heli] {}#{} NOFIRE gate={} slot={} selected={} phase={} target={} comp={}",
                     this.vehicle.getName().getString(),
                     this.vehicle.getId(),
                     gate,
                     this.heldWeaponSlot,
                     selected,
                     this.runPhase,
-                    target.getId());
+                    target.getId(),
+                    this.compensationActive);
         }
+    }
+
+    /** Record signed muzzle→target miss used by compensation aim. */
+    private void sampleConeMiss(LivingEntity target) {
+        Vec3 shootDir = this.vehicle.getShootDirectionForHud(this.unit, 1.0F);
+        Vec3 shootPos = this.vehicle.getShootPos(this.unit, 1.0F);
+        Vec3 toTarget = target.getBoundingBox().getCenter().subtract(shootPos);
+        if (shootDir.lengthSqr() < 1.0E-6 || toTarget.lengthSqr() < 1.0E-6) return;
+
+        Vec3 shootFlat = new Vec3(shootDir.x, 0.0, shootDir.z);
+        Vec3 tgtFlat = new Vec3(toTarget.x, 0.0, toTarget.z);
+        if (shootFlat.lengthSqr() > 1.0E-6 && tgtFlat.lengthSqr() > 1.0E-6) {
+            Vector3f muzzleFlat = new Vector3f(
+                    (float) shootFlat.x, 0.0F, (float) shootFlat.z).normalize();
+            this.lastConeYawMissDeg = Math.toDegrees(
+                    VehicleTargeting.signedAngleTo(muzzleFlat, tgtFlat.normalize()));
+        }
+
+        double shootHoriz = Math.sqrt(shootDir.x * shootDir.x + shootDir.z * shootDir.z);
+        double tgtHoriz = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
+        double shootPitch = Math.toDegrees(Math.atan2(-shootDir.y, Math.max(shootHoriz, 1.0E-4)));
+        double tgtPitch = Math.toDegrees(Math.atan2(-toTarget.y, Math.max(tgtHoriz, 1.0E-4)));
+        this.lastConePitchMissDeg = tgtPitch - shootPitch;
+    }
+
+    /**
+     * End of an ORBIT dwell or STRAFE ATTACK: if we saw CONE and never fired, count a
+     * failed attempt; arm compensation after {@link #CONE_FAIL_ATTEMPTS_BEFORE_COMPENSATION}.
+     */
+    private void noteAimCycleEnd() {
+        if (this.cycleFired) {
+            this.coneFailAttempts = 0;
+            this.compensationActive = false;
+        } else if (this.cycleHadCone) {
+            this.coneFailAttempts++;
+            if (this.coneFailAttempts >= CONE_FAIL_ATTEMPTS_BEFORE_COMPENSATION) {
+                this.compensationActive = true;
+                if (SewvConfig.HELI_COMBAT_DEBUG.get() && this.vehicle != null) {
+                    LOGGER.info("[sewv heli] {}#{} COMPENSATION armed fails={} yawMiss={} pitchMiss={}",
+                            this.vehicle.getName().getString(),
+                            this.vehicle.getId(),
+                            this.coneFailAttempts,
+                            String.format("%.1f", this.lastConeYawMissDeg),
+                            String.format("%.1f", this.lastConePitchMissDeg));
+                }
+            }
+        }
+        this.cycleFired = false;
+        this.cycleHadCone = false;
     }
 
     private boolean heldWeaponDepleted(int seat) {
@@ -1345,17 +1492,12 @@ public class DriveHelicopterGoal extends Goal {
         }
     }
 
-    private boolean heldWeaponGuided() {
-        if (this.heldWeaponSlot < 0) return false;
-        return VehicleMissileAim.modeOfSelected(this.vehicle, this.unit) != null;
-    }
-
     private void clearWeaponHold() {
         this.heldWeaponSlot = -1;
         this.heldTargetId = Integer.MIN_VALUE;
     }
 
-    // Aim platform: two-axis mouse aim. Collective holds {@code holdY} (guided cruise).
+    // Aim platform: two-axis mouse aim. Collective holds {@code holdY} (ORBIT cruise).
     // Hover mode OFF — auto-level would keep the nose flat.
     private void aimAtTarget(LivingEntity target, double horizDist, double holdY) {
         applyCollective(withAvoidFloor(holdY));
@@ -1363,32 +1505,36 @@ public class DriveHelicopterGoal extends Goal {
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
         this.vehicle.setHoverMode(false);
-        aimNoseOnly(target, horizDist);
+        if (this.compensationActive) {
+            aimCompensated(target);
+        } else {
+            aimNoseOnly(target, horizDist);
+        }
         logAiFire(target, SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
     }
 
     // Nose onto the fire-assist aimpoint (shootPos → target, with short motion lead).
-    // Does not touch collective / lateral sticks — ATTACK / guided hold own those.
+    // ORBIT hold: both yaw and pitch track the target. Strafe uses {@link #aimStrafePass}.
     private void aimNoseOnly(LivingEntity target, double horizDist) {
         this.vehicle.setHoverMode(false);
+        steerNoseToVector(aimVectorSimple(target));
+    }
 
-        Vec3 ownLead = this.vehicle.getDeltaMovement().scale(AIM_LEAD_TICKS);
-        Vec3 tgtLead = target.getDeltaMovement().scale(AIM_LEAD_TICKS);
-        Vec3 shootPos = this.vehicle.getShootPos(this.unit, 1.0F).add(ownLead);
-        Vec3 aimPoint = target.getBoundingBox().getCenter().add(tgtLead);
-        Vec3 toTarget = aimPoint.subtract(shootPos);
-        double horiz = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
-        if (horiz < 1.0E-4 && Math.abs(toTarget.y) < 1.0E-4) return;
+    /**
+     * STRAFE pass aim — plane-style: yaw holds the locked run axis; pitch alone
+     * tracks the target's elevation into the fire cone. Collective owns altitude.
+     */
+    private void aimStrafePass(LivingEntity target) {
+        this.vehicle.setHoverMode(false);
 
-        Vec3 toFlat = horiz > 1.0E-4
-                ? new Vec3(toTarget.x / horiz, 0, toTarget.z / horiz)
-                : Vec3.ZERO;
+        Vec3 runDir = new Vec3(this.runDirX, 0.0, this.runDirZ);
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
-        double yawErrDeg = toFlat == Vec3.ZERO
-                ? 0.0
-                : Math.toDegrees(VehicleTargeting.signedAngleTo(forward, toFlat));
+        double yawErrDeg = runDir.lengthSqr() > 1.0E-8
+                ? Math.toDegrees(VehicleTargeting.signedAngleTo(forward, runDir))
+                : 0.0;
 
-        // Positive xRot = nose down. Target below → positive desired pitch.
+        Vec3 toTarget = aimVectorSimple(target);
+        double horiz = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
         double desiredPitch = Math.toDegrees(Math.atan2(-toTarget.y, Math.max(horiz, 1.0)));
         float aimAttitude = (float) Mth.clamp(desiredPitch, -MAX_CLIMB_AIM_DEG, MAX_COMBAT_DIVE_DEG);
         float attitudeErr = aimAttitude - this.vehicle.getXRot();
@@ -1396,6 +1542,97 @@ public class DriveHelicopterGoal extends Goal {
         float mouseX = (float) Mth.clamp(-AIM_YAW_PER_DEG * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK);
         float mouseY = (float) Mth.clamp(attitudeErr * AIM_PITCH_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK);
         this.vehicle.mouseInput(mouseX, mouseY);
+    }
+
+    /**
+     * compensationManeuver: after two cone-fail cycles, aim using future own/target
+     * positions from momentum, plus a yaw/pitch margin from the last cone miss so
+     * the nose leads the lag that kept missing the fire-assist cone.
+     */
+    private void aimCompensated(LivingEntity target) {
+        this.vehicle.setHoverMode(false);
+        steerNoseToVector(aimVectorCompensated(target));
+    }
+
+    /** Default lead aim vector (own + target motion at {@link #AIM_LEAD_TICKS}). */
+    private Vec3 aimVectorSimple(LivingEntity target) {
+        Vec3 ownLead = this.vehicle.getDeltaMovement().scale(AIM_LEAD_TICKS);
+        Vec3 tgtLead = target.getDeltaMovement().scale(AIM_LEAD_TICKS);
+        Vec3 shootPos = this.vehicle.getShootPos(this.unit, 1.0F).add(ownLead);
+        Vec3 aimPoint = target.getBoundingBox().getCenter().add(tgtLead);
+        return aimPoint.subtract(shootPos);
+    }
+
+    /**
+     * Compensated aim: longer relative-motion lead, then rotate by yaw margin from the
+     * last CONE miss and add pitch margin. Fire assist still tests the live target —
+     * this only steers the nose so that geometry closes into the cone.
+     */
+    private Vec3 aimVectorCompensated(LivingEntity target) {
+        double lead = AIM_LEAD_TICKS + COMPENSATION_EXTRA_LEAD_TICKS;
+        Vec3 ownVel = this.vehicle.getDeltaMovement();
+        Vec3 tgtVel = target.getDeltaMovement();
+        Vec3 shootPos = this.vehicle.getShootPos(this.unit, 1.0F);
+        Vec3 futureShoot = shootPos.add(ownVel.scale(lead));
+        Vec3 futureTgt = target.getBoundingBox().getCenter().add(tgtVel.scale(lead));
+        Vec3 toAim = futureTgt.subtract(futureShoot);
+
+        double yawBias = 0.0;
+        if (Math.abs(this.lastConeYawMissDeg) > 0.5) {
+            yawBias = Math.copySign(COMPENSATION_YAW_MARGIN_DEG, this.lastConeYawMissDeg)
+                    + this.lastConeYawMissDeg * COMPENSATION_YAW_MISS_SCALE;
+        }
+        toAim = rotateY(toAim, yawBias);
+
+        double pitchBias = 0.0;
+        if (Math.abs(this.lastConePitchMissDeg) > 0.5) {
+            pitchBias = Math.copySign(COMPENSATION_PITCH_MARGIN_DEG, this.lastConePitchMissDeg);
+        }
+        if (pitchBias != 0.0) {
+            double horiz = Math.sqrt(toAim.x * toAim.x + toAim.z * toAim.z);
+            double pitch = Math.toDegrees(Math.atan2(-toAim.y, Math.max(horiz, 1.0E-4))) + pitchBias;
+            double rad = Math.toRadians(pitch);
+            // Rebuild with adjusted depression, preserving horizontal bearing.
+            double len = Math.sqrt(horiz * horiz + toAim.y * toAim.y);
+            if (len > 1.0E-4 && horiz > 1.0E-4) {
+                double nhx = toAim.x / horiz;
+                double nhz = toAim.z / horiz;
+                toAim = new Vec3(
+                        nhx * len * Math.cos(rad),
+                        -len * Math.sin(rad),
+                        nhz * len * Math.cos(rad));
+            }
+        }
+        return toAim;
+    }
+
+    private void steerNoseToVector(Vec3 toAim) {
+        double horiz = Math.sqrt(toAim.x * toAim.x + toAim.z * toAim.z);
+        if (horiz < 1.0E-4 && Math.abs(toAim.y) < 1.0E-4) return;
+
+        Vec3 toFlat = horiz > 1.0E-4
+                ? new Vec3(toAim.x / horiz, 0, toAim.z / horiz)
+                : Vec3.ZERO;
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        double yawErrDeg = toFlat == Vec3.ZERO
+                ? 0.0
+                : Math.toDegrees(VehicleTargeting.signedAngleTo(forward, toFlat));
+
+        double desiredPitch = Math.toDegrees(Math.atan2(-toAim.y, Math.max(horiz, 1.0)));
+        float aimAttitude = (float) Mth.clamp(desiredPitch, -MAX_CLIMB_AIM_DEG, MAX_COMBAT_DIVE_DEG);
+        float attitudeErr = aimAttitude - this.vehicle.getXRot();
+
+        float mouseX = (float) Mth.clamp(-AIM_YAW_PER_DEG * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK);
+        float mouseY = (float) Mth.clamp(attitudeErr * AIM_PITCH_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK);
+        this.vehicle.mouseInput(mouseX, mouseY);
+    }
+
+    private static Vec3 rotateY(Vec3 v, double deg) {
+        if (Math.abs(deg) < 1.0E-4) return v;
+        double r = Math.toRadians(deg);
+        double c = Math.cos(r);
+        double s = Math.sin(r);
+        return new Vec3(v.x * c - v.z * s, v.y, v.x * s + v.z * c);
     }
 
     // Landing: glide-slope approach until the capture ring, then hover-mode
@@ -1501,10 +1738,11 @@ public class DriveHelicopterGoal extends Goal {
     }
 
     // The one lateral primitive: whisker-check the bearing, point the nose at the
-    // clear travel direction, and pitch only for along-track speed error while the
-    // collective holds desiredY. Desired speed tapers with distance so the hull
-    // decelerates onto the point. Nose is never aimed at the 2D velocity-error
-    // vector — that crabs/reverse-thrusts (see heli flight-quality diagnosis).
+    // clear travel direction, and pitch for along-track speed while the collective
+    // holds desiredY. Desired speed tapers with distance near the point; mid-cruise
+    // overspeed coasts level (no nose-up brake) so pitch never latches against the
+    // cruise cap. Nose is never aimed at the 2D velocity-error vector — that
+    // crabs/reverse-thrusts (see heli flight-quality diagnosis).
     private void flyToward(double steerX, double steerZ, double desiredY) {
         flyToward(steerX, steerZ, desiredY, APPROACH_GAIN, null);
     }
@@ -1566,18 +1804,27 @@ public class DriveHelicopterGoal extends Goal {
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, travelDir));
 
-        // Yaw always onto the clear path. Pitch only once roughly aligned, and only
-        // from the 1D along-track speed error (accelerate / brake without crabbing).
+        // Yaw always onto the clear path. Pitch only once roughly aligned: accel
+        // when slow; brake (nose-up) only inside BRAKE_HORIZON; overspeed farther
+        // out coasts level (TRACK_COAST).
         float attitudeCmd = 0.0F;
         String branch;
         if (Math.abs(yawErrDeg) >= ALIGN_THRESHOLD_DEG) {
             branch = "ALIGN";
-        } else {
+        } else if (speedErr > VEL_ERR_DEADBAND) {
             branch = "TRACK";
-            if (Math.abs(speedErr) >= VEL_ERR_DEADBAND) {
+            attitudeCmd = (float) Mth.clamp(
+                    speedErr * PITCH_DEG_PER_SPEED_ERR, -MAX_ATTITUDE_DEG, MAX_ATTITUDE_DEG);
+        } else if (speedErr < -VEL_ERR_DEADBAND) {
+            if (dist <= BRAKE_HORIZON) {
+                branch = "TRACK";
                 attitudeCmd = (float) Mth.clamp(
                         speedErr * PITCH_DEG_PER_SPEED_ERR, -MAX_ATTITUDE_DEG, MAX_ATTITUDE_DEG);
+            } else {
+                branch = "TRACK_COAST";
             }
+        } else {
+            branch = "TRACK";
         }
         steerNose(forward, travelDir, attitudeCmd);
         logFlyToward(caller, branch, dirToDest, travelDir, dist, groundSpeed, probe,
@@ -1799,7 +2046,7 @@ public class DriveHelicopterGoal extends Goal {
             double yawErrDeg, float attitudeCmd, Vec3 vel) {
         switch (branch) {
             case "ALIGN" -> this.flightTicksAlign++;
-            case "TRACK" -> this.flightTicksTrack++;
+            case "TRACK", "TRACK_COAST" -> this.flightTicksTrack++;
             case "WHISKER_BLOCKED" -> this.flightTicksWhisker++;
             default -> {
             }

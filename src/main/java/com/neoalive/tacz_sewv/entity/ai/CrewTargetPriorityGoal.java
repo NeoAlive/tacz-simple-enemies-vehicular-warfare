@@ -16,8 +16,9 @@ import java.util.EnumSet;
 import java.util.List;
 
 /**
- * Doctrine targeting for crew-served weapons: a mortar shoots troops before monsters, a
- * TOW shoots vehicles before anything else, and an AntiAir platform prefers airborne riders.
+ * Doctrine targeting for crew-served weapons and mounted vehicle crews: a mortar shoots
+ * troops before monsters, a TOW / tank / IFV / heli / ship prefers vehicles before soft
+ * contacts, and an AntiAir platform prefers airborne riders.
  *
  * <p><b>Why this has to be its own goal at priority 1.</b> SEM's target ladder looks like a
  * preference but is not one at the bottom. For a PMC unit it is:
@@ -35,16 +36,18 @@ import java.util.List;
  * take a held flag, so once that priority-2 catch-all locks a zombie, the priority-2 troop
  * goals can never take TARGET off it — the crew stays on the zombie until it dies. RU/US
  * ladders have the same shape. Nothing at priority 2 or 3 can fix this from the inside,
- * which is why this sits at <b>1</b>: high enough to preempt every scan in the ladder, low
- * enough that a radio fire mission (priority 0) still overrules the crew's own opinion.
+ * which is why this sits at <b>1</b>: high enough to preempt every scan in the ladder
+ * (including {@link VehicleTargetScanGoal}'s mid-fight soft lock), low enough that a radio
+ * fire mission (priority 0) still overrules the crew's own opinion.
  *
  * <p>It ties with retaliation at priority 1, so whichever starts first holds — a deliberate
  * draw. A crew already shelling troops should not drop them because a stray zombie hit it,
  * and a crew that is being shot has fair reason to answer.
  *
- * <p>Only runs while a preferred target actually exists. With none in reach the goal never
- * starts, TARGET falls back through the normal ladder, and mounted crews keep using
- * {@link VehicleTargetScanGoal} exactly as before — the two compose rather than compete.
+ * <p>Mounted general crews use {@link Doctrine#ARMOR}: if the current lock is soft and an
+ * armor rider is in range, this goal starts and steals TARGET. Already on armor → stays put.
+ * With no preferred contact in reach the goal never starts, TARGET falls back through the
+ * normal ladder / vehicle cylinder scan.
  */
 public class CrewTargetPriorityGoal extends Goal {
 
@@ -60,7 +63,7 @@ public class CrewTargetPriorityGoal extends Goal {
         this.setFlags(EnumSet.of(Flag.TARGET));
     }
 
-    /** What this crew's weapon is for, or null when the unit isn't on a crew-served weapon. */
+    /** What this crew's weapon is for, or null when the unit has no priority doctrine. */
     private Doctrine doctrine() {
         if (TowSupport.isCrewing(this.unit)) return Doctrine.ARMOR;
         if (MortarSupport.hasMortarClaim(this.unit)) return Doctrine.TROOPS;
@@ -68,11 +71,13 @@ public class CrewTargetPriorityGoal extends Goal {
         if (this.unit.getVehicle() instanceof VehicleEntity v && HullFacts.isAntiAirHull(v)) {
             return Doctrine.AIR;
         }
+        // Any other mounted SBW crew (tank, IFV, heli, ship, …): armor outranks soft mid-fight.
+        if (this.unit.getVehicle() instanceof VehicleEntity) return Doctrine.ARMOR;
         return null;
     }
 
     private enum Doctrine {
-        /** TOW: one wire-guided missile every 7.5 s. Spending it on a zombie is a waste. */
+        /** TOW / general vehicle crew: prefer hull riders over soft contacts. */
         ARMOR,
         /** Mortar: an area weapon, and troops are what it is for. */
         TROOPS,

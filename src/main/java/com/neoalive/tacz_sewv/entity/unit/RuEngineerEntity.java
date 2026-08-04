@@ -2,21 +2,46 @@ package com.neoalive.tacz_sewv.entity.unit;
 
 import com.neoalive.tacz_sewv.entity.ai.EngineerLoadout;
 import com.neoalive.tacz_sewv.entity.ai.SupportUnitGoals;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.level.Level;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 
 /**
- * RU mechanical engineer. A {@link RUunitEntity} that carries a SuperbWarfare repair tool and patches
- * up friendly/empty hulls on foot ({@link com.neoalive.tacz_sewv.entity.ai.RepairGoal}). Unlike the
- * medic it is a normal target for enemies. The tool is cosmetic — repairs call {@code heal()}
- * directly — and its {@code setupRoleGoals} adds no fire goal, so it never shoots it.
+ * RU mechanical engineer. Carries a repair tool / sidearm kit and may operate one kamikaze drone
+ * ({@link com.neoalive.tacz_sewv.entity.ai.DroneOperatorGoal}).
  */
 public class RuEngineerEntity extends RUunitEntity {
 
+    public static final EntityDataAccessor<Boolean> DRONE_CONTROL_LOCKED =
+            SynchedEntityData.defineId(RuEngineerEntity.class, EntityDataSerializers.BOOLEAN);
+
     public RuEngineerEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
+    }
+
+    @Override
+    protected void defineSynchedData() {
+        super.defineSynchedData();
+        this.entityData.define(DRONE_CONTROL_LOCKED, false);
+    }
+
+    @Override
+    public void addAdditionalSaveData(CompoundTag tag) {
+        super.addAdditionalSaveData(tag);
+        tag.putBoolean("SewvDroneControlLocked", this.entityData.get(DRONE_CONTROL_LOCKED));
+    }
+
+    @Override
+    public void readAdditionalSaveData(CompoundTag tag) {
+        super.readAdditionalSaveData(tag);
+        if (tag.contains("SewvDroneControlLocked")) {
+            this.entityData.set(DRONE_CONTROL_LOCKED, tag.getBoolean("SewvDroneControlLocked"));
+        }
     }
 
     @Override
@@ -29,8 +54,6 @@ public class RuEngineerEntity extends RUunitEntity {
         SupportUnitGoals.engineer(this, this.goalSelector, this.targetSelector);
     }
 
-    // Drawing/holstering is a per-tick state check rather than a goal: it must stay in step with the
-    // target even while a goal that claims no hand state is running, and it is two stack reads.
     @Override
     public void aiStep() {
         super.aiStep();

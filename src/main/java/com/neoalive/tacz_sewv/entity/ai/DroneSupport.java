@@ -1,6 +1,9 @@
 package com.neoalive.tacz_sewv.entity.ai;
 
+import com.atsuishio.superbwarfare.data.CustomData;
+import com.atsuishio.superbwarfare.data.drone_attachment.DroneAttachmentData;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
+import com.atsuishio.superbwarfare.init.ModItems;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -8,6 +11,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -15,6 +19,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -22,34 +27,21 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Deployment, ownership and target-relay mechanics for RU/US engineer recon drones
- * (SuperbWarfare's {@link DroneEntity}). Flying an individual drone is
- * {@link DroneOperatorGoal}'s job; this class is the stateless plumbing it calls into.
- *
- * <p>A drone is spawned with no attachment (never fired, never armed) and no player
- * CONTROLLER — SBW's own control path (a held Monitor item's mouse/keyboard NBT) is simply
- * never fed, so nothing in {@code DroneEntity} moves it on its own. {@link DroneOperatorGoal}
- * drives its generic {@code VehicleEntity} input flags directly instead, the same surface
- * {@link DriveHelicopterGoal} already puppets for helicopters — only yaw/pitch update is
- * gated behind that (absent) controller, so the goal sets those directly too.
- *
- * <p>Ownership is a persistent-NBT tag on the DRONE itself (its deploying engineer's UUID).
- * A reload-local network-id list avoids a world scan for the usual cap check, while the NBT tag
- * remains the source of truth when that list is empty or stale.
+ * Deployment, ownership and targeting plumbing for RU/US engineer kamikaze drones.
+ * Flight/lock logic lives in {@link DroneOperatorGoal}.
  */
 public final class DroneSupport {
 
-    private static final String OWNER_TAG = "sewv_drone_owner";
     private static final ResourceLocation DRONE_ID = new ResourceLocation("superbwarfare", "drone");
-    /** Fast, reload-local lookup; persistent owner NBT remains the source of truth. */
+    private static final String MORTAR_SHELL_ID = "superbwarfare:mortar_shell";
+    /** Fast, reload-local lookup; persistent owner NBT + engineer claim UUID are sources of truth. */
     private static final Map<UUID, List<Integer>> OWNED_DRONE_IDS = new HashMap<>();
 
     private DroneSupport() {}
 
     /**
-     * The engineer flying this drone, or null if nobody is. A drone has no seats, so its owner
-     * tag is the only place to read a faction — same role {@link MortarSupport#crewOf} plays for
-     * a tube. Search radius matches {@link #findOwnedDrones}: a drone escorts near its engineer.
+     * The engineer flying this drone, or null if nobody is. Search radius matches
+     * {@link SewvConfig#DRONE_BROADCAST_RADIUS} (map markers / soft cache).
      */
     @Nullable
     public static AbstractUnit crewOf(DroneEntity drone) {
@@ -64,11 +56,29 @@ public final class DroneSupport {
     }
 
     /**
-     * Every currently-alive drone tagged as belonging to {@code owner}. Resolve the soft network-id
-     * list first; only a stale id (despawn, reload or unload) falls back to the nearby world scan.
+     * Live owned drones for {@code owner}. Prefers the engineer's stored drone UUID (level-wide),
+     * then the soft network-id cache, then a nearby AABB scan. If a claim UUID exists but the
+     * entity is unloaded, returns empty <em>without</em> clearing the claim — caller must not spawn.
      */
     static List<DroneEntity> findOwnedDrones(ServerLevel level, AbstractUnit owner) {
         UUID ownerId = owner.getUUID();
+        UUID claimed = DroneControl.readDroneClaim(owner);
+        if (claimed != null) {
+            Entity entity = level.getEntity(claimed);
+            if (entity instanceof DroneEntity drone && drone.isAlive() && ownerId.equals(readOwner(drone))) {
+                rememberNetworkId(ownerId, drone);
+                return List.of(drone);
+            }
+            // Claimed but not loaded (or dead elsewhere) — do not AABB-spawn a second hull.
+            if (entity == null) {
+                return Collections.emptyList();
+            }
+            // Entity exists but is wrong/dead — drop stale claim.
+            if (!(entity instanceof DroneEntity) || !entity.isAlive()) {
+                DroneControl.clearDroneClaim(owner);
+            }
+        }
+
         List<Integer> ids = OWNED_DRONE_IDS.computeIfAbsent(ownerId, ignored -> new ArrayList<>());
         List<DroneEntity> resolved = new ArrayList<>(ids.size());
         boolean mismatch = ids.isEmpty();
@@ -80,9 +90,14 @@ public final class DroneSupport {
                 mismatch = true;
             }
         }
-        if (!mismatch) return resolved;
+        if (!mismatch && !resolved.isEmpty()) {
+            if (resolved.size() == 1) {
+                DroneControl.rememberDrone(owner, resolved.get(0));
+            }
+            return resolved;
+        }
 
-        double radius = SewvConfig.DRONE_BROADCAST_RADIUS.get();
+        double radius = Math.max(SewvConfig.DRONE_BROADCAST_RADIUS.get(), SewvConfig.DRONE_LEASH_RADIUS.get());
         AABB box = AABB.ofSize(owner.position(), radius * 2, radius * 2, radius * 2);
         List<DroneEntity> scanned = level.getEntitiesOfClass(DroneEntity.class, box,
                 d -> d.isAlive() && ownerId.equals(readOwner(d)));
@@ -90,58 +105,109 @@ public final class DroneSupport {
         for (DroneEntity drone : scanned) {
             ids.add(drone.getId());
         }
+        if (scanned.size() == 1) {
+            DroneControl.rememberDrone(owner, scanned.get(0));
+        }
         return scanned;
     }
 
-    /** Spawns one unarmed, AI-flown drone beside {@code owner} and tags it as belonging to them. */
+    /** True when the engineer still claims a drone UUID that is simply not in the loaded world. */
+    static boolean hasUnloadedClaim(ServerLevel level, AbstractUnit owner) {
+        UUID claimed = DroneControl.readDroneClaim(owner);
+        if (claimed == null) return false;
+        Entity entity = level.getEntity(claimed);
+        return entity == null;
+    }
+
+    /** Spawns one mortar_shell-armed, AI-flown drone above {@code owner} (not overlapping them). */
     static DroneEntity spawnDrone(ServerLevel level, AbstractUnit owner) {
         EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(DRONE_ID);
         if (type == null) return null;
         Entity entity = type.create(level);
         if (!(entity instanceof DroneEntity drone)) return null;
 
-        drone.setPos(owner.getX(), owner.getY() + 1.0, owner.getZ());
+        // Y+1 spawned inside the engineer; SBW hitEntityCrash + mortar_shell instantly kills both.
+        double alt = Math.max(8.0, SewvConfig.DRONE_SCAN_ALTITUDE.get());
+        drone.setPos(owner.getX(), owner.getY() + alt, owner.getZ());
         drone.setYRot(owner.getYRot());
-        drone.getPersistentData().putUUID(OWNER_TAG, owner.getUUID());
+        drone.getPersistentData().putUUID(DroneControl.OWNER_TAG, owner.getUUID());
+        // Ignore entity crashes briefly while it clears the spawn column.
+        drone.getPersistentData().putLong(DroneControl.SPAWN_GRACE_UNTIL,
+                level.getGameTime() + DroneControl.SPAWN_GRACE_TICKS);
+        armMortarShell(drone);
         level.addFreshEntity(drone);
-        OWNED_DRONE_IDS.computeIfAbsent(owner.getUUID(), ignored -> new ArrayList<>()).add(drone.getId());
+        rememberNetworkId(owner.getUUID(), drone);
+        DroneControl.rememberDrone(owner, drone);
         return drone;
     }
 
-    private static UUID readOwner(DroneEntity drone) {
+    /** Mirrors SBW player interact mount for {@code superbwarfare:mortar_shell}. */
+    static void armMortarShell(DroneEntity drone) {
+        DroneAttachmentData data = CustomData.DRONE_ATTACHMENT.get(MORTAR_SHELL_ID);
+        if (data == null) return;
+
+        ItemStack shell = new ItemStack(ModItems.MORTAR_SHELL.get());
+        drone.currentItem = shell.copyWithCount(1);
+        drone.getEntityData().set(DroneEntity.DISPLAY_ENTITY, data.displayEntity());
+        drone.setAmmo(1);
+        drone.getEntityData().set(DroneEntity.IS_KAMIKAZE, data.isKamikaze);
+        drone.getEntityData().set(DroneEntity.MAX_AMMO, data.count());
+
+        float[] scale = data.scale();
+        float[] offset = data.offset();
+        float[] rotation = data.rotation();
+        drone.getEntityData().set(DroneEntity.DISPLAY_DATA, List.of(
+                scale[0], scale[1], scale[2],
+                offset[0], offset[1], offset[2],
+                rotation[0], rotation[1], rotation[2],
+                data.xLength, data.zLength,
+                (float) data.tickCount
+        ));
+    }
+
+    private static void rememberNetworkId(UUID ownerId, DroneEntity drone) {
+        List<Integer> ids = OWNED_DRONE_IDS.computeIfAbsent(ownerId, ignored -> new ArrayList<>());
+        int netId = drone.getId();
+        if (!ids.contains(netId)) ids.add(netId);
+    }
+
+    @Nullable
+    static UUID readOwner(DroneEntity drone) {
         CompoundTag tag = drone.getPersistentData();
-        return tag.hasUUID(OWNER_TAG) ? tag.getUUID(OWNER_TAG) : null;
+        return tag.hasUUID(DroneControl.OWNER_TAG) ? tag.getUUID(DroneControl.OWNER_TAG) : null;
     }
 
     /**
-     * Nearest hostile within range of the drone, honouring the same proactive-acquisition
-     * doctrine (faction + SEM's per-faction friendly flag) as every other scan goal in this mod.
-     *
-     * <p>Deliberately NO line-of-sight check. A drone spotting something only makes a
-     * receiving unit/vehicle AWARE of it (a target to point at); it does not fire on its own
-     * say-so. Ground vehicles already gate actually SHOOTING on their own LOS at the moment
-     * they pull the trigger ({@code MixinVehicleFireCooldown}'s line-of-fire check, independent
-     * of how the target was acquired), so a raycast here would only pay for a filter the fire
-     * path already enforces downstream — and it would be wrong for the drone's own aerial
-     * vantage anyway, which sees over most of what would block it.
+     * Nearest hostile in the ground-vehicle inner-ring cylinder ({@link HullLocalScan}), no LOS.
      */
-    static LivingEntity findVisibleEnemy(DroneEntity drone, AbstractUnit owner, double radius) {
-        AABB box = AABB.ofSize(drone.position(), radius * 2, radius * 2, radius * 2);
+    @Nullable
+    static LivingEntity findInnerRingEnemy(DroneEntity drone, AbstractUnit owner) {
+        double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
         double radiusSq = radius * radius;
-        List<LivingEntity> candidates = drone.level().getEntitiesOfClass(LivingEntity.class, box, e ->
-                e.isAlive() && e.isAttackable() && !VehicleTargeting.isNonHostile(owner, e)
-                        && e.distanceToSqr(drone) <= radiusSq);
-        candidates.sort(Comparator.comparingDouble(drone::distanceToSqr));
-        return candidates.isEmpty() ? null : candidates.get(0);
+        double halfH = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
+        List<LivingEntity> raw = HullLocalScan.livingInScanCylinder(drone);
+        LivingEntity best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (LivingEntity e : raw) {
+            if (!e.isAlive() || !e.isAttackable()) continue;
+            if (VehicleTargeting.isNonHostile(owner, e)) continue;
+            double dy = Math.abs(e.getY() - drone.getY());
+            if (dy > halfH) continue;
+            double d = e.distanceToSqr(drone);
+            if (d > radiusSq) continue;
+            if (d < bestDist) {
+                bestDist = d;
+                best = e;
+            }
+        }
+        return best;
     }
 
     /**
-     * Hands {@code target} directly to every same-faction unit within range that has none of
-     * its own — RU/US have no order queue to route it through (unlike the PMC radio relay), so
-     * this is a straight {@code setTarget} fan-out. Never overwrites an existing lock, so a
-     * broadcast can't yank a unit off whatever it is already fighting.
+     * Hands {@code target} to same-faction units with no target of their own. Kept for
+     * {@link DriveVehicleGoal} delegate; kamikaze AI no longer broadcasts.
      */
-    static void broadcastTarget(ServerLevel level, AbstractUnit owner, LivingEntity target, Vec3 from, double radius) {
+    public static void broadcastTarget(ServerLevel level, AbstractUnit owner, LivingEntity target, Vec3 from, double radius) {
         AABB box = AABB.ofSize(from, radius * 2, radius * 2, radius * 2);
         double radiusSq = radius * radius;
         for (AbstractUnit candidate : level.getEntitiesOfClass(AbstractUnit.class, box, u ->

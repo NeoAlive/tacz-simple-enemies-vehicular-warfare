@@ -7,6 +7,8 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.debug.GunCacheProbe;
+import com.neoalive.tacz_sewv.debug.SewvConfigFix;
+import com.neoalive.tacz_sewv.debug.SewvDebugDump;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
@@ -47,6 +49,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import javax.annotation.Nullable;
+import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -88,7 +91,11 @@ public class SewvCommand {
                         .then(Commands.literal("guncache")
                                 .executes(ctx -> debugGunCache(ctx.getSource())))
                         .then(Commands.literal("reloadSkins")
-                                .executes(ctx -> debugReloadSkins(ctx.getSource()))))
+                                .executes(ctx -> debugReloadSkins(ctx.getSource())))
+                        .then(Commands.literal("dump")
+                                .executes(ctx -> debugDump(ctx.getSource())))
+                        .then(Commands.literal("StartConfigFix")
+                                .executes(ctx -> debugStartConfigFix(ctx.getSource()))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("add")
@@ -382,6 +389,41 @@ public class SewvCommand {
     }
 
     /** Tell clients to re-scan config/tacz_sewv/vehicle_skins/ without a restart. */
+    private static int debugDump(CommandSourceStack source) {
+        try {
+            Path path = SewvDebugDump.write(source.getServer(), source.getLevel());
+            source.sendSuccess(() -> Component.literal(
+                    "Diagnostic written to " + path + " — send this file."), false);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Dump failed: " + e.getMessage()));
+            return 0;
+        }
+    }
+
+    private static int debugStartConfigFix(CommandSourceStack source) {
+        try {
+            SewvConfigFix.Result result = SewvConfigFix.quarantine();
+            if (result.moved().isEmpty()) {
+                source.sendSuccess(() -> Component.literal("StartConfigFix: no stale files moved."), false);
+            } else {
+                source.sendSuccess(() -> Component.literal(
+                        "StartConfigFix: moved " + result.moved().size() + " file(s):"), false);
+                for (SewvConfigFix.Move m : result.moved()) {
+                    source.sendSuccess(() -> Component.literal(
+                            "  " + m.from() + " -> " + m.to() + " (" + m.reason() + ")"), false);
+                }
+            }
+            for (String note : result.notes()) {
+                source.sendSuccess(() -> Component.literal(note), false);
+            }
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("StartConfigFix failed: " + e.getMessage()));
+            return 0;
+        }
+    }
+
     private static int debugReloadSkins(CommandSourceStack source) {
         PacketReloadVehicleSkins packet = new PacketReloadVehicleSkins();
         if (source.getEntity() instanceof ServerPlayer player) {

@@ -111,6 +111,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue DRONE_DETECTION_RADIUS;
     public static final ForgeConfigSpec.DoubleValue DRONE_BROADCAST_RADIUS;
     public static final ForgeConfigSpec.IntValue DRONE_SCAN_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.DoubleValue DRONE_LEASH_RADIUS;
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_ENABLED;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_MIN_HEALTH_FRACTION;
@@ -393,20 +394,22 @@ public final class SewvConfig {
                 .defineInRange("engineerRepairCooldown", 10, 1, 200);
         ENGINEER_SIDEARM_POOL = builder.comment("Possible TACZ sidearm ids for engineers.")
                 .defineList("engineerSidearmPool", List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"), SewvConfig::isValidResourceId);
-        DRONE_MAX_PER_ENGINEER = builder.comment("Maximum recon drones per engineer.")
-                .defineInRange("droneMaxPerEngineer", 2, 0, 8);
+        DRONE_MAX_PER_ENGINEER = builder.comment("Maximum kamikaze drones per engineer (RU/US).")
+                .defineInRange("droneMaxPerEngineer", 1, 0, 8);
         DRONE_DEPLOY_CHECK_INTERVAL_TICKS = builder.comment("How often engineers roll to deploy drones.")
                 .defineInRange("droneDeployCheckIntervalTicks", 200, 20, 12000);
         DRONE_DEPLOY_CHANCE = builder.comment("Chance that a deploy check launches a drone.")
                 .defineInRange("droneDeployChance", 0.2, 0.0, 1.0);
-        DRONE_SCAN_ALTITUDE = builder.comment("Drone station altitude above its engineer.")
+        DRONE_SCAN_ALTITUDE = builder.comment("Drone wander cruise altitude above terrain.")
                 .defineInRange("droneScanAltitude", 20.0, 5.0, 60.0);
-        DRONE_DETECTION_RADIUS = builder.comment("Drone enemy detection radius.")
+        DRONE_DETECTION_RADIUS = builder.comment("Unused by kamikaze AI (inner ring uses vehicle scan radius). Kept for compat.")
                 .defineInRange("droneDetectionRadius", 48.0, 8.0, 128.0);
-        DRONE_BROADCAST_RADIUS = builder.comment("Radius for relaying drone sightings to allies.")
+        DRONE_BROADCAST_RADIUS = builder.comment("Radius for map crewOf / soft drone cache lookups.")
                 .defineInRange("droneBroadcastRadius", 160.0, 16.0, 384.0);
-        DRONE_SCAN_INTERVAL_TICKS = builder.comment("How often drones run their expensive enemy scan.")
+        DRONE_SCAN_INTERVAL_TICKS = builder.comment("How often a locked drone rescans for dive targets.")
                 .defineInRange("droneScanIntervalTicks", 20, 5, 200);
+        DRONE_LEASH_RADIUS = builder.comment("Hard horizontal leash from the deploying engineer while wandering.")
+                .defineInRange("droneLeashRadius", 200.0, 16.0, 512.0);
         AUTO_BOARD_ENABLED = builder.comment("Let idle RU/US infantry claim abandoned vehicles.")
                 .define("autoBoardEnabled", true);
         AUTO_BOARD_SCAN_RADIUS = builder.comment("Radius used to scan for abandoned vehicles.")

@@ -5,6 +5,7 @@ import com.atsuishio.superbwarfare.init.ModParticleTypes;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.CrewFacts;
+import com.neoalive.tacz_sewv.util.CrewRadio;
 import com.neoalive.tacz_sewv.util.VehicleSkinSupport;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
@@ -77,6 +78,7 @@ public class RepairGoal extends Goal {
     public void start() {
         this.approachTicks = 0;
         this.cooldown = 0;
+        CrewRadio.speakUnit(this.unit, CrewRadio.Line.FIXING);
         this.unit.getNavigation().moveTo(this.target, 1.0);
     }
 

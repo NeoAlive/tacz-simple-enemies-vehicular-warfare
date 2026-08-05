@@ -1,16 +1,13 @@
 package com.neoalive.tacz_sewv.util;
 
-import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenPoolEditor;
 import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.VehiclePoolCatalogSource;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.EntityType;
 import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -50,15 +47,8 @@ public final class PoolEditorAccess {
         return 1;
     }
 
-    /** Registry ids whose entity class is a SuperbWarfare vehicle (covers MCSP/ASH/FCP too). */
+    /** Registry ids for pool autocomplete — see {@link VehiclePoolCatalogSource}. */
     public static List<String> catalog() {
-        List<String> out = new ArrayList<>();
-        for (EntityType<?> type : ForgeRegistries.ENTITY_TYPES) {
-            if (!VehicleEntity.class.isAssignableFrom(type.getBaseClass())) continue;
-            ResourceLocation id = ForgeRegistries.ENTITY_TYPES.getKey(type);
-            if (id != null) out.add(id.toString());
-        }
-        out.sort(String::compareTo);
-        return out;
+        return VehiclePoolCatalogSource.scan();
     }
 }

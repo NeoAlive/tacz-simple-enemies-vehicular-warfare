@@ -121,9 +121,13 @@ public class BailOutVehicleGoal extends Goal {
     public void start() {
         // canUse() just established the ride is a crippled VehicleEntity.
         VehicleEntity vehicle = (VehicleEntity) this.unit.getVehicle();
+        // Voice FIRST — before escape search / parachute / stopRiding. Under fire DAMAGED holds the
+        // shared radio channel; BAIL bypasses that gate, but any work before speak risks the unit
+        // dying mid-start and never saying the line.
+        CrewRadio.speak(vehicle, this.unit, CrewRadio.Line.BAIL);
+
         this.escapePos = findEscapePos(vehicle);
         this.scrambleTicks = 0;
-        CrewRadio.speak(vehicle, this.unit, CrewRadio.Line.BAIL);
 
         issueParachute();
         this.unit.stopRiding();

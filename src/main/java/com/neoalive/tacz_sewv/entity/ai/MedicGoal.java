@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.item.misc.MedicalKitItem;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.CrewRadio;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -53,6 +54,8 @@ public class MedicGoal extends Goal {
     private AbstractUnit patient;
     private int cooldown;
     private int approachTicks;
+    /** One healing voiceline per treat session, not per drip pulse. */
+    private boolean healingVoiced;
 
     public MedicGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -98,6 +101,7 @@ public class MedicGoal extends Goal {
     @Override
     public void start() {
         this.approachTicks = 0;
+        this.healingVoiced = false;
         if (this.patient != this.unit) {
             this.unit.getNavigation().moveTo(this.patient, 1.0);
         }
@@ -108,6 +112,7 @@ public class MedicGoal extends Goal {
         this.unit.getNavigation().stop();
         this.patient = null;
         this.approachTicks = 0;
+        this.healingVoiced = false;
         MedicControl.setTreating(this.unit, false);
     }
 
@@ -164,6 +169,10 @@ public class MedicGoal extends Goal {
     }
 
     private void playTreatSound() {
+        if (!this.healingVoiced) {
+            this.healingVoiced = true;
+            CrewRadio.speakUnit(this.unit, CrewRadio.Line.HEALING);
+        }
         SoundEvent sound = TREAT_SOUNDS[this.unit.getRandom().nextInt(TREAT_SOUNDS.length)];
         // Entity-bound overload so the clip follows the patient rather than being left behind.
         this.unit.level().playSound(null, this.patient, sound, SoundSource.NEUTRAL,

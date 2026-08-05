@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.CrewRadio;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -125,7 +126,10 @@ public class DroneOperatorGoal extends Goal {
         if (this.unit.getRandom().nextFloat() >= SewvConfig.DRONE_DEPLOY_CHANCE.get()) return;
 
         DroneEntity drone = DroneSupport.spawnDrone(level, this.unit);
-        if (drone != null) this.drones.add(drone);
+        if (drone != null) {
+            this.drones.add(drone);
+            CrewRadio.speakUnit(this.unit, CrewRadio.Line.DRONE);
+        }
     }
 
     private void updateLockState(DroneEntity drone) {

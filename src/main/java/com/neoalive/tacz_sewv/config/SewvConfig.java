@@ -551,7 +551,7 @@ public final class SewvConfig {
         VEHICLE_VOICELINES_ENABLED = builder.comment("Enable mounted crew radio voicelines.")
                 .define("vehicleVoicelinesEnabled", true);
         IDLE_VOICELINE_DELAY_TICKS = builder.comment("How long crews stay quiet before idle chatter starts.")
-                .defineInRange("idleVoicelineDelayTicks", 200, 20, 12000);
+                .defineInRange("idleVoicelineDelayTicks", 320, 20, 12000);
         IDLE_VOICELINE_HEALTH_FRACTION = builder.comment("Below this health fraction, idle chatter stays off.")
                 .defineInRange("idleVoicelineHealthFraction", 0.3, 0.0, 1.0);
         builder.pop();

@@ -13,10 +13,12 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 /**
- * One radio voice per hull. The driver ({@code getFirstPassenger}) speaks for the whole crew,
- * picking a non-repeating clip from its faction's pool and holding a shared cooldown so nothing
- * overlaps -- damaged, spotted and orders all share the one channel. Off-foot units and mortar
- * crews are never passengers of a hull, so this only ever fires from inside a vehicle.
+ * One radio voice per hull (mounted crew) or per unit (on-foot support lines). The driver
+ * ({@code getFirstPassenger}) speaks for the whole crew, picking a non-repeating clip from its
+ * faction's pool and holding a shared cooldown so nothing overlaps -- damaged, spotted and orders
+ * all share the one channel. BAIL bypasses that overlap gate so a dying hull's "we're out" is not
+ * starved by DAMAGED spam. Off-foot support lines (fixing / healing / drone) use
+ * {@link #speakUnit}.
  */
 public final class CrewRadio {
 
@@ -25,9 +27,11 @@ public final class CrewRadio {
      * Per-line minimum gap (ticks) between two of the SAME line on one hull, on top of the shared
      * anti-overlap. DAMAGED is throttled hard because it fires on every hit -- without this it would
      * hold the one channel and starve spotted/bail/decoy, which is what made lines feel rare.
+     * IDLE is longer so chatter stays frequent but not constant.
      */
     public enum Line {
-        DAMAGED(160), SPOTTED(90), ORDERS(60), TAKEOFF(60), BAIL(60), DECOY(60), IFV(90), IDLE(600), TOW(100);
+        DAMAGED(160), SPOTTED(90), ORDERS(60), TAKEOFF(60), BAIL(40), DECOY(60), IFV(90), IDLE(900),
+        TOW(100), FIXING(80), HEALING(80), DRONE(80);
         final int cooldown;
         Line(int cooldown) { this.cooldown = cooldown; }
     }
@@ -62,8 +66,10 @@ public final class CrewRadio {
         long now = hull.level().getGameTime();
         CompoundTag data = hull.getPersistentData();
         String typeKey = TYPE_KEY + line.name();
-        if (now < data.getLong(OVERLAP_KEY)) return;  // a clip is still playing on this hull
-        if (now < data.getLong(typeKey)) return;      // this line spoke too recently
+        // BAIL is an emergency: DAMAGED holds OVERLAP_KEY under fire and would otherwise mute it
+        // until the crew is already dead outside the hull.
+        if (line != Line.BAIL && now < data.getLong(OVERLAP_KEY)) return;
+        if (now < data.getLong(typeKey)) return;
         data.putLong(OVERLAP_KEY, now + OVERLAP_TICKS);
         data.putLong(typeKey, now + line.cooldown);
         // SoundSource.VOICE puts these on the dedicated Voice/Speech slider, separate from combat noise.
@@ -71,8 +77,26 @@ public final class CrewRadio {
         // so the clip tracks the vehicle client-side instead of being left behind by a hull moving at
         // 30 m/s. The hull rather than the speaker because it outlives a crewman who bails or dies
         // mid-line, and while seated the two positions are the same.
-        float volume = VOICELINE_VOLUME;
-        hull.level().playSound(null, hull, pool.next(), SoundSource.VOICE, volume, 1.0f);
+        hull.level().playSound(null, hull, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
+    }
+
+    /**
+     * On-foot support call-out (medic / engineer). Cooldown lives on the unit; plays bound to the
+     * speaker so the clip walks with them.
+     */
+    public static void speakUnit(AbstractUnit speaker, Line line) {
+        if (speaker.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return;
+        SoundPool pool = poolFor(speaker, line, false);
+        if (pool == null) return;
+
+        long now = speaker.level().getGameTime();
+        CompoundTag data = speaker.getPersistentData();
+        String typeKey = TYPE_KEY + line.name();
+        if (now < data.getLong(OVERLAP_KEY)) return;
+        if (now < data.getLong(typeKey)) return;
+        data.putLong(OVERLAP_KEY, now + OVERLAP_TICKS);
+        data.putLong(typeKey, now + line.cooldown);
+        speaker.level().playSound(null, speaker, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
     }
 
     /**
@@ -90,6 +114,9 @@ public final class CrewRadio {
             case IFV     -> ModSounds.RU_IFV;
             case IDLE    -> navy ? ModSounds.RU_NAVY_IDLE : ModSounds.RU_IDLE;
             case TOW     -> ModSounds.RU_TOW;
+            case FIXING  -> ModSounds.RU_FIXING;
+            case HEALING -> ModSounds.RU_HEALING;
+            case DRONE   -> ModSounds.RU_DRONE;
             case ORDERS, TAKEOFF -> null;
         };
         if (unit instanceof USunitEntity) return switch (line) {
@@ -100,6 +127,9 @@ public final class CrewRadio {
             case IFV     -> ModSounds.US_IFV;
             case IDLE    -> navy ? ModSounds.US_NAVY_IDLE : ModSounds.US_IDLE;
             case TOW     -> ModSounds.US_TOW;
+            case FIXING  -> ModSounds.US_FIXING;
+            case HEALING -> ModSounds.US_HEALING;
+            case DRONE   -> ModSounds.US_DRONE;
             case ORDERS, TAKEOFF -> null;
         };
         return switch (line) { // PMC
@@ -111,7 +141,9 @@ public final class CrewRadio {
             case DECOY   -> ModSounds.PMC_DECOY;
             case IDLE    -> navy ? ModSounds.PMC_NAVY_IDLE : ModSounds.PMC_IDLE;
             case TOW     -> ModSounds.PMC_TOW;
-            case IFV     -> null; // PMC IFVs field no dedicated line
+            case FIXING  -> ModSounds.PMC_FIXING;
+            case HEALING -> ModSounds.PMC_HEALING;
+            case IFV, DRONE -> null; // PMC IFVs / drones field no dedicated line
         };
     }
 }

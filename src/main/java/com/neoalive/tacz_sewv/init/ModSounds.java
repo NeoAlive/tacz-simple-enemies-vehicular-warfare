@@ -20,9 +20,11 @@ public final class ModSounds {
     // taking fire), SPOTTED (locked onto an enemy vehicle), ORDERS (player commanded the crew), BAIL
     // (crew abandoning a crippled hull), DECOY (popping smoke/flares), IFV (dropping its squad),
     // IDLE (chatter between fights) and TOW (a launcher crew firing a missile).
+    // On-foot support lines: FIXING (engineer begins a repair), HEALING (medic begins treating),
+    // DRONE (RU/US engineer deploys a drone — PMC has no autonomous drone path).
     // Each pool registers its variants as individual events so the code can pick a specific,
     // non-repeating clip; sounds.json maps each to one .ogg under sounds/<faction>/. RU/US ORDERS are
-    // absent (autonomous units get no player orders); PMC IFV is absent (its squad fields no line).
+    // absent (autonomous units get no player orders); PMC IFV / PMC DRONE are absent.
     // PMC_MORTAR / PMC_CAS are not crew-radio pools: they are the handheld radio's acknowledgements
     // for a fire mission (HandheldRadioItem, RadioObserverGoal), picked by which support kinds
     // actually answered. PMC_TAKEOFF is a crew line, but only on a plane ordered to take off —
@@ -37,6 +39,8 @@ public final class ModSounds {
     public static final SoundPool PMC_CAS     = pool("pmc_cas", 5);
     public static final SoundPool PMC_TAKEOFF = pool("pmc_takeoff", 4);
     public static final SoundPool PMC_TOW     = pool("pmc_tow", 2);
+    public static final SoundPool PMC_FIXING = pool("pmc_fixing", 2);
+    public static final SoundPool PMC_HEALING = pool("pmc_healing", 3);
     public static final SoundPool PMC_NAVY_IDLE   = pool("pmc_navy_idle", 4);
     public static final SoundPool PMC_NAVY_TARGET = pool("pmc_navy_target", 5);
     public static final SoundPool RU_DAMAGED  = pool("ru_damaged", 3);
@@ -46,6 +50,9 @@ public final class ModSounds {
     public static final SoundPool RU_IFV      = pool("ru_ifv", 3);
     public static final SoundPool RU_IDLE     = pool("ru_idle", 7);
     public static final SoundPool RU_TOW      = pool("ru_tow", 3);
+    public static final SoundPool RU_FIXING  = pool("ru_fixing", 3);
+    public static final SoundPool RU_HEALING  = pool("ru_healing", 3);
+    public static final SoundPool RU_DRONE    = pool("ru_drone", 3);
     public static final SoundPool RU_NAVY_IDLE    = pool("ru_navy_idle", 4);
     public static final SoundPool RU_NAVY_TARGET  = pool("ru_navy_target", 5);
     public static final SoundPool US_DAMAGED  = pool("us_damaged", 3);
@@ -55,6 +62,9 @@ public final class ModSounds {
     public static final SoundPool US_IFV      = pool("us_ifv", 3);
     public static final SoundPool US_IDLE     = pool("us_idle", 7);
     public static final SoundPool US_TOW      = pool("us_tow", 3);
+    public static final SoundPool US_FIXING  = pool("us_fixing", 3);
+    public static final SoundPool US_HEALING  = pool("us_healing", 2);
+    public static final SoundPool US_DRONE    = pool("us_drone", 3);
     public static final SoundPool US_NAVY_IDLE    = pool("us_navy_idle", 5);
     public static final SoundPool US_NAVY_TARGET  = pool("us_navy_target", 5);
 

@@ -151,5 +151,30 @@
   "us_navy_target_2": { "sounds": ["tacz_sewv:us/us_navy_target_2"] },
   "us_navy_target_3": { "sounds": ["tacz_sewv:us/us_navy_target_3"] },
   "us_navy_target_4": { "sounds": ["tacz_sewv:us/us_navy_target_4"] },
-  "us_navy_target_5": { "sounds": ["tacz_sewv:us/us_navy_target_5"] }
+  "us_navy_target_5": { "sounds": ["tacz_sewv:us/us_navy_target_5"] },
+
+  "pmc_fixing_1": { "sounds": ["tacz_sewv:pmc/pmc_fixing_1"] },
+  "pmc_fixing_2": { "sounds": ["tacz_sewv:pmc/pmc_fixing_2"] },
+  "pmc_healing_1": { "sounds": ["tacz_sewv:pmc/pmc_healing_1"] },
+  "pmc_healing_2": { "sounds": ["tacz_sewv:pmc/pmc_healing_2"] },
+  "pmc_healing_3": { "sounds": ["tacz_sewv:pmc/pmc_healing_3"] },
+
+  "ru_fixing_1": { "sounds": ["tacz_sewv:ru/ru_fixing_1"] },
+  "ru_fixing_2": { "sounds": ["tacz_sewv:ru/ru_fixing_2"] },
+  "ru_fixing_3": { "sounds": ["tacz_sewv:ru/ru_fixing_3"] },
+  "ru_healing_1": { "sounds": ["tacz_sewv:ru/ru_healing_1"] },
+  "ru_healing_2": { "sounds": ["tacz_sewv:ru/ru_healing_2"] },
+  "ru_healing_3": { "sounds": ["tacz_sewv:ru/ru_healing_3"] },
+  "ru_drone_1": { "sounds": ["tacz_sewv:ru/ru_drone_1"] },
+  "ru_drone_2": { "sounds": ["tacz_sewv:ru/ru_drone_2"] },
+  "ru_drone_3": { "sounds": ["tacz_sewv:ru/ru_drone_3"] },
+
+  "us_fixing_1": { "sounds": ["tacz_sewv:us/us_fixing_1"] },
+  "us_fixing_2": { "sounds": ["tacz_sewv:us/us_fixing_2"] },
+  "us_fixing_3": { "sounds": ["tacz_sewv:us/us_fixing_3"] },
+  "us_healing_1": { "sounds": ["tacz_sewv:us/us_healing_1"] },
+  "us_healing_2": { "sounds": ["tacz_sewv:us/us_healing_2"] },
+  "us_drone_1": { "sounds": ["tacz_sewv:us/us_drone_1"] },
+  "us_drone_2": { "sounds": ["tacz_sewv:us/us_drone_2"] },
+  "us_drone_3": { "sounds": ["tacz_sewv:us/us_drone_3"] }
 }

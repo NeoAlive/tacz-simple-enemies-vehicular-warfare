@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.client.gui;
 
+import com.neoalive.tacz_sewv.client.VehiclePoolCatalog;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketUpdateVehiclePools;
 import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
@@ -11,6 +12,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -35,7 +37,11 @@ public class PoolEditorScreen extends Screen {
     private int scroll;
     private int selected = -1;
     private EditBox filterBox;
+    private List<String> activeCatalogList = List.of();
     private List<String> filteredCatalog = List.of();
+    @Nullable
+    private String autocompleteSuggestion = null;
+    private int catalogRetryTicks = 0;
 
     public PoolEditorScreen(Map<TankFaction, Map<Category, List<String>>> pools,
                             Map<TankFaction, Map<Category, List<String>>> defaults,
@@ -63,8 +69,15 @@ public class PoolEditorScreen extends Screen {
         return this.pools.get(this.faction).get(this.category);
     }
 
+    /** Client scan merged with the server snapshot from the open packet. */
+    private void reloadCatalog() {
+        this.activeCatalogList = VehiclePoolCatalog.mergedWith(this.catalog);
+    }
+
     @Override
     protected void init() {
+        VehiclePoolCatalog.ensureLoaded();
+        reloadCatalog();
         int left = (this.width - PANEL_W) / 2;
         int top = 28;
 
@@ -98,11 +111,13 @@ public class PoolEditorScreen extends Screen {
         int listTop = catY + 28;
         int listBottom = listTop + LIST_ROWS * 12;
 
-        this.filterBox = new EditBox(this.font, left, listBottom + 8, PANEL_W - 90, 20,
+        this.filterBox = new PoolVehicleIdEditBox(this.font, left, listBottom + 8, PANEL_W - 90, 20,
                 Component.translatable("gui.tacz_sewv.pool.filter"));
         this.filterBox.setMaxLength(128);
         this.filterBox.setResponder(s -> refreshFilter());
+        ((PoolVehicleIdEditBox) this.filterBox).setTabCompleter(this::applyTabCompletion);
         addRenderableWidget(this.filterBox);
+        setInitialFocus(this.filterBox);
         refreshFilter();
 
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.add"), b -> addFromFilter())
@@ -126,16 +141,37 @@ public class PoolEditorScreen extends Screen {
         }).bounds(left + PANEL_W - 20, listBottom - 20, 20, 20).build());
     }
 
+    @Override
+    public void tick() {
+        super.tick();
+        if (!this.activeCatalogList.isEmpty()) return;
+        if (++this.catalogRetryTicks % 40 != 0) return;
+        VehiclePoolCatalog.rebuildIfEmpty();
+        reloadCatalog();
+        refreshFilter();
+    }
+
     private void refreshFilter() {
         String q = this.filterBox != null ? this.filterBox.getValue().trim().toLowerCase(Locale.ROOT) : "";
-        List<String> out = new ArrayList<>();
+        List<String> catalog = this.activeCatalogList;
         List<String> pool = currentPool();
-        for (String id : this.catalog) {
+        List<String> out = new ArrayList<>();
+        for (String id : catalog) {
             if (pool.contains(id)) continue;
             if (!q.isEmpty() && !id.toLowerCase(Locale.ROOT).contains(q)) continue;
             out.add(id);
         }
         this.filteredCatalog = out;
+        String typed = this.filterBox != null ? this.filterBox.getValue() : "";
+        this.autocompleteSuggestion = VehiclePoolCatalog.suggest(typed, catalog, pool);
+    }
+
+    private boolean applyTabCompletion() {
+        if (this.filterBox == null || this.autocompleteSuggestion == null) return false;
+        this.filterBox.setValue(this.autocompleteSuggestion);
+        this.filterBox.setCursorPosition(this.autocompleteSuggestion.length());
+        refreshFilter();
+        return true;
     }
 
     private void addFromFilter() {
@@ -248,10 +284,20 @@ public class PoolEditorScreen extends Screen {
                 pool.size()).getString();
         graphics.drawString(this.font, hint, left, listTop + LIST_ROWS * 12 + 58, 0xA0A0A0, false);
 
-        if (!this.filteredCatalog.isEmpty() && this.filterBox != null && !this.filterBox.getValue().isEmpty()) {
-            graphics.drawString(this.font,
-                    Component.translatable("gui.tacz_sewv.pool.next_add", this.filteredCatalog.get(0)),
-                    left, listTop + LIST_ROWS * 12 + 70, 0x80FF80, false);
+        if (this.activeCatalogList.isEmpty()) {
+            Component msg = this.catalog.isEmpty()
+                    ? Component.translatable("gui.tacz_sewv.pool.catalog_empty")
+                    : Component.translatable("gui.tacz_sewv.pool.catalog_loading");
+            graphics.drawString(this.font, msg, left, listTop + LIST_ROWS * 12 + 70, 0xFFAA55, false);
+        } else if (this.filterBox != null && this.autocompleteSuggestion != null) {
+            String typed = this.filterBox.getValue();
+            String suffix = VehiclePoolCatalog.completionSuffix(typed, this.autocompleteSuggestion);
+            if (!suffix.isEmpty()) {
+                int boxX = this.filterBox.getX();
+                int boxY = this.filterBox.getY() + (this.filterBox.getHeight() - 8) / 2;
+                int typedX = boxX + 4 + this.font.width(typed);
+                graphics.drawString(this.font, suffix, typedX, boxY, 0x808080, false);
+            }
         }
     }
 

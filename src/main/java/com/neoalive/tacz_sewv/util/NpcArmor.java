@@ -63,10 +63,20 @@ public final class NpcArmor {
     // Support units fall through to their faction's list like anyone else; issue() then keeps only
     // the helmet out of it, so they stay on the same config a player already tunes.
     private static List<? extends String> loadoutFor(AbstractUnit unit) {
-        if (unit instanceof RUunitEntity) return SewvConfig.RU_ARMOR.get();
-        if (unit instanceof USunitEntity) return SewvConfig.US_ARMOR.get();
-        if (unit instanceof PmcUnitEntity) return SewvConfig.PMC_ARMOR.get();
-        return List.of();
+        TankSpawner.TankFaction faction = null;
+        if (unit instanceof RUunitEntity) faction = TankSpawner.TankFaction.RU;
+        else if (unit instanceof USunitEntity) faction = TankSpawner.TankFaction.US;
+        else if (unit instanceof PmcUnitEntity) faction = TankSpawner.TankFaction.PMC;
+        if (faction == null) return List.of();
+        try {
+            return WorldVehicleClasses.get(unit.level()).listArmor(faction);
+        } catch (Throwable ignored) {
+            return switch (faction) {
+                case RU -> SewvConfig.RU_ARMOR.get();
+                case US -> SewvConfig.US_ARMOR.get();
+                case PMC -> SewvConfig.PMC_ARMOR.get();
+            };
+        }
     }
 
     private static void wear(AbstractUnit unit, EquipmentSlot slot, ItemStack stack) {

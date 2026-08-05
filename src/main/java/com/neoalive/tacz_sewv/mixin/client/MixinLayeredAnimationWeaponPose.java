@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
 import com.neoalive.tacz_sewv.entity.ai.DroneControl;
+import com.neoalive.tacz_sewv.entity.ai.MedicControl;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.world.entity.Entity;
 import net.nekoyuni.SimpleEnemyMod.entity.client.animation.core.LayeredAnimationManager;
@@ -16,8 +17,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.List;
 
 /**
- * Skip SEM weapon-arm posing while drone-control locked so sit + Monitor are not overwritten.
- * Head tracking still runs.
+ * Skip SEM weapon-arm posing while drone-control locked or medic-treating so sit/heal clips
+ * and held kit/Monitor are not overwritten. Head tracking still runs.
  */
 @Mixin(value = LayeredAnimationManager.class, remap = false)
 public abstract class MixinLayeredAnimationWeaponPose {
@@ -27,7 +28,7 @@ public abstract class MixinLayeredAnimationWeaponPose {
     @Inject(method = "applyProceduralLayers", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$skipWeaponPoseWhenLocked(ModelPart root, Entity entity, float partialTick,
                                                     CallbackInfo ci) {
-        if (!DroneControl.isLocked(entity)) return;
+        if (!DroneControl.isLocked(entity) && !MedicControl.isTreating(entity)) return;
         ci.cancel();
         for (IProceduralLayer layer : this.proceduralLayers) {
             if (layer instanceof AdvancedWeaponPoseLayer) continue;

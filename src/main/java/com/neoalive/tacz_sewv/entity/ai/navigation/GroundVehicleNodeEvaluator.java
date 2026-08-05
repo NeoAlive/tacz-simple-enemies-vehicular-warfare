@@ -1,14 +1,22 @@
 package com.neoalive.tacz_sewv.entity.ai.navigation;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.PathNavigationRegion;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
 
 /**
@@ -24,6 +32,9 @@ import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
  *     negative water malus by default, so a route would otherwise cut straight through a
  *     lake whenever the dry detour is longer. Any node within {@link #WATER_MARGIN} blocks
  *     of water is BLOCKED outright.</li>
+ * <li><b>Road preference.</b> Nodes whose footing is not in {@code #tacz_sewv:preferred_roads}
+ *     take an {@link #OFF_ROAD_PENALTY} — same shape as the ship shallow-water cost — so a
+ *     parallel dirt path / gravel / cobble wins without forbidding off-road cuts.</li>
  * <li><b>No 26-neighbour hazard scan.</b> An armored vehicle doesn't route around cactus,
  *     fire, or water borders, and that scan is the single most expensive part of
  *     evaluating each block of a 100+ block volume.</li>
@@ -38,11 +49,18 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     // Required clear distance (in blocks) between any drivable node and water.
     private static final int WATER_MARGIN = 3;
 
+    /** Extra path cost per off-road node; roads stay at zero so parallel roads win. */
+    private static final float OFF_ROAD_PENALTY = 2.0F;
+
+    public static final TagKey<Block> PREFERRED_ROADS = TagKey.create(
+            Registries.BLOCK, new ResourceLocation(TaczSewv.MODID, "preferred_roads"));
+
     // A hull that is already wet must be able to path OUT: the standoff blocks the start node
     // and everything around it, so every search from in the water fails, and the drive goal is
     // left steering blind at the destination. Keeping water out is only a rule for a dry hull.
     private boolean inWater;
     private boolean loggedWaterMarginBlockThisSearch;
+    private final BlockPos.MutableBlockPos roadProbe = new BlockPos.MutableBlockPos();
 
     // ponytail: step/jump/fall limits stay the crewman's (vanilla reads them off this.mob),
     // not the hull's — a >1.125-block ledge may not path, but the drive goal steers straight
@@ -135,6 +153,23 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             }
         }
         return false;
+    }
+
+    /**
+     * Prefer road footing the way ships prefer deep water: accepted nodes stay reachable, but
+     * off-road ones cost more so a dirt-path detour of similar length wins.
+     * Walk uses the 7-arg form (step/floor/direction); ships keep the 3-arg swim form.
+     */
+    @Override
+    protected Node findAcceptedNode(int x, int y, int z, int verticalDeltaLimit, double nodeFloorLevel,
+                                    Direction direction, BlockPathTypes pathTypes) {
+        Node node = super.findAcceptedNode(x, y, z, verticalDeltaLimit, nodeFloorLevel, direction, pathTypes);
+        if (node == null) return null;
+        BlockState footing = this.level.getBlockState(this.roadProbe.set(node.x, node.y - 1, node.z));
+        if (!footing.is(PREFERRED_ROADS)) {
+            node.costMalus += OFF_ROAD_PENALTY;
+        }
+        return node;
     }
 
     @Override

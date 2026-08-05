@@ -517,6 +517,7 @@ public final class OwnedVehicleTracker {
         if (engine == EngineType.SHIP) return VehicleMarker.Kind.SURFACE_COMBATANT;
         if (engine == EngineType.AIRCRAFT) return VehicleMarker.Kind.FIXED_WING;
         if (engine == EngineType.HELICOPTER) return VehicleMarker.Kind.ROTARY_WING;
+        if (HullFacts.isArtilleryHull(hull)) return VehicleMarker.Kind.ARTILLERY;
         if (engine == EngineType.FIXED) return VehicleMarker.Kind.EMPLACEMENT;
         if (HullFacts.isMissileSystemHull(hull)) return VehicleMarker.Kind.MISSILE_SYSTEM;
         if (HullFacts.isAntiAirHull(hull)) return VehicleMarker.Kind.ANTI_AIR;

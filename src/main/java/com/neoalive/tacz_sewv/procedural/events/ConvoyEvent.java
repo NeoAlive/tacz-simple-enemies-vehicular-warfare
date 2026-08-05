@@ -67,7 +67,7 @@ public final class ConvoyEvent extends DynamicEvent {
             int offset = i * VEHICLE_SPACING * direction;
             BlockPos vehiclePos = alongX ? centerPos.offset(offset, 0, 0) : centerPos.offset(0, 0, offset);
             vehiclePos = TankSpawner.adjustHeight(level, vehiclePos);
-            VehicleEntity vehicle = TankSpawner.spawnTankWithCrew(level, vehiclePos, faction, null);
+            VehicleEntity vehicle = TankSpawner.spawnCombatVehicleWithCrew(level, vehiclePos, faction, null);
             if (vehicle != null) {
                 spawnedVehicles++;
                 if (firstVehiclePos == null) firstVehiclePos = vehiclePos;

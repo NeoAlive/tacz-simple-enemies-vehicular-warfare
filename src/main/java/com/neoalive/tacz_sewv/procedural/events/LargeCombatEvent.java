@@ -124,7 +124,7 @@ public final class LargeCombatEvent extends DynamicEvent {
             int back = VEHICLE_BACKSET * facing;
             int along = (i - wanted / 2) * VEHICLE_SPACING;
             BlockPos pos = alongX ? anchor.offset(back, 0, along) : anchor.offset(along, 0, back);
-            if (TankSpawner.spawnTankWithCrew(level, TankSpawner.adjustHeight(level, pos), faction, null) != null) {
+            if (TankSpawner.spawnCombatVehicleWithCrew(level, TankSpawner.adjustHeight(level, pos), faction, null) != null) {
                 spawned++;
             }
         }

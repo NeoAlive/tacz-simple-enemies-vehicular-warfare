@@ -163,6 +163,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue MORTAR_DISPERSION_RADIUS;
     public static final ForgeConfigSpec.BooleanValue MORTAR_REQUIRES_AMMO;
     public static final ForgeConfigSpec.BooleanValue MORTAR_CHUNK_LOADING;
+    public static final ForgeConfigSpec.BooleanValue ARTILLERY_CHUNK_LOADING;
     public static final ForgeConfigSpec.DoubleValue MORTAR_RADIO_RANGE;
 
     public static final ForgeConfigSpec.BooleanValue VEHICLE_VOICELINES_ENABLED;
@@ -536,6 +537,9 @@ public final class SewvConfig {
                                 + "remote fire missions (crew/hull would otherwise unload past "
                                 + "simulation distance).")
                 .define("mortarChunkLoading", true);
+        ARTILLERY_CHUNK_LOADING = builder.comment(
+                        "Keep crewed artillery hulls chunk-loaded during remote fire missions.")
+                .define("artilleryChunkLoading", true);
         MORTAR_RADIO_RANGE = builder.comment(
                         "Radio range for designating targets and finding support crews. Must clear "
                                 + "FCP vehicle-mortar minimum engagement (~366 blocks at 85° pitch); "

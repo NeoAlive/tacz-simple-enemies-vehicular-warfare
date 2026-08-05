@@ -48,7 +48,7 @@ public final class TankSpawner {
     public enum TankFaction {
         RU, US, PMC;
 
-        /** Ground + helicopter pool for this world (COMMON config is the seed only). */
+        /** Ground armour / IFV pool for this world (COMMON config is the seed only). */
         public List<? extends String> vehiclePool(ServerLevel level) {
             return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.GROUND);
         }
@@ -62,6 +62,11 @@ public final class TankSpawner {
         /** The faction's plane pool — dedicated like ships; RU/US spawn airborne, PMC on the ground. */
         public List<? extends String> planePool(ServerLevel level) {
             return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.PLANE);
+        }
+
+        /** Rotary-wing pool — land spawn + takeoff, separate from {@link #vehiclePool}. */
+        public List<? extends String> heliPool(ServerLevel level) {
+            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.HELI);
         }
     }
 
@@ -89,6 +94,13 @@ public final class TankSpawner {
         return hasSpawnable(level, faction.vehiclePool(level));
     }
 
+    /** Ground or heli pool non-empty — events that roll combat vehicles use this gate. */
+    public static boolean hasSpawnableCombatVehicle(ServerLevel level, TankFaction faction) {
+        if (!spawnsEnabled(level, faction)) return false;
+        return hasSpawnable(level, faction.vehiclePool(level))
+                || hasSpawnable(level, faction.heliPool(level));
+    }
+
     /** The same, for the faction's separate ship pool — see {@link #spawnShipWithCrew}. */
     public static boolean hasSpawnableShip(ServerLevel level, TankFaction faction) {
         if (!spawnsEnabled(level, faction)) return false;
@@ -99,6 +111,12 @@ public final class TankSpawner {
     public static boolean hasSpawnablePlane(ServerLevel level, TankFaction faction) {
         if (!spawnsEnabled(level, faction)) return false;
         return hasSpawnable(level, faction.planePool(level));
+    }
+
+    /** The same, for the faction's helicopter pool — see {@link #spawnHeliWithCrew}. */
+    public static boolean hasSpawnableHeli(ServerLevel level, TankFaction faction) {
+        if (!spawnsEnabled(level, faction)) return false;
+        return hasSpawnable(level, faction.heliPool(level));
     }
 
     /** Per-world spawn gate ({@code /gamerule sewvRuSpawns} / {@code sewvUsSpawns}). PMC is always on here. */
@@ -147,6 +165,42 @@ public final class TankSpawner {
     public static VehicleEntity spawnShipWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
         return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(level), true, true);
+    }
+
+    /**
+     * Same contract as {@link #spawnTankWithCrew} against the helicopter pool. Land spawn; seat-0
+     * takeoff is applied inside {@code spawnCrewedVehicle} when the hull is {@code HELICOPTER}.
+     */
+    @Nullable
+    public static VehicleEntity spawnHeliWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                 @Nullable UUID ownerId) {
+        return spawnHeliWithCrew(level, requestedPos, faction, ownerId, null);
+    }
+
+    @Nullable
+    public static VehicleEntity spawnHeliWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                 @Nullable UUID ownerId, @Nullable String vehicleId) {
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.heliPool(level), false, true);
+    }
+
+    /**
+     * Event/structure helper: pick GROUND or HELI uniformly among non-empty pools, then spawn.
+     * Existing chance/count knobs stay unchanged — only the pool category may vary per slot.
+     */
+    @Nullable
+    public static VehicleEntity spawnCombatVehicleWithCrew(ServerLevel level, BlockPos requestedPos,
+                                                           TankFaction faction, @Nullable UUID ownerId) {
+        boolean ground = hasSpawnable(level, faction.vehiclePool(level));
+        boolean heli = hasSpawnable(level, faction.heliPool(level));
+        if (!ground && !heli) return null;
+        if (ground && heli) {
+            return level.random.nextBoolean()
+                    ? spawnTankWithCrew(level, requestedPos, faction, ownerId, null)
+                    : spawnHeliWithCrew(level, requestedPos, faction, ownerId, null);
+        }
+        return ground
+                ? spawnTankWithCrew(level, requestedPos, faction, ownerId, null)
+                : spawnHeliWithCrew(level, requestedPos, faction, ownerId, null);
     }
 
     /**

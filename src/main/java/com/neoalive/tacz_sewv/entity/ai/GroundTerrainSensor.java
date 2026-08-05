@@ -94,6 +94,12 @@ final class GroundTerrainSensor extends TerrainSensor {
     private String lastRejectReason = "unknown";
     private boolean lastFanHullDominated;
     private String lastFanReasons = "";
+    /**
+     * On-foot same-faction units, refreshed whenever {@link #buildObstacles} runs (same tick
+     * cache as the hull list). Kept separate so a blocked sample can report {@code ally}
+     * instead of {@code hull} — hull-dominated fan recovery must not fire on a crowd of infantry.
+     */
+    private List<AABB> allyFootObstacles = List.of();
 
     GroundTerrainSensor(AbstractUnit unit) {
         super(unit);
@@ -111,6 +117,7 @@ final class GroundTerrainSensor extends TerrainSensor {
         this.centerFloorCacheTick = Long.MIN_VALUE;
         this.lastFanHullDominated = false;
         this.lastFanReasons = "";
+        this.allyFootObstacles = List.of();
     }
 
     /**
@@ -243,6 +250,12 @@ final class GroundTerrainSensor extends TerrainSensor {
         for (double d = half + 0.5; d <= half + distance; d += 1.0) {
             double sampleX = startX + dir.x * d;
             double sampleZ = startZ + dir.z * d;
+            if (isBlockedByHull(this.allyFootObstacles, sampleX, sampleZ)) {
+                this.lastRejectReason = "ally";
+                trace.append(" ally@").append(Mth.floor(sampleX)).append(',').append(Mth.floor(sampleZ));
+                logBlockedHeading(dir, distance, baseY, floor, "ally", trace);
+                return false;
+            }
             if (isBlockedByHull(hulls, sampleX, sampleZ)) {
                 this.lastRejectReason = "hull";
                 trace.append(" hull@").append(Mth.floor(sampleX)).append(',').append(Mth.floor(sampleZ));
@@ -460,7 +473,9 @@ final class GroundTerrainSensor extends TerrainSensor {
     /**
      * Wrecks (dead hulls linger as scenery) and allied crewed vehicles must not be driven
      * through. Enemy hulls stay fair game: the standoff ring already keeps the distance, and
-     * refusing to close on an enemy "obstacle" would fight it.
+     * refusing to close on an enemy "obstacle" would fight it. Same-faction infantry on foot
+     * are the other crush hazard — collected beside the hull list so whiskers can steer around
+     * them without counting them as hull-dominated traffic.
      */
     @Override
     protected List<AABB> buildObstacles(double reach) {
@@ -469,16 +484,28 @@ final class GroundTerrainSensor extends TerrainSensor {
         // ±2 vertically: an obstacle on a drivable slope still counts, one well above or
         // below is outside the band the hull can reach by driving.
         AABB search = this.vehicle.getBoundingBox().inflate(range, 2.0, range);
-        return this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
+        List<AABB> hulls = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
                         v -> v != this.vehicle && isObstacle(v)).stream()
                 .map(v -> v.getBoundingBox().inflate(half, 0.0, half))
                 .toList();
+        this.allyFootObstacles = this.unit.level().getEntitiesOfClass(AbstractUnit.class, search,
+                        this::isAllyFootObstacle).stream()
+                .map(u -> u.getBoundingBox().inflate(half, 0.0, half))
+                .toList();
+        return hulls;
     }
 
     private boolean isObstacle(VehicleEntity other) {
         if (other.isWreck()) return true;
         return other.getFirstPassenger() instanceof AbstractUnit driver
                 && VehicleTargeting.isSameFaction(this.unit, driver);
+    }
+
+    /** On-foot same-faction unit; mounted allies are covered by their hull box above. */
+    private boolean isAllyFootObstacle(AbstractUnit other) {
+        if (other == this.unit || !other.isAlive()) return false;
+        if (other.getVehicle() != null) return false;
+        return VehicleTargeting.isSameFaction(this.unit, other);
     }
 
     private static boolean isBlockedByHull(List<AABB> obstacles, double x, double z) {

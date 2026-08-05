@@ -31,7 +31,8 @@
     "MixinMoveToAttackRangeGoal",
     "MixinCommanderOrderGoal",
     "MixinWalkNodeEvaluator",
-    "MixinDroneKamikaze"
+    "MixinDroneKamikaze",
+    "MixinVehicleCrushAllies"
   ],
     "client": [
     "client.MixinClientGlowManager",
@@ -40,6 +41,7 @@
     "client.MixinUniversalArmorLayer",
     "client.MixinUnitModelSeatPose",
     "client.MixinUnitModelDroneSit",
+    "client.MixinUnitModelMedicHeal",
     "client.AccessorHierarchicalModel",
     "client.MixinLayeredAnimationWeaponPose",
     "client.MixinVehicleTeamOverlay",

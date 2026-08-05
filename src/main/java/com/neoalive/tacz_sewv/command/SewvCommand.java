@@ -68,6 +68,9 @@ public class SewvCommand {
                         .then(planeSpawn("usplane", TankFaction.US))
                         .then(planeSpawn("ruplane", TankFaction.RU))
                         .then(planeSpawn("pmcplane", TankFaction.PMC))
+                        .then(heliSpawn("usheli", TankFaction.US))
+                        .then(heliSpawn("ruheli", TankFaction.RU))
+                        .then(heliSpawn("pmcheli", TankFaction.PMC))
                         .then(emplacementSpawn("usmortar", TankFaction.US, Emplacement.MORTAR))
                         .then(emplacementSpawn("rumortar", TankFaction.RU, Emplacement.MORTAR))
                         .then(emplacementSpawn("pmcmortar", TankFaction.PMC, Emplacement.MORTAR))
@@ -83,7 +86,11 @@ public class SewvCommand {
                 .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
                 .then(Commands.literal("pool")
                         .requires(source -> source.hasPermission(2))
-                        .executes(ctx -> openPoolEditor(ctx.getSource())))
+                        .executes(ctx -> openPoolEditor(ctx.getSource()))
+                        .then(Commands.literal("vehicles")
+                                .executes(ctx -> openPoolEditor(ctx.getSource())))
+                        .then(Commands.literal("misc")
+                                .executes(ctx -> openMiscEditor(ctx.getSource()))))
                 .then(Commands.literal("debug")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("rappel")
@@ -241,6 +248,14 @@ public class SewvCommand {
             return 0;
         }
         return com.neoalive.tacz_sewv.util.PoolEditorAccess.open(player);
+    }
+
+    private static int openMiscEditor(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.pool.player_only"));
+            return 0;
+        }
+        return com.neoalive.tacz_sewv.util.MiscEditorAccess.open(player);
     }
 
     private static CompletableFuture<Suggestions> suggestOpenPacFactions(
@@ -668,6 +683,55 @@ public class SewvCommand {
     private static CompletableFuture<Suggestions> suggestPlanePool(CommandSourceStack source, TankFaction faction, SuggestionsBuilder builder) {
         return SharedSuggestionProvider.suggest(
                 faction.planePool(source.getLevel()).stream().map(String::valueOf), builder);
+    }
+
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> heliSpawn(String literal, TankFaction faction) {
+        return Commands.literal(literal)
+                .executes(ctx -> spawnHeli(ctx.getSource(), faction, null, null))
+                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                        .executes(ctx -> spawnHeli(ctx.getSource(), faction, null,
+                                BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
+                        .then(Commands.argument("vehicle", StringArgumentType.greedyString())
+                                .suggests((c, b) -> suggestHeliPool(c.getSource(), faction, b))
+                                .executes(ctx -> spawnHeli(ctx.getSource(), faction,
+                                        StringArgumentType.getString(ctx, "vehicle"),
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.argument("vehicle", StringArgumentType.greedyString())
+                        .suggests((c, b) -> suggestHeliPool(c.getSource(), faction, b))
+                        .executes(ctx -> spawnHeli(ctx.getSource(), faction,
+                                StringArgumentType.getString(ctx, "vehicle"), null)));
+    }
+
+    private static CompletableFuture<Suggestions> suggestHeliPool(CommandSourceStack source, TankFaction faction, SuggestionsBuilder builder) {
+        return SharedSuggestionProvider.suggest(
+                faction.heliPool(source.getLevel()).stream().map(String::valueOf), builder);
+    }
+
+    private static int spawnHeli(CommandSourceStack source, TankFaction faction,
+                                 @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
+        ServerLevel level = source.getLevel();
+
+        if (vehicleId != null && !faction.heliPool(level).contains(vehicleId)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
+            return 0;
+        }
+
+        UUID ownerId = faction == TankFaction.PMC && source.getEntity() instanceof ServerPlayer player
+                ? player.getUUID() : null;
+
+        BlockPos pos = explicitPos != null
+                ? explicitPos
+                : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
+        VehicleEntity heli = TankSpawner.spawnHeliWithCrew(level, pos, faction, ownerId, vehicleId);
+
+        if (heli == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
+            return 0;
+        }
+        VehicleDrops.markCrewAndHull(heli);
+
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.spawn.success", faction.name(), pos.toShortString()), true);
+        return 1;
     }
 
     private static int spawnTank(CommandSourceStack source, TankFaction faction,

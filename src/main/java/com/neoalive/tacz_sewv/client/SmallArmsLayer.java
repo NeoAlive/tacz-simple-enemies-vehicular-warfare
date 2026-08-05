@@ -5,6 +5,7 @@ import com.atsuishio.superbwarfare.item.misc.MedicalKitItem;
 import com.atsuishio.superbwarfare.item.misc.MonitorItem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import com.neoalive.tacz_sewv.entity.ai.MedicControl;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HierarchicalModel;
@@ -57,6 +58,21 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
     private static final float MONITOR_PITCH = -20.0F;
     private static final float MONITOR_SCALE = 0.7F;
 
+    // --- Medical kit: neutral lap at rest; heal offsets only while treating ---
+    private static final double MEDKIT_IDLE_TX = 0.02D;
+    private static final double MEDKIT_IDLE_TY = 0.40D;
+    private static final double MEDKIT_IDLE_TZ = 0.08D;
+    private static final float MEDKIT_IDLE_YAW = -90.0F;
+    private static final float MEDKIT_IDLE_PITCH = -15.0F;
+    private static final float MEDKIT_IDLE_SCALE = 0.65F;
+
+    private static final double MEDKIT_HEAL_TX = 0.04D;
+    private static final double MEDKIT_HEAL_TY = 0.55D;
+    private static final double MEDKIT_HEAL_TZ = 0.18D;
+    private static final float MEDKIT_HEAL_YAW = -100.0F;
+    private static final float MEDKIT_HEAL_PITCH = -35.0F;
+    private static final float MEDKIT_HEAL_SCALE = 0.65F;
+
     private HierarchicalModel<?> armModel;
     private ModelPart rightArm;
 
@@ -104,6 +120,18 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
             poseStack.mulPose(Axis.YP.rotationDegrees(MONITOR_YAW));
             poseStack.mulPose(Axis.XP.rotationDegrees(MONITOR_PITCH));
             poseStack.scale(MONITOR_SCALE, -MONITOR_SCALE, -MONITOR_SCALE);
+        } else if (stack.getItem() instanceof MedicalKitItem) {
+            boolean healing = MedicControl.isTreating(entity);
+            double tx = healing ? MEDKIT_HEAL_TX : MEDKIT_IDLE_TX;
+            double ty = healing ? MEDKIT_HEAL_TY : MEDKIT_IDLE_TY;
+            double tz = healing ? MEDKIT_HEAL_TZ : MEDKIT_IDLE_TZ;
+            float yaw = healing ? MEDKIT_HEAL_YAW : MEDKIT_IDLE_YAW;
+            float pitch = healing ? MEDKIT_HEAL_PITCH : MEDKIT_IDLE_PITCH;
+            float scale = healing ? MEDKIT_HEAL_SCALE : MEDKIT_IDLE_SCALE;
+            poseStack.translate(tx, ty, tz);
+            poseStack.mulPose(Axis.YP.rotationDegrees(yaw));
+            poseStack.mulPose(Axis.XP.rotationDegrees(pitch));
+            poseStack.scale(scale, -scale, -scale);
         } else {
             poseStack.translate(-0.06D, 0.73D, 0.3D);
             poseStack.mulPose(Axis.YP.rotationDegrees(-180));

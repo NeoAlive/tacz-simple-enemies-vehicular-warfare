@@ -23,7 +23,7 @@ import java.util.Map;
  */
 public class PoolEditorScreen extends Screen {
 
-    private static final int PANEL_W = 340;
+    private static final int PANEL_W = 360;
     private static final int LIST_ROWS = 10;
 
     private final Map<TankFaction, Map<Category, List<String>>> pools;
@@ -91,8 +91,8 @@ public class PoolEditorScreen extends Screen {
                         this.scroll = 0;
                         this.selected = -1;
                         refreshFilter();
-                    }).bounds(x, catY, 80, 20).build());
-            x += 84;
+                    }).bounds(x, catY, 72, 20).build());
+            x += 76;
         }
 
         int listTop = catY + 28;

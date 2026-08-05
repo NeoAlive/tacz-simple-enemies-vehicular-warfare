@@ -108,6 +108,7 @@ public class MedicGoal extends Goal {
         this.unit.getNavigation().stop();
         this.patient = null;
         this.approachTicks = 0;
+        MedicControl.setTreating(this.unit, false);
     }
 
     @Override
@@ -118,6 +119,7 @@ public class MedicGoal extends Goal {
         if (this.patient != this.unit) {
             this.unit.getLookControl().setLookAt(this.patient, 30.0F, 30.0F);
             if (this.unit.distanceToSqr(this.patient) > TREAT_DISTANCE_SQ) {
+                MedicControl.setTreating(this.unit, false);
                 // Repath only once the last one has run out — an unreachable patient reports "done"
                 // every tick and would otherwise force a full path search every tick until timeout.
                 if (this.unit.getNavigation().isDone()) {
@@ -128,6 +130,7 @@ public class MedicGoal extends Goal {
             this.unit.getNavigation().stop();
         }
 
+        MedicControl.setTreating(this.unit, true);
         treat();
     }
 

@@ -5,6 +5,7 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.registries.ForgeRegistries;
 
@@ -29,6 +30,7 @@ public final class HullFacts {
     private static final List<String> IFV_NAME_CLUES = List.of("bradley", "bmp", "bmd", "cv90", "puma", "marder");
     private static final List<String> MISSILE_SYSTEM_NAME_CLUES = List.of("sapsan", "grim2");
     private static final List<String> ANTI_AIR_NAME_CLUES = List.of("gepard", "pantsir", "pa_pantsir");
+    private static final List<String> ARTILLERY_NAME_CLUES = List.of("plz_05", "mk_42", "mle_1934", "bl_132");
 
     private VehicleEntity vehicle;
     private boolean helicopter;
@@ -38,6 +40,7 @@ public final class HullFacts {
     private boolean ifv;
     private boolean missileSystem;
     private boolean antiAir;
+    private boolean artillery;
     private Set<Integer> crewSeats = Set.of(0);
     private Set<Integer> climbSeats = Set.of();
 
@@ -51,6 +54,7 @@ public final class HullFacts {
         this.ifv = computeIfv(v);
         this.missileSystem = computeMissileSystem(v);
         this.antiAir = computeAntiAir(v);
+        this.artillery = computeArtillery(v);
         this.crewSeats = this.ifv ? computeCrewSeats(v) : Set.of(0);
         this.climbSeats = SewvConfig.TANK_RIDER_DISMOUNT_ENABLED.get() ? computeClimbSeats(v) : Set.of();
     }
@@ -113,6 +117,18 @@ public final class HullFacts {
     /** Prefers airborne targets (HELICOPTER / AIRCRAFT riders). See {@link CrewTargetPriorityGoal}. */
     boolean isAntiAir() {
         return this.antiAir;
+    }
+
+    /**
+     * Self-propelled / bindable artillery (PLZ-05, coastal guns). Waits for fire missions rather
+     * than free-fighting at close range. See {@link ArtillerySupport}.
+     */
+    boolean isArtillery() {
+        return this.artillery;
+    }
+
+    public static boolean isArtilleryHull(VehicleEntity v) {
+        return computeArtillery(v);
     }
 
     /**
@@ -255,15 +271,28 @@ public final class HullFacts {
 
     private static boolean computeIfv(VehicleEntity v) {
         if (!SewvConfig.IFV_DISMOUNTS_ENABLED.get()) return false;
-        return idMatchesClues(v, IFV_NAME_CLUES);
+        return idMatchesClues(v, cuesFor(v, WorldVehicleClasses.CueKind.IFV, IFV_NAME_CLUES));
     }
 
     private static boolean computeMissileSystem(VehicleEntity v) {
-        return idMatchesClues(v, MISSILE_SYSTEM_NAME_CLUES);
+        return idMatchesClues(v, cuesFor(v, WorldVehicleClasses.CueKind.MISSILE_SYSTEM, MISSILE_SYSTEM_NAME_CLUES));
     }
 
     private static boolean computeAntiAir(VehicleEntity v) {
-        return idMatchesClues(v, ANTI_AIR_NAME_CLUES);
+        return idMatchesClues(v, cuesFor(v, WorldVehicleClasses.CueKind.ANTI_AIR, ANTI_AIR_NAME_CLUES));
+    }
+
+    private static boolean computeArtillery(VehicleEntity v) {
+        return idMatchesClues(v, cuesFor(v, WorldVehicleClasses.CueKind.ARTILLERY, ARTILLERY_NAME_CLUES));
+    }
+
+    private static List<? extends String> cuesFor(VehicleEntity v, WorldVehicleClasses.CueKind kind,
+                                                  List<String> fallback) {
+        try {
+            return WorldVehicleClasses.get(v.level()).listCues(kind);
+        } catch (Throwable ignored) {
+            return fallback;
+        }
     }
 
     private static boolean idMatchesClues(VehicleEntity v, List<? extends String> clues) {

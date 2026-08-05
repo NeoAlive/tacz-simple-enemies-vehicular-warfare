@@ -13,7 +13,9 @@ import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -26,11 +28,14 @@ public class WorldVehiclePools extends SavedData {
     private static final String LEGACY_COMMON_CONFIG = "tacz_sewv-common.toml";
 
     private static final List<String> DEFAULT_RU_GROUND = List.of(
-            "superbwarfare:t_90a", "superbwarfare:bmp_2", "superbwarfare:mi_28");
+            "superbwarfare:t_90a", "superbwarfare:bmp_2");
     private static final List<String> DEFAULT_US_GROUND = List.of(
-            "superbwarfare:m_1a_2", "superbwarfare:bradley", "superbwarfare:ah_6");
+            "superbwarfare:m_1a_2", "superbwarfare:bradley");
     private static final List<String> DEFAULT_PMC_GROUND = List.of(
-            "superbwarfare:t_90a", "superbwarfare:ah_6");
+            "superbwarfare:t_90a");
+    private static final List<String> DEFAULT_RU_HELI = List.of("superbwarfare:mi_28");
+    private static final List<String> DEFAULT_US_HELI = List.of("superbwarfare:ah_6");
+    private static final List<String> DEFAULT_PMC_HELI = List.of("superbwarfare:ah_6");
     private static final List<String> DEFAULT_SHIPS = List.of("superbwarfare:speedboat");
     private static final List<String> DEFAULT_RU_PLANES = List.of("superbwarfare:kv_16");
     private static final List<String> DEFAULT_US_PLANES = List.of("superbwarfare:a_10a");
@@ -40,7 +45,7 @@ public class WorldVehiclePools extends SavedData {
     private static boolean legacyPoolsLoaded;
 
     public enum Category {
-        GROUND, SHIP, PLANE
+        GROUND, SHIP, PLANE, HELI
     }
 
     private final Map<TankFaction, Map<Category, List<String>>> pools = new EnumMap<>(TankFaction.class);
@@ -54,6 +59,7 @@ public class WorldVehiclePools extends SavedData {
         data.pools.clear();
         for (TankFaction faction : TankFaction.values()) {
             Map<Category, List<String>> byCat = new EnumMap<>(Category.class);
+            boolean heliFromNbt = nbt.contains(key(faction, Category.HELI), Tag.TAG_LIST);
             for (Category cat : Category.values()) {
                 String key = key(faction, cat);
                 List<String> list = new ArrayList<>();
@@ -67,9 +73,37 @@ public class WorldVehiclePools extends SavedData {
                 }
                 byCat.put(cat, list);
             }
+            if (!heliFromNbt) {
+                migrateHelisFromGround(byCat);
+            }
             data.pools.put(faction, byCat);
         }
+        data.setDirty(); // persist HELI keys / migration even if nothing else changed
         return data;
+    }
+
+    /** Move heli-looking ids out of GROUND into HELI (once, when HELI NBT was absent). */
+    private static void migrateHelisFromGround(Map<Category, List<String>> byCat) {
+        List<String> ground = byCat.get(Category.GROUND);
+        List<String> heli = byCat.computeIfAbsent(Category.HELI, c -> new ArrayList<>());
+        if (ground == null) return;
+        Iterator<String> it = ground.iterator();
+        while (it.hasNext()) {
+            String id = it.next();
+            if (!looksLikeHeli(id)) continue;
+            it.remove();
+            if (!heli.contains(id)) heli.add(id);
+        }
+        if (heli.isEmpty()) {
+            // Still empty after strip — keep built-in heli defaults already seeded.
+        }
+    }
+
+    static boolean looksLikeHeli(String id) {
+        String lower = id.toLowerCase(Locale.ROOT);
+        return lower.contains("mi_28") || lower.contains("ah_6") || lower.contains("heli")
+                || lower.contains("apache") || lower.contains("ka_52") || lower.contains("mi_24")
+                || lower.contains("mi_8") || lower.contains("uh_");
     }
 
     @Override
@@ -156,6 +190,8 @@ public class WorldVehiclePools extends SavedData {
             for (Category cat : Category.values()) {
                 byCat.put(cat, new ArrayList<>(initialDefaults(faction, cat)));
             }
+            // Legacy GROUND may still list helis — peel them into HELI.
+            migrateHelisFromGround(byCat);
             pools.put(faction, byCat);
         }
     }
@@ -170,6 +206,11 @@ public class WorldVehiclePools extends SavedData {
                 case RU -> DEFAULT_RU_GROUND;
                 case US -> DEFAULT_US_GROUND;
                 case PMC -> DEFAULT_PMC_GROUND;
+            };
+            case HELI -> switch (faction) {
+                case RU -> DEFAULT_RU_HELI;
+                case US -> DEFAULT_US_HELI;
+                case PMC -> DEFAULT_PMC_HELI;
             };
             case SHIP -> switch (faction) {
                 case RU, US, PMC -> DEFAULT_SHIPS;
@@ -214,6 +255,9 @@ public class WorldVehiclePools extends SavedData {
             loadLegacy(loaded, TankFaction.RU, Category.PLANE, config, "vehicle_pools.ruPlanePool");
             loadLegacy(loaded, TankFaction.US, Category.PLANE, config, "vehicle_pools.usPlanePool");
             loadLegacy(loaded, TankFaction.PMC, Category.PLANE, config, "vehicle_pools.pmcPlanePool");
+            loadLegacy(loaded, TankFaction.RU, Category.HELI, config, "vehicle_pools.ruHeliPool");
+            loadLegacy(loaded, TankFaction.US, Category.HELI, config, "vehicle_pools.usHeliPool");
+            loadLegacy(loaded, TankFaction.PMC, Category.HELI, config, "vehicle_pools.pmcHeliPool");
             legacyPools = loaded.isEmpty() ? null : loaded;
         } catch (RuntimeException ignored) {
             legacyPools = null;

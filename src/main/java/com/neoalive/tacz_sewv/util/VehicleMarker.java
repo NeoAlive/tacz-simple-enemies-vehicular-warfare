@@ -101,7 +101,9 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
         /** ASH Sapsan-style coordinate ballistic launcher. Reuses emplacement art. */
         MISSILE_SYSTEM("emplacement"),
         /** ASH Gepard/Pantsir-style AA. Reuses armor art until a dedicated symbol ships. */
-        ANTI_AIR("armor");
+        ANTI_AIR("armor"),
+        /** Self-propelled / bindable artillery. Reuses emplacement art. */
+        ARTILLERY("emplacement");
 
         private static final Kind[] VALUES = values();
         private final String texture;

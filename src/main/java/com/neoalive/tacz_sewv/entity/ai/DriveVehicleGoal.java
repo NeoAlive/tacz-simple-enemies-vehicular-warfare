@@ -105,6 +105,8 @@ public class DriveVehicleGoal extends Goal {
         if (this.hull.isHelicopter() || this.hull.isPlane() || this.hull.isShip()) return false;
         // ASH Sapsan (and similar): ManMissileSystemGoal owns MOVE while engaging.
         if (this.hull.isMissileSystem() && AshMissileSupport.shouldEngage(this.unit)) return false;
+        // Artillery: ManArtilleryGoal lays and fires — do not close on the designation.
+        if (this.hull.isArtillery() && ArtillerySupport.hasFireWork(this.unit)) return false;
 
         this.vehicle = v;
         this.driver.attach(v);
@@ -115,6 +117,7 @@ public class DriveVehicleGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         if (this.hull.isMissileSystem() && AshMissileSupport.shouldEngage(this.unit)) return false;
+        if (this.hull.isArtillery() && ArtillerySupport.hasFireWork(this.unit)) return false;
         return this.unit.getVehicle() == this.vehicle
                 && this.vehicle != null
                 && this.vehicle.getFirstPassenger() == this.unit

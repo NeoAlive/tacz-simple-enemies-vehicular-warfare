@@ -65,7 +65,9 @@ public final class FireMissionSupport {
         /** Close air support: an AI-flown aircraft already airborne nearby. */
         CAS,
         /** ASH coordinate ballistic launcher (Sapsan) — stop, arm pod, fire at a mark. */
-        MISSILE_SYSTEM
+        MISSILE_SYSTEM,
+        /** Self-propelled / bindable artillery ({@link ArtillerySupport}). */
+        ARTILLERY
     }
 
     /** Ask for anything that will answer. */
@@ -87,6 +89,7 @@ public final class FireMissionSupport {
         if (VehicleMortarSupport.isCrewing(unit)) return Kind.MORTAR;
         if (TowSupport.isCrewing(unit)) return Kind.TOW;
         if (AshMissileSupport.isCrewing(unit)) return Kind.MISSILE_SYSTEM;
+        if (ArtillerySupport.isCrewing(unit)) return Kind.ARTILLERY;
         if (isPlanePilot(unit)) return Kind.CAS;
         return null;
     }
@@ -182,8 +185,9 @@ public final class FireMissionSupport {
         if (triggered.contains(Kind.MORTAR)) pools.add(ModSounds.PMC_MORTAR);
         if (triggered.contains(Kind.TOW)) pools.add(ModSounds.PMC_TOW);
         if (triggered.contains(Kind.CAS)) pools.add(ModSounds.PMC_CAS);
-        // Missile systems share the mortar ack — both are indirect area fires.
-        if (triggered.contains(Kind.MISSILE_SYSTEM) && !triggered.contains(Kind.MORTAR)) {
+        // Indirect fires share the mortar ack — area fires, not direct-support lines.
+        if ((triggered.contains(Kind.MISSILE_SYSTEM) || triggered.contains(Kind.ARTILLERY))
+                && !triggered.contains(Kind.MORTAR)) {
             pools.add(ModSounds.PMC_MORTAR);
         }
         if (pools.isEmpty()) return null;

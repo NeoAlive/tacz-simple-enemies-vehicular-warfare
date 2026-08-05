@@ -69,6 +69,8 @@ public class VehicleTargetScanGoal extends Goal {
     @Override
     public boolean canUse() {
         if (!(this.unit.getVehicle() instanceof VehicleEntity v) || v.isWreck()) return false;
+        // Artillery waits for radio / fire-mission designation — never freelances a close fight.
+        if (HullFacts.isArtilleryHull(v)) return false;
         if (!VehicleTargeting.ordersAllowAutoTargets(this.unit)) return false;
 
         LivingEntity current = this.unit.getTarget();

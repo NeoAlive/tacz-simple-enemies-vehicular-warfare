@@ -47,6 +47,9 @@ public final class VehicleAiGoals {
         // ASH Sapsan: stop, raise pod, fire at a radio/fire-mission mark. DriveVehicleGoal
         // yields while this engages (see canUse there).
         unit.goalSelector.addGoal(1, new ManMissileSystemGoal(unit));
+        // SPH / coastal guns (PLZ-05, mk_42): lay and fire on radio / fire-mission marks only.
+        // DriveVehicleGoal yields while this engages (see canUse there).
+        unit.goalSelector.addGoal(1, new ManArtilleryGoal(unit));
         // Walks the unit to a hull it has been ordered onto and seats it. Gates on holding a
         // pending order, so it costs a boolean read on every unit that has none.
         unit.goalSelector.addGoal(1, new BoardVehicleGoal(unit));

@@ -5,6 +5,8 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
+import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
+import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -66,9 +68,9 @@ public class DrivePlaneGoal extends Goal {
 
     private static final double FIRE_CONE_DEG = 45.0;
     private static final double TAKEOFF_RUNWAY_RADIUS = 64.0;
-    private static final List<String> MISSILE_CLUES = List.of("missile", "agm", "kh_", "atgm", "maverick");
-    private static final List<String> BOMB_CLUES = List.of("bomb");
-    private static final List<String> ROCKET_CLUES = List.of("rocket", "hydra");
+    private static final List<String> FALLBACK_MISSILE_CLUES = List.of("missile", "agm", "kh_", "atgm", "maverick");
+    private static final List<String> FALLBACK_BOMB_CLUES = List.of("bomb");
+    private static final List<String> FALLBACK_ROCKET_CLUES = List.of("rocket", "hydra");
 
     // Below this fraction of max health SBW flies the plane into a death spiral on its own; let go.
     private static final float CRASH_HEALTH_FRACTION = 0.10F;
@@ -91,7 +93,7 @@ public class DrivePlaneGoal extends Goal {
     private static final double MIN_FLIGHT_ALT = 90.0;
     private static final double MAX_FLIGHT_ALT = 180.0;
     private static final double MIN_OVER_DEST = 20.0;
-    private static final double TERRAIN_LOOKAHEAD = 64.0;
+    private static final double TERRAIN_LOOKAHEAD = 96.0;
     // Altitude-hold: degrees of pitch per block of altitude error, and the gentle cruise ceiling.
     private static final double ALT_PITCH_PER_BLOCK = 2.0;
     private static final float MAX_CRUISE_PITCH_DEG = 20.0F;
@@ -99,6 +101,13 @@ public class DrivePlaneGoal extends Goal {
     // --- Whisker (a plane can't stop, so it looks well ahead; a blocked cone → hard nose-up) ---
     private static final double PROBE_DISTANCE = 48.0;
     private static final float CLIMB_AVOID_PITCH_DEG = 25.0F;
+    // Heightmap escape poll: detour when whiskers fail or the ridge outclimbs pitch budget.
+    private static final double[] ESCAPE_OFFSETS_DEG = {0.0, 25.0, -25.0, 50.0, -50.0, 75.0, -75.0};
+    private static final double ESCAPE_SAMPLE_STEP = 16.0;
+    private static final double ESCAPE_LOOKAHEAD = 96.0;
+    private static final double ESCAPE_CLEAR_MARGIN = 8.0;
+    private static final double CLIMB_BUDGET = 40.0;
+    private static final int ESCAPE_CACHE_TTL_TICKS = 20;
 
     // --- Takeoff ---
     private static final double ROTATE_SPEED = 0.35;        // horizontal blocks/tick before nose-up
@@ -170,6 +179,13 @@ public class DrivePlaneGoal extends Goal {
 
     /** Absolute game time before the next RU/US emergency-pad search (no field found). */
     private long nextEmergencyLandTry = Long.MIN_VALUE;
+
+    // Heightmap escape-bearing cache (instance — one goal per pilot).
+    private long escapeCacheTick = Long.MIN_VALUE;
+    private int escapeCacheHeadingQ;
+    private int escapeCacheClearY;
+    private Vec3 escapeCacheDir;
+    private boolean escapeCacheValid;
 
     public DrivePlaneGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -579,6 +595,8 @@ public class DrivePlaneGoal extends Goal {
     // --- Cruise / loiter -------------------------------------------------------------------------
 
     // The one lateral primitive: whisker for a clear bearing, yaw onto it, hold desiredY by pitch.
+    // Heightmap escape runs before whiskers when the ridge outclimbs pitch budget, and again when
+    // the cone is fully blocked — detour instead of only pitching −25° into the face.
     private void flyToward(double destX, double destZ, double desiredY) {
         this.vehicle.setForwardInputDown(true);
         this.vehicle.setBackInputDown(false);
@@ -590,9 +608,28 @@ public class DrivePlaneGoal extends Goal {
         double dist = Math.sqrt(dx * dx + dz * dz);
         Vec3 dirToDest = dist > 1.0E-4 ? new Vec3(dx / dist, 0, dz / dist) : forwardFlat();
 
+        double aheadX = this.vehicle.getX() + dirToDest.x * TERRAIN_LOOKAHEAD;
+        double aheadZ = this.vehicle.getZ() + dirToDest.z * TERRAIN_LOOKAHEAD;
+        int ridge = AirframeSupport.highestGroundToward(
+                this.vehicle, aheadX, aheadZ, TERRAIN_LOOKAHEAD);
+        if (ridge > this.vehicle.getY() + CLIMB_BUDGET) {
+            Vec3 escape = heightmapEscapeBearing(dirToDest, desiredY);
+            if (escape != null) {
+                steerYaw(escape);
+                commandPitch(altitudePitch(desiredY));
+                return;
+            }
+        }
+
         Vec3 travelDir = this.sensor.chooseClearBearing(dirToDest, PROBE_DISTANCE);
         if (travelDir == null) {
-            // Cone fully blocked (terrain taller than the flight level dead ahead) — climb over it.
+            Vec3 escape = heightmapEscapeBearing(dirToDest, desiredY);
+            if (escape != null) {
+                steerYaw(escape);
+                commandPitch(altitudePitch(desiredY));
+                return;
+            }
+            // Cone fully blocked and no heightmap detour — climb over it.
             this.vehicle.setMouseMoveSpeedX(0.0F);
             commandPitch(-CLIMB_AVOID_PITCH_DEG);
             return;
@@ -610,6 +647,12 @@ public class DrivePlaneGoal extends Goal {
         this.vehicle.setRightInputDown(false);
 
         if (this.sensor.chooseClearBearing(forwardFlat(), PROBE_DISTANCE) == null) {
+            Vec3 escape = heightmapEscapeBearing(forwardFlat(), desiredY);
+            if (escape != null) {
+                steerYaw(escape);
+                commandPitch(altitudePitch(desiredY));
+                return;
+            }
             this.vehicle.setMouseMoveSpeedX(0.0F);
             commandPitch(-CLIMB_AVOID_PITCH_DEG);
             return;
@@ -792,9 +835,13 @@ public class DrivePlaneGoal extends Goal {
         Vec3 dir = toT.lengthSqr() > 1.0E-6 ? toT.normalize() : forwardFlat();
         Vec3 clear = this.sensor.chooseClearBearing(dir, PROBE_DISTANCE);
         if (clear == null) {
-            this.vehicle.setMouseMoveSpeedX(0.0F);
-            commandPitch(-CLIMB_AVOID_PITCH_DEG);
-            return;
+            Vec3 escape = heightmapEscapeBearing(dir, cruiseAltitudeHere() + IMMELMAN_CLIMB);
+            if (escape == null) {
+                this.vehicle.setMouseMoveSpeedX(0.0F);
+                commandPitch(-CLIMB_AVOID_PITCH_DEG);
+                return;
+            }
+            clear = escape;
         }
         steerYaw(clear, TURN_YAW_SCALE); // gentle → wide, momentum-friendly turn
 
@@ -820,6 +867,7 @@ public class DrivePlaneGoal extends Goal {
     private void scanWeapons() {
         this.weaponsScanned = true;
         this.weapons.clear();
+        var level = this.vehicle.level();
         try {
             int seat = this.vehicle.getSeatIndex(this.unit);
             var info = this.vehicle.getSeat(seat);
@@ -827,11 +875,11 @@ public class DrivePlaneGoal extends Goal {
             for (int w = 0; w < count; w++) {
                 String raw = this.vehicle.getGunName(seat, w);
                 String name = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
-                if (matchesAny(name, MISSILE_CLUES)) {
+                if (matchesAny(name, planeCues(level, CueKind.PLANE_MISSILE, FALLBACK_MISSILE_CLUES))) {
                     this.weapons.add(new PlaneWeapon(w, 3, false, true, raw));
-                } else if (matchesAny(name, BOMB_CLUES)) {
+                } else if (matchesAny(name, planeCues(level, CueKind.PLANE_BOMB, FALLBACK_BOMB_CLUES))) {
                     this.weapons.add(new PlaneWeapon(w, 3, true, false, raw));
-                } else if (matchesAny(name, ROCKET_CLUES)) {
+                } else if (matchesAny(name, planeCues(level, CueKind.PLANE_ROCKET, FALLBACK_ROCKET_CLUES))) {
                     this.weapons.add(new PlaneWeapon(w, 2, false, false, raw));
                 } else {
                     // Cannon clue, or unrecognised — either way a light forward gun.
@@ -840,6 +888,14 @@ public class DrivePlaneGoal extends Goal {
             }
         } catch (Exception ignored) {}
         if (this.weapons.isEmpty()) this.weapons.add(new PlaneWeapon(0, 1, false, false, null));
+    }
+
+    private static List<? extends String> planeCues(Level level, CueKind kind, List<String> fallback) {
+        try {
+            return WorldVehicleClasses.get(level).listCues(kind);
+        } catch (Throwable ignored) {
+            return fallback;
+        }
     }
 
     private static boolean matchesAny(String name, List<? extends String> clues) {
@@ -955,6 +1011,48 @@ public class DrivePlaneGoal extends Goal {
         Vector3f f = this.vehicle.getForwardDirection();
         Vec3 flat = new Vec3(f.x(), 0, f.z());
         return flat.lengthSqr() > 1.0E-8 ? flat.normalize() : new Vec3(0, 0, 1);
+    }
+
+    /**
+     * Cheap heightmap-only fan: pick the smallest deflection whose max surface under the cruise
+     * hold stays clear. Cached so a blocked cone does not re-poll every tick.
+     */
+    private Vec3 heightmapEscapeBearing(Vec3 desired, double clearY) {
+        Vec3 desiredN = desired.lengthSqr() > 1.0E-8 ? desired.normalize() : forwardFlat();
+        int headingQ = Mth.floor(Math.toDegrees(Math.atan2(desiredN.x, desiredN.z)) / 5.0);
+        int clearYFloor = Mth.floor(clearY);
+        long now = this.unit.level().getGameTime();
+        if (this.escapeCacheValid
+                && now - this.escapeCacheTick < ESCAPE_CACHE_TTL_TICKS
+                && headingQ == this.escapeCacheHeadingQ
+                && clearYFloor == this.escapeCacheClearY) {
+            return this.escapeCacheDir;
+        }
+        Vec3 found = pollEscapeBearing(desiredN, clearY);
+        this.escapeCacheValid = true;
+        this.escapeCacheTick = now;
+        this.escapeCacheHeadingQ = headingQ;
+        this.escapeCacheClearY = clearYFloor;
+        this.escapeCacheDir = found;
+        return found;
+    }
+
+    private Vec3 pollEscapeBearing(Vec3 desiredN, double clearY) {
+        Level level = this.unit.level();
+        double ox = this.vehicle.getX();
+        double oz = this.vehicle.getZ();
+        double threshold = clearY - ESCAPE_CLEAR_MARGIN;
+        for (double offDeg : ESCAPE_OFFSETS_DEG) {
+            Vec3 dir = VehicleTargeting.rotateY(desiredN, Math.toRadians(offDeg));
+            int maxSurf = Integer.MIN_VALUE;
+            for (double d = ESCAPE_SAMPLE_STEP; d <= ESCAPE_LOOKAHEAD; d += ESCAPE_SAMPLE_STEP) {
+                int h = level.getHeight(Heightmap.Types.WORLD_SURFACE,
+                        Mth.floor(ox + dir.x * d), Mth.floor(oz + dir.z * d));
+                if (h > maxSurf) maxSurf = h;
+            }
+            if (maxSurf <= threshold) return dir;
+        }
+        return null;
     }
 
     private void releaseInputs() {

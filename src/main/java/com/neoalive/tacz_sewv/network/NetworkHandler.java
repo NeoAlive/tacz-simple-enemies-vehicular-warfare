@@ -62,7 +62,9 @@ public class NetworkHandler {
     // 36: GUARD_POSITION / REACH_GUARD packets; VehicleMarker.hasGuard.
     // 37: vehicle faction skin sticky tag sync + reloadSkins.
     // 38: C→S PacketSetVehicleSkin (sneak-right-click repair tool cycle).
-    private static final String PROTOCOL_VERSION = "38";
+    // 39: Category.HELI in vehicle pool editor packets.
+    // 40: misc cue/armor editor open + update packets.
+    private static final String PROTOCOL_VERSION = "40";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -272,6 +274,20 @@ public class NetworkHandler {
                 PacketSetVehicleSkin::encode,
                 PacketSetVehicleSkin::new,
                 PacketSetVehicleSkin::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenMiscEditor.class,
+                PacketOpenMiscEditor::encode,
+                PacketOpenMiscEditor::new,
+                PacketOpenMiscEditor::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketUpdateVehicleClasses.class,
+                PacketUpdateVehicleClasses::encode,
+                PacketUpdateVehicleClasses::new,
+                PacketUpdateVehicleClasses::handle
         );
     }
 }

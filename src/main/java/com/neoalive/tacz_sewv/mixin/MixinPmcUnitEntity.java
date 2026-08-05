@@ -4,6 +4,7 @@ import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
+import com.neoalive.tacz_sewv.bridge.IMedicTreat;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
@@ -17,6 +18,10 @@ import com.neoalive.tacz_sewv.entity.ai.RepairGoal;
 import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.SweepInfantryGoal;
 import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -38,7 +43,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity
         implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember,
-        IVehiclePatrol, IEscort, ISweepInfantry, ICaptureOrder {
+        IVehiclePatrol, IEscort, ISweepInfantry, ICaptureOrder, IMedicTreat {
+
+    @Unique
+    private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING =
+            SynchedEntityData.defineId(PmcUnitEntity.class, EntityDataSerializers.BOOLEAN);
+
+    /** Client heal clip while treating — never shares SEM idle/walk states. */
+    @Unique
+    public final AnimationState tacz_sewv$treatAnimationState = new AnimationState();
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
@@ -106,6 +119,26 @@ public abstract class MixinPmcUnitEntity
     @Override
     public int sewv$getMortarTargetId() {
         return this.tacz_sewv$mortarTargetId;
+    }
+
+    @Override
+    public boolean sewv$isTreating() {
+        return ((Entity) (Object) this).getEntityData().get(tacz_sewv$TREATING);
+    }
+
+    @Override
+    public void sewv$setTreating(boolean treating) {
+        ((Entity) (Object) this).getEntityData().set(tacz_sewv$TREATING, treating);
+    }
+
+    @Override
+    public AnimationState sewv$treatAnimationState() {
+        return this.tacz_sewv$treatAnimationState;
+    }
+
+    @Inject(method = "defineSynchedData", at = @At("TAIL"))
+    private void tacz_sewv$defineTreating(CallbackInfo ci) {
+        ((Entity) (Object) this).getEntityData().define(tacz_sewv$TREATING, false);
     }
 
     /**

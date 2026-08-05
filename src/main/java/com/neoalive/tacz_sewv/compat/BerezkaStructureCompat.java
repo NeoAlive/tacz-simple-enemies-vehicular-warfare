@@ -82,7 +82,7 @@ public final class BerezkaStructureCompat {
             // Every faction gets a crewed, fuelled, armed hull — a PMC structure fields friendly
             // PMC crew (ownerId null = FRIENDLY_DEFAULT, ownerless), the same as RU/US and the
             // village garrisons. See the class doc for why crewed and not a parked bare hull.
-            VehicleEntity hull = TankSpawner.spawnTankWithCrew(level, pos, faction, null);
+            VehicleEntity hull = TankSpawner.spawnCombatVehicleWithCrew(level, pos, faction, null);
             if (hull != null) VehicleDrops.markCrewAndHull(hull);
         }
     }

@@ -27,11 +27,11 @@ public abstract class MixinCombatEvent {
         if (level.getGameRules().getBoolean(ModGameRules.TANKS_IN_EVENTS)) {
             if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_RU.get()) {
                 BlockPos posRu = TankSpawner.adjustHeight(level, centerPos.offset(separation, 0, 0));
-                TankSpawner.spawnTankWithCrew(level, posRu, TankSpawner.TankFaction.RU, null);
+                TankSpawner.spawnCombatVehicleWithCrew(level, posRu, TankSpawner.TankFaction.RU, null);
             }
             if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_US.get()) {
                 BlockPos posUs = TankSpawner.adjustHeight(level, centerPos.offset(-separation, 0, 0));
-                TankSpawner.spawnTankWithCrew(level, posUs, TankSpawner.TankFaction.US, null);
+                TankSpawner.spawnCombatVehicleWithCrew(level, posUs, TankSpawner.TankFaction.US, null);
             }
         }
 

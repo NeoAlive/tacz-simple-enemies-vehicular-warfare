@@ -51,8 +51,8 @@ final class EventSpawns {
      */
     @Nullable
     static TankSpawner.TankFaction pickVehicleFaction(ServerLevel level) {
-        boolean ru = TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.RU);
-        boolean us = TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.US);
+        boolean ru = TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.RU);
+        boolean us = TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.US);
         if (ru && us) return level.random.nextBoolean() ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
         if (ru) return TankSpawner.TankFaction.RU;
         return us ? TankSpawner.TankFaction.US : null;

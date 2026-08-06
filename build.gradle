@@ -266,6 +266,13 @@ dependencies {
     if (!project.hasProperty('noXaero')) {
         runtimeOnly "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
     }
+    // Soft: Extermination Tripod shield compat. No compileOnly — we never reference
+    // Extermination types (registry-id only). Softcompat code stays; the jar is off the
+    // run classpath by default ("good enough" for now). Opt back in with:
+    //   ./gradlew runClient -PwithExtermination
+    if (project.hasProperty('withExtermination')) {
+        runtimeOnly fg.deobf("blank:extermination:1.0")
+    }
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

@@ -100,3 +100,11 @@ config="tacz_sewv.xaero.mixins.json"
     versionRange="[0,)"
     ordering="NONE"
     side="BOTH"
+
+# Soft compat: Tripod shield (ranged block + HP + cosmetic flare). Optional — absent installs skip all ExterminationCompat paths.
+[[dependencies.tacz_sewv]]
+    modId="extermination"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"

@@ -1757,6 +1757,11 @@ public class DriveHelicopterGoal extends Goal {
 
     private void flyToward(double steerX, double steerZ, double desiredY, double approachGain,
             @Nullable String caller) {
+        Vec3 avoid = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjustHorizontal(
+                this.vehicle, steerX, steerZ);
+        steerX = avoid.x;
+        steerZ = avoid.z;
+
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);

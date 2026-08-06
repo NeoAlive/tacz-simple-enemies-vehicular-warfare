@@ -41,6 +41,9 @@ public final class VehicleDarknessAccuracy {
             fraction = NvgSupport.vehicleHasRenderedNvg(v)
                     ? SewvConfig.NVG_ACCURACY_FRACTION.get()
                     : SewvConfig.DARK_ACCURACY_FRACTION.get();
+            // Never worse than the hard spread-scale ceiling (1 / maxScale).
+            double floor = 1.0 / SewvConfig.DARK_SPREAD_SCALE_MAX.get();
+            if (fraction < floor) fraction = floor;
         }
 
         Entry fresh = new Entry();

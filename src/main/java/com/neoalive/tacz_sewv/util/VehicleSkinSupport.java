@@ -37,6 +37,15 @@ public final class VehicleSkinSupport {
         sync(hull, faction);
     }
 
+    /** Command/event crewed spawns — always paint the hull in the spawning faction's colours. */
+    public static void applySpawnFaction(VehicleEntity hull, TankSpawner.TankFaction faction) {
+        apply(hull, switch (faction) {
+            case RU -> CrewFacts.Faction.RU;
+            case US -> CrewFacts.Faction.US;
+            case PMC -> CrewFacts.Faction.PMC;
+        });
+    }
+
     /** Set sticky paint, or clear to stock when {@code faction} is null. */
     public static void set(VehicleEntity hull, @Nullable CrewFacts.Faction faction) {
         if (faction == null) {

@@ -294,6 +294,7 @@ public final class TankSpawner {
             }
         }
 
+        VehicleSkinSupport.applySpawnFaction(plane, faction);
         return plane;
     }
 
@@ -375,6 +376,9 @@ public final class TankSpawner {
             // Unreadable vehicle data — leave it on the ground rather than abort the spawn.
         }
 
+        // Source-based paint: command/event crewed spawns always get the faction skin. Field
+        // captures keep the chance roll in VehicleSkinEvents.onMount instead.
+        VehicleSkinSupport.applySpawnFaction(tank, faction);
         return tank;
     }
 
@@ -450,6 +454,7 @@ public final class TankSpawner {
             // leave on the ground
         }
 
+        VehicleSkinSupport.applySpawnFaction(tank, TankFaction.PMC);
         return tank;
     }
 

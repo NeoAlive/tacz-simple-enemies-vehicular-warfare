@@ -598,6 +598,11 @@ public class DrivePlaneGoal extends Goal {
     // Heightmap escape runs before whiskers when the ridge outclimbs pitch budget, and again when
     // the cone is fully blocked — detour instead of only pitching −25° into the face.
     private void flyToward(double destX, double destZ, double desiredY) {
+        Vec3 avoid = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjustHorizontal(
+                this.vehicle, destX, destZ);
+        destX = avoid.x;
+        destZ = avoid.z;
+
         this.vehicle.setForwardInputDown(true);
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);

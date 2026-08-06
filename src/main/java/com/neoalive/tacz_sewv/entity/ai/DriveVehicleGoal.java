@@ -44,7 +44,7 @@ public class DriveVehicleGoal extends Goal {
     // The standoff rings themselves now live in Facts.preferredRange / Facts.rangeDeadband,
     // because the scorer needs the same numbers to decide whether we are too close or too far
     // and two copies would drift. Infantry is a 10-20 band (15 ± 5); armor holds the far ring
-    // at 40 ± 4, because a tank duel that collapses to point-blank is a tank duel getting lost.
+    // at 40 ± 8, because a tank duel that collapses to point-blank is a tank duel getting lost.
 
     // Self-preservation: a crew breaking contact falls back past the standoff ring rather than
     // to it, so the retreat actually opens distance instead of stopping where it started.
@@ -85,6 +85,8 @@ public class DriveVehicleGoal extends Goal {
     // Which ROLE the last selection picked (VehicleWeapons.WEAPON_*), or UNCLASSIFIED.
     // Cached because getWeaponIndex() can't answer this — see selectWeaponForTarget.
     private int selectedRole = VehicleWeapons.UNCLASSIFIED;
+    /** Standoff Schmitt state: 0 hold, 1 closing, -1 opening. See {@link #maintainVehicleStandoff}. */
+    private byte standoffPhase;
 
     public DriveVehicleGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -141,6 +143,7 @@ public class DriveVehicleGoal extends Goal {
         this.vehicle.setDecoyInputDown(false);
         this.vehicle = null;
         this.selectedRole = VehicleWeapons.UNCLASSIFIED;
+        this.standoffPhase = 0;
         this.allyAssist.clear();
         this.driver.clear();
         this.breaker.clear();
@@ -550,14 +553,28 @@ public class DriveVehicleGoal extends Goal {
      * creeping into a point-blank standstill where the cannon/TOW can't be brought to bear —
      * the deadband gives the ring width so the hull settles instead of dithering forward and
      * back across the exact radius.
+     *
+     * <p>Armor uses a Schmitt trigger: leaving the hold band needs more error than entering it,
+     * so tracked overshoot does not flip both duelists into mutual reverse.
      */
     private void maintainVehicleStandoff(BlockPos targetPos, double distanceSq, double dist,
                                          TargetCategory category) {
         double ring = Facts.preferredRange(category);
-        double deadband = Facts.rangeDeadband(category);
-        if (dist > ring + deadband) {
+        double band = Facts.rangeDeadband(category);
+        double leave = category == TargetCategory.VEHICLE ? band + 4.0 : band;
+
+        if (this.standoffPhase == 0) {
+            if (dist > ring + leave) this.standoffPhase = 1;
+            else if (dist < ring - leave) this.standoffPhase = -1;
+        } else if (this.standoffPhase > 0) {
+            if (dist <= ring + band) this.standoffPhase = 0;
+        } else {
+            if (dist >= ring - band) this.standoffPhase = 0;
+        }
+
+        if (this.standoffPhase > 0) {
             this.driver.navigateTo(targetPos, distanceSq);
-        } else if (dist < ring - deadband) {
+        } else if (this.standoffPhase < 0) {
             this.driver.retreatFrom(targetPos, ring, distanceSq);
         } else {
             this.driver.stop(); // on the ring — hold and let the turret work
@@ -626,7 +643,8 @@ public class DriveVehicleGoal extends Goal {
      */
     private void selectWeaponForTarget(int seatIndex, LivingEntity target) {
         if (seatIndex < 0 || this.weaponSwitchCooldown > 0) return;
-        this.selectedRole = VehicleWeapons.selectWeaponForTarget(this.vehicle, seatIndex, target);
+        this.selectedRole = VehicleWeapons.selectWeaponForTarget(
+                this.vehicle, seatIndex, target, this.unit);
         this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
     }
 

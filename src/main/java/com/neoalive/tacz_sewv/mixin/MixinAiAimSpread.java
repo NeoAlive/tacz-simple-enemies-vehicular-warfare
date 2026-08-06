@@ -44,8 +44,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * in a Kotlin lambda ({@code vehicleShoot$lambda$20}) whose synthetic name would not survive an
  * SBW recompile; this field read is stable.
  *
- * <p>Darkness scales the final spread by {@code 1 / accuracyFraction} (see
- * {@link VehicleDarknessAccuracy}) — environmental, so it still applies in {@code accurate}
+ * <p>Darkness scales the final spread by {@code min(1 / accuracyFraction, darkSpreadScaleMax)}
+ * (see {@link VehicleDarknessAccuracy}) — environmental, so it still applies in {@code accurate}
  * mode. The fraction itself is cached per hull (~1s), not recomputed per pellet.
  *
  * <p>Deliberately NOT affected:
@@ -96,7 +96,10 @@ public abstract class MixinAiAimSpread {
 
         double accuracy = VehicleDarknessAccuracy.accuracyFraction(vehicle);
         if (accuracy < 1.0 && accuracy > 0.0) {
-            spread /= accuracy;
+            double scale = 1.0 / accuracy;
+            double max = SewvConfig.DARK_SPREAD_SCALE_MAX.get();
+            if (scale > max) scale = max;
+            spread *= scale;
         }
         return spread;
     }

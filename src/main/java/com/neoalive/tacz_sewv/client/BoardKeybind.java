@@ -8,7 +8,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -100,14 +99,12 @@ public class BoardKeybind {
         Player player = mc.player;
         if (player == null || mc.level == null) return;
 
+        // Ribbon / SEM snapshot first; otherwise the same owned-PMC cylinder as before.
         List<Integer> unitIds = new ArrayList<>();
-        AABB box = player.getBoundingBox().inflate(radius, radius + 512.0, radius);
-        double rSq = radius * radius;
-        for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class, box)) {
+        for (int id : TdtSelection.resolve(radius)) {
+            if (!(mc.level.getEntity(id) instanceof PmcUnitEntity pmc)) continue;
             if (!pmc.isOwnedBy(player) || !filter.test(pmc)) continue;
-            double dx = pmc.getX() - player.getX();
-            double dz = pmc.getZ() - player.getZ();
-            if (dx * dx + dz * dz <= rSq) unitIds.add(pmc.getId());
+            unitIds.add(id);
         }
 
         if (unitIds.isEmpty()) {

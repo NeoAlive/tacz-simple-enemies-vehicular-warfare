@@ -266,6 +266,7 @@ public class DriveShipGoal extends Goal {
     }
 
     private void navigateTo(BlockPos dest) {
+        dest = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjust(this.vehicle, dest);
         if (this.reverseTicks > 0) {
             backAndFill(dest);
             return;
@@ -471,7 +472,8 @@ public class DriveShipGoal extends Goal {
     private void selectWeaponForTarget(LivingEntity target) {
         int seat = this.vehicle.getSeatIndex(this.unit);
         if (seat < 0 || this.weaponSwitchCooldown > 0) return;
-        this.selectedRole = VehicleWeapons.selectWeaponForTarget(this.vehicle, seat, target);
+        this.selectedRole = VehicleWeapons.selectWeaponForTarget(
+                this.vehicle, seat, target, this.unit);
         this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
     }
 

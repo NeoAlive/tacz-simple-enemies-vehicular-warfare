@@ -20,13 +20,9 @@ import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer;
 import net.nekoyuni.SimpleEnemyMod.client.util.CommanderRayTrace;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 // FORGE bus, client dist: opens the Tactical Data Terminal, and runs Escort / Guard selection modes.
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
@@ -84,21 +80,7 @@ public class ClientEvents {
     }
 
     private static List<Integer> snapshotOwnedUnits() {
-        Minecraft mc = Minecraft.getInstance();
-        Player player = mc.player;
-        if (player == null || mc.level == null) return List.of();
-
-        List<Integer> units = new ArrayList<>();
-        Set<Integer> selected = CommanderOverlayRenderer.selectedUnitsSnapshot;
-        if (selected != null && !selected.isEmpty()) {
-            units.addAll(selected);
-        } else {
-            for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class,
-                    player.getBoundingBox().inflate(CLIENT_DISCOVERY_RADIUS))) {
-                if (pmc.isOwnedBy(player)) units.add(pmc.getId());
-            }
-        }
-        return List.copyOf(units);
+        return TdtSelection.resolve(CLIENT_DISCOVERY_RADIUS);
     }
 
     /**

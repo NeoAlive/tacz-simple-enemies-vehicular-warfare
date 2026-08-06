@@ -17,8 +17,9 @@ import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 /**
- * Mount-roll + tracking sync for sticky vehicle skins. Engineer repair apply lives in
- * {@code RepairGoal}; manual cycle is sneak-right-click with the repair tool (client packet).
+ * Field-capture skin roll + tracking sync. Command/event crewed spawns paint in
+ * {@link com.neoalive.tacz_sewv.util.TankSpawner}; engineer repair apply lives in {@code RepairGoal};
+ * manual cycle is sneak-right-click with the repair tool (client packet).
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID)
 public final class VehicleSkinEvents {
@@ -26,6 +27,10 @@ public final class VehicleSkinEvents {
     private VehicleSkinEvents() {
     }
 
+    /**
+     * Abandoned/empty hull boarded in the field — chance roll only. Spawned crews are painted
+     * after mount in TankSpawner (always), so a miss here is overwritten for those paths.
+     */
     @SubscribeEvent
     public static void onMount(EntityMountEvent event) {
         if (event.getLevel().isClientSide()) return;
@@ -34,6 +39,8 @@ public final class VehicleSkinEvents {
         if (!(event.getEntityBeingMounted() instanceof VehicleEntity vehicle)) return;
         // First rider only: still empty when this fires from startRiding.
         if (!vehicle.getPassengers().isEmpty()) return;
+        // Already painted (e.g. spawn path applied before a later remount) — leave it.
+        if (VehicleSkinSupport.get(vehicle) != null) return;
 
         double chance = SewvConfig.VEHICLE_SKIN_MOUNT_CHANCE.get();
         if (chance <= 0.0 || unit.getRandom().nextDouble() >= chance) return;

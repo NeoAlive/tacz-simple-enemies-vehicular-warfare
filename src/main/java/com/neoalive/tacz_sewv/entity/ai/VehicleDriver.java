@@ -139,6 +139,7 @@ final class VehicleDriver {
      * which reset the turn ramp constantly and left the tank pivoting in place forever.
      */
     void navigateTo(BlockPos dest, double distanceSq) {
+        dest = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjust(this.vehicle, dest);
         // Bank-lip reverse: face the blocked destination (usually into the water) and reverse off
         // the overhang. Runs ahead of ordinary stuck recovery because holdAtEdge rotation would
         // otherwise keep updateStuck from ever firing. Abort if SBW reports wet — that is the

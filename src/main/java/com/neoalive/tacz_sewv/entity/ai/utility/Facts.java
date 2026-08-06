@@ -372,8 +372,8 @@ public final class Facts {
      *
      * <p>Armor is held at arm's length: two hulls that creep into a point-blank standstill can no
      * longer bring cannon or ATGM to bear on each other. Infantry is a comfortable band inside the
-     * coaxial's effective range. These are the numbers the hand-written doctrine already used, kept
-     * exactly so a neutral-doctrine crew fights at the ranges it always has.
+     * coaxial's effective range. Armor holds a wider band (40 ± 8) so tracked overshoot does not
+     * bounce both duelists into mutual reverse.
      */
     public static double preferredRange(@Nullable TargetCategory category) {
         return category == TargetCategory.VEHICLE ? 40.0 : 15.0;
@@ -381,7 +381,8 @@ public final class Facts {
 
     /** Half-width of the band around {@link #preferredRange} that counts as "on the ring". */
     public static double rangeDeadband(@Nullable TargetCategory category) {
-        return category == TargetCategory.VEHICLE ? 4.0 : 5.0;
+        // Armor was 4: tracked inertia overshoots that and both hulls reverse together.
+        return category == TargetCategory.VEHICLE ? 8.0 : 5.0;
     }
 
     private void readBattlefield(AbstractUnit unit, VehicleEntity hull) {

@@ -69,6 +69,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue NVG_SPAWN_CHANCE;
     public static final ForgeConfigSpec.DoubleValue DARK_ACCURACY_FRACTION;
     public static final ForgeConfigSpec.DoubleValue NVG_ACCURACY_FRACTION;
+    public static final ForgeConfigSpec.DoubleValue DARK_SPREAD_SCALE_MAX;
     public static final ForgeConfigSpec.IntValue DARK_BLOCK_LIGHT_MAX;
 
     public static final ForgeConfigSpec.BooleanValue STRUCTURE_VEHICLES_ENABLED;
@@ -184,6 +185,18 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_NEUTRAL_COLOR;
 
     public static final ForgeConfigSpec.IntValue[][] DOCTRINE;
+
+    // Softcompat: Extermination Tripod shield (ranged block + HP + cosmetic flare).
+    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue TRIPOD_HP_MULTIPLIER;
+    public static final ForgeConfigSpec.DoubleValue TRIPOD_SHIELD_BREAK_DAMAGE;
+    public static final ForgeConfigSpec.IntValue TRIPOD_SHIELD_REGEN_TICKS;
+    public static final ForgeConfigSpec.IntValue TRIPOD_SHIELD_FLARE_TICKS;
+    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_FLARE_DEBUG_ALWAYS_ON;
+    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_DEBUG_WIREFRAME;
+    public static final ForgeConfigSpec.DoubleValue TRIPOD_SHIELD_AXIS_SCALE;
+    public static final ForgeConfigSpec.DoubleValue INVASION_POD_AVOID_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue HEAT_RAY_SPEED;
 
     private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
     private static final int[][] DOCTRINE_DEFAULTS = {
@@ -314,11 +327,15 @@ public final class SewvConfig {
         NVG_SPAWN_CHANCE = builder.comment("Chance a SEM unit joining at night spawns wearing an NVG-eligible item.")
                 .defineInRange("nvgSpawnChance", 0.20, 0.0, 1.0);
         DARK_ACCURACY_FRACTION = builder.comment(
-                        "AI vehicle accuracy multiplier in darkness with no rendered-seat NVG (0.375 ≈ -62.5%).")
-                .defineInRange("darkAccuracyFraction", 0.375, 0.05, 1.0);
+                        "AI vehicle accuracy multiplier in darkness with no rendered-seat NVG (0.55 ≈ -45%).",
+                        "Clamped further by darkSpreadScaleMax so worst-case never exceeds that spread multiplier.")
+                .defineInRange("darkAccuracyFraction", 0.55, 0.05, 1.0);
         NVG_ACCURACY_FRACTION = builder.comment(
-                        "AI vehicle accuracy multiplier in darkness when any rendered-seat occupant has NVG (0.75 = -25%).")
-                .defineInRange("nvgAccuracyFraction", 0.75, 0.05, 1.0);
+                        "AI vehicle accuracy multiplier in darkness when any rendered-seat occupant has NVG (0.85 ≈ -15%).")
+                .defineInRange("nvgAccuracyFraction", 0.85, 0.05, 1.0);
+        DARK_SPREAD_SCALE_MAX = builder.comment(
+                        "Hard ceiling on darkness spread scale (1 / accuracyFraction). 2.0 = at most 2× daytime spread.")
+                .defineInRange("darkSpreadScaleMax", 2.0, 1.0, 10.0);
         DARK_BLOCK_LIGHT_MAX = builder.comment(
                         "Max combined sky+block light (inclusive) that still counts as darkness in daytime;",
                         "nighttime always counts. Outdoors in daylight is bright via sky light, not block light.")
@@ -355,7 +372,8 @@ public final class SewvConfig {
         AI_AIM_SPREAD_DEG = builder.comment("Extra dispersion (degrees) added in realistic/scaled aim modes.")
                 .defineInRange("aiAimSpreadDegrees", 4.0, 0.0, 30.0);
         VEHICLE_SKIN_MOUNT_CHANCE = builder.comment(
-                        "Chance an SEM unit boarding an empty hull applies its faction skin (config/tacz_sewv/vehicle_skins/).")
+                        "Chance an SEM unit boarding an empty (captured/abandoned) hull applies its faction skin.",
+                        "Command/event crewed spawns always get the faction skin; this is only the field-capture roll.")
                 .defineInRange("vehicleSkinMountChance", 0.60, 0.0, 1.0);
         IFV_DISMOUNTS_ENABLED = builder.comment("Let IFVs dismount squads against armor.")
                 .define("ifvDismountsEnabled", true);
@@ -608,6 +626,45 @@ public final class SewvConfig {
             }
             builder.pop();
         }
+        builder.pop();
+
+        builder.push("extermination");
+        TRIPOD_SHIELD_ENABLED = builder.comment(
+                        "Softcompat: ranged-damage shield on Extermination pods (TACZ/SBW/projectiles).",
+                        "Melee still passes. Shield breaks after absorbing tripodShieldBreakDamage.",
+                        "No-op when Extermination is absent.")
+                .define("tripodShieldEnabled", true);
+        TRIPOD_HP_MULTIPLIER = builder.comment(
+                        "Max-health multiplier applied once when a Tripod joins the world (2.0 = double).")
+                .defineInRange("tripodHpMultiplier", 2.0, 1.0, 10.0);
+        TRIPOD_SHIELD_BREAK_DAMAGE = builder.comment(
+                        "Cumulative ranged damage the shield absorbs before breaking (raw hit amounts).",
+                        "While up, that damage is cancelled; once broken, ranged damage applies normally.")
+                .defineInRange("tripodShieldBreakDamage", 400.0, 1.0, 100000.0);
+        TRIPOD_SHIELD_REGEN_TICKS = builder.comment(
+                        "Game ticks after the shield breaks before it regenerates (0 = stays down until death).",
+                        "20 ticks ≈ 1 second.")
+                .defineInRange("tripodShieldRegenTicks", 600, 0, 72000);
+        TRIPOD_SHIELD_FLARE_TICKS = builder.comment(
+                        "Cosmetic flare particle lifetime window after a blocked hit (~8 ticks ≈ 400 ms).")
+                .defineInRange("tripodShieldFlareTicks", 8, 1, 100);
+        TRIPOD_SHIELD_FLARE_DEBUG_ALWAYS_ON = builder.comment(
+                        "Debug: keep emitting the same flare FX without needing hits (same emitter as blocks).")
+                .define("tripodShieldFlareDebugAlwaysOn", false);
+        TRIPOD_SHIELD_DEBUG_WIREFRAME = builder.comment(
+                        "Debug: draw the prolate-spheroid shield surface used for flare placement (client).")
+                .define("tripodShieldDebugWireframe", false);
+        TRIPOD_SHIELD_AXIS_SCALE = builder.comment(
+                        "Scale of the math spheroid used for flare projection / debug wireframe (1.0 = hitbox).")
+                .defineInRange("tripodShieldAxisScale", 1.0, 0.25, 4.0);
+        INVASION_POD_AVOID_RADIUS = builder.comment(
+                        "When /gamerule sewvInvasionOverrides is true: AI vehicles keep this many blocks",
+                        "clear of Extermination combat pods (tripod / uberpod / emperorpod / harvester).")
+                .defineInRange("invasionPodAvoidRadius", 48.0, 8.0, 128.0);
+        HEAT_RAY_SPEED = builder.comment(
+                        "Extermination heat-ray projectile speed. Vanilla Extermination uses 3.5;",
+                        "default 10.5 is 3× that. Applies to SEM volleys and native rays.")
+                .defineInRange("heatRaySpeed", 10.5, 3.5, 40.0);
         builder.pop();
 
         SPEC = builder.build();

@@ -245,6 +245,11 @@ public final class VehicleWeapons {
     // the whole point of this class is that physical order carries no meaning. Handing
     // it back here is free — the role→slot map is already in hand.
     public static int selectWeaponForTarget(VehicleEntity vehicle, int seatIndex, LivingEntity target) {
+        return selectWeaponForTarget(vehicle, seatIndex, target, null);
+    }
+
+    public static int selectWeaponForTarget(VehicleEntity vehicle, int seatIndex, LivingEntity target,
+                                            @javax.annotation.Nullable AbstractUnit shooter) {
         if (seatIndex < 0) return UNCLASSIFIED;
         SeatInfo seat = vehicle.getSeat(seatIndex);
         int weaponCount = seat == null ? 0 : seat.weapons().size();
@@ -262,7 +267,11 @@ public final class VehicleWeapons {
 
         int chosen;
         String[] ammo = null; // null = this pick doesn't load a shell (special/MG)
-        if (special >= 0 && specialReady(vehicle, seatIndex, special)) {
+        // SPECIAL only when a shot would leave the rail now. A lofted ATGM stays
+        // canShoot-true forever while silent, and used to monopolise the seat so the
+        // cannon never got a turn (bmp deadlock).
+        if (special >= 0 && specialReady(vehicle, seatIndex, special)
+                && specialLinedUp(vehicle, shooter, target)) {
             chosen = special;
         } else if (target.getVehicle() instanceof VehicleEntity hull) {
             chosen = cannon >= 0 ? cannon : fallback;
@@ -587,6 +596,28 @@ public final class VehicleWeapons {
             if (special == null) return false;
             Entity supplier = vehicle.getAmmoSupplier();
             return special.canShoot(supplier != null ? supplier : vehicle);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Barrel already on the straight LOS within a tight gate. Without this, a lofted
+     * ATGM solution keeps {@link #specialReady} true forever while nothing leaves the
+     * rail, and the seat never falls back to cannon.
+     */
+    private static boolean specialLinedUp(VehicleEntity vehicle,
+                                          @javax.annotation.Nullable AbstractUnit shooter,
+                                          LivingEntity target) {
+        if (shooter == null) return false;
+        try {
+            Vec3 shootDir = vehicle.getShootDirectionForHud(shooter, 1.0F);
+            Vec3 toTarget = target.getBoundingBox().getCenter()
+                    .subtract(vehicle.getShootPos(shooter, 1.0F));
+            if (shootDir.lengthSqr() < 1.0E-6 || toTarget.lengthSqr() < 1.0E-6) return false;
+            double cos = shootDir.normalize().dot(toTarget.normalize());
+            double angleDeg = Math.toDegrees(Math.acos(Mth.clamp(cos, -1.0, 1.0)));
+            return angleDeg <= 8.0;
         } catch (Exception e) {
             return false;
         }

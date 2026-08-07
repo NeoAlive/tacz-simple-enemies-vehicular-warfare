@@ -1,10 +1,11 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
-import com.neoalive.tacz_sewv.entity.ai.utility.Signal;
-
-import javax.annotation.Nullable;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import javax.annotation.Nullable;
+
+import com.neoalive.tacz_sewv.entity.ai.utility.Signal;
 
 /**
  * Per-driver Stage-4 role published by {@link CommandCoordinator} for the crew brain to read.

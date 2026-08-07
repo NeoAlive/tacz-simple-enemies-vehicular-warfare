@@ -1,18 +1,19 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.client.PoolEditorClient;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
-import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
-
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
+import net.minecraftforge.network.NetworkEvent;
+
+import com.neoalive.tacz_sewv.client.editor.PoolEditorClient;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
 
 /** Server → client: open the pool editor with the current world snapshot + vehicle catalog. */
 public class PacketOpenPoolEditor {

@@ -1,11 +1,11 @@
 package com.neoalive.tacz_sewv.client.gui;
 
+import java.util.function.BooleanSupplier;
+
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
-
-import java.util.function.BooleanSupplier;
 
 /**
  * Edit box that completes a vehicle id on Tab instead of surrendering focus to the next widget.

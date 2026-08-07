@@ -2,11 +2,12 @@ package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.util.HealthMobility;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+
+import com.neoalive.tacz_sewv.util.HealthMobility;
 
 /**
  * Slows an AI-crewed vehicle's drive speed as it loses health.

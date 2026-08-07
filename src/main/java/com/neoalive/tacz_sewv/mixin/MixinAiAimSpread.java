@@ -2,15 +2,16 @@ package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.data.gun.ShootParameters;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.entity.ai.HullFacts;
-import com.neoalive.tacz_sewv.util.VehicleDarknessAccuracy;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.util.VehicleDarknessAccuracy;
 
 /**
  * Gives an AI vehicle crew a human's aim. Untreated it has none to give: SBW's turret

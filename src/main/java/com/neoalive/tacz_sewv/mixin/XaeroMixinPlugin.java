@@ -1,12 +1,12 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import java.util.List;
+import java.util.Set;
+
 import net.minecraftforge.fml.loading.LoadingModList;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
-
-import java.util.List;
-import java.util.Set;
 
 /**
  * Soft-compat gate for {@code tacz_sewv.xaero.mixins.json}.

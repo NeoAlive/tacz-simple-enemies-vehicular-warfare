@@ -1,9 +1,10 @@
 package com.neoalive.tacz_sewv.util;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.util.Mth;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Drive-speed / turret-slew multiplier for a damaged AI-crewed vehicle: 1.0 at full health,

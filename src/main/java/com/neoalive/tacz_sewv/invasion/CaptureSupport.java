@@ -1,8 +1,10 @@
 package com.neoalive.tacz_sewv.invasion;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -13,9 +15,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.scores.PlayerTeam;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
  * Sole-team radius/time capture shared by capture_point and team_base.

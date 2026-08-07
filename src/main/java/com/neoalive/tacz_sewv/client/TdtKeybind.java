@@ -1,8 +1,6 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.init.ModItems;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -16,6 +14,9 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
+
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.init.ModItems;
 
 /**
  * Opens the Tactical Data Terminal from a key, so it can be reached <b>from inside a vehicle</b>.

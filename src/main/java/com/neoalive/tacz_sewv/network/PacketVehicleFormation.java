@@ -1,8 +1,9 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.bridge.IFormationMember;
-import com.neoalive.tacz_sewv.entity.ai.FormationShape;
-import com.neoalive.tacz_sewv.entity.ai.VehicleFormation;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.Direction;
 import net.minecraft.network.FriendlyByteBuf;
@@ -12,9 +13,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 
 /**
  * Forms the player's owned crews into one of the {@link FormationShape}s, laid out along the cardinal

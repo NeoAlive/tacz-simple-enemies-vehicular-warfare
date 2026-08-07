@@ -6,7 +6,7 @@ import net.minecraft.world.entity.Entity;
 
 /**
  * Player-issued flight command carried on a unit entity, read by
- * {@link com.neoalive.tacz_sewv.entity.ai.DriveHelicopterGoal}. Set server-side by
+ * {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal}. Set server-side by
  * {@link com.neoalive.tacz_sewv.network.PacketHelicopterCommand}; not synced to the
  * client (the goal runs server-side, same as the boarding flag on
  * {@link IVehicleBoarder}).

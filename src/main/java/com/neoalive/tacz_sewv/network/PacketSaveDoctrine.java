@@ -1,8 +1,7 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
-import com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData;
-import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
+import java.util.function.Supplier;
+
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -11,7 +10,9 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
+import com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData;
+import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
 
 public class PacketSaveDoctrine {
 

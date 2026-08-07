@@ -2,13 +2,14 @@ package com.neoalive.tacz_sewv.mixin.client;
 
 import com.atsuishio.superbwarfare.client.renderer.entity.VehicleRenderer;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.client.VehicleSkinClient;
-import com.neoalive.tacz_sewv.client.VehicleSkinRegistry;
 import net.minecraft.resources.ResourceLocation;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import com.neoalive.tacz_sewv.client.skin.VehicleSkinClient;
+import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 
 /**
  * Swap in a filesystem faction skin after SBW's getTextureLocation finishes.

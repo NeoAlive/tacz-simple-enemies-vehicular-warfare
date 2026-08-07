@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.procedural.events;
 
-import com.neoalive.tacz_sewv.util.TankSpawner;
+import javax.annotation.Nullable;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.MobSpawnType;
@@ -11,7 +12,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
 
-import javax.annotation.Nullable;
+import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
  * The two things every event in this package was writing out for itself: dropping a rifleman on

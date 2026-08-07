@@ -7,13 +7,13 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * A unit's claim on a Superb Warfare mortar, read by
- * {@link com.neoalive.tacz_sewv.entity.ai.ManMortarGoal}. Set server-side by
+ * {@link com.neoalive.tacz_sewv.entity.ai.goal.ManMortarGoal}. Set server-side by
  * {@link com.neoalive.tacz_sewv.network.PacketManMortar}; not synced to the client
  * (the goal runs server-side, same as the boarding flag on {@link IVehicleBoarder}).
  *
  * <p>The claim doubles as the mortar's occupancy record. A MortarEntity has no owner
  * or seats of its own, so there is nothing on the mortar to mark — instead
- * {@link com.neoalive.tacz_sewv.entity.ai.MortarSupport#isMortarClaimed} answers
+ * {@link com.neoalive.tacz_sewv.entity.ai.support.MortarSupport#isMortarClaimed} answers
  * "is this mortar taken?" by looking for a unit pointing at it. That keeps the claim
  * self-healing: a crew that dies or unloads stops pointing at its mortar and thereby
  * releases it, with no registry to keep in sync.
@@ -60,12 +60,12 @@ public interface IMortarCrew {
      * <p>This exists because a mortar's reach and its crew's eyesight are barely in the
      * same units: the tube shoots ~770 blocks, SEM's FOLLOW_RANGE sees 96. A crew can
      * therefore never acquire anything at the range that makes a mortar a mortar. The
-     * radio ({@link com.neoalive.tacz_sewv.entity.ai.FireMissionSupport}) solves that for
+     * radio ({@link com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport}) solves that for
      * a live enemy; this solves it for a <em>place</em>, which is what artillery actually
      * shoots at and what an attacker with a map has.
      *
      * <p>A live target the crew can see still wins — see
-     * {@link com.neoalive.tacz_sewv.entity.ai.ManMortarGoal}. This is the fallback the
+     * {@link com.neoalive.tacz_sewv.entity.ai.goal.ManMortarGoal}. This is the fallback the
      * crew works when nothing is in sight, not an override.
      *
      * <p>When the mission expires the crew leaves the tube for good ({@code ManMortarGoal}

@@ -2,9 +2,6 @@ package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.tools.EntityFindUtil;
-import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
-import com.neoalive.tacz_sewv.entity.ai.VehicleMissileAim;
-import com.neoalive.tacz_sewv.entity.ai.VehicleMortarSupport;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
@@ -13,6 +10,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleMissileAim;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
 
 /**
  * Corrects AI turret aim for selected beam-rider / seeker missiles, and for FCP mortar

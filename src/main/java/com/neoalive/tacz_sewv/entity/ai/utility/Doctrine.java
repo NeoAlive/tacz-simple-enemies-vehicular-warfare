@@ -1,10 +1,11 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.util.CrewFacts;
+import javax.annotation.Nullable;
+
 import net.minecraft.world.entity.Entity;
 
-import javax.annotation.Nullable;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.CrewFacts;
 
 public final class Doctrine {
 
@@ -82,7 +83,7 @@ public final class Doctrine {
     public static Doctrine forCrew(Entity unit) {
         Doctrine[] snapshot = presets;
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(unit);
-        
+
         if (faction == CrewFacts.Faction.PMC && unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity pmc) {
             java.util.UUID owner = pmc.getOwnerUUID();
             if (owner != null && !unit.level().isClientSide) {
@@ -90,14 +91,14 @@ public final class Doctrine {
                 if (playerDoctrine != null) return playerDoctrine;
             }
         }
-        
+
         if (snapshot == null) return NEUTRAL;
         return faction == null ? NEUTRAL : snapshot[faction.ordinal()];
     }
 
     /**
      * Snapshot the config presets. Called from {@code ServerAboutToStartEvent} alongside
-     * {@link com.neoalive.tacz_sewv.entity.ai.VehicleTargeting#refreshFactionFriendlyFlags()} —
+     * {@link com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting#refreshFactionFriendlyFlags()} —
      * the one moment every config is baked and nothing has ticked.
      */
     public static void refreshPresets() {

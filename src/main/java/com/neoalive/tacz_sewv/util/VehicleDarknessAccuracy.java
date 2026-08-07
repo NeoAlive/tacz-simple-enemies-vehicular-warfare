@@ -1,10 +1,12 @@
 package com.neoalive.tacz_sewv.util;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.world.level.Level;
 
-import java.util.concurrent.ConcurrentHashMap;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.NvgSupport;
 
 /**
  * Per-hull darkness accuracy fraction for {@link com.neoalive.tacz_sewv.mixin.MixinAiAimSpread}.

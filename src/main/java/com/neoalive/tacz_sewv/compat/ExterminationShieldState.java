@@ -1,9 +1,10 @@
 package com.neoalive.tacz_sewv.compat;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.LivingEntity;
 import org.jetbrains.annotations.Nullable;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Breakable ranged shield budget on Extermination pods. Hits accumulate toward

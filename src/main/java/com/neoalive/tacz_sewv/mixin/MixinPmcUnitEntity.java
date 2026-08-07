@@ -1,23 +1,5 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
-import com.neoalive.tacz_sewv.bridge.IFormationMember;
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
-import com.neoalive.tacz_sewv.bridge.IMedicTreat;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
-import com.neoalive.tacz_sewv.entity.ai.EscortGoal;
-import com.neoalive.tacz_sewv.entity.ai.EngineerLoadout;
-import com.neoalive.tacz_sewv.entity.ai.MedicGoal;
-import com.neoalive.tacz_sewv.entity.ai.PmcCombatDebugGoal;
-import com.neoalive.tacz_sewv.entity.ai.RepairGoal;
-import com.neoalive.tacz_sewv.entity.ai.RadioObserverGoal;
-import com.neoalive.tacz_sewv.entity.ai.SweepInfantryGoal;
-import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -30,6 +12,25 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
+import com.neoalive.tacz_sewv.bridge.IEscort;
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
+import com.neoalive.tacz_sewv.bridge.IMedicTreat;
+import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
+import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.PmcCombatDebugGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.RadioObserverGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.SweepInfantryGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
+import com.neoalive.tacz_sewv.entity.ai.support.EngineerLoadout;
 
 // IHelicopterPilot, IFormationMember and IVehiclePatrol need no method bodies here — their
 // default methods store the flight state, the formation axis and the patrol order in the

@@ -1,17 +1,18 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.client.MiscEditorClient;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
-import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.client.editor.MiscEditorClient;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
 
 /** Server → client: open the misc cue/armor editor. */
 public class PacketOpenMiscEditor {

@@ -1,13 +1,8 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import java.util.function.Supplier;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
-import com.neoalive.tacz_sewv.entity.ai.GuardSupport;
-import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
-import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
-import com.neoalive.tacz_sewv.util.CrewRadio;
-import com.neoalive.tacz_sewv.util.OrderAuth;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.network.NetworkEvent;
@@ -18,7 +13,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.crew.OrderAuth;
+import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 
 /**
  * Two things that both hang off a <b>player-given</b> order, which is exactly what SEM's order

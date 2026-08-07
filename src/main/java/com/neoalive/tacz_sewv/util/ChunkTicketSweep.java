@@ -1,7 +1,12 @@
 package com.neoalive.tacz_sewv.util;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.WeakHashMap;
+
 import com.mojang.datafixers.util.Pair;
-import com.neoalive.tacz_sewv.TaczSewv;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
@@ -10,11 +15,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.WeakHashMap;
+import com.neoalive.tacz_sewv.TaczSewv;
 
 /**
  * Reconciles forced-chunk tickets {@link ChunkTicket} left behind when a mortar/heli crew died

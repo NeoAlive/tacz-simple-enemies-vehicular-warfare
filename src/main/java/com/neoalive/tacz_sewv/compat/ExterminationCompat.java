@@ -1,10 +1,10 @@
 package com.neoalive.tacz_sewv.compat;
 
+import java.util.Set;
+import java.util.UUID;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.tacz.guns.api.event.common.EntityHurtByGunEvent;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -40,8 +40,9 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
-import java.util.Set;
-import java.util.UUID;
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 
 /**
  * Softcompat for Extermination pods: breakable ranged shield, HP multiplier, SEM targeting,

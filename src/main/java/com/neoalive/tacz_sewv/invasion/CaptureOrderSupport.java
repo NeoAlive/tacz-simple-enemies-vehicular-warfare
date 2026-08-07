@@ -1,11 +1,11 @@
 package com.neoalive.tacz_sewv.invasion;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
-import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
-import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -13,9 +13,10 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
+import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
+import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
  * Invasion CAPTURE_POINT pipeline for event-spawned crews: AI fleets ({@link InvasionTags#AI})
@@ -53,7 +54,7 @@ public final class CaptureOrderSupport {
 
     /**
      * Assign the order to every live invasion capture crew. Seat-0 drivers use it;
-     * other seats are harmless — they never call {@link com.neoalive.tacz_sewv.entity.ai.VehicleTargeting#resolveDestination}.
+     * other seats are harmless — they never call {@link com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting#resolveDestination}.
      */
     public static void beginAll(ServerLevel level) {
         int n = 0;

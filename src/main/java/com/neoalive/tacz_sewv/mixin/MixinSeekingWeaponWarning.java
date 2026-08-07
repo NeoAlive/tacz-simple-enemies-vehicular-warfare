@@ -1,8 +1,10 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import java.util.UUID;
+import java.util.function.Supplier;
+
 import com.atsuishio.superbwarfare.network.message.send.SeekingWeaponWarningMessage;
 import com.atsuishio.superbwarfare.tools.EntityFindUtil;
-import com.neoalive.tacz_sewv.util.ThreatDecoy;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.network.NetworkEvent;
@@ -12,8 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.UUID;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.util.ThreatDecoy;
 
 /**
  * Player lock-on / locking tone ({@link SeekingWeaponWarningMessage}) → pop decoy on the

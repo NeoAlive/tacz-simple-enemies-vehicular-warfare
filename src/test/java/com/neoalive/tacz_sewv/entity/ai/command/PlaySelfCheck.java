@@ -1,11 +1,12 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
-import com.neoalive.tacz_sewv.entity.ai.utility.Signal;
-import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
-import com.neoalive.tacz_sewv.util.BattleFieldMarker;
+import java.util.Map;
+
 import net.minecraft.resources.ResourceLocation;
 
-import java.util.Map;
+import com.neoalive.tacz_sewv.entity.ai.utility.Signal;
+import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
+import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 
 /**
  * Headless self-check for Stage 4 plays. Run via {@code ./gradlew selfCheckPlay}.

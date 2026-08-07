@@ -1,10 +1,8 @@
 package com.neoalive.tacz_sewv.block;
 
-import com.neoalive.tacz_sewv.init.ModBlockEntities;
-import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
-import com.neoalive.tacz_sewv.invasion.CaptureSupport;
-import com.neoalive.tacz_sewv.invasion.InvasionLayout;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
+import java.util.ArrayList;
+import java.util.List;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -14,8 +12,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.neoalive.tacz_sewv.init.ModBlockEntities;
+import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
+import com.neoalive.tacz_sewv.invasion.CaptureSupport;
+import com.neoalive.tacz_sewv.invasion.InvasionLayout;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
  * One invasion base per vanilla scoreboard team.

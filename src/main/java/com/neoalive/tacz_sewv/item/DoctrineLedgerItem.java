@@ -1,6 +1,5 @@
 package com.neoalive.tacz_sewv.item;
 
-import com.neoalive.tacz_sewv.client.gui.DoctrineEditorScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
@@ -10,6 +9,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+
+import com.neoalive.tacz_sewv.client.gui.DoctrineEditorScreen;
 
 public class DoctrineLedgerItem extends Item {
 

@@ -1,6 +1,5 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import com.neoalive.tacz_sewv.entity.ai.FollowLeash;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.goals.MoveToAttackRangeGoal;
 import org.spongepowered.asm.mixin.Final;
@@ -9,6 +8,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import com.neoalive.tacz_sewv.entity.ai.support.FollowLeash;
 
 /**
  * Keeps a following unit from charging an enemy it spots.

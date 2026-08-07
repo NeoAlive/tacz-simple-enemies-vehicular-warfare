@@ -1,14 +1,15 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.client.InvasionEditorClient;
+import java.util.List;
+import java.util.function.Supplier;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.List;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.client.invasion.InvasionEditorClient;
 
 /** Server → client: open the capture_point config screen. */
 public class PacketOpenCapturePointGui {

@@ -1,7 +1,5 @@
 package com.neoalive.tacz_sewv.entity.unit;
 
-import com.neoalive.tacz_sewv.entity.ai.EngineerLoadout;
-import com.neoalive.tacz_sewv.entity.ai.SupportUnitGoals;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -11,6 +9,9 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.level.Level;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+
+import com.neoalive.tacz_sewv.entity.ai.goal.SupportUnitGoals;
+import com.neoalive.tacz_sewv.entity.ai.support.EngineerLoadout;
 
 /** US mechanical engineer. See {@link RuEngineerEntity}. */
 public class UsEngineerEntity extends USunitEntity {

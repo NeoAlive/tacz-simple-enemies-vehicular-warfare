@@ -4,8 +4,6 @@ import com.atsuishio.superbwarfare.client.renderer.entity.VehicleRenderer;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
-import com.neoalive.tacz_sewv.entity.ai.RappelSupport;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.util.Mth;
@@ -16,6 +14,9 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
+import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 
 /**
  * Rappel ropes: thin lit ribbons on the hull's local X± faces, drawn inside

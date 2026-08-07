@@ -1,6 +1,9 @@
 package com.neoalive.tacz_sewv.item;
 
-import com.neoalive.tacz_sewv.util.PoolEditorAccess;
+import java.util.List;
+
+import javax.annotation.Nullable;
+
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -11,8 +14,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
 
-import javax.annotation.Nullable;
-import java.util.List;
+import com.neoalive.tacz_sewv.util.PoolEditorAccess;
 
 /** Op-only admin tool for editing per-world vehicle spawn pools. Uncraftable. */
 public class PoolClipboardItem extends Item {

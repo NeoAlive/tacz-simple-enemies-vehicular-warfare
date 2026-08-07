@@ -1,10 +1,5 @@
 package com.neoalive.tacz_sewv.init;
 
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
-import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
-import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
-import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
@@ -15,6 +10,12 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
+import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
+import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
+import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 
 /**
  * The bridge's own entities — its first: four RU/US support-unit variants (medic, engineer). They

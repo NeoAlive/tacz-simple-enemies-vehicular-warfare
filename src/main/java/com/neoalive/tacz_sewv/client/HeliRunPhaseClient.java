@@ -1,11 +1,12 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.mojang.logging.LogUtils;
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.entity.ai.DriveHelicopterGoal;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 
 /**
  * Client cache of AI heli run phases (filled by {@link com.neoalive.tacz_sewv.network.PacketHeliRunPhase}).

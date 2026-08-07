@@ -1,12 +1,13 @@
 package com.neoalive.tacz_sewv.init;
 
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.block.CapturePointBlock;
-import com.neoalive.tacz_sewv.block.TeamBaseBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
+
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.block.CapturePointBlock;
+import com.neoalive.tacz_sewv.block.TeamBaseBlock;
 
 public class ModBlocks {
 

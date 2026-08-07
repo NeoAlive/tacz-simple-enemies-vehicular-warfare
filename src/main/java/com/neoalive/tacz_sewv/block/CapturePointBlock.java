@@ -1,8 +1,7 @@
 package com.neoalive.tacz_sewv.block;
 
-import com.neoalive.tacz_sewv.init.ModBlockEntities;
-import com.neoalive.tacz_sewv.invasion.InvasionLayout;
-import com.neoalive.tacz_sewv.util.InvasionBlockEditor;
+import javax.annotation.Nullable;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,7 +22,9 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
 
-import javax.annotation.Nullable;
+import com.neoalive.tacz_sewv.init.ModBlockEntities;
+import com.neoalive.tacz_sewv.invasion.InvasionBlockEditor;
+import com.neoalive.tacz_sewv.invasion.InvasionLayout;
 
 public class CapturePointBlock extends BaseEntityBlock {
 

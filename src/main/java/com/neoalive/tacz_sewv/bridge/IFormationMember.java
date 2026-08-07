@@ -5,7 +5,7 @@ import net.minecraft.world.entity.Entity;
 
 /**
  * The frozen cardinal a vehicle formation is laid out along, carried on a unit entity and
- * read by {@link com.neoalive.tacz_sewv.entity.ai.VehicleFormation}. Set server-side by
+ * read by {@link com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation}. Set server-side by
  * {@link com.neoalive.tacz_sewv.network.PacketVehicleFormation}, which is its only writer.
  *
  * <p>SEM's own formation basis is the commander's live yaw, so the shape spins as the player

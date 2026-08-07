@@ -15,4 +15,3 @@ public interface IVehicleBoarder {
     void tacz_sewv$setPassengerOnly(boolean passengerOnly);
     boolean tacz_sewv$isPassengerOnly();
 }
-

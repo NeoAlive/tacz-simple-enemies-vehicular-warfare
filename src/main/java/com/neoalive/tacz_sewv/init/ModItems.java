@@ -1,10 +1,5 @@
 package com.neoalive.tacz_sewv.init;
 
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
-import com.neoalive.tacz_sewv.item.HandheldRadioItem;
-import com.neoalive.tacz_sewv.item.PoolClipboardItem;
-import com.neoalive.tacz_sewv.item.TacticalDataTerminalItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
@@ -15,6 +10,12 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
+
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
+import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.item.PoolClipboardItem;
+import com.neoalive.tacz_sewv.item.TacticalDataTerminalItem;
 
 /**
  * The bridge's own items. It owns no entities or vehicles — this is only for tools

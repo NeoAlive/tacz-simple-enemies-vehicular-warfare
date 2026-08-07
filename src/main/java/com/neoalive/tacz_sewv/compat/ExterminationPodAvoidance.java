@@ -1,8 +1,9 @@
 package com.neoalive.tacz_sewv.compat;
 
+import java.util.List;
+import java.util.Set;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
@@ -13,8 +14,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-import java.util.Set;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * When {@code /gamerule sewvInvasionOverrides} is on (Extermination present), AI vehicles keep

@@ -1,18 +1,14 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
-import com.neoalive.tacz_sewv.entity.ai.FireMissionSupport;
-import com.neoalive.tacz_sewv.entity.ai.HullLocalScan;
-import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
-import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons;
-import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
-import com.neoalive.tacz_sewv.item.HandheldRadioItem;
-import com.neoalive.tacz_sewv.util.CrewFacts;
-import com.neoalive.tacz_sewv.util.SmokeVision;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
@@ -28,10 +24,16 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import javax.annotation.Nullable;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
+import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
+import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.util.SmokeVision;
 
 /**
  * What one vehicle crew knows about the battlefield. Gathers, never decides.
@@ -209,7 +211,7 @@ public final class Facts {
     public double confidence = Confidence.NEUTRAL;
 
     /**
-     * Outer-ring awareness (never an engageable lock). Written by {@link com.neoalive.tacz_sewv.entity.ai.OuterRingAwareness};
+     * Outer-ring awareness (never an engageable lock). Written by {@link com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness};
      * independent of {@link #enemies} / force-ratio math.
      */
     public boolean outerSpotFresh;
@@ -219,7 +221,7 @@ public final class Facts {
     public double outerSpotStrength;
     /**
      * Fixed look vector for a one-shot cosmetic turret glance after an outer poll spot.
-     * Null when no glance is armed. Consumed by {@link com.neoalive.tacz_sewv.entity.ai.IdleCrewGoal} only —
+     * Null when no glance is armed. Consumed by {@link com.neoalive.tacz_sewv.entity.ai.goal.IdleCrewGoal} only —
      * never setTarget / fire.
      */
     @Nullable
@@ -623,7 +625,7 @@ public final class Facts {
         /**
          * Record an outer-ring (or other non-lock) sighting. Does not set a combat target.
          *
-         * <p>Callers must not overwrite a live engagement: {@link com.neoalive.tacz_sewv.entity.ai.OuterRingAwareness}
+         * <p>Callers must not overwrite a live engagement: {@link com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness}
          * only invokes this when {@code getTarget() == null}.
          */
         public void noteSpot(BlockPos pos, long now) {

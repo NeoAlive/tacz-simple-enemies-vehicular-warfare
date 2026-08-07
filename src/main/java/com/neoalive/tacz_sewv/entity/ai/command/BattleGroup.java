@@ -1,8 +1,9 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.UUID;
+
+import javax.annotation.Nullable;
 
 /**
  * Sticky battle group — identity persists across scans while a quorum of members stay co-located.

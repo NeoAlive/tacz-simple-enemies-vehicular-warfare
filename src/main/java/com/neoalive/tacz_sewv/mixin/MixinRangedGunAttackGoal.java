@@ -1,6 +1,5 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.goals.RangedGunAttackGoal;
 import org.spongepowered.asm.mixin.Final;
@@ -9,6 +8,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 
 /**
  * Stops a mounted crew member from firing its hand-held gun with SEM's

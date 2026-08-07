@@ -1,14 +1,14 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
-import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
-
 import java.util.Arrays;
+
+import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 
 /**
  * Shared geometry helpers for role assignment — sort members by lateral projection on the
  * enemy→us left axis.
  */
-final class PlayGeometry {
+public final class PlayGeometry {
 
     private PlayGeometry() {}
 

@@ -1,8 +1,9 @@
 package com.neoalive.tacz_sewv.debug;
 
 import com.mojang.logging.LogUtils;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import org.slf4j.Logger;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Temporary Stage 3–5 diagnosis logs. Prefix {@code [sewv-diag]} for grepping.

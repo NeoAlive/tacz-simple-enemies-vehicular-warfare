@@ -1,14 +1,14 @@
 package com.neoalive.tacz_sewv.debug;
 
+import java.util.List;
+import java.util.Map;
+
 import com.atsuishio.superbwarfare.data.gun.AmmoConsumer;
 import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
-import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons;
-import com.neoalive.tacz_sewv.util.TankSpawner;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -16,8 +16,9 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import org.slf4j.Logger;
 
-import java.util.List;
-import java.util.Map;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
+import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
  * One-shot / op probe for the per-tick gun-map cache: after an ammo switch, a same-tick

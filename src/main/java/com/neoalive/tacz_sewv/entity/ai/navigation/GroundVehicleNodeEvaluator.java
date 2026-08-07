@@ -1,8 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai.navigation;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
@@ -18,6 +16,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
+
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
  * Vanilla's walking pathfinder sized for the hull the crewman is driving, not for the

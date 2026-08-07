@@ -2,10 +2,6 @@ package com.neoalive.tacz_sewv.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.compat.ExterminationCompat;
-import com.neoalive.tacz_sewv.compat.ExterminationShieldFx;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -19,6 +15,11 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
+
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.compat.ExterminationCompat;
+import com.neoalive.tacz_sewv.compat.ExterminationShieldFx;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Debug wireframe of the Tripod shield prolate spheroid (same math as

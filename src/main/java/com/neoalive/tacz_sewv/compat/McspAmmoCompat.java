@@ -1,12 +1,12 @@
 package com.neoalive.tacz_sewv.compat;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Softcompat for <b>MCSP</b> vehicle ammo. SuperbWarfare's creative ammo box does not feed

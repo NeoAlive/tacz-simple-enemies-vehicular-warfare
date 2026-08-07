@@ -1,11 +1,5 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
-import com.neoalive.tacz_sewv.entity.ai.VehicleAiGoals;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
@@ -14,6 +8,13 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
+import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 
 // RUunitEntity/USunitEntity extend AbstractUnit directly (siblings of PmcUnitEntity, not
 // subclasses), so each needs its own setupRoleGoals() injection to get vehicle AI — one

@@ -1,10 +1,11 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
-import com.neoalive.tacz_sewv.config.ClientConfig;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
 import xaero.map.gui.GuiMap;
+
+import com.neoalive.tacz_sewv.config.ClientConfig;
 
 /**
  * Stops Xaero's World Map from pausing the integrated server — the single thing that made the whole

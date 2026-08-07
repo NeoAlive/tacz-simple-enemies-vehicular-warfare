@@ -1,14 +1,16 @@
 package com.neoalive.tacz_sewv.client;
 
-import com.neoalive.tacz_sewv.util.BattleFieldMarker;
-import com.neoalive.tacz_sewv.util.SweepOverlayState;
-import com.neoalive.tacz_sewv.util.VehicleMarker;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-
-import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import javax.annotation.Nullable;
+
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+
+import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
+import com.neoalive.tacz_sewv.map.BattleFieldMarker;
+import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
  * The client's picture of its own PMC vehicles, as last sent by the server, plus which of them the

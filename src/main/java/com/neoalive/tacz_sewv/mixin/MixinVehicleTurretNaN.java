@@ -39,7 +39,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p>Dropping the write leaves the last good angle in place, so the turret holds its
  * bearing for the bad ticks and resumes the moment a finite solution returns — and a
  * turret that already latched NaN in a saved world recovers instead of staying bricked.
- * {@link com.neoalive.tacz_sewv.entity.ai.VehicleWeapons} separately refuses to select
+ * {@link com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons} separately refuses to select
  * zero-velocity slots, which removes the common cause; this is the backstop for the
  * dynamic cases it can't see (parked {@code AddShooterDeltaMovement} hulls, addon guns
  * whose velocity resolves to 0 only at runtime, poisoned target state).

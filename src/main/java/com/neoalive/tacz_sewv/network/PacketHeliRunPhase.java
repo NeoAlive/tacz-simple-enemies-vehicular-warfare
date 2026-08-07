@@ -1,12 +1,13 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
+import java.util.function.Supplier;
+
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
 
 /** S→C: AI heli run phase (firing-run + RAPPEL) for overlay / client readers (persistentData is not synced). */
 public final class PacketHeliRunPhase {

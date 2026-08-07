@@ -1,7 +1,6 @@
 package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.init.ModSounds;
-import com.neoalive.tacz_sewv.util.ThreatDecoy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
@@ -12,6 +11,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import com.neoalive.tacz_sewv.util.ThreatDecoy;
 
 /**
  * In-flight guided missiles (Javelin / Igla / AGM / Kh-39 / 9M336) play

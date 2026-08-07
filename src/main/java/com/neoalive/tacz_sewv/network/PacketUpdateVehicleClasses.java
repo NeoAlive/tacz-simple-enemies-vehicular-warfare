@@ -1,20 +1,20 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.util.MiscEditorAccess;
-import com.neoalive.tacz_sewv.util.PoolEditorAccess;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
-import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
-import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
-
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.network.NetworkEvent;
+
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.PoolEditorAccess;
+import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
+import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
 
 /** Client → server: replace world vehicle classes / armor with the misc-editor snapshot. */
 public class PacketUpdateVehicleClasses {

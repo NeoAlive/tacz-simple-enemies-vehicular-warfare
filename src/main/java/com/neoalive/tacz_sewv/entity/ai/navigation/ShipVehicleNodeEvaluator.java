@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.entity.ai.navigation;
 
+import java.util.EnumMap;
+import java.util.Map;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.entity.ai.WaterSupport;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
@@ -9,8 +11,7 @@ import net.minecraft.world.level.PathNavigationRegion;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.SwimNodeEvaluator;
 
-import java.util.EnumMap;
-import java.util.Map;
+import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
 
 /**
  * Vanilla's swim pathfinder, sized to the hull, flattened to a surface search, and cost-weighted

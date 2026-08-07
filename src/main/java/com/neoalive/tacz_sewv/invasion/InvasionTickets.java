@@ -1,14 +1,15 @@
 package com.neoalive.tacz_sewv.invasion;
 
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
+import java.util.HashSet;
+import java.util.Set;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraftforge.common.world.ForgeChunkManager;
 
-import java.util.HashSet;
-import java.util.Set;
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
  * Session-scoped force-loads for every known capture_point / team_base chunk.

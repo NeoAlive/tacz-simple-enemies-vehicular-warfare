@@ -1,15 +1,16 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
+import java.util.Map;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import net.minecraft.resources.ResourceLocation;
+
 import com.neoalive.tacz_sewv.entity.ai.utility.Action;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.Signal;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalBrain;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
-import net.minecraft.resources.ResourceLocation;
-
-import java.util.Map;
 
 /**
  * Stage-5 assignment→Signal seam self-check. Run with {@code ./gradlew selfCheckSeam}.

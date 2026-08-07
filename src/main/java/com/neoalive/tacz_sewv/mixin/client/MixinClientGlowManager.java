@@ -1,5 +1,8 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
@@ -10,9 +13,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * SEM stores its selection glow as entity ids.  A driver is normally hidden inside

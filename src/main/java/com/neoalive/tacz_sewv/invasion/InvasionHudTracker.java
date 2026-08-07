@@ -1,12 +1,13 @@
 package com.neoalive.tacz_sewv.invasion;
 
-import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketInvasionHud;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.network.PacketDistributor;
+
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketInvasionHud;
 
 /**
  * Pushes {@link PacketInvasionHud} while a session is active (~1s). Layout lives on

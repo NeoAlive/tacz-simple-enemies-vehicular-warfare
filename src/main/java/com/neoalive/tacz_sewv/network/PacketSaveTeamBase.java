@@ -1,8 +1,9 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
-import com.neoalive.tacz_sewv.util.InvasionBlockEditor;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -13,9 +14,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
+import com.neoalive.tacz_sewv.invasion.InvasionBlockEditor;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /** Client → server: write team_base config from the editor. */
 public class PacketSaveTeamBase {

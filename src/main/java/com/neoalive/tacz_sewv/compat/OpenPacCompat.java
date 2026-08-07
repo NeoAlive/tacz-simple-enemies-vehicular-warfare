@@ -1,7 +1,15 @@
 package com.neoalive.tacz_sewv.compat;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+import javax.annotation.Nullable;
+
 import com.mojang.logging.LogUtils;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -9,13 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraftforge.fml.ModList;
 import org.slf4j.Logger;
 
-import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
  * Soft-compat facade for <b>Open Parties and Claims</b> ({@code openpartiesandclaims}).

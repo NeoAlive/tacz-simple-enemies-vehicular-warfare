@@ -1,37 +1,16 @@
 package com.neoalive.tacz_sewv.command;
 
+import java.nio.file.Path;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import com.neoalive.tacz_sewv.compat.OpenPacCompat;
-import com.neoalive.tacz_sewv.debug.GunCacheProbe;
-import com.neoalive.tacz_sewv.debug.SewvConfigFix;
-import com.neoalive.tacz_sewv.debug.SewvDebugDump;
-import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
-import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
-import com.neoalive.tacz_sewv.bridge.FireMission;
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.IFormationMember;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.entity.ai.DriveHelicopterGoal;
-import com.neoalive.tacz_sewv.entity.ai.HullFacts;
-import com.neoalive.tacz_sewv.invasion.CaptureSupport;
-import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
-import com.neoalive.tacz_sewv.invasion.InvasionLayout;
-import com.neoalive.tacz_sewv.invasion.InvasionSession;
-import com.neoalive.tacz_sewv.invasion.InvasionSpawn;
-import com.neoalive.tacz_sewv.util.EmplacementSpawner;
-import com.neoalive.tacz_sewv.util.EmplacementSpawner.Emplacement;
-import com.neoalive.tacz_sewv.util.SupportSpawner;
-import com.neoalive.tacz_sewv.util.SupportSpawner.SupportRole;
-import com.neoalive.tacz_sewv.util.TankSpawner;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
-import com.neoalive.tacz_sewv.util.VehicleDrops;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -41,17 +20,40 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.network.PacketDistributor;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import javax.annotation.Nullable;
-import java.nio.file.Path;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import com.neoalive.tacz_sewv.bridge.FireMission;
+import com.neoalive.tacz_sewv.bridge.IEscort;
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.compat.OpenPacCompat;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.GunCacheProbe;
+import com.neoalive.tacz_sewv.debug.SewvConfigFix;
+import com.neoalive.tacz_sewv.debug.SewvDebugDump;
+import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
+import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
+import com.neoalive.tacz_sewv.invasion.CaptureSupport;
+import com.neoalive.tacz_sewv.invasion.InvasionLayout;
+import com.neoalive.tacz_sewv.invasion.InvasionSession;
+import com.neoalive.tacz_sewv.invasion.InvasionSpawn;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
+import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
+import com.neoalive.tacz_sewv.spawn.EmplacementSpawner.Emplacement;
+import com.neoalive.tacz_sewv.spawn.SupportSpawner;
+import com.neoalive.tacz_sewv.spawn.SupportSpawner.SupportRole;
+import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.VehicleDrops;
 
 public class SewvCommand {
 
@@ -255,7 +257,7 @@ public class SewvCommand {
             source.sendFailure(Component.translatable("command.tacz_sewv.pool.player_only"));
             return 0;
         }
-        return com.neoalive.tacz_sewv.util.MiscEditorAccess.open(player);
+        return com.neoalive.tacz_sewv.invasion.MiscEditorAccess.open(player);
     }
 
     private static CompletableFuture<Suggestions> suggestOpenPacFactions(

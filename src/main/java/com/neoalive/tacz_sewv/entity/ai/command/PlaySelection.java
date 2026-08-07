@@ -1,8 +1,8 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
-import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
-
 import javax.annotation.Nullable;
+
+import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 
 /**
  * Pure play-selection with hysteresis. {@code !stillValid} aborts immediately; otherwise an

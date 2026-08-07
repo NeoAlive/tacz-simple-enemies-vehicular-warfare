@@ -1,6 +1,5 @@
 package com.neoalive.tacz_sewv.compat;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -10,6 +9,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Cosmetic pod shield flare — fully decoupled from damage cancel.

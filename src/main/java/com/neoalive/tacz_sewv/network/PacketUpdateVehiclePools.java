@@ -1,20 +1,21 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.util.PoolEditorAccess;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
-import com.neoalive.tacz_sewv.util.WorldVehiclePools;
-import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.PoolEditorAccess;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
 
 /** Client → server: replace world vehicle pools with the editor snapshot. */
 public class PacketUpdateVehiclePools {

@@ -1,11 +1,11 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import net.minecraft.resources.ResourceLocation;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Self-check for the utility scorer. Run with {@code ./gradlew selfCheck}.

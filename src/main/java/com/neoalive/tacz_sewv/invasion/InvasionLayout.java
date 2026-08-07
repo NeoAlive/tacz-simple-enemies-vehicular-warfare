@@ -1,5 +1,8 @@
 package com.neoalive.tacz_sewv.invasion;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -7,9 +10,6 @@ import net.minecraft.nbt.LongTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
-
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 /**
  * Per-dimension invasion layout: capture-point ID allocator, known node positions, and

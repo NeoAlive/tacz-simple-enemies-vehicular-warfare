@@ -1,8 +1,6 @@
 package com.neoalive.tacz_sewv.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.config.ClientConfig;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -13,6 +11,9 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
+
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 
 /**
  * Client toggle for SEWV's own Xaero World Map markers — clutter off without opening config.

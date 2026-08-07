@@ -154,7 +154,7 @@ public final class InfluenceMapSelfCheck {
 
     /**
      * Flank mark offsets must be perpendicular to the enemy→us axis — never world ±X.
-     * Uses the same {@link com.neoalive.tacz_sewv.util.BattleFieldMarker} helpers as the packet
+     * Uses the same {@link com.neoalive.tacz_sewv.map.BattleFieldMarker} helpers as the packet
      * packager so a drifted placement formula cannot hide behind the overlay.
      */
     private static void flankOffsetPerpendicularToAxis() {
@@ -177,10 +177,10 @@ public final class InfluenceMapSelfCheck {
         double ex = bf.enemyCentroidX;
         double ez = bf.enemyCentroidZ;
 
-        double lx = com.neoalive.tacz_sewv.util.BattleFieldMarker.flankMarkX(ex, ax, az, +1);
-        double lz = com.neoalive.tacz_sewv.util.BattleFieldMarker.flankMarkZ(ez, ax, az, +1);
-        double rx = com.neoalive.tacz_sewv.util.BattleFieldMarker.flankMarkX(ex, ax, az, -1);
-        double rz = com.neoalive.tacz_sewv.util.BattleFieldMarker.flankMarkZ(ez, ax, az, -1);
+        double lx = com.neoalive.tacz_sewv.map.BattleFieldMarker.flankMarkX(ex, ax, az, +1);
+        double lz = com.neoalive.tacz_sewv.map.BattleFieldMarker.flankMarkZ(ez, ax, az, +1);
+        double rx = com.neoalive.tacz_sewv.map.BattleFieldMarker.flankMarkX(ex, ax, az, -1);
+        double rz = com.neoalive.tacz_sewv.map.BattleFieldMarker.flankMarkZ(ez, ax, az, -1);
 
         double oxL = lx - ex;
         double ozL = lz - ez;
@@ -194,7 +194,7 @@ public final class InfluenceMapSelfCheck {
 
         double lenL = Math.sqrt(oxL * oxL + ozL * ozL);
         double lenR = Math.sqrt(oxR * oxR + ozR * ozR);
-        double off = com.neoalive.tacz_sewv.util.BattleFieldMarker.FLANK_MARK_OFFSET;
+        double off = com.neoalive.tacz_sewv.map.BattleFieldMarker.FLANK_MARK_OFFSET;
         assertNear(off, lenL, 1.0e-9, "left flank at FLANK_MARK_OFFSET");
         assertNear(off, lenR, 1.0e-9, "right flank at FLANK_MARK_OFFSET");
 

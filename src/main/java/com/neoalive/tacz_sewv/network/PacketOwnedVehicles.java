@@ -1,21 +1,23 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.client.MapMarkers;
-import com.neoalive.tacz_sewv.util.BattleFieldMarker;
-import com.neoalive.tacz_sewv.util.CrewFacts;
-import com.neoalive.tacz_sewv.util.MarkerOrder;
-import com.neoalive.tacz_sewv.util.SweepOverlayState;
-import com.neoalive.tacz_sewv.util.VehicleMarker;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
+
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
-import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
+import com.neoalive.tacz_sewv.map.BattleFieldMarker;
+import com.neoalive.tacz_sewv.map.MarkerOrder;
+import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
  * Server→client map sync: crewed vehicles one player's side can see, optional debug

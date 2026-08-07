@@ -1,8 +1,5 @@
 package com.neoalive.tacz_sewv.client;
 
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
-import com.neoalive.tacz_sewv.init.ModEntities;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.resources.ResourceLocation;
@@ -14,6 +11,11 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
+import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
+import com.neoalive.tacz_sewv.init.ModEntities;
 
 /**
  * MOD bus, client dist. Registers renderers for this mod's support-unit entities (reusing SEM's own

@@ -3,7 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai.command;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.Signal;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
-import com.neoalive.tacz_sewv.util.BattleFieldMarker;
+import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 
 /**
  * Shared play scoring sample from a {@link BattleField} — group-level, not crew Facts.

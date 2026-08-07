@@ -1,8 +1,9 @@
 package com.neoalive.tacz_sewv.network;
 
+import java.util.List;
+import java.util.function.Supplier;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.entity.ai.GuardSupport;
-import com.neoalive.tacz_sewv.util.OrderAuth;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -12,8 +13,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import java.util.List;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.crew.OrderAuth;
+import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 
 /**
  * Cache a GUARD_POSITION on each named driver's hull. Does not change the standing SEM order.

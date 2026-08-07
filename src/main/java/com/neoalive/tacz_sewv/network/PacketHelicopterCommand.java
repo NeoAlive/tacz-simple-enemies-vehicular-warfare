@@ -1,26 +1,27 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
-import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.entity.ai.HullFacts;
-import com.neoalive.tacz_sewv.util.CrewRadio;
-import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
-import net.minecraft.util.Mth;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-import net.minecraftforge.network.NetworkEvent;
-
 import java.util.List;
 import java.util.function.Supplier;
+
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.network.NetworkEvent;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
 /**
  * Player → server flight command for owned helicopter crews: takeoff, or land at a
  * looked-at block. Sets the {@link IHelicopterPilot} command that
- * {@link com.neoalive.tacz_sewv.entity.ai.DriveHelicopterGoal} consumes.
+ * {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal} consumes.
  */
 public class PacketHelicopterCommand {
 

@@ -1,11 +1,12 @@
 package com.neoalive.tacz_sewv.config;
 
-import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
+import java.util.Arrays;
+import java.util.List;
+
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.common.ForgeConfigSpec;
 
-import java.util.Arrays;
-import java.util.List;
+import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 
 public final class SewvConfig {
 

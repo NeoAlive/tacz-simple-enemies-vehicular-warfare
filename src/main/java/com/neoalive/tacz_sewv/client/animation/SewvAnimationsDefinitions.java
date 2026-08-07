@@ -49,7 +49,7 @@ public final class SewvAnimationsDefinitions {
 
     /**
      * Kneel / treat — played on a dedicated {@code treatAnimationState} while
-     * {@link com.neoalive.tacz_sewv.entity.ai.MedicControl#isTreating} is true.
+     * {@link com.neoalive.tacz_sewv.entity.ai.support.MedicControl#isTreating} is true.
      */
     public static final AnimationDefinition UNIT_HEAL = AnimationDefinition.Builder.withLength(1.5F).looping()
             .addAnimation("unit", new AnimationChannel(AnimationChannel.Targets.POSITION,

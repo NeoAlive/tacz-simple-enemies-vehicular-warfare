@@ -1,14 +1,11 @@
 package com.neoalive.tacz_sewv.network;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
+
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
-import com.neoalive.tacz_sewv.compat.OpenPacCompat;
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
-import com.neoalive.tacz_sewv.entity.ai.PatrolSupport;
-import com.neoalive.tacz_sewv.sweep.SweepAdvancement;
-import com.neoalive.tacz_sewv.util.OrderAuth;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -21,9 +18,13 @@ import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
+import com.neoalive.tacz_sewv.compat.OpenPacCompat;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.OrderAuth;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
 
 /**
  * Map → server Sweep &amp; Advance: chunk AABB from Xaero MapTileSelection + selected unit ids.

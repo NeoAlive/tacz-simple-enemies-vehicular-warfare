@@ -5,6 +5,7 @@ plugins {
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
     id 'org.spongepowered.mixin' version '[0.7,)'
     id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+    id 'com.diffplug.spotless' version '6.25.0'
 }
 
 version = mod_version
@@ -126,7 +127,7 @@ tasks.register('selfCheckWeapons', JavaExec) {
     description = 'Runs the vehicle-weapon classifier self-check.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
-    mainClass = 'com.neoalive.tacz_sewv.entity.ai.VehicleWeaponsClassifySelfCheck'
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.core.VehicleWeaponsClassifySelfCheck'
     jvmArgs '-ea'
 }
 
@@ -180,7 +181,7 @@ tasks.register('selfCheckHeli', JavaExec) {
     description = 'Runs the guided-heli standoff geometry self-check.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
-    mainClass = 'com.neoalive.tacz_sewv.entity.ai.HeliStandoffSelfCheck'
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.support.HeliStandoffSelfCheck'
     jvmArgs '-ea'
 }
 
@@ -189,7 +190,7 @@ tasks.register('selfCheckHeliArmament', JavaExec) {
     description = 'Runs the heli pilot armament discriminator self-check.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
-    mainClass = 'com.neoalive.tacz_sewv.entity.ai.HeliArmamentSelfCheck'
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.support.HeliArmamentSelfCheck'
     jvmArgs '-ea'
 }
 
@@ -198,7 +199,7 @@ tasks.register('selfCheckOuterRing', JavaExec) {
     description = 'Runs the outer-ring band stagger self-check.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
-    mainClass = 'com.neoalive.tacz_sewv.entity.ai.OuterRingAwarenessSelfCheck'
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwarenessSelfCheck'
     jvmArgs '-ea'
 }
 
@@ -333,4 +334,15 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+// Imports only — no brace/indent rewrite. Groups: static | java/javax | third-party | project.
+spotless {
+    java {
+        target 'src/*/java/**/*.java'
+        removeUnusedImports()
+        importOrder('java', 'javax', '', 'com.neoalive.tacz_sewv')
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
 }

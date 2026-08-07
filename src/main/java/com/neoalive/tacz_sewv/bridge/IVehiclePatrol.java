@@ -1,15 +1,15 @@
 package com.neoalive.tacz_sewv.bridge;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * An area task carried on a unit entity and read by {@link com.neoalive.tacz_sewv.entity.ai.VehicleTargeting}
- * through {@link com.neoalive.tacz_sewv.entity.ai.PatrolSupport}: the driver of a ground hull wanders valid
+ * An area task carried on a unit entity and read by {@link com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting}
+ * through {@link com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport}: the driver of a ground hull wanders valid
  * ground inside a circle around an origin, moving to a fresh point on a timer.
  *
  * <p>Everything here is id-free (a BlockPos origin, a radius, a route of BlockPos, the current

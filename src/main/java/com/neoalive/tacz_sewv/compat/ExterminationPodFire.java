@@ -17,9 +17,10 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Extermination's {@code TripodAngerProcedure} only heat-rays {@code instanceof Player} (and a

@@ -1,6 +1,5 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import com.neoalive.tacz_sewv.navigation.VehiclePathObstacles;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -12,6 +11,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 
 /**
  * Treats SuperbWarfare (and addon) vehicle hitboxes as blocked for SEM infantry pathfinding.

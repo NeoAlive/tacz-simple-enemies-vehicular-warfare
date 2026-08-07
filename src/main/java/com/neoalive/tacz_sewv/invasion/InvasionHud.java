@@ -1,18 +1,20 @@
 package com.neoalive.tacz_sewv.invasion;
 
-import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
-import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
-import com.neoalive.tacz_sewv.config.ClientConfig;
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+import javax.annotation.Nullable;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
-import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
+import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
+import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Session-scoped invasion match HUD: layout computed once at start (A/B bookends + projected

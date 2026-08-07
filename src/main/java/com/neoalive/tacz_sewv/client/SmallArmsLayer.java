@@ -1,11 +1,12 @@
 package com.neoalive.tacz_sewv.client;
 
+import java.util.NoSuchElementException;
+
 import com.atsuishio.superbwarfare.item.gun.GunItem;
 import com.atsuishio.superbwarfare.item.misc.MedicalKitItem;
 import com.atsuishio.superbwarfare.item.misc.MonitorItem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
-import com.neoalive.tacz_sewv.entity.ai.MedicControl;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.HierarchicalModel;
@@ -19,7 +20,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.NoSuchElementException;
+import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
 
 /**
  * Draws a SuperbWarfare gun in a unit's right hand.

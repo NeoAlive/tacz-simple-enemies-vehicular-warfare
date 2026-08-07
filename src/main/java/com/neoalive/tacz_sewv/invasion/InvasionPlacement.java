@@ -1,8 +1,7 @@
 package com.neoalive.tacz_sewv.invasion;
 
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.block.TeamBaseBlock;
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import java.util.Set;
+
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -11,7 +10,9 @@ import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-import java.util.Set;
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.block.TeamBaseBlock;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Hard-cap: at most two {@link TeamBaseBlock}s per dimension.

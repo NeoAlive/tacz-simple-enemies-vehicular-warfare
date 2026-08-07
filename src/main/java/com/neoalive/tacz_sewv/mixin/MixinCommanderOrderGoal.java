@@ -1,9 +1,5 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import com.neoalive.tacz_sewv.bridge.IFormationMember;
-import com.neoalive.tacz_sewv.entity.ai.FollowLeash;
-import com.neoalive.tacz_sewv.entity.ai.FormationShape;
-import com.neoalive.tacz_sewv.entity.ai.VehicleFormation;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
@@ -19,6 +15,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.entity.ai.support.FollowLeash;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 
 /**
  * Two unrelated fixes to SEM's commander-order goal, both gated so a plain SEM infantry

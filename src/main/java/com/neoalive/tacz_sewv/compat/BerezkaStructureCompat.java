@@ -1,9 +1,9 @@
 package com.neoalive.tacz_sewv.compat;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.init.ModGameRules;
-import com.neoalive.tacz_sewv.util.TankSpawner;
-import com.neoalive.tacz_sewv.util.VehicleDrops;
+import java.util.List;
+
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -14,8 +14,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.berezka.berezka_api.API;
 import org.berezka.berezka_api.events.onStructureSpawned;
 
-import javax.annotation.Nullable;
-import java.util.List;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModGameRules;
+import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.util.VehicleDrops;
 
 /**
  * Soft compat with <b>berezka_api</b>: when one of its structures generates, field faction

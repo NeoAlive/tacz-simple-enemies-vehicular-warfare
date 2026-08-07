@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.invasion;
 
-import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -15,9 +17,8 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
  * Per-dimension invasion match state: validate → ticket → teleport → spawn → maintain → teardown.

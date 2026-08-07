@@ -1,12 +1,16 @@
 package com.neoalive.tacz_sewv.client;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.entity.ai.HullFacts;
-import com.neoalive.tacz_sewv.entity.ai.SupportRole;
-import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
-import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -15,13 +19,10 @@ import net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer;
 import net.nekoyuni.SimpleEnemyMod.client.system.ClientGlowManager;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
+import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
  * Client-side unit selection for the Tactical Data Terminal ribbon. Scan matches

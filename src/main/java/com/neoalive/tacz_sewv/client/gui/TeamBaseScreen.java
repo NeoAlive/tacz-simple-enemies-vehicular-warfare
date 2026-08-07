@@ -1,9 +1,9 @@
 package com.neoalive.tacz_sewv.client.gui;
 
-import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
-import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketSaveTeamBase;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -12,9 +12,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketSaveTeamBase;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /** Op config UI for a team_base. Snapshot edited locally; Save pushes {@link PacketSaveTeamBase}. */
 public class TeamBaseScreen extends Screen {

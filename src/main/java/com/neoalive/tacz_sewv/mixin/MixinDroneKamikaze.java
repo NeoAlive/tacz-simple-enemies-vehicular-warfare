@@ -1,11 +1,10 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import java.util.UUID;
+
 import com.atsuishio.superbwarfare.data.drone_attachment.DroneAttachmentData;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.entity.ai.DroneControl;
-import com.neoalive.tacz_sewv.entity.ai.DroneSupport;
-import com.neoalive.tacz_sewv.entity.ai.VehicleTargeting;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -16,7 +15,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.UUID;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.DroneControl;
+import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 
 /**
  * AI kamikaze drones: skip warhead unless dive-armed; never entity-crash the owner/friendlies

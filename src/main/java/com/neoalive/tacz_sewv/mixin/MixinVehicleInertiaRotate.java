@@ -2,11 +2,12 @@ package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.data.vehicle.DefaultVehicleData;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Kills SBW's cosmetic chassis bank ({@code InertiaRotateRate × lateral accel}) while an SEM

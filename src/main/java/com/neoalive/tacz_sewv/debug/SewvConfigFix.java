@@ -1,7 +1,5 @@
 package com.neoalive.tacz_sewv.debug;
 
-import net.minecraftforge.fml.loading.FMLPaths;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
+
+import net.minecraftforge.fml.loading.FMLPaths;
 
 /**
  * Quarantine-only cleanup for {@code /sewv debug StartConfigFix}.

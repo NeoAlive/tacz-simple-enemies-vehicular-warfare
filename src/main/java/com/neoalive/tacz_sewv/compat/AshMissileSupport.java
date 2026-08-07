@@ -1,18 +1,19 @@
 package com.neoalive.tacz_sewv.compat;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.bridge.FireMission;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.entity.ai.HullFacts;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.fml.ModList;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
+import com.neoalive.tacz_sewv.bridge.FireMission;
+import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
 /**
  * Softcompat for ASH coordinate missile systems (Sapsan). Reflects into ashvehicle types so
@@ -55,7 +56,7 @@ public final class AshMissileSupport {
 
     /**
      * Engage when crewing a missile system with a live target or a standing fire mission.
-     * Used by {@link com.neoalive.tacz_sewv.entity.ai.DriveVehicleGoal} to yield MOVE.
+     * Used by {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveVehicleGoal} to yield MOVE.
      */
     public static boolean shouldEngage(AbstractUnit unit) {
         if (!isCrewing(unit)) return false;

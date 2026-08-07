@@ -1,9 +1,11 @@
 package com.neoalive.tacz_sewv.network;
 
+import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.item.gun.special.RepairToolItem;
-import com.neoalive.tacz_sewv.util.CrewFacts;
-import com.neoalive.tacz_sewv.util.VehicleSkinSupport;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -11,8 +13,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.network.NetworkEvent;
 
-import javax.annotation.Nullable;
-import java.util.function.Supplier;
+import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
 
 /**
  * C→S: player chose the next sticky skin (or stock) after sneak-right-clicking a hull with the

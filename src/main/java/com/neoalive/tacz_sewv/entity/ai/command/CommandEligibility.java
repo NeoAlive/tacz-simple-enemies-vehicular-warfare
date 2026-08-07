@@ -1,5 +1,10 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
+import java.util.IdentityHashMap;
+import java.util.Map;
+
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.data.vehicle.VehicleData;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
@@ -8,17 +13,13 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
-import javax.annotation.Nullable;
-import java.util.IdentityHashMap;
-import java.util.Map;
-
 /**
  * Who counts as a command-tier crew: the <b>driver</b> (seat 0) of a ground utility hull.
  *
  * <p><b>Read-only on purpose.</b> SBW's {@code getFirstPassenger()} / {@code getNthEntity} /
  * {@code getSeatIndex} all call {@code checkSeatsSize()}, which can resize
  * {@code orderedPassengers} from {@code computed().seats().size}. Doing that on the command
- * cadence made {@code unit.getVehicle()} flap and {@link com.neoalive.tacz_sewv.entity.ai.VehicleTargetScanGoal}
+ * cadence made {@code unit.getVehicle()} flap and {@link com.neoalive.tacz_sewv.entity.ai.goal.VehicleTargetScanGoal}
  * drop its lock. This class never takes that path:
  * <ul>
  *   <li>Engine type — {@link VehicleData#getDefault(EntityType)} (static datapack), cached per type.</li>

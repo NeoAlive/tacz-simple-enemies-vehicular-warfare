@@ -1,19 +1,19 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.entity.ai.FireMissionSupport;
-import com.neoalive.tacz_sewv.entity.ai.VehicleWeapons.TargetCategory;
-import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
-import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import net.minecraft.util.Mth;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
+import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 
 /**
  * Picks what one crew does next, and sticks with it.

@@ -1,5 +1,11 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -7,12 +13,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 
 /**
  * Stores player-configured doctrines and whether a player has received their initial doctrine book.
@@ -29,7 +29,7 @@ public class PlayerDoctrineData extends SavedData {
 
     public static PlayerDoctrineData load(CompoundTag nbt) {
         PlayerDoctrineData data = new PlayerDoctrineData();
-        
+
         if (nbt.contains("doctrines", Tag.TAG_LIST)) {
             ListTag doctrinesList = nbt.getList("doctrines", Tag.TAG_COMPOUND);
             for (int i = 0; i < doctrinesList.size(); i++) {
@@ -49,7 +49,7 @@ public class PlayerDoctrineData extends SavedData {
                 data.receivedBook.add(tag.getUUID("uuid"));
             }
         }
-        
+
         return data;
     }
 

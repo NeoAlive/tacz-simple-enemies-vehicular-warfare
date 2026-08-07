@@ -1,8 +1,5 @@
 package com.neoalive.tacz_sewv.procedural.events;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.util.EmplacementSpawner;
-import com.neoalive.tacz_sewv.util.TankSpawner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -10,6 +7,10 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
+import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
  * SEM's {@code far_combat} at three times the scale, with armour: two full platoons of infantry

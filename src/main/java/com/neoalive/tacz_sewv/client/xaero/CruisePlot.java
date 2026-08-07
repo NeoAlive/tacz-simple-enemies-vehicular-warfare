@@ -1,13 +1,14 @@
 package com.neoalive.tacz_sewv.client.xaero;
 
-import com.neoalive.tacz_sewv.client.MapMarkers;
-import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
-import net.minecraft.core.BlockPos;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import net.minecraft.core.BlockPos;
+
+import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 
 /**
  * The world map's cruise plotting mode: while it is armed, clicks on the map lay out a route

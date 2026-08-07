@@ -1,7 +1,8 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
-import javax.annotation.Nullable;
 import java.util.List;
+
+import javax.annotation.Nullable;
 
 /**
  * Pure commander election — no world types.

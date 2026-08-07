@@ -1,7 +1,8 @@
 package com.neoalive.tacz_sewv.client.gui;
 
-import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketSaveCapturePoint;
+import java.util.ArrayList;
+import java.util.List;
+
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -9,8 +10,8 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketSaveCapturePoint;
 
 /** Op config UI for a capture_point. Snapshot edited locally; Save pushes {@link PacketSaveCapturePoint}. */
 public class CapturePointScreen extends Screen {

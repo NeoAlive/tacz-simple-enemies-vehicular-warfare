@@ -1,5 +1,9 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.atsuishio.superbwarfare.data.vehicle.VehicleData;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.client.renderer.culling.Frustum;
@@ -14,10 +18,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Coerce;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Hides any mounted unit whose seat encloses it ({@code getHidePassenger}). One mixin for

@@ -1,6 +1,11 @@
 package com.neoalive.tacz_sewv.diplomacy;
 
-import com.neoalive.tacz_sewv.debug.SewvDiag;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
+import javax.annotation.Nullable;
+
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -8,10 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 
-import javax.annotation.Nullable;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
  * SEWV-only faction diplomacy (Stage 4). OpenPAC names identify factions; relationships are never

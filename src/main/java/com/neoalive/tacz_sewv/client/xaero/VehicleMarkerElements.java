@@ -1,14 +1,12 @@
 package com.neoalive.tacz_sewv.client.xaero;
 
+import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.Map;
+
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.client.MapMarkers;
-import com.neoalive.tacz_sewv.config.ClientConfig;
-import com.neoalive.tacz_sewv.util.FactionColors;
-import com.neoalive.tacz_sewv.util.CrewFacts;
-import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
@@ -22,9 +20,12 @@ import xaero.map.element.render.ElementRenderProvider;
 import xaero.map.element.render.ElementRenderer;
 import xaero.map.graphics.renderer.multitexture.MultiTextureRenderTypeRendererProvider;
 
-import java.util.EnumMap;
-import java.util.Iterator;
-import java.util.Map;
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.map.FactionColors;
+import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
  * Crewed vehicles as APP-6 symbols on Xaero's World Map: your own, plus whatever your side has

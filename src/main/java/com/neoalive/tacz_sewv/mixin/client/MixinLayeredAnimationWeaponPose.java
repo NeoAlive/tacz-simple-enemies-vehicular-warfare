@@ -1,7 +1,7 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
-import com.neoalive.tacz_sewv.entity.ai.DroneControl;
-import com.neoalive.tacz_sewv.entity.ai.MedicControl;
+import java.util.List;
+
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.world.entity.Entity;
 import net.nekoyuni.SimpleEnemyMod.entity.client.animation.core.LayeredAnimationManager;
@@ -14,7 +14,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.List;
+import com.neoalive.tacz_sewv.entity.ai.support.DroneControl;
+import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
 
 /**
  * Skip SEM weapon-arm posing while drone-control locked or medic-treating so sit/heal clips

@@ -1,10 +1,9 @@
 package com.neoalive.tacz_sewv.invasion;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
-import com.neoalive.tacz_sewv.util.TankSpawner;
-import com.neoalive.tacz_sewv.util.TankSpawner.TankFaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,8 +13,10 @@ import net.minecraft.world.scores.PlayerTeam;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
  * Stage E: spawn vehicles/crews from placed {@link TeamBaseBlockEntity}s and pin player respawns.

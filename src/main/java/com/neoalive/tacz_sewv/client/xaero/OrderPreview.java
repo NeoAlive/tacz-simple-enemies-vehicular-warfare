@@ -1,8 +1,12 @@
 package com.neoalive.tacz_sewv.client.xaero;
 
-import com.neoalive.tacz_sewv.client.InvasionHudClient;
-import com.neoalive.tacz_sewv.client.MapMarkers;
-import com.neoalive.tacz_sewv.util.VehicleMarker;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -14,12 +18,9 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.network.ModNetworking;
 import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
+import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
  * The "previewOrder" toolkit: the low-opacity, animated overlay that shows an order on the world map,
@@ -28,7 +29,7 @@ import java.util.Set;
  * <p><b>No Xaero type appears here on purpose.</b> The drawing methods take screen pixels the caller
  * ({@code MixinGuiMap}) has already projected from world coordinates, so this stays a plain
  * {@code GuiGraphics} painter. It carries no state of its own either — every overlay is drawn straight
- * from the server-synced {@link com.neoalive.tacz_sewv.util.MarkerOrder} on each marker, or from the
+ * from the server-synced {@link com.neoalive.tacz_sewv.map.MarkerOrder} on each marker, or from the
  * live drag the mixin owns, so an order that is dismissed or overridden simply stops being drawn on
  * the next sync. There is nothing here to leave stuck.
  */

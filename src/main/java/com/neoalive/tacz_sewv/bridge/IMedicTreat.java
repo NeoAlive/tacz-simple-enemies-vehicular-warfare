@@ -4,7 +4,7 @@ import net.minecraft.world.entity.AnimationState;
 
 /**
  * Synched treating flag + dedicated heal {@link AnimationState} for units that run
- * {@link com.neoalive.tacz_sewv.entity.ai.MedicGoal}. RU/US medics own the fields; PMC gets them via
+ * {@link com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal}. RU/US medics own the fields; PMC gets them via
  * {@code MixinPmcUnitEntity}.
  */
 public interface IMedicTreat {

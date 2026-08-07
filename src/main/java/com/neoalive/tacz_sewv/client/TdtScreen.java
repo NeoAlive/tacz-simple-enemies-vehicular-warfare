@@ -1,18 +1,14 @@
 package com.neoalive.tacz_sewv.client;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
+
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.bridge.IFormationMember;
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
-import com.neoalive.tacz_sewv.entity.ai.FormationShape;
-import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
-import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
-import com.neoalive.tacz_sewv.network.PacketReachGuard;
-import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
-import com.neoalive.tacz_sewv.util.VehicleMarker;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -36,12 +32,18 @@ import net.nekoyuni.SimpleEnemyMod.network.ModNetworking;
 import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.IntConsumer;
-import java.util.function.IntSupplier;
+import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.map.VehicleMarker;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
+import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
+import com.neoalive.tacz_sewv.network.PacketReachGuard;
+import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
 
 /**
  * Tactical Data Terminal: left-docked C2 overlay (no world dim) with a category-filtered

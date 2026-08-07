@@ -1,14 +1,15 @@
 package com.neoalive.tacz_sewv.network;
 
-import com.neoalive.tacz_sewv.TaczSewv;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
+
+import com.neoalive.tacz_sewv.TaczSewv;
 
 public class NetworkHandler {
 
@@ -64,7 +65,8 @@ public class NetworkHandler {
     // 38: C→S PacketSetVehicleSkin (sneak-right-click repair tool cycle).
     // 39: Category.HELI in vehicle pool editor packets.
     // 40: misc cue/armor editor open + update packets.
-    private static final String PROTOCOL_VERSION = "40";
+    // 41: PacketVehicleSkin carries sticky RNG salt for numbered skin pools.
+    private static final String PROTOCOL_VERSION = "41";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

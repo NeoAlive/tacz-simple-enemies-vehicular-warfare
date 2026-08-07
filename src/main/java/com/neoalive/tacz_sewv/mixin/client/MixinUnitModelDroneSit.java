@@ -1,7 +1,5 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
-import com.neoalive.tacz_sewv.client.animation.SewvAnimationsDefinitions;
-import com.neoalive.tacz_sewv.entity.ai.DroneControl;
 import net.minecraft.client.model.HierarchicalModel;
 import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.Entity;
@@ -13,6 +11,9 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import com.neoalive.tacz_sewv.client.animation.SewvAnimationsDefinitions;
+import com.neoalive.tacz_sewv.entity.ai.support.DroneControl;
 
 /**
  * While drone-control locked, skip SEM locomotion entirely and play a dedicated sit clip.

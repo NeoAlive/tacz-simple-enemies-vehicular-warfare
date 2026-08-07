@@ -1,8 +1,6 @@
 package com.neoalive.tacz_sewv.entity.unit;
 
 import com.atsuishio.superbwarfare.init.ModItems;
-import com.neoalive.tacz_sewv.bridge.IMedicTreat;
-import com.neoalive.tacz_sewv.entity.ai.SupportUnitGoals;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -14,6 +12,9 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
+
+import com.neoalive.tacz_sewv.bridge.IMedicTreat;
+import com.neoalive.tacz_sewv.entity.ai.goal.SupportUnitGoals;
 
 /**
  * RU squad medic. A {@link RUunitEntity} for all faction purposes (targeting, armor, energy are all

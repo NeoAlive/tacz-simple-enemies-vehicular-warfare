@@ -1,8 +1,8 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
-import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
-
 import java.util.List;
+
+import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 
 /**
  * Headless self-check for commander election. Run via {@code ./gradlew selfCheck}.

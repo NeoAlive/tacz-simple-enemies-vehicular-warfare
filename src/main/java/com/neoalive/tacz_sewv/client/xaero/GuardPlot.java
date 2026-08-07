@@ -1,13 +1,14 @@
 package com.neoalive.tacz_sewv.client.xaero;
 
-import com.neoalive.tacz_sewv.client.MapMarkers;
-import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketSetGuardPosition;
+import java.util.List;
+import java.util.Set;
+
 import net.minecraft.core.BlockPos;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-import java.util.Set;
+import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketSetGuardPosition;
 
 /**
  * World-map GUARD_POSITION plot: one BlockPos for the captured selection. Sibling of

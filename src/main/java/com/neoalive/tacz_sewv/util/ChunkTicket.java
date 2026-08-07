@@ -1,12 +1,13 @@
 package com.neoalive.tacz_sewv.util;
 
-import com.neoalive.tacz_sewv.TaczSewv;
+import javax.annotation.Nullable;
+
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraftforge.common.world.ForgeChunkManager;
 
-import javax.annotation.Nullable;
+import com.neoalive.tacz_sewv.TaczSewv;
 
 /**
  * One force-loaded chunk held on an entity's behalf, following it as it moves.

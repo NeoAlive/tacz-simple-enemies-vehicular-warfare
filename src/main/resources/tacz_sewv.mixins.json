@@ -13,6 +13,7 @@
     "MixinPmcUnitEntity",
     "MixinFactionUnitEntity",
     "MixinCombatEvent",
+    "MixinDynamicEventManager",
     "MixinVillageGarrisonHandler",
     "MixinVehicleFireCooldown",
     "MixinVehicleTurretMobility",

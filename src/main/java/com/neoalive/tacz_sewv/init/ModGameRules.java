@@ -23,6 +23,13 @@ public final class ModGameRules {
             GameRules.register("sewvTanksInEvents", GameRules.Category.SPAWNING, GameRules.BooleanValue.create(true));
 
     /**
+     * When on, SEM {@code DynamicEventManager} multiplies every event's player min/max spawn
+     * distance by 2.5 (this mod's events and SEM's own). Toggle off to restore packed base ranges.
+     */
+    public static final GameRules.Key<GameRules.BooleanValue> FAR_EVENT_SPAWNS =
+            GameRules.register("sewvFarEventSpawns", GameRules.Category.SPAWNING, GameRules.BooleanValue.create(true));
+
+    /**
      * Extermination softcompat only — registered in {@link #bootstrap()} when that mod is loaded.
      * Gates vehicle keep-out of pods, emperor/uber body-glow suppress, and related invasion tweaks.
      */

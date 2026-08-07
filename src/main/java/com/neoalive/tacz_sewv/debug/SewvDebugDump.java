@@ -147,6 +147,7 @@ public final class SewvDebugDump {
         sb.append("sewvUsSpawns=").append(level.getGameRules().getBoolean(ModGameRules.US_SPAWNS)).append('\n');
         sb.append("sewvPmcAmbientSpawns=").append(level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)).append('\n');
         sb.append("sewvTanksInEvents=").append(level.getGameRules().getBoolean(ModGameRules.TANKS_IN_EVENTS)).append('\n');
+        sb.append("sewvFarEventSpawns=").append(level.getGameRules().getBoolean(ModGameRules.FAR_EVENT_SPAWNS)).append('\n');
         if (ModGameRules.INVASION_OVERRIDES != null) {
             sb.append("sewvInvasionOverrides=")
                     .append(level.getGameRules().getBoolean(ModGameRules.INVASION_OVERRIDES))

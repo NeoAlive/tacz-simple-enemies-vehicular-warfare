@@ -53,6 +53,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue DERELICT_HEALTH_FRACTION;
     public static final ForgeConfigSpec.IntValue DERELICT_GUARDS;
     public static final ForgeConfigSpec.IntValue DERELICT_AMMO_COUNT;
+    public static final ForgeConfigSpec.BooleanValue OVERFLIGHT_EVENTS_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue OVERFLIGHT_BASE_CHANCE;
+    public static final ForgeConfigSpec.DoubleValue OVERFLIGHT_FAILURE_MULTIPLIER;
+    public static final ForgeConfigSpec.IntValue OVERFLIGHT_PLANES;
     public static final ForgeConfigSpec.BooleanValue GARRISON_VEHICLES_ENABLED;
     public static final ForgeConfigSpec.DoubleValue GARRISON_VEHICLE_CHANCE;
 
@@ -285,6 +289,14 @@ public final class SewvConfig {
                 .defineInRange("derelictGuards", 4, 0, 12);
         DERELICT_AMMO_COUNT = builder.comment("Ammo left in a derelict hull.")
                 .defineInRange("derelictAmmoCount", 2, 0, 64);
+        OVERFLIGHT_EVENTS_ENABLED = builder.comment("Enable overflight events (RU/US planes from plane pools).")
+                .define("overflightEventsEnabled", true);
+        OVERFLIGHT_BASE_CHANCE = builder.comment("Base overflight event chance per SEM event roll.")
+                .defineInRange("overflightBaseChance", 0.04, 0.0, 1.0);
+        OVERFLIGHT_FAILURE_MULTIPLIER = builder.comment("Overflight chance added after a missed roll.")
+                .defineInRange("overflightFailureMultiplier", 0.04, 0.0, 1.0);
+        OVERFLIGHT_PLANES = builder.comment("Maximum planes in an overflight.")
+                .defineInRange("overflightPlanes", 1, 1, 3);
         GARRISON_VEHICLES_ENABLED = builder.comment("Let village garrisons field one crewed tank.")
                 .define("garrisonVehiclesEnabled", true);
         GARRISON_VEHICLE_CHANCE = builder.comment("Chance that a village garrison gets its tank.")

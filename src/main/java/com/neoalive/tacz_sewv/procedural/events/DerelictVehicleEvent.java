@@ -12,12 +12,14 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
- * A knocked-out RU or US vehicle with its surviving crew camped around it on foot.
+ * A knocked-out vehicle with its surviving crew camped around it on foot. RU/US are the usual
+ * hostile find; when {@code sewvPmcAmbientSpawns} is on, the wreck can instead be an unhired PMC
+ * camp (ownerless {@code FRIENDLY_DEFAULT}, same contract as Berezka PMC structure crews).
  *
  * <p>The counterpart to {@link ConvoyEvent}: something between "a crewed tank comes at you" and
  * "no vehicle at all". The hull is nearly destroyed, has no energy and holds a couple of rounds,
- * so it is <b>salvage, not a threat</b> — the fight is with the survivors, and the prize is a
- * vehicle you can recover if you can repair and refuel it.
+ * so it is <b>salvage, not a threat</b> — the fight (when the faction is hostile) is with the
+ * survivors, and the prize is a vehicle you can recover if you can repair and refuel it.
  *
  * <h2>Two interlocks that are load-bearing and are NOT coded here</h2>
  * Nothing in this class stops the survivors from simply climbing back into the vehicle, and
@@ -26,10 +28,11 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner;
  * <ul>
  *   <li>{@code SeekAbandonedVehicleGoal} refuses any hull below {@code autoBoardMinHealthFraction}
  *       (0.25), and {@code derelictHealthFraction} defaults to 0.15 — <b>under</b> it. Raise it
- *       past that line and the survivors scavenge their own wreck within seconds.
+ *       past that line and the survivors scavenge their own wreck within seconds. That goal is
+ *       RU/US-only, so a PMC derelict is safe from it regardless.
  *   <li>{@code MixinVehicleFactionEnergy} grants infinite energy to any hull whose first passenger
  *       is an RU/US unit. Leaving the crew on the ground is therefore also what keeps the tank
- *       out of fuel — the two are the same fact.
+ *       out of fuel — the two are the same fact. PMC passengers do not trigger that mixin.
  * </ul>
  * Between them, "damaged" and "unfuelled" are one decision, not two, and the event quietly turns
  * into a plain crewed-tank spawn if either is undone.
@@ -81,7 +84,7 @@ public final class DerelictVehicleEvent extends DynamicEvent {
         // we want, and the reason not to try harder to find a spot.
         if (!SpawnHelper.isValidSpawn(level, centerPos)) return false;
 
-        TankSpawner.TankFaction faction = EventSpawns.pickVehicleFaction(level);
+        TankSpawner.TankFaction faction = EventSpawns.pickDerelictFaction(level);
         if (faction == null) return false;
 
         BlockPos hullPos = TankSpawner.adjustHeight(level, centerPos);

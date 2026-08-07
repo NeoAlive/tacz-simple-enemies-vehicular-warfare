@@ -1,5 +1,8 @@
 package com.neoalive.tacz_sewv.procedural.events;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
@@ -8,10 +11,12 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.roles.utils.UnitRole;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
 
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -31,10 +36,28 @@ final class EventSpawns {
     @Nullable
     static AbstractUnit infantry(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction, int scatter) {
         if (!TankSpawner.spawnsEnabled(level, faction)) return null;
-        AbstractUnit unit = faction == TankSpawner.TankFaction.RU
-                ? new RUunitEntity(ModEntities.RUUNIT.get(), level)
-                : new USunitEntity(ModEntities.USUNIT.get(), level);
-        unit.setRole(UnitRole.DEFAULT);
+        if (faction == TankSpawner.TankFaction.PMC
+                && !level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)) {
+            return null;
+        }
+        AbstractUnit unit;
+        switch (faction) {
+            case RU -> {
+                unit = new RUunitEntity(ModEntities.RUUNIT.get(), level);
+                unit.setRole(UnitRole.DEFAULT);
+            }
+            case US -> {
+                unit = new USunitEntity(ModEntities.USUNIT.get(), level);
+                unit.setRole(UnitRole.DEFAULT);
+            }
+            default -> {
+                // Ownerless FRIENDLY_DEFAULT — same contract as Berezka PMC structure crews
+                // (TankSpawner.createCrewUnit with a null ownerId).
+                PmcUnitEntity pmc = new PmcUnitEntity(ModEntities.PMCUNIT.get(), level);
+                pmc.setRole(UnitRole.FRIENDLY_DEFAULT);
+                unit = pmc;
+            }
+        }
 
         int x = anchor.getX() + level.random.nextInt(scatter * 2 + 1) - scatter;
         int z = anchor.getZ() + level.random.nextInt(scatter * 2 + 1) - scatter;
@@ -54,6 +77,38 @@ final class EventSpawns {
     static TankSpawner.TankFaction pickVehicleFaction(ServerLevel level) {
         boolean ru = TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.RU);
         boolean us = TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.US);
+        if (ru && us) return level.random.nextBoolean() ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
+        if (ru) return TankSpawner.TankFaction.RU;
+        return us ? TankSpawner.TankFaction.US : null;
+    }
+
+    /**
+     * Derelict-only: RU/US with a ground pool, plus ownerless PMC when ambient PMC spawns are on.
+     * Uses {@link TankSpawner#hasSpawnableVehicle} (ground) because derelicts come from
+     * {@link TankSpawner#spawnBareVehicle}, not the combat (ground|heli) mix.
+     */
+    @Nullable
+    static TankSpawner.TankFaction pickDerelictFaction(ServerLevel level) {
+        List<TankSpawner.TankFaction> candidates = new ArrayList<>(3);
+        if (TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.RU)) {
+            candidates.add(TankSpawner.TankFaction.RU);
+        }
+        if (TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.US)) {
+            candidates.add(TankSpawner.TankFaction.US);
+        }
+        if (level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)
+                && TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.PMC)) {
+            candidates.add(TankSpawner.TankFaction.PMC);
+        }
+        if (candidates.isEmpty()) return null;
+        return candidates.get(level.random.nextInt(candidates.size()));
+    }
+
+    /** RU or US with a non-empty plane pool — never PMC (overflights must spawn airborne). */
+    @Nullable
+    static TankSpawner.TankFaction pickPlaneFaction(ServerLevel level) {
+        boolean ru = TankSpawner.hasSpawnablePlane(level, TankSpawner.TankFaction.RU);
+        boolean us = TankSpawner.hasSpawnablePlane(level, TankSpawner.TankFaction.US);
         if (ru && us) return level.random.nextBoolean() ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
         if (ru) return TankSpawner.TankFaction.RU;
         return us ? TankSpawner.TankFaction.US : null;

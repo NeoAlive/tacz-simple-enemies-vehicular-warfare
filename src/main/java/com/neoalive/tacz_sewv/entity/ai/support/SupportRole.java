@@ -22,7 +22,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
  * being a rifleman the moment the tool leaves its hands.
  *
  * <p><b>Either hand counts, not just the main one.</b> An engineer's sidearm swap
- * ({@code EngineerLoadout.updateHolster}) puts the repair tool in the OFF hand for the duration of
+ * ({@code UnitHolster.updateHolster}) puts the repair tool in the OFF hand for the duration of
  * a fight — read only the main hand and the role would blink off exactly when the "may it shoot?"
  * question is being asked, which is the one moment it has to be stable.
  */

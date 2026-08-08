@@ -27,6 +27,7 @@
     "MixinVehicleFactionEnergy",
     "MixinVehicleInertiaRotate",
     "MixinVehicleInteractLock",
+    "MixinVehicleMobMeleeDamage",
     "MixinVehicleDeathDrops",
     "MixinRangedGunAttackGoal",
     "MixinMoveToAttackRangeGoal",

@@ -30,6 +30,13 @@ public final class ModGameRules {
             GameRules.register("sewvFarEventSpawns", GameRules.Category.SPAWNING, GameRules.BooleanValue.create(true));
 
     /**
+     * When on, mob melee against SuperbWarfare hulls uses SEWV's score-based damage instead of
+     * datapack {@code DamageModifiers} that zero {@code minecraft:mob_attack}.
+     */
+    public static final GameRules.Key<GameRules.BooleanValue> CAN_MOBS_DAMAGE_VEHICLES =
+            GameRules.register("canMobsDamageVehicles", GameRules.Category.MOBS, GameRules.BooleanValue.create(true));
+
+    /**
      * Extermination softcompat only — registered in {@link #bootstrap()} when that mod is loaded.
      * Gates vehicle keep-out of pods, emperor/uber body-glow suppress, and related invasion tweaks.
      */

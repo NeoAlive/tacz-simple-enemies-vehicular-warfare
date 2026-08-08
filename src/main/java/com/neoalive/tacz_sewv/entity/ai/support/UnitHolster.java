@@ -1,35 +1,102 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
+import java.util.EnumSet;
 import java.util.List;
 
+import com.atsuishio.superbwarfare.entity.vehicle.TowEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.tacz.guns.api.item.IGun;
 import com.tacz.guns.api.item.builder.GunItemBuilder;
 import com.tacz.guns.api.item.gun.FireMode;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
- * Engineer two-handed kit: repair tool + TACZ sidearm, with an authoritative Monitor override
- * while {@link DroneControl#isLocked}. Holster is the sole continuous {@code setItemInHand} writer.
+ * Unit held-item presentation: engineer MAIN↔OFF switching, emplacement in-hand hide, and the
+ * stack chosen for TACZ body-holster rendering ({@code HolsterLayer}).
+ *
+ * <p>HolsterGoal is the sole continuous {@code setItemInHand} writer for engineers. Emplacement
+ * hide is render-only (TOW passenger sync / mortar manning flag). Body holster draw takes an
+ * <b>explicit</b> stack from {@link #holsteredGun} — it does not call TACZ's offhand
+ * {@code HumanoidOffhandRender} pipeline.
  */
-public final class EngineerLoadout {
+public final class UnitHolster {
 
-    private EngineerLoadout() {}
+    /** Synched from {@code MixinAbstractUnit}; false until a mortar crew is at the tube. */
+    public static final EntityDataAccessor<Boolean> MANNING_MORTAR =
+            SynchedEntityData.defineId(AbstractUnit.class, EntityDataSerializers.BOOLEAN);
 
-    public static final class HolsterGoal extends net.minecraft.world.entity.ai.goal.Goal {
+    private static final int SIDEARM_MAGAZINE = 15;
+    private static final int DUMMY_AMMO_RESERVE = 9999;
+
+    private UnitHolster() {}
+
+    // --- Emplacement in-hand hide -----------------------------------------------------------
+
+    /**
+     * When held items should not draw in-hand: crewing a TOW, or standing at a mortar tube.
+     * Approach / path failure / overrun / dead tube clear the mortar flag so the rifle shows again.
+     */
+    public static boolean hideHeldItems(LivingEntity entity) {
+        if (entity.getVehicle() instanceof TowEntity tow && tow.isAlive() && !tow.isWreck()) {
+            return true;
+        }
+        if (!(entity instanceof AbstractUnit)) return false;
+        return entity.getEntityData().get(MANNING_MORTAR);
+    }
+
+    public static void setManningMortar(AbstractUnit unit, boolean manning) {
+        if (unit.level().isClientSide()) return;
+        Boolean cur = unit.getEntityData().get(MANNING_MORTAR);
+        if (cur == manning) return;
+        unit.getEntityData().set(MANNING_MORTAR, manning);
+    }
+
+    // --- TACZ body-holster stack ------------------------------------------------------------
+
+    /**
+     * TACZ gun to draw on the body, or {@link ItemStack#EMPTY}. Never the stack already drawn
+     * in MAIN as a held weapon (avoids double-draw while fighting).
+     */
+    public static ItemStack holsteredGun(LivingEntity entity) {
+        if (entity.isDeadOrDying()) return ItemStack.EMPTY;
+
+        ItemStack main = entity.getMainHandItem();
+        ItemStack off = entity.getOffhandItem();
+
+        if (hideHeldItems(entity)) {
+            if (IGun.getIGunOrNull(main) != null) return main;
+            if (IGun.getIGunOrNull(off) != null) return off;
+            return ItemStack.EMPTY;
+        }
+
+        // Engineer idle: tool MAIN, sidearm OFF — body-draw the OFF gun.
+        if (main.is(ModItems.REPAIR_TOOL.get()) && IGun.getIGunOrNull(off) != null) {
+            return off;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    // --- Engineer kit -----------------------------------------------------------------------
+
+    public static final class HolsterGoal extends Goal {
 
         private final AbstractUnit unit;
 
         public HolsterGoal(AbstractUnit unit) {
             this.unit = unit;
-            this.setFlags(java.util.EnumSet.noneOf(Flag.class));
+            this.setFlags(EnumSet.noneOf(Flag.class));
         }
 
         @Override
@@ -53,9 +120,6 @@ public final class EngineerLoadout {
             updateHolster(this.unit);
         }
     }
-
-    private static final int SIDEARM_MAGAZINE = 15;
-    private static final int DUMMY_AMMO_RESERVE = 9999;
 
     public static void equip(AbstractUnit unit) {
         unit.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModItems.REPAIR_TOOL.get()));
@@ -96,7 +160,6 @@ public final class EngineerLoadout {
         boolean stashPresent = data.getBoolean(DroneControl.STASH_PRESENT);
 
         if (locked && !stashPresent) {
-            // Rising edge: capture MAIN/OFF exactly once for this lock cycle.
             data.put(DroneControl.STASH_MAIN, unit.getMainHandItem().save(new CompoundTag()));
             data.put(DroneControl.STASH_OFF, unit.getOffhandItem().save(new CompoundTag()));
             data.putBoolean(DroneControl.STASH_PRESENT, true);
@@ -108,7 +171,6 @@ public final class EngineerLoadout {
             if (!unit.getMainHandItem().is(ModItems.MONITOR.get())) {
                 unit.setItemInHand(InteractionHand.MAIN_HAND, monitor);
             }
-            // SupportRole reads either hand for the repair tool — keep it in OFF while Monitor is MAIN.
             if (!unit.getOffhandItem().is(ModItems.REPAIR_TOOL.get()) && stashPresent) {
                 ItemStack stashedMain = ItemStack.of(data.getCompound(DroneControl.STASH_MAIN));
                 ItemStack stashedOff = ItemStack.of(data.getCompound(DroneControl.STASH_OFF));
@@ -122,7 +184,6 @@ public final class EngineerLoadout {
         }
 
         if (stashPresent) {
-            // Falling edge: restore once, then clear latch.
             ItemStack main = ItemStack.of(data.getCompound(DroneControl.STASH_MAIN));
             ItemStack off = ItemStack.of(data.getCompound(DroneControl.STASH_OFF));
             unit.setItemInHand(InteractionHand.MAIN_HAND, main);

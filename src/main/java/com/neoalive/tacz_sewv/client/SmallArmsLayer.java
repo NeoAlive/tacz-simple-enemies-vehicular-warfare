@@ -21,8 +21,8 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
 import com.neoalive.tacz_sewv.entity.ai.support.DroneControl;
-import com.neoalive.tacz_sewv.entity.ai.support.EmplacementHands;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
+import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /**
  * Draws a SuperbWarfare gun / monitor / medical kit in a unit's right hand.
@@ -79,7 +79,7 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
                        float netHeadYaw, float headPitch) {
 
         if (entity.isDeadOrDying()) return;
-        if (EmplacementHands.hideHeldItems(entity)) return;
+        if (UnitHolster.hideHeldItems(entity)) return;
 
         ItemStack stack = entity.getItemInHand(InteractionHand.MAIN_HAND);
         if (!(stack.getItem() instanceof GunItem)

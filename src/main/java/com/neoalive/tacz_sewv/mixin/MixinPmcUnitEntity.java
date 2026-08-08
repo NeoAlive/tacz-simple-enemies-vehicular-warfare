@@ -30,7 +30,7 @@ import com.neoalive.tacz_sewv.entity.ai.goal.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.SweepInfantryGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
-import com.neoalive.tacz_sewv.entity.ai.support.EngineerLoadout;
+import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 // IHelicopterPilot, IFormationMember and IVehiclePatrol need no method bodies here — their
 // default methods store the flight state, the formation axis and the patrol order in the
@@ -180,7 +180,7 @@ public abstract class MixinPmcUnitEntity
         ((Mob) self).goalSelector.addGoal(2, new RepairGoal(self));
         // Same pairing the RU/US engineer gets: without the hand swap a PMC engineer with a sidearm
         // would acquire targets it can never shoot, because SEM's rifle goal fires the MAIN hand.
-        ((Mob) self).goalSelector.addGoal(2, new EngineerLoadout.HolsterGoal(self));
+        ((Mob) self).goalSelector.addGoal(2, new UnitHolster.HolsterGoal(self));
         // Priority 1, and it has to be: it must outrank SEM's owner-follow (CommanderOrderGoal,
         // prio 3, holds MOVE for ANY order) and the chase goal (MoveToAttackRangeGoal, prio 3) so a
         // glued escort is never dragged off. PMC-only because escort is a player order. See EscortGoal.

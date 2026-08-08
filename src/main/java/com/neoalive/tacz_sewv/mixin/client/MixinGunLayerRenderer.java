@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.neoalive.tacz_sewv.entity.ai.support.EmplacementHands;
+import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 @Mixin(value = GunLayerRenderer.class, remap = false)
 public abstract class MixinGunLayerRenderer {
@@ -21,7 +21,7 @@ public abstract class MixinGunLayerRenderer {
                                              float partialTicks, float ageInTicks,
                                              float netHeadYaw, float headPitch,
                                              CallbackInfo ci) {
-        if (EmplacementHands.hideHeldItems(entity)) {
+        if (UnitHolster.hideHeldItems(entity)) {
             ci.cancel();
         }
     }

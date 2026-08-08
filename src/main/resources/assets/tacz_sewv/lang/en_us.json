@@ -231,8 +231,14 @@
 
   "block.tacz_sewv.capture_point": "Capture Point",
   "block.tacz_sewv.team_base": "Team Base",
+  "block.tacz_sewv.trench": "Trench",
+  "block.tacz_sewv.trench_x_cross": "Trench Cross",
+  "block.tacz_sewv.foxhole": "Foxhole",
   "item.tacz_sewv.capture_point": "Capture Point",
   "item.tacz_sewv.team_base": "Team Base",
+  "item.tacz_sewv.trench": "Trench",
+  "item.tacz_sewv.trench_x_cross": "Trench Cross",
+  "item.tacz_sewv.foxhole": "Foxhole",
 
   "gui.tacz_sewv.invasion.capture_point.title": "Capture Point",
   "gui.tacz_sewv.invasion.team_base.title": "Team Base",

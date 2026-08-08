@@ -7,7 +7,10 @@ import net.minecraftforge.registries.RegistryObject;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlock;
+import com.neoalive.tacz_sewv.block.FoxholeBlock;
 import com.neoalive.tacz_sewv.block.TeamBaseBlock;
+import com.neoalive.tacz_sewv.block.TrenchBlock;
+import com.neoalive.tacz_sewv.block.TrenchXCrossBlock;
 
 public class ModBlocks {
 
@@ -19,4 +22,14 @@ public class ModBlocks {
 
     public static final RegistryObject<Block> TEAM_BASE =
             BLOCKS.register("team_base", TeamBaseBlock::new);
+
+    public static final RegistryObject<Block> TRENCH =
+            BLOCKS.register("trench", TrenchBlock::new);
+
+    /** Manual {@code +} junction — not auto-selected by trench connections. */
+    public static final RegistryObject<Block> TRENCH_X_CROSS =
+            BLOCKS.register("trench_x_cross", TrenchXCrossBlock::new);
+
+    public static final RegistryObject<Block> FOXHOLE =
+            BLOCKS.register("foxhole", FoxholeBlock::new);
 }

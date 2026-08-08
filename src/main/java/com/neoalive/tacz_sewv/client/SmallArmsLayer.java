@@ -20,61 +20,53 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
+import com.neoalive.tacz_sewv.entity.ai.support.DroneControl;
+import com.neoalive.tacz_sewv.entity.ai.support.EmplacementHands;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
 
 /**
- * Draws a SuperbWarfare gun in a unit's right hand.
+ * Draws a SuperbWarfare gun / monitor / medical kit in a unit's right hand.
  *
  * <p>SimpleEnemyMod's own {@code GunLayerRenderer} is the only held-item layer its unit renderers
  * have, and its second statement is
  * {@code if (!(stack.getItem() instanceof AbstractGunItem)) return;} — a <b>TACZ</b> gun item. An
  * SBW {@code GunItem} is an unrelated class, so an issued launcher was equipped, fired, and
- * completely invisible. There is no vanilla {@code ItemInHandLayer} on these renderers to fall
- * back on either: SEM draws held guns exclusively through that one layer.
+ * completely invisible.
  *
- * <p>The two layers can never both draw: SEM's requires a TACZ item and this one requires an SBW
- * item, and no item is both. So this is additive — nothing about TACZ rifles changes.
- *
- * <p>The arm lookup and the placement transform are lifted verbatim from
- * {@code GunLayerRenderer.renderStandardGun} rather than re-derived, so an SBW launcher sits in
- * the hand exactly where a TACZ rifle does. If SEM ever re-tunes those numbers this will drift and
- * want the same edit — that is the cost of not being able to call a {@code private} method on a
- * layer we do not own, and it is cheaper than a mixin that would have to reproduce the same
- * constants anyway.
- *
- * <p>Hung on all three unit renderers by {@link ClientModEvents}, the same seam
- * {@link BedrockArmorLayer} uses.
+ * <p>SEM parents the humanoid under {@code fakeRoot → unit}. Sit/heal clips move {@code unit}
+ * down, so item draws must apply {@code unit} then {@code rightArm} — arm-only parenting left
+ * kits on the face and monitors above the shoulder while the mesh crouched.
  */
 public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> extends RenderLayer<T, M> {
 
-    /** SEM parents the whole humanoid under a {@code fakeRoot} → {@code unit} bone. */
     private static final String UNIT_PART_NAME = "unit";
     private static final String RIGHT_ARM_PART_NAME = "rightArm";
 
-    // --- Monitor (drone tablet) placement — tweak these, then rebuild/reload client ---
+    // --- Monitor (drone tablet) — local to the arm after unit+arm chain ---
     private static final double MONITOR_TX = 0.05D;
-    private static final double MONITOR_TY = 0.35D;
-    private static final double MONITOR_TZ = 0.12D;
+    private static final double MONITOR_TY = 0.38D;
+    private static final double MONITOR_TZ = 0.10D;
     private static final float MONITOR_YAW = -90.0F;
-    private static final float MONITOR_PITCH = -20.0F;
-    private static final float MONITOR_SCALE = 0.7F;
+    private static final float MONITOR_PITCH = -25.0F;
+    private static final float MONITOR_SCALE = 0.65F;
 
-    // --- Medical kit: neutral lap at rest; heal offsets only while treating ---
+    // --- Medical kit: lap at rest; heal offsets only while treating ---
     private static final double MEDKIT_IDLE_TX = 0.02D;
-    private static final double MEDKIT_IDLE_TY = 0.40D;
+    private static final double MEDKIT_IDLE_TY = 0.42D;
     private static final double MEDKIT_IDLE_TZ = 0.08D;
     private static final float MEDKIT_IDLE_YAW = -90.0F;
-    private static final float MEDKIT_IDLE_PITCH = -15.0F;
-    private static final float MEDKIT_IDLE_SCALE = 0.65F;
+    private static final float MEDKIT_IDLE_PITCH = -20.0F;
+    private static final float MEDKIT_IDLE_SCALE = 0.60F;
 
-    private static final double MEDKIT_HEAL_TX = 0.04D;
-    private static final double MEDKIT_HEAL_TY = 0.55D;
-    private static final double MEDKIT_HEAL_TZ = 0.18D;
-    private static final float MEDKIT_HEAL_YAW = -100.0F;
-    private static final float MEDKIT_HEAL_PITCH = -35.0F;
-    private static final float MEDKIT_HEAL_SCALE = 0.65F;
+    private static final double MEDKIT_HEAL_TX = 0.02D;
+    private static final double MEDKIT_HEAL_TY = 0.48D;
+    private static final double MEDKIT_HEAL_TZ = 0.12D;
+    private static final float MEDKIT_HEAL_YAW = -95.0F;
+    private static final float MEDKIT_HEAL_PITCH = -40.0F;
+    private static final float MEDKIT_HEAL_SCALE = 0.60F;
 
     private HierarchicalModel<?> armModel;
+    private ModelPart unit;
     private ModelPart rightArm;
 
     public SmallArmsLayer(RenderLayerParent<T, M> parent) {
@@ -87,10 +79,9 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
                        float netHeadYaw, float headPitch) {
 
         if (entity.isDeadOrDying()) return;
+        if (EmplacementHands.hideHeldItems(entity)) return;
 
         ItemStack stack = entity.getItemInHand(InteractionHand.MAIN_HAND);
-        // SEM's gun layer takes TACZ; this layer takes SBW guns, medical kits, and the drone
-        // Monitor — plain Items with no ItemInHandLayer on SEM unit renderers.
         if (!(stack.getItem() instanceof GunItem)
                 && !(stack.getItem() instanceof MedicalKitItem)
                 && !(stack.getItem() instanceof MonitorItem)) return;
@@ -100,23 +91,27 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
         if (model != this.armModel) {
             this.armModel = model;
             try {
-                this.rightArm = model.root().getChild(UNIT_PART_NAME).getChild(RIGHT_ARM_PART_NAME);
+                this.unit = model.root().getChild(UNIT_PART_NAME);
+                this.rightArm = this.unit.getChild(RIGHT_ARM_PART_NAME);
             } catch (NoSuchElementException e) {
-                this.rightArm = null; // a model shaped differently than SEM's: draw nothing rather than crash
+                this.unit = null;
+                this.rightArm = null;
             }
         }
-        if (this.rightArm == null) return;
+        if (this.unit == null || this.rightArm == null) return;
 
         poseStack.pushPose();
+        // Sit/heal move `unit` down; arm-only parenting left kits/monitors at standing height.
+        // Guns keep SEM's arm-only chain so TACZ parity offsets stay valid.
+        boolean crouchedItem = stack.getItem() instanceof MonitorItem
+                || stack.getItem() instanceof MedicalKitItem;
+        if (crouchedItem || MedicControl.isTreating(entity) || DroneControl.isLocked(entity)) {
+            this.unit.translateAndRotate(poseStack);
+        }
         this.rightArm.translateAndRotate(poseStack);
 
         if (stack.getItem() instanceof MonitorItem) {
-            // Tunable lap/hand placement under UNIT_SIT (gun offsets put this above the head).
-            // Axes are AFTER rightArm.translateAndRotate — local to the folded arm bone:
-            //   X = left(+)/right(-) of the arm   Y = along the arm toward fingertips(+)
-            //   Z = forward(+)/back of the palm plane
-            // Rotations: YP spins the tablet face; XP tips it toward/away from the lap.
-            // Scale: negative Y/Z match SBW third-person item convention (same as guns).
+            // After unit+arm: X left(+)/right(-), Y toward fingertips(+), Z palm forward(+).
             poseStack.translate(MONITOR_TX, MONITOR_TY, MONITOR_TZ);
             poseStack.mulPose(Axis.YP.rotationDegrees(MONITOR_YAW));
             poseStack.mulPose(Axis.XP.rotationDegrees(MONITOR_PITCH));
@@ -134,15 +129,13 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
             poseStack.mulPose(Axis.XP.rotationDegrees(pitch));
             poseStack.scale(scale, -scale, -scale);
         } else {
+            // SEM GunLayerRenderer.renderStandardGun constants (TACZ parity).
             poseStack.translate(-0.06D, 0.73D, 0.3D);
             poseStack.mulPose(Axis.YP.rotationDegrees(-180));
             poseStack.mulPose(Axis.XP.rotationDegrees(-90));
             poseStack.scale(1.0F, -1.0F, -1.0F);
         }
 
-        // renderStatic is what ItemInHandRenderer delegates to, and it honours the item's custom
-        // renderer — which matters here, because every SBW gun supplies its own geo model through
-        // initializeClient rather than a flat item texture.
         Minecraft.getInstance().getItemRenderer().renderStatic(
                 entity, stack, ItemDisplayContext.THIRD_PERSON_RIGHT_HAND, false,
                 poseStack, buffer, entity.level(), packedLight, OverlayTexture.NO_OVERLAY,

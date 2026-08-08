@@ -58,6 +58,8 @@ public class MedicGoal extends Goal {
     private AbstractUnit patient;
     private int cooldown;
     private int approachTicks;
+    /** Goal ticks until the next heal pulse while still treating this patient. */
+    private int pulseCooldown;
     /** One healing voiceline per treat session, not per drip pulse. */
     private boolean healingVoiced;
 
@@ -105,6 +107,7 @@ public class MedicGoal extends Goal {
     @Override
     public void start() {
         this.approachTicks = 0;
+        this.pulseCooldown = 0;
         this.healingVoiced = false;
         if (this.patient != this.unit) {
             this.unit.getNavigation().moveTo(this.patient, 1.0);
@@ -116,6 +119,7 @@ public class MedicGoal extends Goal {
         this.unit.getNavigation().stop();
         this.patient = null;
         this.approachTicks = 0;
+        this.pulseCooldown = 0;
         this.healingVoiced = false;
         MedicControl.setTreating(this.unit, false);
     }
@@ -139,7 +143,12 @@ public class MedicGoal extends Goal {
             this.unit.getNavigation().stop();
         }
 
+        // Hold treating for the whole in-range session (like engineer drone lock), not one pulse.
         MedicControl.setTreating(this.unit, true);
+        if (this.pulseCooldown > 0) {
+            this.pulseCooldown--;
+            return;
+        }
         treat();
     }
 
@@ -150,8 +159,7 @@ public class MedicGoal extends Goal {
         if (issuedKit() != null) {
             this.patient.heal(SewvConfig.MEDIC_HEAL_PER_TREAT.get().floatValue());
             playTreatSound();
-            this.cooldown = DRIP_TREAT_COOLDOWN;
-            this.patient = null; // re-evaluated next canUse; usually the same patient, still hurt
+            this.pulseCooldown = DRIP_TREAT_COOLDOWN;
             return;
         }
 
@@ -168,8 +176,8 @@ public class MedicGoal extends Goal {
         // A consumed kit does its full job — SuperbWarfare's heal + Regeneration II.
         medkit.treat(this.patient);
         playTreatSound();
-        this.cooldown = TREAT_COOLDOWN;
-        this.patient = null;
+        this.pulseCooldown = TREAT_COOLDOWN;
+        // Keep the patient for the session; canContinueToUse drops out when healed or out of kits.
     }
 
     private void playTreatSound() {

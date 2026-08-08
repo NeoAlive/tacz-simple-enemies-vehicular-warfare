@@ -12,6 +12,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
+
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
 public abstract class MixinVehicleInteractLock {
 
@@ -29,6 +31,8 @@ public abstract class MixinVehicleInteractLock {
                 return;
             }
         }
+        // Unlocked NPC hull — fill EngineType loot into inventory before the player opens it.
+        VehicleEngineLoot.tryApplyOnUnlock(self);
         // No enemy crew → let SW's normal interact run (fall through, no cancel)
     }
 }

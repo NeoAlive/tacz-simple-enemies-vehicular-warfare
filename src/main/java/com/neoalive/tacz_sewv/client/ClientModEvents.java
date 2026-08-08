@@ -13,6 +13,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.client.skin.ArmorSkinRegistry;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
 import com.neoalive.tacz_sewv.init.ModEntities;
@@ -50,7 +51,10 @@ public class ClientModEvents {
      */
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
-        event.enqueueWork(VehicleSkinRegistry::reload);
+        event.enqueueWork(() -> {
+            VehicleSkinRegistry.reload();
+            ArmorSkinRegistry.reload();
+        });
         if (ModList.get().isLoaded(XaeroMapCompat.MODID)) {
             XaeroMapCompat.register();
         }

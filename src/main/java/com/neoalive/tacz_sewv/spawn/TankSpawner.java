@@ -42,6 +42,7 @@ import com.neoalive.tacz_sewv.compat.McspAmmoCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
+import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
 public final class TankSpawner {
@@ -299,6 +300,9 @@ public final class TankSpawner {
         }
 
         VehicleSkinSupport.applySpawnFaction(plane, faction);
+        if (faction == TankFaction.RU || faction == TankFaction.US) {
+            VehicleEngineLoot.markPending(plane);
+        }
         return plane;
     }
 
@@ -383,6 +387,9 @@ public final class TankSpawner {
         // Source-based paint: command/event crewed spawns always get the faction skin. Field
         // captures keep the chance roll in VehicleSkinEvents.onMount instead.
         VehicleSkinSupport.applySpawnFaction(tank, faction);
+        if (faction == TankFaction.RU || faction == TankFaction.US) {
+            VehicleEngineLoot.markPending(tank);
+        }
         return tank;
     }
 

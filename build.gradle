@@ -282,6 +282,13 @@ dependencies {
     if (project.hasProperty('withExtermination')) {
         runtimeOnly fg.deobf("blank:extermination:1.0")
     }
+    // Soft: Configured (in-game ForgeConfigSpec GUI). No compileOnly / no Java references —
+    // declaration-only; Configured reads ConfigTracker for SERVER SewvConfig. Jar off the run
+    // classpath by default; opt in with:
+    //   ./gradlew runClient -PwithConfigured
+    if (project.hasProperty('withConfigured')) {
+        runtimeOnly fg.deobf("blank:configured:1.0")
+    }
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

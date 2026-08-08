@@ -19,14 +19,15 @@ import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
  * While treating, skip SEM locomotion and play {@link SewvAnimationsDefinitions#UNIT_HEAL}.
  * Same dedicated-{@link AnimationState} shape as {@link MixinUnitModelDroneSit}.
  */
-@Mixin(value = {RUunitModel.class, USunitModel.class, PmcUnitModel.class}, remap = false)
+@Mixin({RUunitModel.class, USunitModel.class, PmcUnitModel.class})
 public abstract class MixinUnitModelMedicHeal {
 
     @Inject(
             method = "setupAnim",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/nekoyuni/SimpleEnemyMod/entity/client/animation/core/LayeredAnimationManager;update(Lnet/minecraft/world/entity/Entity;I)V"
+                    target = "Lnet/nekoyuni/SimpleEnemyMod/entity/client/animation/core/LayeredAnimationManager;update(Lnet/minecraft/world/entity/Entity;I)V",
+                    remap = false
             ),
             cancellable = true
     )

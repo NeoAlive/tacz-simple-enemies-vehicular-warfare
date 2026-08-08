@@ -24,14 +24,15 @@ import com.neoalive.tacz_sewv.entity.ai.support.DroneControl;
  * Cancelling at {@code update} keeps that layer off the path; sit uses its own
  * {@link AnimationState} that is only started once per lock.
  */
-@Mixin(value = {RUunitModel.class, USunitModel.class, PmcUnitModel.class}, remap = false)
+@Mixin({RUunitModel.class, USunitModel.class, PmcUnitModel.class})
 public abstract class MixinUnitModelDroneSit {
 
     @Inject(
             method = "setupAnim",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/nekoyuni/SimpleEnemyMod/entity/client/animation/core/LayeredAnimationManager;update(Lnet/minecraft/world/entity/Entity;I)V"
+                    target = "Lnet/nekoyuni/SimpleEnemyMod/entity/client/animation/core/LayeredAnimationManager;update(Lnet/minecraft/world/entity/Entity;I)V",
+                    remap = false
             ),
             cancellable = true
     )

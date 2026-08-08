@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 
@@ -161,9 +162,10 @@ public final class FireMissionSupport {
             if (crew instanceof PmcUnitEntity pmc) {
                 pmc.setAttackTargetId(target.getId());
                 pmc.setOrder(OrderType.ATTACK_THAT_TARGET);
-            } else {
-                // No order queue on RU/US — hand the target over directly. Their own scan may
-                // replace it later, which is the same deal a drone's relayed sighting gets.
+            } else if (VehicleTargeting.mayAssignTarget(crew, target)) {
+                // No order queue on RU/US — hand the target over directly. Honour SEM's
+                // faction-friendly toggles so a radio/utility call cannot put a friendly
+                // player/PMC onto an RU/US tube.
                 crew.setTarget(target);
             }
         }

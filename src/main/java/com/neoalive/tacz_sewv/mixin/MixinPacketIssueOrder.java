@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
@@ -63,6 +64,9 @@ public abstract class MixinPacketIssueOrder {
         }
         // Any player SEM order cancels an in-flight REACH promote (FREE_FIRE included).
         GuardSupport.clearReach(pmc);
+        // EscortGoal is priority 1 MOVE and ignores the SEM order — an uncleared VIP steals
+        // MOVE_TO_POSITION / FOLLOW / HOLD until the escort id is dropped.
+        ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
 
         if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
             CrewRadio.play(hull, CrewRadio.Line.ORDERS);

@@ -31,6 +31,8 @@
     "MixinVehicleDeathDrops",
     "MixinRangedGunAttackGoal",
     "MixinMoveToAttackRangeGoal",
+    "MixinSemOnFootTacticalGoals",
+    "MixinTacticalManagerGoal",
     "MixinCommanderOrderGoal",
     "MixinWalkNodeEvaluator",
     "MixinDroneKamikaze",

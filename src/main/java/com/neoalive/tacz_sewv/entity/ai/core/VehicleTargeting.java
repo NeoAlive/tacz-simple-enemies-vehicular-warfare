@@ -61,8 +61,10 @@ public final class VehicleTargeting {
     private static final double ASSIST_RING_DEADBAND = 4.0;
     // How close a hull parks to an ordinary destination, on top of its own width. Deliberately
     // loose: closing to within a hull length of a combat approach is the last thing armor should
-    // do. A formation slot needs the opposite and overrides it — see arrivalDistance.
+    // do. A formation slot and a player MOVE click need the opposite — see arrivalDistance.
     private static final double STOP_DISTANCE = 8.0;
+    /** Player MOVE click: park near the point, not a hull-length short of it. */
+    private static final double MOVE_STOP_DISTANCE = 2.0;
 
     // Resolve where a mounted crew should head. Returns null when there is nowhere
     // to go (holding position, no target, nothing to reinforce). `assist` carries
@@ -154,7 +156,8 @@ public final class VehicleTargeting {
      * vehicleFormationSpacing apart, while the generic answer is a hull width plus
      * {@link #STOP_DISTANCE} — for a 4.62-wide T-90A that is 11.62 blocks, wider than the whole
      * formation, so every hull would read "arrived" from anywhere in it and the wedge would
-     * collapse onto the point man.
+     * collapse onto the point man. A player MOVE click uses a tighter stop so the hull actually
+     * reaches the ordered point.
      */
     public static double arrivalDistance(AbstractUnit unit, VehicleEntity vehicle) {
         if (unit instanceof PmcUnitEntity pmc) {
@@ -162,8 +165,22 @@ public final class VehicleTargeting {
             if (order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN) {
                 return FORMATION_ARRIVE_RADIUS;
             }
+            if (order == OrderType.MOVE_TO_POSITION) {
+                return Math.max(vehicle.getBbWidth() * 0.5, MOVE_STOP_DISTANCE);
+            }
         }
         return vehicle.getBbWidth() - 1.0 + STOP_DISTANCE;
+    }
+
+    /**
+     * Mounted MOVE must keep driving the click through contact — same commitment as an area
+     * task / capture approach. Fire assist still runs; only locomotion stays on the order.
+     */
+    public static boolean holdsOrderedMove(AbstractUnit unit) {
+        if (!(unit instanceof PmcUnitEntity pmc)) return false;
+        if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) return false;
+        Vec3 dest = pmc.getMoveToTarget();
+        return dest != null && !dest.equals(Vec3.ZERO);
     }
 
     /**

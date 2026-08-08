@@ -24,7 +24,9 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.navigation.ShipVehicleNodeEvaluator;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ShipTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
+import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
+import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 
 /**
  * Drives a ship. Separate from {@link DriveVehicleGoal} because a hull that floats handles nothing
@@ -188,11 +190,28 @@ public class DriveShipGoal extends Goal {
         }
 
         if (target != null) {
-            // dest is already the target's position pulled onto water (resolveDestination returns
-            // the target for every order that fights), so combat reuses it rather than re-running
-            // the projection scan every tick.
-            fightTick(target, dest);
-            return;
+            // MOVE (and area/capture holds) keep the ordered waypoint; only hurt crews break off.
+            if (VehicleTargeting.holdsOrderedMove(this.unit)
+                    || PatrolSupport.holdsCourseThroughContact(this.unit)
+                    || CaptureOrderSupport.holdsCourseThroughContact(this.unit)) {
+                if (!isLowHealth()) {
+                    selectWeaponForTarget(target);
+                    if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL) {
+                        VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
+                                SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+                    }
+                    // Fall through to transit / park on dest below.
+                } else {
+                    fightTick(target, dest);
+                    return;
+                }
+            } else {
+                // dest is already the target's position pulled onto water (resolveDestination returns
+                // the target for every order that fights), so combat reuses it rather than re-running
+                // the projection scan every tick.
+                fightTick(target, dest);
+                return;
+            }
         }
 
         double dx = dest.getX() + 0.5 - this.vehicle.getX();

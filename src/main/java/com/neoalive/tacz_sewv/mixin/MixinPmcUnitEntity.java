@@ -4,12 +4,15 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
@@ -22,8 +25,11 @@ import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.FollowCommanderGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.MoveToPositionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcCombatDebugGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
@@ -66,6 +72,14 @@ public abstract class MixinPmcUnitEntity
 
     @Unique
     private int tacz_sewv$mortarTargetId = IMortarCrew.NO_MORTAR;
+
+    /**
+     * Stash for {@link #tacz_sewv$keepDiplomacyPlayerTarget}: SEM 0.1.6's PmcUnitEntity.setTarget
+     * hard-clears any Player to null before AbstractUnit runs, which would kill OpenPAC ENEMY
+     * locks on opposing players. We only need the original argument on the Player→null branch.
+     */
+    @Unique
+    private LivingEntity tacz_sewv$pendingSetTarget;
 
     @Override
     public void tacz_sewv$setMountTargetId(int id) {
@@ -132,6 +146,37 @@ public abstract class MixinPmcUnitEntity
         ((Entity) (Object) this).getEntityData().define(tacz_sewv$TREATING, false);
     }
 
+    @Inject(method = "setTarget", at = @At("HEAD"))
+    private void tacz_sewv$stashSetTarget(LivingEntity target, CallbackInfo ci) {
+        this.tacz_sewv$pendingSetTarget = target;
+    }
+
+    /**
+     * SEM clears {@code setTarget(Player)} to null. Ordinal 0 is that branch's
+     * {@code super.setTarget(null)}; when the stashed target is a diplomacy ENEMY player, pass
+     * them through so {@code MixinAbstractUnit} and the rest of the ladder still see them.
+     * Non-diplomacy Players stay nulled.
+     */
+    @ModifyArg(
+            method = "setTarget",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/nekoyuni/SimpleEnemyMod/entity/unit/AbstractUnit;setTarget(Lnet/minecraft/world/entity/LivingEntity;)V",
+                    ordinal = 0))
+    private LivingEntity tacz_sewv$keepDiplomacyPlayerTarget(LivingEntity cleared) {
+        LivingEntity pending = this.tacz_sewv$pendingSetTarget;
+        if (pending instanceof Player
+                && VehicleTargeting.isDiplomacyEnemy((PmcUnitEntity) (Object) this, pending)) {
+            return pending;
+        }
+        return cleared;
+    }
+
+    @Inject(method = "setTarget", at = @At("TAIL"))
+    private void tacz_sewv$clearSetTargetStash(LivingEntity target, CallbackInfo ci) {
+        this.tacz_sewv$pendingSetTarget = null;
+    }
+
     /**
      * The formation axis is ours — PacketVehicleFormation is its only writer — so any other path
      * assigning this unit a slot means it has joined someone else's formation and must not carry
@@ -171,6 +216,11 @@ public abstract class MixinPmcUnitEntity
         // Same pairing the RU/US engineer gets: without the hand swap a PMC engineer with a sidearm
         // would acquire targets it can never shoot, because SEM's rifle goal fires the MAIN hand.
         ((Mob) self).goalSelector.addGoal(2, new UnitHolster.HolsterGoal(self));
+        // Priority 1 stick for FOLLOW_ME — same reason as EscortGoal. CommanderOrderGoal (prio 3)
+        // yields to combat; this one does not. See FollowCommanderGoal.
+        ((Mob) self).goalSelector.addGoal(1, new FollowCommanderGoal(self));
+        // Priority 1 MOVE stick — SeekCover (2) and formationIndex columning otherwise miss the click.
+        ((Mob) self).goalSelector.addGoal(1, new MoveToPositionGoal(self));
         // Priority 1, and it has to be: it must outrank SEM's owner-follow (CommanderOrderGoal,
         // prio 3, holds MOVE for ANY order) and the chase goal (MoveToAttackRangeGoal, prio 3) so a
         // glued escort is never dragged off. PMC-only because escort is a player order. See EscortGoal.

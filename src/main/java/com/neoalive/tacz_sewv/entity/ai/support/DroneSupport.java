@@ -246,6 +246,7 @@ public final class DroneSupport {
         for (AbstractUnit candidate : level.getEntitiesOfClass(AbstractUnit.class, box, u ->
                 u.isAlive() && u != owner && u.getTarget() == null
                         && VehicleTargeting.isSameFaction(owner, u)
+                        && VehicleTargeting.mayAssignTarget(u, target)
                         && u.position().distanceToSqr(from) <= radiusSq)) {
             candidate.setTarget(target);
         }

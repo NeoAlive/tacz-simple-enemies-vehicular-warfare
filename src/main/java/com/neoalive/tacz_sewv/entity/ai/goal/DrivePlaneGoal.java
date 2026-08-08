@@ -415,7 +415,7 @@ public class DrivePlaneGoal extends Goal {
 
     private void inheritTargetFromUnit(AbstractUnit ally) {
         LivingEntity theirs = ally.getTarget();
-        if (theirs != null && theirs.isAlive() && theirs != this.unit) {
+        if (VehicleTargeting.mayAssignTarget(this.unit, theirs) && theirs != this.unit) {
             this.unit.setTarget(theirs);
         }
     }

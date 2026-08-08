@@ -466,6 +466,19 @@ public final class VehicleTargeting {
     }
 
     /**
+     * Whether SEWV may <b>assign</b> {@code target} to {@code unit} (scan lock, broadcast,
+     * fire-mission hand-off, escort inherit). Negation of {@link #isNonHostile} — same SEM
+     * faction-friendly rules as on-foot (RU/US↔Player/PMC both ways; PMC↔RU/US when that
+     * faction's toggle is on), plus same-faction / creative-spectator and diplomacy ENEMY.
+     *
+     * <p>Does <b>not</b> replace SEM's own HurtBy retaliation on the unit that was hit; it gates
+     * every SEWV-owned path that would spread or invent a lock.
+     */
+    public static boolean mayAssignTarget(AbstractUnit unit, @Nullable LivingEntity target) {
+        return target != null && target.isAlive() && !isNonHostile(unit, target);
+    }
+
+    /**
      * True when Stage 4 diplomacy says these two are enemies. Used by {@code MixinAbstractUnit}'s
      * setTarget veto so an ENEMY pair is not cancelled by the SEM same-class friendly gate.
      */
@@ -643,15 +656,22 @@ public final class VehicleTargeting {
         return null;
     }
 
-    // SEM's per-faction "friendly with Players and PMC Units" toggle, from the cache above rather
-    // than the live config — see refreshFactionFriendlyFlags. PMC has no such toggle: its friend/foe
-    // rules are the per-goal Enemy checks, so it never reaches here.
+    // SEM's per-faction "friendly with Players and PMC Units" toggle — see refreshFactionFriendlyFlags.
+    // Both directions: RU/US shooters skip Player/PMC when their flag is on; PMC shooters skip that
+    // faction when its flag is on (SEM's on-foot PmcUnitEntity only installs RU/US target goals
+    // when the flag is off — VehicleTargetScanGoal used to miss that and keep locking via Enemy).
     private static boolean friendlyFlagShields(AbstractUnit unit, LivingEntity target) {
-        boolean friendly;
-        if (unit instanceof RUunitEntity) friendly = ruUnitsFriendly;
-        else if (unit instanceof USunitEntity) friendly = usUnitsFriendly;
-        else return false;
-        return friendly && (target instanceof Player || target instanceof PmcUnitEntity);
+        if (unit instanceof RUunitEntity) {
+            return ruUnitsFriendly && (target instanceof Player || target instanceof PmcUnitEntity);
+        }
+        if (unit instanceof USunitEntity) {
+            return usUnitsFriendly && (target instanceof Player || target instanceof PmcUnitEntity);
+        }
+        if (unit instanceof PmcUnitEntity) {
+            if (target instanceof RUunitEntity) return ruUnitsFriendly;
+            if (target instanceof USunitEntity) return usUnitsFriendly;
+        }
+        return false;
     }
 
     /**

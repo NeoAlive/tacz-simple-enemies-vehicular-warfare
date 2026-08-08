@@ -108,3 +108,12 @@ config="tacz_sewv.xaero.mixins.json"
     versionRange="[0,)"
     ordering="NONE"
     side="BOTH"
+
+# Soft compat: Configured (in-game ForgeConfigSpec GUI). Optional — no SEWV Java references;
+# Configured discovers SewvConfig via ConfigTracker (SERVER included). Absent installs are identical.
+[[dependencies.tacz_sewv]]
+    modId="configured"
+    mandatory=false
+    versionRange="[2.2.3,)"
+    ordering="NONE"
+    side="CLIENT"

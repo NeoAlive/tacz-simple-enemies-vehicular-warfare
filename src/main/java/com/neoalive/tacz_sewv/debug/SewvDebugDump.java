@@ -34,7 +34,8 @@ public final class SewvDebugDump {
 
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final String[] SOFT_DEPS = {
-            "berezka_api", "xaeroworldmap", "openpartiesandclaims", "fcp", "mcsp", "ashvehicle"
+            "berezka_api", "xaeroworldmap", "openpartiesandclaims", "fcp", "mcsp", "ashvehicle",
+            "configured"
     };
 
     private SewvDebugDump() {}
@@ -217,6 +218,13 @@ public final class SewvDebugDump {
         }
         sb.append("spawn_gates_in_live_serverconfig=").append(spawnGates)
                 .append(" (dead section — gamerules replaced it; dump-only, StartConfigFix will not rewrite live serverconfig)\n");
+
+        // Path-mismatch evidence only — do not recommend Configured on a clean dump.
+        boolean pathMismatch = orphanPresent || Files.isRegularFile(misplacedServer);
+        if (pathMismatch && !ModList.get().isLoaded("configured")) {
+            sb.append("recommendation=Install Configured to browse/edit the live SERVER SewvConfig ")
+                    .append("(per-world serverconfig/), not orphan/misplaced files under global config/.\n");
+        }
         sb.append('\n');
     }
 

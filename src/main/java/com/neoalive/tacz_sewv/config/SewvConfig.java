@@ -10,7 +10,7 @@ import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 
 public final class SewvConfig {
 
-    // Forge preserves existing toml values; delete the relevant toml to receive retuned defaults.
+    // Minecraft keeps your existing config file. Delete it (or individual keys) to pick up new defaults.
     public static final ForgeConfigSpec SPEC;
 
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_RU;
@@ -184,7 +184,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue SWEEP_QUIET_SECONDS;
     public static final ForgeConfigSpec.IntValue SWEEP_MAX_CHUNK_AREA;
 
-    /** Invasion match HUD palette (hex RGB, no alpha). Team A/B follow layout bookend order. */
+    /** Invasion HUD colours (hex RGB). Team A/B match the left/right bases on the layout. */
     public static final ForgeConfigSpec.BooleanValue UNLIMITED_TEAM_BASES;
     public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_TEAM_A_COLOR;
     public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_TEAM_B_COLOR;
@@ -192,7 +192,7 @@ public final class SewvConfig {
 
     public static final ForgeConfigSpec.IntValue[][] DOCTRINE;
 
-    // Softcompat: Extermination Tripod shield (ranged block + HP + cosmetic flare).
+    // Optional Extermination support: Tripod shield, HP, and hit flare.
     public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_ENABLED;
     public static final ForgeConfigSpec.DoubleValue TRIPOD_HP_MULTIPLIER;
     public static final ForgeConfigSpec.DoubleValue TRIPOD_SHIELD_BREAK_DAMAGE;
@@ -215,427 +215,423 @@ public final class SewvConfig {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
 
         builder.push("events");
-        TANK_SPAWN_CHANCE_RU = builder.comment("RU tank chance when SEM's far_combat event fires.",
-                        "Master on/off is the sewvTanksInEvents gamerule.")
+        TANK_SPAWN_CHANCE_RU = builder.comment("Chance an RU tank appears when Simple Enemy Mod rolls a distant fight.",
+                        "Turn tanks in events on/off with the sewvTanksInEvents gamerule.")
                 .defineInRange("tankSpawnChanceRu", 0.12, 0.0, 1.0);
-        TANK_SPAWN_CHANCE_US = builder.comment("US tank chance when SEM's far_combat event fires.",
-                        "Master on/off is the sewvTanksInEvents gamerule.")
+        TANK_SPAWN_CHANCE_US = builder.comment("Chance a US tank appears when Simple Enemy Mod rolls a distant fight.",
+                        "Turn tanks in events on/off with the sewvTanksInEvents gamerule.")
                 .defineInRange("tankSpawnChanceUs", 0.12, 0.0, 1.0);
-        PLANES_IN_EVENTS = builder.comment("Allow rare RU/US planes in combat events.").define("planesInEvents", true);
-        PLANE_SPAWN_CHANCE_RU = builder.comment("RU plane chance when SEM's far_combat event fires.")
+        PLANES_IN_EVENTS = builder.comment("Allow rare RU/US planes to appear in combat events.").define("planesInEvents", true);
+        PLANE_SPAWN_CHANCE_RU = builder.comment("Chance an RU plane appears when Simple Enemy Mod rolls a distant fight.")
                 .defineInRange("planeSpawnChanceRu", 0.02, 0.0, 1.0);
-        PLANE_SPAWN_CHANCE_US = builder.comment("US plane chance when SEM's far_combat event fires.")
+        PLANE_SPAWN_CHANCE_US = builder.comment("Chance a US plane appears when Simple Enemy Mod rolls a distant fight.")
                 .defineInRange("planeSpawnChanceUs", 0.02, 0.0, 1.0);
-        CONVOY_EVENTS_ENABLED = builder.comment("Enable convoy events.").define("convoyEventsEnabled", true);
-        CONVOY_BASE_CHANCE = builder.comment("Base convoy event chance per SEM event roll.")
+        CONVOY_EVENTS_ENABLED = builder.comment("Allow convoy events (vehicles on the move).").define("convoyEventsEnabled", true);
+        CONVOY_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for a convoy.")
                 .defineInRange("convoyBaseChance", 0.06, 0.0, 1.0);
-        CONVOY_FAILURE_MULTIPLIER = builder.comment("Convoy chance added after a missed roll.")
+        CONVOY_FAILURE_MULTIPLIER = builder.comment("How much the convoy chance grows after each miss (until it fires).")
                 .defineInRange("convoyFailureMultiplier", 0.06, 0.0, 1.0);
-        LARGE_COMBAT_EVENTS_ENABLED = builder.comment("Enable large combat events.").define("largeCombatEventsEnabled", true);
-        LARGE_COMBAT_BASE_CHANCE = builder.comment("Base large-combat event chance per SEM event roll.")
+        LARGE_COMBAT_EVENTS_ENABLED = builder.comment("Allow large multi-vehicle battles.").define("largeCombatEventsEnabled", true);
+        LARGE_COMBAT_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for a large battle.")
                 .defineInRange("largeCombatBaseChance", 0.02, 0.0, 1.0);
-        LARGE_COMBAT_FAILURE_MULTIPLIER = builder.comment("Large-combat chance added after a missed roll.")
+        LARGE_COMBAT_FAILURE_MULTIPLIER = builder.comment("How much the large-battle chance grows after each miss.")
                 .defineInRange("largeCombatFailureMultiplier", 0.02, 0.0, 1.0);
-        LARGE_COMBAT_VEHICLES = builder.comment("Vehicles each side gets in large combat.")
+        LARGE_COMBAT_VEHICLES = builder.comment("How many vehicles each side gets in a large battle.")
                 .defineInRange("largeCombatVehicles", 2, 0, 8);
-        LARGE_COMBAT_EMPLACEMENT_CHANCE = builder.comment("Per-side chance to add a mortar or TOW to large combat.")
+        LARGE_COMBAT_EMPLACEMENT_CHANCE = builder.comment("Per side: chance to also spawn a mortar or TOW launcher.")
                 .defineInRange("largeCombatEmplacementChance", 0.04, 0.0, 1.0);
-        LARGE_COMBAT_PLANE_CHANCE = builder.comment("Per-side chance to add a plane to large combat.")
+        LARGE_COMBAT_PLANE_CHANCE = builder.comment("Per side: chance to also spawn a plane.")
                 .defineInRange("largeCombatPlaneChance", 0.03, 0.0, 1.0);
-        NAVAL_EVENTS_ENABLED = builder.comment("Enable naval battle events.").define("navalEventsEnabled", true);
-        NAVAL_BASE_CHANCE = builder.comment("Base naval event chance per SEM event roll.")
+        NAVAL_EVENTS_ENABLED = builder.comment("Allow ship battles on open water.").define("navalEventsEnabled", true);
+        NAVAL_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for a naval battle.")
                 .defineInRange("navalBaseChance", 0.05, 0.0, 1.0);
-        NAVAL_FAILURE_MULTIPLIER = builder.comment("Naval chance added after a missed roll.")
+        NAVAL_FAILURE_MULTIPLIER = builder.comment("How much the naval-battle chance grows after each miss.")
                 .defineInRange("navalFailureMultiplier", 0.05, 0.0, 1.0);
-        NAVAL_SHIPS_PER_SIDE = builder.comment("Ships each side gets in a naval battle.")
+        NAVAL_SHIPS_PER_SIDE = builder.comment("How many ships each side gets in a naval battle.")
                 .defineInRange("navalShipsPerSide", 4, 0, 12);
-        INVASION_EVENTS_ENABLED = builder.comment("Enable asymmetric invasion events.").define("invasionEventsEnabled", true);
-        INVASION_BASE_CHANCE = builder.comment("Base invasion event chance per SEM event roll.")
+        INVASION_EVENTS_ENABLED = builder.comment("Allow invasion events (attackers vs a defended position).").define("invasionEventsEnabled", true);
+        INVASION_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for an invasion.")
                 .defineInRange("invasionBaseChance", 0.03, 0.0, 1.0);
-        INVASION_FAILURE_MULTIPLIER = builder.comment("Invasion chance added after a missed roll.")
+        INVASION_FAILURE_MULTIPLIER = builder.comment("How much the invasion chance grows after each miss.")
                 .defineInRange("invasionFailureMultiplier", 0.03, 0.0, 1.0);
-        INVASION_DEFENDER_INFANTRY = builder.comment("Defending infantry in an invasion.")
+        INVASION_DEFENDER_INFANTRY = builder.comment("How many defending foot soldiers spawn in an invasion.")
                 .defineInRange("invasionDefenderInfantry", 6, 0, 32);
-        INVASION_DEFENDER_TOWS = builder.comment("Defending TOW emplacements in an invasion.")
+        INVASION_DEFENDER_TOWS = builder.comment("How many defending anti-tank launchers (TOWs) spawn.")
                 .defineInRange("invasionDefenderTows", 2, 0, 8);
-        INVASION_DEFENDER_MORTARS = builder.comment("Defending mortars in an invasion.")
+        INVASION_DEFENDER_MORTARS = builder.comment("How many defending mortars spawn.")
                 .defineInRange("invasionDefenderMortars", 2, 0, 8);
-        SHELLING_EVENTS_ENABLED = builder.comment("Enable mortar shelling events.").define("shellingEventsEnabled", true);
-        SHELLING_BASE_CHANCE = builder.comment("Base shelling event chance per SEM event roll.")
+        SHELLING_EVENTS_ENABLED = builder.comment("Allow mortar batteries to shell a player's base.").define("shellingEventsEnabled", true);
+        SHELLING_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for shelling.")
                 .defineInRange("shellingBaseChance", 0.05, 0.0, 1.0);
-        SHELLING_FAILURE_MULTIPLIER = builder.comment("Shelling chance added after a missed roll.")
+        SHELLING_FAILURE_MULTIPLIER = builder.comment("How much the shelling chance grows after each miss.")
                 .defineInRange("shellingFailureMultiplier", 0.04, 0.0, 1.0);
-        SHELLING_BASE_RADIUS = builder.comment("How close a player must be to their respawn point for shelling.")
+        SHELLING_BASE_RADIUS = builder.comment("Player must be this close to their bed/respawn point for shelling to target it.")
                 .defineInRange("shellingBaseRadius", 48, 8, 256);
-        SHELLING_MORTARS = builder.comment("Mortars in a shelling battery.")
+        SHELLING_MORTARS = builder.comment("How many mortars in a shelling battery.")
                 .defineInRange("shellingMortars", 2, 0, 6);
-        SHELLING_GUARDS = builder.comment("Infantry guarding a shelling battery.")
+        SHELLING_GUARDS = builder.comment("How many soldiers guard the shelling battery.")
                 .defineInRange("shellingGuards", 4, 0, 12);
-        SHELLING_DURATION_MIN_TICKS = builder.comment("Minimum shelling duration.")
+        SHELLING_DURATION_MIN_TICKS = builder.comment("Shortest shelling lasts, in game ticks (20 ticks = 1 second).")
                 .defineInRange("shellingDurationMinTicks", 600, 20, 24000);
-        SHELLING_DURATION_MAX_TICKS = builder.comment("Maximum shelling duration.")
+        SHELLING_DURATION_MAX_TICKS = builder.comment("Longest shelling lasts, in game ticks (20 ticks = 1 second).")
                 .defineInRange("shellingDurationMaxTicks", 1200, 20, 24000);
-        HIGH_CHANCE_MORTAR_SHELL = builder.comment("Common shell used by spawned mortar crews.")
+        HIGH_CHANCE_MORTAR_SHELL = builder.comment("Usual mortar shell type for spawned crews (item id).")
                 .define("highChanceMortarShell", "superbwarfare:mortar_shell", SewvConfig::isValidResourceId);
-        LOW_CHANCE_MORTAR_SHELL = builder.comment("Rare shell used by spawned mortar crews.")
+        LOW_CHANCE_MORTAR_SHELL = builder.comment("Less common mortar shell type for spawned crews (item id).")
                 .define("lowChanceMortarShell", "superbwarfare:mortar_shell_wp", SewvConfig::isValidResourceId);
-        DERELICT_EVENTS_ENABLED = builder.comment("Enable derelict vehicle events.").define("derelictEventsEnabled", true);
-        DERELICT_BASE_CHANCE = builder.comment("Base derelict event chance per SEM event roll.")
+        DERELICT_EVENTS_ENABLED = builder.comment("Allow wrecked vehicles with a few survivors nearby.").define("derelictEventsEnabled", true);
+        DERELICT_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for a derelict.")
                 .defineInRange("derelictBaseChance", 0.05, 0.0, 1.0);
-        DERELICT_FAILURE_MULTIPLIER = builder.comment("Derelict chance added after a missed roll.")
+        DERELICT_FAILURE_MULTIPLIER = builder.comment("How much the derelict chance grows after each miss.")
                 .defineInRange("derelictFailureMultiplier", 0.05, 0.0, 1.0);
-        DERELICT_HEALTH_FRACTION = builder.comment("Health fraction for spawned derelict hulls. Keep below autoBoardMinHealthFraction.")
+        DERELICT_HEALTH_FRACTION = builder.comment("How healthy a derelict hull is (0.15 = 15%). Keep this below autoBoardMinHealthFraction",
+                        "so nearby enemy infantry do not climb in and drive it away.")
                 .defineInRange("derelictHealthFraction", 0.15, 0.01, 1.0);
-        DERELICT_GUARDS = builder.comment("Maximum survivors around a derelict hull.")
+        DERELICT_GUARDS = builder.comment("Max survivors standing near a derelict hull.")
                 .defineInRange("derelictGuards", 4, 0, 12);
-        DERELICT_AMMO_COUNT = builder.comment("Ammo left in a derelict hull.")
+        DERELICT_AMMO_COUNT = builder.comment("How much ammo is left inside a derelict hull.")
                 .defineInRange("derelictAmmoCount", 2, 0, 64);
-        OVERFLIGHT_EVENTS_ENABLED = builder.comment("Enable overflight events (RU/US planes from plane pools).")
+        OVERFLIGHT_EVENTS_ENABLED = builder.comment("Allow flyovers by RU/US planes from the plane spawn lists.")
                 .define("overflightEventsEnabled", true);
-        OVERFLIGHT_BASE_CHANCE = builder.comment("Base overflight event chance per SEM event roll.")
+        OVERFLIGHT_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for an overflight.")
                 .defineInRange("overflightBaseChance", 0.04, 0.0, 1.0);
-        OVERFLIGHT_FAILURE_MULTIPLIER = builder.comment("Overflight chance added after a missed roll.")
+        OVERFLIGHT_FAILURE_MULTIPLIER = builder.comment("How much the overflight chance grows after each miss.")
                 .defineInRange("overflightFailureMultiplier", 0.04, 0.0, 1.0);
-        OVERFLIGHT_PLANES = builder.comment("Maximum planes in an overflight.")
+        OVERFLIGHT_PLANES = builder.comment("Max planes in one overflight.")
                 .defineInRange("overflightPlanes", 1, 1, 3);
-        GARRISON_VEHICLES_ENABLED = builder.comment("Let village garrisons field one crewed tank.")
+        GARRISON_VEHICLES_ENABLED = builder.comment("Let village garrisons sometimes get one crewed tank.")
                 .define("garrisonVehiclesEnabled", true);
-        GARRISON_VEHICLE_CHANCE = builder.comment("Chance that a village garrison gets its tank.")
+        GARRISON_VEHICLE_CHANCE = builder.comment("Chance a village garrison gets that tank.")
                 .defineInRange("garrisonVehicleChance", 0.5, 0.0, 1.0);
         builder.pop();
 
         builder.push("resources");
-        CREATIVE_AMMO_FALLBACK = builder.comment("Use a creative ammo box when finite vehicle ammo cannot be determined.")
+        CREATIVE_AMMO_FALLBACK = builder.comment("If a vehicle's normal ammo type cannot be figured out, fall back to a creative ammo box.")
                 .define("creativeAmmoFallback", true);
-        FACTION_INFINITE_ENERGY = builder.comment("RU/US-crewed vehicles never run out of energy.")
+        FACTION_INFINITE_ENERGY = builder.comment("Vehicles crewed by RU or US never run out of energy/fuel.")
                 .define("factionInfiniteEnergy", true);
-        FACTION_INFINITE_AMMO = builder.comment("RU/US-crewed vehicles use unlimited ammo.")
+        FACTION_INFINITE_AMMO = builder.comment("Vehicles crewed by RU or US never run out of ammo.")
                 .define("factionInfiniteAmmo", true);
-        // Existing installs keep whatever is already in serverconfig until the key is written;
-        // delete the toml (or the key) to pick up a new default.
+        // Existing worlds keep the old value until you change or delete this key.
         VEHICLE_DEATH_DROPS = builder.comment(
-                        "Hull container drops on destroy, and inventory drops for units tagged sewv:gated_drops",
-                        "(/sewv spawn and berezka structure crews). disable = nothing; reduced = 1/4 of each",
-                        "stack (default); everything = full stacks. superbwarfare:creative_ammo_box never drops.")
+                        "What drops when a vehicle is destroyed (and for special spawned crews).",
+                        "disable = nothing; reduced = about 1/4 of each stack (default); everything = full stacks.",
+                        "Creative ammo boxes never drop.")
                 .defineInList("vehicleDeathDrops", "reduced",
                         Arrays.asList("disable", "reduced", "everything"));
         VEHICLE_AMMO_LOOT = builder.comment(
-                        "When an NPC (RU/US) hull unlocks (no enemy crew left), also put a balanced finite ammo",
-                        "package into its inventory on top of EngineType loot tables. If the hull was stocked",
-                        "with a creative ammo box and creativeAmmoFallback is on, the box is replaced with",
-                        "synthesized stacks. Fighting ammo already in the container is left alone.")
+                        "When you clear the last enemy crew from an RU/US vehicle, add a fair ammo package",
+                        "into its inventory (on top of normal vehicle loot). If it only had a creative ammo",
+                        "box and creativeAmmoFallback is on, that box is replaced with real ammo stacks.",
+                        "Ammo already being used in a fight is left alone.")
                 .define("vehicleAmmoLoot", true);
         builder.pop();
 
         builder.push("npc_armor");
-        NPC_ARMOR_ENABLED = builder.comment("Issue armor to spawned SEM units.")
+        NPC_ARMOR_ENABLED = builder.comment("Give armor to spawned Simple Enemy Mod soldiers.")
                 .define("npcArmorEnabled", true);
-        RU_ARMOR = builder.comment("Armor item ids for RU units.")
+        RU_ARMOR = builder.comment("Armor pieces for RU units (item ids).")
                 .defineList("ruArmor", List.of("superbwarfare:ru_helmet_6b47", "superbwarfare:ru_chest_6b43"), SewvConfig::isValidResourceId);
-        US_ARMOR = builder.comment("Armor item ids for US units.")
+        US_ARMOR = builder.comment("Armor pieces for US units (item ids).")
                 .defineList("usArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
-        PMC_ARMOR = builder.comment("Armor item ids for PMC units.")
+        PMC_ARMOR = builder.comment("Armor pieces for PMC units (item ids).")
                 .defineList("pmcArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
         builder.pop();
 
         builder.push("nvg");
         NVG_ELIGIBLE_ITEMS = builder.comment(
-                        "Item ids that count as NVG for darkness-accuracy mitigation and night spawn equip.",
-                        "May be Curios-slot or armor-slot items; darkness logic never hardcodes a specific id.")
+                        "Items that count as night-vision gear (item ids).",
+                        "Used for night accuracy and for who spawns wearing NVG. Can be armor or Curios slots.")
                 .defineList("nvgEligibleItems",
                         List.of("superbwarfare:thermal_imaging_goggles"), SewvConfig::isValidResourceId);
-        NVG_SPAWN_CHANCE = builder.comment("Chance a SEM unit joining at night spawns wearing an NVG-eligible item.")
+        NVG_SPAWN_CHANCE = builder.comment("Chance a soldier spawning at night wears night-vision gear.")
                 .defineInRange("nvgSpawnChance", 0.20, 0.0, 1.0);
         DARK_ACCURACY_FRACTION = builder.comment(
-                        "AI vehicle accuracy multiplier in darkness with no rendered-seat NVG (0.55 ≈ -45%).",
-                        "Clamped further by darkSpreadScaleMax so worst-case never exceeds that spread multiplier.")
+                        "How accurate AI vehicle guns are in the dark with no night vision on board (0.55 ≈ 45% worse).",
+                        "Also limited by darkSpreadScaleMax so spread cannot get worse than that cap.")
                 .defineInRange("darkAccuracyFraction", 0.55, 0.05, 1.0);
         NVG_ACCURACY_FRACTION = builder.comment(
-                        "AI vehicle accuracy multiplier in darkness when any rendered-seat occupant has NVG (0.85 ≈ -15%).")
+                        "How accurate AI vehicle guns are in the dark when someone visible in a seat has night vision",
+                        "(0.85 ≈ 15% worse than daylight).")
                 .defineInRange("nvgAccuracyFraction", 0.85, 0.05, 1.0);
         DARK_SPREAD_SCALE_MAX = builder.comment(
-                        "Hard ceiling on darkness spread scale (1 / accuracyFraction). 2.0 = at most 2× daytime spread.")
+                        "Worst allowed shot spread in darkness vs daytime. 2.0 means at most twice as wide.")
                 .defineInRange("darkSpreadScaleMax", 2.0, 1.0, 10.0);
         DARK_BLOCK_LIGHT_MAX = builder.comment(
-                        "Max combined sky+block light (inclusive) that still counts as darkness in daytime;",
-                        "nighttime always counts. Outdoors in daylight is bright via sky light, not block light.")
+                        "During the day, places this dark or darker count as dark for accuracy (0-15 light scale).",
+                        "Night always counts as dark. Open daylight is bright from the sky, so outdoors stays accurate.")
                 .defineInRange("darkBlockLightMax", 4, 0, 15);
         builder.pop();
 
         builder.push("structure_vehicles");
-        STRUCTURE_VEHICLES_ENABLED = builder.comment("Spawn vehicles at compatible Berezka structures.")
+        STRUCTURE_VEHICLES_ENABLED = builder.comment("Spawn vehicles at matching Berezka army/PMC bases.")
                 .define("structureVehiclesEnabled", true);
-        STRUCTURE_VEHICLE_MAX_COUNT = builder.comment("Maximum vehicles a structure can field.")
+        STRUCTURE_VEHICLE_MAX_COUNT = builder.comment("Max vehicles one of those bases can have.")
                 .defineInRange("structureVehicleMaxCount", 5, 1, 16);
-        STRUCTURE_VEHICLE_RAMP_DAYS = builder.comment("World days to ramp structure vehicle counts from 1 to the max.")
+        STRUCTURE_VEHICLE_RAMP_DAYS = builder.comment("In-game days until bases go from 1 vehicle up to the max.")
                 .defineInRange("structureVehicleRampDays", 24, 0, 1000);
-        RU_VEHICLE_STRUCTURES = builder.comment("Structure ids that field RU vehicles.")
+        RU_VEHICLE_STRUCTURES = builder.comment("Which structures get RU vehicles (structure ids).")
                 .defineList("ruVehicleStructures", List.of("russian_army_structures:tank"), SewvConfig::isValidResourceId);
-        US_VEHICLE_STRUCTURES = builder.comment("Structure ids that field US vehicles.")
+        US_VEHICLE_STRUCTURES = builder.comment("Which structures get US vehicles (structure ids).")
                 .defineList("usVehicleStructures", List.of("us_army_structures:convoy"), SewvConfig::isValidResourceId);
-        PMC_VEHICLE_STRUCTURES = builder.comment("Structure ids that field PMC vehicles.")
+        PMC_VEHICLE_STRUCTURES = builder.comment("Which structures get PMC vehicles (structure ids).")
                 .defineList("pmcVehicleStructures", List.of("pmc_structures:buggy"), SewvConfig::isValidResourceId);
         builder.pop();
 
         builder.push("crew_ai");
-        AI_FIRE_COOLDOWN_TICKS = builder.comment("Minimum delay between AI vehicle shots.")
+        AI_FIRE_COOLDOWN_TICKS = builder.comment("Minimum wait between AI vehicle shots, in game ticks (20 = 1 second).")
                 .defineInRange("aiFireCooldownTicks", 5, 1, 200);
         AI_FIRE_ASSIST_CONE_DEG = builder.comment(
-                        "How far off target an AI (NPC) crew may still fire. Splash beats silence — "
-                                + "existing tomls keep their old value until edited; code also floors NPC assist.")
+                        "How many degrees off-target an AI crew may still pull the trigger.",
+                        "Wider = more missed shots but less sitting silent. Existing configs keep their old value until you edit them.")
                 .defineInRange("aiFireAssistConeDeg", 35.0, 4.0, 90.0);
-        SMOKE_BLOCK_RADIUS = builder.comment("How close smoke must be to block AI fire.")
+        SMOKE_BLOCK_RADIUS = builder.comment("AI will not shoot if smoke is this close (blocks).")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
-        AI_AIM_ACCURACY = builder.comment("AI vehicle accuracy mode: realistic, scaled, or accurate.")
+        AI_AIM_ACCURACY = builder.comment("AI aim style: realistic (misses), scaled, or accurate (rare misses).")
                 .defineInList("aiAimAccuracy", "realistic", Arrays.asList("realistic", "scaled", "accurate"));
-        // Existing serverconfig tomls keep the old value until edited or deleted.
-        AI_AIM_SPREAD_DEG = builder.comment("Extra dispersion (degrees) added in realistic/scaled aim modes.")
+        // Existing configs keep the old value until edited or deleted.
+        AI_AIM_SPREAD_DEG = builder.comment("Extra aim wobble in degrees for realistic/scaled modes.")
                 .defineInRange("aiAimSpreadDegrees", 4.0, 0.0, 30.0);
         VEHICLE_SKIN_MOUNT_CHANCE = builder.comment(
-                        "Chance an SEM unit boarding an empty (captured/abandoned) hull applies its faction skin.",
-                        "Command/event crewed spawns always get the faction skin; this is only the field-capture roll.")
+                        "Chance a soldier climbing into an empty captured vehicle paints it in their faction colours.",
+                        "Vehicles spawned already crewed always get the faction look; this is only for field captures.")
                 .defineInRange("vehicleSkinMountChance", 0.60, 0.0, 1.0);
-        IFV_DISMOUNTS_ENABLED = builder.comment("Let IFVs dismount squads against armor.")
+        IFV_DISMOUNTS_ENABLED = builder.comment("IFVs (troop carriers) drop their squad when fighting enemy armor.")
                 .define("ifvDismountsEnabled", true);
-        SEM_CREW_DISABLE_INERTIA_ROTATE = builder.comment("Disable chassis bank while SEM units drive.")
+        SEM_CREW_DISABLE_INERTIA_ROTATE = builder.comment("Stop the vehicle body from tilting/banking while AI drives.")
                 .define("semCrewDisableInertiaRotate", true);
-        TANK_RIDER_DISMOUNT_ENABLED = builder.comment("Let exposed climb-seat riders dismount in combat.")
+        TANK_RIDER_DISMOUNT_ENABLED = builder.comment("Soldiers hanging on outside seats jump off when combat starts.")
                 .define("tankRiderDismountEnabled", true);
-        AT_WEAPON_RU = builder.comment("Launcher given to RU anti-tank dismounts.")
+        AT_WEAPON_RU = builder.comment("Rocket/missile launcher given to RU soldiers who leave the vehicle to fight tanks.")
                 .define("atWeaponRu", "superbwarfare:rpg");
-        AT_WEAPON_US = builder.comment("Launcher given to US anti-tank dismounts.")
+        AT_WEAPON_US = builder.comment("Rocket/missile launcher given to US soldiers who leave the vehicle to fight tanks.")
                 .define("atWeaponUs", "superbwarfare:javelin");
-        AT_SECOND_GUNNER_CHANCE = builder.comment("Chance to give a squad a second anti-tank gunner.")
+        AT_SECOND_GUNNER_CHANCE = builder.comment("Chance a dismounted squad gets a second anti-tank gunner.")
                 .defineInRange("atSecondGunnerChance", 0.5, 0.0, 1.0);
-        AT_BACKUP_AMMO = builder.comment("Issued rockets or missiles per anti-tank gunner.")
+        AT_BACKUP_AMMO = builder.comment("Extra rockets or missiles each anti-tank gunner is given.")
                 .defineInRange("atBackupAmmo", 8, 1, 64);
-        AT_ENGAGE_RANGE = builder.comment("Maximum anti-tank firing range.")
+        AT_ENGAGE_RANGE = builder.comment("Max distance (blocks) at which anti-tank gunners will fire.")
                 .defineInRange("atEngageRange", 48.0, 8.0, 200.0);
-        MEDIC_ENABLED = builder.comment("Allow PMC medics to use medical kits out of combat.")
+        MEDIC_ENABLED = builder.comment("PMC soldiers carrying a medical kit can heal allies when not in a fight.")
                 .define("medicEnabled", true);
-        MEDIC_SEARCH_RADIUS = builder.comment("How far medics search for wounded allies.")
+        MEDIC_SEARCH_RADIUS = builder.comment("How far (blocks) medics look for wounded allies.")
                 .defineInRange("medicSearchRadius", 24.0, 2.0, 48.0);
-        MEDIC_HEAL_PER_TREAT = builder.comment("Health restored per dedicated medic treatment pulse.")
+        MEDIC_HEAL_PER_TREAT = builder.comment("Health restored each time a medic treats someone.")
                 .defineInRange("medicHealPerTreat", 2.0, 0.5, 20.0);
-        HEALTH_MOBILITY_ENABLED = builder.comment("Scale AI vehicle mobility down as health drops.")
+        HEALTH_MOBILITY_ENABLED = builder.comment("Damaged AI vehicles move more slowly.")
                 .define("healthMobilityEnabled", true);
-        HEALTH_MOBILITY_FLOOR = builder.comment("Minimum mobility fraction at zero health.")
+        HEALTH_MOBILITY_FLOOR = builder.comment("Slowest a wrecked hull still moves (0.4 = 40% of normal speed).")
                 .defineInRange("healthMobilityFloor", 0.4, 0.05, 1.0);
-        MEDIC_SPAWN_CHANCE = builder.comment("Chance an RU/US unit brings a medic companion.")
+        MEDIC_SPAWN_CHANCE = builder.comment("Chance an RU/US group includes a medic.")
                 .defineInRange("medicSpawnChance", 0.06, 0.0, 1.0);
-        ENGINEER_SPAWN_CHANCE = builder.comment("Chance an RU/US unit brings an engineer companion.")
+        ENGINEER_SPAWN_CHANCE = builder.comment("Chance an RU/US group includes an engineer.")
                 .defineInRange("engineerSpawnChance", 0.05, 0.0, 1.0);
-        SUPPORT_DEDUPE_RADIUS = builder.comment("Radius used to avoid stacking support companions.")
+        SUPPORT_DEDUPE_RADIUS = builder.comment("Do not spawn another medic/engineer if one is already this close (blocks).")
                 .defineInRange("supportDedupeRadius", 32.0, 4.0, 128.0);
-        ENGINEER_SEARCH_RADIUS = builder.comment("How far engineers search for vehicles to repair.")
+        ENGINEER_SEARCH_RADIUS = builder.comment("How far (blocks) engineers look for damaged vehicles to repair.")
                 .defineInRange("engineerSearchRadius", 24.0, 4.0, 96.0);
-        ENGINEER_REPAIR_PER_TREAT = builder.comment("Vehicle health restored per engineer repair pulse.")
+        ENGINEER_REPAIR_PER_TREAT = builder.comment("Vehicle health restored each time an engineer repairs.")
                 .defineInRange("engineerRepairPerTreat", 4.0, 0.5, 100.0);
-        ENGINEER_REPAIR_COOLDOWN = builder.comment("Goal ticks between engineer repair pulses.")
+        ENGINEER_REPAIR_COOLDOWN = builder.comment("Wait between repair actions, in AI ticks (about every other game tick).")
                 .defineInRange("engineerRepairCooldown", 10, 1, 200);
-        ENGINEER_SIDEARM_POOL = builder.comment("Possible TACZ sidearm ids for engineers.")
+        ENGINEER_SIDEARM_POOL = builder.comment("Pistols engineers may carry (TACZ gun ids).")
                 .defineList("engineerSidearmPool", List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"), SewvConfig::isValidResourceId);
-        DRONE_MAX_PER_ENGINEER = builder.comment("Maximum kamikaze drones per engineer (RU/US).")
+        DRONE_MAX_PER_ENGINEER = builder.comment("Max attack drones each RU/US engineer may have out at once.")
                 .defineInRange("droneMaxPerEngineer", 1, 0, 8);
-        DRONE_DEPLOY_CHECK_INTERVAL_TICKS = builder.comment("How often engineers roll to deploy drones.")
+        DRONE_DEPLOY_CHECK_INTERVAL_TICKS = builder.comment("How often (game ticks) an engineer considers launching another drone.")
                 .defineInRange("droneDeployCheckIntervalTicks", 200, 20, 12000);
-        DRONE_DEPLOY_CHANCE = builder.comment("Chance that a deploy check launches a drone.")
+        DRONE_DEPLOY_CHANCE = builder.comment("Chance each check actually launches a drone.")
                 .defineInRange("droneDeployChance", 0.2, 0.0, 1.0);
-        DRONE_SCAN_ALTITUDE = builder.comment("Drone wander cruise altitude above terrain.")
+        DRONE_SCAN_ALTITUDE = builder.comment("How high (blocks) drones cruise above the ground while searching.")
                 .defineInRange("droneScanAltitude", 20.0, 5.0, 60.0);
-        DRONE_DETECTION_RADIUS = builder.comment("Unused by kamikaze AI (inner ring uses vehicle scan radius). Kept for compat.")
+        DRONE_DETECTION_RADIUS = builder.comment("Legacy setting; kamikaze drones use the vehicle target-scan range instead. Kept so old configs do not break.")
                 .defineInRange("droneDetectionRadius", 48.0, 8.0, 128.0);
-        DRONE_BROADCAST_RADIUS = builder.comment("Radius for map crewOf / soft drone cache lookups.")
+        DRONE_BROADCAST_RADIUS = builder.comment("How far (blocks) drone-related map/crew lookups reach.")
                 .defineInRange("droneBroadcastRadius", 160.0, 16.0, 384.0);
-        DRONE_SCAN_INTERVAL_TICKS = builder.comment("How often a locked drone rescans for dive targets.")
+        DRONE_SCAN_INTERVAL_TICKS = builder.comment("How often (game ticks) a diving drone looks for a new target.")
                 .defineInRange("droneScanIntervalTicks", 20, 5, 200);
-        DRONE_LEASH_RADIUS = builder.comment("Hard horizontal leash from the deploying engineer while wandering.")
+        DRONE_LEASH_RADIUS = builder.comment("Max distance (blocks) a wandering drone may stray from its engineer.")
                 .defineInRange("droneLeashRadius", 200.0, 16.0, 512.0);
-        AUTO_BOARD_ENABLED = builder.comment("Let idle RU/US infantry claim abandoned vehicles.")
+        AUTO_BOARD_ENABLED = builder.comment("Idle RU/US soldiers may climb into empty abandoned vehicles.")
                 .define("autoBoardEnabled", true);
-        AUTO_BOARD_SCAN_RADIUS = builder.comment("Radius used to scan for abandoned vehicles.")
+        AUTO_BOARD_SCAN_RADIUS = builder.comment("How far (blocks) they look for empty vehicles.")
                 .defineInRange("autoBoardScanRadius", 32.0, 4.0, 128.0);
-        AUTO_BOARD_MIN_HEALTH_FRACTION = builder.comment("Minimum vehicle health fraction required for auto-boarding.")
+        AUTO_BOARD_MIN_HEALTH_FRACTION = builder.comment("Ignore wrecks below this health (0.25 = 25%). Derelicts should stay below this.")
                 .defineInRange("autoBoardMinHealthFraction", 0.25, 0.0, 1.0);
-        AUTO_BOARD_STEALS_PLAYER_VEHICLES = builder.comment("Allow RU/US units to take vehicles last driven by a player.")
+        AUTO_BOARD_STEALS_PLAYER_VEHICLES = builder.comment("If on, RU/US may take vehicles you have driven before. Off by default.")
                 .define("autoBoardStealsPlayerVehicles", false);
-        VEHICLE_FORMATION_SPACING = builder.comment("Distance between vehicles in formations.")
+        VEHICLE_FORMATION_SPACING = builder.comment("Spacing (blocks) between vehicles in a formation.")
                 .defineInRange("vehicleFormationSpacing", 12.0, 5.0, 32.0);
-        VEHICLE_TARGET_SCAN_RADIUS = builder.comment("Horizontal radius of mounted target scans.")
+        VEHICLE_TARGET_SCAN_RADIUS = builder.comment("How far sideways (blocks) crewed vehicles look for enemies.")
                 .defineInRange("vehicleTargetScanRadius", 96.0, 8.0, 128.0);
-        VEHICLE_TARGET_SCAN_HEIGHT = builder.comment("Vertical span of mounted target scans.")
+        VEHICLE_TARGET_SCAN_HEIGHT = builder.comment("How far up/down (blocks) crewed vehicles look for enemies.")
                 .defineInRange("vehicleTargetScanHeight", 128.0, 4.0, 128.0);
-        VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder.comment("How often mounted crews rescan for targets.")
+        VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder.comment("How often (game ticks) crewed vehicles refresh their target list.")
                 .defineInRange("vehicleTargetScanIntervalTicks", 30, 1, 200);
-        VEHICLE_TARGET_REQUIRE_LOS = builder.comment("Require line of sight for mounted target scans.")
+        VEHICLE_TARGET_REQUIRE_LOS = builder.comment("Crewed vehicles only lock enemies they can see (no wall hacks).")
                 .define("vehicleTargetRequireLineOfSight", true);
-        VEHICLE_ALLY_ASSIST_RANGE = builder.comment("Range for counting allied support in combat.")
+        VEHICLE_ALLY_ASSIST_RANGE = builder.comment("How far (blocks) to count nearby allies when deciding to hold or fall back.")
                 .defineInRange("vehicleAllyAssistRange", 128.0, 0.0, 256.0);
-        STALEMATE_BREAKER_ENABLED = builder.comment("Let mounted crews reposition when they cannot land shots.")
+        STALEMATE_BREAKER_ENABLED = builder.comment("If a crew cannot hit its target for a while, move to a better angle.")
                 .define("stalemateBreakerEnabled", true);
-        STALEMATE_SILENCE_TICKS = builder.comment("How long a crew may fail to land a shot before repositioning.")
+        STALEMATE_SILENCE_TICKS = builder.comment("How long (game ticks) without a hit before they reposition.")
                 .defineInRange("stalemateSilenceTicks", 300, 40, 2400);
-        VEHICLE_TERRAIN_AVOIDANCE = builder.comment("Use terrain avoidance while driving.")
+        VEHICLE_TERRAIN_AVOIDANCE = builder.comment("AI drivers try to avoid water, walls, and other hazards.")
                 .define("vehicleTerrainAvoidance", true);
         GROUND_PATHING_DEBUG = builder.comment(
-                        "Ground-pathing / shoreline diagnosis logs ([sewv-diag][pathing]/[water]), "
-                                + "including recovery transitions (bankLip/hullFan START/END/SKIP) and "
-                                + "full-fan summaries. Default off.")
+                        "Developer logs for ground driving and shoreline problems. Leave off unless debugging.")
                 .define("groundPathingDebug", false);
         SEWV_DIAG_DEBUG = builder.comment(
-                        "Other [sewv-diag] channels: targeting, scan, setTarget, claim, sweep, "
-                                + "invasion, orderAuth, diplomacy. Default off. Pathing uses groundPathingDebug.")
+                        "Developer logs for targeting, orders, invasion, and related AI. Leave off unless debugging.",
+                        "Ground driving logs use groundPathingDebug instead.")
                 .define("sewvDiagDebug", false);
-        PATROL_ROTATE_INTERVAL_TICKS = builder.comment("How long patrol crews hold a point before rotating.")
+        PATROL_ROTATE_INTERVAL_TICKS = builder.comment("How long (game ticks) a patrol holds one spot before moving on.")
                 .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
-        IDLE_WANDER_ENABLED = builder.comment("Let idle hulls wander locally.")
+        IDLE_WANDER_ENABLED = builder.comment("Crewed vehicles with nothing to do may wander nearby.")
                 .define("idleWanderEnabled", true);
-        IDLE_WANDER_RADIUS = builder.comment("How far idle hulls may drift from their anchor.")
+        IDLE_WANDER_RADIUS = builder.comment("Max wander distance (blocks) from where they started waiting.")
                 .defineInRange("idleWanderRadius", 16, 4, 64);
-        UTILITY_REFRESH_INTERVAL_TICKS = builder.comment("How often vehicle crews reconsider their plan.")
+        UTILITY_REFRESH_INTERVAL_TICKS = builder.comment("How often (game ticks) a ground crew rethinks attack / hold / fall back.")
                 .defineInRange("utilityRefreshIntervalTicks", 30, 5, 200);
-        FACTION_ORGANIC_COMMS = builder.comment("Let RU/US crews call support without carrying radios.")
+        FACTION_ORGANIC_COMMS = builder.comment("RU/US crews can call mortars/TOWs/air support without holding a radio item.")
                 .define("factionOrganicComms", true);
-        SUPPORT_CALL_INTERVAL_TICKS = builder.comment("Minimum delay between support searches and support requests.")
+        SUPPORT_CALL_INTERVAL_TICKS = builder.comment("Minimum wait (game ticks) between support call attempts.")
                 .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
         OUTER_RING_ENABLED = builder.comment(
-                        "Outer awareness ring beyond the mounted target-scan cylinder. Spots only — never setTarget / fire.")
+                        "Let crews notice enemies farther out than their normal scan range.",
+                        "Awareness only — they will not open fire at that distance by themselves.")
                 .define("outerRingEnabled", true);
         OUTER_RING_MAX_BLOCKS = builder.comment(
-                        "Outer ring max horizontal radius in blocks, also clamped to server simulation distance.")
+                        "Max distance (blocks) for that long-range awareness. Also limited by the server's view/simulation distance.")
                 .defineInRange("outerRingMaxBlocks", 192.0, 96.0, 512.0);
-        OUTER_RING_DEBUG_LOGGING = builder.comment("Log outer-ring band polls, spots, and occlusion rejects.")
+        OUTER_RING_DEBUG_LOGGING = builder.comment("Developer logs for long-range awareness. Leave off unless debugging.")
                 .define("outerRingDebugLogging", false);
         builder.pop();
 
         builder.push("command");
-        COMMAND_GROUP_JOIN_RADIUS = builder.comment("Distance to a group's centroid at which a crew may join.")
+        COMMAND_GROUP_JOIN_RADIUS = builder.comment("How close (blocks) a vehicle must be to a battle group's centre to join it.")
                 .defineInRange("commandGroupJoinRadius", 48.0, 8.0, 256.0);
-        COMMAND_GROUP_LEAVE_RADIUS = builder.comment("Distance at which a member leaves (must exceed join radius).")
+        COMMAND_GROUP_LEAVE_RADIUS = builder.comment("How far (blocks) before a member leaves the group. Must be larger than join radius.")
                 .defineInRange("commandGroupLeaveRadius", 64.0, 8.0, 256.0);
-        COMMAND_GROUP_MAX_DIAMETER = builder.comment("Hard maximum group diameter (must be >= 2× leave radius so the hysteresis band fits inside the ball).")
+        COMMAND_GROUP_MAX_DIAMETER = builder.comment("Largest allowed size of a battle group (blocks across). Should be at least twice the leave radius.")
                 .defineInRange("commandGroupMaxDiameter", 128.0, 16.0, 512.0);
-        COMMAND_GROUP_MIN_SIZE = builder.comment("Minimum drivers for a battle group (lone hulls stay on local AI).")
+        COMMAND_GROUP_MIN_SIZE = builder.comment("Minimum crewed vehicles to form a battle group. Loners keep fighting on their own.")
                 .defineInRange("commandGroupMinSize", 2, 2, 32);
-        COMMAND_MAX_UNITS = builder.comment("Hard cap on drivers considered per command scan.")
+        COMMAND_MAX_UNITS = builder.comment("Max drivers the commander AI looks at in one pass (performance limit).")
                 .defineInRange("commandMaxUnits", 64, 4, 256);
-        COMMAND_ENGAGEMENT_RADIUS = builder.comment("Opposing forces within this range gate battle-group formation.")
+        COMMAND_ENGAGEMENT_RADIUS = builder.comment("Enemy forces must be this close (blocks) before battle groups form.")
                 .defineInRange("commandEngagementRadius", 96.0, 16.0, 256.0);
-        COMMAND_MARGIN = builder.comment("Fitness margin a challenger must beat the incumbent by to take command.")
+        COMMAND_MARGIN = builder.comment("How much better a new commander must score to replace the current one.")
                 .defineInRange("commandMargin", 0.15, 0.0, 2.0);
-        INFLUENCE_CELL_SIZE = builder.comment("Coarse influence-map cell size in blocks (gradients, not accuracy). Raised automatically if a battle AABB would exceed influenceMaxCells.")
+        INFLUENCE_CELL_SIZE = builder.comment("Grid cell size (blocks) for the rough who-controls-this-area map. Bigger cells = cheaper, coarser.")
                 .defineInRange("influenceCellSize", 12.0, 8.0, 16.0);
-        INFLUENCE_MAX_CELLS = builder.comment("Hard cap on influence-map cells per group; oversized battles downscale cell size instead of growing the array.")
+        INFLUENCE_MAX_CELLS = builder.comment("Max cells that map may use. Huge battles automatically use bigger cells instead of more of them.")
                 .defineInRange("influenceMaxCells", 256, 64, 1024);
-        MIN_PLAY_TICKS = builder.comment("Minimum server ticks a battle play commits before a challenger may preempt (stillValid aborts immediately).")
+        MIN_PLAY_TICKS = builder.comment("Minimum time (game ticks) a battle plan runs before another plan can replace it.",
+                        "Broken plans can still cancel early.")
                 .defineInRange("minPlayTicks", 200, 20, 2400);
-        PLAY_SWITCH_MARGIN = builder.comment("Score margin a challenger play must beat the incumbent by to switch after minPlayTicks.")
+        PLAY_SWITCH_MARGIN = builder.comment("How much better a new battle plan must score to replace the current one.")
                 .defineInRange("playSwitchMargin", 10.0, 0.0, 100.0);
         builder.pop();
 
         builder.push("flight_ai");
         HELI_ENGAGE_RADIUS = builder.comment(
-                        "Horizontal standoff for unguided helicopter combat (cannon/rockets). "
-                                + "Guided engagements use heliMinStandoff + heliMaxDepressionDeg geometry instead.")
+                        "Preferred horizontal distance (blocks) for helicopter cannon/rocket attacks.",
+                        "Missile attacks use heliMinStandoff and heliMaxDepressionDeg instead.")
                 .defineInRange("heliEngageRadius", 32.0, 12.0, 64.0);
         HELI_MAX_DEPRESSION_DEG = builder.comment(
-                        "Max nose-down angle for guided heli standoff (degrees). Ring = height/tan(this); "
-                                + "default 45 leaves margin under the 60° combat dive clamp.")
+                        "Steepest nose-down angle (degrees) for missile attacks. Higher = can sit closer above the target.")
                 .defineInRange("heliMaxDepressionDeg", 45.0, 20.0, 55.0);
         HELI_MIN_STANDOFF = builder.comment(
-                        "Hard minimum horizontal range for guided heli standoff. Floor when the target "
-                                + "is on a peak and height-above-target (hence the angle ring) collapses.")
+                        "Closest horizontal range (blocks) for helicopter missile attacks,",
+                        "even when the target is on a tall peak.")
                 .defineInRange("heliMinStandoff", 28.0, 16.0, 96.0);
         HELI_COMBAT_DEBUG = builder.comment(
-                        "Log AI heli firing-run phase changes and keep the hover phase label gated on.")
+                        "Developer logs for helicopter attack phases. Leave off unless debugging.")
                 .define("heliCombatDebug", false);
         HELI_FLIGHT_DEBUG = builder.comment(
-                        "Helicopter flyToward / hover diagnosis logs ([sewv-diag][flight]): "
-                                + "velocity-error branch, whisker avoid, arrive thrash. Default off.")
+                        "Developer logs for helicopter flight steering. Leave off unless debugging.")
                 .define("heliFlightDebug", false);
-        HELI_CHUNK_LOADING = builder.comment("Keep AI helicopters ticking when no player is nearby.")
+        HELI_CHUNK_LOADING = builder.comment("Keep AI helicopters active even when no player is nearby (uses chunk tickets).")
                 .define("heliChunkLoading", false);
-        PLANE_CHUNK_LOADING = builder.comment("Keep AI planes ticking when no player is nearby.")
+        PLANE_CHUNK_LOADING = builder.comment("Keep AI planes active even when no player is nearby (uses chunk tickets).")
                 .define("planeChunkLoading", false);
-        PLANE_COMMAND_RADIUS = builder.comment("How far the server accepts player aircraft orders.")
+        PLANE_COMMAND_RADIUS = builder.comment("Max distance (blocks) for player orders to aircraft.")
                 .defineInRange("planeCommandRadius", 256.0, 32.0, 1024.0);
         builder.pop();
 
         builder.push("mortar_ai");
-        MORTAR_USE_DISTANCE = builder.comment("How close a crew must stand to work a mortar.")
+        MORTAR_USE_DISTANCE = builder.comment("How close (blocks) a soldier must stand to crew a mortar.")
                 .defineInRange("mortarUseDistance", 2.0, 1.0, 6.0);
-        MORTAR_FIRE_COOLDOWN_TICKS = builder.comment("Minimum delay between mortar shots.")
+        MORTAR_FIRE_COOLDOWN_TICKS = builder.comment("Minimum wait between mortar shots, in game ticks (20 = 1 second).")
                 .defineInRange("mortarFireCooldownTicks", 60, 1, 1200);
-        MORTAR_DISPERSION_RADIUS = builder.comment("Scatter radius around a mortar target point.")
+        MORTAR_DISPERSION_RADIUS = builder.comment("How far (blocks) mortar shots may land off the aim point.")
                 .defineInRange("mortarDispersionRadius", 3, 0, 16);
-        MORTAR_REQUIRES_AMMO = builder.comment("Require mortar shells in inventory and consume one per shot.")
+        MORTAR_REQUIRES_AMMO = builder.comment("Mortars need shells in inventory and use one per shot.")
                 .define("mortarRequiresAmmo", true);
         MORTAR_CHUNK_LOADING = builder.comment(
-                        "Keep crewed Fixed mortars and FCP mortar vehicles chunk-loaded during "
-                                + "remote fire missions (crew/hull would otherwise unload past "
-                                + "simulation distance).")
+                        "Keep crewed mortars loaded during long-range fire missions so they keep firing",
+                        "even when you are far away.")
                 .define("mortarChunkLoading", true);
         ARTILLERY_CHUNK_LOADING = builder.comment(
-                        "Keep crewed artillery hulls chunk-loaded during remote fire missions.")
+                        "Keep crewed artillery vehicles loaded during long-range fire missions.")
                 .define("artilleryChunkLoading", true);
         MORTAR_RADIO_RANGE = builder.comment(
-                        "Radio range for designating targets and finding support crews. Must clear "
-                                + "FCP vehicle-mortar minimum engagement (~366 blocks at 85° pitch); "
-                                + "raise toward ~2000 for their max arc.")
+                        "How far (blocks) radios can designate targets and find support crews.",
+                        "Needs to be long enough for mortar range (raise toward ~2000 for the longest guns).")
                 .defineInRange("mortarRadioRange", 768.0, 16.0, 2048.0);
         builder.pop();
 
         builder.push("voicelines");
-        VEHICLE_VOICELINES_ENABLED = builder.comment("Enable mounted crew radio voicelines.")
+        VEHICLE_VOICELINES_ENABLED = builder.comment("Play radio chatter from crews inside vehicles.")
                 .define("vehicleVoicelinesEnabled", true);
-        IDLE_VOICELINE_DELAY_TICKS = builder.comment("How long crews stay quiet before idle chatter starts.")
+        IDLE_VOICELINE_DELAY_TICKS = builder.comment("Quiet time (game ticks) before idle crew chatter starts.")
                 .defineInRange("idleVoicelineDelayTicks", 320, 20, 12000);
-        IDLE_VOICELINE_HEALTH_FRACTION = builder.comment("Below this health fraction, idle chatter stays off.")
+        IDLE_VOICELINE_HEALTH_FRACTION = builder.comment("No idle chatter when the vehicle is below this health (0.3 = 30%).")
                 .defineInRange("idleVoicelineHealthFraction", 0.3, 0.0, 1.0);
         builder.pop();
 
         builder.push("interaction");
-        BOARD_SCAN_RADIUS = builder.comment("How far the server accepts nearby ground-order unit selection.")
+        BOARD_SCAN_RADIUS = builder.comment("How far (blocks) nearby units can be selected for boarding and similar orders.")
                 .defineInRange("boardScanRadius", 64.0, 8.0, 128.0);
         builder.pop();
 
         builder.push("map");
-        MAP_INFANTRY_ENABLED = builder.comment("Include on-foot units in map syncs.")
+        MAP_INFANTRY_ENABLED = builder.comment("Also show soldiers on foot on the world map (not only vehicles).")
                 .define("mapInfantryEnabled", true);
-        MAP_SYNC_INTERVAL_TICKS = builder.comment("How often the server sends map marker updates.")
+        MAP_SYNC_INTERVAL_TICKS = builder.comment("How often (game ticks) the server refreshes map markers.")
                 .defineInRange("mapSyncIntervalTicks", 20, 5, 200);
-        MAP_SPOT_RADIUS = builder.comment("How far your side can spot enemy markers on the map.")
+        MAP_SPOT_RADIUS = builder.comment("How far (blocks) your side can spot enemy markers (via you or your crews).")
                 .defineInRange("mapSpotRadius", 128.0, 0.0, 512.0);
         builder.pop();
 
         builder.push("sweep");
         SWEEP_QUIET_SECONDS = builder.comment(
-                        "Seconds with no assignee holding a live target before Sweep & Advance "
-                                + "runs the defensive clear-check and claims.")
+                        "Seconds of no fighting before a Sweep & Advance counts the area clear and claims it.")
                 .defineInRange("quietSeconds", 15, 1, 300);
         SWEEP_MAX_CHUNK_AREA = builder.comment(
-                        "Max chunks in a Sweep & Advance MapTileSelection (width*height).")
+                        "Largest map selection (width × height in chunks) allowed for Sweep & Advance.")
                 .defineInRange("maxChunkArea", 256, 1, 1024);
         builder.pop();
 
         builder.push("invasion");
         UNLIMITED_TEAM_BASES = builder.comment(
-                        "When true, skip the 2-per-dimension team_base placement cap "
-                                + "(useful for map building). Invasion start still expects exactly 2.")
+                        "Allow placing more than two team bases per dimension (for map building).",
+                        "Starting an invasion match still needs exactly two.")
                 .define("unlimitedTeamBases", false);
         INVASION_HUD_TEAM_A_COLOR = builder.comment(
-                        "HUD colour for layout team A (left bookend). Hex RGB.")
+                        "Invasion HUD colour for team A (left base). Six hex digits, e.g. 5555FF.")
                 .define("hudTeamAColor", "5555FF");
         INVASION_HUD_TEAM_B_COLOR = builder.comment(
-                        "HUD colour for layout team B (right bookend). Hex RGB.")
+                        "Invasion HUD colour for team B (right base). Six hex digits, e.g. FF5555.")
                 .define("hudTeamBColor", "FF5555");
         INVASION_HUD_NEUTRAL_COLOR = builder.comment(
-                        "HUD colour for unowned capture points. Hex RGB.")
+                        "Invasion HUD colour for unowned capture points. Six hex digits, e.g. AAAAAA.")
                 .define("hudNeutralColor", "AAAAAA");
         builder.pop();
 
         builder.push("doctrine");
-        builder.comment("Fallback doctrine presets for RU, US, and PMC commanders.");
+        builder.comment("Default fighting style sliders for RU, US, and PMC commanders (-3 to +3 on each axis).");
         DOCTRINE = new ForgeConfigSpec.IntValue[FACTION_KEYS.length][Doctrine.Axis.VALUES.length];
         for (int f = 0; f < FACTION_KEYS.length; f++) {
             builder.push(FACTION_KEYS[f]);
@@ -650,40 +646,39 @@ public final class SewvConfig {
 
         builder.push("extermination");
         TRIPOD_SHIELD_ENABLED = builder.comment(
-                        "Softcompat: ranged-damage shield on Extermination pods (TACZ/SBW/projectiles).",
-                        "Melee still passes. Shield breaks after absorbing tripodShieldBreakDamage.",
-                        "No-op when Extermination is absent.")
+                        "If the Extermination mod is installed: pods get a shield against bullets and shells.",
+                        "Melee still hurts them. Shield breaks after soaking tripodShieldBreakDamage.",
+                        "Does nothing if Extermination is not installed.")
                 .define("tripodShieldEnabled", true);
         TRIPOD_HP_MULTIPLIER = builder.comment(
-                        "Max-health multiplier applied once when a Tripod joins the world (2.0 = double).")
+                        "Multiply Tripod max health when it spawns (2.0 = double health).")
                 .defineInRange("tripodHpMultiplier", 2.0, 1.0, 10.0);
         TRIPOD_SHIELD_BREAK_DAMAGE = builder.comment(
-                        "Cumulative ranged damage the shield absorbs before breaking (raw hit amounts).",
-                        "While up, that damage is cancelled; once broken, ranged damage applies normally.")
+                        "Total ranged damage the shield can soak before it breaks.",
+                        "While the shield is up those hits do no HP damage; after it breaks, guns work normally.")
                 .defineInRange("tripodShieldBreakDamage", 400.0, 1.0, 100000.0);
         TRIPOD_SHIELD_REGEN_TICKS = builder.comment(
-                        "Game ticks after the shield breaks before it regenerates (0 = stays down until death).",
-                        "20 ticks ≈ 1 second.")
+                        "Wait after the shield breaks before it comes back, in game ticks (20 = 1 second).",
+                        "0 = shield stays down for the rest of the fight.")
                 .defineInRange("tripodShieldRegenTicks", 600, 0, 72000);
         TRIPOD_SHIELD_FLARE_TICKS = builder.comment(
-                        "Cosmetic flare particle lifetime window after a blocked hit (~8 ticks ≈ 400 ms).")
+                        "How long the hit-spark effect lasts after a blocked shot, in game ticks (~8 ≈ 0.4 s).")
                 .defineInRange("tripodShieldFlareTicks", 8, 1, 100);
         TRIPOD_SHIELD_FLARE_DEBUG_ALWAYS_ON = builder.comment(
-                        "Debug: keep emitting the same flare FX without needing hits (same emitter as blocks).")
+                        "Developer: keep playing the shield spark effect without needing hits.")
                 .define("tripodShieldFlareDebugAlwaysOn", false);
         TRIPOD_SHIELD_DEBUG_WIREFRAME = builder.comment(
-                        "Debug: draw the prolate-spheroid shield surface used for flare placement (client).")
+                        "Developer: draw the shield outline in the world (client only).")
                 .define("tripodShieldDebugWireframe", false);
         TRIPOD_SHIELD_AXIS_SCALE = builder.comment(
-                        "Scale of the math spheroid used for flare projection / debug wireframe (1.0 = hitbox).")
+                        "Size of the shield bubble for sparks/debug outline (1.0 = matches the hitbox).")
                 .defineInRange("tripodShieldAxisScale", 1.0, 0.25, 4.0);
         INVASION_POD_AVOID_RADIUS = builder.comment(
-                        "When /gamerule sewvInvasionOverrides is true: AI vehicles keep this many blocks",
-                        "clear of Extermination combat pods (tripod / uberpod / emperorpod / harvester).")
+                        "With gamerule sewvInvasionOverrides on: AI vehicles stay this many blocks away",
+                        "from Extermination combat pods.")
                 .defineInRange("invasionPodAvoidRadius", 48.0, 8.0, 128.0);
         HEAT_RAY_SPEED = builder.comment(
-                        "Extermination heat-ray projectile speed. Vanilla Extermination uses 3.5;",
-                        "default 10.5 is 3× that. Applies to SEM volleys and native rays.")
+                        "Speed of Extermination heat-ray shots. The original mod uses 3.5; default 10.5 is triple that.")
                 .defineInRange("heatRaySpeed", 10.5, 3.5, 40.0);
         builder.pop();
 

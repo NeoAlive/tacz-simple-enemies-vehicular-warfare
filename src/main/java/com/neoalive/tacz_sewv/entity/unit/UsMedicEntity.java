@@ -5,7 +5,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Monster;
@@ -21,9 +20,6 @@ public class UsMedicEntity extends USunitEntity implements IMedicTreat {
 
     public static final EntityDataAccessor<Boolean> TREATING =
             SynchedEntityData.defineId(UsMedicEntity.class, EntityDataSerializers.BOOLEAN);
-
-    /** Client heal clip while treating — never shares SEM idle/walk states. */
-    public final AnimationState treatAnimationState = new AnimationState();
 
     public UsMedicEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);
@@ -57,11 +53,6 @@ public class UsMedicEntity extends USunitEntity implements IMedicTreat {
     @Override
     public void sewv$setTreating(boolean treating) {
         this.entityData.set(TREATING, treating);
-    }
-
-    @Override
-    public AnimationState sewv$treatAnimationState() {
-        return this.treatAnimationState;
     }
 
     /** No weapon — a medical kit instead. It reads as a medic, and MedicGoal treats it as its supply. */

@@ -6,7 +6,6 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -16,8 +15,8 @@ import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 
 /**
  * Synched lock flag + dive-arm / ownership helpers for engineer kamikaze drones.
- * Lock freezes the engineer (see {@link DroneControlLockGoal}); dive-arm gates
- * {@code kamikazeExplosion} so wander terrain bumps do not detonate.
+ * Lock freezes the engineer (see {@link com.neoalive.tacz_sewv.entity.ai.goal.DroneControlLockGoal});
+ * dive-arm gates {@code kamikazeExplosion} so wander terrain bumps do not detonate.
  */
 public final class DroneControl {
 
@@ -59,14 +58,6 @@ public final class DroneControl {
 
     public static boolean isEngineer(LivingEntity entity) {
         return entity instanceof RuEngineerEntity || entity instanceof UsEngineerEntity;
-    }
-
-    /** Dedicated sit {@link AnimationState}, or null when the entity is not an engineer. */
-    @Nullable
-    public static AnimationState sitAnimationState(Entity entity) {
-        if (entity instanceof RuEngineerEntity ru) return ru.droneSitAnimationState;
-        if (entity instanceof UsEngineerEntity us) return us.droneSitAnimationState;
-        return null;
     }
 
     public static void rememberDrone(AbstractUnit owner, DroneEntity drone) {

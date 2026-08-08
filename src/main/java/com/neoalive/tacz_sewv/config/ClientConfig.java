@@ -29,7 +29,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_COMMAND_DEBUG;
     public static final ForgeConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
 
-    /** Session flip for the map-markers keybind; {@code null} means “use config”. */
+    /** Temporary on/off from the map-markers keybind; null = follow the setting below. */
     @Nullable
     private static volatile Boolean MAP_MARKERS_SESSION_OVERRIDE;
 
@@ -38,47 +38,50 @@ public final class ClientConfig {
 
         builder.push("interaction");
         SHOW_ORDER_FEEDBACK = builder
-                .comment("Show action-bar confirmations for successful orders.")
+                .comment("Show a short message above the hotbar when an order succeeds.")
                 .define("showOrderFeedback", true);
         builder.pop();
 
         builder.push("overlay");
         FACTION_COLORS_ENABLED = builder
-                .comment("Color Superb Warfare's hover overlay by the crew's faction.")
+                .comment("Tint Superb Warfare's vehicle hover text by who is crewing it (RU / US / PMC).")
                 .define("factionColorsEnabled", true);
         COLOR_RU = builder
-                .comment("RU overlay/map color as RRGGBB.")
+                .comment("RU colour as six hex digits (RRGGBB), e.g. FF5555.")
                 .define("colorRu", "FF5555");
         COLOR_US = builder
-                .comment("US overlay/map color as RRGGBB.")
+                .comment("US colour as six hex digits (RRGGBB), e.g. 5555FF.")
                 .define("colorUs", "5555FF");
         COLOR_PMC = builder
-                .comment("PMC overlay/map color as RRGGBB.")
+                .comment("PMC colour as six hex digits (RRGGBB), e.g. 55FF55.")
                 .define("colorPmc", "55FF55");
         HELI_SHOW_RUN_PHASE = builder
-                .comment("Append AI helicopter firing-run phase (INGRESS/ATTACK/BREAK/…) to the hover name.")
+                .comment("On AI helicopters, append the current attack phase to the hover name",
+                        "(approach, attack, break away, and so on).")
                 .define("heliShowRunPhase", true);
         builder.pop();
 
         builder.push("map");
         MAP_MARKERS_ENABLED = builder
-                .comment("Show SEWV unit/vehicle markers and map ordering UI on Xaero's World Map.",
-                        "User-facing clutter toggle (not debug). Toggle in-game with the map markers keybind.")
+                .comment("Show unit and vehicle markers on Xaero's World Map, and allow ordering from the map.",
+                        "You can also toggle this in-game with the map markers keybind.")
                 .define("mapMarkersEnabled", true);
         MAP_LIVE = builder
-                .comment("Keep singleplayer running while Xaero's map is open.")
+                .comment("In singleplayer, keep the world running while Xaero's map screen is open",
+                        "(otherwise the game pauses and markers go stale).")
                 .define("mapLive", true);
         MAP_SHOW_ICONS = builder
-                .comment("Draw unit-type icons on map markers.")
+                .comment("Draw vehicle-type icons on map markers.")
                 .define("mapShowIcons", true);
         MAP_SHOW_HEALTH_BAR = builder
-                .comment("Draw health bars under owned PMC vehicle markers.")
+                .comment("Draw a health bar under your own PMC vehicle markers.")
                 .define("mapShowHealthBar", true);
         MAP_SHOW_ENERGY_BAR = builder
-                .comment("Draw energy bars under owned PMC vehicle markers.")
+                .comment("Draw an energy/fuel bar under your own PMC vehicle markers.")
                 .define("mapShowEnergyBar", true);
         MAP_SHOW_COMMAND_DEBUG = builder
-                .comment("Debug: commander ★/·, BattleField overlay, play name, per-tank role tags (BoF/MNV/…).")
+                .comment("Developer overlay: battle-group commander marks, play names, and per-tank role tags.",
+                        "Leave off unless you are debugging AI command.")
                 .define("mapShowCommandDebug", false);
         builder.pop();
 
@@ -88,15 +91,15 @@ public final class ClientConfig {
     private ClientConfig() {}
 
     /**
-     * Effective map-marker visibility. Prefer this over {@link #MAP_MARKERS_ENABLED}{@code .get()}
-     * so the in-game keybind session override is honoured without rewriting the toml every press.
+     * Whether map markers are shown right now. Uses the keybind override when set,
+     * otherwise the config value — so toggling in-game does not rewrite the config file.
      */
     public static boolean mapMarkersEnabled() {
         Boolean override = MAP_MARKERS_SESSION_OVERRIDE;
         return override != null ? override : MAP_MARKERS_ENABLED.get();
     }
 
-    /** Toggle markers for this client session; returns the new visible state. */
+    /** Flip markers on/off for this session; returns whether they are now visible. */
     public static boolean toggleMapMarkersSession() {
         boolean next = !mapMarkersEnabled();
         MAP_MARKERS_SESSION_OVERRIDE = next;

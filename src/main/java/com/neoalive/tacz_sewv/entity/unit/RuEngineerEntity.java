@@ -4,7 +4,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.level.Level;
@@ -21,9 +20,6 @@ public class RuEngineerEntity extends RUunitEntity {
 
     public static final EntityDataAccessor<Boolean> DRONE_CONTROL_LOCKED =
             SynchedEntityData.defineId(RuEngineerEntity.class, EntityDataSerializers.BOOLEAN);
-
-    /** Client sit clip while drone-control locked — never shares SEM idle/walk states. */
-    public final AnimationState droneSitAnimationState = new AnimationState();
 
     public RuEngineerEntity(EntityType<? extends Monster> type, Level level) {
         super(type, level);

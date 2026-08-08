@@ -47,6 +47,15 @@ public class ModItems {
     public static final RegistryObject<Item> TEAM_BASE = ITEMS.register("team_base",
             () -> new BlockItem(ModBlocks.TEAM_BASE.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> TRENCH = ITEMS.register("trench",
+            () -> new BlockItem(ModBlocks.TRENCH.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> TRENCH_X_CROSS = ITEMS.register("trench_x_cross",
+            () -> new BlockItem(ModBlocks.TRENCH_X_CROSS.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> FOXHOLE = ITEMS.register("foxhole",
+            () -> new BlockItem(ModBlocks.FOXHOLE.get(), new Item.Properties()));
+
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",
@@ -69,6 +78,11 @@ public class ModItems {
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
             event.accept(CAPTURE_POINT);
             event.accept(TEAM_BASE);
+        }
+        if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
+            event.accept(TRENCH);
+            event.accept(TRENCH_X_CROSS);
+            event.accept(FOXHOLE);
         }
         if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
             event.accept(RU_MEDIC_SPAWN_EGG);

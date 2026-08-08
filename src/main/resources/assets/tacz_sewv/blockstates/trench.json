@@ -1,0 +1,118 @@
+{
+  "variants": {
+    "half=lower,connection=lone": {
+      "model": "tacz_sewv:block/trench_down_lone"
+    },
+    "half=lower,connection=end_north": {
+      "model": "tacz_sewv:block/trench_down_end_right",
+      "y": 90
+    },
+    "half=lower,connection=end_east": {
+      "model": "tacz_sewv:block/trench_down_end_left"
+    },
+    "half=lower,connection=end_south": {
+      "model": "tacz_sewv:block/trench_down_end_left",
+      "y": 90
+    },
+    "half=lower,connection=end_west": {
+      "model": "tacz_sewv:block/trench_down_end_right"
+    },
+    "half=lower,connection=mid_ns": {
+      "model": "tacz_sewv:block/trench_down_mid",
+      "y": 90
+    },
+    "half=lower,connection=mid_ew": {
+      "model": "tacz_sewv:block/trench_down_mid"
+    },
+    "half=lower,connection=corner_nw": {
+      "model": "tacz_sewv:block/trench_down_corner"
+    },
+    "half=lower,connection=corner_ne": {
+      "model": "tacz_sewv:block/trench_down_corner",
+      "y": 90
+    },
+    "half=lower,connection=corner_se": {
+      "model": "tacz_sewv:block/trench_down_corner",
+      "y": 180
+    },
+    "half=lower,connection=corner_sw": {
+      "model": "tacz_sewv:block/trench_down_corner",
+      "y": 270
+    },
+    "half=lower,connection=tcross_south": {
+      "model": "tacz_sewv:block/trench_down_tcross"
+    },
+    "half=lower,connection=tcross_west": {
+      "model": "tacz_sewv:block/trench_down_tcross",
+      "y": 90
+    },
+    "half=lower,connection=tcross_north": {
+      "model": "tacz_sewv:block/trench_down_tcross",
+      "y": 180
+    },
+    "half=lower,connection=tcross_east": {
+      "model": "tacz_sewv:block/trench_down_tcross",
+      "y": 270
+    },
+    "half=lower,connection=plinth": {
+      "model": "tacz_sewv:block/trench_plinth"
+    },
+    "half=upper,connection=lone": {
+      "model": "tacz_sewv:block/trench_up_lone"
+    },
+    "half=upper,connection=end_north": {
+      "model": "tacz_sewv:block/trench_up_end_right",
+      "y": 90
+    },
+    "half=upper,connection=end_east": {
+      "model": "tacz_sewv:block/trench_up_end_left"
+    },
+    "half=upper,connection=end_south": {
+      "model": "tacz_sewv:block/trench_up_end_left",
+      "y": 90
+    },
+    "half=upper,connection=end_west": {
+      "model": "tacz_sewv:block/trench_up_end_right"
+    },
+    "half=upper,connection=mid_ns": {
+      "model": "tacz_sewv:block/trench_up_mid",
+      "y": 90
+    },
+    "half=upper,connection=mid_ew": {
+      "model": "tacz_sewv:block/trench_up_mid"
+    },
+    "half=upper,connection=corner_nw": {
+      "model": "tacz_sewv:block/trench_up_corner"
+    },
+    "half=upper,connection=corner_ne": {
+      "model": "tacz_sewv:block/trench_up_corner",
+      "y": 90
+    },
+    "half=upper,connection=corner_se": {
+      "model": "tacz_sewv:block/trench_up_corner",
+      "y": 180
+    },
+    "half=upper,connection=corner_sw": {
+      "model": "tacz_sewv:block/trench_up_corner",
+      "y": 270
+    },
+    "half=upper,connection=tcross_south": {
+      "model": "tacz_sewv:block/trench_up_tcross"
+    },
+    "half=upper,connection=tcross_west": {
+      "model": "tacz_sewv:block/trench_up_tcross",
+      "y": 90
+    },
+    "half=upper,connection=tcross_north": {
+      "model": "tacz_sewv:block/trench_up_tcross",
+      "y": 180
+    },
+    "half=upper,connection=tcross_east": {
+      "model": "tacz_sewv:block/trench_up_tcross",
+      "y": 270
+    },
+    "half=upper,connection=plinth": {
+      "model": "tacz_sewv:block/trench_up_plinth"
+    }
+  }
+}

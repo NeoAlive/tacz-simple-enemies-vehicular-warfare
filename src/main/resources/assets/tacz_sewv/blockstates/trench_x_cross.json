@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "half=lower": {
+      "model": "tacz_sewv:block/trench_down_x_cross"
+    },
+    "half=upper": {
+      "model": "tacz_sewv:block/trench_up_x_cross"
+    }
+  }
+}

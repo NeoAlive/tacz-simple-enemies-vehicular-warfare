@@ -55,6 +55,8 @@ public class DroneOperatorGoal extends Goal {
     private int scanCooldown;
     private double wanderX = Double.NaN;
     private double wanderZ = Double.NaN;
+    /** Sticky between rescans — returning false mid-window used to re-lock every tick (sit flicker). */
+    private boolean holdUnlock;
     @javax.annotation.Nullable
     private VehicleEntity diveTarget;
 
@@ -148,6 +150,7 @@ public class DroneOperatorGoal extends Goal {
     }
 
     private boolean shouldBreakLock() {
+        // Per-tick gates — cheap and must win every tick or LockGoal re-grabs MOVE.
         if (this.unit.getTarget() != null) return true;
 
         LivingEntity lastHurt = this.unit.getLastHurtByMob();
@@ -156,9 +159,15 @@ public class DroneOperatorGoal extends Goal {
         }
 
         long now = this.unit.level().getGameTime();
-        if (now < this.nextThreatScan) return false;
-        this.nextThreatScan = now + DroneControl.LOCK_THREAT_RESCAN_TICKS;
+        if (now >= this.nextThreatScan) {
+            this.nextThreatScan = now + DroneControl.LOCK_THREAT_RESCAN_TICKS;
+            // Repair outranks drone sit — unlock so RepairGoal can take MOVE / restore the tool.
+            this.holdUnlock = RepairGoal.findNearestRepairable(this.unit) != null || nearbyHostile();
+        }
+        return this.holdUnlock;
+    }
 
+    private boolean nearbyHostile() {
         double r = DroneControl.LOCK_THREAT_RADIUS;
         AABB box = this.unit.getBoundingBox().inflate(r);
         for (LivingEntity e : this.unit.level().getEntitiesOfClass(LivingEntity.class, box,

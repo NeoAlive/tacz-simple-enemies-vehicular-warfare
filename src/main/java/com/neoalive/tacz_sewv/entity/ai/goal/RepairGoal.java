@@ -29,6 +29,11 @@ public class RepairGoal extends Goal {
 
     /** Close enough to work on a hull — a couple of blocks off its edge. */
     private static final double WORK_DISTANCE_SQ = 9.0;
+    /**
+     * Leave the work band only past this — without hysteresis a hull that drifts across the 3-block
+     * edge restarts walk↔idle every tick (visible flicker).
+     */
+    private static final double LOSE_WORK_DISTANCE_SQ = 25.0;
     /** Goal ticks before scanning for a hull again after finding none. */
     private static final int IDLE_RESCAN = 40;
     /** Give up walking to a hull after this long — it may be somewhere unreachable. */
@@ -38,6 +43,7 @@ public class RepairGoal extends Goal {
     private VehicleEntity target;
     private int cooldown;
     private int approachTicks;
+    private boolean working;
 
     public RepairGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -81,6 +87,9 @@ public class RepairGoal extends Goal {
     public void start() {
         this.approachTicks = 0;
         this.cooldown = 0;
+        this.working = false;
+        // Repair outranks drone sit — unlock so LockGoal releases MOVE and holster restores the tool.
+        DroneOperatorGoal.unlockEngineer(this.unit);
         CrewRadio.speakUnit(this.unit, CrewRadio.Line.FIXING);
         this.unit.getNavigation().moveTo(this.target, 1.0);
     }
@@ -90,6 +99,7 @@ public class RepairGoal extends Goal {
         this.unit.getNavigation().stop();
         this.target = null;
         this.approachTicks = 0;
+        this.working = false;
     }
 
     @Override
@@ -98,13 +108,17 @@ public class RepairGoal extends Goal {
         this.approachTicks++;
         this.unit.getLookControl().setLookAt(this.target, 30.0F, 30.0F);
 
-        if (this.unit.distanceToSqr(this.target) > WORK_DISTANCE_SQ) {
+        double distSq = this.unit.distanceToSqr(this.target);
+        double band = this.working ? LOSE_WORK_DISTANCE_SQ : WORK_DISTANCE_SQ;
+        if (distSq > band) {
+            this.working = false;
             // Repath only once the last one has run out — same as MedicGoal.
             if (this.unit.getNavigation().isDone()) {
                 this.unit.getNavigation().moveTo(this.target, 1.0);
             }
             return;
         }
+        this.working = true;
         this.unit.getNavigation().stop();
 
         if (this.cooldown > 0) {
@@ -138,17 +152,25 @@ public class RepairGoal extends Goal {
         level.sendParticles(ModParticleTypes.RISING_SMOKE.get(), x, y, z, 3, spread, 0.2, spread, 0.01);
     }
 
-    /** Nearest damaged friendly/empty hull in range. */
-    private VehicleEntity findHull() {
+    /** Nearest damaged friendly/empty hull in range, or null. Shared with drone unlock. */
+    @javax.annotation.Nullable
+    public static VehicleEntity findNearestRepairable(AbstractUnit unit) {
+        if (SupportRole.of(unit) != SupportRole.ENGINEER) return null;
+        if (unit.isPassenger() || unit.getTarget() != null) return null;
         double radius = SewvConfig.ENGINEER_SEARCH_RADIUS.get();
-        List<VehicleEntity> nearby = this.unit.level().getEntitiesOfClass(
+        List<VehicleEntity> nearby = unit.level().getEntitiesOfClass(
                 VehicleEntity.class,
-                this.unit.getBoundingBox().inflate(radius),
+                unit.getBoundingBox().inflate(radius),
                 v -> !v.isWreck()
                         && v.getHealth() < v.getMaxHealth()
-                        && VehicleTargeting.isFriendlyOrEmptyHull(this.unit, v));
+                        && VehicleTargeting.isFriendlyOrEmptyHull(unit, v));
         return nearby.stream()
-                .min(Comparator.comparingDouble(this.unit::distanceToSqr))
+                .min(Comparator.comparingDouble(unit::distanceToSqr))
                 .orElse(null);
+    }
+
+    /** Nearest damaged friendly/empty hull in range. */
+    private VehicleEntity findHull() {
+        return findNearestRepairable(this.unit);
     }
 }

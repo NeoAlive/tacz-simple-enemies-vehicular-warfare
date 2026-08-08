@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.mixin;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -49,10 +48,6 @@ public abstract class MixinPmcUnitEntity
     @Unique
     private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING =
             SynchedEntityData.defineId(PmcUnitEntity.class, EntityDataSerializers.BOOLEAN);
-
-    /** Client heal clip while treating — never shares SEM idle/walk states. */
-    @Unique
-    public final AnimationState tacz_sewv$treatAnimationState = new AnimationState();
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
@@ -130,11 +125,6 @@ public abstract class MixinPmcUnitEntity
     @Override
     public void sewv$setTreating(boolean treating) {
         ((Entity) (Object) this).getEntityData().set(tacz_sewv$TREATING, treating);
-    }
-
-    @Override
-    public AnimationState sewv$treatAnimationState() {
-        return this.tacz_sewv$treatAnimationState;
     }
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))

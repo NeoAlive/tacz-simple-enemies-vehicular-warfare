@@ -11,9 +11,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
-import com.neoalive.tacz_sewv.entity.ai.support.EmplacementHands;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
+import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /**
  * Hard friendly-fire gate, applied at the source. SEM's retaliation goal
@@ -40,7 +40,7 @@ public abstract class MixinAbstractUnit {
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void tacz_sewv$defineManningMortar(CallbackInfo ci) {
-        ((Entity) (Object) this).getEntityData().define(EmplacementHands.MANNING_MORTAR, false);
+        ((Entity) (Object) this).getEntityData().define(UnitHolster.MANNING_MORTAR, false);
     }
 
     // setTarget is a vanilla Mob method SEM overrides, so the target is remapped

@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 
 import com.neoalive.tacz_sewv.entity.ai.goal.SupportUnitGoals;
-import com.neoalive.tacz_sewv.entity.ai.support.EngineerLoadout;
+import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /**
  * RU mechanical engineer. Carries a repair tool / sidearm kit and may operate one kamikaze drone
@@ -51,7 +51,7 @@ public class RuEngineerEntity extends RUunitEntity {
 
     @Override
     public void equipRandomGun() {
-        EngineerLoadout.equip(this);
+        UnitHolster.equip(this);
     }
 
     @Override

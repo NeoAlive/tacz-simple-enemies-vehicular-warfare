@@ -27,7 +27,8 @@ import com.neoalive.tacz_sewv.init.ModEntities;
  * {@link BedrockArmorLayer} covers armor that supplies its own model (SBW's kit) — without it RU/US
  * armor is equipped and invisible; {@link SmallArmsLayer} covers SuperbWarfare guns, which is what
  * draws an engineer's repair tool (SEM's held-item layer returns immediately unless the item is a
- * TACZ gun); {@link CuriosHeadLayer} draws Curios head items (thermal goggles) that Curios' own
+ * TACZ gun); {@link HolsterLayer} draws a TACZ body-holstered gun via FIXED/{@code offhand_show};
+ * {@link CuriosHeadLayer} draws Curios head items (thermal goggles) that Curios' own
  * player-only layer never reaches on SEM units.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
@@ -84,6 +85,7 @@ public class ClientModEvents {
         if (renderer != null) {
             renderer.addLayer(new BedrockArmorLayer<>(renderer));
             renderer.addLayer(new SmallArmsLayer<>(renderer));
+            renderer.addLayer(new HolsterLayer<>(renderer));
             renderer.addLayer(new CuriosHeadLayer<>(renderer));
         }
     }

@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.entity.ai.goal.SupportUnitGoals;
-import com.neoalive.tacz_sewv.entity.ai.support.EngineerLoadout;
+import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /** US mechanical engineer. See {@link RuEngineerEntity}. */
 public class UsEngineerEntity extends USunitEntity {
@@ -48,7 +48,7 @@ public class UsEngineerEntity extends USunitEntity {
 
     @Override
     public void equipRandomGun() {
-        EngineerLoadout.equip(this);
+        UnitHolster.equip(this);
     }
 
     @Override

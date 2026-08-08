@@ -11,7 +11,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.roles.utils.UnitRole;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
-import com.neoalive.tacz_sewv.entity.ai.support.EngineerLoadout;
+import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /**
  * Goal loadouts for the medic and engineer support units, replacing the faction unit's normal
@@ -45,15 +45,15 @@ public final class SupportUnitGoals {
         goals.addGoal(1, new RepairGoal(unit));
 
         // Draws the holstered sidearm when a fight starts and puts it away when it ends. Claims no
-        // flags — see EngineerLoadout.HolsterGoal. Also enforces Monitor while drone-locked.
-        goals.addGoal(1, new EngineerLoadout.HolsterGoal(unit));
+        // flags — see UnitHolster.HolsterGoal. Also enforces Monitor while drone-locked.
+        goals.addGoal(1, new UnitHolster.HolsterGoal(unit));
 
         // Deploys and flies one kamikaze drone. Claims no flags — freeze is DroneControlLockGoal.
         goals.addGoal(1, new DroneOperatorGoal(unit));
 
         // SEM's own infantry goals — cover, movement, look, stroll, and RangedGunAttackGoal, which
         // fires whatever TACZ gun is in the MAIN hand. That last one is what the holstered sidearm
-        // relies on (see EngineerLoadout). Reused rather than rebuilt because it reads SEM's combat
+        // relies on (see UnitHolster). Reused rather than rebuilt because it reads SEM's combat
         // config internally, which is a class this mod must not hard-link (it moves between versions).
         UnitRole.DEFAULT.getGoals().addGoals(unit);
 

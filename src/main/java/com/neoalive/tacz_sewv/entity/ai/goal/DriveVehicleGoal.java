@@ -224,7 +224,9 @@ public class DriveVehicleGoal extends Goal {
             // so invasion fleets still get advanced tactics; capture destination resumes via
             // resolveDestination when the contact ends. Untasked capture crews hold the approach.
             boolean tasked = com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment.of(this.unit.getId()) != null;
-            if ((PatrolSupport.holdsCourseThroughContact(this.unit) || (captureHold && !tasked))
+            if ((PatrolSupport.holdsCourseThroughContact(this.unit)
+                    || VehicleTargeting.holdsOrderedMove(this.unit)
+                    || (captureHold && !tasked))
                     && !isLowHealth()) {
                 if (captureHold && this.unit.level() instanceof ServerLevel sl
                         && sl.getGameTime() % 40L == 0L) {

@@ -13,7 +13,8 @@ import com.neoalive.tacz_sewv.init.ModGameRules;
 /**
  * Scales SEM event spawn distance when {@code sewvFarEventSpawns} is on. Lives here because
  * {@code DynamicEvent#getMinDistance}/{@code getMaxDistance} take no level and cannot read a
- * gamerule themselves — both the periodic roll and {@code forceEvent} go through the same call.
+ * gamerule themselves — both the per-player roll ({@code tryEventForPlayer}) and
+ * {@code forceEvent} go through the same call.
  */
 @Mixin(targets = "net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager")
 public abstract class MixinDynamicEventManager {
@@ -21,7 +22,7 @@ public abstract class MixinDynamicEventManager {
     private static final double FAR_SCALE = 2.5;
 
     @Redirect(
-            method = {"tryTryEvent", "forceEvent"},
+            method = {"tryEventForPlayer", "forceEvent"},
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/nekoyuni/SimpleEnemyMod/spawn/utils/SpawnHelper;getRandomPositionNearPlayer(Lnet/minecraft/server/level/ServerPlayer;IILnet/minecraft/server/level/ServerLevel;)Lnet/minecraft/core/BlockPos;",

@@ -14,6 +14,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
@@ -64,6 +65,7 @@ public class PacketReachGuard {
                 }
 
                 Vec3 target = Vec3.atCenterOf(guard);
+                ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
                 pmc.setMoveToTarget(target); // also sets MOVE_TO_POSITION
                 GuardSupport.setReaching(pmc, true);
                 ordered++;

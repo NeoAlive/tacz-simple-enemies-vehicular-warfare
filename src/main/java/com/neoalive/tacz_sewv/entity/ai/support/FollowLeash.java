@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -21,11 +22,13 @@ import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
  * ~5 s (SEM's {@code ticksSinceLastCombat} of 100) after the fight ends. SEM exposes no per-order
  * leash — only a global {@code UNIT_DETECTION_RANGE} that would also nerf enemy AI.
  *
- * <p>Two mixins consult this to close the two seams:
- * {@link com.neoalive.tacz_sewv.mixin.MixinMoveToAttackRangeGoal} suppresses the advance, and
+ * <p>Mixins consult this to close the seams:
+ * {@link com.neoalive.tacz_sewv.mixin.MixinMoveToAttackRangeGoal} suppresses the long advance,
  * {@link com.neoalive.tacz_sewv.mixin.MixinCommanderOrderGoal} keeps the follow goal live through
- * combat. Together the unit holds with its commander, takes local cover, and fires only when the
- * enemy is already in range.
+ * combat, {@link com.neoalive.tacz_sewv.mixin.MixinSemOnFootTacticalGoals} blocks cover/maneuver
+ * MOVE under {@link #ownsMove}, {@link com.neoalive.tacz_sewv.entity.ai.goal.FollowCommanderGoal}
+ * is the hard FOLLOW_ME stick, and {@link com.neoalive.tacz_sewv.entity.ai.goal.MoveToPositionGoal}
+ * is the hard MOVE stick — SEM's CommanderOrderGoal at priority 3 cannot win against combat alone.
  *
  * <p>Scoped to the positional orders CommanderOrderGoal governs (the same set SEM treats as
  * "isFollowOrder"): FOLLOW / HOLD / MOVE_TO_POSITION / the two FORM orders — plus a live
@@ -47,5 +50,39 @@ public final class FollowLeash {
             case FOLLOW_COMMANDER, HOLD_POSITION, MOVE_TO_POSITION, FORM_WEDGE, FORM_COLUMN -> true;
             default -> false;
         };
+    }
+
+    /**
+     * Stricter half of the leash: the unit must stay glued to the commander / formation slot,
+     * not peel toward cover or a flank. True for FOLLOW_ME, the two FORM orders, and a live
+     * infantry sweep. HOLD keeps {@link #leashed} (no chase) but still takes local cover;
+     * MOVE suppresses peel only while {@link #enRouteToMove}.
+     */
+    public static boolean sticksToLeader(Mob mob) {
+        if (!(mob instanceof PmcUnitEntity pmc)) return false;
+        if (pmc.getVehicle() != null) return false;
+        if (((ISweepInfantry) pmc).sewv$hasInfantrySweep()) return true;
+        OrderType order = pmc.getOrder();
+        return order == OrderType.FOLLOW_COMMANDER
+                || order == OrderType.FORM_WEDGE
+                || order == OrderType.FORM_COLUMN;
+    }
+
+    /**
+     * Still walking to a MOVE click. SEM arrives at {@code distSqr < 2.5}; until then cover /
+     * tactical MOVE must not steal the transit. After arrival, local cover is allowed again.
+     */
+    public static boolean enRouteToMove(Mob mob) {
+        if (!(mob instanceof PmcUnitEntity pmc)) return false;
+        if (pmc.getVehicle() != null) return false;
+        if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) return false;
+        Vec3 dest = pmc.getMoveToTarget();
+        if (dest == null || dest.equals(Vec3.ZERO)) return false;
+        return pmc.distanceToSqr(dest) >= 2.5D;
+    }
+
+    /** FOLLOW glue or an unfinished MOVE — locomotion belongs to the order, not combat peel. */
+    public static boolean ownsMove(Mob mob) {
+        return sticksToLeader(mob) || enRouteToMove(mob);
     }
 }

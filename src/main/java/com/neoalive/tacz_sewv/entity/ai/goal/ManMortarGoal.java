@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.support.EmplacementHands;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
@@ -219,6 +220,7 @@ public class ManMortarGoal extends Goal {
         if (distSq > useDistance * useDistance && !pathExhaustedNearby(distSq, useDistance)) {
             hold("walking to the mortar (%.0f blocks away, needs %.1f)",
                     Math.sqrt(distSq), useDistance);
+            EmplacementHands.setManningMortar(this.unit, false);
             approach();
             return;
         }
@@ -226,6 +228,7 @@ public class ManMortarGoal extends Goal {
         this.unit.getNavigation().stop();
         this.approachTicks = 0;
         this.approachDeadline = deadlineFromNow(); // the clock only bounds walking
+        EmplacementHands.setManningMortar(this.unit, true);
         crewMortar();
     }
 
@@ -416,6 +419,9 @@ public class ManMortarGoal extends Goal {
         // preempts, and clearing the lay would re-roll the aim on every restart — a goal
         // that gets preempted regularly would then re-aim forever and never reach the
         // shot. The stale-lay check in crewMortar handles a target that has moved.
+        //
+        // Hands hide is cleared: overrun / preemption means the unit fights with its rifle.
+        EmplacementHands.setManningMortar(this.unit, false);
         this.unit.getNavigation().stop();
         this.approachTicks = 0;
         // Chunks, unlike the claim, ARE handed back here. Nothing at priority 0 claims

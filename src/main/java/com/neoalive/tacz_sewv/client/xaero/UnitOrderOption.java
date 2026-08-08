@@ -100,6 +100,7 @@ public class UnitOrderOption extends RightClickOption {
         HOLD("hold", "message.tacz_sewv.map.held", false, Category.STANCE),
         FREE_FIRE("free_fire", "message.tacz_sewv.map.free_fire", false, Category.STANCE),
         CEASE_FIRE("cease_fire", "message.tacz_sewv.map.cease_fire", false, Category.STANCE),
+        ATTACK_THAT("attack_that", "message.tacz_sewv.map.attack_that", false, Category.STANCE),
         TAKEOFF("takeoff", null, false, Category.AIR),
         LAND_HERE("land_here", null, true, Category.AIR),
         PATROL_HERE("patrol_here", null, true, Category.AREA_TASK),
@@ -133,16 +134,19 @@ public class UnitOrderOption extends RightClickOption {
     private final int selRight;
     private final int selBottom;
     private final boolean hasTileSelection;
+    /** SEM target entity id for ATTACK_THAT; -1 when unused / inactive. */
+    private final int attackTargetId;
 
     public UnitOrderOption(int index, IRightClickableElement target, Action action,
                            int x, int y, int z, ResourceKey<Level> dimension, int selectedCount,
-                           MapTileSelection tileSelection) {
+                           MapTileSelection tileSelection, int attackTargetId) {
         super(action.labelKey, action.category.style, index, target);
         this.action = action;
         this.x = x;
         this.y = y;
         this.z = z;
         this.dimension = dimension;
+        this.attackTargetId = attackTargetId;
         if (tileSelection != null) {
             this.hasTileSelection = true;
             this.selLeft = tileSelection.getLeft();
@@ -159,6 +163,9 @@ public class UnitOrderOption extends RightClickOption {
         }
         if (action == Action.REACH_GUARD) {
             active = active && selectedHaveGuard();
+        }
+        if (action == Action.ATTACK_THAT) {
+            active = active && attackTargetId >= 0;
         }
         setActive(active);
         setNameFormatArgs(selectedCount);
@@ -248,6 +255,17 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
+        if (this.action == Action.ATTACK_THAT) {
+            if (this.attackTargetId < 0) return;
+            for (int driverId : drivers) {
+                ModNetworking.CHANNEL.sendToServer(
+                        new PacketIssueOrder(driverId, OrderType.ATTACK_THAT_TARGET, Vec3.ZERO, 0,
+                                this.attackTargetId));
+            }
+            if (this.action.ackKey != null) hint(this.action.ackKey, drivers.size());
+            return;
+        }
+
         Vec3 destination = this.action.positional ? destination(player) : Vec3.ZERO;
         for (int driverId : drivers) {
             ModNetworking.CHANNEL.sendToServer(
@@ -264,6 +282,7 @@ public class UnitOrderOption extends RightClickOption {
             case HOLD -> OrderType.HOLD_POSITION;
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
+            case ATTACK_THAT -> OrderType.ATTACK_THAT_TARGET;
             case TAKEOFF, LAND_HERE, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE, CRUISE,
                     SET_GUARD, REACH_GUARD, DISMISS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
@@ -308,11 +327,12 @@ public class UnitOrderOption extends RightClickOption {
     /** Every order entry, in menu order, for the position the player right-clicked. */
     public static List<RightClickOption> allFor(int firstIndex, IRightClickableElement target,
                                                 int x, int y, int z, ResourceKey<Level> dimension,
-                                                int selectedCount, MapTileSelection tileSelection) {
+                                                int selectedCount, MapTileSelection tileSelection,
+                                                int attackTargetId) {
         List<RightClickOption> options = new ArrayList<>();
         for (Action action : Action.values()) {
             options.add(new UnitOrderOption(firstIndex + options.size(), target, action,
-                    x, y, z, dimension, selectedCount, tileSelection));
+                    x, y, z, dimension, selectedCount, tileSelection, attackTargetId));
         }
         return options;
     }

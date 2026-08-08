@@ -336,9 +336,15 @@ public abstract class MixinGuiMap extends Screen {
         ArrayList<RightClickOption> options = cir.getReturnValue();
         if (options == null) return;
 
+        int attackTargetId = -1;
+        if (this.viewed != null && this.viewed.getElement() instanceof VehicleMarker marker
+                && marker.allegiance() != VehicleMarker.Allegiance.OWN) {
+            attackTargetId = marker.driverId();
+        }
+
         options.addAll(UnitOrderOption.allFor(options.size(), (GuiMap) (Object) this,
                 this.rightClickX, this.rightClickY, this.rightClickZ, this.rightClickDim,
-                MapMarkers.selected().size(), this.mapTileSelection));
+                MapMarkers.selected().size(), this.mapTileSelection, attackTargetId));
     }
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)

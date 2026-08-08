@@ -33,13 +33,15 @@
     "MixinCommanderOrderGoal",
     "MixinWalkNodeEvaluator",
     "MixinDroneKamikaze",
-    "MixinVehicleCrushAllies"
+    "MixinVehicleCrushAllies",
+    "AccessorM18SmokeGrenade"
   ],
     "client": [
     "client.MixinClientGlowManager",
     "client.MixinClientGlowRenderHandler",
     "client.MixinUnitRenderer",
     "client.MixinUniversalArmorLayer",
+    "client.MixinGunLayerRenderer",
     "client.MixinUnitModelSeatPose",
     "client.MixinUnitModelDroneSit",
     "client.MixinUnitModelMedicHeal",
@@ -47,7 +49,8 @@
     "client.MixinLayeredAnimationWeaponPose",
     "client.MixinVehicleTeamOverlay",
     "client.MixinVehicleRappelWires",
-    "client.MixinVehicleRenderer"
+    "client.MixinVehicleRenderer",
+    "client.MixinGeoArmorRenderer"
   ],
   "server": [],
   "injectors": {

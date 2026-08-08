@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -10,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.EmplacementHands;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 
@@ -35,6 +37,11 @@ import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
  */
 @Mixin(AbstractUnit.class)
 public abstract class MixinAbstractUnit {
+
+    @Inject(method = "defineSynchedData", at = @At("TAIL"))
+    private void tacz_sewv$defineManningMortar(CallbackInfo ci) {
+        ((Entity) (Object) this).getEntityData().define(EmplacementHands.MANNING_MORTAR, false);
+    }
 
     // setTarget is a vanilla Mob method SEM overrides, so the target is remapped
     // (unlike the remap=false mod-declared methods elsewhere in this package).

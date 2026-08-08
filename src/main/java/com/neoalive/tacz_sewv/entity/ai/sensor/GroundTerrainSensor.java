@@ -16,6 +16,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
 
 /**
  * Terrain sensing for {@link DriveVehicleGoal}: what a ground hull must not drive into. Water
@@ -177,14 +178,19 @@ public final class GroundTerrainSensor extends TerrainSensor {
         int hullCount = 0;
         int n = 0;
         int end = stuck || isHardTurn(desired) ? WHISKER_OFFSETS_DEG.length : 1;
+        Vec3 hardFallback = null;
         for (int i = 0; i < end; i++) {
             double offDeg = WHISKER_OFFSETS_DEG[i];
             Vec3 candidate = VehicleTargeting.rotateY(desired, Math.toRadians(offDeg));
             this.lastRejectReason = "unknown";
             if (headingClear(candidate, probeDistance)) {
-                this.lastFanHullDominated = false;
-                this.lastFanReasons = "";
-                return candidate;
+                if (softPeerClear(candidate, probeDistance)) {
+                    this.lastFanHullDominated = false;
+                    this.lastFanReasons = "";
+                    return candidate;
+                }
+                if (hardFallback == null) hardFallback = candidate;
+                continue;
             }
             if (n > 0) reasons.append(',');
             reasons.append(this.lastRejectReason);
@@ -197,15 +203,24 @@ public final class GroundTerrainSensor extends TerrainSensor {
                 Vec3 candidate = VehicleTargeting.rotateY(desired, Math.toRadians(offDeg));
                 this.lastRejectReason = "unknown";
                 if (headingClear(candidate, probeDistance)) {
-                    this.lastFanHullDominated = false;
-                    this.lastFanReasons = "";
-                    return candidate;
+                    if (softPeerClear(candidate, probeDistance)) {
+                        this.lastFanHullDominated = false;
+                        this.lastFanReasons = "";
+                        return candidate;
+                    }
+                    if (hardFallback == null) hardFallback = candidate;
+                    continue;
                 }
                 if (n > 0) reasons.append(',');
                 reasons.append(this.lastRejectReason);
                 if ("hull".equals(this.lastRejectReason)) hullCount++;
                 n++;
             }
+        }
+        if (hardFallback != null) {
+            this.lastFanHullDominated = false;
+            this.lastFanReasons = "";
+            return hardFallback;
         }
         // Strictly more than half of failed offsets are hull: hullCount*2 > n.
         this.lastFanHullDominated = n > 0 && hullCount * 2 > n;
@@ -498,9 +513,32 @@ public final class GroundTerrainSensor extends TerrainSensor {
     }
 
     private boolean isObstacle(VehicleEntity other) {
-        if (other.isWreck()) return true;
-        return other.getFirstPassenger() instanceof AbstractUnit driver
-                && VehicleTargeting.isSameFaction(this.unit, driver);
+        return VehiclePeerSpacing.isPeer(this.vehicle, this.unit, other);
+    }
+
+    /**
+     * Soft peer bubble: same hull list as hard contact, inflated by
+     * {@link VehiclePeerSpacing#SOFT_DISTANCE}. Never blocks a heading alone — only ranks
+     * hard-clear candidates so spaced flanks win when available.
+     */
+    private boolean softPeerClear(Vec3 dir, double distance) {
+        double half = halfWidth();
+        List<AABB> hulls = obstacles(distance);
+        if (hulls.isEmpty()) return true;
+        double soft = VehiclePeerSpacing.SOFT_DISTANCE;
+        double startX = this.vehicle.getX();
+        double startZ = this.vehicle.getZ();
+        for (double d = half + 0.5; d <= half + distance; d += 1.0) {
+            double sampleX = startX + dir.x * d;
+            double sampleZ = startZ + dir.z * d;
+            for (AABB box : hulls) {
+                if (sampleX >= box.minX - soft && sampleX <= box.maxX + soft
+                        && sampleZ >= box.minZ - soft && sampleZ <= box.maxZ + soft) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /** On-foot same-faction unit; mounted allies are covered by their hull box above. */

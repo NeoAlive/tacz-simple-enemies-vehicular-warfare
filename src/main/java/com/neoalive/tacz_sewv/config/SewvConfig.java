@@ -64,6 +64,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_ENERGY;
     public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_AMMO;
     public static final ForgeConfigSpec.ConfigValue<String> VEHICLE_DEATH_DROPS;
+    public static final ForgeConfigSpec.BooleanValue VEHICLE_AMMO_LOOT;
 
     public static final ForgeConfigSpec.BooleanValue NPC_ARMOR_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_ARMOR;
@@ -318,6 +319,12 @@ public final class SewvConfig {
                         "stack (default); everything = full stacks. superbwarfare:creative_ammo_box never drops.")
                 .defineInList("vehicleDeathDrops", "reduced",
                         Arrays.asList("disable", "reduced", "everything"));
+        VEHICLE_AMMO_LOOT = builder.comment(
+                        "When an NPC (RU/US) hull unlocks (no enemy crew left), also put a balanced finite ammo",
+                        "package into its inventory on top of EngineType loot tables. If the hull was stocked",
+                        "with a creative ammo box and creativeAmmoFallback is on, the box is replaced with",
+                        "synthesized stacks. Fighting ammo already in the container is left alone.")
+                .define("vehicleAmmoLoot", true);
         builder.pop();
 
         builder.push("npc_armor");

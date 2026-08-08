@@ -240,6 +240,12 @@ repositories {
         url = 'https://maven.parchmentmc.org'
         url = "https://repo.sleeping.town/"
     }
+    maven {
+        url = "https://jitpack.io"
+        content {
+            includeGroup "com.github.mcmodderanchor"
+        }
+    }
 }
 
 dependencies {
@@ -260,6 +266,8 @@ dependencies {
         runtimeOnly fg.deobf("blank:openpac:1.0")
     }
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    // Compile-only: SBW jarjars this; needed so MixinGeoArmorRenderer can target GeoArmorRenderer.
+    compileOnly fg.deobf("com.github.mcmodderanchor:simplebedrockmodel:2.3.3-forge-mc1.20.1")
     // Soft: compile against Xaero's World Map; keep it off installs that omit it.
     // Absent-path verification: ./gradlew runClient -PnoXaero  (skips runtimeOnly;
     // XaeroMixinPlugin then refuses MixinGuiMap* so no "target was not found" warning).

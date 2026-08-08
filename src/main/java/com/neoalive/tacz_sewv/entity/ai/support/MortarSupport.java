@@ -82,6 +82,9 @@ public final class MortarSupport {
 
     public static void releaseClaim(Entity unit) {
         if (unit instanceof IMortarCrew crew) crew.sewv$setMortarTargetId(IMortarCrew.NO_MORTAR);
+        if (unit instanceof AbstractUnit u) {
+            EmplacementHands.setManningMortar(u, false);
+        }
     }
 
     /**

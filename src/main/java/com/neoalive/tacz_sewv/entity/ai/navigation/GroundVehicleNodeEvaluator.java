@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.navigation;
 
+import java.util.List;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -16,6 +18,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
+import net.minecraft.world.phys.AABB;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -36,6 +40,9 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
  * <li><b>Road preference.</b> Nodes whose footing is not in {@code #tacz_sewv:preferred_roads}
  *     take an {@link #OFF_ROAD_PENALTY} — same shape as the ship shallow-water cost — so a
  *     parallel dirt path / gravel / cobble wins without forbidding off-road cuts.</li>
+ * <li><b>Peer spacing.</b> Nodes near wrecks or allied hulls take a soft
+ *     {@link VehiclePeerSpacing#PATH_PENALTY} that falls off with distance — preference only,
+ *     never {@code BLOCKED}, so a narrow gap stays reachable.</li>
  * <li><b>No 26-neighbour hazard scan.</b> An armored vehicle doesn't route around cactus,
  *     fire, or water borders, and that scan is the single most expensive part of
  *     evaluating each block of a 100+ block volume.</li>
@@ -63,6 +70,15 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     private boolean loggedWaterMarginBlockThisSearch;
     private final BlockPos.MutableBlockPos roadProbe = new BlockPos.MutableBlockPos();
 
+    /**
+     * Peer hull centres + soft radii, latched once per {@link #prepare}. Empty when not driving.
+     * Parallel arrays: {@code peerX[i]}, {@code peerZ[i]}, soft reach {@code peerSoft[i]}.
+     */
+    private double[] peerX = EMPTY;
+    private double[] peerZ = EMPTY;
+    private double[] peerSoft = EMPTY;
+    private static final double[] EMPTY = new double[0];
+
     // ponytail: step/jump/fall limits stay the crewman's (vanilla reads them off this.mob),
     // not the hull's — a >1.125-block ledge may not path, but the drive goal steers straight
     // at the goal when no path exists and the hull's own physics climbs it. Override
@@ -72,17 +88,44 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         super.prepare(region, mob);
         this.inWater = false;
         this.loggedWaterMarginBlockThisSearch = false;
+        this.peerX = EMPTY;
+        this.peerZ = EMPTY;
+        this.peerSoft = EMPTY;
         if (mob.getVehicle() instanceof VehicleEntity vehicle) {
             this.inWater = vehicle.isInWater();
             // The path is searched for the HULL's footprint, not the crewman's.
             this.entityWidth = Mth.floor(vehicle.getBbWidth() + 1.0F);
             this.entityHeight = Mth.floor(vehicle.getBbHeight() + 1.0F);
             this.entityDepth = Mth.floor(vehicle.getBbWidth() + 1.0F);
+            if (mob instanceof AbstractUnit unit) {
+                latchPeers(vehicle, unit);
+            }
             if (SewvDiag.groundPathingVerbose()) {
                 SewvDiag.water("prepare vehicle={}#{} inWater={} size={}x{}x{} pos={}",
                         vehicle.getName().getString(), vehicle.getId(), this.inWater,
                         this.entityWidth, this.entityHeight, this.entityDepth, vehicle.blockPosition());
             }
+        }
+    }
+
+    /** One entity scan per path search — never per node. */
+    private void latchPeers(VehicleEntity self, AbstractUnit unit) {
+        double half = self.getBbWidth() * 0.5;
+        double reach = VehiclePeerSpacing.SOFT_DISTANCE + half + 4.0;
+        AABB search = self.getBoundingBox().inflate(reach, 2.0, reach);
+        List<VehicleEntity> found = unit.level().getEntitiesOfClass(VehicleEntity.class, search,
+                v -> VehiclePeerSpacing.isPeer(self, unit, v));
+        if (found.isEmpty()) return;
+        int n = found.size();
+        this.peerX = new double[n];
+        this.peerZ = new double[n];
+        this.peerSoft = new double[n];
+        for (int i = 0; i < n; i++) {
+            VehicleEntity other = found.get(i);
+            this.peerX[i] = other.getX();
+            this.peerZ[i] = other.getZ();
+            // Soft bubble from peer centre: their half-width + preferred gap.
+            this.peerSoft[i] = other.getBbWidth() * 0.5 + VehiclePeerSpacing.SOFT_DISTANCE;
         }
     }
 
@@ -159,6 +202,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     /**
      * Prefer road footing the way ships prefer deep water: accepted nodes stay reachable, but
      * off-road ones cost more so a dirt-path detour of similar length wins.
+     * Peer spacing uses the same soft-cost shape (never BLOCKED).
      * Walk uses the 7-arg form (step/floor/direction); ships keep the 3-arg swim form.
      */
     @Override
@@ -170,7 +214,25 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         if (!footing.is(PREFERRED_ROADS)) {
             node.costMalus += OFF_ROAD_PENALTY;
         }
+        node.costMalus += peerSpacingMalus(node);
         return node;
+    }
+
+    /** Linear falloff inside each peer's soft bubble; 0 outside. */
+    private float peerSpacingMalus(Node node) {
+        if (this.peerX.length == 0) return 0.0F;
+        double cx = node.x + this.entityWidth * 0.5;
+        double cz = node.z + this.entityDepth * 0.5;
+        float malus = 0.0F;
+        for (int i = 0; i < this.peerX.length; i++) {
+            double dx = cx - this.peerX[i];
+            double dz = cz - this.peerZ[i];
+            double dist = Math.sqrt(dx * dx + dz * dz);
+            double soft = this.peerSoft[i];
+            if (dist >= soft) continue;
+            malus += VehiclePeerSpacing.PATH_PENALTY * (float) (1.0 - dist / soft);
+        }
+        return malus;
     }
 
     @Override

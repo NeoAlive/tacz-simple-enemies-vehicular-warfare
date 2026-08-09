@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv;
 
 import com.mojang.logging.LogUtils;
+import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -18,6 +19,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.block.TrenchPathTypes;
 import com.neoalive.tacz_sewv.command.SewvCommand;
 import com.neoalive.tacz_sewv.compat.BerezkaStructureCompat;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
@@ -52,6 +54,10 @@ public class TaczSewv {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public TaczSewv() {
+        // Before any Mob.<init>: custom BlockPathTypes must already exist or pathfindingMalus[]
+        // is short and getPathfindingMalus(TRENCH) AIOOBEs mid-tick (seen on crewed TOWs).
+        TrenchPathTypes.bootstrap();
+
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::commonSetup);
         ModBlocks.BLOCKS.register(modEventBus);
@@ -142,6 +148,8 @@ public class TaczSewv {
         if (event.getEntity() instanceof AbstractUnit unit) {
             NpcArmor.issue(unit);
             NpcNvg.issue(unit);
+            // Prefer trench floors (TrenchPathTypes.TRENCH malus 0) over open ground.
+            unit.setPathfindingMalus(BlockPathTypes.WALKABLE, TrenchPathTypes.OPEN_GROUND_MALUS);
             // Every spawn path surfaces a unit here, so this is also the one place a squad can pick up
             // a medic/engineer companion regardless of which door it came in by.
             SupportSpawner.maybeSpawnCompanions(unit);

@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
+import com.neoalive.tacz_sewv.bridge.IEntrenched;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
@@ -49,7 +50,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity
         implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember,
-        IVehiclePatrol, IEscort, ISweepInfantry, ICaptureOrder, IMedicTreat {
+        IVehiclePatrol, IEscort, ISweepInfantry, ICaptureOrder, IMedicTreat, IEntrenched {
 
     @Unique
     private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING;

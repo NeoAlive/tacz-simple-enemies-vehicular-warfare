@@ -91,6 +91,7 @@ public class FoxholeBlock extends Block {
 
     @Override
     public BlockPathTypes getBlockPathType(BlockState state, BlockGetter level, BlockPos pos, @Nullable Mob mob) {
-        return BlockPathTypes.WALKABLE;
+        // Prefer trench floors — see TrenchPathTypes (bootstrapped in mod ctor).
+        return TrenchPathTypes.TRENCH;
     }
 }

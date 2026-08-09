@@ -224,6 +224,8 @@ public class TdtScreen extends Screen {
                 () -> orderAreaTask(patrolRadius, IVehiclePatrol.MODE_PATROL), StepperKind.PATROL);
         add(Category.AREA, "gui.tacz_sewv.tdt.search", "gui.tacz_sewv.tdt.search.tip", false,
                 () -> orderAreaTask(searchRadius, IVehiclePatrol.MODE_SEARCH), StepperKind.SEARCH);
+        add(Category.AREA, "gui.tacz_sewv.tdt.entrench", "gui.tacz_sewv.tdt.entrench.tip", true,
+                ClientEvents::armEntrench);
         add(Category.AREA, "gui.tacz_sewv.tdt.dismiss", "gui.tacz_sewv.tdt.dismiss.tip", true,
                 () -> BoardKeybind.orderAreaTask(0, PacketPatrolVehicle.MODE_DISMISS));
 

@@ -19,6 +19,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
+import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 
@@ -188,9 +189,11 @@ public class PacketPatrolVehicle {
             if (!(player.level().getEntity(unitId) instanceof PmcUnitEntity pmc)
                     || !pmc.isOwnedBy(player)) continue;
             boolean had = ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
-                    || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep();
+                    || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()
+                    || EntrenchSupport.isEntrenched(pmc);
             if (had) {
                 PatrolSupport.clearSweepMembership(pmc, "PacketPatrolVehicle");
+                EntrenchSupport.clear(pmc);
                 dismissed++;
             }
         }

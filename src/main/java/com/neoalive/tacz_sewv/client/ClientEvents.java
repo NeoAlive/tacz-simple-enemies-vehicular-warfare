@@ -23,6 +23,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketEntrench;
 import com.neoalive.tacz_sewv.network.PacketEscort;
 import com.neoalive.tacz_sewv.network.PacketSetGuardPosition;
 
@@ -46,6 +47,10 @@ public class ClientEvents {
     private static boolean pendingGuard = false;
     private static List<Integer> pendingGuardUnits = List.of();
 
+    // ENTRENCHED pick: left-click a trench / foxhole / emplacement; server resolves the network.
+    private static boolean pendingEntrench = false;
+    private static List<Integer> pendingEntrenchUnits = List.of();
+
     private static int promptCooldown = 0;
 
     /**
@@ -56,6 +61,7 @@ public class ClientEvents {
      */
     public static void armEscort() {
         clearGuard();
+        clearEntrench();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.escort.no_units");
@@ -71,6 +77,7 @@ public class ClientEvents {
      */
     public static void armGuardPosition() {
         clearEscort();
+        clearEntrench();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.guard.no_units");
@@ -78,6 +85,22 @@ public class ClientEvents {
         }
         pendingGuard = true;
         pendingGuardUnits = units;
+        promptCooldown = 0;
+    }
+
+    /**
+     * Arm ENTRENCHED block pick. Left-click a trench/emplacement; server resolves the network.
+     */
+    public static void armEntrench() {
+        clearEscort();
+        clearGuard();
+        List<Integer> units = snapshotOwnedUnits();
+        if (units.isEmpty()) {
+            hint("message.tacz_sewv.entrench.no_units");
+            return;
+        }
+        pendingEntrench = true;
+        pendingEntrenchUnits = units;
         promptCooldown = 0;
     }
 
@@ -130,6 +153,25 @@ public class ClientEvents {
             return;
         }
 
+        if (pendingEntrench) {
+            if (event.isAttack()) {
+                HitResult hit = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
+                if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
+                    NetworkHandler.CHANNEL.sendToServer(new PacketEntrench(
+                            pendingEntrenchUnits, PacketEntrench.MODE_ASSIGN, bhr.getBlockPos()));
+                    clearEntrench();
+                } else {
+                    hint("message.tacz_sewv.entrench.no_block");
+                }
+                event.setCanceled(true);
+            } else if (event.isUseItem()) {
+                clearEntrench();
+                hint("message.tacz_sewv.entrench.cancelled");
+                event.setCanceled(true);
+            }
+            return;
+        }
+
         if (!event.isAttack()) return;
         if (!mc.player.getMainHandItem().is(ModItems.TACTICAL_DATA_TERMINAL.get())) return;
         TdtScreen.open();
@@ -139,20 +181,22 @@ public class ClientEvents {
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        if (!pendingEscort && !pendingGuard) return;
+        if (!pendingEscort && !pendingGuard && !pendingEntrench) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) {
             if (mc.player == null) {
                 clearEscort();
                 clearGuard();
+                clearEntrench();
             }
             return;
         }
         if (--promptCooldown <= 0) {
             promptCooldown = PROMPT_REFRESH_TICKS;
             if (pendingEscort) hint("message.tacz_sewv.escort.select");
-            else hint("message.tacz_sewv.guard.select");
+            else if (pendingGuard) hint("message.tacz_sewv.guard.select");
+            else hint("message.tacz_sewv.entrench.select");
         }
     }
 
@@ -168,6 +212,12 @@ public class ClientEvents {
         promptCooldown = 0;
     }
 
+    private static void clearEntrench() {
+        pendingEntrench = false;
+        pendingEntrenchUnits = List.of();
+        promptCooldown = 0;
+    }
+
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         MapMarkers.clear();
@@ -175,6 +225,7 @@ public class ClientEvents {
         InvasionHudClient.clear();
         clearEscort();
         clearGuard();
+        clearEntrench();
     }
 
     private static void hint(String key) {

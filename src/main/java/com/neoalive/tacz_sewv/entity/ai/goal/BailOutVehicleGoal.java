@@ -30,6 +30,7 @@ import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
@@ -148,6 +149,7 @@ public class BailOutVehicleGoal extends Goal {
         // Likewise any mortar claim: a crew scrambling clear of a burning hull
         // shouldn't turn round and walk back to a tube it was assigned earlier.
         MortarSupport.releaseClaim(this.unit);
+        EntrenchSupport.clear(this.unit);
         // And any flight command: every crew type implements IHelicopterPilot, so this is
         // faction-blind like the two clears above. Without it a pilot bailing with a stale
         // LANDING/TAKEOFF command + BlockPos carries it straight into the next helicopter

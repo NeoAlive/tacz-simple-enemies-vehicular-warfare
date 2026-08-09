@@ -127,6 +127,19 @@ public class EmplacementBlockEntity extends BlockEntity implements WorldlyContai
         return ItemStack.EMPTY;
     }
 
+    /** Pull one stack matching {@code test} (TOW missile AmmoConsumer, etc.). */
+    public ItemStack extractMatching(int count, java.util.function.Predicate<ItemStack> test) {
+        for (int slot = 0; slot < SIZE; slot++) {
+            ItemStack stack = this.items.get(slot);
+            if (!stack.isEmpty() && test.test(stack)) {
+                ItemStack taken = removeItem(slot, count);
+                setChanged();
+                return taken;
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
     public void insertOrDrop(ItemStack stack) {
         if (stack.isEmpty()) return;
         ItemStack remaining = stack.copy();

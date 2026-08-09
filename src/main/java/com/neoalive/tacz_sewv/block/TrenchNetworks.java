@@ -4,6 +4,8 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -154,31 +156,141 @@ public final class TrenchNetworks extends SavedData {
 
     /** Network id for an emplacement, or {@code 0} when standalone / unknown. */
     public int networkIdForEmplacement(BlockPos empPos) {
-        long emp = empPos.asLong();
-        if (!this.emplacements.contains(emp)) return 0;
-        for (Direction dir : Direction.Plane.HORIZONTAL) {
-            long cell = empPos.relative(dir).asLong();
-            if (!this.cells.contains(cell)) continue;
-            // Flood to find min packed = network id basis
-            LongOpenHashSet visited = new LongOpenHashSet();
-            ArrayDeque<Long> queue = new ArrayDeque<>();
-            queue.add(cell);
-            visited.add(cell);
-            long minPacked = cell;
-            while (!queue.isEmpty()) {
-                long cur = queue.removeFirst();
-                if (cur < minPacked) minPacked = cur;
-                BlockPos p = BlockPos.of(cur);
-                for (Direction d : Direction.Plane.HORIZONTAL) {
-                    long next = p.relative(d).asLong();
-                    if (this.cells.contains(next) && visited.add(next)) {
-                        queue.add(next);
-                    }
+        NetworkDetail detail = networkContaining(empPos);
+        return detail != null ? detail.id() : 0;
+    }
+
+    /**
+     * Normalize a raycast/hit pos to the indexed cell (lower half / foxhole / emplacement).
+     */
+    public static BlockPos indexPos(BlockPos pos, BlockState state) {
+        if ((state.getBlock() instanceof TrenchBlock || state.getBlock() instanceof TrenchXCrossBlock)
+                && state.hasProperty(TrenchBlock.HALF)
+                && state.getValue(TrenchBlock.HALF) == DoubleBlockHalf.UPPER) {
+            return pos.below();
+        }
+        return pos;
+    }
+
+    /**
+     * Resolve the connected component containing {@code pos} (cell or linked/standalone emplacement).
+     * On-demand BFS — O(component), not a full world scan.
+     */
+    @Nullable
+    public NetworkDetail networkContaining(BlockPos pos) {
+        long packed = pos.asLong();
+        if (this.cells.contains(packed)) {
+            return floodDetail(packed);
+        }
+        if (this.emplacements.contains(packed)) {
+            for (Direction dir : Direction.Plane.HORIZONTAL) {
+                long cell = pos.relative(dir).asLong();
+                if (this.cells.contains(cell)) {
+                    return floodDetail(cell);
                 }
             }
-            return Long.hashCode(minPacked);
+            LongArrayList emptyCells = new LongArrayList();
+            LongOpenHashSet empOnly = new LongOpenHashSet();
+            empOnly.add(packed);
+            return new NetworkDetail(Long.hashCode(packed), packed, emptyCells, empOnly);
         }
-        return 0;
+        return null;
+    }
+
+    /**
+     * Map clicks often lack exact trench Y — find a cell/emplacement within {@code radius} of XZ
+     * and resolve its network.
+     */
+    @Nullable
+    public NetworkDetail findNearbyNetwork(BlockPos approx, int radius) {
+        NetworkDetail direct = networkContaining(approx);
+        if (direct != null) return direct;
+        int r2 = radius * radius;
+        long best = Long.MIN_VALUE;
+        double bestDist = Double.MAX_VALUE;
+        for (long packed : this.cells) {
+            BlockPos p = BlockPos.of(packed);
+            double dx = p.getX() - approx.getX();
+            double dz = p.getZ() - approx.getZ();
+            double d2 = dx * dx + dz * dz;
+            if (d2 <= r2 && d2 < bestDist) {
+                bestDist = d2;
+                best = packed;
+            }
+        }
+        for (long packed : this.emplacements) {
+            BlockPos p = BlockPos.of(packed);
+            double dx = p.getX() - approx.getX();
+            double dz = p.getZ() - approx.getZ();
+            double d2 = dx * dx + dz * dz;
+            if (d2 <= r2 && d2 < bestDist) {
+                bestDist = d2;
+                best = packed;
+            }
+        }
+        return best == Long.MIN_VALUE ? null : networkContaining(BlockPos.of(best));
+    }
+
+    /** Component whose min packed cell (or emp) hashes to {@code seed}. Null if gone. */
+    @Nullable
+    public NetworkDetail networkBySeed(long seed) {
+        if (this.cells.contains(seed)) {
+            return floodDetail(seed);
+        }
+        if (this.emplacements.contains(seed) && !hasAdjacentCell(BlockPos.of(seed))) {
+            LongArrayList emptyCells = new LongArrayList();
+            LongOpenHashSet empOnly = new LongOpenHashSet();
+            empOnly.add(seed);
+            return new NetworkDetail(Long.hashCode(seed), seed, emptyCells, empOnly);
+        }
+        // Seed may be minPacked of a multi-cell net — walk all cells (rare; assignment keeps seed).
+        LongOpenHashSet visited = new LongOpenHashSet();
+        for (long packed : this.cells) {
+            if (!visited.add(packed)) continue;
+            NetworkDetail detail = floodDetail(packed);
+            visited.addAll(detail.cells());
+            if (detail.seed() == seed) return detail;
+        }
+        return null;
+    }
+
+    private boolean hasAdjacentCell(BlockPos empPos) {
+        for (Direction dir : Direction.Plane.HORIZONTAL) {
+            if (this.cells.contains(empPos.relative(dir).asLong())) return true;
+        }
+        return false;
+    }
+
+    private NetworkDetail floodDetail(long startCell) {
+        LongArrayList component = new LongArrayList();
+        ArrayDeque<Long> queue = new ArrayDeque<>();
+        LongOpenHashSet visited = new LongOpenHashSet();
+        queue.add(startCell);
+        visited.add(startCell);
+        long minPacked = startCell;
+        while (!queue.isEmpty()) {
+            long cur = queue.removeFirst();
+            component.add(cur);
+            if (cur < minPacked) minPacked = cur;
+            BlockPos p = BlockPos.of(cur);
+            for (Direction dir : Direction.Plane.HORIZONTAL) {
+                long next = p.relative(dir).asLong();
+                if (this.cells.contains(next) && visited.add(next)) {
+                    queue.add(next);
+                }
+            }
+        }
+        LongOpenHashSet linkedEmp = new LongOpenHashSet();
+        for (int i = 0; i < component.size(); i++) {
+            BlockPos p = BlockPos.of(component.getLong(i));
+            for (Direction dir : Direction.Plane.HORIZONTAL) {
+                long emp = p.relative(dir).asLong();
+                if (this.emplacements.contains(emp)) {
+                    linkedEmp.add(emp);
+                }
+            }
+        }
+        return new NetworkDetail(Long.hashCode(minPacked), minPacked, component, linkedEmp);
     }
 
     private void updateMembership(ServerLevel level, BlockPos pos) {
@@ -195,7 +307,7 @@ public final class TrenchNetworks extends SavedData {
         }
     }
 
-    static boolean isTrackedCell(BlockState state) {
+    public static boolean isTrackedCell(BlockState state) {
         if (state.getBlock() instanceof FoxholeBlock) return true;
         if (state.getBlock() instanceof TrenchBlock || state.getBlock() instanceof TrenchXCrossBlock) {
             return state.hasProperty(TrenchBlock.HALF)
@@ -219,4 +331,11 @@ public final class TrenchNetworks extends SavedData {
     }
 
     public record Network(int id, double x, double y, double z, int cellCount, boolean hasEmplacement) {}
+
+    /** Full component for assignment / reroll (cells + linked emplacements). */
+    public record NetworkDetail(int id, long seed, LongArrayList cells, LongOpenHashSet emplacements) {
+        public LongSet cellSet() {
+            return new LongOpenHashSet(this.cells);
+        }
+    }
 }

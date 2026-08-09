@@ -28,6 +28,7 @@ import com.neoalive.tacz_sewv.client.TdtScreen;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketEntrench;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketReachGuard;
@@ -106,6 +107,7 @@ public class UnitOrderOption extends RightClickOption {
         PATROL_HERE("patrol_here", null, true, Category.AREA_TASK),
         SAD_HERE("sad_here", null, true, Category.AREA_TASK),
         SWEEP_AND_ADVANCE("sweep_and_advance", null, true, Category.AREA_TASK),
+        ENTRENCH_HERE("entrench_here", null, true, Category.AREA_TASK),
         CRUISE("cruise", null, false, Category.MOVEMENT),
         SET_GUARD("set_guard", null, false, Category.MOVEMENT),
         REACH_GUARD("reach_guard", null, false, Category.MOVEMENT),
@@ -226,6 +228,12 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
+        if (this.action == Action.ENTRENCH_HERE) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketEntrench(
+                    new ArrayList<>(drivers), PacketEntrench.MODE_ASSIGN, mapPos(player)));
+            return;
+        }
+
         if (this.action == Action.SWEEP_AND_ADVANCE) {
             if (!this.hasTileSelection) {
                 hint("message.tacz_sewv.sweep.need_selection");
@@ -283,7 +291,7 @@ public class UnitOrderOption extends RightClickOption {
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
             case ATTACK_THAT -> OrderType.ATTACK_THAT_TARGET;
-            case TAKEOFF, LAND_HERE, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE, CRUISE,
+            case TAKEOFF, LAND_HERE, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE, ENTRENCH_HERE, CRUISE,
                     SET_GUARD, REACH_GUARD, DISMISS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
         };

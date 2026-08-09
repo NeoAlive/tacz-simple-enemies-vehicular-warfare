@@ -56,6 +56,10 @@ public final class VehicleAiGoals {
         // Writes that order for an RU/US unit that spots an abandoned hull. Claims no flags and
         // never actually runs — it hands the job to the goal above. RU/US-gated internally.
         unit.goalSelector.addGoal(1, new SeekAbandonedVehicleGoal(unit));
+        // ENTRENCHED cell hold / reroll — flagless; board/mortar goals still own weapon slots.
+        unit.goalSelector.addGoal(1, new EntrenchGoal(unit));
+        // RU/US auto-populate trench networks (SeekAbandoned pattern). Config-gated.
+        unit.goalSelector.addGoal(1, new SeekEntrenchmentGoal(unit));
         // Works a SuperbWarfare launcher for a unit on foot (an IFV dismount issued one, or a
         // PMC a player equipped). Gates on an SBW gun being in the main hand, which is one
         // instanceof for everyone else.

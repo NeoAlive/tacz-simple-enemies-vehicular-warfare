@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
+import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
@@ -74,6 +75,9 @@ public final class VehicleTargeting {
         // orders so a capture commitment cannot be abandoned for FREE_FIRE wander.
         BlockPos capture = CaptureOrderSupport.currentDestination(unit, vehicle);
         if (capture != null) return capture;
+
+        BlockPos entrench = EntrenchSupport.currentCell(unit);
+        if (entrench != null) return entrench;
 
         if (!(unit instanceof PmcUnitEntity pmc)) {
             LivingEntity target = unit.getTarget();
@@ -733,6 +737,7 @@ public final class VehicleTargeting {
         // utility layer cannot REGROUP/SEARCH off the pipeline. Command-tier TASKED_* still
         // scores inside fightTick when the coordinator has assigned a play (DriveVehicleGoal).
         if (CaptureOrderSupport.holdsCourseThroughContact(unit)) return true;
+        if (EntrenchSupport.isEntrenched(unit)) return true;
         if (!(unit instanceof PmcUnitEntity pmc)) return false;
         return ((IVehiclePatrol) pmc).sewv$isPatrolling() || pmc.getOrder() != OrderType.FREE_FIRE;
     }

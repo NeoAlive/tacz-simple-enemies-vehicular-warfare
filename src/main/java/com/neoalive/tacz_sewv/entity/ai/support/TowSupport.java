@@ -12,6 +12,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.block.EmplacementSupport;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 
 /**
@@ -94,14 +95,17 @@ public final class TowSupport {
             if (tow.getReloadCooldown() != 0) return false;
 
             boolean issued = hasIssuedMissile(gun, unit);
-            if (!issued && gun.countBackupAmmo(unit) <= 0) return false;
+            boolean fromPad = false;
+            if (!issued && gun.countBackupAmmo(unit) <= 0) {
+                // PMC pad: spend one missile from the emplacement into virtualAmmo — same channel
+                // as issued ammo, no inventory hop (TOW crew is seated; pockets are the wrong model).
+                fromPad = EmplacementSupport.tryFeedTowVirtualAmmo(tow, gun);
+                if (!fromPad) return false;
+            }
 
+            boolean useVirtual = issued || fromPad;
             tow.modifyGunData(GUNNER_SEAT, data -> {
-                // Top up virtualAmmo to the magazine size rather than something large: reloadAmmo
-                // takes min(needed, available) and consumeBackupAmmo spends virtualAmmo first, so
-                // exactly this much is conjured and exactly this much is spent, leaving it back at
-                // zero. Anything bigger would persist a stockpile into the gun's NBT.
-                if (issued) data.virtualAmmo.set(data.get(GunProp.MAGAZINE));
+                if (useVirtual) data.virtualAmmo.set(data.get(GunProp.MAGAZINE));
                 data.reloadAmmo(unit);
             });
             tow.setLoaded(true);

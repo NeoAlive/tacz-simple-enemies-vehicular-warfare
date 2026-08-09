@@ -4,6 +4,8 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
+import com.atsuishio.superbwarfare.data.gun.AmmoConsumer;
+import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.TowEntity;
@@ -20,20 +22,15 @@ import net.minecraftforge.items.IItemHandler;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 /**
- * Live weapon-above queries and PMC ammo transfer from an {@link EmplacementBlockEntity}.
- * No entity-id cache — mortars move / despawn without notifying the pad.
+ * Live weapon-above queries and PMC ammo from an {@link EmplacementBlockEntity}.
+ * Mortars restock the unit inventory; TOWs feed {@code virtualAmmo} (no inventory hop).
  */
 public final class EmplacementSupport {
 
-    /** How far above the pad to look for a mount (blocks). */
     private static final double WEAPON_SEARCH_HEIGHT = 3.0;
 
     private EmplacementSupport() {}
 
-    /**
-     * Scan entities above the emplacement's up face. Prefer mortar (seatless) before generic
-     * {@link VehicleEntity}, then TOW, then any {@code EngineType.FIXED} mount.
-     */
     @Nullable
     public static VehicleEntity findWeaponAbove(Level level, BlockPos emplacementPos) {
         AABB box = new AABB(emplacementPos.above())
@@ -55,7 +52,6 @@ public final class EmplacementSupport {
                         fixed = v;
                     }
                 } catch (RuntimeException ignored) {
-                    // datapack / compute failure — skip
                 }
             }
         }
@@ -64,11 +60,11 @@ public final class EmplacementSupport {
         return fixed;
     }
 
-    /** Emplacement pad under / beside this mortar, if any. */
+    /** Emplacement pad under / beside this weapon entity. */
     @Nullable
-    public static EmplacementBlockEntity findEmplacementForMortar(MortarEntity mortar) {
-        Level level = mortar.level();
-        BlockPos origin = mortar.blockPosition();
+    public static EmplacementBlockEntity findEmplacementNear(Entity weapon) {
+        Level level = weapon.level();
+        BlockPos origin = weapon.blockPosition();
         for (int dy = 0; dy <= 2; dy++) {
             BlockPos below = origin.below(dy);
             if (level.getBlockEntity(below) instanceof EmplacementBlockEntity be) {
@@ -95,7 +91,7 @@ public final class EmplacementSupport {
         IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
         if (inventory == null) return false;
 
-        EmplacementBlockEntity be = findEmplacementForMortar(mortar);
+        EmplacementBlockEntity be = findEmplacementNear(mortar);
         if (be == null) return false;
 
         ItemStack shell = be.extractShell(1);
@@ -110,6 +106,22 @@ public final class EmplacementSupport {
             return leftover.getCount() < original;
         }
         return true;
+    }
+
+    /**
+     * Pull one TOW-compatible missile from the pad and stage it on {@code gun}'s virtualAmmo
+     * so {@code reloadAmmo} can load the rail without touching the crew inventory.
+     */
+    public static boolean tryFeedTowVirtualAmmo(TowEntity tow, GunData gun) {
+        EmplacementBlockEntity be = findEmplacementNear(tow);
+        if (be == null) return false;
+
+        AmmoConsumer consumer = gun.selectedAmmoConsumer();
+        if (consumer == null) return false;
+
+        ItemStack missile = be.extractMatching(1, consumer::isAmmoItem);
+        // Caller stages virtualAmmo + reloadAmmo; the pad stack is the payment.
+        return !missile.isEmpty();
     }
 
     private static ItemStack insertAny(IItemHandler inventory, ItemStack stack) {

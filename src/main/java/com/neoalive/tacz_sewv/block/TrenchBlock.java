@@ -249,7 +249,7 @@ public class TrenchBlock extends Block {
     /** Lower floor is footing; upper wall/netting cell stays OPEN so the body fits above. */
     @Override
     public BlockPathTypes getBlockPathType(BlockState state, BlockGetter level, BlockPos pos, @Nullable Mob mob) {
-        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? BlockPathTypes.WALKABLE : BlockPathTypes.OPEN;
+        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? TrenchPathTypes.TRENCH : BlockPathTypes.OPEN;
     }
 
     private static void applyConnection(Level level, BlockPos lowerPos, BlockState lower, TrenchConnection connection) {

@@ -124,6 +124,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_MIN_HEALTH_FRACTION;
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_STEALS_PLAYER_VEHICLES;
+    public static final ForgeConfigSpec.BooleanValue AUTO_ENTRENCH_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue AUTO_ENTRENCH_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_HEIGHT;
@@ -466,6 +468,10 @@ public final class SewvConfig {
                 .defineInRange("autoBoardMinHealthFraction", 0.25, 0.0, 1.0);
         AUTO_BOARD_STEALS_PLAYER_VEHICLES = builder.comment("If on, RU/US may take vehicles you have driven before. Off by default.")
                 .define("autoBoardStealsPlayerVehicles", false);
+        AUTO_ENTRENCH_ENABLED = builder.comment("Idle RU/US soldiers may claim nearby trench networks / emplacements.")
+                .define("autoEntrenchEnabled", true);
+        AUTO_ENTRENCH_SCAN_RADIUS = builder.comment("How far (blocks) they look for trench cells or emplacements.")
+                .defineInRange("autoEntrenchScanRadius", 48.0, 8.0, 128.0);
         VEHICLE_FORMATION_SPACING = builder.comment("Spacing (blocks) between vehicles in a formation.")
                 .defineInRange("vehicleFormationSpacing", 12.0, 5.0, 32.0);
         VEHICLE_TARGET_SCAN_RADIUS = builder.comment("How far sideways (blocks) crewed vehicles look for enemies.")

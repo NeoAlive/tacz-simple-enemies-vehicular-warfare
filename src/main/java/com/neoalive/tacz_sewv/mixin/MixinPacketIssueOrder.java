@@ -18,6 +18,7 @@ import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
+import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
@@ -62,6 +63,7 @@ public abstract class MixinPacketIssueOrder {
                 || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
             PatrolSupport.clearSweepMembership(pmc, "PacketIssueOrder");
         }
+        EntrenchSupport.clear(pmc);
         // Any player SEM order cancels an in-flight REACH promote (FREE_FIRE included).
         GuardSupport.clearReach(pmc);
         // EscortGoal is priority 1 MOVE and ignores the SEM order — an uncleared VIP steals

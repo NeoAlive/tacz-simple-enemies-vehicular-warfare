@@ -173,11 +173,13 @@ public final class PatrolSupport {
     }
 
     public static void beginPatrol(PmcUnitEntity pmc, BlockPos origin, int radius) {
+        EntrenchSupport.clear(pmc);
         ((IVehiclePatrol) pmc).sewv$setAreaTask(origin, radius, IVehiclePatrol.MODE_PATROL, 0, 1);
     }
 
     /** {@code sector} of {@code sectorCount} is this hull's slice of the circle to sweep. */
     public static void beginSearch(PmcUnitEntity pmc, BlockPos origin, int radius, int sector, int sectorCount) {
+        EntrenchSupport.clear(pmc);
         ((IVehiclePatrol) pmc).sewv$setAreaTask(origin, radius, IVehiclePatrol.MODE_SEARCH, sector, sectorCount);
     }
 
@@ -189,6 +191,7 @@ public final class PatrolSupport {
 
     /** Loop these waypoints in order, endlessly, until dismissed. */
     public static void beginCruise(PmcUnitEntity pmc, List<BlockPos> route) {
+        EntrenchSupport.clear(pmc);
         ((IVehiclePatrol) pmc).sewv$setCruise(route);
     }
 

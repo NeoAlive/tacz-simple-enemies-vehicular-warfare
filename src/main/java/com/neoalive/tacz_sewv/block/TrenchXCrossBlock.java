@@ -203,6 +203,6 @@ public class TrenchXCrossBlock extends Block {
 
     @Override
     public BlockPathTypes getBlockPathType(BlockState state, BlockGetter level, BlockPos pos, @Nullable Mob mob) {
-        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? BlockPathTypes.WALKABLE : BlockPathTypes.OPEN;
+        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? TrenchPathTypes.TRENCH : BlockPathTypes.OPEN;
     }
 }

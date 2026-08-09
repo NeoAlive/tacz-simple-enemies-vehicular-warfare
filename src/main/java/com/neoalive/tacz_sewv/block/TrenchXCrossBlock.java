@@ -4,9 +4,14 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -19,11 +24,13 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -35,9 +42,11 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 public class TrenchXCrossBlock extends Block {
 
     public static final EnumProperty<DoubleBlockHalf> HALF = BlockStateProperties.DOUBLE_BLOCK_HALF;
+    public static final BooleanProperty NETTING = BooleanProperty.create("netting");
 
     private static final VoxelShape LOWER = Block.box(0, 0, 0, 16, 6, 16);
     private static final VoxelShape UPPER = Shapes.empty();
+    private static final VoxelShape UPPER_NETTED = Block.box(0, 15, 0, 16, 16, 16);
 
     public TrenchXCrossBlock() {
         super(BlockBehaviour.Properties.of()
@@ -45,24 +54,31 @@ public class TrenchXCrossBlock extends Block {
                 .strength(2.0f, 6.0f)
                 .sound(SoundType.GRAVEL)
                 .noOcclusion());
-        registerDefaultState(stateDefinition.any().setValue(HALF, DoubleBlockHalf.LOWER));
+        registerDefaultState(stateDefinition.any()
+                .setValue(HALF, DoubleBlockHalf.LOWER)
+                .setValue(NETTING, false));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(HALF);
+        builder.add(HALF, NETTING);
     }
 
     @Override
     @SuppressWarnings("deprecation")
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
-        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? LOWER : UPPER;
+        return shapeFor(state);
     }
 
     @Override
     @SuppressWarnings("deprecation")
     public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
-        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? LOWER : UPPER;
+        return shapeFor(state);
+    }
+
+    private static VoxelShape shapeFor(BlockState state) {
+        if (state.getValue(HALF) == DoubleBlockHalf.LOWER) return LOWER;
+        return state.getValue(NETTING) ? UPPER_NETTED : UPPER;
     }
 
     @Nullable
@@ -78,6 +94,29 @@ public class TrenchXCrossBlock extends Block {
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         level.setBlock(pos.above(), state.setValue(HALF, DoubleBlockHalf.UPPER), 3);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
+                                 InteractionHand hand, BlockHitResult hit) {
+        ItemStack stack = player.getItemInHand(hand);
+        if (!stack.is(Items.STICK)) return InteractionResult.PASS;
+
+        if (!level.isClientSide) {
+            boolean next = !state.getValue(NETTING);
+            BlockPos lowerPos = state.getValue(HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
+            BlockState lower = level.getBlockState(lowerPos);
+            if (!(lower.getBlock() instanceof TrenchXCrossBlock)) return InteractionResult.PASS;
+            BlockState newLower = lower.setValue(NETTING, next);
+            level.setBlock(lowerPos, newLower, 3);
+            BlockPos upperPos = lowerPos.above();
+            if (level.getBlockState(upperPos).getBlock() instanceof TrenchXCrossBlock) {
+                level.setBlock(upperPos, newLower.setValue(HALF, DoubleBlockHalf.UPPER), 3);
+            }
+            level.playSound(null, pos, SoundEvents.AZALEA_LEAVES_PLACE, SoundSource.BLOCKS, 1.0f, 1.0f);
+        }
+        return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
     @Override
@@ -99,9 +138,10 @@ public class TrenchXCrossBlock extends Block {
         if (direction.getAxis() == Direction.Axis.Y) {
             boolean towardMate = half == DoubleBlockHalf.LOWER ? direction == Direction.UP : direction == Direction.DOWN;
             if (towardMate) {
-                return neighbor.is(this) && neighbor.getValue(HALF) != half
-                        ? state
-                        : Blocks.AIR.defaultBlockState();
+                if (neighbor.is(this) && neighbor.getValue(HALF) != half) {
+                    return state.setValue(NETTING, neighbor.getValue(NETTING));
+                }
+                return Blocks.AIR.defaultBlockState();
             }
             if (half == DoubleBlockHalf.LOWER && direction == Direction.DOWN && !state.canSurvive(level, pos)) {
                 return Blocks.AIR.defaultBlockState();

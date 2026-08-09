@@ -12,6 +12,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -24,6 +25,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.Fluids;
@@ -36,22 +38,32 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * Two-tall earthworks trench. Absolute NSEW connection via {@link TrenchConnection}.
- * Four-way cardinal neighbours resolve to {@link TrenchConnection#PLINTH}; the {@code +}
- * junction is the separate {@link TrenchXCrossBlock}.
+ * Connection shapes recompute only on player place / break / axe — not when neighbours
+ * vanish to explosions or other non-player block updates.
  */
 public class TrenchBlock extends Block {
 
     public static final EnumProperty<DoubleBlockHalf> HALF = BlockStateProperties.DOUBLE_BLOCK_HALF;
     public static final EnumProperty<TrenchConnection> CONNECTION =
             EnumProperty.create("connection", TrenchConnection.class);
+    /** Leaf camouflage on the upper half — two model variants, no BlockEntity. */
+    public static final BooleanProperty NETTING = BooleanProperty.create("netting");
+
+    /** Set around player destroy so {@link #onRemove} refreshes orthogonal neighbours. */
+    private static final ThreadLocal<Boolean> PLAYER_EDIT = ThreadLocal.withInitial(() -> false);
 
     private static final VoxelShape[] LOWER = new VoxelShape[TrenchConnection.values().length];
     private static final VoxelShape[] UPPER = new VoxelShape[TrenchConnection.values().length];
+    private static final VoxelShape[] UPPER_NETTED = new VoxelShape[TrenchConnection.values().length];
+
+    /** Thin cover matching leaf sheets — low enough to force sneak under netting (trapdoor-style). */
+    private static final VoxelShape NETTING_COVER = Block.box(0, 15, 0, 16, 16, 16);
 
     static {
         for (TrenchConnection c : TrenchConnection.values()) {
             LOWER[c.ordinal()] = buildLower(c);
             UPPER[c.ordinal()] = buildUpper(c);
+            UPPER_NETTED[c.ordinal()] = Shapes.or(UPPER[c.ordinal()], NETTING_COVER);
         }
     }
 
@@ -63,12 +75,13 @@ public class TrenchBlock extends Block {
                 .noOcclusion());
         registerDefaultState(stateDefinition.any()
                 .setValue(HALF, DoubleBlockHalf.LOWER)
-                .setValue(CONNECTION, TrenchConnection.LONE));
+                .setValue(CONNECTION, TrenchConnection.LONE)
+                .setValue(NETTING, false));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(HALF, CONNECTION);
+        builder.add(HALF, CONNECTION, NETTING);
     }
 
     @Override
@@ -85,7 +98,8 @@ public class TrenchBlock extends Block {
 
     private static VoxelShape shapeFor(BlockState state) {
         TrenchConnection c = state.getValue(CONNECTION);
-        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? LOWER[c.ordinal()] : UPPER[c.ordinal()];
+        if (state.getValue(HALF) == DoubleBlockHalf.LOWER) return LOWER[c.ordinal()];
+        return state.getValue(NETTING) ? UPPER_NETTED[c.ordinal()] : UPPER[c.ordinal()];
     }
 
     @Nullable
@@ -103,17 +117,30 @@ public class TrenchBlock extends Block {
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         level.setBlock(pos.above(), state.setValue(HALF, DoubleBlockHalf.UPPER), 3);
+        if (!level.isClientSide) {
+            refreshOrthogonalNeighbors(level, pos);
+        }
     }
 
     /**
-     * Temporary axe cut: end → mid, or dig a walled face out to plinth. Not sticky — a later
-     * {@link #updateShape} from neighbours may restore the natural connection.
+     * Stick toggles leaf netting on both halves. Axe cut: end → mid, tcross / walled face →
+     * plinth (player edit — neighbours refresh; explosions still leave shapes alone).
      */
     @Override
     @SuppressWarnings("deprecation")
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                  InteractionHand hand, BlockHitResult hit) {
         ItemStack stack = player.getItemInHand(hand);
+
+        if (stack.is(Items.STICK)) {
+            if (!level.isClientSide) {
+                boolean next = !state.getValue(NETTING);
+                applyNetting(level, pos, state, next);
+                level.playSound(null, pos, SoundEvents.AZALEA_LEAVES_PLACE, SoundSource.BLOCKS, 1.0f, 1.0f);
+            }
+            return InteractionResult.sidedSuccess(level.isClientSide);
+        }
+
         if (!stack.is(ItemTags.AXES)) return InteractionResult.PASS;
 
         TrenchConnection next = state.getValue(CONNECTION).axeConvert(hit.getDirection());
@@ -124,12 +151,8 @@ public class TrenchBlock extends Block {
             BlockState lower = level.getBlockState(lowerPos);
             if (!(lower.getBlock() instanceof TrenchBlock)) return InteractionResult.PASS;
 
-            BlockState newLower = lower.setValue(CONNECTION, next);
-            level.setBlock(lowerPos, newLower, 3);
-            BlockPos upperPos = lowerPos.above();
-            if (level.getBlockState(upperPos).getBlock() instanceof TrenchBlock) {
-                level.setBlock(upperPos, newLower.setValue(HALF, DoubleBlockHalf.UPPER), 3);
-            }
+            applyConnection(level, lowerPos, lower, next);
+            refreshOrthogonalNeighbors(level, lowerPos);
             level.playSound(null, pos, SoundEvents.AXE_STRIP, SoundSource.BLOCKS, 1.0f, 1.0f);
             stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(hand));
         }
@@ -153,29 +176,50 @@ public class TrenchBlock extends Block {
                                   LevelAccessor level, BlockPos pos, BlockPos neighborPos) {
         DoubleBlockHalf half = state.getValue(HALF);
 
+        // Vertical half-link only — never recompute CONNECTION from horizontal neighbour loss
+        // (explosions / natural events must leave shapes stuck as the player last set them).
         if (direction.getAxis() == Direction.Axis.Y) {
             boolean towardMate = half == DoubleBlockHalf.LOWER ? direction == Direction.UP : direction == Direction.DOWN;
             if (towardMate) {
                 if (neighbor.is(this) && neighbor.getValue(HALF) != half) {
-                    return state.setValue(CONNECTION, neighbor.getValue(CONNECTION));
+                    return state
+                            .setValue(CONNECTION, neighbor.getValue(CONNECTION))
+                            .setValue(NETTING, neighbor.getValue(NETTING));
                 }
                 return Blocks.AIR.defaultBlockState();
             }
             if (half == DoubleBlockHalf.LOWER && direction == Direction.DOWN && !state.canSurvive(level, pos)) {
                 return Blocks.AIR.defaultBlockState();
             }
-            return super.updateShape(state, direction, neighbor, level, pos, neighborPos);
         }
-
-        return withConnections(state, level, pos);
+        return super.updateShape(state, direction, neighbor, level, pos, neighborPos);
     }
 
     @Override
     public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        PLAYER_EDIT.set(true);
         if (!level.isClientSide && player.isCreative()) {
             preventCreativeDropFromBottomPart(level, pos, state, player);
         }
         super.playerWillDestroy(level, pos, state, player);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        boolean playerEdit = Boolean.TRUE.equals(PLAYER_EDIT.get());
+        try {
+            if (!state.is(newState.getBlock()) && playerEdit && !level.isClientSide) {
+                BlockPos lower = state.getValue(HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
+                // Mate may still be present for a tick — force both cells absent for neighbour resolve.
+                refreshOrthogonalNeighbors(level, lower, lower, lower.above());
+            }
+            super.onRemove(state, level, pos, newState, isMoving);
+        } finally {
+            if (playerEdit) {
+                PLAYER_EDIT.set(false);
+            }
+        }
     }
 
     private static void preventCreativeDropFromBottomPart(Level level, BlockPos pos, BlockState state, Player player) {
@@ -197,18 +241,75 @@ public class TrenchBlock extends Block {
         return false;
     }
 
-    private static BlockState withConnections(BlockState state, BlockGetter level, BlockPos pos) {
-        boolean n = connects(level.getBlockState(pos.north()));
-        boolean e = connects(level.getBlockState(pos.east()));
-        boolean s = connects(level.getBlockState(pos.south()));
-        boolean w = connects(level.getBlockState(pos.west()));
+    private static void applyConnection(Level level, BlockPos lowerPos, BlockState lower, TrenchConnection connection) {
+        BlockState newLower = lower.setValue(CONNECTION, connection);
+        level.setBlock(lowerPos, newLower, 3);
+        BlockPos upperPos = lowerPos.above();
+        if (level.getBlockState(upperPos).getBlock() instanceof TrenchBlock) {
+            level.setBlock(upperPos, newLower.setValue(HALF, DoubleBlockHalf.UPPER), 3);
+        }
+    }
+
+    private static void applyNetting(Level level, BlockPos pos, BlockState state, boolean netting) {
+        BlockPos lowerPos = state.getValue(HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
+        BlockState lower = level.getBlockState(lowerPos);
+        if (!(lower.getBlock() instanceof TrenchBlock)) return;
+        BlockState newLower = lower.setValue(NETTING, netting);
+        level.setBlock(lowerPos, newLower, 3);
+        BlockPos upperPos = lowerPos.above();
+        if (level.getBlockState(upperPos).getBlock() instanceof TrenchBlock) {
+            level.setBlock(upperPos, newLower.setValue(HALF, DoubleBlockHalf.UPPER), 3);
+        }
+    }
+
+    /** Re-resolve orthogonal trench neighbours — player edits only. */
+    private static void refreshOrthogonalNeighbors(Level level, BlockPos pos, BlockPos... treatAsEmpty) {
+        for (Direction dir : Direction.Plane.HORIZONTAL) {
+            BlockPos at = pos.relative(dir);
+            BlockState cur = level.getBlockState(at);
+            if (!(cur.getBlock() instanceof TrenchBlock)) continue;
+            BlockPos lowerPos = cur.getValue(HALF) == DoubleBlockHalf.LOWER ? at : at.below();
+            BlockState lower = level.getBlockState(lowerPos);
+            if (!(lower.getBlock() instanceof TrenchBlock)) continue;
+            BlockState updated = withConnections(lower, level, lowerPos, treatAsEmpty);
+            if (updated != lower) {
+                applyConnection(level, lowerPos, lower, updated.getValue(CONNECTION));
+            }
+        }
+    }
+
+    private static BlockState withConnections(BlockState state, BlockGetter level, BlockPos pos,
+                                              BlockPos... treatAsEmpty) {
+        boolean n = connectsAt(level, pos.north(), treatAsEmpty);
+        boolean e = connectsAt(level, pos.east(), treatAsEmpty);
+        boolean s = connectsAt(level, pos.south(), treatAsEmpty);
+        boolean w = connectsAt(level, pos.west(), treatAsEmpty);
         return state.setValue(CONNECTION, TrenchConnection.fromNeighbors(n, e, s, w));
     }
 
-    /** Regular trench segments and the manual {@code +} both open ends toward each other. */
+    private static boolean connectsAt(BlockGetter level, BlockPos at, BlockPos... treatAsEmpty) {
+        for (BlockPos empty : treatAsEmpty) {
+            if (empty != null && empty.equals(at)) return false;
+        }
+        return connects(level.getBlockState(at));
+    }
+
+    private static BlockState withConnections(BlockState state, BlockGetter level, BlockPos pos) {
+        return withConnections(state, level, pos, new BlockPos[0]);
+    }
+
+    /** Regular trench, manual {@code +}, and foxhole slabs all count as connected neighbours. */
     static boolean connects(BlockState neighbor) {
         Block block = neighbor.getBlock();
-        return block instanceof TrenchBlock || block instanceof TrenchXCrossBlock;
+        return block instanceof TrenchBlock
+                || block instanceof TrenchXCrossBlock
+                || block instanceof FoxholeBlock;
+    }
+
+    /** Player placed/broke a related block at {@code pos} — re-resolve adjacent trenches. */
+    static void onPlayerTopologyEdit(Level level, BlockPos pos, BlockPos... treatAsEmpty) {
+        if (level.isClientSide) return;
+        refreshOrthogonalNeighbors(level, pos, treatAsEmpty);
     }
 
     private static VoxelShape buildLower(TrenchConnection c) {

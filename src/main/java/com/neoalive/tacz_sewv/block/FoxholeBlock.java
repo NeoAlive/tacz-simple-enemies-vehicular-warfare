@@ -1,7 +1,13 @@
 package com.neoalive.tacz_sewv.block;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -12,10 +18,15 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/** Standalone dirt-slab foxhole — no NSEW connection logic. */
+/**
+ * Standalone dirt-slab foxhole. No NSEW variants of its own, but adjacent
+ * {@link TrenchBlock}s treat it as a connecting neighbour (same as a trench plinth cell).
+ */
 public class FoxholeBlock extends Block {
 
     private static final VoxelShape SHAPE = Block.box(0, 0, 0, 16, 6, 16);
+
+    private static final ThreadLocal<Boolean> PLAYER_EDIT = ThreadLocal.withInitial(() -> false);
 
     public FoxholeBlock() {
         super(BlockBehaviour.Properties.of()
@@ -23,6 +34,33 @@ public class FoxholeBlock extends Block {
                 .strength(1.5f, 3.0f)
                 .sound(SoundType.GRAVEL)
                 .noOcclusion());
+    }
+
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
+        TrenchBlock.onPlayerTopologyEdit(level, pos);
+    }
+
+    @Override
+    public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        PLAYER_EDIT.set(true);
+        super.playerWillDestroy(level, pos, state, player);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        boolean playerEdit = Boolean.TRUE.equals(PLAYER_EDIT.get());
+        try {
+            if (!state.is(newState.getBlock()) && playerEdit) {
+                TrenchBlock.onPlayerTopologyEdit(level, pos, pos);
+            }
+            super.onRemove(state, level, pos, newState, isMoving);
+        } finally {
+            if (playerEdit) {
+                PLAYER_EDIT.set(false);
+            }
+        }
     }
 
     @Override

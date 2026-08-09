@@ -65,12 +65,15 @@ public final class VehicleDriver {
     private static final int PATH_SEARCH_VERTICAL = 16;
 
     // Stuck recovery: if the hull neither moves nor turns for this long while it is being told to
-    // drive, it is wedged on terrain — reverse and swing the tail out for a moment, then repath.
-    // Rotation counts as progress so a slow turn-in-place is never mistaken for being stuck.
+    // drive, it is wedged on terrain — straight reverse for a moment, then repath. No left/right
+    // swing: alternating sides on a high-centered pit edge just rocks the hull in place (the
+    // photo's side-to-side twitch). Rotation counts as progress so a slow turn-in-place is never
+    // mistaken for being stuck.
     private static final int STUCK_TICKS_THRESHOLD = 40;      // 2s of no movement AND no rotation
     private static final double STUCK_MOVE_EPSILON_SQ = 0.04; // <0.2 block moved = no headway
     private static final float STUCK_YAW_EPSILON_DEG = 1.0F;  // <1° turned = no rotation
-    private static final int UNSTICK_DURATION = 16;           // reverse-and-swing for ~0.8s
+    private static final int UNSTICK_DURATION = 24;           // straight reverse ~1.2s (matches bank-lip)
+    private static final int UNSTICK_COOLDOWN = 60;           // sit out ~3s before stuck can re-fire
 
     // Bank-lip faceplant: post-debounce dry-over-water center + full whisker fan blocked, with no
     // positional progress. Distinct from ordinary stuck (which ignores rotation) and from the wet
@@ -102,7 +105,7 @@ public final class VehicleDriver {
     private float lastStuckYaw;
     private int stuckTicks;
     private int unstickTicksLeft;
-    private boolean unstickSwingLeft;
+    private int unstickCooldown;
     private BlockPos lastLoggedSteerTarget;
 
     private int bankLipFanBlockedTicks;
@@ -187,27 +190,40 @@ public final class VehicleDriver {
             return;
         }
 
-        // Wedged on terrain: back up and swing the tail for a moment, then repath. Inputs stay
+        // Wedged on terrain: straight reverse (same shape as bank-lip), then repath. Inputs stay
         // engaged throughout, so this never stalls the steering ramp.
         if (this.unstickTicksLeft > 0) {
             this.unstickTicksLeft--;
             this.vehicle.setForwardInputDown(false);
             this.vehicle.setBackInputDown(true);
-            this.vehicle.setLeftInputDown(this.unstickSwingLeft);
-            this.vehicle.setRightInputDown(!this.unstickSwingLeft);
+            this.vehicle.setLeftInputDown(false);
+            this.vehicle.setRightInputDown(false);
+            if (this.unstickTicksLeft == 0) {
+                this.unstickCooldown = UNSTICK_COOLDOWN;
+            }
             return;
         }
 
-        if (updateStuck()) {
-            // Alternate the swing direction each time so we don't wedge the same way.
-            this.unstickSwingLeft = !this.unstickSwingLeft;
+        // After an unstick, do not immediately plough forward into the same snag — and do not
+        // re-arm stuck recovery until the cooldown elapses. If the reverse already freed us,
+        // resume normal steering.
+        if (this.unstickCooldown > 0) {
+            this.unstickCooldown--;
+            Vec3 pos = this.vehicle.position();
+            boolean freed = this.lastStuckPos != null
+                    && pos.distanceToSqr(this.lastStuckPos) > STUCK_MOVE_EPSILON_SQ * 4.0;
+            if (!freed) {
+                stop();
+                return;
+            }
+        } else if (updateStuck()) {
             this.unstickTicksLeft = UNSTICK_DURATION;
             this.stuckTicks = 0;
             if (SewvDiag.groundPathingVerbose()) {
-                SewvDiag.pathing("stuck unit={}#{} vehicle={}#{} pos={} yaw={} -> unstick swingLeft={} dropPath",
+                SewvDiag.pathing("stuck unit={}#{} vehicle={}#{} pos={} yaw={} -> unstick reverse dropPath",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         this.vehicle.getName().getString(), this.vehicle.getId(),
-                        this.vehicle.blockPosition(), this.vehicle.getYRot(), this.unstickSwingLeft);
+                        this.vehicle.blockPosition(), this.vehicle.getYRot());
             }
             this.currentPath = null;      // the route we were on led into the wall
             this.pathRecalcCooldown = 0;  // let it repath the instant we're free
@@ -292,6 +308,7 @@ public final class VehicleDriver {
     public void clearRecovery() {
         this.stuckTicks = 0;
         this.unstickTicksLeft = 0;
+        this.unstickCooldown = 0;
         this.lastStuckPos = null;
         this.bankLipFanBlockedTicks = 0;
         this.bankLipReverseTicksLeft = 0;

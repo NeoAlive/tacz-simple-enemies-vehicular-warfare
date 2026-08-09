@@ -88,6 +88,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue AI_FIRE_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.DoubleValue AI_FIRE_ASSIST_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue FRIENDLY_FIRE_VEHICLE_RADIUS;
     public static final ForgeConfigSpec.ConfigValue<String> AI_AIM_ACCURACY;
     public static final ForgeConfigSpec.DoubleValue AI_AIM_SPREAD_DEG;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_SKIN_MOUNT_CHANCE;
@@ -168,6 +169,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
     public static final ForgeConfigSpec.IntValue MORTAR_FIRE_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue MORTAR_DISPERSION_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue FRIENDLY_FIRE_MORTAR_RADIUS;
     public static final ForgeConfigSpec.BooleanValue MORTAR_REQUIRES_AMMO;
     public static final ForgeConfigSpec.BooleanValue MORTAR_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue ARTILLERY_CHUNK_LOADING;
@@ -387,6 +389,10 @@ public final class SewvConfig {
                 .defineInRange("aiFireAssistConeDeg", 35.0, 4.0, 90.0);
         SMOKE_BLOCK_RADIUS = builder.comment("AI will not shoot if smoke is this close (blocks).")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
+        FRIENDLY_FIRE_VEHICLE_RADIUS = builder.comment(
+                        "AI vehicle weapons (including TOWs) hold fire when the target is this close (blocks)",
+                        "to the owning player or a friendly PMC. 0 disables.")
+                .defineInRange("friendlyFireVehicleRadius", 6.0, 0.0, 32.0);
         AI_AIM_ACCURACY = builder.comment("AI aim style: realistic (misses), scaled, or accurate (rare misses).")
                 .defineInList("aiAimAccuracy", "realistic", Arrays.asList("realistic", "scaled", "accurate"));
         // Existing configs keep the old value until edited or deleted.
@@ -567,6 +573,10 @@ public final class SewvConfig {
                 .defineInRange("mortarFireCooldownTicks", 60, 1, 1200);
         MORTAR_DISPERSION_RADIUS = builder.comment("How far (blocks) mortar shots may land off the aim point.")
                 .defineInRange("mortarDispersionRadius", 3, 0, 16);
+        FRIENDLY_FIRE_MORTAR_RADIUS = builder.comment(
+                        "Mortars hold fire when the aimpoint is this close (blocks) to the owning player",
+                        "or a friendly PMC. Should be at least mortarDispersionRadius. 0 disables.")
+                .defineInRange("friendlyFireMortarRadius", 12.0, 0.0, 48.0);
         MORTAR_REQUIRES_AMMO = builder.comment("Mortars need shells in inventory and use one per shot.")
                 .define("mortarRequiresAmmo", true);
         MORTAR_CHUNK_LOADING = builder.comment(

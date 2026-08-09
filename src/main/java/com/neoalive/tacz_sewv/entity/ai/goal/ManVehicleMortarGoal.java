@@ -11,6 +11,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
@@ -146,6 +147,11 @@ public class ManVehicleMortarGoal extends Goal {
 
         if (this.unit.level().getGameTime() < this.nextShotTime) return;
         if (!VehicleMortarSupport.aimSettled(this.hull, this.unit, this.laidLaunch, AIM_TOLERANCE_DEG)) {
+            return;
+        }
+        Vec3 impact = this.laidAim != null ? this.laidAim : aimCentre;
+        if (VehicleTargeting.friendlyNearPoint(
+                this.unit, impact, SewvConfig.FRIENDLY_FIRE_MORTAR_RADIUS.get())) {
             return;
         }
         if (!this.hull.canShoot(this.unit)) return;

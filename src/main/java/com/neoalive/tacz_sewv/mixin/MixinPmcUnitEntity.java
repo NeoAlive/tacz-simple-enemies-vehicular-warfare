@@ -52,8 +52,16 @@ public abstract class MixinPmcUnitEntity
         IVehiclePatrol, IEscort, ISweepInfantry, ICaptureOrder, IMedicTreat {
 
     @Unique
-    private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING =
-            SynchedEntityData.defineId(PmcUnitEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING;
+
+    static {
+        // Parent AbstractUnit extensions (MANNING_MORTAR) must already own their ids before
+        // this subclass defineId runs — see MixinAbstractUnit's static block.
+        if (UnitHolster.MANNING_MORTAR == null) {
+            throw new ExceptionInInitializerError("UnitHolster.MANNING_MORTAR");
+        }
+        tacz_sewv$TREATING = SynchedEntityData.defineId(PmcUnitEntity.class, EntityDataSerializers.BOOLEAN);
+    }
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;

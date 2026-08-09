@@ -38,6 +38,18 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 @Mixin(AbstractUnit.class)
 public abstract class MixinAbstractUnit {
 
+    static {
+        // SynchedEntityData IDs must be allocated parent-before-child. UnitHolster's
+        // MANNING_MORTAR is defineId(AbstractUnit); if that class only loads on the first
+        // defineSynchedData call, PmcUnitEntity (and RU/US) have already taken those id
+        // numbers via their own static defineId — and every PMC construction then dies with
+        // "Duplicate id value for 21!". Touching it here runs while AbstractUnit is loading,
+        // before any subclass static fields.
+        if (UnitHolster.MANNING_MORTAR == null) {
+            throw new ExceptionInInitializerError("UnitHolster.MANNING_MORTAR");
+        }
+    }
+
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void tacz_sewv$defineManningMortar(CallbackInfo ci) {
         ((Entity) (Object) this).getEntityData().define(UnitHolster.MANNING_MORTAR, false);

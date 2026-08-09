@@ -124,10 +124,10 @@ public final class StalemateBreaker {
         long now = this.unit.level().getGameTime();
 
         // New engagement — fresh anchor, and pick an orbit direction to keep for its whole
-        // life. Deliberately NOT alternated per episode the way unstick swings are: flipping
-        // would rock the hull back and forth over the same ground, when the entire point is to
-        // reach ground with a different height difference to the target. Id parity is free,
-        // stable, and splits a platoon both ways around a shared target on its own.
+        // life. Do not flip per episode: that would rock the hull back and forth over the same
+        // ground, when the entire point is to reach ground with a different height difference to
+        // the target. Id parity is free, stable, and splits a platoon both ways around a shared
+        // target on its own.
         if (target != this.target) {
             this.target = target;
             this.anchorTick = now;

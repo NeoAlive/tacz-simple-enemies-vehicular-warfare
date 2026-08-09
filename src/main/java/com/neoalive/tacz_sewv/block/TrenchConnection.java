@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.block;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.util.StringRepresentable;
 
 /**
@@ -116,11 +118,13 @@ public enum TrenchConnection implements StringRepresentable {
         };
     }
 
-    /** Axe-cut: end caps open into a mid; any walled face digs out to plinth. */
+    /** Axe-cut: end caps open into a mid; t-junctions and walled faces dig out to plinth. */
+    @Nullable
     public TrenchConnection axeConvert(net.minecraft.core.Direction clickedFace) {
         return switch (this) {
             case END_NORTH, END_SOUTH -> MID_NS;
             case END_EAST, END_WEST -> MID_EW;
+            case TCROSS_NORTH, TCROSS_EAST, TCROSS_SOUTH, TCROSS_WEST -> PLINTH;
             case PLINTH -> null;
             default -> hasWall(clickedFace) ? PLINTH : null;
         };

@@ -762,6 +762,46 @@ public final class VehicleTargeting {
         return false;
     }
 
+    /**
+     * True when a protected Player or PMC sits within {@code radius} of {@code point} —
+     * the danger-close hold for splash weapons. Radius {@code <= 0} disables the check.
+     * Does not treat the shooter's current enemy target as protected.
+     */
+    public static boolean friendlyNearPoint(AbstractUnit shooter, Vec3 point, double radius) {
+        if (radius <= 0.0) return false;
+        double r2 = radius * radius;
+        AABB box = new AABB(point, point).inflate(radius);
+        LivingEntity target = shooter.getTarget();
+        for (LivingEntity e : shooter.level().getEntitiesOfClass(LivingEntity.class, box,
+                living -> living.isAlive() && living != shooter && living != target)) {
+            if (e.distanceToSqr(point) > r2) continue;
+            if (isSplashProtected(shooter, e)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Who a splash hold must not kill: the PMC's owning player (and non-ENEMY diplomacy
+     * players when OpenPAC resolves), non-hostile PMC units, and — for RU/US when SEM's
+     * friendly toggle is on — Player/PMC via {@link #friendlyFlagShields}.
+     */
+    private static boolean isSplashProtected(AbstractUnit shooter, LivingEntity ally) {
+        if (ally instanceof Player player) {
+            if (player.isSpectator()) return false;
+            if (shooter instanceof PmcUnitEntity pmc) {
+                UUID owner = pmc.getOwnerUUID();
+                if (owner != null && owner.equals(player.getUUID())) return true;
+                DiplomacyEval dipl = diplomacyEval(pmc, player);
+                return dipl.consulted && dipl.relation != DiplomacyData.Relation.ENEMY;
+            }
+            return friendlyFlagShields(shooter, player);
+        }
+        if (ally instanceof PmcUnitEntity pmc) {
+            return isNonHostile(shooter, pmc);
+        }
+        return false;
+    }
+
     // A hull counts as friendly when any occupant is a same-faction unit. A hull is
     // not a LivingEntity and carries no faction of its own, so its crew defines it.
     private static boolean isAlliedVehicle(AbstractUnit shooter, VehicleEntity vehicle) {

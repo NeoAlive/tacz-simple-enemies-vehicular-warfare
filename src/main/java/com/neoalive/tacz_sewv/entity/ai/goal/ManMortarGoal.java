@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
@@ -302,6 +303,11 @@ public class ManMortarGoal extends Goal {
         }
         if (!MortarSupport.aimSettled(this.mortar, AIM_TOLERANCE_DEG)) {
             hold("barrel still slewing onto the aimpoint");
+            return;
+        }
+        if (VehicleTargeting.friendlyNearPoint(
+                this.unit, aimCentre, SewvConfig.FRIENDLY_FIRE_MORTAR_RADIUS.get())) {
+            hold("holding fire — player or friendly PMC too close to aimpoint");
             return;
         }
 

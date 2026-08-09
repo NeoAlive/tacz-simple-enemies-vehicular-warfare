@@ -109,6 +109,13 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
                 && VehicleTargeting.alliedVehicleInLineOfFire(unit, self, from, to)) {
             return true;
         }
+        // Danger-close: enemy next to the owning player / a friendly PMC (TOWs and
+        // other splashy vehicle weapons). Radius 0 disables.
+        if (living instanceof AbstractUnit unit
+                && VehicleTargeting.friendlyNearPoint(
+                        unit, to, SewvConfig.FRIENDLY_FIRE_VEHICLE_RADIUS.get())) {
+            return true;
+        }
         if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
                 && tacz_sewv$terrainBlocksLine(self, from, target, to)) {
             return true;

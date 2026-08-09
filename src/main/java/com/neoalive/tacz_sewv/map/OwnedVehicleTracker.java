@@ -342,7 +342,8 @@ public final class OwnedVehicleTracker {
         if (VehicleTargeting.isMedic(unit) || SupportRole.of(unit) == SupportRole.MEDIC) {
             return VehicleMarker.Kind.INFANTRY_MEDIC;
         }
-        if (VehicleTargeting.isEngineer(unit) || SupportRole.of(unit) == SupportRole.ENGINEER) {
+        if (VehicleTargeting.isEngineer(unit) || SupportRole.of(unit) == SupportRole.ENGINEER
+                || SupportRole.of(unit) == SupportRole.COMBAT_ENGINEER) {
             return VehicleMarker.Kind.INFANTRY_ENGINEER;
         }
         return VehicleMarker.Kind.INFANTRY;

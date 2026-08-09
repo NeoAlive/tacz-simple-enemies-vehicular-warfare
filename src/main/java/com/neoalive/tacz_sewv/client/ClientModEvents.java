@@ -40,6 +40,8 @@ public class ClientModEvents {
     private static final ResourceLocation US_MEDIC_SKIN = skin("us_squad_medic");
     private static final ResourceLocation RU_ENGINEER_SKIN = skin("ru_engineer");
     private static final ResourceLocation US_ENGINEER_SKIN = skin("us_engineer");
+    private static final ResourceLocation RU_COMBAT_ENGINEER_SKIN = skin("ru_combat_engineer");
+    private static final ResourceLocation US_COMBAT_ENGINEER_SKIN = skin("us_combat_engineer");
 
     private static ResourceLocation skin(String name) {
         return new ResourceLocation(TaczSewv.MODID, "skins/" + name + ".png");
@@ -67,6 +69,10 @@ public class ClientModEvents {
         event.registerEntityRenderer(ModEntities.US_MEDIC.get(), ctx -> new UsSupportRenderer(ctx, US_MEDIC_SKIN));
         event.registerEntityRenderer(ModEntities.RU_ENGINEER.get(), ctx -> new RuSupportRenderer(ctx, RU_ENGINEER_SKIN));
         event.registerEntityRenderer(ModEntities.US_ENGINEER.get(), ctx -> new UsSupportRenderer(ctx, US_ENGINEER_SKIN));
+        event.registerEntityRenderer(ModEntities.RU_COMBAT_ENGINEER.get(),
+                ctx -> new RuSupportRenderer(ctx, RU_COMBAT_ENGINEER_SKIN));
+        event.registerEntityRenderer(ModEntities.US_COMBAT_ENGINEER.get(),
+                ctx -> new UsSupportRenderer(ctx, US_COMBAT_ENGINEER_SKIN));
     }
 
     @SubscribeEvent
@@ -78,6 +84,8 @@ public class ClientModEvents {
         addUnitLayers(event, ModEntities.US_MEDIC.get());
         addUnitLayers(event, ModEntities.RU_ENGINEER.get());
         addUnitLayers(event, ModEntities.US_ENGINEER.get());
+        addUnitLayers(event, ModEntities.RU_COMBAT_ENGINEER.get());
+        addUnitLayers(event, ModEntities.US_COMBAT_ENGINEER.get());
     }
 
     private static <T extends LivingEntity> void addUnitLayers(EntityRenderersEvent.AddLayers event, EntityType<T> type) {

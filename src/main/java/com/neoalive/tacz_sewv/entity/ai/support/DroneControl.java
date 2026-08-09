@@ -15,8 +15,9 @@ import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 
 /**
  * Synched lock flag + dive-arm / ownership helpers for engineer kamikaze drones.
- * Lock freezes the engineer (see {@link com.neoalive.tacz_sewv.entity.ai.goal.DroneControlLockGoal});
- * dive-arm gates {@code kamikazeExplosion} so wander terrain bumps do not detonate.
+ * Lock freezes the engineer (see {@link com.neoalive.tacz_sewv.entity.ai.goal.DroneControlLockGoal})
+ * and is the gate for drone steering: unlocked → park with zero inputs until the close-range
+ * threat clears. Dive-arm gates {@code kamikazeExplosion} so wander terrain bumps do not detonate.
  */
 public final class DroneControl {
 

@@ -25,6 +25,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.FireMission;
@@ -40,6 +41,7 @@ import com.neoalive.tacz_sewv.debug.SewvDebugDump;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
+import com.neoalive.tacz_sewv.entity.ai.support.DigFoxholeSupport;
 import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionLayout;
@@ -83,6 +85,8 @@ public class SewvCommand {
                         .then(supportSpawn("usmedic", false, SupportRole.MEDIC))
                         .then(supportSpawn("ruengineer", true, SupportRole.ENGINEER))
                         .then(supportSpawn("usengineer", false, SupportRole.ENGINEER))
+                        .then(supportSpawn("rucombatengineer", true, SupportRole.COMBAT_ENGINEER))
+                        .then(supportSpawn("uscombatengineer", false, SupportRole.COMBAT_ENGINEER))
                 )
                 // Ungated (unlike spawn, above): any player can check on their own units.
                 .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
@@ -104,7 +108,9 @@ public class SewvCommand {
                         .then(Commands.literal("dump")
                                 .executes(ctx -> debugDump(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
-                                .executes(ctx -> debugStartConfigFix(ctx.getSource()))))
+                                .executes(ctx -> debugStartConfigFix(ctx.getSource())))
+                        .then(Commands.literal("digFoxhole")
+                                .executes(ctx -> debugDigFoxhole(ctx.getSource()))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("add")
@@ -372,6 +378,30 @@ public class SewvCommand {
         source.sendSuccess(() -> Component.translatable(
                 next ? "command.tacz_sewv.debug.rappel.on" : "command.tacz_sewv.debug.rappel.off",
                 heli.getDisplayName(), heli.getId()), true);
+        return 1;
+    }
+
+    /**
+     * Force a nearby Combat Engineer to place {@code grass_trench_1}, bypassing autonomous
+     * age / ground-eligibility / hasDug gates. Still marks {@code sewv:hasDugFoxhole} on success.
+     */
+    private static int debugDigFoxhole(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        BlockPos near = source.getEntity() != null
+                ? source.getEntity().blockPosition()
+                : BlockPos.containing(source.getPosition());
+        AbstractUnit engineer = DigFoxholeSupport.findNearestCombatEngineer(level, near, 64.0);
+        if (engineer == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.digFoxhole.none"));
+            return 0;
+        }
+        if (!DigFoxholeSupport.place(level, engineer)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.digFoxhole.fail",
+                    engineer.getDisplayName(), engineer.getId()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.digFoxhole.ok",
+                engineer.getDisplayName(), engineer.getId()), true);
         return 1;
     }
 

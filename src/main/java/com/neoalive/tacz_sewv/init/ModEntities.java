@@ -12,15 +12,17 @@ import net.minecraftforge.registries.RegistryObject;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
+import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 
 /**
- * The bridge's own entities — its first: four RU/US support-unit variants (medic, engineer). They
- * subclass SEM's faction units, so they reuse its renderers, attributes and all its faction logic;
- * only their goals and (for the engineer) their held item differ.
+ * The bridge's own entities — RU/US support-unit variants (medic, mechanic engineer,
+ * combat engineer). They subclass SEM's faction units, so they reuse its renderers,
+ * attributes and all its faction logic; only their goals and held items differ.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class ModEntities {
@@ -36,6 +38,10 @@ public class ModEntities {
             register("ru_engineer", RuEngineerEntity::new, MobCategory.MONSTER);
     public static final RegistryObject<EntityType<UsEngineerEntity>> US_ENGINEER =
             register("us_engineer", UsEngineerEntity::new, MobCategory.MONSTER);
+    public static final RegistryObject<EntityType<RuCombatEngineerEntity>> RU_COMBAT_ENGINEER =
+            register("ru_combat_engineer", RuCombatEngineerEntity::new, MobCategory.MONSTER);
+    public static final RegistryObject<EntityType<UsCombatEngineerEntity>> US_COMBAT_ENGINEER =
+            register("us_combat_engineer", UsCombatEngineerEntity::new, MobCategory.MONSTER);
 
     private static <T extends AbstractUnit> RegistryObject<EntityType<T>> register(
             String name, EntityType.EntityFactory<T> factory, MobCategory category) {
@@ -53,5 +59,7 @@ public class ModEntities {
         event.put(US_MEDIC.get(), AbstractUnit.createAttributes().build());
         event.put(RU_ENGINEER.get(), AbstractUnit.createAttributes().build());
         event.put(US_ENGINEER.get(), AbstractUnit.createAttributes().build());
+        event.put(RU_COMBAT_ENGINEER.get(), AbstractUnit.createAttributes().build());
+        event.put(US_COMBAT_ENGINEER.get(), AbstractUnit.createAttributes().build());
     }
 }

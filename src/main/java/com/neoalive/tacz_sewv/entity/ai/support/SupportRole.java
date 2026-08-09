@@ -33,7 +33,9 @@ public enum SupportRole {
     /** Holding a medical kit: neutral, never takes a target, patches its own side up. */
     MEDIC,
     /** Holding a repair tool: fixes hulls, and fights only if it has a sidearm and only infantry. */
-    ENGINEER;
+    ENGINEER,
+    /** Holding a military shovel: digs foxholes; fights like an engineer (sidearm, infantry only). */
+    COMBAT_ENGINEER;
 
     /**
      * What this unit's hands say it is. Medic wins a tie: a unit carrying both is more useful alive
@@ -42,6 +44,7 @@ public enum SupportRole {
     public static SupportRole of(LivingEntity entity) {
         if (!(entity instanceof AbstractUnit unit)) return NONE;
         if (holds(unit, MedicalKitItem.class)) return MEDIC;
+        if (holdsShovel(unit)) return COMBAT_ENGINEER;
         if (unit.getMainHandItem().is(ModItems.REPAIR_TOOL.get())
                 || unit.getOffhandItem().is(ModItems.REPAIR_TOOL.get())) {
             return ENGINEER;
@@ -67,11 +70,11 @@ public enum SupportRole {
     public static boolean refusesTarget(AbstractUnit unit, LivingEntity target) {
         return switch (of(unit)) {
             case MEDIC -> true;
-            // A repair tool is not a weapon. Without a sidearm the engineer has nothing to fight
-            // with, and even with one it leaves armour alone: a pistol cannot scratch a hull, and a
-            // unit that traded its job for plinking at a tank would be worse than useless. A crew is
-            // exactly a unit riding something, which is what the passenger test says.
-            case ENGINEER -> !hasSidearm(unit) || target == null || target.isPassenger();
+            // A repair tool / shovel is not a ranged weapon. Without a sidearm the unit has nothing
+            // to fight with, and even with one it leaves armour alone: a pistol cannot scratch a
+            // hull. A crew is exactly a unit riding something.
+            case ENGINEER, COMBAT_ENGINEER ->
+                    !hasSidearm(unit) || target == null || target.isPassenger();
             case NONE -> false;
         };
     }
@@ -80,6 +83,11 @@ public enum SupportRole {
     public static boolean hasSidearm(AbstractUnit unit) {
         return IGun.getIGunOrNull(unit.getMainHandItem()) != null
                 || IGun.getIGunOrNull(unit.getOffhandItem()) != null;
+    }
+
+    public static boolean holdsShovel(AbstractUnit unit) {
+        return unit.getMainHandItem().is(ModItems.MILITARY_SHOVEL.get())
+                || unit.getOffhandItem().is(ModItems.MILITARY_SHOVEL.get());
     }
 
     private static boolean holds(AbstractUnit unit, Class<?> item) {

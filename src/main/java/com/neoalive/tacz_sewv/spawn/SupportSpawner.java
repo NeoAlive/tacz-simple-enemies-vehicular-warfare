@@ -16,8 +16,10 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
+import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
+import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 import com.neoalive.tacz_sewv.init.ModEntities;
@@ -29,7 +31,7 @@ public final class SupportSpawner {
 
     private static final String COMPANION_FLAG = "sewv:companion_rolled";
 
-    public enum SupportRole { MEDIC, ENGINEER }
+    public enum SupportRole { MEDIC, ENGINEER, COMBAT_ENGINEER }
 
     /** Spawn a support unit of the given faction/role at {@code pos}, kitted and ready. */
     @Nullable
@@ -53,6 +55,7 @@ public final class SupportSpawner {
      * One hook covers every spawn path (SEM events, garrisons, structures) because they all surface a
      * unit through {@code EntityJoinLevelEvent}. A persistent flag stops chunk reloads from re-rolling;
      * a proximity dedupe keeps a cluster of units from each spawning their own.
+     * <p>Combat engineers are command/egg-only for the Stage 3 MVP (no ambient companion roll).
      */
     public static void maybeSpawnCompanions(AbstractUnit unit) {
         if (!(unit.level() instanceof ServerLevel level)) return;
@@ -89,12 +92,18 @@ public final class SupportSpawner {
     }
 
     private static EntityType<?> typeFor(boolean ru, SupportRole role) {
-        if (role == SupportRole.MEDIC) return ru ? ModEntities.RU_MEDIC.get() : ModEntities.US_MEDIC.get();
-        return ru ? ModEntities.RU_ENGINEER.get() : ModEntities.US_ENGINEER.get();
+        return switch (role) {
+            case MEDIC -> ru ? ModEntities.RU_MEDIC.get() : ModEntities.US_MEDIC.get();
+            case ENGINEER -> ru ? ModEntities.RU_ENGINEER.get() : ModEntities.US_ENGINEER.get();
+            case COMBAT_ENGINEER -> ru ? ModEntities.RU_COMBAT_ENGINEER.get() : ModEntities.US_COMBAT_ENGINEER.get();
+        };
     }
 
     private static Class<? extends AbstractUnit> typeClass(boolean ru, SupportRole role) {
-        if (role == SupportRole.MEDIC) return ru ? RuMedicEntity.class : UsMedicEntity.class;
-        return ru ? RuEngineerEntity.class : UsEngineerEntity.class;
+        return switch (role) {
+            case MEDIC -> ru ? RuMedicEntity.class : UsMedicEntity.class;
+            case ENGINEER -> ru ? RuEngineerEntity.class : UsEngineerEntity.class;
+            case COMBAT_ENGINEER -> ru ? RuCombatEngineerEntity.class : UsCombatEngineerEntity.class;
+        };
     }
 }

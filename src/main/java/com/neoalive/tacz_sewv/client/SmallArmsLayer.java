@@ -5,6 +5,7 @@ import java.util.NoSuchElementException;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
 import com.atsuishio.superbwarfare.item.misc.MedicalKitItem;
 import com.atsuishio.superbwarfare.item.misc.MonitorItem;
+import com.atsuishio.superbwarfare.item.weapon.MilitaryShovelItem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
@@ -23,13 +24,15 @@ import net.minecraft.world.item.ItemStack;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /**
- * Draws a SuperbWarfare gun / monitor / medical kit in a unit's right hand.
+ * Draws a SuperbWarfare gun / monitor / medical kit / military shovel in a unit's right hand.
  *
  * <p>SimpleEnemyMod's own {@code GunLayerRenderer} is the only held-item layer its unit renderers
  * have, and its second statement is
  * {@code if (!(stack.getItem() instanceof AbstractGunItem)) return;} — a <b>TACZ</b> gun item. An
  * SBW {@code GunItem} is an unrelated class, so an issued launcher was equipped, fired, and
- * completely invisible.
+ * completely invisible. The military shovel is likewise Geo/bedrock-rendered via its own
+ * {@code BlockEntityWithoutLevelRenderer} — {@code renderStatic} picks that up once we let the
+ * stack through this gate.
  *
  * <p>Placement matches SEM {@code GunLayerRenderer.renderStandardGun}.
  */
@@ -56,7 +59,8 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
         ItemStack stack = entity.getItemInHand(InteractionHand.MAIN_HAND);
         if (!(stack.getItem() instanceof GunItem)
                 && !(stack.getItem() instanceof MedicalKitItem)
-                && !(stack.getItem() instanceof MonitorItem)) return;
+                && !(stack.getItem() instanceof MonitorItem)
+                && !(stack.getItem() instanceof MilitaryShovelItem)) return;
 
         if (!(this.getParentModel() instanceof HierarchicalModel<?> model)) return;
 

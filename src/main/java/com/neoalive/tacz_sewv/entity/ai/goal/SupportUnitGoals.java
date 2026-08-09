@@ -14,13 +14,13 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /**
- * Goal loadouts for the medic and engineer support units, replacing the faction unit's normal
- * {@code setupRoleGoals} (and, by not calling super, the vehicle-AI injection with it — neither
- * crews anything).
+ * Goal loadouts for support units, replacing the faction unit's normal {@code setupRoleGoals}
+ * (and, by not calling super, the vehicle-AI injection with it — none of them crew vehicles).
  *
  * <p>A <b>medic</b> gets no targetSelector at all: it is neutral, so it must never pick a fight and
- * never retaliates. An <b>engineer</b> repairs by default, fights when engaged, and may operate one
- * kamikaze drone while locked to a Monitor.
+ * never retaliates. An <b>engineer</b> (mechanic) repairs by default, fights when engaged, and may
+ * operate one kamikaze drone while locked to a Monitor. A <b>combat engineer</b> digs one foxhole,
+ * holsters a sidearm like the mechanic, and respects the same faction-friendly targeting flags.
  */
 public final class SupportUnitGoals {
 
@@ -31,6 +31,23 @@ public final class SupportUnitGoals {
         goals.addGoal(0, new FloatGoal(unit));
         goals.addGoal(1, new MedicGoal(unit));
         idle(unit, goals);
+    }
+
+    public static void combatEngineer(AbstractUnit unit, GoalSelector goals, GoalSelector targets) {
+        reset(unit, goals, targets);
+        goals.addGoal(0, new FloatGoal(unit));
+        goals.addGoal(1, new DigFoxholeGoal(unit));
+        // Same MAIN↔OFF tool/sidearm swap as the mechanic engineer.
+        goals.addGoal(1, new UnitHolster.HolsterGoal(unit));
+        // SEM infantry + rifle (fires the holstered TACZ sidearm when it is in MAIN).
+        UnitRole.DEFAULT.getGoals().addGoals(unit);
+        // Faction-aware targeting — same shape as the mechanic engineer.
+        targets.addGoal(2, new NearestAttackableTargetGoal<>(unit, AbstractUnit.class, true,
+                target -> !target.isPassenger() && !VehicleTargeting.isNonHostile(unit, target)));
+        if (!VehicleTargeting.isFactionFriendly(unit)) {
+            targets.addGoal(3, new NearestAttackableTargetGoal<>(unit, Player.class, true,
+                    target -> !target.isPassenger() && !VehicleTargeting.isNonHostile(unit, target)));
+        }
     }
 
     public static void engineer(AbstractUnit unit, GoalSelector goals, GoalSelector targets) {

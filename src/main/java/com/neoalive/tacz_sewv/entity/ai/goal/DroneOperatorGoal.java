@@ -24,7 +24,10 @@ import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 
 /**
  * Deploys and flies one kamikaze drone for an RU/US engineer. Claims no flags — engineer freeze
- * is {@link DroneControlLockGoal}; this goal only steers the hull and owns lock enter/exit.
+ * is {@link DroneControlLockGoal}; this goal steers the hull only while locked and owns lock
+ * enter/exit. Close-range threats (and recent hostile hits) drop the lock and park the drone
+ * with zero inputs; once clear, the engineer re-locks and resumes control. A live SEM target at
+ * any range is <em>not</em> an unlock — that left every combat-zone drone parked forever.
  *
  * <p>SBW drone {@code travel()} ignores forward/strafe while {@code onGround()}, and a held
  * {@code up} input grows {@code holdTickY} unboundedly (~0.05×ticks vertical impulse — ~18
@@ -150,9 +153,8 @@ public class DroneOperatorGoal extends Goal {
     }
 
     private boolean shouldBreakLock() {
-        // Per-tick gates — cheap and must win every tick or LockGoal re-grabs MOVE.
-        if (this.unit.getTarget() != null) return true;
-
+        // Close-range only. A distant SEM getTarget() must NOT unlock — engineers in a warzone
+        // always hold one, and that parked every drone after deploy.
         LivingEntity lastHurt = this.unit.getLastHurtByMob();
         if (lastHurt != null && this.unit.tickCount - this.unit.getLastHurtByMobTimestamp() < DroneControl.HURT_MEMORY_TICKS) {
             if (!VehicleTargeting.isNonHostile(this.unit, lastHurt)) return true;
@@ -161,7 +163,8 @@ public class DroneOperatorGoal extends Goal {
         long now = this.unit.level().getGameTime();
         if (now >= this.nextThreatScan) {
             this.nextThreatScan = now + DroneControl.LOCK_THREAT_RESCAN_TICKS;
-            // Repair outranks drone sit — unlock so RepairGoal can take MOVE / restore the tool.
+            // Real hull repair outranks drone sit. Drones are excluded from findNearestRepairable
+            // so the engineer does not unlock to chase his own kamikaze.
             this.holdUnlock = RepairGoal.findNearestRepairable(this.unit) != null || nearbyHostile();
         }
         return this.holdUnlock;
@@ -178,7 +181,7 @@ public class DroneOperatorGoal extends Goal {
         return false;
     }
 
-    /** Called from LivingHurt and from this goal. */
+    /** Called from LivingHurt and from this goal. Parks owned drones until the engineer re-locks. */
     public static void unlockEngineer(AbstractUnit unit) {
         if (!DroneControl.isLocked(unit)) return;
         DroneControl.setLocked(unit, false);

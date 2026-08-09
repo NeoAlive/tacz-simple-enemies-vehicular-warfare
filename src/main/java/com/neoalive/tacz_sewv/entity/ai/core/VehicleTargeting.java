@@ -32,8 +32,10 @@ import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
+import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
+import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
@@ -406,7 +408,9 @@ public final class VehicleTargeting {
     }
 
     public static boolean isEngineer(LivingEntity entity) {
-        return entity instanceof RuEngineerEntity || entity instanceof UsEngineerEntity;
+        return entity instanceof RuEngineerEntity || entity instanceof UsEngineerEntity
+                || entity instanceof RuCombatEngineerEntity
+                || entity instanceof UsCombatEngineerEntity;
     }
 
     /** Medic or engineer — the support units, which wear headwear only so their skin stays readable. */

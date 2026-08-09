@@ -66,7 +66,8 @@ public class NetworkHandler {
     // 39: Category.HELI in vehicle pool editor packets.
     // 40: misc cue/armor editor open + update packets.
     // 41: PacketVehicleSkin carries sticky RNG salt for numbered skin pools.
-    private static final String PROTOCOL_VERSION = "41";
+    // 42: PacketTrenchNetworks (trench / emplacement map markers).
+    private static final String PROTOCOL_VERSION = "42";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -290,6 +291,14 @@ public class NetworkHandler {
                 PacketUpdateVehicleClasses::encode,
                 PacketUpdateVehicleClasses::new,
                 PacketUpdateVehicleClasses::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketTrenchNetworks.class,
+                PacketTrenchNetworks::encode,
+                PacketTrenchNetworks::new,
+                PacketTrenchNetworks::handle
         );
     }
 }

@@ -171,6 +171,7 @@ public class ClientEvents {
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         MapMarkers.clear();
+        MapTrenchMarkers.clear();
         InvasionHudClient.clear();
         clearEscort();
         clearGuard();

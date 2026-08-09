@@ -14,6 +14,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.block.EmplacementSupport;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -320,6 +321,13 @@ public class ManMortarGoal extends Goal {
 
     private void fire() {
         ItemStack shell = MortarSupport.takeShell(this.unit);
+        if (shell.isEmpty()) {
+            // PMC pads only: transfer one shell from a linked emplacement, then takeShell again.
+            // Empty takeShell does not bump nextShotTime — cooldown still gates the next attempt.
+            if (EmplacementSupport.tryRestockShell(this.unit, this.mortar)) {
+                shell = MortarSupport.takeShell(this.unit);
+            }
+        }
         if (shell.isEmpty()) {
             hold("no mortar shells in this unit's inventory");
             return;

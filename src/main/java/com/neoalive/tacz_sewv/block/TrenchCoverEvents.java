@@ -11,6 +11,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
@@ -24,22 +25,22 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.ExterminationCompat;
 
 /**
- * Trench cover combat gates, plus movement spices: netting ceiling forces sneak (collision),
- * and sneaking inside any trench runs at 2× normal walk speed.
+ * Trench cover combat gates, plus sneak speed while manually crouching in a trench
+ * (0.5× normal walk).
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID)
 public final class TrenchCoverEvents {
 
     /**
-     * Vanilla sneak multiplies movement by 0.3. MULTIPLY_TOTAL amount {@code 2/0.3 - 1} makes
-     * {@code speed × (1+amt) × 0.3 == 2 × walk}.
+     * Vanilla sneak multiplies movement by 0.3. MULTIPLY_TOTAL amount {@code 0.5/0.3 - 1} makes
+     * {@code speed × (1+amt) × 0.3 == 0.5 × walk}.
      */
     private static final UUID TRENCH_SNEAK_SPEED_UUID =
             UUID.fromString("a3c8e2f1-5b4d-4e9a-9c7f-1d2e3f4a5b6c");
     private static final AttributeModifier TRENCH_SNEAK_SPEED = new AttributeModifier(
             TRENCH_SNEAK_SPEED_UUID,
             "sewv_trench_sneak",
-            (2.0D / 0.3D) - 1.0D,
+            (0.5D / 0.3D) - 1.0D,
             AttributeModifier.Operation.MULTIPLY_TOTAL);
 
     private TrenchCoverEvents() {}
@@ -49,11 +50,12 @@ public final class TrenchCoverEvents {
         return source.is(DamageTypeTags.IS_EXPLOSION);
     }
 
-    /** Feet (or the cell below) sit in a regular / x-cross trench. */
+    /** Feet sit in a regular / x-cross trench. */
     public static boolean isInTrench(LivingEntity entity) {
         BlockPos feet = BlockPos.containing(entity.getX(), entity.getY() + 0.01, entity.getZ());
-        if (isTrenchCell(entity.level().getBlockState(feet))) return true;
-        return isTrenchCell(entity.level().getBlockState(feet.below()));
+        Level level = entity.level();
+        if (isTrenchCell(level.getBlockState(feet))) return true;
+        return isTrenchCell(level.getBlockState(feet.below()));
     }
 
     private static boolean isTrenchCell(BlockState state) {

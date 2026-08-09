@@ -22,6 +22,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.ConfigValue<String> COLOR_US;
     public static final ForgeConfigSpec.ConfigValue<String> COLOR_PMC;
     public static final ForgeConfigSpec.BooleanValue MAP_MARKERS_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue MAP_TRENCH_MARKERS_ENABLED;
     public static final ForgeConfigSpec.BooleanValue MAP_LIVE;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ICONS;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_HEALTH_BAR;
@@ -66,6 +67,9 @@ public final class ClientConfig {
                 .comment("Show unit and vehicle markers on Xaero's World Map, and allow ordering from the map.",
                         "You can also toggle this in-game with the map markers keybind.")
                 .define("mapMarkersEnabled", true);
+        MAP_TRENCH_MARKERS_ENABLED = builder
+                .comment("Show trench-network and emplacement markers on Xaero's World Map.")
+                .define("mapTrenchMarkersEnabled", true);
         MAP_LIVE = builder
                 .comment("In singleplayer, keep the world running while Xaero's map screen is open",
                         "(otherwise the game pauses and markers go stale).")
@@ -97,6 +101,10 @@ public final class ClientConfig {
     public static boolean mapMarkersEnabled() {
         Boolean override = MAP_MARKERS_SESSION_OVERRIDE;
         return override != null ? override : MAP_MARKERS_ENABLED.get();
+    }
+
+    public static boolean mapTrenchMarkersEnabled() {
+        return MAP_TRENCH_MARKERS_ENABLED.get();
     }
 
     /** Flip markers on/off for this session; returns whether they are now visible. */

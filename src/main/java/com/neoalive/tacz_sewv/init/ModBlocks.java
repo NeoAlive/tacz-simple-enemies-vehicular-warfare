@@ -7,6 +7,7 @@ import net.minecraftforge.registries.RegistryObject;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlock;
+import com.neoalive.tacz_sewv.block.EmplacementBlock;
 import com.neoalive.tacz_sewv.block.FoxholeBlock;
 import com.neoalive.tacz_sewv.block.TeamBaseBlock;
 import com.neoalive.tacz_sewv.block.TrenchBlock;
@@ -32,4 +33,8 @@ public class ModBlocks {
 
     public static final RegistryObject<Block> FOXHOLE =
             BLOCKS.register("foxhole", FoxholeBlock::new);
+
+    /** Ammo pad under a mortar / TOW / FIXED mount. */
+    public static final RegistryObject<Block> EMPLACEMENT =
+            BLOCKS.register("emplacement_block", EmplacementBlock::new);
 }

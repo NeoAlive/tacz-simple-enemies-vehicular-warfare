@@ -56,6 +56,9 @@ public class ModItems {
     public static final RegistryObject<Item> FOXHOLE = ITEMS.register("foxhole",
             () -> new BlockItem(ModBlocks.FOXHOLE.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> EMPLACEMENT = ITEMS.register("emplacement_block",
+            () -> new BlockItem(ModBlocks.EMPLACEMENT.get(), new Item.Properties()));
+
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",
@@ -83,6 +86,7 @@ public class ModItems {
             event.accept(TRENCH);
             event.accept(TRENCH_X_CROSS);
             event.accept(FOXHOLE);
+            event.accept(EMPLACEMENT);
         }
         if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
             event.accept(RU_MEDIC_SPAWN_EGG);

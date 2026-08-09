@@ -9,6 +9,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -29,6 +30,7 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -46,7 +48,7 @@ public class TrenchXCrossBlock extends Block {
 
     private static final VoxelShape LOWER = Block.box(0, 0, 0, 16, 6, 16);
     private static final VoxelShape UPPER = Shapes.empty();
-    private static final VoxelShape UPPER_NETTED = Block.box(0, 15, 0, 16, 16, 16);
+    private static final VoxelShape UPPER_NETTED = Block.box(0, 14, 0, 16, 16, 16);
 
     public TrenchXCrossBlock() {
         super(BlockBehaviour.Properties.of()
@@ -91,9 +93,13 @@ public class TrenchXCrossBlock extends Block {
         return defaultBlockState().setValue(HALF, DoubleBlockHalf.LOWER);
     }
 
+    /** Set around player destroy so {@link #onRemove} refreshes orthogonal trenches. */
+    private static final ThreadLocal<Boolean> PLAYER_EDIT = ThreadLocal.withInitial(() -> false);
+
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         level.setBlock(pos.above(), state.setValue(HALF, DoubleBlockHalf.UPPER), 3);
+        TrenchBlock.onPlayerTopologyEdit(level, pos);
     }
 
     @Override
@@ -152,10 +158,28 @@ public class TrenchXCrossBlock extends Block {
 
     @Override
     public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        PLAYER_EDIT.set(true);
         if (!level.isClientSide && player.isCreative()) {
             preventCreativeDropFromBottomPart(level, pos, state, player);
         }
         super.playerWillDestroy(level, pos, state, player);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        boolean playerEdit = Boolean.TRUE.equals(PLAYER_EDIT.get());
+        try {
+            if (!state.is(newState.getBlock()) && playerEdit) {
+                BlockPos lower = state.getValue(HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
+                TrenchBlock.onPlayerTopologyEdit(level, lower, lower, lower.above());
+            }
+            super.onRemove(state, level, pos, newState, isMoving);
+        } finally {
+            if (playerEdit) {
+                PLAYER_EDIT.set(false);
+            }
+        }
     }
 
     private static void preventCreativeDropFromBottomPart(Level level, BlockPos pos, BlockState state, Player player) {
@@ -174,6 +198,11 @@ public class TrenchXCrossBlock extends Block {
     @Override
     @SuppressWarnings("deprecation")
     public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos, PathComputationType type) {
-        return false;
+        return type == PathComputationType.LAND;
+    }
+
+    @Override
+    public BlockPathTypes getBlockPathType(BlockState state, BlockGetter level, BlockPos pos, @Nullable Mob mob) {
+        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? BlockPathTypes.WALKABLE : BlockPathTypes.OPEN;
     }
 }

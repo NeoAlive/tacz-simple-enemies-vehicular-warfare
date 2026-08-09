@@ -10,6 +10,7 @@ import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -30,6 +31,7 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -56,8 +58,8 @@ public class TrenchBlock extends Block {
     private static final VoxelShape[] UPPER = new VoxelShape[TrenchConnection.values().length];
     private static final VoxelShape[] UPPER_NETTED = new VoxelShape[TrenchConnection.values().length];
 
-    /** Thin cover matching leaf sheets — low enough to force sneak under netting (trapdoor-style). */
-    private static final VoxelShape NETTING_COVER = Block.box(0, 15, 0, 16, 16, 16);
+    /** Solid leaf-cover slab when netting is on (collision only — no forced crouch). */
+    private static final VoxelShape NETTING_COVER = Block.box(0, 14, 0, 16, 16, 16);
 
     static {
         for (TrenchConnection c : TrenchConnection.values()) {
@@ -118,7 +120,7 @@ public class TrenchBlock extends Block {
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
         level.setBlock(pos.above(), state.setValue(HALF, DoubleBlockHalf.UPPER), 3);
         if (!level.isClientSide) {
-            refreshOrthogonalNeighbors(level, pos);
+            onPlayerTopologyEdit(level, pos);
         }
     }
 
@@ -152,7 +154,7 @@ public class TrenchBlock extends Block {
             if (!(lower.getBlock() instanceof TrenchBlock)) return InteractionResult.PASS;
 
             applyConnection(level, lowerPos, lower, next);
-            refreshOrthogonalNeighbors(level, lowerPos);
+            onPlayerTopologyEdit(level, lowerPos);
             level.playSound(null, pos, SoundEvents.AXE_STRIP, SoundSource.BLOCKS, 1.0f, 1.0f);
             stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(hand));
         }
@@ -213,6 +215,7 @@ public class TrenchBlock extends Block {
                 BlockPos lower = state.getValue(HALF) == DoubleBlockHalf.LOWER ? pos : pos.below();
                 // Mate may still be present for a tick — force both cells absent for neighbour resolve.
                 refreshOrthogonalNeighbors(level, lower, lower, lower.above());
+                TrenchTracker.onTopologyChanged(level, lower);
             }
             super.onRemove(state, level, pos, newState, isMoving);
         } finally {
@@ -238,7 +241,15 @@ public class TrenchBlock extends Block {
     @Override
     @SuppressWarnings("deprecation")
     public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos, PathComputationType type) {
-        return false;
+        // LAND must be true or WalkNodeEvaluator marks every trench cell BLOCKED and
+        // infantry freeze at the rim. WATER/AIR stay closed — this is a ditch, not a duct.
+        return type == PathComputationType.LAND;
+    }
+
+    /** Lower floor is footing; upper wall/netting cell stays OPEN so the body fits above. */
+    @Override
+    public BlockPathTypes getBlockPathType(BlockState state, BlockGetter level, BlockPos pos, @Nullable Mob mob) {
+        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? BlockPathTypes.WALKABLE : BlockPathTypes.OPEN;
     }
 
     private static void applyConnection(Level level, BlockPos lowerPos, BlockState lower, TrenchConnection connection) {
@@ -310,6 +321,7 @@ public class TrenchBlock extends Block {
     static void onPlayerTopologyEdit(Level level, BlockPos pos, BlockPos... treatAsEmpty) {
         if (level.isClientSide) return;
         refreshOrthogonalNeighbors(level, pos, treatAsEmpty);
+        TrenchTracker.onTopologyChanged(level, pos);
     }
 
     private static VoxelShape buildLower(TrenchConnection c) {

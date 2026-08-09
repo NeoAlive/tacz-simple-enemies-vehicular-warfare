@@ -8,8 +8,8 @@ import xaero.map.WorldMap;
 import xaero.map.gui.GuiMap;
 
 /**
- * Soft compat with <b>Xaero's World Map</b>: hangs {@link VehicleMarkerElements} on the map's
- * element renderer so PMC vehicles draw as icons.
+ * Soft compat with <b>Xaero's World Map</b>: hangs {@link VehicleMarkerElements} and
+ * {@link TrenchMarkerElements} on the map's element renderer.
  *
  * <p>No mixin is needed for this half — {@code WorldMap.mapElementRenderHandler} is a public static
  * field and {@code add} is public, the same door Xaero's own waypoint and player-tracker renderers
@@ -48,6 +48,7 @@ public final class XaeroMapCompat {
         if (WorldMap.mapElementRenderHandler == null) return; // Xaero failed to load; leave it alone
         if (hungOn == WorldMap.mapElementRenderHandler) return; // already on this handler instance
         WorldMap.mapElementRenderHandler.add(VehicleMarkerElements.INSTANCE);
+        WorldMap.mapElementRenderHandler.add(TrenchMarkerElements.INSTANCE);
         hungOn = WorldMap.mapElementRenderHandler;
     }
 

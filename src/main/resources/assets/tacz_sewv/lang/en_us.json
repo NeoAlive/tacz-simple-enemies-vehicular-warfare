@@ -10,13 +10,11 @@
   "message.tacz_sewv.heli.rappel.none": "No eligible aircraft.",
   "message.tacz_sewv.heli.no_pad": "Look at a block to land on.",
   "message.tacz_sewv.plane.takeoff.no_runway": "No clear runway for takeoff.",
-
   "message.tacz_sewv.board.ordered.single": "%s unit ordered to board.",
   "message.tacz_sewv.board.ordered.multiple": "%s units ordered to board.",
   "message.tacz_sewv.board.ordered.none": "No eligible units to board.",
   "message.tacz_sewv.board.no_units": "No owned units nearby.",
   "message.tacz_sewv.board.no_vehicle": "Look at a vehicle or mortar.",
-
   "message.tacz_sewv.escort.select": "Left-click a vehicle to escort, right-click to cancel.",
   "message.tacz_sewv.escort.no_vehicle": "That's not a vehicle. Left-click a vehicle, or right-click to cancel.",
   "message.tacz_sewv.escort.no_units": "No units selected or nearby to escort.",
@@ -24,7 +22,6 @@
   "message.tacz_sewv.escort.ordered.single": "%s unit escorting.",
   "message.tacz_sewv.escort.ordered.multiple": "%s units escorting.",
   "message.tacz_sewv.escort.ordered.none": "No eligible units to escort.",
-
   "gui.tacz_sewv.map.move_here": "→ Move %s selected unit(s) here",
   "gui.tacz_sewv.map.follow_me": "⚑ Follow me (%s selected)",
   "gui.tacz_sewv.map.hold": "■ Hold position (%s selected)",
@@ -68,12 +65,10 @@
   "message.tacz_sewv.map.cease_fire": "%s unit(s) ceasing fire.",
   "message.tacz_sewv.map.attack_that": "%s unit(s) engaging designated target.",
   "message.tacz_sewv.map.wrong_dimension": "That position is in another dimension.",
-
   "message.tacz_sewv.mortar.ordered.single": "%s sent to the mortar.",
   "message.tacz_sewv.mortar.ordered.none": "No free units to crew it.",
   "message.tacz_sewv.mortar.taken": "That mortar already has a crew.",
   "message.tacz_sewv.mortar.gone": "That mortar is no longer there.",
-
   "message.tacz_sewv.formation.dir.north": "-Z (north)",
   "message.tacz_sewv.formation.dir.south": "+Z (south)",
   "message.tacz_sewv.formation.dir.west": "-X (west)",
@@ -81,7 +76,6 @@
   "message.tacz_sewv.formation.formed.single": "%s hull formed on %s.",
   "message.tacz_sewv.formation.formed.multiple": "%s hulls formed on %s.",
   "message.tacz_sewv.formation.formed.none": "No hulls to form up.",
-
   "item.tacz_sewv.tactical_data_terminal": "Tactical Data Terminal",
   "tooltip.tacz_sewv.tactical_data_terminal.use": "Open with Left Click",
   "gui.tacz_sewv.tdt.title": "Tactical Data Terminal",
@@ -146,20 +140,16 @@
   "message.tacz_sewv.tdt.need_selection": "No owned units nearby.",
   "message.tacz_sewv.tdt.select_position": "Select a position…",
   "message.tacz_sewv.tdt.select_target": "Select a target…",
-
   "message.tacz_sewv.patrol.ordered.single": "%s vehicle patrolling a %s-block area.",
   "message.tacz_sewv.patrol.ordered.multiple": "%s vehicles patrolling a %s-block area.",
   "message.tacz_sewv.patrol.ordered.none": "No eligible vehicles to patrol.",
   "message.tacz_sewv.patrol.min_radius": "Patrol radius must be at least %s blocks.",
-
   "message.tacz_sewv.search.ordered.single": "%s vehicle sweeping a %s-block area.",
   "message.tacz_sewv.search.ordered.multiple": "%s vehicles sweeping a %s-block area.",
   "message.tacz_sewv.search.ordered.none": "No eligible vehicles to sweep.",
-
   "message.tacz_sewv.dismiss.single": "%s crew dismissed.",
   "message.tacz_sewv.dismiss.multiple": "%s crews dismissed.",
   "message.tacz_sewv.dismiss.none": "No crews on an area task.",
-
   "entity.tacz_sewv.ru_medic": "RU Squad Medic",
   "entity.tacz_sewv.us_medic": "US Squad Medic",
   "entity.tacz_sewv.ru_engineer": "RU Mechanical Engineer",
@@ -168,7 +158,6 @@
   "item.tacz_sewv.us_medic_spawn_egg": "US Squad Medic Spawn Egg",
   "item.tacz_sewv.ru_engineer_spawn_egg": "RU Mechanical Engineer Spawn Egg",
   "item.tacz_sewv.us_engineer_spawn_egg": "US Mechanical Engineer Spawn Egg",
-
   "item.tacz_sewv.handheld_radio": "Handheld Radio",
   "tooltip.tacz_sewv.handheld_radio.use": "Use on a target: call a fire mission from your mortar, TOW and aircraft crews",
   "tooltip.tacz_sewv.handheld_radio.standdown": "Sneak + use: call your crews off",
@@ -182,27 +171,21 @@
   "message.tacz_sewv.radio.standdown.single": "%s crew standing down.",
   "message.tacz_sewv.radio.standdown.multiple": "%s crews standing down.",
   "message.tacz_sewv.radio.standdown.none": "No crews on a fire mission.",
-
   "message.tacz_sewv.dismount.single": "%s unit dismounted.",
   "message.tacz_sewv.dismount.multiple": "%s units dismounted.",
   "message.tacz_sewv.dismount.none": "No units to dismount.",
-
   "key.categories.tacz_sewv": "SBW: Combined Arms",
   "key.tacz_sewv.open_tdt": "Open Tactical Data Terminal",
   "key.tacz_sewv.toggle_map_markers": "Toggle Map Markers",
-
   "message.tacz_sewv.map_markers.on": "SEWV map markers: shown",
   "message.tacz_sewv.map_markers.off": "SEWV map markers: hidden",
-
   "command.tacz_sewv.spawn.success": "Spawned %s at %s",
   "command.tacz_sewv.spawn.fail": "Couldn't spawn the vehicle: no space here or no valid vehicle id in the config pool",
   "command.tacz_sewv.spawn.support_fail": "Couldn't spawn the unit: no space here, or SuperbWarfare isn't loaded.",
   "command.tacz_sewv.spawn.emplacement_fail": "Couldn't spawn the emplacement: no space here, or SuperbWarfare isn't loaded.",
   "command.tacz_sewv.spawn.not_in_pool": "\"%s\" is not in the %s pool. Add it to the config or pick one of the pool's ids.",
-
   "message.tacz_sewv.tdt.no_terminal": "Carry a Tactical Data Terminal to use this.",
   "tooltip.tacz_sewv.tactical_data_terminal.key": "Also opens with the Open Tactical Data Terminal key (default G), works even while seated in a vehicle",
-
   "command.tacz_sewv.status.player_only": "Only a player can check their own units' status.",
   "command.tacz_sewv.status.none_owned": "You have no owned units nearby.",
   "command.tacz_sewv.status.line": "%s: %s",
@@ -214,7 +197,6 @@
   "command.tacz_sewv.status.cruise": "cruising a plotted route",
   "command.tacz_sewv.status.formation": "holding formation",
   "command.tacz_sewv.status.idle": "no standing order",
-
   "item.tacz_sewv.doctrine_ledger": "Doctrine Ledger",
   "message.tacz_sewv.doctrine.already_set": "Doctrine already established. Craft another Doctrine Ledger to change it.",
   "message.tacz_sewv.doctrine.saved": "Doctrine configured successfully.",
@@ -228,7 +210,6 @@
   "gui.tacz_sewv.doctrine.axis.targetPriority": "Target Priority",
   "gui.tacz_sewv.doctrine.axis.maneuver": "Maneuver",
   "gui.tacz_sewv.doctrine.axis.riskTolerance": "Risk Tolerance",
-
   "block.tacz_sewv.capture_point": "Capture Point",
   "block.tacz_sewv.team_base": "Team Base",
   "block.tacz_sewv.trench": "Trench",
@@ -239,7 +220,6 @@
   "item.tacz_sewv.trench": "Trench",
   "item.tacz_sewv.trench_x_cross": "Trench Cross",
   "item.tacz_sewv.foxhole": "Foxhole",
-
   "gui.tacz_sewv.invasion.capture_point.title": "Capture Point",
   "gui.tacz_sewv.invasion.team_base.title": "Team Base",
   "gui.tacz_sewv.invasion.save": "Save",
@@ -291,7 +271,6 @@
   "command.tacz_sewv.invasion.fail.missing_capture_point": "Registered capture_point missing at %s (removed block?).",
   "command.tacz_sewv.invasion.warn.no_online": "Warning: team '%s' has no online players.",
   "command.tacz_sewv.invasion.warn.empty_pool_offline": "Warning: team '%s' has empty pool but no online players.",
-
   "item.tacz_sewv.pool_clipboard": "Vehicle Pool Clipboard",
   "tooltip.tacz_sewv.pool_clipboard.use": "Use (op only) to edit this world's vehicle spawn pools",
   "tooltip.tacz_sewv.pool_clipboard.op": "Operator-only admin tool, uncraftable",
@@ -332,7 +311,6 @@
   "gui.tacz_sewv.pool.hint": "%s · %s · %s entries",
   "gui.tacz_sewv.pool.catalog_loading": "Vehicle catalog still loading…",
   "gui.tacz_sewv.pool.catalog_empty": "No vehicle ids found",
-
   "message.tacz_sewv.sweep.need_selection": "Drag a chunk rectangle on the map first (RMB).",
   "message.tacz_sewv.sweep.too_large": "Sweep area too large (max %s chunks).",
   "message.tacz_sewv.sweep.started": "Sweep & Advance: %s mounted, %s on foot.",
@@ -341,7 +319,6 @@
   "message.tacz_sewv.sweep.complete_empty": "Sweep complete: nothing left to claim after ally trim.",
   "message.tacz_sewv.sweep.cancelled": "Sweep & Advance cancelled.",
   "message.tacz_sewv.sweep.no_openpac": "Sweep & Advance needs Open Parties and Claims.",
-
   "command.tacz_sewv.diplomacy.no_openpac": "Open Parties and Claims is not installed.",
   "command.tacz_sewv.diplomacy.player_only": "Only a player in an OpenPAC party can set diplomacy.",
   "command.tacz_sewv.diplomacy.no_party": "You are not in an OpenPAC party.",
@@ -352,7 +329,6 @@
   "command.tacz_sewv.diplomacy.removed": "Cleared diplomacy with %s (now neutral).",
   "command.tacz_sewv.diplomacy.not_found": "No diplomacy entry for %s.",
   "command.tacz_sewv.diplomacy.empty": "No diplomacy pairs set.",
-
   "gamerule.sewvRuSpawns": "SEWV RU spawns",
   "gamerule.sewvRuSpawns.description": "Allow RU faction spawns routed through SEWV.",
   "gamerule.sewvUsSpawns": "SEWV US spawns",
@@ -360,5 +336,7 @@
   "gamerule.sewvPmcAmbientSpawns": "SEWV ambient PMC spawns",
   "gamerule.sewvPmcAmbientSpawns.description": "Allow ambient PMC structure spawns. Player-summoned PMC units are unaffected.",
   "gamerule.sewvTanksInEvents": "SEWV tanks in combat events",
-  "gamerule.sewvTanksInEvents.description": "Allow rare RU/US tanks when SEM far_combat fires."
+  "gamerule.sewvTanksInEvents.description": "Allow rare RU/US tanks when SEM far_combat fires.",
+  "block.tacz_sewv.emplacement_block": "Emplacement Pad",
+  "container.tacz_sewv.emplacement": "Emplacement Ammo"
 }

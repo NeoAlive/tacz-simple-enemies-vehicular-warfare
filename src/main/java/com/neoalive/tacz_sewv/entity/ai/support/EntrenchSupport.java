@@ -34,6 +34,15 @@ public final class EntrenchSupport {
     /** Close enough to the cell centre to promote to HOLD. */
     private static final double ARRIVE_DIST_SQ = 2.25;
 
+    /** RU/US auto-entrench dwell before leaving (game ticks). */
+    public static final int AUTO_STAY_MIN_TICKS = 30 * 20;
+    public static final int AUTO_STAY_MAX_TICKS = 120 * 20;
+    /**
+     * After leaving, how long before {@code SeekEntrenchmentGoal} may re-assign (game ticks).
+     * Long enough that a nearby network cannot bounce the same unit in a leave/seek loop.
+     */
+    public static final int AUTO_SEEK_COOLDOWN_TICKS = 60 * 20;
+
     private EntrenchSupport() {}
 
     public static void clear(AbstractUnit unit) {
@@ -178,6 +187,13 @@ public final class EntrenchSupport {
         if (now < entrenched.sewv$getEntrenchRerollAt()) return;
         entrenched.sewv$setEntrenchRerollAt(now + REROLL_INTERVAL_TICKS);
 
+        // RU/US auto-dwell expired — leave and arm seek cooldown (PMC player orders have leaveAt=0).
+        long leaveAt = entrenched.sewv$getEntrenchLeaveAt();
+        if (leaveAt > 0L && now >= leaveAt) {
+            leaveAutoEntrench(unit, entrenched, now);
+            return;
+        }
+
         BlockPos cell = entrenched.sewv$getEntrenchCell();
         if (cell == null) {
             clear(unit);
@@ -276,5 +292,18 @@ public final class EntrenchSupport {
 
     public static boolean isEntrenched(Entity entity) {
         return entity instanceof IEntrenched e && e.sewv$isEntrenched();
+    }
+
+    /** Schedule a random dwell for an RU/US unit that just auto-entrenched. */
+    public static void scheduleAutoLeave(AbstractUnit unit, long gameTime) {
+        if (!(unit instanceof IEntrenched entrenched)) return;
+        int span = AUTO_STAY_MAX_TICKS - AUTO_STAY_MIN_TICKS + 1;
+        int stay = AUTO_STAY_MIN_TICKS + ThreadLocalRandom.current().nextInt(span);
+        entrenched.sewv$setEntrenchLeaveAt(gameTime + stay);
+    }
+
+    private static void leaveAutoEntrench(AbstractUnit unit, IEntrenched entrenched, long now) {
+        entrenched.sewv$setEntrenchSeekCooldownUntil(now + AUTO_SEEK_COOLDOWN_TICKS);
+        clear(unit);
     }
 }

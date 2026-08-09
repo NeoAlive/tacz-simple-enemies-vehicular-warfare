@@ -60,7 +60,7 @@ public class ModItems {
             () -> new BlockItem(ModBlocks.EMPLACEMENT.get(), new Item.Properties()));
 
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
-    // orange engineer).
+    // orange engineer, brown combat engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.RU_MEDIC, 0x4b5320, 0xffffff, new Item.Properties()));
     public static final RegistryObject<Item> US_MEDIC_SPAWN_EGG = ITEMS.register("us_medic_spawn_egg",
@@ -69,6 +69,14 @@ public class ModItems {
             () -> new ForgeSpawnEggItem(ModEntities.RU_ENGINEER, 0x4b5320, 0xffa000, new Item.Properties()));
     public static final RegistryObject<Item> US_ENGINEER_SPAWN_EGG = ITEMS.register("us_engineer_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.US_ENGINEER, 0x7a7250, 0xffa000, new Item.Properties()));
+    public static final RegistryObject<Item> RU_COMBAT_ENGINEER_SPAWN_EGG =
+            ITEMS.register("ru_combat_engineer_spawn_egg",
+                    () -> new ForgeSpawnEggItem(ModEntities.RU_COMBAT_ENGINEER, 0x4b5320, 0x8b4513,
+                            new Item.Properties()));
+    public static final RegistryObject<Item> US_COMBAT_ENGINEER_SPAWN_EGG =
+            ITEMS.register("us_combat_engineer_spawn_egg",
+                    () -> new ForgeSpawnEggItem(ModEntities.US_COMBAT_ENGINEER, 0x7a7250, 0x8b4513,
+                            new Item.Properties()));
 
     @SubscribeEvent
     public static void addToCreativeTabs(BuildCreativeModeTabContentsEvent event) {
@@ -93,6 +101,8 @@ public class ModItems {
             event.accept(US_MEDIC_SPAWN_EGG);
             event.accept(RU_ENGINEER_SPAWN_EGG);
             event.accept(US_ENGINEER_SPAWN_EGG);
+            event.accept(RU_COMBAT_ENGINEER_SPAWN_EGG);
+            event.accept(US_COMBAT_ENGINEER_SPAWN_EGG);
         }
     }
 }

@@ -21,6 +21,9 @@ import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
  * Idle RU/US infantry claim a nearby trench network (emplacements first, then cells), writing
  * the same {@link IEntrenched} / board / mortar state a player ENTRENCHED order would.
  *
+ * <p>Dwell is finite: after a random 30&nbsp;s–2&nbsp;min, {@link EntrenchSupport} clears the
+ * task and arms a seek cooldown so the unit cannot immediately re-enter the same net.
+ *
  * <p>Pattern matches {@link SeekAbandonedVehicleGoal}: flagless, work in {@code canUse}, always
  * return false so locomotion stays with {@link BoardVehicleGoal} / {@link ManMortarGoal} /
  * {@link EntrenchGoal}.
@@ -58,7 +61,11 @@ public class SeekEntrenchmentGoal extends Goal {
         if (!(this.unit instanceof RUunitEntity || this.unit instanceof USunitEntity)) return false;
         if (this.unit.isPassenger()) return false;
         if (this.unit.getTarget() != null) return false;
-        if (this.unit instanceof IEntrenched e && e.sewv$isEntrenched()) return false;
+        if (this.unit instanceof IEntrenched e) {
+            if (e.sewv$isEntrenched()) return false;
+            // Post-leave gate: absolute game-time NBT — one long compare, survives clear/chunk unload.
+            if (e.sewv$isEntrenchSeekCooling(this.unit.level().getGameTime())) return false;
+        }
         if (this.unit instanceof IVehicleBoarder boarder && boarder.tacz_sewv$isBoarding()) return false;
         if (this.unit instanceof IMortarCrew mortar
                 && mortar.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
@@ -77,7 +84,9 @@ public class SeekEntrenchmentGoal extends Goal {
 
         BlockPos hit = pickHit(network, here);
         if (hit == null) return false;
-        return EntrenchSupport.assign(level, List.of(this.unit), hit) > 0;
+        if (EntrenchSupport.assign(level, List.of(this.unit), hit) <= 0) return false;
+        EntrenchSupport.scheduleAutoLeave(this.unit, level.getGameTime());
+        return true;
     }
 
     /** Prefer an emplacement pad, else the nearest cell to the unit. */

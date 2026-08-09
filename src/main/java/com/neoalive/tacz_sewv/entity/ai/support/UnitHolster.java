@@ -82,7 +82,7 @@ public final class UnitHolster {
         }
 
         // Engineer idle: tool MAIN, sidearm OFF — body-draw the OFF gun.
-        if (main.is(ModItems.REPAIR_TOOL.get()) && IGun.getIGunOrNull(off) != null) {
+        if (isWorkTool(main) && IGun.getIGunOrNull(off) != null) {
             return off;
         }
         return ItemStack.EMPTY;
@@ -101,8 +101,9 @@ public final class UnitHolster {
 
         @Override
         public boolean canUse() {
-            return !this.unit.level().isClientSide
-                    && SupportRole.of(this.unit) == SupportRole.ENGINEER;
+            if (this.unit.level().isClientSide) return false;
+            SupportRole role = SupportRole.of(this.unit);
+            return role == SupportRole.ENGINEER || role == SupportRole.COMBAT_ENGINEER;
         }
 
         @Override
@@ -127,6 +128,19 @@ public final class UnitHolster {
         if (!sidearm.isEmpty()) {
             unit.setItemInHand(InteractionHand.OFF_HAND, sidearm);
         }
+    }
+
+    /** Combat engineer kit: military shovel MAIN, TACZ sidearm OFF (same swap path as mechanic). */
+    public static void equipCombatEngineer(AbstractUnit unit) {
+        unit.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModItems.MILITARY_SHOVEL.get()));
+        ItemStack sidearm = buildSidearm(unit.getRandom());
+        if (!sidearm.isEmpty()) {
+            unit.setItemInHand(InteractionHand.OFF_HAND, sidearm);
+        }
+    }
+
+    private static boolean isWorkTool(ItemStack stack) {
+        return stack.is(ModItems.REPAIR_TOOL.get()) || stack.is(ModItems.MILITARY_SHOVEL.get());
     }
 
     private static ItemStack buildSidearm(RandomSource random) {
@@ -171,11 +185,13 @@ public final class UnitHolster {
             if (!unit.getMainHandItem().is(ModItems.MONITOR.get())) {
                 unit.setItemInHand(InteractionHand.MAIN_HAND, monitor);
             }
-            if (!unit.getOffhandItem().is(ModItems.REPAIR_TOOL.get()) && stashPresent) {
+            if (!unit.getOffhandItem().is(ModItems.REPAIR_TOOL.get())
+                    && !unit.getOffhandItem().is(ModItems.MILITARY_SHOVEL.get())
+                    && stashPresent) {
                 ItemStack stashedMain = ItemStack.of(data.getCompound(DroneControl.STASH_MAIN));
                 ItemStack stashedOff = ItemStack.of(data.getCompound(DroneControl.STASH_OFF));
-                ItemStack tool = stashedMain.is(ModItems.REPAIR_TOOL.get()) ? stashedMain
-                        : stashedOff.is(ModItems.REPAIR_TOOL.get()) ? stashedOff : ItemStack.EMPTY;
+                ItemStack tool = isWorkTool(stashedMain) ? stashedMain
+                        : isWorkTool(stashedOff) ? stashedOff : ItemStack.EMPTY;
                 if (!tool.isEmpty()) {
                     unit.setItemInHand(InteractionHand.OFF_HAND, tool.copy());
                 }

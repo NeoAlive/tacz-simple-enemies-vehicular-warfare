@@ -17,6 +17,13 @@ public interface IEntrenched {
     String TAG_CELL = "tacz_sewv_entrench_cell";
     String TAG_EMP = "tacz_sewv_entrench_emp";
     String TAG_REROLL_AT = "tacz_sewv_entrench_reroll";
+    /** Absolute game time when an RU/US auto-entrench should leave (0 = no timer). */
+    String TAG_LEAVE_AT = "tacz_sewv_entrench_leave";
+    /**
+     * Absolute game time until {@code SeekEntrenchmentGoal} may assign again. Survives
+     * {@link #sewv$clearEntrenched()} so a leave cannot immediately re-enter the same net.
+     */
+    String TAG_SEEK_COOLDOWN_UNTIL = "tacz_sewv_entrench_seek_cd";
 
     default boolean sewv$isEntrenched() {
         return ((Entity) this).getPersistentData().getBoolean(TAG_ACTIVE);
@@ -33,6 +40,7 @@ public interface IEntrenched {
             tag.remove(TAG_EMP);
         }
         tag.remove(TAG_REROLL_AT);
+        // Leave deadline is set by SeekEntrenchmentGoal and must survive cell rerolls.
     }
 
     default void sewv$clearEntrenched() {
@@ -42,6 +50,28 @@ public interface IEntrenched {
         tag.remove(TAG_CELL);
         tag.remove(TAG_EMP);
         tag.remove(TAG_REROLL_AT);
+        tag.remove(TAG_LEAVE_AT);
+        // TAG_SEEK_COOLDOWN_UNTIL intentionally kept.
+    }
+
+    default long sewv$getEntrenchLeaveAt() {
+        return ((Entity) this).getPersistentData().getLong(TAG_LEAVE_AT);
+    }
+
+    default void sewv$setEntrenchLeaveAt(long gameTime) {
+        ((Entity) this).getPersistentData().putLong(TAG_LEAVE_AT, gameTime);
+    }
+
+    default long sewv$getEntrenchSeekCooldownUntil() {
+        return ((Entity) this).getPersistentData().getLong(TAG_SEEK_COOLDOWN_UNTIL);
+    }
+
+    default void sewv$setEntrenchSeekCooldownUntil(long gameTime) {
+        ((Entity) this).getPersistentData().putLong(TAG_SEEK_COOLDOWN_UNTIL, gameTime);
+    }
+
+    default boolean sewv$isEntrenchSeekCooling(long gameTime) {
+        return gameTime < sewv$getEntrenchSeekCooldownUntil();
     }
 
     default long sewv$getEntrenchNetworkSeed() {

@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 
+import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModParticleTypes;
 import com.atsuishio.superbwarfare.init.ModSounds;
@@ -74,6 +75,7 @@ public class RepairGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         return this.target != null
+                && !(this.target instanceof DroneEntity)
                 && this.target.isAlive()
                 && !this.target.isWreck()
                 && this.target.getHealth() < this.target.getMaxHealth()
@@ -152,7 +154,7 @@ public class RepairGoal extends Goal {
         level.sendParticles(ModParticleTypes.RISING_SMOKE.get(), x, y, z, 3, spread, 0.2, spread, 0.01);
     }
 
-    /** Nearest damaged friendly/empty hull in range, or null. Shared with drone unlock. */
+    /** Nearest damaged friendly/empty hull in range, or null. Drones are never repair targets. */
     @javax.annotation.Nullable
     public static VehicleEntity findNearestRepairable(AbstractUnit unit) {
         if (SupportRole.of(unit) != SupportRole.ENGINEER) return null;
@@ -161,7 +163,8 @@ public class RepairGoal extends Goal {
         List<VehicleEntity> nearby = unit.level().getEntitiesOfClass(
                 VehicleEntity.class,
                 unit.getBoundingBox().inflate(radius),
-                v -> !v.isWreck()
+                v -> !(v instanceof DroneEntity)
+                        && !v.isWreck()
                         && v.getHealth() < v.getMaxHealth()
                         && VehicleTargeting.isFriendlyOrEmptyHull(unit, v));
         return nearby.stream()

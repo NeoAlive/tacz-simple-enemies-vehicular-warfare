@@ -42,6 +42,8 @@ import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.support.DigFoxholeSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SandbagSupport;
 import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionLayout;
@@ -110,7 +112,9 @@ public class SewvCommand {
                         .then(Commands.literal("StartConfigFix")
                                 .executes(ctx -> debugStartConfigFix(ctx.getSource())))
                         .then(Commands.literal("digFoxhole")
-                                .executes(ctx -> debugDigFoxhole(ctx.getSource()))))
+                                .executes(ctx -> debugDigFoxhole(ctx.getSource())))
+                        .then(Commands.literal("seatSandbag")
+                                .executes(ctx -> debugSeatSandbag(ctx.getSource()))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("add")
@@ -402,6 +406,39 @@ public class SewvCommand {
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.digFoxhole.ok",
                 engineer.getDisplayName(), engineer.getId()), true);
+        return 1;
+    }
+
+    /**
+     * Force the nearest idle RU/US unit onto the nearest free sandbag via ENTRENCHED assign
+     * (same path as player entrench / SeekEntrenchmentGoal). No auto-leave timer — clear with
+     * dismiss, not dismount.
+     */
+    private static int debugSeatSandbag(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        BlockPos near = source.getEntity() != null
+                ? source.getEntity().blockPosition()
+                : BlockPos.containing(source.getPosition());
+        AbstractUnit unit = SandbagSupport.findNearestIdleFactionUnit(level, near, 64.0);
+        if (unit == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.seatSandbag.none_unit"));
+            return 0;
+        }
+        BlockPos bag = SandbagSupport.findNearestFree(level, near, 64.0, unit);
+        if (bag == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.seatSandbag.none_bag"));
+            return 0;
+        }
+        if (EntrenchSupport.assign(level, java.util.List.of(unit), bag) <= 0) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.seatSandbag.fail",
+                    unit.getDisplayName(), unit.getId()));
+            return 0;
+        }
+        // Immediate mount if already in range (otherwise EntrenchGoal walks then seats).
+        SandbagSupport.tryMount(level, bag, unit);
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.seatSandbag.ok",
+                unit.getDisplayName(), unit.getId(),
+                bag.getX(), bag.getY(), bag.getZ()), true);
         return 1;
     }
 

@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 import java.util.EnumSet;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -16,10 +18,11 @@ import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SandbagSupport;
 
 /**
- * Idle RU/US infantry claim a nearby trench network (emplacements first, then cells), writing
- * the same {@link IEntrenched} / board / mortar state a player ENTRENCHED order would.
+ * Idle RU/US infantry claim a nearby trench network (emplacements first, then cells) or a free
+ * sandbag seat, writing the same {@link IEntrenched} state a player ENTRENCHED order would.
  *
  * <p>Dwell is finite: after a random 30&nbsp;s–2&nbsp;min, {@link EntrenchSupport} clears the
  * task and arms a seek cooldown so the unit cannot immediately re-enter the same net.
@@ -78,15 +81,26 @@ public class SeekEntrenchmentGoal extends Goal {
         if (!(this.unit.level() instanceof ServerLevel level)) return false;
         double radius = SewvConfig.AUTO_ENTRENCH_SCAN_RADIUS.get();
         BlockPos here = this.unit.blockPosition();
+
+        BlockPos sandbag = SandbagSupport.findNearestFree(level, here, radius, this.unit);
         TrenchNetworks.NetworkDetail network = TrenchNetworks.get(level)
                 .findNearbyNetwork(here, (int) Math.ceil(radius));
-        if (network == null) return false;
+        BlockPos trenchHit = network == null ? null : pickHit(network, here);
 
-        BlockPos hit = pickHit(network, here);
+        BlockPos hit = nearer(here, sandbag, trenchHit);
         if (hit == null) return false;
         if (EntrenchSupport.assign(level, List.of(this.unit), hit) <= 0) return false;
         EntrenchSupport.scheduleAutoLeave(this.unit, level.getGameTime());
         return true;
+    }
+
+    /** Prefer the closer of sandbag vs trench hit; ties go to sandbag (surface cover first). */
+    @Nullable
+    private static BlockPos nearer(BlockPos here, @Nullable BlockPos sandbag,
+                                   @Nullable BlockPos trench) {
+        if (sandbag == null) return trench;
+        if (trench == null) return sandbag;
+        return sandbag.distSqr(here) <= trench.distSqr(here) ? sandbag : trench;
     }
 
     /** Prefer an emplacement pad, else the nearest cell to the unit. */

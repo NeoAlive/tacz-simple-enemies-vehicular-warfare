@@ -23,16 +23,22 @@ import com.neoalive.tacz_sewv.block.TrenchNetworks;
 import com.neoalive.tacz_sewv.bridge.IEntrenched;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.entity.ai.goal.BailOutVehicleGoal;
 
 /**
- * ENTRENCHED assignment: emplacements first (mortar claim / TOW board), then Fisher-Yates
- * trench cells. Reroll when a cell or emplacement slot is invalidated.
+ * ENTRENCHED assignment: emplacements first (mortar claim / TOW board), sandbag seats, then
+ * Fisher-Yates trench cells. Reroll when a cell or emplacement slot is invalidated.
+ *
+ * <p>Sandbag seating is cleared only via {@link #clear} (TDT / map <b>Dismiss</b>, auto-leave) —
+ * not via vehicle dismount. A dismounted entrenched unit is walked back and remounted.
  */
 public final class EntrenchSupport {
 
     private static final int REROLL_INTERVAL_TICKS = 20;
-    /** Close enough to the cell centre to promote to HOLD. */
+    /** Close enough to the cell centre to promote to HOLD / mount a sandbag. */
     private static final double ARRIVE_DIST_SQ = 2.25;
+    /** How far from a clicked sandbag to draw additional free bags for a multi-unit order. */
+    private static final double SANDBAG_CLUSTER_RADIUS = 16.0;
 
     /** RU/US auto-entrench dwell before leaving (game ticks). */
     public static final int AUTO_STAY_MIN_TICKS = 30 * 20;
@@ -48,21 +54,39 @@ public final class EntrenchSupport {
     public static void clear(AbstractUnit unit) {
         if (!(unit instanceof IEntrenched entrenched)) return;
         if (!entrenched.sewv$isEntrenched()) return;
+        boolean leavingSandbag = wasSandbagTask(unit, entrenched);
         MortarSupport.releaseClaim(unit);
         if (unit instanceof IVehicleBoarder boarder && boarder.tacz_sewv$isBoarding()) {
             boarder.tacz_sewv$setBoarding(false);
             boarder.tacz_sewv$setMountTargetId(-1);
         }
+        SandbagSupport.dismountIfSeated(unit);
         entrenched.sewv$clearEntrenched();
+        // RU/US fan out like a vehicle bail so they don't stack on the bag they just left.
+        if (leavingSandbag) {
+            BailOutVehicleGoal.requestSandbagScramble(unit);
+        }
+    }
+
+    private static boolean wasSandbagTask(AbstractUnit unit, IEntrenched entrenched) {
+        if (SandbagSupport.isRidingSandbag(unit)) return true;
+        BlockPos cell = entrenched.sewv$getEntrenchCell();
+        return cell != null && unit.level() instanceof ServerLevel level
+                && SandbagSupport.isSandbag(level, cell);
     }
 
     /**
-     * Assign selected units into the network containing {@code hitPos}. Emplacement weapons
-     * take units first; leftovers draw trench cells (wrap if more units than cells).
+     * Assign selected units into the network / sandbag at {@code hitPos}. Emplacement weapons
+     * take units first; sandbags take the next free seats; leftovers draw trench cells.
      *
      * @return how many units accepted the order
      */
     public static int assign(ServerLevel level, List<AbstractUnit> units, BlockPos hitPos) {
+        BlockPos sandbagHit = SandbagSupport.resolveHit(level, hitPos);
+        if (sandbagHit != null) {
+            return assignSandbags(level, units, sandbagHit);
+        }
+
         BlockPos index = TrenchNetworks.indexPos(hitPos, level.getBlockState(hitPos));
         TrenchNetworks data = TrenchNetworks.get(level);
         TrenchNetworks.NetworkDetail network = data.networkContaining(index);
@@ -78,6 +102,7 @@ public final class EntrenchSupport {
         }
         Collections.shuffle(empSlots, ThreadLocalRandom.current());
 
+        int accepted = 0;
         for (BlockPos empPos : empSlots) {
             if (remaining.isEmpty()) break;
             VehicleEntity weapon = EmplacementSupport.findWeaponAbove(level, empPos);
@@ -107,6 +132,7 @@ public final class EntrenchSupport {
                 continue;
             }
             afterAssignStance(crew, empPos);
+            accepted++;
         }
 
         List<BlockPos> cells = new ArrayList<>(network.cells().size());
@@ -122,6 +148,7 @@ public final class EntrenchSupport {
                 clearConflicting(unit);
                 ((IEntrenched) unit).sewv$setEntrenched(network.seed(), cell, null);
                 afterAssignStance(unit, cell);
+                accepted++;
             }
         } else {
             // Standalone emplacement network with no trench cells — leftover units get the emp pad.
@@ -130,9 +157,51 @@ public final class EntrenchSupport {
                 clearConflicting(unit);
                 ((IEntrenched) unit).sewv$setEntrenched(network.seed(), pad, null);
                 afterAssignStance(unit, pad);
+                accepted++;
             }
         }
-        return units.size();
+        return accepted;
+    }
+
+    /**
+     * Seat units on free sandbags around {@code primary}. One bag per unit; extras with no
+     * free bag nearby are skipped.
+     */
+    public static int assignSandbags(ServerLevel level, List<AbstractUnit> units, BlockPos primary) {
+        if (!SandbagSupport.isSandbag(level, primary)) return 0;
+        List<BlockPos> bags = new ArrayList<>();
+        bags.add(primary.immutable());
+        // Gather other free bags near the click for multi-unit orders.
+        int r = (int) Math.ceil(SANDBAG_CLUSTER_RADIUS);
+        for (BlockPos p : BlockPos.betweenClosed(
+                primary.getX() - r, primary.getY() - 2, primary.getZ() - r,
+                primary.getX() + r, primary.getY() + 2, primary.getZ() + r)) {
+            if (p.equals(primary)) continue;
+            if (!SandbagSupport.isSandbag(level, p)) continue;
+            if (!SandbagSupport.isSeatAvailable(level, p, null)) continue;
+            bags.add(p.immutable());
+        }
+        Collections.shuffle(bags.subList(1, bags.size()), ThreadLocalRandom.current());
+
+        int accepted = 0;
+        int bagIdx = 0;
+        for (AbstractUnit unit : units) {
+            BlockPos bag = null;
+            while (bagIdx < bags.size()) {
+                BlockPos candidate = bags.get(bagIdx++);
+                if (SandbagSupport.isSeatAvailable(level, candidate, unit)) {
+                    bag = candidate;
+                    break;
+                }
+            }
+            if (bag == null) break;
+            clearConflicting(unit);
+            // Seed = bag pos — standalone "network" of one, same shape as a lone emplacement.
+            ((IEntrenched) unit).sewv$setEntrenched(bag.asLong(), bag, null);
+            afterAssignStance(unit, bag);
+            accepted++;
+        }
+        return accepted;
     }
 
     private static void clearConflicting(AbstractUnit unit) {
@@ -147,6 +216,7 @@ public final class EntrenchSupport {
                 boarder.tacz_sewv$setBoarding(false);
                 boarder.tacz_sewv$setMountTargetId(-1);
             }
+            SandbagSupport.dismountIfSeated(unit);
             entrenched.sewv$clearEntrenched();
         }
     }
@@ -177,7 +247,8 @@ public final class EntrenchSupport {
     }
 
     /**
-     * Validate / reroll / promote HOLD. Called from {@link com.neoalive.tacz_sewv.entity.ai.goal.EntrenchGoal}.
+     * Validate / reroll / promote HOLD / mount sandbags. Called from
+     * {@link com.neoalive.tacz_sewv.entity.ai.goal.EntrenchGoal}.
      */
     public static void tick(AbstractUnit unit) {
         if (!(unit instanceof IEntrenched entrenched) || !entrenched.sewv$isEntrenched()) return;
@@ -197,6 +268,12 @@ public final class EntrenchSupport {
         BlockPos cell = entrenched.sewv$getEntrenchCell();
         if (cell == null) {
             clear(unit);
+            return;
+        }
+
+        // Sandbag cell: walk in, mount, hold. Invalid / stolen bag → clear (or remount self).
+        if (SandbagSupport.isSandbag(level, cell)) {
+            tickSandbag(level, unit, entrenched, cell);
             return;
         }
 
@@ -237,6 +314,47 @@ public final class EntrenchSupport {
                 pmc.setOrder(OrderType.HOLD_POSITION);
             }
             unit.getNavigation().stop();
+        } else if (unit instanceof PmcUnitEntity pmc) {
+            if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) {
+                pmc.setOrder(OrderType.MOVE_TO_POSITION);
+            }
+            pmc.setMoveToTarget(Vec3.atBottomCenterOf(cell));
+        } else {
+            unit.getNavigation().moveTo(cell.getX() + 0.5, cell.getY(), cell.getZ() + 0.5, 1.0);
+        }
+    }
+
+    private static void tickSandbag(ServerLevel level, AbstractUnit unit, IEntrenched entrenched,
+                                    BlockPos cell) {
+        // Single seat: if someone else is on it or already claimed it, drop the task —
+        // do not walk to a second bag (that would be a new seek, not this order).
+        if (!SandbagSupport.isSeatAvailable(level, cell, unit)) {
+            clear(unit);
+            return;
+        }
+
+        if (SandbagSupport.isRidingThis(unit, cell)) {
+            if (unit instanceof PmcUnitEntity pmc && pmc.getOrder() != OrderType.HOLD_POSITION) {
+                pmc.setOrder(OrderType.HOLD_POSITION);
+            }
+            unit.getNavigation().stop();
+            return;
+        }
+
+        // Off the seat (dismount key / knockback) — walk back and remount. Dismiss is the only
+        // stand-down that clears the task.
+        double distSq = unit.distanceToSqr(Vec3.atBottomCenterOf(cell));
+        if (distSq <= ARRIVE_DIST_SQ) {
+            unit.getNavigation().stop();
+            if (!SandbagSupport.tryMount(level, cell, unit)) {
+                // Lost the race on the single seat — abandon.
+                clear(unit);
+                return;
+            }
+            if (unit instanceof PmcUnitEntity pmc && SandbagSupport.isRidingThis(unit, cell)
+                    && pmc.getOrder() != OrderType.HOLD_POSITION) {
+                pmc.setOrder(OrderType.HOLD_POSITION);
+            }
         } else if (unit instanceof PmcUnitEntity pmc) {
             if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) {
                 pmc.setOrder(OrderType.MOVE_TO_POSITION);

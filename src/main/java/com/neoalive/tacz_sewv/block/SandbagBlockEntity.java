@@ -20,7 +20,8 @@ import com.neoalive.tacz_sewv.init.ModEntities;
 
 /**
  * Seat entity + soft ENTRENCHED claim for one sandbag. Claim is O(1) UUID storage — not a
- * world entity scan — so assign / availability checks stay cheap on busy maps.
+ * world entity scan — so assign / availability checks stay cheap on busy maps. A dead or
+ * missing claimant is cleared on read (same self-heal shape as a mortar claim).
  */
 public class SandbagBlockEntity extends BlockEntity {
 
@@ -52,6 +53,12 @@ public class SandbagBlockEntity extends BlockEntity {
         this.seatId = seat.getUUID();
         setChanged();
         return seat;
+    }
+
+    /** Existing seat only — does not spawn one. Used for occupancy checks. */
+    @Nullable
+    public SandbagSeatEntity getSeat(ServerLevel level) {
+        return findSeat(level);
     }
 
     public void discardSeat(ServerLevel level) {
@@ -86,10 +93,21 @@ public class SandbagBlockEntity extends BlockEntity {
         return this.claimantId;
     }
 
-    /** True when nobody holds the soft claim, or {@code self} is the claimant. */
+    /**
+     * True when nobody holds a live soft claim, or {@code self} is the claimant.
+     * Dead / discarded / unloaded holders drop the claim here so seats cannot lock forever.
+     */
     public boolean isClaimAvailable(@Nullable LivingEntity self) {
         if (this.claimantId == null) return true;
-        return self != null && this.claimantId.equals(self.getUUID());
+        if (self != null && this.claimantId.equals(self.getUUID())) return true;
+        if (!(this.level instanceof ServerLevel server)) return false;
+        Entity holder = server.getEntity(this.claimantId);
+        if (holder == null || !holder.isAlive()) {
+            this.claimantId = null;
+            setChanged();
+            return true;
+        }
+        return false;
     }
 
     private void snap(SandbagSeatEntity seat) {

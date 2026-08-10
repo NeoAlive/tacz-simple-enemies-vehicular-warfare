@@ -17,9 +17,9 @@ import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
 /**
  * Sandbag fighting-position helpers for ENTRENCHED assign / seek / tick.
  *
- * <p>A seat is taken when someone is riding it <em>or</em> another unit holds the soft claim
- * UUID on the {@link SandbagBlockEntity} — so two crews cannot both walk the same single-seat
- * bag without a world entity scan.
+ * <p>A seat is taken when someone is riding it <em>or</em> another <em>living</em> unit holds
+ * the soft claim UUID on the {@link SandbagBlockEntity} — dead/missing claimants self-heal on
+ * the next availability read.
  */
 public final class SandbagSupport {
 
@@ -126,11 +126,8 @@ public final class SandbagSupport {
 
     @Nullable
     private static SandbagSeatEntity findSeat(ServerLevel level, BlockPos pos) {
-        if (level.getBlockEntity(pos) instanceof SandbagBlockEntity) {
-            AABB box = new AABB(pos).inflate(0.75D);
-            for (SandbagSeatEntity seat : level.getEntitiesOfClass(SandbagSeatEntity.class, box)) {
-                if (pos.equals(seat.getSandbagPos())) return seat;
-            }
+        if (level.getBlockEntity(pos) instanceof SandbagBlockEntity be) {
+            return be.getSeat(level);
         }
         return null;
     }

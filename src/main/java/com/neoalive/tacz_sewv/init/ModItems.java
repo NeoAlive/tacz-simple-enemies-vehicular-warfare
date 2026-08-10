@@ -59,6 +59,9 @@ public class ModItems {
     public static final RegistryObject<Item> EMPLACEMENT = ITEMS.register("emplacement_block",
             () -> new BlockItem(ModBlocks.EMPLACEMENT.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> SANDBAG = ITEMS.register("sandbag",
+            () -> new BlockItem(ModBlocks.SANDBAG.get(), new Item.Properties()));
+
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer, brown combat engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",
@@ -95,6 +98,7 @@ public class ModItems {
             event.accept(TRENCH_X_CROSS);
             event.accept(FOXHOLE);
             event.accept(EMPLACEMENT);
+            event.accept(SANDBAG);
         }
         if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
             event.accept(RU_MEDIC_SPAWN_EGG);

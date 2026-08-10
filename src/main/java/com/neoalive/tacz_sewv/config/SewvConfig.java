@@ -564,10 +564,16 @@ public final class SewvConfig {
         HELI_FLIGHT_DEBUG = builder.comment(
                         "Developer logs for helicopter flight steering. Leave off unless debugging.")
                 .define("heliFlightDebug", false);
-        HELI_CHUNK_LOADING = builder.comment("Keep AI helicopters active even when no player is nearby (uses chunk tickets).")
-                .define("heliChunkLoading", false);
-        PLANE_CHUNK_LOADING = builder.comment("Keep AI planes active even when no player is nearby (uses chunk tickets).")
-                .define("planeChunkLoading", false);
+        HELI_CHUNK_LOADING = builder.comment(
+                        "Keep AI helicopters active even when no player is nearby (uses chunk tickets).",
+                        "Default true (matches mortarChunkLoading). Existing installs keep whatever",
+                        "value is already in tacz_sewv-common.toml until that file is deleted.")
+                .define("heliChunkLoading", true);
+        PLANE_CHUNK_LOADING = builder.comment(
+                        "Keep AI planes active even when no player is nearby (uses chunk tickets).",
+                        "Default true (matches mortarChunkLoading). Existing installs keep whatever",
+                        "value is already in tacz_sewv-common.toml until that file is deleted.")
+                .define("planeChunkLoading", true);
         PLANE_COMMAND_RADIUS = builder.comment("Max distance (blocks) for player orders to aircraft.")
                 .defineInRange("planeCommandRadius", 256.0, 32.0, 1024.0);
         builder.pop();

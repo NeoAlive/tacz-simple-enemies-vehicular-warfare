@@ -12,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
@@ -109,7 +110,15 @@ public class BoardKeybind {
         }
 
         if (unitIds.isEmpty()) {
-            hint(player, emptyKey);
+            // Prefer the selection refuse when the ribbon/snapshot is empty — emptyKey is for
+            // "filter matched nobody", not "forgot to pick units".
+            if (TdtSelection.selected().isEmpty()
+                    && (CommanderOverlayRenderer.selectedUnitsSnapshot == null
+                    || CommanderOverlayRenderer.selectedUnitsSnapshot.isEmpty())) {
+                hint(player, "message.tacz_sewv.tdt.need_selection");
+            } else {
+                hint(player, emptyKey);
+            }
             return;
         }
         order.accept(player, unitIds);

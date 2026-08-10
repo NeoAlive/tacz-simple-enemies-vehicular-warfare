@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
@@ -23,6 +22,7 @@ import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
 
@@ -49,7 +49,7 @@ public class PacketSweepAndAdvance {
     }
 
     public PacketSweepAndAdvance(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
         this.dim = buf.readResourceLocation();
         this.left = buf.readVarInt();
         this.top = buf.readVarInt();
@@ -107,7 +107,7 @@ public class PacketSweepAndAdvance {
 
                 if (pmc.getVehicle() instanceof VehicleEntity v
                         && v.getFirstPassenger() == pmc
-                        && !(v.getEngineInfo() instanceof EngineInfo.Helicopter)) {
+                        && !HullFacts.isHelicopterHull(v) && !HullFacts.isPlaneHull(v)) {
                     mounted.add(pmc);
                 } else if (!pmc.isPassenger()) {
                     onFoot.add(pmc);

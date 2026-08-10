@@ -46,6 +46,7 @@
     "client.MixinUniversalArmorLayer",
     "client.MixinGunLayerRenderer",
     "client.MixinUnitModelSeatPose",
+    "client.MixinHumanoidSandbagPose",
     "client.MixinVehicleTeamOverlay",
     "client.MixinVehicleRappelWires",
     "client.MixinVehicleRenderer",

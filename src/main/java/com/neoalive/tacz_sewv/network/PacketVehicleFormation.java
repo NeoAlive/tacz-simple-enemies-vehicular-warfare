@@ -49,7 +49,7 @@ public class PacketVehicleFormation {
     }
 
     public PacketVehicleFormation(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
         this.shapeId = buf.readVarInt();
         this.axis = buf.readVarInt();
         this.rowSize = buf.readVarInt();

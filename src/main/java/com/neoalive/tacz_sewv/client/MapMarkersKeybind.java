@@ -27,14 +27,13 @@ public final class MapMarkersKeybind {
     private static final String CATEGORY = "key.categories." + TaczSewv.MODID;
 
     /**
-     * Default <b>K</b>. SuperbWarfare also binds K for vehicle interact — conflict shows in
-     * Controls; players can rebind. Same constructor shape as {@link TdtKeybind#OPEN_TDT}.
+     * Default <b>]</b>. Avoids SuperbWarfare's vehicle-interact <b>K</b> conflict.
      */
     public static final KeyMapping TOGGLE_MAP_MARKERS = new KeyMapping(
             "key." + TaczSewv.MODID + ".toggle_map_markers",
             KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_K,
+            GLFW.GLFW_KEY_RIGHT_BRACKET,
             CATEGORY);
 
     private MapMarkersKeybind() {}

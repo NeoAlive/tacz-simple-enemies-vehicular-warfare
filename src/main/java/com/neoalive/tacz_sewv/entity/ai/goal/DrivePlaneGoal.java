@@ -25,6 +25,7 @@ import org.joml.Vector3f;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
@@ -32,6 +33,7 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
+import com.neoalive.tacz_sewv.util.WarnOnce;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
 
@@ -898,8 +900,10 @@ public class DrivePlaneGoal extends Goal {
                     this.weapons.add(new PlaneWeapon(w, 1, false, false, raw));
                 }
             }
-        } catch (Exception ignored) {}
-        if (this.weapons.isEmpty()) this.weapons.add(new PlaneWeapon(0, 1, false, false, null));
+        } catch (Exception e) {
+            WarnOnce.warn(SewvDiag.LOG, "plane-weapons:" + this.vehicle.getId(),
+                    "Failed to classify plane weapons for " + this.vehicle.getType().getDescriptionId(), e);
+        }
     }
 
     private static List<? extends String> planeCues(Level level, CueKind kind, List<String> fallback) {

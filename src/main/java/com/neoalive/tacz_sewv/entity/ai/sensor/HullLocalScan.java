@@ -13,6 +13,7 @@ import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
 /**
  * One LivingEntity AABB fill per hull per scan interval, shared by target acquisition and
@@ -101,11 +102,7 @@ public final class HullLocalScan {
     }
 
     private static double altitudeSlack(VehicleEntity v) {
-        try {
-            if (!(v.getEngineInfo() instanceof com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo.Helicopter)) {
-                return 0.0;
-            }
-        } catch (Exception ignored) {
+        if (!HullFacts.isHelicopterHull(v) && !HullFacts.isPlaneHull(v)) {
             return 0.0;
         }
         int surface = v.level().getHeight(Heightmap.Types.WORLD_SURFACE, v.getBlockX(), v.getBlockZ());

@@ -37,22 +37,36 @@ public class PacketSaveDoctrine {
 
             // 1. Validate packet length
             if (this.axes.length != Doctrine.Axis.VALUES.length) {
+                player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.bad_packet")
+                        .withStyle(ChatFormatting.RED), true);
                 return;
             }
 
             // 2. Validate values within bounds and total allocation equals 20
             int total = 0;
             for (int val : this.axes) {
-                if (val < -Doctrine.AXIS_LIMIT || val > Doctrine.AXIS_LIMIT) return; // Invalid value
+                if (val < -Doctrine.AXIS_LIMIT || val > Doctrine.AXIS_LIMIT) {
+                    player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.bad_packet")
+                            .withStyle(ChatFormatting.RED), true);
+                    return;
+                }
                 total += Math.abs(val);
             }
-            if (total != 20) return; // Invalid total points
+            if (total != 20) {
+                player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.bad_total")
+                        .withStyle(ChatFormatting.RED), true);
+                return;
+            }
 
             // 3. Verify player is holding the ledger
             ItemStack held = player.getItemInHand(InteractionHand.MAIN_HAND);
             if (!(held.getItem() instanceof DoctrineLedgerItem)) {
                 held = player.getItemInHand(InteractionHand.OFF_HAND);
-                if (!(held.getItem() instanceof DoctrineLedgerItem)) return; // Not holding book
+                if (!(held.getItem() instanceof DoctrineLedgerItem)) {
+                    player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.need_ledger")
+                            .withStyle(ChatFormatting.RED), true);
+                    return;
+                }
             }
 
             // 4. Initial Ledger vs Respec Ledger validation

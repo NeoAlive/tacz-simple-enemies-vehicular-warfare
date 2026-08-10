@@ -68,8 +68,9 @@ public final class TdtSelection {
     }
 
     /**
-     * Unit ids an order should hit: ribbon selection if any, else SEM pick snapshot if any,
-     * else every owned PMC in the scan cylinder.
+     * Unit ids an order should hit: ribbon selection if any, else SEM pick snapshot if any.
+     * Empty when neither is set — never fall through to every owned unit in range (that caused
+     * accidental mass orders from the TDT).
      */
     public static List<Integer> resolve(double radius) {
         if (!SELECTED.isEmpty()) {
@@ -79,11 +80,7 @@ public final class TdtSelection {
         if (snap != null && !snap.isEmpty()) {
             return new ArrayList<>(snap);
         }
-        List<Integer> ids = new ArrayList<>();
-        for (Entry e : scanEntries(radius)) {
-            ids.add(e.id());
-        }
-        return ids;
+        return List.of();
     }
 
     public static void toggle(int id) {

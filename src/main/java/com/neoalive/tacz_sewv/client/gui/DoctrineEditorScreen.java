@@ -192,6 +192,7 @@ public class DoctrineEditorScreen extends Screen {
                 this.width / 2, 28, color);
 
         g.enableScissor(this.listLeft, this.listTop, this.listLeft + PANEL_W, this.listBottom);
+        String pendingAxisTip = null;
         for (AxisRow row : this.rows) {
             int y = this.listTop + row.index() * (PANEL_H + GAP) - this.scrollOffset;
             if (y + PANEL_H < this.listTop || y > this.listBottom) continue;
@@ -203,7 +204,9 @@ public class DoctrineEditorScreen extends Screen {
             String name = Component.translatable("gui.tacz_sewv.doctrine.axis." + axis.key).getString();
             g.drawString(this.font, name, this.listLeft + 12, y + 7, 0xFFFFFF, true);
 
-            String desc = axis.description;
+            String tipKey = "gui.tacz_sewv.doctrine.axis." + axis.key + ".tip";
+            String tip = Component.translatable(tipKey).getString();
+            String desc = tip.equals(tipKey) ? axis.description : tip;
             int maxDescWidth = PANEL_W - 90 - 12 - 10;
             String truncatedDesc = this.font.plainSubstrByWidth(desc, maxDescWidth);
             if (!truncatedDesc.equals(desc)) truncatedDesc += "...";
@@ -212,6 +215,12 @@ public class DoctrineEditorScreen extends Screen {
             int value = this.draftedAxes[row.index()];
             String displayVal = (value > 0 ? "+" : "") + value;
             g.drawCenteredString(this.font, displayVal, this.listLeft + PANEL_W - 47, y + 14, 0xFFFFFF);
+
+            if (mouseX >= this.listLeft && mouseX < this.listLeft + PANEL_W
+                    && mouseY >= y && mouseY < y + PANEL_H
+                    && mouseY >= this.listTop && mouseY < this.listBottom) {
+                pendingAxisTip = tip.equals(tipKey) ? axis.description : tip;
+            }
         }
         g.disableScissor();
 
@@ -219,6 +228,10 @@ public class DoctrineEditorScreen extends Screen {
 
         // Widgets (buttons) after panels so they sit on top; footer buttons stay outside the list.
         super.render(g, mouseX, mouseY, partialTick);
+
+        if (pendingAxisTip != null) {
+            g.renderTooltip(this.font, Component.literal(pendingAxisTip), mouseX, mouseY);
+        }
     }
 
     @Override

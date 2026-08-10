@@ -203,10 +203,30 @@ tasks.register('selfCheckOuterRing', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckEngineGates', JavaExec) {
+    group = 'verification'
+    description = 'Fails if getEngineInfo() instanceof Helicopter gates remain in src/main.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.EngineGateSelfCheck'
+    workingDir = project.projectDir
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckSounds', JavaExec) {
+    group = 'verification'
+    description = 'Asserts ModSounds pool counts, sounds.json, and .ogg files agree.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.SoundPoolSelfCheck'
+    workingDir = project.projectDir
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckOuterRing'
+    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckOuterRing', 'selfCheckEngineGates', 'selfCheckSounds'
 }
 
 mixin {

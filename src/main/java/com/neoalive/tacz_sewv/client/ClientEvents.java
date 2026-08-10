@@ -1,6 +1,8 @@
 package com.neoalive.tacz_sewv.client;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
@@ -9,15 +11,20 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.client.util.CommanderRayTrace;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
@@ -33,6 +40,8 @@ public class ClientEvents {
 
     /** Reach for picking the vehicle to escort — SEM's own selection raytrace distance. */
     private static final double ESCORT_PICK_RANGE = 50.0;
+    /** Live Selection / escort entity pick — same as SEM commander reach. */
+    private static final double LIVE_PICK_RANGE = 50.0;
     private static final double CLIENT_DISCOVERY_RADIUS = 512.0;
     /** Re-show the selection prompt this often (goal-agnostic client ticks) so it doesn't fade mid-mode. */
     private static final int PROMPT_REFRESH_TICKS = 40;
@@ -51,6 +60,10 @@ public class ClientEvents {
     private static boolean pendingEntrench = false;
     private static List<Integer> pendingEntrenchUnits = List.of();
 
+    // Live Selection: left-click toggles owned PMC / vehicle crew into the TDT ribbon; right-click
+    // confirms (≥1) or cancels (empty). Armed from the ribbon — no units needed up front.
+    private static boolean pendingLiveSelection = false;
+
     private static int promptCooldown = 0;
 
     /**
@@ -62,6 +75,7 @@ public class ClientEvents {
     public static void armEscort() {
         clearGuard();
         clearEntrench();
+        clearLiveSelection();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.escort.no_units");
@@ -78,6 +92,7 @@ public class ClientEvents {
     public static void armGuardPosition() {
         clearEscort();
         clearEntrench();
+        clearLiveSelection();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.guard.no_units");
@@ -94,6 +109,7 @@ public class ClientEvents {
     public static void armEntrench() {
         clearEscort();
         clearGuard();
+        clearLiveSelection();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.entrench.no_units");
@@ -101,6 +117,15 @@ public class ClientEvents {
         }
         pendingEntrench = true;
         pendingEntrenchUnits = units;
+        promptCooldown = 0;
+    }
+
+    /** Arm in-world Live Selection (TDT ribbon). Screen closes; left-click toggles, right-click finishes. */
+    public static void armLiveSelection() {
+        clearEscort();
+        clearGuard();
+        clearEntrench();
+        pendingLiveSelection = true;
         promptCooldown = 0;
     }
 
@@ -115,6 +140,17 @@ public class ClientEvents {
     public static void onClickInput(InputEvent.InteractionKeyMappingTriggered event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
+
+        if (pendingLiveSelection) {
+            if (event.isAttack()) {
+                liveSelectClick(mc);
+                event.setCanceled(true);
+            } else if (event.isUseItem()) {
+                finishLiveSelection();
+                event.setCanceled(true);
+            }
+            return;
+        }
 
         if (pendingEscort) {
             if (event.isAttack()) {
@@ -173,15 +209,35 @@ public class ClientEvents {
         }
 
         if (!event.isAttack()) return;
-        if (!mc.player.getMainHandItem().is(ModItems.TACTICAL_DATA_TERMINAL.get())) return;
+        if (!holdingTerminal(mc.player)) return;
         TdtScreen.open();
         event.setCanceled(true);
+    }
+
+    /** Holding the TDT must not break blocks — the left-click is reserved for opening / selecting. */
+    @SubscribeEvent
+    public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
+        if (holdingTerminal(event.getEntity())) {
+            event.setCanceled(true);
+        }
+    }
+
+    /** Same for punching entities while the terminal is in the main hand. */
+    @SubscribeEvent
+    public static void onAttackEntity(AttackEntityEvent event) {
+        if (holdingTerminal(event.getEntity())) {
+            event.setCanceled(true);
+        }
+    }
+
+    private static boolean holdingTerminal(Player player) {
+        return player.getMainHandItem().is(ModItems.TACTICAL_DATA_TERMINAL.get());
     }
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        if (!pendingEscort && !pendingGuard && !pendingEntrench) return;
+        if (!pendingEscort && !pendingGuard && !pendingEntrench && !pendingLiveSelection) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) {
@@ -189,15 +245,172 @@ public class ClientEvents {
                 clearEscort();
                 clearGuard();
                 clearEntrench();
+                clearLiveSelection();
             }
             return;
         }
+
+        // SuperbWarfare cancels mouse Pre events in armed seats — poll attack/use keys like TdtKeybind.
+        if (mc.player.getVehicle() != null) {
+            while (mc.options.keyAttack.consumeClick()) {
+                confirmPendingAttack(mc);
+            }
+            while (mc.options.keyUse.consumeClick()) {
+                cancelPending();
+            }
+        }
+
         if (--promptCooldown <= 0) {
             promptCooldown = PROMPT_REFRESH_TICKS;
-            if (pendingEscort) hint("message.tacz_sewv.escort.select");
-            else if (pendingGuard) hint("message.tacz_sewv.guard.select");
-            else hint("message.tacz_sewv.entrench.select");
+            if (pendingLiveSelection) {
+                hintLive();
+            } else if (pendingEscort) {
+                hint("message.tacz_sewv.escort.select");
+            } else if (pendingGuard) {
+                hint("message.tacz_sewv.guard.select");
+            } else {
+                hint("message.tacz_sewv.entrench.select");
+            }
         }
+    }
+
+    private static void confirmPendingAttack(Minecraft mc) {
+        if (mc.player == null) return;
+        if (pendingLiveSelection) {
+            liveSelectClick(mc);
+            return;
+        }
+        if (pendingEscort) {
+            Entity target = CommanderRayTrace.rayTraceEntity(mc.player, ESCORT_PICK_RANGE);
+            if (target instanceof VehicleEntity vehicle) {
+                NetworkHandler.CHANNEL.sendToServer(new PacketEscort(pendingEscortUnits, vehicle.getId()));
+                clearEscort();
+            } else {
+                hint("message.tacz_sewv.escort.no_vehicle");
+            }
+            return;
+        }
+        if (pendingGuard) {
+            HitResult hit = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
+            if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
+                NetworkHandler.CHANNEL.sendToServer(new PacketSetGuardPosition(pendingGuardUnits, bhr.getBlockPos()));
+                clearGuard();
+            } else {
+                hint("message.tacz_sewv.guard.no_block");
+            }
+            return;
+        }
+        if (pendingEntrench) {
+            HitResult hit = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
+            if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
+                NetworkHandler.CHANNEL.sendToServer(new PacketEntrench(
+                        pendingEntrenchUnits, PacketEntrench.MODE_ASSIGN, bhr.getBlockPos()));
+                clearEntrench();
+            } else {
+                hint("message.tacz_sewv.entrench.no_block");
+            }
+        }
+    }
+
+    private static void cancelPending() {
+        if (pendingLiveSelection) {
+            finishLiveSelection();
+        } else if (pendingEscort) {
+            clearEscort();
+            hint("message.tacz_sewv.escort.cancelled");
+        } else if (pendingGuard) {
+            clearGuard();
+            hint("message.tacz_sewv.guard.cancelled");
+        } else if (pendingEntrench) {
+            clearEntrench();
+            hint("message.tacz_sewv.entrench.cancelled");
+        }
+    }
+
+    private static void liveSelectClick(Minecraft mc) {
+        if (mc.player == null) return;
+        Entity hit = rayTraceSelectable(mc.player, LIVE_PICK_RANGE);
+        if (hit == null) {
+            hint("message.tacz_sewv.tdt.live_sel.miss");
+            return;
+        }
+        if (!toggleLiveHit(mc.player, hit)) {
+            hint("message.tacz_sewv.tdt.live_sel.miss");
+            return;
+        }
+        promptCooldown = 0; // refresh the count on the next tick
+    }
+
+    /**
+     * Right-click finish: keep the selection and reopen the TDT when at least one unit is
+     * selected; otherwise cancel. Selection is already live in {@link TdtSelection}.
+     */
+    private static void finishLiveSelection() {
+        int n = TdtSelection.selectedCount();
+        clearLiveSelection();
+        if (n < 1) {
+            hint("message.tacz_sewv.tdt.live_sel.cancelled");
+            return;
+        }
+        TdtSelection.writeSnapshot();
+        TdtScreen.open();
+    }
+
+    /** Toggle an owned PMC, or the owned crew of a vehicle (group select / deselect). */
+    private static boolean toggleLiveHit(Player player, Entity hit) {
+        if (hit instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
+            TdtSelection.toggle(pmc.getId());
+            return true;
+        }
+        if (hit instanceof VehicleEntity vehicle) {
+            List<Integer> crew = new ArrayList<>();
+            for (Entity p : vehicle.getPassengers()) {
+                if (p instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
+                    crew.add(pmc.getId());
+                }
+            }
+            if (crew.isEmpty()) return false;
+            boolean any = false;
+            for (int id : crew) {
+                if (TdtSelection.isSelected(id)) {
+                    any = true;
+                    break;
+                }
+            }
+            if (any) {
+                for (int id : crew) TdtSelection.deselect(id);
+            } else {
+                for (int id : crew) TdtSelection.select(id);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Entity pick that includes owned PMCs — SEM's {@link CommanderRayTrace#rayTraceEntity}
+     * deliberately skips them (escort wants the hull).
+     */
+    private static Entity rayTraceSelectable(Player player, double distance) {
+        Vec3 eye = player.getEyePosition(1.0F);
+        Vec3 look = player.getViewVector(1.0F);
+        Vec3 reach = eye.add(look.scale(distance));
+        AABB box = player.getBoundingBox().expandTowards(look.scale(distance)).inflate(1.0D);
+
+        Entity best = null;
+        double closest = distance;
+        for (Entity entity : player.level().getEntities(player, box)) {
+            if (!(entity instanceof PmcUnitEntity) && !(entity instanceof VehicleEntity)) continue;
+            AABB bb = entity.getBoundingBox().inflate(entity.getPickRadius());
+            Optional<Vec3> hit = bb.clip(eye, reach);
+            if (hit.isEmpty()) continue;
+            double dist = eye.distanceTo(hit.get());
+            if (dist < closest) {
+                best = entity;
+                closest = dist;
+            }
+        }
+        return best;
     }
 
     private static void clearEscort() {
@@ -218,6 +431,11 @@ public class ClientEvents {
         promptCooldown = 0;
     }
 
+    private static void clearLiveSelection() {
+        pendingLiveSelection = false;
+        promptCooldown = 0;
+    }
+
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         MapMarkers.clear();
@@ -226,6 +444,7 @@ public class ClientEvents {
         clearEscort();
         clearGuard();
         clearEntrench();
+        clearLiveSelection();
     }
 
     private static void hint(String key) {
@@ -233,5 +452,14 @@ public class ClientEvents {
         if (player != null) {
             player.displayClientMessage(Component.translatable(key).withStyle(ChatFormatting.GRAY), true);
         }
+    }
+
+    private static void hintLive() {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        player.displayClientMessage(
+                Component.translatable("message.tacz_sewv.tdt.live_sel.select",
+                        TdtSelection.selectedCount()).withStyle(ChatFormatting.GRAY),
+                true);
     }
 }

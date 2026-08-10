@@ -9,6 +9,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlock;
 import com.neoalive.tacz_sewv.block.EmplacementBlock;
 import com.neoalive.tacz_sewv.block.FoxholeBlock;
+import com.neoalive.tacz_sewv.block.SandbagBlock;
 import com.neoalive.tacz_sewv.block.TeamBaseBlock;
 import com.neoalive.tacz_sewv.block.TrenchBlock;
 import com.neoalive.tacz_sewv.block.TrenchXCrossBlock;
@@ -37,4 +38,8 @@ public class ModBlocks {
     /** Ammo pad under a mortar / TOW / FIXED mount. */
     public static final RegistryObject<Block> EMPLACEMENT =
             BLOCKS.register("emplacement_block", EmplacementBlock::new);
+
+    /** Directional sandbag fighting position with a one-person seat. */
+    public static final RegistryObject<Block> SANDBAG =
+            BLOCKS.register("sandbag", SandbagBlock::new);
 }

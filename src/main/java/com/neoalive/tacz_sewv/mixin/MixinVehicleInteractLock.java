@@ -1,6 +1,8 @@
 package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
@@ -27,6 +29,11 @@ public abstract class MixinVehicleInteractLock {
         // If any passenger is an enemy RU/US unit, deny interaction entirely
         for (Entity passenger : self.getPassengers()) {
             if (passenger instanceof RUunitEntity || passenger instanceof USunitEntity) {
+                if (!player.level().isClientSide()) {
+                    player.displayClientMessage(
+                            Component.translatable("message.tacz_sewv.interact.enemy_crew")
+                                    .withStyle(ChatFormatting.GRAY), true);
+                }
                 cir.setReturnValue(InteractionResult.FAIL); // enemy vehicle, hands off
                 return;
             }

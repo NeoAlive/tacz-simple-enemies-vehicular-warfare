@@ -12,6 +12,7 @@ import net.minecraftforge.registries.RegistryObject;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
@@ -42,6 +43,15 @@ public class ModEntities {
             register("ru_combat_engineer", RuCombatEngineerEntity::new, MobCategory.MONSTER);
     public static final RegistryObject<EntityType<UsCombatEngineerEntity>> US_COMBAT_ENGINEER =
             register("us_combat_engineer", UsCombatEngineerEntity::new, MobCategory.MONSTER);
+
+    public static final RegistryObject<EntityType<SandbagSeatEntity>> SANDBAG_SEAT =
+            ENTITY_TYPES.register("sandbag_seat", () -> EntityType.Builder
+                    .<SandbagSeatEntity>of(SandbagSeatEntity::new, MobCategory.MISC)
+                    .sized(0.1F, 0.1F)
+                    .clientTrackingRange(64)
+                    .updateInterval(10)
+                    .setShouldReceiveVelocityUpdates(false)
+                    .build("sandbag_seat"));
 
     private static <T extends AbstractUnit> RegistryObject<EntityType<T>> register(
             String name, EntityType.EntityFactory<T> factory, MobCategory category) {

@@ -9,7 +9,9 @@ import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.util.WarnOnce;
 
 /**
  * A knocked-out vehicle with its surviving crew camped around it on foot. RU/US are the usual
@@ -117,7 +119,9 @@ public final class DerelictVehicleEvent extends DynamicEvent {
                 hull.discard();
                 return false;
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            WarnOnce.warn(SewvDiag.LOG, "derelict-engine:" + hull.getId(),
+                    "Unreadable engine type on derelict hull " + hull.getType().getDescriptionId(), e);
             // Unreadable vehicle data: let a rare odd hull through rather than reintroduce
             // an always-fail. A wrong derelict is a far smaller problem than a dead event.
         }

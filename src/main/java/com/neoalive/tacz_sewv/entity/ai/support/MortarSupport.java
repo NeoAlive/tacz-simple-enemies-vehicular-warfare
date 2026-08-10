@@ -126,6 +126,24 @@ public final class MortarSupport {
         mortar.getEntityData().set(MortarEntity.TARGET_PITCH, pitch);
     }
 
+    /**
+     * Seatless mortars inherit VehicleEntity physics and can rarely pick up horizontal velocity
+     * (recoil, collision with the standing crew, chunk churn). While a SEWV crew claims the tube,
+     * zero horizontal motion and cancel fall so the emplacement stays planted. Aim/fire are
+     * yaw+pitch only — nothing here should relocate the tube.
+     */
+    public static void stabilizeClaimed(MortarEntity mortar) {
+        Vec3 motion = mortar.getDeltaMovement();
+        double horiz = motion.horizontalDistanceSqr();
+        if (horiz > 1.0e-6 || (!mortar.onGround() && Math.abs(motion.y) > 0.05)) {
+            mortar.setDeltaMovement(0.0, Math.min(0.0, motion.y), 0.0);
+            mortar.hurtMarked = true;
+        }
+        if (!mortar.onGround()) {
+            mortar.resetFallDistance();
+        }
+    }
+
     /** A random point within the dispersion radius of {@code target}, on its own level. */
     public static Vec3 scatter(Vec3 target, RandomSource random) {
         int radius = SewvConfig.MORTAR_DISPERSION_RADIUS.get();

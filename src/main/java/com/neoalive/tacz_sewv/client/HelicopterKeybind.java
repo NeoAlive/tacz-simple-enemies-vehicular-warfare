@@ -1,14 +1,20 @@
 package com.neoalive.tacz_sewv.client;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.function.BiConsumer;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
+import net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketRappelHelicopter;
@@ -24,15 +30,14 @@ public class HelicopterKeybind {
 
     /** Order owned helicopter pilots to climb to (and hold) {@code altitude} as their live cruise trim. */
     public static void orderTakeoff(int altitude) {
-        BoardKeybind.withOwnedUnits(CLIENT_DISCOVERY_RADIUS,
-                HelicopterKeybind::isHelicopterPilot, "message.tacz_sewv.heli.takeoff.none",
+        withHelicopterPilots("message.tacz_sewv.heli.takeoff.none",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
                         new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_TAKEOFF, null, altitude)));
     }
 
     /**
-     * Order owned helicopter pilots to set down on {@code pad}. The TDT captures the aimed
-     * block when its screen opens and passes it here; a null pad hints to look at a block.
+     * Order owned helicopter pilots to set down on {@code pad}. Prefer resolving the pad
+     * from the live crosshair when the TDT button is pressed; a null pad hints to look at a block.
      */
     public static void orderLand(@Nullable BlockPos pad) {
         if (pad == null) {
@@ -40,27 +45,70 @@ public class HelicopterKeybind {
             if (player != null) BoardKeybind.hint(player, "message.tacz_sewv.heli.no_pad");
             return;
         }
-        BoardKeybind.withOwnedUnits(CLIENT_DISCOVERY_RADIUS,
-                HelicopterKeybind::isHelicopterPilot, "message.tacz_sewv.heli.land.none",
+        withHelicopterPilots("message.tacz_sewv.heli.land.none",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
                         new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_LANDING, pad, 0)));
     }
 
     /** Order owned helicopter pilots to rappel weaponless passengers (Stages 1–5 sequence). */
     public static void orderRappel() {
-        BoardKeybind.withOwnedUnits(CLIENT_DISCOVERY_RADIUS,
-                HelicopterKeybind::isHelicopterPilot, "message.tacz_sewv.heli.rappel.none",
+        withHelicopterPilots("message.tacz_sewv.heli.rappel.none",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketRappelHelicopter(unitIds)));
     }
 
-    // Only the unit AT THE STICK (seat 0 of a helicopter): gunners, passengers and ground
-    // units are not flight crews — sending every owned unit made the order feedback report
-    // one "helicopter" per crew member. Engine info is applied from SBW's synced VehicleData
-    // on both sides (the client runs its own helicopter physics), so this is client-safe.
-    // The server re-checks ownership and the pilot seat per unit before acting on the order.
-    private static boolean isHelicopterPilot(PmcUnitEntity pmc) {
-        return pmc.getVehicle() instanceof VehicleEntity v
-                && v.getFirstPassenger() == pmc
-                && v.getEngineInfo() instanceof EngineInfo.Helicopter;
+    /**
+     * Helicopter orders differ from other TDT commands: when nothing is ribbon-selected, fall
+     * back to every owned PMC in scan range (the old TDT behaviour for this category only).
+     * Any selected gunner/passenger is remapped to the stick ({@code seat 0}) before the
+     * rotary-wing filter runs.
+     */
+    private static void withHelicopterPilots(String emptyKey, BiConsumer<Player, List<Integer>> order) {
+        Minecraft mc = Minecraft.getInstance();
+        Player player = mc.player;
+        if (player == null || mc.level == null) return;
+
+        List<Integer> seeds = new ArrayList<>(TdtSelection.resolve(CLIENT_DISCOVERY_RADIUS));
+        if (seeds.isEmpty()) {
+            for (TdtSelection.Entry e : TdtSelection.scanned()) {
+                seeds.add(e.id());
+            }
+        }
+
+        LinkedHashSet<Integer> pilotIds = new LinkedHashSet<>();
+        for (int id : seeds) {
+            if (!(mc.level.getEntity(id) instanceof PmcUnitEntity pmc)) continue;
+            if (!pmc.isOwnedBy(player)) continue;
+            PmcUnitEntity pilot = pilotOf(pmc, player);
+            if (pilot != null && isHelicopterPilot(pilot)) {
+                pilotIds.add(pilot.getId());
+            }
+        }
+
+        if (pilotIds.isEmpty()) {
+            if (TdtSelection.selected().isEmpty()
+                    && (CommanderOverlayRenderer.selectedUnitsSnapshot == null
+                    || CommanderOverlayRenderer.selectedUnitsSnapshot.isEmpty())) {
+                BoardKeybind.hint(player, "message.tacz_sewv.tdt.need_selection");
+            } else {
+                BoardKeybind.hint(player, emptyKey);
+            }
+            return;
+        }
+        order.accept(player, new ArrayList<>(pilotIds));
+    }
+
+    /** Stick for an owned crew member; null when the unit is on foot or not owned. */
+    @Nullable
+    private static PmcUnitEntity pilotOf(PmcUnitEntity pmc, Player player) {
+        if (!(pmc.getVehicle() instanceof VehicleEntity v)) return null;
+        if (!(v.getFirstPassenger() instanceof PmcUnitEntity driver)) return null;
+        return driver.isOwnedBy(player) ? driver : null;
+    }
+
+    // Only seat 0 of a rotary-wing hull — same engine-type test as DriveHelicopterGoal.
+    private static boolean isHelicopterPilot(PmcUnitEntity pilot) {
+        return pilot.getVehicle() instanceof VehicleEntity v
+                && v.getFirstPassenger() == pilot
+                && HullFacts.isHelicopterHull(v);
     }
 }

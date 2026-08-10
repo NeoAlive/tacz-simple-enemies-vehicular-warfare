@@ -32,7 +32,7 @@ public class PacketManMortar {
     }
 
     public PacketManMortar(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
         this.mortarId = buf.readVarInt();
     }
 

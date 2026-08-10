@@ -19,7 +19,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.BlockHitResult;
@@ -38,6 +37,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
@@ -92,6 +92,17 @@ public class TdtScreen extends Screen {
     private static final int COL_ACCENT = 0xFF4FD1C5;
     private static final int COL_STRIPE = 0x404FD1C5; // accent @ ~25%
 
+    private static final int HEADER_H = 14;
+    private static final int SECTION_GAP = 8;
+    private static final int GROUP_STRIPE_W = 3;
+
+    // Muted category block stripes (~30% alpha) — All-view grouping only.
+    private static final int STRIPE_ORDERS = 0x4D7C8CD9;
+    private static final int STRIPE_CREW = 0x4D8FAA6B;
+    private static final int STRIPE_AREA = 0x4DC9A15A;
+    private static final int STRIPE_AIR = 0x4DB57ED1;
+    private static final int STRIPE_FORM = 0x4DD98F6B;
+
     enum Category {
         ALL, ORDERS, CREW, AREA, AIR, FORM
     }
@@ -138,6 +149,7 @@ public class TdtScreen extends Screen {
 
     private final List<OrderEntry> catalog = new ArrayList<>();
     private final List<Cell> cells = new ArrayList<>();
+    private final List<Section> sections = new ArrayList<>();
 
     @Nullable
     private VehicleMarker.Kind floatKind;
@@ -153,6 +165,9 @@ public class TdtScreen extends Screen {
 
     /** Content-space rect for one order (grid cell or full-width stepper row). */
     private record Cell(OrderEntry entry, int x, int y, int w, int h) {}
+
+    /** Painted category block in All view (header + continuous left stripe). */
+    private record Section(Category cat, int y0, int y1) {}
 
     private TdtScreen(@Nullable Entity boardTarget, @Nullable BlockPos landPad, int formationAxis) {
         super(Component.translatable("gui.tacz_sewv.tdt.title"));
@@ -212,9 +227,10 @@ public class TdtScreen extends Screen {
         add(Category.ORDERS, "gui.tacz_sewv.tdt.cease_fire", null, true, () -> issueSemOrder(OrderType.CEASE_FIRE));
         add(Category.ORDERS, "gui.tacz_sewv.tdt.free_fire", null, true, () -> issueSemOrder(OrderType.FREE_FIRE));
 
-        add(Category.CREW, "gui.tacz_sewv.tdt.board", null, true, () -> BoardKeybind.orderBoard(this.boardTarget, false));
+        add(Category.CREW, "gui.tacz_sewv.tdt.board", "gui.tacz_sewv.tdt.board.tip", true,
+                () -> BoardKeybind.orderBoard(liveBoardTarget(), false));
         add(Category.CREW, "gui.tacz_sewv.tdt.board_passenger", "gui.tacz_sewv.tdt.board_passenger.tip", true,
-                () -> BoardKeybind.orderBoard(this.boardTarget, true));
+                () -> BoardKeybind.orderBoard(liveBoardTarget(), true));
         add(Category.CREW, "gui.tacz_sewv.tdt.dismount", null, true, BoardKeybind::orderDismount);
         add(Category.CREW, "gui.tacz_sewv.tdt.escort", "gui.tacz_sewv.tdt.escort.tip", true, ClientEvents::armEscort);
         add(Category.CREW, "gui.tacz_sewv.tdt.set_guard", "gui.tacz_sewv.tdt.set_guard.tip", true, ClientEvents::armGuardPosition);
@@ -231,7 +247,8 @@ public class TdtScreen extends Screen {
 
         add(Category.AIR, "gui.tacz_sewv.tdt.takeoff", "gui.tacz_sewv.tdt.altitude.tip", true,
                 () -> HelicopterKeybind.orderTakeoff(heliAltitude), StepperKind.ALTITUDE);
-        add(Category.AIR, "gui.tacz_sewv.tdt.land", null, true, () -> HelicopterKeybind.orderLand(this.landPad));
+        add(Category.AIR, "gui.tacz_sewv.tdt.land", "gui.tacz_sewv.tdt.land.tip", true,
+                () -> HelicopterKeybind.orderLand(liveLandPad()));
         add(Category.AIR, "gui.tacz_sewv.tdt.rappel", "gui.tacz_sewv.tdt.rappel.tip", true, HelicopterKeybind::orderRappel);
 
         add(Category.FORM, "gui.tacz_sewv.tdt.sem_wedge", null, true, () -> issueSemOrder(OrderType.FORM_WEDGE));
@@ -259,35 +276,73 @@ public class TdtScreen extends Screen {
 
     private void rebuildCells() {
         this.cells.clear();
+        this.sections.clear();
+        boolean allView = this.category == Category.ALL;
         int y = 0;
-        int col = 0;
-        int cellW = (this.contentInnerW - CELL_GAP * (GRID_COLS - 1)) / GRID_COLS;
+        int inset = allView ? GROUP_STRIPE_W + 2 : 0;
+        int innerW = this.contentInnerW - inset;
+        int cellW = (innerW - CELL_GAP * (GRID_COLS - 1)) / GRID_COLS;
 
-        for (OrderEntry e : this.catalog) {
-            if (this.category != Category.ALL && e.cat != this.category) continue;
+        Category[] order = allView
+                ? new Category[]{Category.ORDERS, Category.CREW, Category.AREA, Category.AIR, Category.FORM}
+                : new Category[]{this.category};
 
-            if (e.stepper != null) {
-                if (col != 0) {
+        for (Category cat : order) {
+            if (cat == Category.ALL) continue;
+            List<OrderEntry> group = new ArrayList<>();
+            for (OrderEntry e : this.catalog) {
+                if (e.cat == cat) group.add(e);
+            }
+            if (group.isEmpty()) continue;
+
+            int sectionTop = y;
+            if (allView) {
+                y += HEADER_H;
+            }
+
+            int col = 0;
+            for (OrderEntry e : group) {
+                if (e.stepper != null) {
+                    if (col != 0) {
+                        y += CELL_H + CELL_GAP;
+                        col = 0;
+                    }
+                    this.cells.add(new Cell(e, inset, y, innerW, CELL_H));
                     y += CELL_H + CELL_GAP;
-                    col = 0;
+                    continue;
                 }
-                this.cells.add(new Cell(e, 0, y, this.contentInnerW, CELL_H));
-                y += CELL_H + CELL_GAP;
-                continue;
+                int x = inset + col * (cellW + CELL_GAP);
+                this.cells.add(new Cell(e, x, y, cellW, CELL_H));
+                col++;
+                if (col >= GRID_COLS) {
+                    col = 0;
+                    y += CELL_H + CELL_GAP;
+                }
             }
+            if (col != 0) {
+                y += CELL_H + CELL_GAP;
+            }
+            // Drop trailing cell gap inside the section.
+            int sectionBottom = Math.max(sectionTop + (allView ? HEADER_H : 0), y - CELL_GAP);
+            if (allView) {
+                this.sections.add(new Section(cat, sectionTop, sectionBottom));
+                y = sectionBottom + SECTION_GAP;
+            } else {
+                y = sectionBottom;
+            }
+        }
+        this.contentHeight = Math.max(y - (allView ? SECTION_GAP : 0), 0);
+    }
 
-            int x = col * (cellW + CELL_GAP);
-            this.cells.add(new Cell(e, x, y, cellW, CELL_H));
-            col++;
-            if (col >= GRID_COLS) {
-                col = 0;
-                y += CELL_H + CELL_GAP;
-            }
-        }
-        if (col != 0) {
-            y += CELL_H + CELL_GAP;
-        }
-        this.contentHeight = Math.max(y - CELL_GAP, 0);
+    private static int stripeFor(Category cat) {
+        return switch (cat) {
+            case ORDERS -> STRIPE_ORDERS;
+            case CREW -> STRIPE_CREW;
+            case AREA -> STRIPE_AREA;
+            case AIR -> STRIPE_AIR;
+            case FORM -> STRIPE_FORM;
+            default -> COL_STRIPE;
+        };
     }
 
     private int maxScroll() {
@@ -297,16 +352,20 @@ public class TdtScreen extends Screen {
     // --- SEM / area helpers -------------------------------------------------
 
     private void issueSemOrder(OrderType order) {
+        if (!ensureUnitsSelected()) return;
         List<Integer> ids = new ArrayList<>(TdtSelection.resolve(TdtSelection.SCAN_RADIUS));
-        if (ids.isEmpty()) {
-            if (this.minecraft != null && this.minecraft.player != null) {
-                BoardKeybind.hint(this.minecraft.player, "message.tacz_sewv.board.no_units");
-            }
-            return;
-        }
         ids.sort((a, b) -> Integer.compare(b, a));
         for (int i = 0; i < ids.size(); i++) {
             ModNetworking.sendToServer(new PacketIssueOrder(ids.get(i), order, Vec3.ZERO, i, -1));
+        }
+        if (this.minecraft != null && this.minecraft.player != null) {
+            this.minecraft.player.displayClientMessage(
+                    Component.translatable(
+                                    ids.size() == 1
+                                            ? "message.tacz_sewv.tdt.order.single"
+                                            : "message.tacz_sewv.tdt.order.multiple",
+                                    ids.size())
+                            .withStyle(ChatFormatting.GREEN), true);
         }
     }
 
@@ -333,16 +392,33 @@ public class TdtScreen extends Screen {
     }
 
     private boolean ensureUnitsSelected() {
-        if (TdtSelection.selectedCount() > 0) return true;
-        List<Integer> all = TdtSelection.resolve(TdtSelection.SCAN_RADIUS);
-        if (all.isEmpty()) {
-            if (this.minecraft != null && this.minecraft.player != null) {
-                BoardKeybind.hint(this.minecraft.player, "message.tacz_sewv.tdt.need_selection");
-            }
-            return false;
+        if (!TdtSelection.resolve(TdtSelection.SCAN_RADIUS).isEmpty()) return true;
+        if (this.minecraft != null && this.minecraft.player != null) {
+            BoardKeybind.hint(this.minecraft.player, "message.tacz_sewv.tdt.need_selection");
         }
-        TdtSelection.selectAll();
-        return true;
+        return false;
+    }
+
+    @Nullable
+    private Entity liveBoardTarget() {
+        Minecraft mc = this.minecraft;
+        if (mc == null || mc.hitResult == null) return this.boardTarget;
+        if (mc.hitResult instanceof EntityHitResult ehr
+                && (ehr.getEntity() instanceof MortarEntity || ehr.getEntity() instanceof VehicleEntity)) {
+            return ehr.getEntity();
+        }
+        return this.boardTarget;
+    }
+
+    @Nullable
+    private BlockPos liveLandPad() {
+        Minecraft mc = this.minecraft;
+        if (mc == null || mc.player == null) return this.landPad;
+        HitResult block = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
+        if (block instanceof BlockHitResult bhr && block.getType() == HitResult.Type.BLOCK) {
+            return bhr.getBlockPos();
+        }
+        return this.landPad;
     }
 
     private void orderReachGuard() {
@@ -520,8 +596,16 @@ public class TdtScreen extends Screen {
             return true;
         }
 
+        int liveY = allY + allH + 2;
+        int liveW = 48;
+        if (mx >= allX && mx < allX + liveW && my >= liveY && my < liveY + allH) {
+            ClientEvents.armLiveSelection();
+            onClose();
+            return true;
+        }
+
         Map<VehicleMarker.Kind, List<TdtSelection.Entry>> byKind = TdtSelection.byKind();
-        int x = this.panelLeft + PAD + 46;
+        int x = this.panelLeft + PAD + 54;
         int y = this.ribbonTop + 6;
         for (Map.Entry<VehicleMarker.Kind, List<TdtSelection.Entry>> e : byKind.entrySet()) {
             List<TdtSelection.Entry> units = e.getValue();
@@ -587,7 +671,7 @@ public class TdtScreen extends Screen {
 
     private static void clickSound() {
         Minecraft.getInstance().getSoundManager().play(
-                SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                SimpleSoundInstance.forUI(ModSounds.INTERACT_BEEP.get(), 1.0F));
     }
 
     private boolean reachGuardActive() {
@@ -621,6 +705,10 @@ public class TdtScreen extends Screen {
         g.fill(this.panelLeft + this.panelW - 1, this.panelTop, this.panelLeft + this.panelW, this.panelBottom, COL_BORDER);
 
         g.drawString(this.font, this.title, this.panelLeft + PAD, PAD, COL_TEXT, false);
+        if (!net.minecraftforge.fml.ModList.get().isLoaded("xaeroworldmap")) {
+            g.drawString(this.font, Component.translatable("gui.tacz_sewv.tdt.xaero_hint"),
+                    this.panelLeft + PAD + this.font.width(this.title) + 8, PAD, COL_MUTED, false);
+        }
         renderTabs(g);
         renderList(g, mouseX, mouseY);
         renderRibbon(g);
@@ -655,6 +743,19 @@ public class TdtScreen extends Screen {
 
         String unitBlocks = I18n.get("gui.tacz_sewv.tdt.unit.blocks");
         String unitPerRow = I18n.get("gui.tacz_sewv.tdt.unit.per_row");
+        boolean allView = this.category == Category.ALL;
+        int labelInset = allView ? 6 : STRIPE_W + 4;
+
+        for (Section section : this.sections) {
+            int sy0 = this.listTop + section.y0() - this.scroll;
+            int sy1 = this.listTop + section.y1() - this.scroll;
+            if (sy1 < this.listTop || sy0 > this.listBottom) continue;
+            g.fill(originX, sy0, originX + GROUP_STRIPE_W, sy1, stripeFor(section.cat()));
+            // Hairline under the section
+            g.fill(originX + GROUP_STRIPE_W, sy1 - 1, originX + this.contentInnerW, sy1, COL_BORDER);
+            String header = I18n.get("gui.tacz_sewv.tdt.section." + section.cat().name().toLowerCase());
+            g.drawString(this.font, header, originX + GROUP_STRIPE_W + 4, sy0 + 2, COL_MUTED, false);
+        }
 
         for (Cell cell : this.cells) {
             int sx = originX + cell.x();
@@ -668,12 +769,15 @@ public class TdtScreen extends Screen {
 
             int fill = hover && !inactive ? COL_HOVER : COL_SURFACE;
             g.fill(sx, sy, sx + cell.w(), sy + cell.h(), fill);
-            g.fill(sx, sy, sx + STRIPE_W, sy + cell.h(), COL_STRIPE);
+            if (!allView) {
+                g.fill(sx, sy, sx + STRIPE_W, sy + cell.h(), COL_STRIPE);
+            }
             // Hairline bottom
             g.fill(sx, sy + cell.h() - 1, sx + cell.w(), sy + cell.h(), COL_BORDER);
 
             int textColor = inactive ? COL_MUTED : COL_TEXT;
             Component label = Component.translatable(cell.entry().labelKey);
+            int textX = sx + labelInset;
 
             if (cell.entry().stepper != null) {
                 StepperSpec spec = stepperSpec(cell.entry().stepper);
@@ -683,7 +787,7 @@ public class TdtScreen extends Screen {
                 int valueW = this.font.width(value);
                 int minusLeft = plusLeft - 4 - valueW - 4 - STEP_BTN;
 
-                g.drawString(this.font, label, sx + STRIPE_W + 4, sy + (CELL_H - 8) / 2, textColor, false);
+                g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
 
                 drawStepBtn(g, minusLeft, sy + 2, "-", hover);
                 int valueColor = spec.get.getAsInt() < spec.redBelow ? 0xFFE07070 : COL_MUTED;
@@ -691,7 +795,7 @@ public class TdtScreen extends Screen {
                         sy + (CELL_H - 8) / 2, valueColor);
                 drawStepBtn(g, plusLeft, sy + 2, "+", hover);
             } else {
-                g.drawString(this.font, label, sx + STRIPE_W + 4, sy + (CELL_H - 8) / 2, textColor, false);
+                g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
             }
 
             if (hover && cell.entry().tipKey != null) {
@@ -730,8 +834,14 @@ public class TdtScreen extends Screen {
         }
         g.drawCenteredString(this.font, allLabel, allX + 20, allY + 3, COL_TEXT);
 
+        int liveY = allY + 14 + 2;
+        int liveW = 48;
+        g.fill(allX, liveY, allX + liveW, liveY + 14, COL_SURFACE);
+        g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.live_sel"),
+                allX + liveW / 2, liveY + 3, COL_TEXT);
+
         Map<VehicleMarker.Kind, List<TdtSelection.Entry>> byKind = TdtSelection.byKind();
-        int x = allX + 46;
+        int x = allX + 54;
         int y = this.ribbonTop + 6;
         for (Map.Entry<VehicleMarker.Kind, List<TdtSelection.Entry>> e : byKind.entrySet()) {
             List<TdtSelection.Entry> units = e.getValue();

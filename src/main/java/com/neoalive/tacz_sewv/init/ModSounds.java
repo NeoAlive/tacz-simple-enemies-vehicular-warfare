@@ -69,6 +69,9 @@ public final class ModSounds {
     public static final SoundPool US_NAVY_IDLE    = pool("us_navy_idle", 5);
     public static final SoundPool US_NAVY_TARGET  = pool("us_navy_target", 5);
 
+    /** UI click for the Tactical Data Terminal (and similar interactable panels). */
+    public static final RegistryObject<SoundEvent> INTERACT_BEEP = register("interact_beep");
+
     private ModSounds() {}
 
     private static RegistryObject<SoundEvent> register(String name) {

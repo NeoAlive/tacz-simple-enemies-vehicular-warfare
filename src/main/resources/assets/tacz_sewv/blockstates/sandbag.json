@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "tacz_sewv:block/sandbag" },
+    "facing=south": { "model": "tacz_sewv:block/sandbag", "y": 180 },
+    "facing=west":  { "model": "tacz_sewv:block/sandbag", "y": 270 },
+    "facing=east":  { "model": "tacz_sewv:block/sandbag", "y": 90 }
+  }
+}

@@ -55,6 +55,10 @@ public final class EntrenchSupport {
         if (!(unit instanceof IEntrenched entrenched)) return;
         if (!entrenched.sewv$isEntrenched()) return;
         boolean leavingSandbag = wasSandbagTask(unit, entrenched);
+        BlockPos cell = entrenched.sewv$getEntrenchCell();
+        if (leavingSandbag && cell != null && unit.level() instanceof ServerLevel level) {
+            SandbagSupport.clearClaimantIf(level, cell, unit);
+        }
         MortarSupport.releaseClaim(unit);
         if (unit instanceof IVehicleBoarder boarder && boarder.tacz_sewv$isBoarding()) {
             boarder.tacz_sewv$setBoarding(false);
@@ -62,10 +66,19 @@ public final class EntrenchSupport {
         }
         SandbagSupport.dismountIfSeated(unit);
         entrenched.sewv$clearEntrenched();
-        // RU/US fan out like a vehicle bail so they don't stack on the bag they just left.
         if (leavingSandbag) {
+            // Stolen seat / dismiss / auto-leave — same seek gate so RU/US do not re-claim mid-scramble.
+            armSeekCooldown(unit);
             BailOutVehicleGoal.requestSandbagScramble(unit);
         }
+    }
+
+    /** RU/US only — PMC has no SeekEntrenchmentGoal. */
+    private static void armSeekCooldown(AbstractUnit unit) {
+        if (unit instanceof PmcUnitEntity) return;
+        if (!(unit instanceof IEntrenched entrenched)) return;
+        if (!(unit.level() instanceof ServerLevel level)) return;
+        entrenched.sewv$setEntrenchSeekCooldownUntil(level.getGameTime() + AUTO_SEEK_COOLDOWN_TICKS);
     }
 
     private static boolean wasSandbagTask(AbstractUnit unit, IEntrenched entrenched) {
@@ -198,6 +211,7 @@ public final class EntrenchSupport {
             clearConflicting(unit);
             // Seed = bag pos — standalone "network" of one, same shape as a lone emplacement.
             ((IEntrenched) unit).sewv$setEntrenched(bag.asLong(), bag, null);
+            SandbagSupport.setClaimant(level, bag, unit);
             afterAssignStance(unit, bag);
             accepted++;
         }
@@ -211,6 +225,10 @@ public final class EntrenchSupport {
         }
         // Drop prior entrench / mortar / board without full clear recursion on the new assign.
         if (unit instanceof IEntrenched entrenched && entrenched.sewv$isEntrenched()) {
+            BlockPos oldCell = entrenched.sewv$getEntrenchCell();
+            if (oldCell != null && unit.level() instanceof ServerLevel level) {
+                SandbagSupport.clearClaimantIf(level, oldCell, unit);
+            }
             MortarSupport.releaseClaim(unit);
             if (unit instanceof IVehicleBoarder boarder && boarder.tacz_sewv$isBoarding()) {
                 boarder.tacz_sewv$setBoarding(false);
@@ -261,7 +279,7 @@ public final class EntrenchSupport {
         // RU/US auto-dwell expired — leave and arm seek cooldown (PMC player orders have leaveAt=0).
         long leaveAt = entrenched.sewv$getEntrenchLeaveAt();
         if (leaveAt > 0L && now >= leaveAt) {
-            leaveAutoEntrench(unit, entrenched, now);
+            leaveAutoEntrench(unit);
             return;
         }
 
@@ -420,8 +438,9 @@ public final class EntrenchSupport {
         entrenched.sewv$setEntrenchLeaveAt(gameTime + stay);
     }
 
-    private static void leaveAutoEntrench(AbstractUnit unit, IEntrenched entrenched, long now) {
-        entrenched.sewv$setEntrenchSeekCooldownUntil(now + AUTO_SEEK_COOLDOWN_TICKS);
+    private static void leaveAutoEntrench(AbstractUnit unit) {
+        // Trench/emplacement auto-leave; sandbag clear() arms CD again (same helper, idempotent).
+        armSeekCooldown(unit);
         clear(unit);
     }
 }

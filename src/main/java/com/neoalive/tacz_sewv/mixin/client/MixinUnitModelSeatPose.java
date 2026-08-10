@@ -21,8 +21,8 @@ import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
  *
  * <p>SEM's unit models drive every limb from a {@code LayeredAnimationManager} inside
  * {@code setupAnim} and never consult {@code EntityModel.riding}. Sandbag pose and vehicle
- * sitting both apply at TAIL after that stack. Head is left alone on sandbags so look tracking
- * stays unlocked.
+ * sitting both apply at TAIL after that stack. Head and arms are left alone on sandbags so look
+ * tracking and aiming stay unlocked.
  *
  * <p>No dismount cleanup here, unlike the player's {@code HumanoidModel} counterpart: SEM opens
  * every {@code setupAnim} with {@code root().getAllParts().forEach(ModelPart::resetPose)}, so a

@@ -9,6 +9,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -17,12 +18,19 @@ import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModEntities;
 
+/**
+ * Seat entity + soft ENTRENCHED claim for one sandbag. Claim is O(1) UUID storage — not a
+ * world entity scan — so assign / availability checks stay cheap on busy maps.
+ */
 public class SandbagBlockEntity extends BlockEntity {
 
     private static final String TAG_SEAT = "SeatUUID";
+    private static final String TAG_CLAIMANT = "ClaimantUUID";
 
     @Nullable
     private UUID seatId;
+    @Nullable
+    private UUID claimantId;
 
     public SandbagBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.SANDBAG.get(), pos, state);
@@ -53,7 +61,35 @@ public class SandbagBlockEntity extends BlockEntity {
             seat.discard();
         }
         this.seatId = null;
+        this.claimantId = null;
         setChanged();
+    }
+
+    public void setClaimant(@Nullable LivingEntity unit) {
+        UUID next = unit == null ? null : unit.getUUID();
+        if (next == null && this.claimantId == null) return;
+        if (next != null && next.equals(this.claimantId)) return;
+        this.claimantId = next;
+        setChanged();
+    }
+
+    public void clearClaimantIf(@Nullable LivingEntity unit) {
+        if (unit == null || this.claimantId == null) return;
+        if (this.claimantId.equals(unit.getUUID())) {
+            this.claimantId = null;
+            setChanged();
+        }
+    }
+
+    @Nullable
+    public UUID getClaimantId() {
+        return this.claimantId;
+    }
+
+    /** True when nobody holds the soft claim, or {@code self} is the claimant. */
+    public boolean isClaimAvailable(@Nullable LivingEntity self) {
+        if (this.claimantId == null) return true;
+        return self != null && this.claimantId.equals(self.getUUID());
     }
 
     private void snap(SandbagSeatEntity seat) {
@@ -88,11 +124,15 @@ public class SandbagBlockEntity extends BlockEntity {
         if (this.seatId != null) {
             tag.putUUID(TAG_SEAT, this.seatId);
         }
+        if (this.claimantId != null) {
+            tag.putUUID(TAG_CLAIMANT, this.claimantId);
+        }
     }
 
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
         this.seatId = tag.hasUUID(TAG_SEAT) ? tag.getUUID(TAG_SEAT) : null;
+        this.claimantId = tag.hasUUID(TAG_CLAIMANT) ? tag.getUUID(TAG_CLAIMANT) : null;
     }
 }

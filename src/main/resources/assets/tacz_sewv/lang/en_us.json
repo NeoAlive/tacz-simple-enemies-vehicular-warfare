@@ -1,4 +1,5 @@
 {
+  "itemGroup.tacz_sewv": "SBW: Combined Arms",
   "message.tacz_sewv.heli.takeoff.single": "%s aircraft taking off.",
   "message.tacz_sewv.heli.takeoff.multiple": "%s aircraft taking off.",
   "message.tacz_sewv.heli.takeoff.none": "No eligible aircraft.",

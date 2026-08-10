@@ -468,9 +468,11 @@ public final class SewvConfig {
                 .defineInRange("autoBoardMinHealthFraction", 0.25, 0.0, 1.0);
         AUTO_BOARD_STEALS_PLAYER_VEHICLES = builder.comment("If on, RU/US may take vehicles you have driven before. Off by default.")
                 .define("autoBoardStealsPlayerVehicles", false);
-        AUTO_ENTRENCH_ENABLED = builder.comment("Idle RU/US soldiers may claim nearby trench networks / emplacements.")
+        AUTO_ENTRENCH_ENABLED = builder.comment(
+                        "Idle RU/US soldiers may claim nearby trench networks, emplacements, or free sandbags.")
                 .define("autoEntrenchEnabled", true);
-        AUTO_ENTRENCH_SCAN_RADIUS = builder.comment("How far (blocks) they look for trench cells or emplacements.")
+        AUTO_ENTRENCH_SCAN_RADIUS = builder.comment(
+                        "How far (blocks) they look for trench cells, emplacements, or sandbags.")
                 .defineInRange("autoEntrenchScanRadius", 48.0, 8.0, 128.0);
         VEHICLE_FORMATION_SPACING = builder.comment("Spacing (blocks) between vehicles in a formation.")
                 .defineInRange("vehicleFormationSpacing", 12.0, 5.0, 32.0);

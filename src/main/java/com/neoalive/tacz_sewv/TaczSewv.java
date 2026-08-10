@@ -32,6 +32,7 @@ import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModBlocks;
+import com.neoalive.tacz_sewv.init.ModCreativeTabs;
 import com.neoalive.tacz_sewv.init.ModEntities;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.init.ModItems;
@@ -63,6 +64,7 @@ public class TaczSewv {
         ModBlocks.BLOCKS.register(modEventBus);
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
+        ModCreativeTabs.CREATIVE_TABS.register(modEventBus);
         ModSounds.SOUNDS.register(modEventBus);
         ModEntities.register(modEventBus);
         MinecraftForge.EVENT_BUS.register(this);

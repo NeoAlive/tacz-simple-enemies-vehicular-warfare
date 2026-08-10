@@ -13,8 +13,8 @@ import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
 
 /**
  * Applies the sandbag Bedrock seat pose to players (and any other humanoid, armour models
- * included) riding a {@link SandbagSeatEntity}. Head rotation is never written, so look stays
- * unlocked.
+ * included) riding a {@link SandbagSeatEntity}. Head and arm rotations are never written, so look
+ * and aiming stay unlocked (arms still follow the rig sink).
  *
  * <p>The {@code posed} flag exists because vanilla {@code setupAnim} rewrites rotations every
  * frame but never rewrites {@code body}'s position, so the seated offset would stay on this

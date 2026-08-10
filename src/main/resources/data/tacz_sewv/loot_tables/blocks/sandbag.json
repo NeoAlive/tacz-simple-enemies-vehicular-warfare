@@ -6,11 +6,11 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "minecraft:oak_planks",
+          "name": "minecraft:sand",
           "functions": [
             {
               "function": "minecraft:set_count",
-              "count": 1
+              "count": 4
             }
           ]
         }
@@ -18,13 +18,6 @@
       "conditions": [
         {
           "condition": "minecraft:survives_explosion"
-        },
-        {
-          "condition": "minecraft:block_state_property",
-          "block": "tacz_sewv:trench",
-          "properties": {
-            "half": "lower"
-          }
         }
       ]
     },
@@ -33,11 +26,11 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "minecraft:stick",
+          "name": "minecraft:string",
           "functions": [
             {
               "function": "minecraft:set_count",
-              "count": 1
+              "count": 2
             }
           ]
         }
@@ -45,13 +38,6 @@
       "conditions": [
         {
           "condition": "minecraft:survives_explosion"
-        },
-        {
-          "condition": "minecraft:block_state_property",
-          "block": "tacz_sewv:trench",
-          "properties": {
-            "half": "lower"
-          }
         }
       ]
     }

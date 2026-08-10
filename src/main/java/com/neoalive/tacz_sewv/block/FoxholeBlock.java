@@ -21,8 +21,9 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
- * Standalone dirt-slab foxhole. No NSEW variants of its own, but adjacent
- * {@link TrenchBlock}s treat it as a connecting neighbour (same as a trench plinth cell).
+ * Standalone dirt-slab foxhole (soft like a dirt slab; breaks into nothing). No NSEW variants
+ * of its own, but adjacent {@link TrenchBlock}s treat it as a connecting neighbour (same as a
+ * trench plinth cell).
  */
 public class FoxholeBlock extends Block {
 
@@ -33,7 +34,7 @@ public class FoxholeBlock extends Block {
     public FoxholeBlock() {
         super(BlockBehaviour.Properties.of()
                 .mapColor(MapColor.DIRT)
-                .strength(1.5f, 3.0f)
+                .strength(0.5f)
                 .sound(SoundType.GRAVEL)
                 .noOcclusion());
     }

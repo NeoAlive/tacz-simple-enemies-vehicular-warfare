@@ -1,12 +1,8 @@
 package com.neoalive.tacz_sewv.init;
 
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.common.ForgeSpawnEggItem;
-import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
@@ -18,10 +14,9 @@ import com.neoalive.tacz_sewv.item.PoolClipboardItem;
 import com.neoalive.tacz_sewv.item.TacticalDataTerminalItem;
 
 /**
- * The bridge's own items. It owns no entities or vehicles — this is only for tools
- * that command SEM units working SW hardware.
+ * The bridge's own items. Creative listing lives in {@link ModCreativeTabs} (one tab);
+ * {@code trench_x_cross} stays registered for junctions but is omitted from that tab.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class ModItems {
 
     public static final DeferredRegister<Item> ITEMS =
@@ -50,6 +45,7 @@ public class ModItems {
     public static final RegistryObject<Item> TRENCH = ITEMS.register("trench",
             () -> new BlockItem(ModBlocks.TRENCH.get(), new Item.Properties()));
 
+    /** Junction mesh only — registered, not in the creative tab. */
     public static final RegistryObject<Item> TRENCH_X_CROSS = ITEMS.register("trench_x_cross",
             () -> new BlockItem(ModBlocks.TRENCH_X_CROSS.get(), new Item.Properties()));
 
@@ -80,33 +76,4 @@ public class ModItems {
             ITEMS.register("us_combat_engineer_spawn_egg",
                     () -> new ForgeSpawnEggItem(ModEntities.US_COMBAT_ENGINEER, 0x7a7250, 0x8b4513,
                             new Item.Properties()));
-
-    @SubscribeEvent
-    public static void addToCreativeTabs(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
-            event.accept(HANDHELD_RADIO);
-            event.accept(TACTICAL_DATA_TERMINAL);
-            event.accept(DOCTRINE_LEDGER);
-            event.accept(POOL_CLIPBOARD);
-        }
-        if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
-            event.accept(CAPTURE_POINT);
-            event.accept(TEAM_BASE);
-        }
-        if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
-            event.accept(TRENCH);
-            event.accept(TRENCH_X_CROSS);
-            event.accept(FOXHOLE);
-            event.accept(EMPLACEMENT);
-            event.accept(SANDBAG);
-        }
-        if (event.getTabKey() == CreativeModeTabs.SPAWN_EGGS) {
-            event.accept(RU_MEDIC_SPAWN_EGG);
-            event.accept(US_MEDIC_SPAWN_EGG);
-            event.accept(RU_ENGINEER_SPAWN_EGG);
-            event.accept(US_ENGINEER_SPAWN_EGG);
-            event.accept(RU_COMBAT_ENGINEER_SPAWN_EGG);
-            event.accept(US_COMBAT_ENGINEER_SPAWN_EGG);
-        }
-    }
 }

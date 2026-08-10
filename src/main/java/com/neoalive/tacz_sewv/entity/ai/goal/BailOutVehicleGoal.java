@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 import java.util.EnumSet;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleMotionUtils;
 import com.atsuishio.superbwarfare.init.ModItems;
@@ -53,6 +55,9 @@ import com.neoalive.tacz_sewv.invasion.InvasionTags;
  * has an order queue, so it scrambles by taking a MOVE_TO_POSITION order (SEM's own
  * order goal walks it, and the player can see and override where it went). RU/US units
  * have no order system, so this goal drives their navigation directly.
+ *
+ * <p>Sandbag leave reuses the same scramble for RU/US only ({@link #requestSandbagScramble})
+ * so auto-leave / dismiss does not stack infantry on the bag they just vacated.
  */
 public class BailOutVehicleGoal extends Goal {
 
@@ -60,6 +65,9 @@ public class BailOutVehicleGoal extends Goal {
     // retreat threshold (0.25) on purpose: a crew retreats first and abandons only if
     // retreating didn't save it.
     private static final float BAIL_HEALTH_FRACTION = 0.15F;
+
+    /** Pending RU/US scramble after leaving a sandbag — absolute, no vehicle required. */
+    public static final String TAG_SANDBAG_SCRAMBLE = "sewv:sandbag_scramble";
 
     // Scramble just clear of the hull hitbox — get out of the wreck volume fast without
     // running across the map. Radii are added on top of the hull's half-extent.
@@ -93,6 +101,8 @@ public class BailOutVehicleGoal extends Goal {
     private final boolean commandable;
     private BlockPos escapePos;
     private int scrambleTicks;
+    /** True when this run was queued by a sandbag leave, not a dying hull. */
+    private boolean sandbagScramble;
 
     public BailOutVehicleGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -104,8 +114,32 @@ public class BailOutVehicleGoal extends Goal {
         this.setFlags(this.commandable ? EnumSet.noneOf(Flag.class) : EnumSet.of(Flag.MOVE));
     }
 
+    /**
+     * Queue the vehicle-bail scramble for an RU/US unit that just left a sandbag.
+     * PMC is excluded — the player retasks them; stacking is not the failure mode.
+     */
+    public static void requestSandbagScramble(AbstractUnit unit) {
+        if (unit instanceof PmcUnitEntity) return;
+        if (!(unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity
+                || unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity)) {
+            return;
+        }
+        unit.getPersistentData().putBoolean(TAG_SANDBAG_SCRAMBLE, true);
+    }
+
+    private static boolean hasSandbagScramble(AbstractUnit unit) {
+        return unit.getPersistentData().getBoolean(TAG_SANDBAG_SCRAMBLE);
+    }
+
+    private static void clearSandbagScramble(AbstractUnit unit) {
+        unit.getPersistentData().remove(TAG_SANDBAG_SCRAMBLE);
+    }
+
     @Override
     public boolean canUse() {
+        if (hasSandbagScramble(this.unit) && this.unit.getVehicle() == null) {
+            return true;
+        }
         if (!(this.unit.getVehicle() instanceof VehicleEntity vehicle)) return false;
         // Invasion-spawned hulls stay crewed until wrecked/despawned — a bail leaves an
         // empty tagged hull that still counts toward the base's fleet / wreck top-up.
@@ -124,6 +158,18 @@ public class BailOutVehicleGoal extends Goal {
 
     @Override
     public void start() {
+        this.scrambleTicks = 0;
+        this.sandbagScramble = hasSandbagScramble(this.unit);
+        clearSandbagScramble(this.unit);
+
+        if (this.sandbagScramble) {
+            this.escapePos = findEscapePosNear(this.unit.getX(), this.unit.getY(), this.unit.getZ(),
+                    null);
+            applyScrambleSpeed();
+            if (this.escapePos != null) moveToEscapePos();
+            return;
+        }
+
         // canUse() just established the ride is a crippled VehicleEntity.
         VehicleEntity vehicle = (VehicleEntity) this.unit.getVehicle();
         // Voice FIRST — before escape search / parachute / stopRiding. Under fire DAMAGED holds the
@@ -132,8 +178,6 @@ public class BailOutVehicleGoal extends Goal {
         CrewRadio.speak(vehicle, this.unit, CrewRadio.Line.BAIL);
 
         this.escapePos = findEscapePos(vehicle);
-        this.scrambleTicks = 0;
-
         issueParachute();
         this.unit.stopRiding();
         applyScrambleSpeed();
@@ -150,6 +194,8 @@ public class BailOutVehicleGoal extends Goal {
         // shouldn't turn round and walk back to a tube it was assigned earlier.
         MortarSupport.releaseClaim(this.unit);
         EntrenchSupport.clear(this.unit);
+        // Vehicle bail already owns the scramble — drop any sandbag-leave flag clear() queued.
+        clearSandbagScramble(this.unit);
         // And any flight command: every crew type implements IHelicopterPilot, so this is
         // faction-blind like the two clears above. Without it a pilot bailing with a stale
         // LANDING/TAKEOFF command + BlockPos carries it straight into the next helicopter
@@ -279,35 +325,45 @@ public class BailOutVehicleGoal extends Goal {
      * wreck. Falls back to any clear candidate if same-side finds nothing.
      */
     private BlockPos findEscapePos(VehicleEntity vehicle) {
-        Level level = this.unit.level();
-        RandomSource random = this.unit.getRandom();
         AABB hullBox = VehicleMotionUtils.INSTANCE.calculateCombinedAABBOptimized(vehicle);
         double halfW = Math.max(hullBox.getXsize(), hullBox.getZsize()) * 0.5;
-        double minR = halfW + MIN_CLEARANCE;
-        double maxR = halfW + MAX_CLEARANCE;
+        return findEscapePosNear(vehicle.getX(), vehicle.getY(), vehicle.getZ(), hullBox,
+                halfW + MIN_CLEARANCE, halfW + MAX_CLEARANCE);
+    }
 
-        double exitX = this.unit.getX() - vehicle.getX();
-        double exitZ = this.unit.getZ() - vehicle.getZ();
-        // If somehow still at the hull centre, any bearing is "same side".
+    /** Sandbag leave: scramble a few blocks clear of the bag with no hull volume to avoid. */
+    private BlockPos findEscapePosNear(double cx, double cy, double cz, @Nullable AABB hullBox) {
+        return findEscapePosNear(cx, cy, cz, hullBox, MIN_CLEARANCE, MAX_CLEARANCE);
+    }
+
+    private BlockPos findEscapePosNear(double cx, double cy, double cz, @Nullable AABB hullBox,
+                                       double minR, double maxR) {
+        Level level = this.unit.level();
+        RandomSource random = this.unit.getRandom();
+
+        double exitX = this.unit.getX() - cx;
+        double exitZ = this.unit.getZ() - cz;
+        // If somehow still at the centre, any bearing is "same side".
         boolean hasExitDir = exitX * exitX + exitZ * exitZ > 1.0e-4;
 
         BlockPos bestSame = null;
         double bestSameDistSq = Double.MAX_VALUE;
         BlockPos bestAny = null;
         double bestAnyDistSq = Double.MAX_VALUE;
+        int refY = Mth.floor(cy);
 
         for (int i = 0; i < ESCAPE_CANDIDATES; i++) {
             double angle = random.nextDouble() * Mth.TWO_PI;
             double radius = minR + random.nextDouble() * (maxR - minR);
             double dx = Math.cos(angle) * radius;
             double dz = Math.sin(angle) * radius;
-            int x = Mth.floor(vehicle.getX() + dx);
-            int z = Mth.floor(vehicle.getZ() + dz);
+            int x = Mth.floor(cx + dx);
+            int z = Mth.floor(cz + dz);
 
-            BlockPos candidate = standableGroundAt(level, x, z, vehicle.getBlockY());
+            BlockPos candidate = standableGroundAt(level, x, z, refY);
             if (candidate == null) continue;
             // Must sit outside the hull volume — standing inside invites a path through it.
-            if (hullBox.intersects(candidate.getX(), candidate.getY(), candidate.getZ(),
+            if (hullBox != null && hullBox.intersects(candidate.getX(), candidate.getY(), candidate.getZ(),
                     candidate.getX() + 1.0, candidate.getY() + 2.0, candidate.getZ() + 1.0)) {
                 continue;
             }

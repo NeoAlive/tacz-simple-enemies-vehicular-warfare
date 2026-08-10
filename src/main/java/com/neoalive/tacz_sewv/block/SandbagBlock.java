@@ -8,6 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
@@ -24,22 +25,42 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
 
 /**
  * Directional sandbag fighting position. Right-click mounts a living entity onto an
- * invisible seat ({@link #tryMount} is shared with future AI).
+ * invisible seat ({@link #tryMount} is shared with AI).
+ *
+ * <p>Collision is a hollow U (same contract as {@link TrenchBlock}/{@link FoxholeBlock}): open
+ * interior so units fall to the block floor, {@link PathComputationType#LAND} so infantry
+ * pathfind in, and {@link TrenchPathTypes#TRENCH} so they prefer it over open ground.
  */
 public class SandbagBlock extends BaseEntityBlock {
 
     public static final net.minecraft.world.level.block.state.properties.DirectionProperty FACING =
             HorizontalDirectionalBlock.FACING;
 
-    private static final VoxelShape SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 10.0D, 16.0D);
+    /** Outline / pick — full footprint so the crescent is easy to click. */
+    private static final VoxelShape OUTLINE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 10.0D, 16.0D);
+
+    /**
+     * Model-space U for {@code facing=north}: bags on the north rim, open to the south.
+     * Other facings are {@link #rotateShape}-d copies.
+     */
+    private static final VoxelShape COLLISION_NORTH = Shapes.or(
+            Block.box(0.0D, 0.0D, 0.0D, 16.0D, 10.0D, 4.0D),
+            Block.box(0.0D, 0.0D, 0.0D, 4.0D, 10.0D, 12.0D),
+            Block.box(12.0D, 0.0D, 0.0D, 16.0D, 10.0D, 12.0D));
+    private static final VoxelShape COLLISION_EAST = rotateShape(COLLISION_NORTH, Direction.EAST);
+    private static final VoxelShape COLLISION_SOUTH = rotateShape(COLLISION_NORTH, Direction.SOUTH);
+    private static final VoxelShape COLLISION_WEST = rotateShape(COLLISION_NORTH, Direction.WEST);
 
     public SandbagBlock() {
         super(BlockBehaviour.Properties.of()
@@ -60,7 +81,7 @@ public class SandbagBlock extends BaseEntityBlock {
         return tryMount(server, pos, player) ? InteractionResult.CONSUME : InteractionResult.PASS;
     }
 
-    /** Mount {@code rider} if the seat is free. Shared by player use and future AI. */
+    /** Mount {@code rider} if the seat is free. Shared by player use and AI. */
     public static boolean tryMount(ServerLevel level, BlockPos pos, LivingEntity rider) {
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof SandbagBlockEntity sandbag)) return false;
@@ -106,7 +127,64 @@ public class SandbagBlock extends BaseEntityBlock {
     @Override
     @SuppressWarnings("deprecation")
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
-        return SHAPE;
+        return OUTLINE;
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos,
+                                        CollisionContext ctx) {
+        return collisionFor(state.getValue(FACING));
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public VoxelShape getOcclusionShape(BlockState state, BlockGetter level, BlockPos pos) {
+        return Shapes.empty();
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos,
+                                  PathComputationType type) {
+        // Same as TrenchBlock / FoxholeBlock — without LAND, WalkNodeEvaluator marks the cell
+        // BLOCKED and infantry freeze at the rim.
+        return type == PathComputationType.LAND;
+    }
+
+    @Override
+    public BlockPathTypes getBlockPathType(BlockState state, BlockGetter level, BlockPos pos,
+                                           @Nullable Mob mob) {
+        return TrenchPathTypes.TRENCH;
+    }
+
+    private static VoxelShape collisionFor(Direction facing) {
+        return switch (facing) {
+            case EAST -> COLLISION_EAST;
+            case SOUTH -> COLLISION_SOUTH;
+            case WEST -> COLLISION_WEST;
+            default -> COLLISION_NORTH;
+        };
+    }
+
+    /** Rotate a north-facing shape around Y to {@code facing} (90° steps). */
+    private static VoxelShape rotateShape(VoxelShape north, Direction facing) {
+        VoxelShape[] buffer = new VoxelShape[]{north, Shapes.empty()};
+        int turns = switch (facing) {
+            case EAST -> 1;
+            case SOUTH -> 2;
+            case WEST -> 3;
+            default -> 0;
+        };
+        for (int i = 0; i < turns; i++) {
+            buffer[0].forAllBoxes((minX, minY, minZ, maxX, maxY, maxZ) ->
+                    buffer[1] = Shapes.or(buffer[1], Shapes.box(
+                            1.0D - maxZ, minY, minX,
+                            1.0D - minZ, maxY, maxX)));
+            buffer[0] = buffer[1];
+            buffer[1] = Shapes.empty();
+        }
+        return buffer[0];
     }
 
     @Nullable

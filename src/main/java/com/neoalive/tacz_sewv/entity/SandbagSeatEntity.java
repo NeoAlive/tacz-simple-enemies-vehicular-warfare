@@ -7,6 +7,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -17,16 +19,23 @@ import net.minecraftforge.network.NetworkHooks;
 /**
  * Invisible one-passenger mount for a sandbag fighting position. Not an SBW vehicle —
  * no gun/energy paths. Does not force rider yaw (unlocked look / body rotation).
+ *
+ * <p>While seated the rider receives a short, invisible {@link MobEffects#DAMAGE_RESISTANCE}
+ * refresh each tick (cover from the bags) — no particles, no HUD icon.
  */
 public class SandbagSeatEntity extends Entity {
 
     /**
-     * Sit height above the block's bottom. The pose itself sinks the rig 5 model pixels
-     * ({@code unit} position in {@code sandbag_seat.animation.json}), so this cancels that and
-     * lands the figure's base on the block's floor. Tune here, not in the animation, if the
-     * rider ends up too high or clipped into the ground.
+     * Sit height above the block's bottom. Pose JSON is left alone — the Bedrock clip already
+     * sinks the rig 5 model pixels; keep this at floor level so the figure settles into the bags
+     * instead of hovering above the grass.
      */
-    private static final double RIDER_Y = 5.0D / 16.0D;
+    private static final double RIDER_Y = 0.0D;
+
+    /** Refresh window — longer than a tick so brief hitch never drops the buff. */
+    private static final int COVER_RESIST_TICKS = 40;
+    /** Resistance I (20% damage). Amplifier 0. */
+    private static final int COVER_RESIST_AMP = 0;
 
     private BlockPos sandbagPos = BlockPos.ZERO;
 
@@ -65,6 +74,17 @@ public class SandbagSeatEntity extends Entity {
                 com.neoalive.tacz_sewv.init.ModBlocks.SANDBAG.get())) {
             this.ejectPassengers();
             this.discard();
+            return;
+        }
+        applyCoverResistance();
+    }
+
+    private void applyCoverResistance() {
+        for (Entity passenger : this.getPassengers()) {
+            if (!(passenger instanceof LivingEntity living)) continue;
+            living.addEffect(new MobEffectInstance(
+                    MobEffects.DAMAGE_RESISTANCE, COVER_RESIST_TICKS, COVER_RESIST_AMP,
+                    false, false, false));
         }
     }
 

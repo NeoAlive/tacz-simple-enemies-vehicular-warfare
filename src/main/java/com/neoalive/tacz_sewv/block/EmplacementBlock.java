@@ -23,6 +23,9 @@ import net.minecraftforge.network.NetworkHooks;
 /**
  * Ammo pad for a mortar / TOW / FIXED mount sitting on its up face. Inventory is player-stocked
  * (PMC); live weapon detection is a world query, not cached entity ids.
+ *
+ * <p>Renders the Blockbench pad model ({@code models/block/emplacement_block.json}); collision
+ * stays a full cube so mounts and players treat the top as solid footing.
  */
 public class EmplacementBlock extends BaseEntityBlock {
 
@@ -31,7 +34,8 @@ public class EmplacementBlock extends BaseEntityBlock {
                 .mapColor(MapColor.STONE)
                 .strength(3.0f, 6.0f)
                 .sound(SoundType.STONE)
-                .requiresCorrectToolForDrops());
+                .requiresCorrectToolForDrops()
+                .noOcclusion());
     }
 
     @Override

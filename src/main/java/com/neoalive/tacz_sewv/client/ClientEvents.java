@@ -56,7 +56,7 @@ public class ClientEvents {
     private static boolean pendingGuard = false;
     private static List<Integer> pendingGuardUnits = List.of();
 
-    // ENTRENCHED pick: left-click a trench / foxhole / emplacement; server resolves the network.
+    // ENTRENCHED pick: left-click a trench / foxhole / emplacement / sandbag; server resolves.
     private static boolean pendingEntrench = false;
     private static List<Integer> pendingEntrenchUnits = List.of();
 
@@ -104,7 +104,7 @@ public class ClientEvents {
     }
 
     /**
-     * Arm ENTRENCHED block pick. Left-click a trench/emplacement; server resolves the network.
+     * Arm ENTRENCHED block pick. Left-click a trench/emplacement/sandbag; server resolves.
      */
     public static void armEntrench() {
         clearEscort();

@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.network;
 import java.util.List;
 import java.util.function.Supplier;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
@@ -12,6 +11,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 
 /**
@@ -27,7 +27,7 @@ public final class PacketRappelHelicopter {
     }
 
     public PacketRappelHelicopter(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -44,10 +44,13 @@ public final class PacketRappelHelicopter {
                 Entity e = player.level().getEntity(unitId);
                 if (!(e instanceof PmcUnitEntity pmc) || !pmc.isOwnedBy(player)) continue;
                 if (!(pmc.getVehicle() instanceof VehicleEntity v)) continue;
+                if (v.getFirstPassenger() instanceof PmcUnitEntity driver && driver.isOwnedBy(player)) {
+                    pmc = driver;
+                }
                 if (v.getFirstPassenger() != pmc) continue;
-                if (!(v.getEngineInfo() instanceof EngineInfo.Helicopter)) continue;
+                if (!HullFacts.isHelicopterHull(v)) continue;
                 // Empty cargo still accepts the order — Stage 5 exits promptly after settle.
-                DriveHelicopterGoal.setRappelRequested(v, true);
+                DriveHelicopterGoal.setForcedRappel(v);
                 ordered++;
             }
 

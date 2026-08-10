@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.network;
 import java.util.List;
 import java.util.function.Supplier;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -17,6 +16,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 
 /**
  * Player → server flight command for owned helicopter crews: takeoff, or land at a
@@ -42,7 +42,7 @@ public class PacketHelicopterCommand {
     }
 
     public PacketHelicopterCommand(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
         this.command = buf.readVarInt();
         this.landPos = buf.readBoolean() ? buf.readBlockPos() : null;
         this.altitude = buf.readVarInt();
@@ -72,12 +72,26 @@ public class PacketHelicopterCommand {
                 // gunners/passengers/ground units are not flight crews, and counting
                 // them reported one "helicopter" per crew member in the feedback.
                 if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)
-                        && pmc.getVehicle() instanceof VehicleEntity v
-                        && v.getFirstPassenger() == pmc
-                        && v.getEngineInfo() instanceof EngineInfo.Helicopter) {
+                        && pmc.getVehicle() instanceof VehicleEntity v) {
+                    if (v.getFirstPassenger() instanceof PmcUnitEntity driver && driver.isOwnedBy(player)) {
+                        pmc = driver;
+                    }
+                    if (v.getFirstPassenger() != pmc) continue;
+                    if (!HullFacts.isHelicopterHull(v)) continue;
+                    // LANDING without a pad is immediately cleared by DriveHelicopterGoal and
+                    // looks like a successful order that then resumes FOLLOW orbit.
+                    if (this.command == IHelicopterPilot.HELI_CMD_LANDING && this.landPos == null) {
+                        continue;
+                    }
                     IHelicopterPilot pilot = (IHelicopterPilot) pmc;
                     pilot.sewv$setHeliCommand(this.command);
-                    pilot.sewv$setHeliLandPos(this.command == IHelicopterPilot.HELI_CMD_LANDING ? this.landPos : null);
+                    if (this.command == IHelicopterPilot.HELI_CMD_LANDING) {
+                        pilot.sewv$setHeliLandPos(this.landPos);
+                        DriveHelicopterGoal.setForcedLand(v, this.landPos);
+                    } else {
+                        pilot.sewv$setHeliLandPos(null);
+                        DriveHelicopterGoal.clearForcedLand(v);
+                    }
                     // Takeoff carries the live cruise trim; clamp to the flight band (never trust the
                     // client) and store it on the pilot for DriveHelicopterGoal to read every tick.
                     if (this.command == IHelicopterPilot.HELI_CMD_TAKEOFF) {

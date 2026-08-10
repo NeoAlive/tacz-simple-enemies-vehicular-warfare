@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -19,6 +18,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
@@ -79,7 +79,7 @@ public class PacketPatrolVehicle {
     }
 
     public PacketPatrolVehicle(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
         this.radius = buf.readVarInt();
         this.mode = buf.readVarInt();
         this.origin = buf.readBoolean() ? buf.readBlockPos() : null;
@@ -123,7 +123,7 @@ public class PacketPatrolVehicle {
                 if (e instanceof PmcUnitEntity pmc && OrderAuth.check(sp, pmc, "PacketPatrolVehicle")
                         && pmc.getVehicle() instanceof VehicleEntity v
                         && v.getFirstPassenger() == pmc
-                        && !(v.getEngineInfo() instanceof EngineInfo.Helicopter)) {
+                        && !HullFacts.isHelicopterHull(v) && !HullFacts.isPlaneHull(v)) {
                     crews.add(pmc);
                 }
             }
@@ -167,7 +167,7 @@ public class PacketPatrolVehicle {
                     && OrderAuth.check(sp, pmc, "PacketPatrolVehicle")
                     && pmc.getVehicle() instanceof VehicleEntity v
                     && v.getFirstPassenger() == pmc
-                    && !(v.getEngineInfo() instanceof EngineInfo.Helicopter)) {
+                    && !HullFacts.isHelicopterHull(v) && !HullFacts.isPlaneHull(v)) {
                 pmc.setOrder(OrderType.FREE_FIRE);
                 PatrolSupport.beginCruise(pmc, route);
                 ordered++;

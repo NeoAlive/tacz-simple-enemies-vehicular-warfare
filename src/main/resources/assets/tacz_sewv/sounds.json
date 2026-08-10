@@ -176,5 +176,7 @@
   "us_healing_2": { "sounds": ["tacz_sewv:us/us_healing_2"] },
   "us_drone_1": { "sounds": ["tacz_sewv:us/us_drone_1"] },
   "us_drone_2": { "sounds": ["tacz_sewv:us/us_drone_2"] },
-  "us_drone_3": { "sounds": ["tacz_sewv:us/us_drone_3"] }
+  "us_drone_3": { "sounds": ["tacz_sewv:us/us_drone_3"] },
+
+  "interact_beep": { "sounds": ["tacz_sewv:interact_beep"] }
 }

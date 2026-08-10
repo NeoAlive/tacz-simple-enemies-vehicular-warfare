@@ -524,6 +524,36 @@ public final class TankSpawner {
         tank.setItem(0, new ItemStack(ammo.get(0), count));
     }
 
+    private static final String TAG_AMMO_STOCKED = "sewv:ammo_stocked";
+
+    /**
+     * Stocks an empty hull when an RU/US unit takes the driver's seat — the path
+     * {@link SeekAbandonedVehicleGoal} / player-placed tanks use, which never goes through
+     * {@link #stockAmmo}. Gated on {@code factionInfiniteAmmo}, an empty container, and a
+     * one-shot persistent flag so emptying a captured hull does not restock forever.
+     */
+    public static void maybeStockFactionBoardAmmo(VehicleEntity hull, AbstractUnit driver) {
+        if (hull.level().isClientSide()) return;
+        if (!(driver instanceof RUunitEntity) && !(driver instanceof USunitEntity)) return;
+        if (!SewvConfig.FACTION_INFINITE_AMMO.get()) return;
+        if (hull.getFirstPassenger() != driver) return;
+        if (!hull.hasContainer() || hull.getContainerSize() <= 0) return;
+        if (hull.getPersistentData().getBoolean(TAG_AMMO_STOCKED)) return;
+        if (!containerEmpty(hull)) return;
+
+        TankFaction faction = driver instanceof RUunitEntity ? TankFaction.RU : TankFaction.US;
+        stockAmmo(hull, faction);
+        hull.getPersistentData().putBoolean(TAG_AMMO_STOCKED, true);
+    }
+
+    private static boolean containerEmpty(VehicleEntity hull) {
+        int size = hull.getContainerSize();
+        for (int i = 0; i < size; i++) {
+            if (!hull.getItem(i).isEmpty()) return false;
+        }
+        return true;
+    }
+
     /**
      * Stocks a freshly-spawned hull's container with the actual ammunition its weapons
      * consume, so an AI crew fires finite, lootable rounds instead of a bottomless

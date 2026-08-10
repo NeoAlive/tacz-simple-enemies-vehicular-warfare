@@ -8,6 +8,7 @@ import net.minecraftforge.registries.RegistryObject;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.block.EmplacementBlockEntity;
+import com.neoalive.tacz_sewv.block.SandbagBlockEntity;
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 
 public class ModBlockEntities {
@@ -28,5 +29,10 @@ public class ModBlockEntities {
     public static final RegistryObject<BlockEntityType<EmplacementBlockEntity>> EMPLACEMENT =
             BLOCK_ENTITIES.register("emplacement_block",
                     () -> BlockEntityType.Builder.of(EmplacementBlockEntity::new, ModBlocks.EMPLACEMENT.get())
+                            .build(null));
+
+    public static final RegistryObject<BlockEntityType<SandbagBlockEntity>> SANDBAG =
+            BLOCK_ENTITIES.register("sandbag",
+                    () -> BlockEntityType.Builder.of(SandbagBlockEntity::new, ModBlocks.SANDBAG.get())
                             .build(null));
 }

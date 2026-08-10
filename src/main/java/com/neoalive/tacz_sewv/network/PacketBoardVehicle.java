@@ -27,7 +27,7 @@ public class PacketBoardVehicle {
     }
 
     public PacketBoardVehicle(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
         this.vehicleId = buf.readVarInt();
         this.passengerOnly = buf.readBoolean();
     }
@@ -44,6 +44,7 @@ public class PacketBoardVehicle {
         if (player == null) return;
 
         int ordered = 0;
+        int mortarSkipped = 0;
         for (int unitId : this.unitIds) {
             Entity e = player.level().getEntity(unitId);
             if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
@@ -52,7 +53,10 @@ public class PacketBoardVehicle {
                 // a vehicle silently pulls a working mortar team off its tube, including
                 // the units that would only walk over and bounce off a full hull anyway.
                 // Stand a crew down with the dismount key first to free it up.
-                if (MortarSupport.hasMortarClaim(pmc)) continue;
+                if (MortarSupport.hasMortarClaim(pmc)) {
+                    mortarSkipped++;
+                    continue;
+                }
 
                 IVehicleBoarder boarder = (IVehicleBoarder) pmc;
                 boarder.tacz_sewv$setMountTargetId(this.vehicleId);
@@ -65,8 +69,14 @@ public class PacketBoardVehicle {
             }
         }
 
-        NetworkHandler.orderFeedback(player, "message.tacz_sewv.board.ordered", ordered,
-                ChatFormatting.GREEN, ordered);
+        if (ordered == 0 && mortarSkipped > 0) {
+            NetworkHandler.sendOrderFeedback(player,
+                    net.minecraft.network.chat.Component.translatable("message.tacz_sewv.board.mortar_busy")
+                            .withStyle(ChatFormatting.GRAY));
+        } else {
+            NetworkHandler.orderFeedback(player, "message.tacz_sewv.board.ordered", ordered,
+                    ChatFormatting.GREEN, ordered);
+        }
     });
     ctx.get().setPacketHandled(true);
 }

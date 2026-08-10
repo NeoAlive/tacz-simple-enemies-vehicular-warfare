@@ -30,7 +30,7 @@ public class PacketSetGuardPosition {
     }
 
     public PacketSetGuardPosition(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
         this.pos = buf.readBlockPos();
     }
 

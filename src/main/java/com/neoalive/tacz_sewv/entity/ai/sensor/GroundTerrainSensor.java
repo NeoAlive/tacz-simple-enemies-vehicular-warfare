@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
+import com.neoalive.tacz_sewv.util.WarnOnce;
 
 /**
  * Terrain sensing for {@link DriveVehicleGoal}: what a ground hull must not drive into. Water
@@ -561,7 +562,10 @@ public final class GroundTerrainSensor extends TerrainSensor {
             EngineInfo engine = v.getEngineInfo();
             if (engine == null) return false;
             return engine instanceof EngineInfo.Ship || engine.getBuoyancy() > 0.0;
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            WarnOnce.warn(SewvDiag.LOG, "amphibious:" + v.getId(),
+                    "Failed to read engine buoyancy for " + v.getType().getDescriptionId(), e);
+        }
         return false;
     }
 }

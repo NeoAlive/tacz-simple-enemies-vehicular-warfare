@@ -1,13 +1,21 @@
 package com.neoalive.tacz_sewv.entity.ai.goal;
 
 import java.util.EnumSet;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.ChatFormatting;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
  * Walks a unit to the vehicle it has been told to board and puts it in a seat.
@@ -34,6 +42,12 @@ public class BoardVehicleGoal extends Goal {
     private static final int MAX_BOARDING_TICKS = 200;
     /** Goal ticks between repath attempts while the path keeps coming up empty. */
     private static final int REPATH_INTERVAL = 10;
+    /** Min game ticks between cancel feedbacks to the same owner (squad cancel spam). */
+    private static final int CANCEL_FEEDBACK_COOLDOWN = 40;
+
+    private static final ConcurrentHashMap<UUID, Long> LAST_CANCEL_FEEDBACK = new ConcurrentHashMap<>();
+
+    private enum CancelReason { FULL, WRECKED, TIMEOUT, GONE }
 
     private final AbstractUnit unit;
     private VehicleEntity targetVehicle;
@@ -65,8 +79,16 @@ public class BoardVehicleGoal extends Goal {
         // The target resolved but can't be boarded (destroyed, wrecked, or full): drop the
         // order instead of leaving the boarding flag latched — otherwise the unit would
         // spontaneously walk off to board whenever a seat frees up later.
-        if (!(e instanceof VehicleEntity v) || !v.isAlive() || v.isWreck() || isFull(v)) {
-            cancelBoarding();
+        if (!(e instanceof VehicleEntity v) || !v.isAlive()) {
+            cancelBoarding(CancelReason.GONE);
+            return false;
+        }
+        if (v.isWreck()) {
+            cancelBoarding(CancelReason.WRECKED);
+            return false;
+        }
+        if (isFull(v)) {
+            cancelBoarding(CancelReason.FULL);
             return false;
         }
 
@@ -96,11 +118,11 @@ public class BoardVehicleGoal extends Goal {
 
         // Stuck in a crowd, or it can't be reached at all.
         if (++this.boardingTicks > MAX_BOARDING_TICKS) {
-            cancelBoarding();
+            cancelBoarding(CancelReason.TIMEOUT);
             return;
         }
         if (isFull(this.targetVehicle)) { // filled up while we walked over
-            cancelBoarding();
+            cancelBoarding(CancelReason.FULL);
             return;
         }
 
@@ -126,6 +148,7 @@ public class BoardVehicleGoal extends Goal {
                 boarder().tacz_sewv$setMountTargetId(-1);
                 boarder().tacz_sewv$setPassengerOnly(false);
                 this.unit.getNavigation().stop();
+                TankSpawner.maybeStockFactionBoardAmmo(this.targetVehicle, this.unit);
             }
         } else if (this.unit.getNavigation().isDone() && this.boardingTicks % REPATH_INTERVAL == 0) {
             // Throttled: an unreachable vehicle leaves navigation "done" every tick, which
@@ -142,11 +165,36 @@ public class BoardVehicleGoal extends Goal {
         this.boardingTicks = 0;
     }
 
-    private void cancelBoarding() {
+    private void cancelBoarding(CancelReason reason) {
         boarder().tacz_sewv$setBoarding(false);
         boarder().tacz_sewv$setMountTargetId(-1);
         boarder().tacz_sewv$setPassengerOnly(false);
         this.targetVehicle = null;
+        notifyOwner(reason);
+    }
+
+    private void notifyOwner(CancelReason reason) {
+        if (!(this.unit instanceof PmcUnitEntity pmc)) return;
+        UUID ownerId = pmc.getOwnerUUID();
+        if (ownerId == null) return;
+        if (!(this.unit.level() instanceof ServerLevel level)) return;
+        ServerPlayer owner = level.getServer().getPlayerList().getPlayer(ownerId);
+        if (owner == null) return;
+
+        long now = level.getGameTime();
+        Long last = LAST_CANCEL_FEEDBACK.get(ownerId);
+        if (last != null && now - last < CANCEL_FEEDBACK_COOLDOWN) return;
+        LAST_CANCEL_FEEDBACK.put(ownerId, now);
+
+        String key = switch (reason) {
+            case FULL -> "message.tacz_sewv.board.cancel.full";
+            case WRECKED -> "message.tacz_sewv.board.cancel.wrecked";
+            case TIMEOUT -> "message.tacz_sewv.board.cancel.timeout";
+            case GONE -> "message.tacz_sewv.board.cancel.gone";
+        };
+        NetworkHandler.sendOrderFeedback(owner,
+                net.minecraft.network.chat.Component.translatable(key)
+                        .withStyle(ChatFormatting.GRAY));
     }
 
     private static boolean isFull(VehicleEntity v) {

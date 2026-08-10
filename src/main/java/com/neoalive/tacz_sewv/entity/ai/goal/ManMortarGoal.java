@@ -251,6 +251,7 @@ public class ManMortarGoal extends Goal {
     }
 
     private void crewMortar() {
+        MortarSupport.stabilizeClaimed(this.mortar);
         // A live target outranks the standing fire mission: a plan to shell a grid is what
         // you work when nothing is in front of you, not while something is.
         LivingEntity target = this.unit.getTarget();

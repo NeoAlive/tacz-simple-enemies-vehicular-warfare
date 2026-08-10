@@ -43,7 +43,7 @@ public class PacketEntrench {
     }
 
     public PacketEntrench(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
         this.mode = buf.readVarInt();
         this.hitPos = buf.readBlockPos();
     }

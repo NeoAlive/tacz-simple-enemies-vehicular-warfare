@@ -4,7 +4,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -372,11 +371,7 @@ public class VehicleTargetScanGoal extends Goal {
     // parked on the ground, growing exactly as fast as the aircraft climbs, so the
     // cylinder's bottom face stays pinned to the ground where the targets are.
     private static double altitudeSlack(VehicleEntity v) {
-        try {
-            if (!(v.getEngineInfo() instanceof EngineInfo.Helicopter)) return 0.0;
-        } catch (Exception ignored) {
-            return 0.0;
-        }
+        if (!HullFacts.isHelicopterHull(v) && !HullFacts.isPlaneHull(v)) return 0.0;
         int surface = v.level().getHeight(Heightmap.Types.WORLD_SURFACE, v.getBlockX(), v.getBlockZ());
         return Math.max(0.0, v.getY() - surface);
     }

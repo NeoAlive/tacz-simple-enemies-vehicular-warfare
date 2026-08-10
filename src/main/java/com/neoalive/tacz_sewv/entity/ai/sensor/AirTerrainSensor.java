@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.entity.ai.sensor;
 
 import java.util.List;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -11,6 +10,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 
 /**
@@ -88,7 +88,7 @@ public final class AirTerrainSensor extends TerrainSensor {
     }
 
     private boolean isObstacle(VehicleEntity other) {
-        if (!(other.getEngineInfo() instanceof EngineInfo.Helicopter)) return false;
+        if (!HullFacts.isHelicopterHull(other) && !HullFacts.isPlaneHull(other)) return false;
         if (other.isWreck()) return true;
         return other.getFirstPassenger() instanceof AbstractUnit pilot
                 && VehicleTargeting.isSameFaction(this.unit, pilot);

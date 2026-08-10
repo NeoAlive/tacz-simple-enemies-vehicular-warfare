@@ -34,7 +34,7 @@ public class PacketReachGuard {
     }
 
     public PacketReachGuard(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
     }
 
     public void encode(FriendlyByteBuf buf) {

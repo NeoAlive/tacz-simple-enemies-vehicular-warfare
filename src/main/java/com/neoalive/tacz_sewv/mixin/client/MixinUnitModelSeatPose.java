@@ -13,33 +13,37 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.neoalive.tacz_sewv.client.SandbagSeatPose;
+import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
+
 /**
- * Sits a SimpleEnemyMod unit down when it rides a SuperbWarfare vehicle.
+ * Seat posing for SEM units: sandbag Bedrock pose, or vanilla riding legs on SBW vehicles.
  *
  * <p>SEM's unit models drive every limb from a {@code LayeredAnimationManager} inside
- * {@code setupAnim} (locomotion + action + procedural aim layers) and, unlike vanilla
- * {@link net.minecraft.client.model.HumanoidModel}, never consult {@code EntityModel.riding}. So a
- * mounted unit keeps running/idling in place instead of sitting. This re-applies vanilla's riding
- * leg-bend at {@code setupAnim} TAIL — after the animation manager and the procedural layers, which
- * only touch head/arms — but only while the unit is a passenger of a {@link VehicleEntity}; on-foot
- * and vanilla riding (boats, etc.) are untouched.
+ * {@code setupAnim} and never consult {@code EntityModel.riding}. Sandbag pose and vehicle
+ * sitting both apply at TAIL after that stack. Head is left alone on sandbags so look tracking
+ * stays unlocked.
  *
- * <p>Legs only. SBW does not pose its own player passengers' arms per seat either, so this matches
- * its rendering, and SEM's arm-aiming layer keeps the weapon working. {@code BedrockArmorLayer} and
- * {@code SmallArmsLayer}/{@code GunLayerRenderer} read these bones <em>after</em> {@code setupAnim},
- * so the leg/foot armor follows the seated legs with no change to those layers.
+ * <p>No dismount cleanup here, unlike the player's {@code HumanoidModel} counterpart: SEM opens
+ * every {@code setupAnim} with {@code root().getAllParts().forEach(ModelPart::resetPose)}, so a
+ * seated bone's transform cannot survive into the next frame.
  */
 @Mixin({RUunitModel.class, USunitModel.class, PmcUnitModel.class})
 public abstract class MixinUnitModelSeatPose {
 
     @Inject(method = "setupAnim", at = @At("TAIL"))
-    private void tacz_sewv$seatLegs(Entity entity, float limbSwing, float limbSwingAmount,
+    private void tacz_sewv$seatPose(Entity entity, float limbSwing, float limbSwingAmount,
                                     float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo ci) {
-        if (!(entity.getVehicle() instanceof VehicleEntity)) return;
-
         ModelPart root = ((HierarchicalModel<?>) (Object) this).root();
         if (!root.hasChild("unit")) return;
         ModelPart unit = root.getChild("unit");
+
+        if (entity.getVehicle() instanceof SandbagSeatEntity) {
+            SandbagSeatPose.applyToUnit(unit);
+            return;
+        }
+
+        if (!(entity.getVehicle() instanceof VehicleEntity)) return;
 
         // Vanilla HumanoidModel's riding leg-bend.
         tacz_sewv$setLeg(unit, "rightLeg", -1.4137167F, 0.31415927F, 0.07853982F);

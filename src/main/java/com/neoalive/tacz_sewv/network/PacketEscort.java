@@ -31,7 +31,7 @@ public class PacketEscort {
     }
 
     public PacketEscort(FriendlyByteBuf buf) {
-        this.unitIds = buf.readList(FriendlyByteBuf::readVarInt);
+        this.unitIds = PacketLists.readUnitIds(buf);
         this.targetEntityId = buf.readVarInt();
     }
 

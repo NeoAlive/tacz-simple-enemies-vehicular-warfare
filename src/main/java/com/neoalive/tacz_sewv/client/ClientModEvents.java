@@ -2,11 +2,13 @@ package com.neoalive.tacz_sewv.client;
 
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
@@ -64,7 +66,13 @@ public class ClientModEvents {
     }
 
     @SubscribeEvent
+    public static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(new SandbagSeatPose.Loader());
+    }
+
+    @SubscribeEvent
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerEntityRenderer(ModEntities.SANDBAG_SEAT.get(), NoopRenderer::new);
         event.registerEntityRenderer(ModEntities.RU_MEDIC.get(), ctx -> new RuSupportRenderer(ctx, RU_MEDIC_SKIN));
         event.registerEntityRenderer(ModEntities.US_MEDIC.get(), ctx -> new UsSupportRenderer(ctx, US_MEDIC_SKIN));
         event.registerEntityRenderer(ModEntities.RU_ENGINEER.get(), ctx -> new RuSupportRenderer(ctx, RU_ENGINEER_SKIN));

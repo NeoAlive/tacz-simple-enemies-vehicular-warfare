@@ -38,26 +38,18 @@ import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
  * Directional sandbag fighting position. Right-click mounts a living entity onto an
  * invisible seat ({@link #tryMount} is shared with AI).
  *
- * <p>Collision is a hollow U (same contract as {@link TrenchBlock}/{@link FoxholeBlock}): open
- * interior so units fall to the block floor, {@link PathComputationType#LAND} so infantry
- * pathfind in, and {@link TrenchPathTypes#TRENCH} so they prefer it over open ground.
+ * <p>Collision is a single AABB covering the whole berm (model root extents in the north pose),
+ * rotated with {@code FACING} — one box instead of a per-brick union. The hollow is not
+ * preserved in collision (performance); {@link PathComputationType#LAND} +
+ * {@link TrenchPathTypes#TRENCH} still let infantry path in.
  */
 public class SandbagBlock extends BaseEntityBlock {
 
     public static final net.minecraft.world.level.block.state.properties.DirectionProperty FACING =
             HorizontalDirectionalBlock.FACING;
 
-    /** Outline / pick — full footprint so the crescent is easy to click. */
-    private static final VoxelShape OUTLINE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 10.0D, 16.0D);
-
-    /**
-     * Model-space U for {@code facing=north}: bags on the north rim, open to the south.
-     * Other facings are {@link #rotateShape}-d copies.
-     */
-    private static final VoxelShape COLLISION_NORTH = Shapes.or(
-            Block.box(0.0D, 0.0D, 0.0D, 16.0D, 10.0D, 4.0D),
-            Block.box(0.0D, 0.0D, 0.0D, 4.0D, 10.0D, 12.0D),
-            Block.box(12.0D, 0.0D, 0.0D, 16.0D, 10.0D, 12.0D));
+    /** Model root extents (px): X −7…23, Y 0…10, Z −2…13. */
+    private static final VoxelShape COLLISION_NORTH = Block.box(-7.0D, 0.0D, -2.0D, 23.0D, 10.0D, 13.0D);
     private static final VoxelShape COLLISION_EAST = rotateShape(COLLISION_NORTH, Direction.EAST);
     private static final VoxelShape COLLISION_SOUTH = rotateShape(COLLISION_NORTH, Direction.SOUTH);
     private static final VoxelShape COLLISION_WEST = rotateShape(COLLISION_NORTH, Direction.WEST);
@@ -65,7 +57,7 @@ public class SandbagBlock extends BaseEntityBlock {
     public SandbagBlock() {
         super(BlockBehaviour.Properties.of()
                 .mapColor(MapColor.SAND)
-                .strength(10.0f, 20.0f)
+                .strength(0.5f, 6.0f)
                 .sound(SoundType.SAND)
                 .noOcclusion());
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
@@ -127,7 +119,7 @@ public class SandbagBlock extends BaseEntityBlock {
     @Override
     @SuppressWarnings("deprecation")
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
-        return OUTLINE;
+        return collisionFor(state.getValue(FACING));
     }
 
     @Override

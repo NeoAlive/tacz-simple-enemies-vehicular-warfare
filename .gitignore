@@ -21,11 +21,15 @@ scratchpad_sem/
 # Minecraft
 run/
 runs/
+run-data/
 docs/
 run-client-a/
 run-client-b/
 logs/
 run-server-dev/
+
+# Accidental decompiled / extracted classes
+net/
 
 # Generated files
 out/

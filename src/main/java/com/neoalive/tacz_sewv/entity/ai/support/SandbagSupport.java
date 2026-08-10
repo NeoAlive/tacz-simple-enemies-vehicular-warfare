@@ -12,15 +12,14 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.block.SandbagBlock;
 import com.neoalive.tacz_sewv.block.SandbagBlockEntity;
-import com.neoalive.tacz_sewv.bridge.IEntrenched;
 import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
 
 /**
  * Sandbag fighting-position helpers for ENTRENCHED assign / seek / tick.
  *
- * <p>A seat is taken when someone is riding it <em>or</em> another unit already holds an
- * ENTRENCHED claim on that block — soft reservation so two crews cannot both walk the same
- * single-seat bag.
+ * <p>A seat is taken when someone is riding it <em>or</em> another unit holds the soft claim
+ * UUID on the {@link SandbagBlockEntity} — so two crews cannot both walk the same single-seat
+ * bag without a world entity scan.
  */
 public final class SandbagSupport {
 
@@ -35,15 +34,15 @@ public final class SandbagSupport {
     }
 
     /**
-     * True when nobody is seated, nobody else is ENTRENCHED on this bag, or {@code self}
+     * True when nobody is seated, nobody else holds the BE claim, or {@code self}
      * already owns the seat / claim.
      */
     public static boolean isSeatAvailable(ServerLevel level, BlockPos pos, @Nullable LivingEntity self) {
         if (!isSandbag(level, pos)) return false;
         LivingEntity occupant = occupantOf(level, pos);
         if (occupant != null && occupant != self) return false;
-        AbstractUnit claimant = claimantOf(level, pos);
-        return claimant == null || claimant == self;
+        if (!(level.getBlockEntity(pos) instanceof SandbagBlockEntity be)) return false;
+        return be.isClaimAvailable(self);
     }
 
     @Nullable
@@ -54,21 +53,16 @@ public final class SandbagSupport {
         return first instanceof LivingEntity living ? living : null;
     }
 
-    /**
-     * Another unit already tasked to this bag (walking in or seated), or null.
-     * Soft claim — physical seat may still be empty.
-     */
-    @Nullable
-    public static AbstractUnit claimantOf(ServerLevel level, BlockPos pos) {
-        AABB box = new AABB(pos).inflate(48.0D);
-        for (AbstractUnit unit : level.getEntitiesOfClass(AbstractUnit.class, box)) {
-            if (!(unit instanceof IEntrenched entrenched) || !entrenched.sewv$isEntrenched()) {
-                continue;
-            }
-            BlockPos cell = entrenched.sewv$getEntrenchCell();
-            if (pos.equals(cell)) return unit;
+    public static void setClaimant(ServerLevel level, BlockPos pos, @Nullable LivingEntity unit) {
+        if (level.getBlockEntity(pos) instanceof SandbagBlockEntity be) {
+            be.setClaimant(unit);
         }
-        return null;
+    }
+
+    public static void clearClaimantIf(ServerLevel level, BlockPos pos, @Nullable LivingEntity unit) {
+        if (level.getBlockEntity(pos) instanceof SandbagBlockEntity be) {
+            be.clearClaimantIf(unit);
+        }
     }
 
     public static boolean isRidingThis(LivingEntity rider, BlockPos sandbag) {

@@ -41,8 +41,9 @@ import com.neoalive.tacz_sewv.TaczSewv;
  * bind pose also makes this a true override of SEM's animation stack, which writes the same
  * bones (its walk clip animates {@code unit} and {@code body}) right up to our injection point.
  *
- * <p>{@code head} is deliberately never rotated, so SEM's head-tracking layer and the player's
- * own look stay in charge; it only inherits the rig-wide translation.
+ * <p>{@code head} and both arms are deliberately never posed: head keeps look tracking, arms keep
+ * aim / fire (SEM rifle goal, held-item layers). On humanoids they still inherit the rig-wide
+ * translation so they do not detach from the sunk torso.
  */
 public final class SandbagSeatPose {
 
@@ -97,8 +98,9 @@ public final class SandbagSeatPose {
 
         pose(head, null, root);
         pose(body, snapshot.get("body"), root);
-        pose(rightArm, snapshot.get("rightArm"), root);
-        pose(leftArm, snapshot.get("leftArm"), root);
+        // Arms: root sink only — clip rotations would lock aiming.
+        pose(rightArm, null, root);
+        pose(leftArm, null, root);
         pose(rightLeg, snapshot.get("rightLeg"), root);
         pose(leftLeg, snapshot.get("leftLeg"), root);
         hat.copyFrom(head);
@@ -202,8 +204,11 @@ public final class SandbagSeatPose {
                 Map<String, Bone> out = new HashMap<>();
                 for (Map.Entry<String, JsonElement> e : boneObj.entrySet()) {
                     String name = e.getKey();
-                    // Head rotation belongs to look tracking; it only follows the rig translation.
-                    if ("head".equals(name) || "hat".equals(name)) continue;
+                    // Head = look; arms = aim/fire. Clip entries for them are ignored.
+                    if ("head".equals(name) || "hat".equals(name)
+                            || "rightArm".equals(name) || "leftArm".equals(name)) {
+                        continue;
+                    }
                     Bone bone = Bone.fromJson(e.getValue().getAsJsonObject());
                     if (bone != null) out.put(name, bone);
                 }

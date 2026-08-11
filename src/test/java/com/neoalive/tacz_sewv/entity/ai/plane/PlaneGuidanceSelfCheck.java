@@ -22,6 +22,7 @@ public final class PlaneGuidanceSelfCheck {
         checkIntercept();
         checkGunLine();
         checkFireCone();
+        checkConeFloorStillHits();
         checkBallisticLead();
         checkOrbit();
         checkApproachAxis();
@@ -111,6 +112,31 @@ public final class PlaneGuidanceSelfCheck {
         // horizon): unreadable gun data has to degrade to the bounds.
         assert PlaneNav.fireConeDeg(0.0, 100.0, min, max) >= min : "zero blast must floor, not zero";
         assert PlaneNav.fireConeDeg(1000.0, 1.0, min, max) <= max : "huge blast must respect the cap";
+    }
+
+    /**
+     * The cone is only worth having if the shot it permits still lands, and at the shipped floor
+     * it does. This is the invariant an eight-degree floor broke: raised to make reluctant planes
+     * shoot, it let an A-10 open up from 96 blocks and miss by thirteen against a four-block blast,
+     * because the miss a given angle buys grows with range while a floor does not. The floor may
+     * only ever be a guard against demanding sub-degree accuracy at absurd range.
+     */
+    private static void checkConeFloorStillHits() {
+        double floor = 2.0;   // SewvConfig.PLANE_MIN_CONE_DEG default
+        double ceiling = 12.0; // SewvConfig.PLANE_GUN_CONE_DEG default
+        double lethal = 4.0;   // A-10 cannon ExplosionRadius
+
+        for (double range = 10.0; range <= 96.0; range += 2.0) {
+            double cone = PlaneNav.fireConeDeg(lethal, range, floor, ceiling);
+            double miss = range * Math.tan(Math.toRadians(cone));
+            assert miss <= lethal + EPS
+                    : "cone permits a miss outside the blast at " + range + ": " + miss;
+        }
+
+        // And the floor genuinely does not bind anywhere a plane engages, so geometry is what
+        // governs. If this fails the floor has been raised into the engagement band again.
+        assert PlaneNav.fireConeDeg(lethal, 96.0, floor, ceiling) > floor
+                : "the floor must not be the gate at the engage radius";
     }
 
     /**

@@ -311,6 +311,55 @@ public final class PlaneNav {
         return groundSpeed * Math.sqrt(2.0 * releaseHeight / gravity);
     }
 
+    /** Where a released store comes down, and how many ticks it takes to get there. */
+    public record Impact(int ticks, double x, double z) {}
+
+    /**
+     * Step a free-fall store from release to the altitude it is aimed at.
+     *
+     * <p>Stepped rather than solved in closed form, and in exactly the game's own order — advance
+     * by the current velocity, <em>then</em> apply gravity — because that is what SBW's projectile
+     * tick does and the two disagree by half a tick of travel, which is a block or three at jet
+     * speed. Drag is deliberately absent: {@code FastThrowableProjectile} adds gravity back, undoes
+     * vanilla's 0.99 friction by scaling by its reciprocal, then re-applies gravity, so the net
+     * per-tick effect is pure gravity and a drag term here would be modelling a force the store
+     * does not feel.
+     *
+     * @param releaseVel the store's initial velocity — for an SBW delta-movement store, the hull's
+     *                   own velocity scaled by the weapon's {@code Velocity}
+     * @return null when the store does not arrive within {@code maxTicks}, which is the honest
+     *         answer for a release off a climb: it does come down, but not anywhere worth aiming
+     */
+    public static Impact freefallImpact(Vec3 releasePos, Vec3 releaseVel, double gravity,
+                                        double impactY, int maxTicks) {
+        double x = releasePos.x;
+        double y = releasePos.y;
+        double z = releasePos.z;
+        double vy = releaseVel.y;
+        for (int t = 1; t <= maxTicks; t++) {
+            x += releaseVel.x;
+            y += vy;
+            z += releaseVel.z;
+            vy -= gravity;
+            if (y <= impactY) return new Impact(t, x, z);
+        }
+        return null;
+    }
+
+    /**
+     * Where something moving at {@code vel} will be in {@code ticks} — the aim point a store with
+     * a flight time has to be thrown at, rather than where the target is at release.
+     *
+     * <p>Only the horizontal components are carried. A bomb is aimed at a place on the ground and
+     * arrives when it reaches that ground's altitude; projecting the target's vertical velocity
+     * would move the aim point up or down a slope it is already following.
+     */
+    public static Vec3 leadPoint(Vec3 targetPos, Vec3 targetVel, double ticks) {
+        if (!(ticks > 0.0)) return targetPos;
+        return new Vec3(targetPos.x + targetVel.x * ticks, targetPos.y,
+                targetPos.z + targetVel.z * ticks);
+    }
+
     /**
      * Rotate a horizontal unit vector about the vertical axis. Local copy of the shared helper so
      * this class stays pure and self-checkable without dragging in the targeting core.

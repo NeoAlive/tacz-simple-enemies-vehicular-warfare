@@ -24,6 +24,7 @@ public final class PlaneGuidanceSelfCheck {
         checkFireCone();
         checkConeFloorStillHits();
         checkBallisticLead();
+        checkBombLead();
         checkOrbit();
         checkApproachAxis();
         checkLandingPredicates();
@@ -120,13 +121,20 @@ public final class PlaneGuidanceSelfCheck {
      * shoot, it let an A-10 open up from 96 blocks and miss by thirteen against a four-block blast,
      * because the miss a given angle buys grows with range while a floor does not. The floor may
      * only ever be a guard against demanding sub-degree accuracy at absurd range.
+     *
+     * <p>Swept to the <b>engage radius</b>, not to a fixed distance, because the floor is only
+     * harmless relative to how far out the aircraft is allowed to shoot from. Widening the bubble
+     * is therefore a change to this invariant even though it touches nothing in this file — which
+     * is exactly how a 2-degree floor that had been safe for a 96-block bubble became a 13-block
+     * miss when the bubble grew to 384.
      */
     private static void checkConeFloorStillHits() {
-        double floor = 2.0;   // SewvConfig.PLANE_MIN_CONE_DEG default
+        double floor = 0.5;    // SewvConfig.PLANE_MIN_CONE_DEG default
         double ceiling = 12.0; // SewvConfig.PLANE_GUN_CONE_DEG default
         double lethal = 4.0;   // A-10 cannon ExplosionRadius
+        double engage = 384.0; // SewvConfig.PLANE_ENGAGE_RADIUS default
 
-        for (double range = 10.0; range <= 96.0; range += 2.0) {
+        for (double range = 10.0; range <= engage; range += 2.0) {
             double cone = PlaneNav.fireConeDeg(lethal, range, floor, ceiling);
             double miss = range * Math.tan(Math.toRadians(cone));
             assert miss <= lethal + EPS
@@ -134,8 +142,9 @@ public final class PlaneGuidanceSelfCheck {
         }
 
         // And the floor genuinely does not bind anywhere a plane engages, so geometry is what
-        // governs. If this fails the floor has been raised into the engagement band again.
-        assert PlaneNav.fireConeDeg(lethal, 96.0, floor, ceiling) > floor
+        // governs. If this fails the floor has been raised into the engagement band again, or the
+        // band has been widened out past the floor.
+        assert PlaneNav.fireConeDeg(lethal, engage, floor, ceiling) > floor
                 : "the floor must not be the gate at the engage radius";
     }
 
@@ -163,6 +172,51 @@ public final class PlaneGuidanceSelfCheck {
         assert PlaneNav.ballisticLead(0.0, 2.0, 0.06) == 0.0 : "no height, no lead";
         assert PlaneNav.ballisticLead(40.0, 0.0, 0.06) == 0.0 : "no speed, no lead";
         assert PlaneNav.ballisticLead(40.0, 2.0, 0.0) == 0.0 : "no gravity, no lead";
+    }
+
+    /**
+     * The bomb's time of fall and the lead it buys. Pinned because getting the lead wrong is the
+     * one bombing error that <em>looks</em> like everything working: the run is flown, the release
+     * fires, the bomb lands neatly — just behind whatever it was aimed at, by an amount nobody can
+     * eyeball because it is the target's speed times a fall time nobody sees.
+     */
+    private static void checkBombLead() {
+        Vec3 release = new Vec3(0.0, 80.0, 0.0);
+        Vec3 level = new Vec3(0.0, 0.0, 2.5); // level run, 2.5 blocks/tick
+
+        PlaneNav.Impact hit = PlaneNav.freefallImpact(release, level, 0.06, 0.0, 200);
+        assert hit != null : "a level release from 80 blocks must come down";
+
+        // Stepped, so it agrees with the closed form to within the half-tick the two conventions
+        // differ by — but never exactly, and asserting equality here would be asserting that the
+        // game integrates continuously, which is the error this function exists to avoid.
+        double closedForm = Math.sqrt(2.0 * 80.0 / 0.06);
+        assert Math.abs(hit.ticks() - closedForm) < 1.5
+                : "stepped fall time must track the closed form: " + hit.ticks() + " vs " + closedForm;
+        assert Math.abs(hit.z() - hit.ticks() * 2.5) < EPS : "horizontal travel is speed x fall time";
+        assert Math.abs(hit.x()) < EPS : "a straight run must not drift sideways";
+
+        // Higher is longer, which is the whole reason the lead grew when the envelope did.
+        PlaneNav.Impact high = PlaneNav.freefallImpact(new Vec3(0.0, 160.0, 0.0), level, 0.06,
+                0.0, 200);
+        assert high != null && high.ticks() > hit.ticks() : "a higher release must fall longer";
+
+        // Released off a climb steep enough never to come down inside the window: answer null
+        // rather than a bogus impact far away, so the release is held instead of thrown away.
+        assert PlaneNav.freefallImpact(release, new Vec3(0.0, 4.0, 2.5), 0.06, 0.0, 20) == null
+                : "a store that has not landed yet must not report an impact";
+
+        // The lead itself. A target crossing at 0.15 blocks/tick — an ordinary tank — is displaced
+        // by more than the release tolerance over this fall, which is exactly why it is not
+        // optional: at 52 ticks that is nearly 8 blocks against a ~7-block window.
+        Vec3 mover = new Vec3(0.15, 0.0, 0.0);
+        Vec3 led = PlaneNav.leadPoint(new Vec3(100.0, 64.0, 0.0), mover, hit.ticks());
+        assert led.x - 100.0 > 7.0 : "a moving target must be led further than the release window";
+        assert Math.abs(led.y - 64.0) < EPS : "the lead must not move the aim point vertically";
+
+        // A parked target is aimed at exactly, with no offset invented for it.
+        Vec3 still = PlaneNav.leadPoint(new Vec3(100.0, 64.0, 0.0), Vec3.ZERO, hit.ticks());
+        assert still.distanceTo(new Vec3(100.0, 64.0, 0.0)) < EPS : "a still target gets no lead";
     }
 
     private static void checkIntercept() {

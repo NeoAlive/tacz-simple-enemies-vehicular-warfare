@@ -21,7 +21,9 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -441,7 +443,8 @@ public class DrivePlaneGoal extends Goal {
         this.weapons.setMode(pilot != null ? pilot.sewv$getPlaneAttackMode() : PlaneAttackMode.AUTO);
 
         LivingEntity target = resolveCombatTarget();
-        PlaneMode next = chooseMode(pilot, target, now);
+        Vec3 mark = target == null ? resolveStrikeMark() : null;
+        PlaneMode next = chooseMode(pilot, target, mark, now);
         if (next != this.mode) {
             onModeChange(this.mode, next, target);
             this.mode = next;
@@ -464,8 +467,19 @@ public class DrivePlaneGoal extends Goal {
             case LAND_PATTERN -> landPattern(pilot);
             case LAND_FINAL -> landFinal(pilot);
             case RTB -> returnToAnchor();
-            case INGRESS -> ingress(target);
-            case ATTACK -> attack(target);
+            case INGRESS -> {
+                if (target != null) ingress(target);
+                else if (mark != null) ingressMark(mark);
+                else hold();
+            }
+            case ATTACK -> {
+                if (target != null) attack(target);
+                else if (mark != null) attackMark(mark);
+                else {
+                    this.mode = PlaneMode.HOLD;
+                    hold();
+                }
+            }
             case BREAK -> breakOff(target);
             case CRUISE -> cruise();
             case HOLD -> hold();
@@ -480,7 +494,7 @@ public class DrivePlaneGoal extends Goal {
      * could both believe they owned the aircraft.
      */
     private PlaneMode chooseMode(@Nullable IHelicopterPilot pilot, @Nullable LivingEntity target,
-                                 long now) {
+                                 @Nullable Vec3 mark, long now) {
         int command = pilot != null ? pilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
 
         // Ordered to land: nothing outranks it, and the order is re-asserted every tick so no
@@ -535,6 +549,14 @@ public class DrivePlaneGoal extends Goal {
             return combatMode(target, now);
         }
 
+        if (mark != null) {
+            if (tether == PlaneLeash.State.RECALL) {
+                if (this.mode == PlaneMode.ATTACK) return PlaneMode.ATTACK;
+                return PlaneMode.RTB;
+            }
+            return combatModeMark(mark, now);
+        }
+
         resetRun();
         if (tether == PlaneLeash.State.RECALL) return PlaneMode.RTB;
         return destination() != null ? PlaneMode.CRUISE : PlaneMode.HOLD;
@@ -583,6 +605,32 @@ public class DrivePlaneGoal extends Goal {
         return PlaneMode.ATTACK;
     }
 
+    /** Grid-mark combat cycle — same geometry as {@link #combatMode}, static aim. */
+    private PlaneMode combatModeMark(Vec3 mark, long now) {
+        if (this.mode == PlaneMode.ATTACK || this.mode == PlaneMode.BREAK) return this.mode;
+
+        double dx = mark.x - this.vehicle.getX();
+        double dz = mark.z - this.vehicle.getZ();
+        double dist = Math.sqrt(dx * dx + dz * dz);
+        this.weapons.ensureSelectedMark(dist);
+        if (dist > engageRange(mark)) {
+            this.runInDirX = Double.NaN;
+            this.runInDirZ = Double.NaN;
+            return PlaneMode.INGRESS;
+        }
+
+        Vec3 dir = dist > 1.0E-4 ? new Vec3(dx / dist, 0, dz / dist) : this.kinematics.forwardFlat();
+        if (!establishedForRun(mark, dir)) {
+            return PlaneMode.INGRESS;
+        }
+        if (!runWouldBeSafe(mark, dir)) {
+            return PlaneMode.INGRESS;
+        }
+        this.runInDirX = Double.NaN;
+        this.runInDirZ = Double.NaN;
+        return PlaneMode.ATTACK;
+    }
+
     /**
      * How far out the attack run has to begin — the engage bubble for a weapon that is aimed, and
      * the ballistic release distance plus room to settle for one that is dropped.
@@ -596,9 +644,17 @@ public class DrivePlaneGoal extends Goal {
      * were long. That is the reported "it drops after it has flown over".
      */
     private double engageRange(LivingEntity target) {
+        return engageRangeAt(target.getY(), runAltitude(target));
+    }
+
+    private double engageRange(Vec3 mark) {
+        return engageRangeAt(mark.y, runAltitude(mark));
+    }
+
+    private double engageRangeAt(double groundY, double runY) {
         double base = SewvConfig.PLANE_ENGAGE_RADIUS.get();
         if (!this.weapons.hasBombSelected()) return base;
-        double release = this.weapons.bombReleaseRange(runAltitude(target) - target.getY());
+        double release = this.weapons.bombReleaseRange(runY - groundY);
         return Math.max(base, release + BOMB_RELEASE_MARGIN);
     }
 
@@ -606,6 +662,11 @@ public class DrivePlaneGoal extends Goal {
     private double runLengthLimit(LivingEntity target) {
         return Math.max(SewvConfig.PLANE_ATTACK_RUN_LENGTH.get(),
                 engageRange(target) + OVERFLY_MARGIN);
+    }
+
+    private double runLengthLimit(Vec3 mark) {
+        return Math.max(SewvConfig.PLANE_ATTACK_RUN_LENGTH.get(),
+                engageRange(mark) + OVERFLY_MARGIN);
     }
 
     /**
@@ -618,6 +679,14 @@ public class DrivePlaneGoal extends Goal {
      * pointing away from the target and the aircraft arrives there facing the wrong way.
      */
     private boolean establishedForRun(LivingEntity target, Vec3 bearing) {
+        return establishedForRun(bearing);
+    }
+
+    private boolean establishedForRun(Vec3 mark, Vec3 bearing) {
+        return establishedForRun(bearing);
+    }
+
+    private boolean establishedForRun(Vec3 bearing) {
         if (PlaneNav.headingErrorDeg(this.kinematics.forwardFlat(), bearing) <= RUN_ALIGN_DEG) {
             return true;
         }
@@ -633,6 +702,7 @@ public class DrivePlaneGoal extends Goal {
         if (to == PlaneMode.ATTACK && target != null) {
             startRun(target);
         }
+        // Mark runs start lazily in attackMark (same as a late startRun).
         if (from == PlaneMode.ATTACK) {
             resetRun();
         }
@@ -673,6 +743,22 @@ public class DrivePlaneGoal extends Goal {
             inheritTarget(this.cachedAllyUnit);
         }
         return this.unit.getTarget();
+    }
+
+    /**
+     * Standing radio grid mark ({@link FireMission}), or null. Live targets outrank it — see
+     * {@link #resolveCombatTarget}.
+     */
+    @Nullable
+    private Vec3 resolveStrikeMark() {
+        if (!(this.unit instanceof IMortarCrew crew)) return null;
+        FireMission mission = crew.sewv$getFireMission();
+        if (mission == null) return null;
+        if (mission.isExpired(this.unit.level().getGameTime())) {
+            crew.sewv$setFireMission(null);
+            return null;
+        }
+        return Vec3.atCenterOf(mission.pos());
     }
 
     /** One ally scan per tick, shared by target inheritance, the destination and the leash. */
@@ -1131,6 +1217,97 @@ public class DrivePlaneGoal extends Goal {
         this.weapons.fire(target, aim);
     }
 
+    /** Ingress toward a radio grid mark. Prefers bombs; guns have nothing to lock. */
+    private void ingressMark(Vec3 mark) {
+        double dx = mark.x - this.vehicle.getX();
+        double dz = mark.z - this.vehicle.getZ();
+        double dist = Math.sqrt(dx * dx + dz * dz);
+        this.weapons.ensureSelectedMark(dist);
+        double approachY = runAltitude(mark);
+        if (!Double.isNaN(this.runInDirX) && dist < engageRange(mark)) {
+            double out = engageRange(mark) * 2.0;
+            flyToward(this.vehicle.getX() + this.runInDirX * out,
+                    this.vehicle.getZ() + this.runInDirZ * out, approachY,
+                    INGRESS_DIVE_PITCH_DEG);
+        } else if (dist < engageRange(mark)) {
+            holdAbout(new Vec3(mark.x, 0.0, mark.z), approachY);
+        } else {
+            flyToward(mark.x, mark.z, approachY, INGRESS_DIVE_PITCH_DEG);
+        }
+    }
+
+    private void startRunMark(Vec3 mark) {
+        Vec3 toT = new Vec3(mark.x - this.vehicle.getX(), 0, mark.z - this.vehicle.getZ());
+        Vec3 dir = toT.lengthSqr() > 1.0E-6 ? toT.normalize() : this.kinematics.forwardFlat();
+        this.runDirX = dir.x;
+        this.runDirZ = dir.z;
+        this.runStartX = this.vehicle.getX();
+        this.runStartZ = this.vehicle.getZ();
+        this.runY = runAltitude(mark);
+        this.weapons.beginRunMark(toT.length());
+    }
+
+    private void attackMark(Vec3 mark) {
+        if (Double.isNaN(this.runDirX)) startRunMark(mark);
+
+        this.control.throttleUp();
+
+        double gx = this.vehicle.getX();
+        double gz = this.vehicle.getZ();
+        double distFromStart = Math.hypot(gx - this.runStartX, gz - this.runStartZ);
+
+        double planeAlong = (gx - this.runStartX) * this.runDirX
+                + (gz - this.runStartZ) * this.runDirZ;
+        double targetAlong = (mark.x - this.runStartX) * this.runDirX
+                + (mark.z - this.runStartZ) * this.runDirZ;
+        boolean passedTarget = planeAlong > targetAlong + OVERFLY_MARGIN;
+
+        int groundRef = Math.max(this.kinematics.surfaceBelow(),
+                PlaneTerrain.ridgeToward(this.vehicle, gx + this.runDirX * 24.0,
+                        gz + this.runDirZ * 24.0, TERRAIN_LOOKAHEAD));
+        double clearance = this.vehicle.getY() - groundRef;
+        double pullupTrigger = MIN_ATTACK_CLEARANCE + this.kinematics.sinkRate() * PULLUP_LEAD_TICKS;
+
+        if (passedTarget || clearance <= pullupTrigger
+                || distFromStart >= runLengthLimit(mark)) {
+            this.mode = PlaneMode.BREAK;
+            resetRun();
+            this.control.holdHeading();
+            this.control.commandPitch(climbPitch());
+            return;
+        }
+
+        this.weapons.arm();
+        // Grid marks are area fires — bombs only. Guns / guided need a living lock.
+        if (this.weapons.hasBombSelected()) {
+            bombRunMark(mark);
+            return;
+        }
+        // No bomb aboard: hold the line and overfly rather than invent a gun lock on dirt.
+        this.control.steerYaw(new Vec3(this.runDirX, 0.0, this.runDirZ));
+        this.control.holdAltitude(runAltitude(mark));
+    }
+
+    private void bombRunMark(Vec3 mark) {
+        Vec3 axis = new Vec3(this.runDirX, 0.0, this.runDirZ);
+        Vec3 aim = this.weapons.bombGroundAim(mark);
+        double along = PlaneNav.alongTrack(aim.x - this.vehicle.getX(),
+                aim.z - this.vehicle.getZ(), axis);
+
+        if (along > BOMB_TRACK_MIN_PURSUIT) {
+            Vec3 carrot = PlaneNav.approachCarrot(aim.x, aim.z, axis, along, BOMB_TRACK_LOOKAHEAD);
+            this.control.steerYaw(new Vec3(carrot.x - this.vehicle.getX(), 0.0,
+                    carrot.z - this.vehicle.getZ()));
+        } else {
+            this.control.steerYaw(axis);
+        }
+        double runY = runAltitude(mark);
+        this.control.holdAltitude(runY);
+        this.control.airbrake(!this.weapons.stickComplete()
+                && this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
+        this.weapons.releaseBombIfOnTarget(aim, this.kinematics.forwardFlat(), runY);
+    }
+
     /**
      * Level bombing pass. There is no aiming here in the pointing sense — a free-fall store is
      * aimed by <em>when</em> it leaves the aircraft, which {@code releaseBombIfOnTarget} solves
@@ -1261,11 +1438,18 @@ public class DrivePlaneGoal extends Goal {
 
     /** Would the run along {@code dir} clear the ground all the way in? */
     private boolean runWouldBeSafe(LivingEntity target, Vec3 dir) {
+        return runWouldBeSafeAt(target.getX(), target.getZ(), runFloorY(target), dir);
+    }
+
+    private boolean runWouldBeSafe(Vec3 mark, Vec3 dir) {
+        return runWouldBeSafeAt(mark.x, mark.z, runFloorY(mark), dir);
+    }
+
+    private boolean runWouldBeSafeAt(double tx, double tz, double floorY, Vec3 dir) {
         double runLength = Math.min(SewvConfig.PLANE_ATTACK_RUN_LENGTH.get(),
-                Math.hypot(target.getX() - this.vehicle.getX(),
-                        target.getZ() - this.vehicle.getZ()) + OVERFLY_MARGIN);
+                Math.hypot(tx - this.vehicle.getX(), tz - this.vehicle.getZ()) + OVERFLY_MARGIN);
         return PlaneTerrain.diveSafe(this.unit.level(), this.vehicle.getX(), this.vehicle.getY(),
-                this.vehicle.getZ(), dir, runLength, runFloorY(target), DIVE_PATH_CLEARANCE);
+                this.vehicle.getZ(), dir, runLength, floorY, DIVE_PATH_CLEARANCE);
     }
 
     /**
@@ -1277,7 +1461,12 @@ public class DrivePlaneGoal extends Goal {
      */
     private double runFloorY(LivingEntity target) {
         if (this.weapons.levelDelivery()) return runAltitude(target);
-        return Math.max(groundAt(target) + MIN_ATTACK_CLEARANCE, target.getY());
+        return Math.max(groundAt(target.getX(), target.getZ()) + MIN_ATTACK_CLEARANCE, target.getY());
+    }
+
+    private double runFloorY(Vec3 mark) {
+        if (this.weapons.levelDelivery()) return runAltitude(mark);
+        return Math.max(groundAt(mark.x, mark.z) + MIN_ATTACK_CLEARANCE, mark.y);
     }
 
     /**
@@ -1291,26 +1480,31 @@ public class DrivePlaneGoal extends Goal {
      * the ground, and the ceiling is the roll-in height a strafing pass wants.
      */
     private double runAltitude(LivingEntity target) {
+        return runAltitudeAt(target.getX(), target.getY(), target.getZ());
+    }
+
+    private double runAltitude(Vec3 mark) {
+        return runAltitudeAt(mark.x, mark.y, mark.z);
+    }
+
+    private double runAltitudeAt(double tx, double ty, double tz) {
         if (!Double.isNaN(this.runY)) return this.runY;
         double geometric = Math.tan(Math.toRadians(deliveryPitchLimit()))
                 * SewvConfig.PLANE_ENGAGE_RADIUS.get();
         double agl = Mth.clamp(geometric, MIN_RUN_AGL, ATTACK_ENTRY_AGL);
-        double planned = Math.max(groundAt(target) + agl, target.getY() + MIN_OVER_DEST);
-        // The same terrain floor the approach is flown at, because otherwise the two disagree and
-        // the run spends itself undoing the approach. Ingress holds 80 blocks over the HIGHEST
-        // ground on the way in, which over anything but a plain is well above the target's own
-        // ground — so a run altitude derived from the target alone commands a descent the moment
-        // the run starts, and the aircraft arrives nose-down and still descending at the release
-        // point. That is the "slight nosedive and flies on": not a refusal to bomb, an aircraft
-        // that was never on its bombing profile to begin with.
-        double enRoute = AirframeSupport.highestGroundToward(this.vehicle, target.getX(),
-                target.getZ(), TERRAIN_LOOKAHEAD) + MIN_INGRESS_CLEARANCE;
+        double planned = Math.max(groundAt(tx, tz) + agl, ty + MIN_OVER_DEST);
+        double enRoute = AirframeSupport.highestGroundToward(this.vehicle, tx, tz, TERRAIN_LOOKAHEAD)
+                + MIN_INGRESS_CLEARANCE;
         return Math.max(planned, enRoute);
     }
 
     private int groundAt(LivingEntity target) {
+        return groundAt(target.getX(), target.getZ());
+    }
+
+    private int groundAt(double x, double z) {
         return this.unit.level().getHeight(Heightmap.Types.WORLD_SURFACE,
-                Mth.floor(target.getX()), Mth.floor(target.getZ()));
+                Mth.floor(x), Mth.floor(z));
     }
 
     // --- Landing -------------------------------------------------------------------------------

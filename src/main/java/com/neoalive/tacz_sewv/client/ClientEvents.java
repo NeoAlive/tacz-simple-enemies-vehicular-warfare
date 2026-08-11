@@ -10,9 +10,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
@@ -25,13 +28,17 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.client.util.CommanderRayTrace;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.init.ModItems;
+import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.item.RadioSettings;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketEntrench;
 import com.neoalive.tacz_sewv.network.PacketEscort;
+import com.neoalive.tacz_sewv.network.PacketRadioCommand;
 import com.neoalive.tacz_sewv.network.PacketSetGuardPosition;
 
 // FORGE bus, client dist: opens the Tactical Data Terminal, and runs Escort / Guard selection modes.
@@ -64,6 +71,15 @@ public class ClientEvents {
     // confirms (≥1) or cancels (empty). Armed from the ribbon — no units needed up front.
     private static boolean pendingLiveSelection = false;
 
+    // Handheld radio designation: same arm→click→confirm shape as Live Selection / Guard.
+    // Entity mode keeps at most one designatable id; position mode left-clicks a block.
+    private static boolean pendingRadioEntity = false;
+    private static boolean pendingRadioPosition = false;
+    @Nullable
+    private static RadioSettings.State pendingRadioSettings = null;
+    private static int pendingRadioEntityId = -1;
+    private static final double RADIO_PICK_RANGE = 256.0;
+
     private static int promptCooldown = 0;
 
     /**
@@ -76,6 +92,7 @@ public class ClientEvents {
         clearGuard();
         clearEntrench();
         clearLiveSelection();
+        clearRadioPick();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.escort.no_units");
@@ -93,6 +110,7 @@ public class ClientEvents {
         clearEscort();
         clearEntrench();
         clearLiveSelection();
+        clearRadioPick();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.guard.no_units");
@@ -110,6 +128,7 @@ public class ClientEvents {
         clearEscort();
         clearGuard();
         clearLiveSelection();
+        clearRadioPick();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.entrench.no_units");
@@ -125,7 +144,46 @@ public class ClientEvents {
         clearEscort();
         clearGuard();
         clearEntrench();
+        clearRadioPick();
         pendingLiveSelection = true;
+        promptCooldown = 0;
+    }
+
+    /**
+     * Arm radio ENTITY designation. Left-click selects exactly one designatable living entity
+     * (replaces any prior pick); right-click confirms the call or cancels if none selected.
+     */
+    public static void armRadioEntity(RadioSettings.State settings) {
+        clearEscort();
+        clearGuard();
+        clearEntrench();
+        clearLiveSelection();
+        clearRadioPick();
+        pendingRadioEntity = true;
+        pendingRadioSettings = settings;
+        pendingRadioEntityId = -1;
+        promptCooldown = 0;
+    }
+
+    /**
+     * Arm radio POSITION designation. Left-click a block to call; right-click cancels.
+     */
+    public static void armRadioPosition(RadioSettings.State settings) {
+        clearEscort();
+        clearGuard();
+        clearEntrench();
+        clearLiveSelection();
+        clearRadioPick();
+        pendingRadioPosition = true;
+        pendingRadioSettings = settings;
+        promptCooldown = 0;
+    }
+
+    public static void clearRadioPick() {
+        pendingRadioEntity = false;
+        pendingRadioPosition = false;
+        pendingRadioSettings = null;
+        pendingRadioEntityId = -1;
         promptCooldown = 0;
     }
 
@@ -140,6 +198,17 @@ public class ClientEvents {
     public static void onClickInput(InputEvent.InteractionKeyMappingTriggered event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
+
+        if (pendingRadioEntity || pendingRadioPosition) {
+            if (event.isAttack()) {
+                radioPickClick(mc);
+                event.setCanceled(true);
+            } else if (event.isUseItem()) {
+                finishRadioPick();
+                event.setCanceled(true);
+            }
+            return;
+        }
 
         if (pendingLiveSelection) {
             if (event.isAttack()) {
@@ -237,7 +306,10 @@ public class ClientEvents {
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        if (!pendingEscort && !pendingGuard && !pendingEntrench && !pendingLiveSelection) return;
+        if (!pendingEscort && !pendingGuard && !pendingEntrench && !pendingLiveSelection
+                && !pendingRadioEntity && !pendingRadioPosition) {
+            return;
+        }
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.screen != null) {
@@ -246,6 +318,7 @@ public class ClientEvents {
                 clearGuard();
                 clearEntrench();
                 clearLiveSelection();
+                clearRadioPick();
             }
             return;
         }
@@ -262,7 +335,11 @@ public class ClientEvents {
 
         if (--promptCooldown <= 0) {
             promptCooldown = PROMPT_REFRESH_TICKS;
-            if (pendingLiveSelection) {
+            if (pendingRadioEntity) {
+                hintRadioEntity();
+            } else if (pendingRadioPosition) {
+                hint("message.tacz_sewv.radio.pick_position");
+            } else if (pendingLiveSelection) {
                 hintLive();
             } else if (pendingEscort) {
                 hint("message.tacz_sewv.escort.select");
@@ -276,6 +353,10 @@ public class ClientEvents {
 
     private static void confirmPendingAttack(Minecraft mc) {
         if (mc.player == null) return;
+        if (pendingRadioEntity || pendingRadioPosition) {
+            radioPickClick(mc);
+            return;
+        }
         if (pendingLiveSelection) {
             liveSelectClick(mc);
             return;
@@ -313,7 +394,9 @@ public class ClientEvents {
     }
 
     private static void cancelPending() {
-        if (pendingLiveSelection) {
+        if (pendingRadioEntity || pendingRadioPosition) {
+            finishRadioPick();
+        } else if (pendingLiveSelection) {
             finishLiveSelection();
         } else if (pendingEscort) {
             clearEscort();
@@ -325,6 +408,77 @@ public class ClientEvents {
             clearEntrench();
             hint("message.tacz_sewv.entrench.cancelled");
         }
+    }
+
+    private static void radioPickClick(Minecraft mc) {
+        if (mc.player == null || pendingRadioSettings == null) return;
+        if (pendingRadioPosition) {
+            HitResult hit = mc.player.pick(RADIO_PICK_RANGE, 0.0F, false);
+            if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
+                RadioSettings.State settings = pendingRadioSettings;
+                clearRadioPick();
+                NetworkHandler.CHANNEL.sendToServer(new PacketRadioCommand(settings, -1, bhr.getBlockPos()));
+            } else {
+                hint("message.tacz_sewv.radio.no_position");
+            }
+            return;
+        }
+
+        LivingEntity target = pickRadioEntity(mc.player);
+        if (target == null) {
+            hint("message.tacz_sewv.radio.no_target");
+            return;
+        }
+        // Single-select: replace any prior pick (never accumulate).
+        pendingRadioEntityId = target.getId();
+        promptCooldown = 0;
+        Player player = mc.player;
+        player.displayClientMessage(
+                Component.translatable("message.tacz_sewv.radio.entity_selected", target.getDisplayName())
+                        .withStyle(ChatFormatting.GREEN), true);
+    }
+
+    private static void finishRadioPick() {
+        if (pendingRadioPosition) {
+            clearRadioPick();
+            hint("message.tacz_sewv.radio.pick_cancelled");
+            return;
+        }
+        if (!pendingRadioEntity) return;
+        if (pendingRadioEntityId < 0 || pendingRadioSettings == null) {
+            clearRadioPick();
+            hint("message.tacz_sewv.radio.pick_cancelled");
+            return;
+        }
+        RadioSettings.State settings = pendingRadioSettings;
+        int entityId = pendingRadioEntityId;
+        clearRadioPick();
+        NetworkHandler.CHANNEL.sendToServer(new PacketRadioCommand(settings, entityId, null));
+    }
+
+    @Nullable
+    private static LivingEntity pickRadioEntity(Player player) {
+        Vec3 eye = player.getEyePosition();
+        Vec3 reach = player.getViewVector(1.0F).scale(RADIO_PICK_RANGE);
+        Vec3 end = eye.add(reach);
+        AABB search = player.getBoundingBox().expandTowards(reach).inflate(1.0);
+        EntityHitResult hit = ProjectileUtil.getEntityHitResult(
+                player, eye, end, search, HandheldRadioItem::isDesignatable, RADIO_PICK_RANGE * RADIO_PICK_RANGE);
+        return hit != null && hit.getEntity() instanceof LivingEntity living ? living : null;
+    }
+
+    private static void hintRadioEntity() {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        if (pendingRadioEntityId < 0) {
+            hint("message.tacz_sewv.radio.pick_entity");
+            return;
+        }
+        Entity entity = player.level().getEntity(pendingRadioEntityId);
+        Component name = entity != null ? entity.getDisplayName() : Component.literal("?");
+        player.displayClientMessage(
+                Component.translatable("message.tacz_sewv.radio.entity_armed", name)
+                        .withStyle(ChatFormatting.GRAY), true);
     }
 
     private static void liveSelectClick(Minecraft mc) {
@@ -445,6 +599,7 @@ public class ClientEvents {
         clearGuard();
         clearEntrench();
         clearLiveSelection();
+        clearRadioPick();
     }
 
     private static void hint(String key) {

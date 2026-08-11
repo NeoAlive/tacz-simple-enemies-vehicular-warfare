@@ -218,7 +218,9 @@ public final class FireMissionSupport {
         int ordered = 0;
         if (posTarget != null) {
             for (SupportCrew support : crews) {
-                if (support.kind != Kind.MORTAR || !(support.unit instanceof IMortarCrew crew)) continue;
+                // Mortars and CAS both take a standing grid mark; TOW/artillery need a live lock.
+                if (support.kind != Kind.MORTAR && support.kind != Kind.CAS) continue;
+                if (!(support.unit instanceof IMortarCrew crew)) continue;
                 triggered.add(support.kind);
                 ordered++;
                 crew.sewv$setFireMission(FireMission.standing(posTarget));
@@ -232,6 +234,10 @@ public final class FireMissionSupport {
         } else if (entityTarget != null) {
             for (SupportCrew support : crews) {
                 AbstractUnit crew = support.unit;
+                // A fresh entity designation replaces any standing grid mark.
+                if (crew instanceof IMortarCrew mortar) {
+                    mortar.sewv$setFireMission(null);
+                }
                 triggered.add(support.kind);
                 if (crew instanceof PmcUnitEntity pmc) {
                     pmc.setAttackTargetId(entityTarget.getId());
@@ -294,11 +300,19 @@ public final class FireMissionSupport {
     public static int standDown(Level level, @Nullable UUID owner, Vec3 origin, double range) {
         int released = 0;
         for (AbstractUnit crew : crewsInRange(level, CrewFacts.Faction.PMC, owner, origin, range, ANY)) {
-            if (!(crew instanceof PmcUnitEntity pmc) || pmc.getOrder() != OrderType.ATTACK_THAT_TARGET) {
-                continue;
+            boolean hadOrder = crew instanceof PmcUnitEntity pmc
+                    && pmc.getOrder() == OrderType.ATTACK_THAT_TARGET;
+            boolean hadMark = crew instanceof IMortarCrew mortar
+                    && mortar.sewv$getFireMission() != null;
+            if (!hadOrder && !hadMark) continue;
+
+            if (crew instanceof PmcUnitEntity pmc) {
+                pmc.setOrder(OrderType.FREE_FIRE);
+                pmc.setAttackTargetId(-1);
             }
-            pmc.setOrder(OrderType.FREE_FIRE);
-            pmc.setAttackTargetId(-1);
+            if (crew instanceof IMortarCrew mortar) {
+                mortar.sewv$setFireMission(null);
+            }
             if (crew instanceof IDelayedFire delayed) {
                 delayed.sewv$setFireDelayUntil(0L);
             }

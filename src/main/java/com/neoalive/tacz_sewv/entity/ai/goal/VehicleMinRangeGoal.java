@@ -14,8 +14,9 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
  * vehicle's weapons to physically engage (e.g. a mob on top of the turret).
  * Prevents the tank locking up trying to aim at an unhittable hugger.
  *
- * <p>Helicopters in an active firing run are exempt: ATTACK is supposed to
- * overfly inside this band, and clearing the lock mid-pass aborts the racetrack.
+ * <p>Aircraft are exempt: overflying inside this band is what an attack run is.
+ * A helicopter is exempt while its run is active, a fixed-wing hull always, since
+ * it has no phase in which passing over its target is avoidable.
  */
 public class VehicleMinRangeGoal extends Goal {
 
@@ -61,6 +62,12 @@ public class VehicleMinRangeGoal extends Goal {
                     && DriveHelicopterGoal.inFiringRun(this.vehicle)) {
                 return;
             }
+            // A fixed-wing hull passes over everything it attacks — it cannot stop, and every run
+            // ends inside this radius by construction. Dropping the lock there aborted the pass at
+            // the exact moment of the shot and sent the aircraft round to re-acquire, which is the
+            // "flies over the target and does nothing" loop. There is no equivalent of the
+            // helicopter's firing-run test to make here: for a plane the whole engagement is one.
+            if (HullFacts.isPlaneHull(this.vehicle)) return;
             // Too close for the vehicle to aim, drop it so targeting picks something else
             this.unit.setTarget(null);
         }

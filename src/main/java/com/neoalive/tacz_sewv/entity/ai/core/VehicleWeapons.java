@@ -670,9 +670,30 @@ public final class VehicleWeapons {
 
     public static FireGate tryAiFireAssistResult(VehicleEntity vehicle, AbstractUnit unit,
                                                  LivingEntity target, double coneDeg) {
+        return tryAiFireAssistResult(vehicle, unit, target, null, coneDeg, true);
+    }
+
+    /**
+     * Fire assist with an explicit aim point and control over the NPC cone floor.
+     *
+     * <p><b>aimPoint</b> is where the shot has to be pointed, which is not always where the target
+     * is: a lead solution puts it ahead of a mover, and gating the shot against the target's
+     * current centre would then refuse exactly the shots that were correctly aimed. Null keeps the
+     * original behaviour of measuring to the target's bounding-box centre.
+     *
+     * <p><b>npcConeFloor</b> exists to be turned OFF by fixed-wing crews. The floor buys a ground
+     * turret loose shots it would otherwise never take, and splash makes that a fair trade at tank
+     * ranges. It is not a fair trade for an aircraft: the miss distance of a shot fired {@code a}
+     * degrees off at range {@code R} is about {@code R tan(a)}, and an aircraft engages at hundreds
+     * of blocks, so a 35 degree floor guarantees misses measured in tens of blocks no matter how
+     * well the autopilot flies. Aircraft pass false and gate themselves tightly instead.
+     */
+    public static FireGate tryAiFireAssistResult(VehicleEntity vehicle, AbstractUnit unit,
+                                                 LivingEntity target,
+                                                 @javax.annotation.Nullable Vec3 aimPoint,
+                                                 double coneDeg, boolean npcConeFloor) {
         try {
-            // NPC seat only reaches this path — enlarge so inaccurate fire still goes out.
-            double effectiveCone = npcAssistConeDeg(coneDeg);
+            double effectiveCone = npcConeFloor ? npcAssistConeDeg(coneDeg) : Math.max(coneDeg, 0.1);
 
             int rpm = Math.max(1, vehicle.vehicleWeaponRpm(unit));
             int interval = Math.max(1, (int) Math.ceil(1200.0F / rpm));
@@ -680,8 +701,8 @@ public final class VehicleWeapons {
             if (!vehicle.canShoot(unit)) return FireGate.CANNOT_SHOOT;
 
             Vec3 shootDir = vehicle.getShootDirectionForHud(unit, 1.0F);
-            Vec3 toTarget = target.getBoundingBox().getCenter()
-                    .subtract(vehicle.getShootPos(unit, 1.0F));
+            Vec3 aim = aimPoint != null ? aimPoint : target.getBoundingBox().getCenter();
+            Vec3 toTarget = aim.subtract(vehicle.getShootPos(unit, 1.0F));
             if (shootDir.lengthSqr() < 1.0E-6 || toTarget.lengthSqr() < 1.0E-6) {
                 return FireGate.BAD_VECTOR;
             }

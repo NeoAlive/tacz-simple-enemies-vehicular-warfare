@@ -17,11 +17,14 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal;
+import com.neoalive.tacz_sewv.entity.ai.plane.PlaneLeash;
 
 /**
- * Player → server flight command for owned helicopter crews: takeoff, or land at a
+ * Player → server flight command for owned aircraft crews: takeoff, or land at a
  * looked-at block. Sets the {@link IHelicopterPilot} command that
- * {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal} consumes.
+ * {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal} and
+ * {@link DrivePlaneGoal} consume — the command set is aircraft-generic despite the name.
  */
 public class PacketHelicopterCommand {
 
@@ -77,7 +80,13 @@ public class PacketHelicopterCommand {
                         pmc = driver;
                     }
                     if (v.getFirstPassenger() != pmc) continue;
-                    if (!HullFacts.isHelicopterHull(v)) continue;
+                    // Fixed-wing takes the same commands: IHelicopterPilot's NONE/TAKEOFF/LANDING/
+                    // LANDED is aircraft-generic despite the name, and DrivePlaneGoal consumes it.
+                    // This filter used to be rotary-wing only, which is why the TDT and map Land
+                    // button silently did nothing to a plane.
+                    boolean plane = HullFacts.isPlaneHull(v);
+                    if (!plane && !HullFacts.isHelicopterHull(v)) continue;
+                    if (!withinCommandRange(player, v, plane)) continue;
                     // LANDING without a pad is immediately cleared by DriveHelicopterGoal and
                     // looks like a successful order that then resumes FOLLOW orbit.
                     if (this.command == IHelicopterPilot.HELI_CMD_LANDING && this.landPos == null) {
@@ -87,10 +96,18 @@ public class PacketHelicopterCommand {
                     pilot.sewv$setHeliCommand(this.command);
                     if (this.command == IHelicopterPilot.HELI_CMD_LANDING) {
                         pilot.sewv$setHeliLandPos(this.landPos);
-                        DriveHelicopterGoal.setForcedLand(v, this.landPos);
+                        if (plane) {
+                            DrivePlaneGoal.setForcedLand(v, this.landPos);
+                        } else {
+                            DriveHelicopterGoal.setForcedLand(v, this.landPos);
+                        }
                     } else {
                         pilot.sewv$setHeliLandPos(null);
-                        DriveHelicopterGoal.clearForcedLand(v);
+                        if (plane) {
+                            DrivePlaneGoal.clearForcedLand(v);
+                        } else {
+                            DriveHelicopterGoal.clearForcedLand(v);
+                        }
                     }
                     // Takeoff carries the live cruise trim; clamp to the flight band (never trust the
                     // client) and store it on the pilot for DriveHelicopterGoal to read every tick.
@@ -98,7 +115,7 @@ public class PacketHelicopterCommand {
                         pilot.sewv$setCruiseAltitude(Mth.clamp(this.altitude, MIN_ALTITUDE, MAX_ALTITUDE));
                         // Plane-only ack: helicopters stay on the generic ORDERS path (SEM packet)
                         // and spawn/auto takeoffs never come through here.
-                        if (HullFacts.isPlaneHull(v)) {
+                        if (plane) {
                             CrewRadio.play(v, CrewRadio.Line.TAKEOFF);
                         }
                     }
@@ -112,5 +129,21 @@ public class PacketHelicopterCommand {
                     ordered, ChatFormatting.GREEN, ordered);
         });
         ctx.get().setPacketHandled(true);
+    }
+
+    /**
+     * Server-side range gate. The client discovery radius is generous on purpose (a plane you
+     * ordered up is soon a long way off), but the order still has to be refused past the distance
+     * the flight AI itself treats as too far, or a command could retask an aircraft the player has
+     * no business seeing. The bound is the <b>hard</b> leash ring, not the soft one: everything
+     * between the two is an aircraft already on its way home, and refusing to talk to it there
+     * would mean a recalled plane could not be told to land.
+     * Helicopters keep the client discovery radius they always had.
+     */
+    private static boolean withinCommandRange(Player player, VehicleEntity v, boolean plane) {
+        if (!plane) return true;
+        double radius = com.neoalive.tacz_sewv.config.SewvConfig.PLANE_COMMAND_RADIUS.get()
+                * PlaneLeash.HARD_MULTIPLIER;
+        return v.distanceToSqr(player) <= radius * radius;
     }
 }

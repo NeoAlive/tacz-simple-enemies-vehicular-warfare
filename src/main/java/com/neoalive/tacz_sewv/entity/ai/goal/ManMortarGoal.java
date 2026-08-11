@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.block.EmplacementSupport;
 import com.neoalive.tacz_sewv.bridge.FireMission;
+import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -305,6 +306,11 @@ public class ManMortarGoal extends Goal {
         }
         if (!MortarSupport.aimSettled(this.mortar, AIM_TOLERANCE_DEG)) {
             hold("barrel still slewing onto the aimpoint");
+            return;
+        }
+        if (this.unit instanceof IDelayedFire delayed
+                && delayed.sewv$hasActiveFireDelay(this.unit.level().getGameTime())) {
+            hold("holding for coordinated fire delay");
             return;
         }
         if (VehicleTargeting.friendlyNearPoint(

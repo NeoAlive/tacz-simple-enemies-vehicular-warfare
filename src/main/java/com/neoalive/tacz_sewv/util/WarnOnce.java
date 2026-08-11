@@ -25,4 +25,11 @@ public final class WarnOnce {
             log.warn(message);
         }
     }
+
+    /** Same at-most-once guarantee for a line that reports normal operation rather than a fault. */
+    public static void info(Logger log, String key, String message) {
+        if (SEEN.add(key)) {
+            log.info(message);
+        }
+    }
 }

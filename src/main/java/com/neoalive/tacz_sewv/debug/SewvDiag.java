@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.WarnOnce;
 
 /**
  * Temporary Stage 3–5 diagnosis logs. Prefix {@code [sewv-diag]} for grepping.
@@ -117,5 +118,48 @@ public final class SewvDiag {
     public static void flight(String msg, Object... args) {
         if (!heliFlightVerbose()) return;
         LOG.info("[sewv-diag][flight] " + msg, args);
+    }
+
+    /** Fixed-wing mode / aim / landing diagnosis. Default off. */
+    public static boolean planeVerbose() {
+        return SewvConfig.SPEC.isLoaded() && SewvConfig.PLANE_COMBAT_DEBUG.get();
+    }
+
+    /** Fixed-wing diagnosis. No-op when {@link #planeVerbose()} is false. */
+    public static void plane(String msg, Object... args) {
+        if (!planeVerbose()) return;
+        LOG.info("[sewv-diag][plane] " + msg, args);
+    }
+
+    /**
+     * Fixed-wing diagnosis for lines a flight goal would otherwise emit <b>every tick</b>. Twenty
+     * identical lines a second per aircraft is not a log, it is a way of hiding the one line that
+     * mattered, which is what the first version of the plane channel did.
+     *
+     * @param gameTime absolute game time; the throttle is a deadline on it rather than a counter,
+     *                 because a goal ticks every other tick and a counter would silently halve
+     */
+    public static void planeThrottled(long gameTime, String msg, Object... args) {
+        if (!planeVerbose()) return;
+        if (gameTime - lastPlaneLog < PLANE_LOG_INTERVAL_TICKS) return;
+        lastPlaneLog = gameTime;
+        LOG.info("[sewv-diag][plane] " + msg, args);
+    }
+
+    /** ~1 s between throttled plane lines. */
+    private static final long PLANE_LOG_INTERVAL_TICKS = 20L;
+    private static volatile long lastPlaneLog = Long.MIN_VALUE;
+
+    /**
+     * Said once, ever, the first time a fixed-wing AI takes a hull — at INFO whether or not the
+     * channel is on. It answers the question the channel cannot answer about itself: a player who
+     * turns the flag on and still sees nothing has no way to tell "the AI is not running" from
+     * "the flag did not take", and those need completely different fixes.
+     */
+    public static void planeAttached() {
+        WarnOnce.info(LOG, "sewv-plane-ai", "[sewv-plane] fixed-wing AI active"
+                + (planeVerbose() ? " (planeCombatDebug on — per-tick detail follows)"
+                        : " (set planeCombatDebug=true under [flight_ai] in"
+                                + " config/tacz_sewv-common.toml for flight detail)"));
     }
 }

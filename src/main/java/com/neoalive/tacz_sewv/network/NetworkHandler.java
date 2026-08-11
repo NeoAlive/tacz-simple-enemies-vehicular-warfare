@@ -68,7 +68,8 @@ public class NetworkHandler {
     // 41: PacketVehicleSkin carries sticky RNG salt for numbered skin pools.
     // 42: PacketTrenchNetworks (trench / emplacement map markers).
     // 43: PacketEntrench (ENTRENCHED area task).
-    private static final String PROTOCOL_VERSION = "43";
+    // 44: PacketRadioCommand (handheld radio GUI fire mission).
+    private static final String PROTOCOL_VERSION = "44";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -308,6 +309,14 @@ public class NetworkHandler {
                 PacketEntrench::encode,
                 PacketEntrench::new,
                 PacketEntrench::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRadioCommand.class,
+                PacketRadioCommand::encode,
+                PacketRadioCommand::new,
+                PacketRadioCommand::handle
         );
     }
 }

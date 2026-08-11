@@ -11,33 +11,26 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.EntityHitResult;
-import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.items.IItemHandler;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.client.RadioScreen;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
 
 /**
- * Forward observer's radio: point it at a mob to call every mortar and TOW crew you own
- * within range onto that target, or sneak-use it to call them off.
- *
- * <p>This exists because those weapons outrange the eyes behind them — Fixed mortars shoot
- * ~770 blocks and FCP vehicle mortars cannot engage inside ~366 blocks (85° pitch floor),
- * while SEM's targeting reaches {@code FOLLOW_RANGE} (96 blocks) and only ±4 blocks
- * vertically. The radio hands the crew a target it could never have spotted, which is the
- * whole point of indirect fire; {@link FireMissionSupport} has the rest.
+ * Forward observer's radio: opens a compact fire-mission panel to call mortar, TOW, artillery
+ * and air crews, or sneak-use to stand them down.
  */
 public class HandheldRadioItem extends Item {
 
@@ -48,64 +41,42 @@ public class HandheldRadioItem extends Item {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
-        if (level.isClientSide()) return InteractionResultHolder.success(stack);
 
         if (player.isShiftKeyDown()) {
-            standDown(player);
+            if (!level.isClientSide()) {
+                standDown(player);
+            }
             return InteractionResultHolder.success(stack);
         }
 
-        LivingEntity target = pickTarget(player, SewvConfig.MORTAR_RADIO_RANGE.get());
-        if (target == null) {
-            hint(player, "message.tacz_sewv.radio.no_target", ChatFormatting.GRAY);
-            return InteractionResultHolder.fail(stack);
+        if (level.isClientSide()) {
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> RadioScreen.open(null));
         }
-        callFireMission(player, target);
         return InteractionResultHolder.success(stack);
     }
 
     @Override
     public InteractionResult interactLivingEntity(
             ItemStack stack, Player player, LivingEntity target, InteractionHand hand) {
-        // Within arm's reach vanilla routes the click here and never calls use(), so both
-        // orders have to work from this path too.
-        if (player.level().isClientSide()) return InteractionResult.SUCCESS;
+        if (player.level().isClientSide()) {
+            if (player.isShiftKeyDown()) {
+                return InteractionResult.SUCCESS;
+            }
+            if (target instanceof PmcUnitEntity) {
+                player.displayClientMessage(
+                        Component.translatable("message.tacz_sewv.radio.friendly").withStyle(ChatFormatting.RED),
+                        true);
+                return InteractionResult.FAIL;
+            }
+            LivingEntity designated = target;
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> RadioScreen.open(designated));
+            return InteractionResult.SUCCESS;
+        }
 
         if (player.isShiftKeyDown()) {
             standDown(player);
-        } else if (target instanceof PmcUnitEntity) {
-            hint(player, "message.tacz_sewv.radio.friendly", ChatFormatting.RED);
-        } else {
-            callFireMission(player, target);
         }
         return InteractionResult.SUCCESS;
-    }
-
-    /** Puts every mortar, TOW and CAS crew in range onto {@code target}. */
-    private static void callFireMission(Player player, LivingEntity target) {
-        FireMissionSupport.Call call = FireMissionSupport.callFireMission(
-                player.level(), player.getUUID(), player.position(),
-                SewvConfig.MORTAR_RADIO_RANGE.get(), target);
-
-        if (call.empty()) {
-            // Always shown regardless of the flag: a failure explanation is not the success
-            // spam SHOW_ORDER_FEEDBACK exists to cut.
-            hint(player, "message.tacz_sewv.radio.no_crews", ChatFormatting.GRAY);
-            return;
-        }
-
-        var ack = FireMissionSupport.ackFor(call.kinds());
-        if (ack != null) {
-            player.level().playSound(null, player, ack, SoundSource.NEUTRAL, 1.0F, 1.0F);
-        }
-
-        Component msg = Component.translatable(
-                call.ordered() == 1
-                        ? "message.tacz_sewv.radio.fire_mission.single"
-                        : "message.tacz_sewv.radio.fire_mission.multiple",
-                call.ordered(), target.getDisplayName());
-        com.neoalive.tacz_sewv.network.NetworkHandler.sendOrderFeedback(
-                player, msg.copy().withStyle(ChatFormatting.GREEN));
     }
 
     /** Whether a unit is carrying a radio, and so can call missions in on its own. */
@@ -126,7 +97,6 @@ public class HandheldRadioItem extends Item {
                 SewvConfig.MORTAR_RADIO_RANGE.get());
 
         if (released == 0) {
-            // Always shown regardless of the flag, same reasoning as callFireMission above.
             hint(player, "message.tacz_sewv.radio.standdown.none", ChatFormatting.GRAY);
             return;
         }
@@ -143,23 +113,7 @@ public class HandheldRadioItem extends Item {
                 player, msg.copy().withStyle(ChatFormatting.YELLOW));
     }
 
-    /**
-     * The mob the player is pointing at. Own units are skipped so a stray click can't put
-     * a barrage on your own squad.
-     */
-    @Nullable
-    private static LivingEntity pickTarget(Player player, double range) {
-        Vec3 eye = player.getEyePosition();
-        Vec3 reach = player.getViewVector(1.0F).scale(range);
-        Vec3 end = eye.add(reach);
-        AABB search = player.getBoundingBox().expandTowards(reach).inflate(1.0);
-
-        EntityHitResult hit = ProjectileUtil.getEntityHitResult(
-                player, eye, end, search, HandheldRadioItem::isDesignatable, range * range);
-        return hit != null && hit.getEntity() instanceof LivingEntity living ? living : null;
-    }
-
-    private static boolean isDesignatable(Entity entity) {
+    public static boolean isDesignatable(Entity entity) {
         return entity instanceof LivingEntity
                 && entity.isAlive()
                 && !entity.isSpectator()

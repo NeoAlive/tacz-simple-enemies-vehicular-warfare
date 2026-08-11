@@ -167,6 +167,15 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue PLANE_GUN_CONE_DEG;
+    public static final ForgeConfigSpec.DoubleValue PLANE_MISSILE_CONE_DEG;
+    public static final ForgeConfigSpec.DoubleValue PLANE_ENGAGE_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue PLANE_ATTACK_RUN_LENGTH;
+    public static final ForgeConfigSpec.DoubleValue PLANE_LAND_TRANSIT_AGL;
+    public static final ForgeConfigSpec.DoubleValue PLANE_LAND_FLARE_AGL;
+    public static final ForgeConfigSpec.DoubleValue PLANE_LAND_FLARE_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue PLANE_LAND_SETTLE_RADIUS;
+    public static final ForgeConfigSpec.BooleanValue PLANE_COMBAT_DEBUG;
 
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
     public static final ForgeConfigSpec.IntValue MORTAR_FIRE_COOLDOWN_TICKS;
@@ -576,8 +585,42 @@ public final class SewvConfig {
                         "Default true (matches mortarChunkLoading). Existing installs keep whatever",
                         "value is already in tacz_sewv-common.toml until that file is deleted.")
                 .define("planeChunkLoading", true);
-        PLANE_COMMAND_RADIUS = builder.comment("Max distance (blocks) for player orders to aircraft.")
+        PLANE_COMMAND_RADIUS = builder.comment("Max distance (blocks) for player orders to aircraft.",
+                        "Doubles as the soft leash: past this a plane finishes its pass and returns to you.",
+                        "Combat is abandoned outright at 1.5x this distance.")
                 .defineInRange("planeCommandRadius", 256.0, 32.0, 1024.0);
+        PLANE_GUN_CONE_DEG = builder.comment(
+                        "How closely (degrees) a plane must have its nose on the target before firing guns,",
+                        "rockets and bombs. A miss lands roughly range x tan(angle) away, so 45 degrees at",
+                        "60 blocks is a 60-block miss. Superb Warfare's own mob gate is 4 degrees.")
+                .defineInRange("planeGunConeDeg", 6.0, 1.0, 45.0);
+        PLANE_MISSILE_CONE_DEG = builder.comment(
+                        "Same gate for guided missiles, which steer out the rest after launch.")
+                .defineInRange("planeMissileConeDeg", 8.0, 1.0, 45.0);
+        PLANE_ENGAGE_RADIUS = builder.comment(
+                        "How far out (blocks) a plane rolls in on a target instead of just closing on it.")
+                .defineInRange("planeEngageRadius", 96.0, 32.0, 320.0);
+        PLANE_ATTACK_RUN_LENGTH = builder.comment(
+                        "Length (blocks) of one straight attack run before the plane breaks off and turns back.",
+                        "Long runs are why planes used to disappear over the horizon mid-fight.")
+                .defineInRange("planeAttackRunLength", 100.0, 40.0, 480.0);
+        PLANE_LAND_TRANSIT_AGL = builder.comment(
+                        "Height (blocks) above the highest ground on the way in that a landing plane flies",
+                        "the approach pattern at, before it lines up with the strip.")
+                .defineInRange("planeLandTransitAgl", 48.0, 16.0, 160.0);
+        PLANE_LAND_FLARE_AGL = builder.comment("Height (blocks) above ground at which a landing plane flares.")
+                .defineInRange("planeLandFlareAgl", 8.0, 2.0, 32.0);
+        PLANE_LAND_FLARE_RADIUS = builder.comment(
+                        "How close (blocks) to the pad the plane must also be before it flares.",
+                        "Height alone used to make it flare over whatever it happened to be crossing.")
+                .defineInRange("planeLandFlareRadius", 24.0, 8.0, 96.0);
+        PLANE_LAND_SETTLE_RADIUS = builder.comment(
+                        "How close (blocks) to the pad a touchdown counts as landed. Touching down further",
+                        "out is treated as a missed approach and the plane goes around.")
+                .defineInRange("planeLandSettleRadius", 8.0, 4.0, 64.0);
+        PLANE_COMBAT_DEBUG = builder.comment(
+                        "Developer logs for plane flight mode, aim and landing. Leave off unless debugging.")
+                .define("planeCombatDebug", false);
         builder.pop();
 
         builder.push("mortar_ai");

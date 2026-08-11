@@ -12,6 +12,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.LivingEntity;
@@ -23,6 +24,9 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.bridge.FireMission;
+import com.neoalive.tacz_sewv.bridge.IDelayedFire;
+import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
@@ -30,6 +34,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
+import com.neoalive.tacz_sewv.item.RadioFrequency;
 
 /**
  * Designating a target for crews that cannot find their own, shared by
@@ -178,6 +183,68 @@ public final class FireMissionSupport {
         return callFireMission(level, CrewFacts.Faction.PMC, owner, origin, range, target, ANY);
     }
 
+    /** Shell-flight compensation subtracted from the player-chosen delay before stamping crews. */
+    private static final int DELAY_FLIGHT_COMPENSATION_SEC = 10;
+
+    /**
+     * Radio GUI call: filtered by {@code frequency}, optional coordinated delay on mortar crews,
+     * entity or grid designation.
+     */
+    public static Call callRadioMission(Level level, @Nullable UUID owner, Vec3 origin,
+                                        double range, RadioFrequency frequency,
+                                        @Nullable LivingEntity entityTarget, @Nullable BlockPos posTarget,
+                                        int delaySeconds) {
+        Set<Kind> kinds = frequency.kinds();
+        List<SupportCrew> crews = supportInRange(level, CrewFacts.Faction.PMC, owner, origin, range, kinds);
+        if (crews.isEmpty()) return new Call(0, EnumSet.noneOf(Kind.class));
+
+        if (delaySeconds > 0 && frequency.supportsDelay()) {
+            applyMortarDelay(level, crews, delaySeconds);
+        }
+
+        EnumSet<Kind> triggered = EnumSet.noneOf(Kind.class);
+        int ordered = 0;
+        if (posTarget != null) {
+            for (SupportCrew support : crews) {
+                if (support.kind != Kind.MORTAR || !(support.unit instanceof IMortarCrew crew)) continue;
+                triggered.add(support.kind);
+                ordered++;
+                crew.sewv$setFireMission(FireMission.standing(posTarget));
+                if (support.unit instanceof PmcUnitEntity pmc) {
+                    pmc.setOrder(OrderType.FREE_FIRE);
+                    pmc.setAttackTargetId(-1);
+                } else {
+                    support.unit.setTarget(null);
+                }
+            }
+        } else if (entityTarget != null) {
+            for (SupportCrew support : crews) {
+                AbstractUnit crew = support.unit;
+                triggered.add(support.kind);
+                if (crew instanceof PmcUnitEntity pmc) {
+                    pmc.setAttackTargetId(entityTarget.getId());
+                    pmc.setOrder(OrderType.ATTACK_THAT_TARGET);
+                    ordered++;
+                } else if (VehicleTargeting.mayAssignTarget(crew, entityTarget)) {
+                    crew.setTarget(entityTarget);
+                    ordered++;
+                }
+            }
+        }
+        return new Call(ordered, triggered);
+    }
+
+    private static void applyMortarDelay(Level level, List<SupportCrew> crews, int delaySeconds) {
+        int effective = Math.max(1, delaySeconds - DELAY_FLIGHT_COMPENSATION_SEC);
+        long deadline = level.getGameTime() + (long) effective * 20L;
+        for (SupportCrew support : crews) {
+            if (support.kind != Kind.MORTAR) continue;
+            if (support.unit instanceof IDelayedFire delayed) {
+                delayed.sewv$setFireDelayUntil(deadline);
+            }
+        }
+    }
+
     /**
      * One PMC radio ack for the kinds that answered. Single-kind calls map 1:1
      * (mortar→pmc_mortar, CAS→pmc_cas, TOW→pmc_tow); a mixed answer picks one of those pools
@@ -220,6 +287,9 @@ public final class FireMissionSupport {
             }
             pmc.setOrder(OrderType.FREE_FIRE);
             pmc.setAttackTargetId(-1);
+            if (crew instanceof IDelayedFire delayed) {
+                delayed.sewv$setFireDelayUntil(0L);
+            }
             released++;
         }
         return released;

@@ -1,5 +1,8 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
@@ -15,14 +18,47 @@ public final class AirframeSupport {
     /** Perpendicular offset (blocks) sampled beside the centerline at each step. */
     private static final double LATERAL_BAND = 8.0;
     private static final int CACHE_TTL_TICKS = 10;
+    /** Cache size cap. Well past any plausible number of airframes ticking in one level. */
+    private static final int CACHE_MAX_ENTRIES = 64;
 
-    // Per-hull highest-ground cache — keyed on dest cell + lookahead bucket, TTL in game ticks.
-    private static int cacheVehicleId = Integer.MIN_VALUE;
-    private static int cacheDestX;
-    private static int cacheDestZ;
-    private static int cacheLookaheadBucket;
-    private static long cacheTick = Long.MIN_VALUE;
-    private static int cacheHighest;
+    /**
+     * Highest-ground cache, keyed by hull. This used to be a single set of statics, which meant two
+     * aircraft in the air raced for it and each could be served the other's answer for up to
+     * {@link #CACHE_TTL_TICKS} — a cruise altitude computed for somebody else's leg. Rare and
+     * usually harmless, but the failure it produces (an aircraft holding the wrong height over a
+     * ridge) is exactly the one that is impossible to reproduce from a report.
+     *
+     * <p>Entries are per-thread because the integrated server and the client tick separately, and
+     * bounded by insertion order so a level full of transient hulls cannot grow it without limit.
+     */
+    private static final ThreadLocal<LinkedHashMap<Integer, GroundSample>> GROUND_CACHE =
+            ThreadLocal.withInitial(() -> new LinkedHashMap<>(16, 0.75F, false) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Integer, GroundSample> eldest) {
+                    return size() > CACHE_MAX_ENTRIES;
+                }
+            });
+
+    private static final class GroundSample {
+        private int destX;
+        private int destZ;
+        private int lookaheadBucket;
+        private long tick = Long.MIN_VALUE;
+        private int highest;
+
+        boolean matches(int x, int z, int bucket, long now) {
+            return x == this.destX && z == this.destZ && bucket == this.lookaheadBucket
+                    && now - this.tick < CACHE_TTL_TICKS;
+        }
+
+        void store(int x, int z, int bucket, long now, int value) {
+            this.destX = x;
+            this.destZ = z;
+            this.lookaheadBucket = bucket;
+            this.tick = now;
+            this.highest = value;
+        }
+    }
 
     private AirframeSupport() {}
 
@@ -84,21 +120,14 @@ public final class AirframeSupport {
         int destZ = Mth.floor(toZ);
         int lookaheadBucket = Mth.floor(lookahead);
         long now = vehicle.level().getGameTime();
-        if (vehicle.getId() == cacheVehicleId
-                && destX == cacheDestX
-                && destZ == cacheDestZ
-                && lookaheadBucket == cacheLookaheadBucket
-                && now - cacheTick < CACHE_TTL_TICKS) {
-            return cacheHighest;
+        GroundSample sample = GROUND_CACHE.get()
+                .computeIfAbsent(vehicle.getId(), id -> new GroundSample());
+        if (sample.matches(destX, destZ, lookaheadBucket, now)) {
+            return sample.highest;
         }
 
         int highest = sampleHighestGround(vehicle, toX, toZ, lookahead);
-        cacheVehicleId = vehicle.getId();
-        cacheDestX = destX;
-        cacheDestZ = destZ;
-        cacheLookaheadBucket = lookaheadBucket;
-        cacheTick = now;
-        cacheHighest = highest;
+        sample.store(destX, destZ, lookaheadBucket, now, highest);
         return highest;
     }
 

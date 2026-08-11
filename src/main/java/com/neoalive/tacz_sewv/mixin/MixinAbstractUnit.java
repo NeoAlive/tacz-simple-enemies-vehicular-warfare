@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
@@ -36,7 +37,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
  * — every goal that fights, chases or drives at something reads getTarget().
  */
 @Mixin(AbstractUnit.class)
-public abstract class MixinAbstractUnit {
+public abstract class MixinAbstractUnit implements IDelayedFire {
 
     static {
         // SynchedEntityData IDs must be allocated parent-before-child. UnitHolster's

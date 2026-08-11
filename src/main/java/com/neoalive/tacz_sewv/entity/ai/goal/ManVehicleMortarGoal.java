@@ -10,6 +10,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
@@ -147,6 +148,10 @@ public class ManVehicleMortarGoal extends Goal {
 
         if (this.unit.level().getGameTime() < this.nextShotTime) return;
         if (!VehicleMortarSupport.aimSettled(this.hull, this.unit, this.laidLaunch, AIM_TOLERANCE_DEG)) {
+            return;
+        }
+        if (this.unit instanceof IDelayedFire delayed
+                && delayed.sewv$hasActiveFireDelay(this.unit.level().getGameTime())) {
             return;
         }
         Vec3 impact = this.laidAim != null ? this.laidAim : aimCentre;

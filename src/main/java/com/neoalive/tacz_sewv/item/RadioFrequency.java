@@ -1,0 +1,38 @@
+package com.neoalive.tacz_sewv.item;
+
+import java.util.EnumSet;
+import java.util.Set;
+
+import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
+
+/** Fire-mission band selected on the handheld radio GUI. */
+public enum RadioFrequency {
+    MORTAR,
+    AIR,
+    ARTILLERY,
+    TOW;
+
+    public Set<FireMissionSupport.Kind> kinds() {
+        return switch (this) {
+            case MORTAR -> EnumSet.of(FireMissionSupport.Kind.MORTAR);
+            case AIR -> EnumSet.of(FireMissionSupport.Kind.CAS);
+            case ARTILLERY -> EnumSet.of(FireMissionSupport.Kind.ARTILLERY);
+            case TOW -> EnumSet.of(FireMissionSupport.Kind.TOW);
+        };
+    }
+
+    /** Mortar tubes (fixed and vehicle) accept a coordinated delay timer. */
+    public boolean supportsDelay() {
+        return this == MORTAR;
+    }
+
+    /** Indirect fire on a map grid rather than a live entity designation. */
+    public boolean supportsPositionTarget() {
+        return this == MORTAR;
+    }
+
+    public RadioFrequency next() {
+        RadioFrequency[] values = values();
+        return values[(ordinal() + 1) % values.length];
+    }
+}

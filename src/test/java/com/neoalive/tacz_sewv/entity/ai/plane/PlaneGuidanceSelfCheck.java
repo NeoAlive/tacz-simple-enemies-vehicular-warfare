@@ -25,6 +25,8 @@ public final class PlaneGuidanceSelfCheck {
         checkConeFloorStillHits();
         checkBallisticLead();
         checkBombLead();
+        checkBombTrack();
+        checkBombWindow();
         checkOrbit();
         checkApproachAxis();
         checkLandingPredicates();
@@ -217,6 +219,125 @@ public final class PlaneGuidanceSelfCheck {
         // A parked target is aimed at exactly, with no offset invented for it.
         Vec3 still = PlaneNav.leadPoint(new Vec3(100.0, 64.0, 0.0), Vec3.ZERO, hit.ticks());
         assert still.distanceTo(new Vec3(100.0, 64.0, 0.0)) < EPS : "a still target gets no lead";
+    }
+
+    /**
+     * The bombing ground track. This is the property whose absence was the whole bug: the run
+     * matched the axis as a <b>heading</b> and not as a <b>line</b>, so the aircraft flew parallel
+     * to the line it should have been on, offset by however far it drifted while it turned onto
+     * the bearing. Lateral offset does not decay with time the way a timing error does — a track a
+     * few blocks to one side never satisfies the release window on any tick — so the aircraft flew
+     * the entire run with the bay shut and then overflew.
+     */
+    private static void checkBombTrack() {
+        Vec3 axis = new Vec3(0.0, 0.0, 1.0); // run due north, aim point at the origin
+        double lookahead = 160.0;
+
+        // A heading hold is the failure: already pointing along the axis, so it commands no
+        // correction at all and the offset stands forever. Pinned so nobody restores it.
+        double parked = PlaneNav.crossTrack(0.0 - 12.0, 0.0 - (-300.0), axis);
+        assert Math.abs(parked) > 10.0 : "a 12-block offset must read as cross-track, got " + parked;
+
+        // Pure pursuit closes it. Flown as a kinematic ideal — step one block toward the carrot
+        // each tick — because what is being checked is the guidance law, not the airframe.
+        double x = 12.0;
+        double z = -300.0;
+        double previous = Math.abs(PlaneNav.crossTrack(-x, -z, axis));
+        double start = previous;
+        for (int tick = 0; tick < 400 && z < -8.0; tick++) {
+            double along = PlaneNav.alongTrack(-x, -z, axis);
+            Vec3 carrot = PlaneNav.approachCarrot(0.0, 0.0, axis, along, lookahead);
+            double dx = carrot.x - x;
+            double dz = carrot.z - z;
+            double len = Math.sqrt(dx * dx + dz * dz);
+            assert len > EPS : "the carrot must never coincide with the aircraft";
+            x += dx / len;
+            z += dz / len;
+
+            double cross = Math.abs(PlaneNav.crossTrack(-x, -z, axis));
+            // Monotone, never overshooting through the line and back — an oscillating track is
+            // one still rolling at the release point, which throws the store sideways.
+            assert cross <= previous + EPS
+                    : "cross-track must close monotonically: " + cross + " after " + previous;
+            previous = cross;
+        }
+        assert previous < start * 0.1
+                : "pure pursuit must null the offset over the run, left " + previous;
+
+        // Beyond the aim point the carrot stops receding, so it can never end up behind the
+        // aircraft and turn the overfly into a reversal. That is why the run holds the raw axis
+        // once it is past.
+        Vec3 atPad = PlaneNav.approachCarrot(0.0, 0.0, axis, 0.0, lookahead);
+        assert Math.abs(atPad.z) < EPS : "at the aim point the carrot is the aim point";
+    }
+
+    /**
+     * The release window: an explicit radius, measured against the target's hitbox, resolved along
+     * and across the track rather than as one circle. The two errors are different problems —
+     * along-track is timing and closes on its own, cross-track is geometry and never does — and a
+     * single circular tolerance reports the second as if it were bad luck with the first.
+     */
+    private static void checkBombWindow() {
+        // The window is the store's own blast, floored by config and capped as an angle — the same
+        // composition PlaneWeapons.bombWindow performs. Pinned because the flat 8-block version
+        // threw away two thirds of a Mk 82 and turned releases the crew would call hits into
+        // overflies, which is exactly what a bomb run with no drop looks like from the ground.
+        double blast = 22.0; // Mk 82
+        double floor = 8.0;
+        double cap = 30.0;
+        for (double range : new double[] {40.0, 90.0, 120.0, 200.0}) {
+            double cone = PlaneNav.fireConeDeg(blast, range, Math.toDegrees(Math.atan(floor / range)),
+                    cap);
+            double window = range * Math.tan(Math.toRadians(cone));
+            assert window >= floor - EPS : "window fell under the floor at " + range + ": " + window;
+            assert window <= blast + EPS
+                    : "window must never exceed the blast at " + range + ": " + window;
+            assert window > floor : "the blast must widen the window past the floor at " + range;
+        }
+        // A store with no declared blast still has to be releasable, or it is dead weight.
+        double bare = PlaneNav.fireConeDeg(0.0, 120.0, Math.toDegrees(Math.atan(floor / 120.0)), cap);
+        assert Math.abs(120.0 * Math.tan(Math.toRadians(bare)) - floor) < 1.0E-6
+                : "a blastless store must fall back to exactly the floor";
+
+        double radius = 8.0;
+        double hx = 3.0; // a tank-sized hitbox
+        double hz = 1.5;
+
+        // Axis-aligned: the extents are just the half-widths, and they do not leak into each other.
+        assert Math.abs(PlaneNav.boxExtent(0.0, 1.0, hx, hz) - hz) < EPS
+                : "a run down Z reaches the box's Z half-depth";
+        assert Math.abs(PlaneNav.boxExtent(1.0, 0.0, hx, hz) - hx) < EPS
+                : "a run down X reaches the box's X half-width";
+
+        // Diagonal: strictly more than either half-extent, because a box is longer across its
+        // corner. An implementation that took the max instead would quietly shrink the window on
+        // every run not flown along a world axis, which is nearly all of them.
+        double diag = PlaneNav.boxExtent(Math.sqrt(0.5), Math.sqrt(0.5), hx, hz);
+        assert diag > hx && diag < hx + hz : "diagonal extent out of range: " + diag;
+
+        // The hitbox is what earns the window its width. An impact 10 blocks up the track from a
+        // hull's centre is on the hull's back half plus the radius; a bare point-circle of the same
+        // radius rejects it. This is the case the old test got wrong on every large vehicle.
+        Vec3 axis = new Vec3(1.0, 0.0, 0.0);
+        double alongLimit = radius + PlaneNav.boxExtent(axis.x, axis.z, hx, hz);
+        assert alongLimit > 10.0 : "hitbox must widen the along window past 10, got " + alongLimit;
+        assert Math.hypot(10.0, 0.0) > radius : "the same impact must miss a bare point-circle";
+
+        // Cross and along are independent, and that is the whole point of splitting them. An
+        // impact perfectly on time but four blocks to the side must fail on ALIGNMENT, so the log
+        // blames the ground track rather than the timing.
+        double dx = 0.0;
+        double dz = 4.0;
+        double along = PlaneNav.alongTrack(dx, dz, axis);
+        double cross = PlaneNav.crossTrack(dx, dz, axis);
+        assert Math.abs(along) < EPS : "no along-track error here: " + along;
+        assert Math.abs(cross) > 3.0 : "the offset must show up as cross-track: " + cross;
+
+        // And the reverse: dead on the track but short. Timing, not geometry.
+        along = PlaneNav.alongTrack(-40.0, 0.0, axis);
+        cross = PlaneNav.crossTrack(-40.0, 0.0, axis);
+        assert Math.abs(cross) < EPS : "a track error must not appear as an along error";
+        assert Math.abs(along) > alongLimit : "40 blocks short must be outside the window";
     }
 
     private static void checkIntercept() {

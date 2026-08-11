@@ -6,6 +6,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -19,6 +20,11 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
  * <p>Probes actual blocks rather than the heightmap the collective follows, so overhangs,
  * arches and interiors are judged correctly — and allied airframes, which no block probe
  * can see and which is the whole reason helicopters used to fly through each other.
+ *
+ * <p>Unloaded columns are treated as blocked rather than sync-loaded: a whisker that reaches
+ * past the plane's single chunk ticket must not {@code managedBlock} the server thread waiting
+ * on chunk futures. Heightmap skips empty air under the slab; the far band steps coarser than
+ * the near band because cruise does not need 1-block resolution at 80 blocks.
  */
 public final class AirTerrainSensor extends TerrainSensor {
 
@@ -30,6 +36,11 @@ public final class AirTerrainSensor extends TerrainSensor {
      * the moment of contact.
      */
     private static final double CLEARANCE = 4.0;
+
+    /** First this many blocks of the probe keep 1-block resolution. */
+    private static final double NEAR_BAND = 16.0;
+    /** Step beyond {@link #NEAR_BAND} — halves far-field samples at cruise reach. */
+    private static final double FAR_STEP = 2.0;
 
     public AirTerrainSensor(AbstractUnit unit) {
         super(unit);
@@ -51,18 +62,28 @@ public final class AirTerrainSensor extends TerrainSensor {
         List<AABB> traffic = obstacles(distance);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 
-        for (double d = half + 1.0; d <= half + distance; d += 1.0) {
+        for (double d = half + 1.0; d <= half + distance; ) {
+            double along = d - half;
             double sampleX = startX + dir.x * d;
             double sampleZ = startZ + dir.z * d;
             if (isBlockedByAircraft(traffic, sampleX, sampleZ, yBottom, yTop)) return false;
 
             int px = Mth.floor(sampleX);
             int pz = Mth.floor(sampleZ);
-            for (int y = yBottom; y <= yTop; y++) {
-                if (!level.getBlockState(pos.set(px, y, pz)).getCollisionShape(level, pos).isEmpty()) {
-                    return false;
+            // Never getBlockState into an unloaded chunk — that path managedBlock's the server.
+            if (!level.hasChunk(px >> 4, pz >> 4)) return false;
+
+            // Cruise slab is usually empty air: one heightmap read beats a Y loop of collision shapes.
+            int surface = level.getHeight(Heightmap.Types.WORLD_SURFACE, px, pz);
+            if (surface >= yBottom) {
+                for (int y = yBottom; y <= yTop; y++) {
+                    if (!level.getBlockState(pos.set(px, y, pz)).getCollisionShape(level, pos).isEmpty()) {
+                        return false;
+                    }
                 }
             }
+
+            d += along <= NEAR_BAND ? 1.0 : FAR_STEP;
         }
         return true;
     }

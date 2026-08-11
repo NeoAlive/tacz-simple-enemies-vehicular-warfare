@@ -359,6 +359,7 @@
   "gui.tacz_sewv.pool.cat.ship": "Ships",
   "gui.tacz_sewv.pool.cat.plane": "Planes",
   "gui.tacz_sewv.pool.cat.heli": "Helicopters",
+  "gui.tacz_sewv.pool.cat.tow": "TOW / Emplacements",
   "gui.tacz_sewv.misc.title": "Vehicle Classes & Armor",
   "gui.tacz_sewv.misc.tab.ifv": "IFV",
   "gui.tacz_sewv.misc.tab.anti_air": "Anti-Air",

@@ -13,6 +13,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
+
 /**
  * Who counts as a command-tier crew: the <b>driver</b> (seat 0) of a ground utility hull.
  *
@@ -68,6 +70,7 @@ public final class CommandEligibility {
     /**
      * Datapack engine type for this hull's entity type. Never calls {@code hull.computed()} —
      * that path shares the VehicleData cache {@code checkSeatsSize} reads for seat count.
+     * Ash VTOL Empty engines are remapped via {@link NpcVehicleOverrides}.
      */
     static EngineType engineType(VehicleEntity hull) {
         EntityType<?> type = hull.getType();
@@ -79,6 +82,12 @@ public final class CommandEligibility {
         } catch (Throwable ignored) {
             engine = EngineType.HELICOPTER;
         }
+        String id = null;
+        try {
+            var key = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getKey(type);
+            if (key != null) id = key.toString();
+        } catch (Throwable ignored) {}
+        engine = NpcVehicleOverrides.applyEngineHint(id, engine);
         if (engine == null || engine == EngineType.EMPTY) engine = EngineType.HELICOPTER;
         ENGINE_BY_TYPE.put(type, engine);
         return engine;

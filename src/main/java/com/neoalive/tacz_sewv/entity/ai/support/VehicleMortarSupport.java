@@ -43,6 +43,28 @@ public final class VehicleMortarSupport {
         return seat >= 0 && seat == hull.getTurretControllerIndex();
     }
 
+    /**
+     * True when any SEM gunner on this hull is laying or about to fire — the driver must park.
+     * Checked from {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveVehicleGoal}.
+     */
+    public static boolean shouldPark(VehicleEntity hull) {
+        if (!FcpMortarCompat.isMortarHull(hull)) return false;
+        for (Entity passenger : hull.getPassengers()) {
+            if (!(passenger instanceof AbstractUnit unit)) continue;
+            if (!isCrewing(unit)) continue;
+            if (aimpoint(unit) != null) return true;
+        }
+        return false;
+    }
+
+    /** Clear drive inputs so the hull sits still while the tube lays/fires. */
+    public static void stopMovement(VehicleEntity hull) {
+        hull.setForwardInputDown(false);
+        hull.setBackInputDown(false);
+        hull.setLeftInputDown(false);
+        hull.setRightInputDown(false);
+    }
+
     @Nullable
     public static FireMission fireMissionOf(AbstractUnit unit) {
         if (!(unit instanceof IMortarCrew crew)) return null;

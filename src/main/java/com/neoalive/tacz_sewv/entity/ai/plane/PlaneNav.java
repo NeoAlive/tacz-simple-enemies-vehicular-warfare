@@ -145,6 +145,21 @@ public final class PlaneNav {
     }
 
     /**
+     * How far a box of these half-extents reaches along a horizontal unit direction — its support
+     * function, {@code |dx| hx + |dz| hz}.
+     *
+     * <p>This is what lets a bomb release window be measured against the target's <b>hitbox</b>
+     * rather than its position, at a run bearing that has nothing to do with the world axes. A
+     * bomb that lands on the far end of a hull has hit it, and on a large vehicle that end is
+     * several blocks away — comparable to the whole release window, so ignoring it is not a
+     * rounding error. Exact for an AABB, and it degrades to the half-width for an axis-aligned run
+     * rather than to something optimistic.
+     */
+    public static double boxExtent(double dirX, double dirZ, double halfX, double halfZ) {
+        return Math.abs(dirX) * halfX + Math.abs(dirZ) * halfZ;
+    }
+
+    /**
      * Pure-pursuit carrot on the approach axis: a point {@code lookahead} blocks further down the
      * axis than the aircraft's own along-track position. Steering at a moving point on the line
      * converges onto the line without the oscillation that steering straight at the pad gives,

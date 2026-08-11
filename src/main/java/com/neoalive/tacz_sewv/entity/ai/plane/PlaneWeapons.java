@@ -67,10 +67,6 @@ public final class PlaneWeapons {
     private static final double DEFAULT_GRAVITY = 0.05;
     /** Fallback projectile speed (blocks/tick) when gun data is unreadable. */
     private static final double DEFAULT_VELOCITY = 10.0;
-    /** Tightest a release window is ever allowed to be, for a bomb whose datapack declares no blast. */
-    private static final double BOMB_HIT_TOLERANCE_MIN = 3.0;
-    /** Share of the blast radius the predicted impact may be out by and still count as on target. */
-    private static final double BOMB_HIT_TOLERANCE_FRACTION = 1.0 / 3.0;
     /** How much looser the cheap prefilter is than the real gate, so it can only ever agree early. */
     private static final double BOMB_PREFILTER_SLACK = 2.0;
     /** The bomb sim gives up after this long; a climbing aircraft never brings one down. */
@@ -78,15 +74,18 @@ public final class PlaneWeapons {
     /** Bombs are only released with the nose roughly along the flight path, never in a hard turn. */
     private static final double BOMB_MAX_TRACK_ERROR_DEG = 15.0;
     /**
-     * And never off a climb or a dive. A bomb inherits the aircraft's velocity vector outright
-     * ({@code Directions: "DeltaMovement"}), so the flight path angle <em>is</em> the launch angle,
-     * and while the altitude hold is still settling it commands up to twenty degrees of pitch and
-     * swings the predicted impact by tens of blocks a tick. The prediction follows that faithfully,
-     * which is the problem: a wide release window then triggers on a transient rather than on a
-     * solution. Matched to {@code DrivePlaneGoal.BOMB_RUN_PITCH_DEG} — the run is flown to that
-     * limit, so demanding the same of the path asks for nothing the profile does not already give.
+     * And never off a hard climb or dive. A bomb inherits the aircraft's velocity vector outright
+     * ({@code Directions: "DeltaMovement"}), so the flight path angle <em>is</em> the launch angle.
+     * This is a bound on how far the geometry may be from the profile the run was planned as, not
+     * a demand for level flight — see {@link #BOMB_PROFILE_BAND}.
      */
-    private static final double BOMB_MAX_PATH_ANGLE_DEG = 8.0;
+    private static final double BOMB_MAX_PATH_ANGLE_DEG = 20.0;
+    /**
+     * Widest the release cone is ever allowed to open, in degrees. It exists so that a store with
+     * an enormous blast cannot be pickled from directly overhead at any angle at all; the derived
+     * angle is under it everywhere a bomb is actually used.
+     */
+    private static final double BOMB_MAX_CONE_DEG = 30.0;
     /**
      * Accuracy demanded of a weapon whose datapack declares no blast at all — a plain kinetic gun.
      * Roughly a vehicle's own width, so "on target" means the burst is on the hull.
@@ -481,7 +480,7 @@ public final class PlaneWeapons {
      *
      * @return true when a bomb was released this tick
      */
-    public boolean releaseBombIfOnTarget(LivingEntity target, Vec3 forwardFlat) {
+    public boolean releaseBombIfOnTarget(LivingEntity target, Vec3 forwardFlat, double runAltitude) {
         if (this.selected == null || this.selected.kind() != Kind.BOMB) return false;
         if (stickComplete()) return false;
 
@@ -499,10 +498,29 @@ public final class PlaneWeapons {
             Vec3 track = new Vec3(vel.x, 0.0, vel.z);
             if (track.lengthSqr() > 1.0E-6
                     && PlaneNav.headingErrorDeg(forwardFlat, track) > BOMB_MAX_TRACK_ERROR_DEG) {
+                // Logged like the rest: a gate that refuses silently is a gate nobody can find.
+                logSight(now, target, track, this.vehicle.getY() - runAltitude, "skidding");
                 return false;
             }
-            if (Math.abs(PlaneNav.pitchOfDeg(vel)) > BOMB_MAX_PATH_ANGLE_DEG) return false;
-            if (!bombWouldHit(target)) return false;
+            // Reported, never vetoed. How far the aircraft is off its briefed altitude is the one
+            // number that explains a bad bombing pass, so it goes in the log — but a version of
+            // this that REFUSED on it deadlocked: a run entered from above bomb altitude descends
+            // through the whole approach, so the band was open only after the release point had
+            // gone by, and the aircraft flew over having never once been allowed to drop. The
+            // descent itself is harmless; the prediction integrates the actual velocity vector, so
+            // it follows a descent exactly. What is worth refusing is a violent attitude, and the
+            // path-angle bound below already is that.
+            double profileErr = this.vehicle.getY() - runAltitude;
+            if (Math.abs(PlaneNav.pitchOfDeg(vel)) > BOMB_MAX_PATH_ANGLE_DEG) {
+                logSight(now, target, track, profileErr, "manoeuvring");
+                return false;
+            }
+            BombSight sight = bombSight(target, track);
+            if (!sight.release()) {
+                logSight(now, sight, profileErr, sight.reason());
+                return false;
+            }
+            logSight(now, sight, profileErr, "release");
         }
 
         try {
@@ -522,33 +540,87 @@ public final class PlaneWeapons {
     }
 
     /**
-     * Would a bomb let go this tick land on the target?
+     * The bomb sight: how far the predicted impact is from the aim point, resolved along and
+     * across the ground track, against the window each is allowed.
      *
-     * <p>Answered twice, cheap then authoritative. {@link PlaneNav#freefallImpact} is exact for
-     * the ordinary case and costs a few dozen additions; SBW's own {@code ProjectileCalculator} is the answer
-     * that actually counts — same physics by construction, and it clips against terrain, so a
-     * ridge between the aircraft and the target is a bomb held rather than a hillside cratered —
-     * but it steps at a twentieth of a tick and raycasts every step, which is several hundred
-     * clips for one fall. Running that on every tick of every bombing run to be told "not yet"
-     * would be paying the full price for the answer we already know. So the cheap one gates, at a
-     * deliberately loose tolerance so it can never veto a release the precise one would have
-     * allowed, and the precise one decides.
+     * <p><b>Split, rather than one radius.</b> The two errors are different problems with
+     * different fixes and only one of them is survivable. Along-track error is a matter of
+     * <em>timing</em> — the predicted impact walks forward roughly a tick of travel each tick, so
+     * it sweeps through the window on its own and the release simply has to happen while it is
+     * inside. Cross-track error is a matter of <em>where the aircraft is</em>, and it does not
+     * change with time at all: a ground track a few blocks to one side is a track that never
+     * satisfies any window on any tick, so the aircraft flies the entire run with the bay shut and
+     * then overflies. A single circular tolerance conflates the two and reports the second as if
+     * it were bad luck with the first.
+     *
+     * <p>Measured against the target's <b>hitbox</b>, not its position: a bomb that lands on the
+     * back of a hull has hit it, and against a large vehicle the difference is comparable to the
+     * whole window. The extents are the AABB's support along each axis, so it stays exact for a
+     * run flown at any bearing.
+     *
+     * <p>Answered twice, cheap then authoritative. {@link PlaneNav#freefallImpact} is exact for the
+     * ordinary case and costs a few dozen additions; SBW's own {@code ProjectileCalculator} is the
+     * answer that actually counts — same physics by construction, and it clips against terrain, so
+     * a ridge between the aircraft and the target is a bomb held rather than a hillside cratered —
+     * but it steps at a twentieth of a tick and raycasts every step, which is several hundred clips
+     * for one fall. Running that every tick of every run to be told "not yet" would pay the full
+     * price for an answer already known. So the cheap one gates, at a deliberately loose tolerance
+     * so it can only ever agree early, and the precise one decides.
      *
      * <p>The cheap pass earns its keep twice over: it is also what supplies the <b>time of fall</b>
      * the aim point has to be led by, which the precise one does not report.
      */
-    private boolean bombWouldHit(LivingEntity target) {
-        Vec3 launchVel = this.vehicle.getDeltaMovement().scale(projectileVelocity(1.0));
-        PlaneNav.Impact rough = PlaneNav.freefallImpact(shootPos(), launchVel,
-                projectileGravity(0.06), target.getY(), BOMB_SIM_MAX_TICKS);
-        if (rough == null) return false; // never comes down in the window — hold the bomb
+    public record BombSight(double cross, double along, double crossLimit, double alongLimit,
+                            boolean solved) {
+
+        /** The ground track passes over the target — the half that no amount of waiting fixes. */
+        public boolean aligned() {
+            return this.solved && Math.abs(this.cross) <= this.crossLimit;
+        }
+
+        /** The store would land level with the target along the track — the timing half. */
+        public boolean onTop() {
+            return this.solved && Math.abs(this.along) <= this.alongLimit;
+        }
+
+        public boolean release() {
+            return aligned() && onTop();
+        }
+
+        /** What is holding the bomb, for the log. */
+        public String reason() {
+            if (!this.solved) return "no-solution";
+            if (!aligned()) return "off-track";
+            return onTop() ? "release" : "not-yet";
+        }
+    }
+
+    /** Where the bomb would land relative to where it has to, decomposed on the ground track. */
+    public BombSight bombSight(LivingEntity target, Vec3 track) {
+        double radius = bombWindow(target);
+        // The bomb leaves along the hull's velocity, so that is the axis its impact walks down.
+        Vec3 axis = new Vec3(track.x, 0.0, track.z);
+        axis = axis.lengthSqr() > 1.0E-6 ? axis.normalize() : new Vec3(0.0, 0.0, 1.0);
+        double hx = (target.getBoundingBox().maxX - target.getBoundingBox().minX) / 2.0;
+        double hz = (target.getBoundingBox().maxZ - target.getBoundingBox().minZ) / 2.0;
+        // The hitbox's own reach along and across the track, so the window is "on the target"
+        // rather than "near its centre". The cross axis is the track turned a quarter turn.
+        double alongLimit = radius + PlaneNav.boxExtent(axis.x, axis.z, hx, hz);
+        double crossLimit = radius + PlaneNav.boxExtent(axis.z, axis.x, hx, hz);
+
+        PlaneNav.Impact rough = roughImpact(target);
+        if (rough == null) {
+            // Never comes down inside the window — a release off a climb. No numbers worth having.
+            return new BombSight(0.0, 0.0, crossLimit, alongLimit, false);
+        }
 
         // Aim at where the target WILL be, not where it is. See bombAimPoint.
         Vec3 aim = bombAimPoint(target, rough.ticks());
-
-        double tol = bombHitTolerance();
-        double roughSlack = tol * BOMB_PREFILTER_SLACK;
-        if (!within(rough.x() - aim.x, rough.z() - aim.z, roughSlack)) return false;
+        BombSight cheap = resolve(rough.x() - aim.x, rough.z() - aim.z, axis,
+                crossLimit * BOMB_PREFILTER_SLACK, alongLimit * BOMB_PREFILTER_SLACK);
+        if (!cheap.release()) {
+            return new BombSight(cheap.cross(), cheap.along(), crossLimit, alongLimit, true);
+        }
 
         Vec3 impact;
         try {
@@ -557,9 +629,94 @@ public final class PlaneWeapons {
                     this.vehicle.getDeltaMovement().length() * projectileVelocity(1.0),
                     -projectileGravity(0.06));
         } catch (Throwable e) {
-            return true; // the prefilter already agreed; do not lose the release to a jar change
+            // The prefilter already agreed; do not lose the release to a jar change.
+            return new BombSight(0.0, 0.0, crossLimit, alongLimit, true);
         }
-        return within(impact.x - aim.x, impact.z - aim.z, tol);
+        return resolve(impact.x - aim.x, impact.z - aim.z, axis, crossLimit, alongLimit);
+    }
+
+    /**
+     * The one line that makes a bombing run diagnosable, and the reason the sight is split.
+     *
+     * <p>"The plane flew over and did not drop" has several causes that look identical from the
+     * ground and are fixed in completely different places. This names which one it was: a large
+     * steady {@code cross} is the ground track, so the run-in geometry is what is wrong; an
+     * {@code along} that never reaches zero is the release point falling outside the run; a
+     * standing {@code prof} is the aircraft never arriving at its bomb altitude.
+     */
+    private void logSight(long now, BombSight sight, double profileErr, String reason) {
+        // Guarded rather than left to the channel: this sits on a per-tick path, and Java builds
+        // the arguments before the callee gets to decide it does not want them.
+        if (!SewvDiag.planeVerbose()) return;
+        SewvDiag.planeThrottled(now, "bomb sight {} cross={}/{} along={}/{} prof={}", reason,
+                String.format("%.1f", sight.cross()), String.format("%.1f", sight.crossLimit()),
+                String.format("%.1f", sight.along()), String.format("%.1f", sight.alongLimit()),
+                String.format("%.1f", profileErr));
+    }
+
+    /** Same line for the gates that refuse before a sight is worth computing. */
+    private void logSight(long now, LivingEntity target, Vec3 track, double profileErr,
+                          String reason) {
+        if (!SewvDiag.planeVerbose()) return;
+        logSight(now, bombSight(target, track), profileErr, reason);
+    }
+
+    /**
+     * How far out the predicted impact may be, as a <b>cone off the blast radius</b> rather than a
+     * fixed distance — the bomb's version of what {@link #fireConeDeg} already does for the gun.
+     *
+     * <p>A flat radius is the wrong shape for an area weapon and it was too tight by a factor of
+     * three. The question a release has to answer is not "will this land on the target" — nothing
+     * flying a real approach against a mover ever promises that — it is "will the target be inside
+     * the blast", and a Mk 82 carries a 22-block one. Judging that store by an 8-block circle
+     * throws away two thirds of the weapon and turns a release the crew would call a hit into an
+     * overfly, which is the reported behaviour: the aircraft flies a perfectly good run and never
+     * drops. The blast is also exactly the margin that absorbs what an AI-flown pass cannot help —
+     * a few blocks of track error, a target that drove on during the fall.
+     *
+     * <p>Expressed as an angle at the aircraft, so it scales with range the way an aiming error
+     * does and reads in the same units as every other gate here, then converted back to the ground
+     * radius the sight is actually measured in. The config floor keeps a store with no declared
+     * blast releasable; the cap keeps a huge one from being pickled from overhead.
+     */
+    private double bombWindow(LivingEntity target) {
+        double range = Math.max(this.vehicle.position().distanceTo(target.position()), 1.0);
+        double floor = SewvConfig.PLANE_BOMB_SIGHT_RADIUS.get();
+        double coneDeg = PlaneNav.fireConeDeg(lethalRadius(), range,
+                Math.toDegrees(Math.atan(floor / range)), BOMB_MAX_CONE_DEG);
+        return range * Math.tan(Math.toRadians(coneDeg));
+    }
+
+    private static BombSight resolve(double dx, double dz, Vec3 axis, double crossLimit,
+                                     double alongLimit) {
+        return new BombSight(PlaneNav.crossTrack(dx, dz, axis), PlaneNav.alongTrack(dx, dz, axis),
+                crossLimit, alongLimit, true);
+    }
+
+    /**
+     * The point on the ground a bombing run has to be flown over — the target led by its own travel
+     * over the store's time of fall, using the fall the aircraft would get if it released now.
+     *
+     * <p>Public because the <b>ground track and the release gate must agree on it</b>. The run is
+     * steered to put this point under the aircraft and the release is judged against how near the
+     * predicted impact comes to it; two separately-derived aim points would have the autopilot
+     * flying over one place while the bomb bay waited for another.
+     *
+     * <p>Falls back to the target itself when no fall solution exists (a release off a climb, which
+     * has no impact within the window). That is the right fallback for <em>steering</em> — fly over
+     * it anyway — and costs nothing, because the release has its own independent refusal for it.
+     */
+    public Vec3 bombGroundAim(LivingEntity target) {
+        PlaneNav.Impact rough = roughImpact(target);
+        return rough == null ? target.position() : bombAimPoint(target, rough.ticks());
+    }
+
+    /** The cheap fall solution both the aim point and the release prefilter are built on. */
+    @Nullable
+    private PlaneNav.Impact roughImpact(LivingEntity target) {
+        Vec3 launchVel = this.vehicle.getDeltaMovement().scale(projectileVelocity(1.0));
+        return PlaneNav.freefallImpact(shootPos(), launchVel, projectileGravity(0.06),
+                target.getY(), BOMB_SIM_MAX_TICKS);
     }
 
     /**
@@ -583,29 +740,6 @@ public final class PlaneWeapons {
     private static Vec3 bombAimPoint(LivingEntity target, int fallTicks) {
         Vec3 vel = target.getRootVehicle().getDeltaMovement();
         return PlaneNav.leadPoint(target.position(), vel, fallTicks);
-    }
-
-    private static boolean within(double dx, double dz, double tolerance) {
-        return dx * dx + dz * dz <= tolerance * tolerance;
-    }
-
-    /**
-     * How near the predicted impact has to be before the bomb goes, scaled off the weapon's own
-     * blast exactly as the gun cone is.
-     *
-     * <p>It was a flat three blocks, and against a Mk 82's 22-block blast that is not precision,
-     * it is a release window measured in single ticks: the predicted impact walks forward by a
-     * whole tick of travel every tick — one to three blocks — so a three-block gate is a coin
-     * flip on whether any tick ever lands inside it, and the aircraft simply overflies with the
-     * bay shut. A third of the lethal radius is a window several ticks wide instead.
-     *
-     * <p>Widening it also gives the stick the right shape for free. The predicted impact starts
-     * short and walks through the target as the aircraft closes, so the first bomb now goes while
-     * it is still falling short and the rest of the stick walks up through the aim point — which
-     * is what a stick is for, rather than three craters in one hole.
-     */
-    private double bombHitTolerance() {
-        return Math.max(BOMB_HIT_TOLERANCE_MIN, lethalRadius() * BOMB_HIT_TOLERANCE_FRACTION);
     }
 
     /**

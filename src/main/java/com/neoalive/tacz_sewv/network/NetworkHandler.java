@@ -69,7 +69,8 @@ public class NetworkHandler {
     // 42: PacketTrenchNetworks (trench / emplacement map markers).
     // 43: PacketEntrench (ENTRENCHED area task).
     // 44: PacketRadioCommand (handheld radio GUI fire mission).
-    private static final String PROTOCOL_VERSION = "45";
+    // 45: Category.TOW in vehicle pool editor packets.
+    private static final String PROTOCOL_VERSION = "46";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

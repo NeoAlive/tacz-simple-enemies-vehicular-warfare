@@ -23,6 +23,7 @@
     "MixinSeekingWeaponWarning",
     "MixinMissileWarningDecoy",
     "MixinVehicleTurretNaN",
+    "MixinNpcHullYaw",
     "MixinVehiclePassengerNaN",
     "MixinVehicleFactionEnergy",
     "MixinVehicleInertiaRotate",

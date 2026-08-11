@@ -41,12 +41,15 @@ public class WorldVehiclePools extends SavedData {
     private static final List<String> DEFAULT_RU_PLANES = List.of("superbwarfare:kv_16");
     private static final List<String> DEFAULT_US_PLANES = List.of("superbwarfare:a_10a");
     private static final List<String> DEFAULT_PMC_PLANES = List.of("superbwarfare:a_10a");
+    /** Fixed AT launchers; kornet/ags resolve only when VVP is loaded. */
+    private static final List<String> DEFAULT_TOW = List.of(
+            "superbwarfare:tow", "vvp:kornet", "vvp:ags_30");
 
     private static Map<TankFaction, Map<Category, List<String>>> legacyPools;
     private static boolean legacyPoolsLoaded;
 
     public enum Category {
-        GROUND, SHIP, PLANE, HELI
+        GROUND, SHIP, PLANE, HELI, TOW
     }
 
     private final Map<TankFaction, Map<Category, List<String>>> pools = new EnumMap<>(TankFaction.class);
@@ -103,8 +106,10 @@ public class WorldVehiclePools extends SavedData {
     static boolean looksLikeHeli(String id) {
         String lower = id.toLowerCase(Locale.ROOT);
         return lower.contains("mi_28") || lower.contains("ah_6") || lower.contains("heli")
-                || lower.contains("apache") || lower.contains("ka_52") || lower.contains("mi_24")
-                || lower.contains("mi_8") || lower.contains("uh_");
+                || lower.contains("apache") || lower.contains("ka_52") || lower.contains("ka52")
+                || lower.contains("mi_24") || lower.contains("mi_8") || lower.contains("uh_")
+                || lower.contains("huey") || lower.contains("v-22") || lower.contains("nh_90")
+                || lower.contains("littlebird") || lower.contains("ah-64");
     }
 
     @Override
@@ -221,6 +226,7 @@ public class WorldVehiclePools extends SavedData {
                 case US -> DEFAULT_US_PLANES;
                 case PMC -> DEFAULT_PMC_PLANES;
             };
+            case TOW -> DEFAULT_TOW;
         };
     }
 

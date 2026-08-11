@@ -396,8 +396,16 @@ public class DriveHelicopterGoal extends Goal {
     private boolean flightWasArriveHover;
     private boolean flightAvoidFloorWasActive;
 
+    /** When true, transit/land/rappel only — no orbit/strafe (unarmed troop-lift hulls). */
+    private final boolean transportOnly;
+
     public DriveHelicopterGoal(AbstractUnit unit) {
+        this(unit, false);
+    }
+
+    DriveHelicopterGoal(AbstractUnit unit, boolean transportOnly) {
         this.unit = unit;
+        this.transportOnly = transportOnly;
         this.sensor = new AirTerrainSensor(unit);
         this.setFlags(EnumSet.noneOf(Flag.class)); // flying doesn't need to lock move/look flags
     }
@@ -410,6 +418,8 @@ public class DriveHelicopterGoal extends Goal {
 
         this.hull.attach(v);
         if (!this.hull.isHelicopter()) return false;
+        boolean transport = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.isTransportHeli(v);
+        if (this.transportOnly != transport) return false;
 
         this.vehicle = v;
         this.sensor.attach(v);
@@ -420,11 +430,15 @@ public class DriveHelicopterGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return this.unit.getVehicle() == this.vehicle
-                && this.vehicle != null
-                && this.vehicle.getFirstPassenger() == this.unit
-                && !this.vehicle.isWreck()
-                && this.hull.isHelicopter();
+        if (this.unit.getVehicle() != this.vehicle
+                || this.vehicle == null
+                || this.vehicle.getFirstPassenger() != this.unit
+                || this.vehicle.isWreck()
+                || !this.hull.isHelicopter()) {
+            return false;
+        }
+        boolean transport = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.isTransportHeli(this.vehicle);
+        return this.transportOnly == transport;
     }
 
     // The flight model re-asserts analog stick inputs against their ×0.95/tick
@@ -682,10 +696,11 @@ public class DriveHelicopterGoal extends Goal {
         // a dead/unloaded sticky, lasting hold-empty, order-pin, or an IDLE-state
         // guided pick abandons to IDLE. After abandon, hold cruise here so a
         // collapsing run cannot fall through into a low destination and sink.
-        LivingEntity combatTarget = this.unit.getTarget();
+        // Transport lifts never engage — they fly the destination and land/rappel only.
+        LivingEntity combatTarget = this.transportOnly ? null : this.unit.getTarget();
         boolean pinned = flightPinnedByOrder();
 
-        if (isFiringRunPhase(this.runPhase)) {
+        if (!this.transportOnly && isFiringRunPhase(this.runPhase)) {
             if (pinned) {
                 abandonRun("order-pin");
                 holdHover(cruiseAltitudeHere());
@@ -732,9 +747,9 @@ public class DriveHelicopterGoal extends Goal {
 
         // A pinned flight path doesn't ground the guns: if the nose happens to
         // bear on the live target mid-leg, take the shot (canShoot still gates
-        // ammo, CEASE_FIRE, LOS and smoke).
+        // ammo, CEASE_FIRE, LOS and smoke). Transport: no opportunistic fire.
         if (combatTarget != null) {
-            logAiFire(combatTarget, SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+            logAiFire(combatTarget, fireConeDeg());
         }
 
         if (dest == null) {
@@ -1030,7 +1045,7 @@ public class DriveHelicopterGoal extends Goal {
         } else {
             aimStrafePass(target);
         }
-        logAiFire(target, SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+        logAiFire(target, fireConeDeg());
     }
 
     private void enterBreak(LivingEntity target) {
@@ -1556,9 +1571,15 @@ public class DriveHelicopterGoal extends Goal {
      * (skips RPM_WAIT spam — only interesting rejects and actual shots).
      * Tracks cone-fail cycles for {@link #compensationActive}.
      */
+    private double fireConeDeg() {
+        double base = SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get();
+        double floor = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.heliConeFloorDeg(this.vehicle);
+        return Math.max(base, floor);
+    }
+
     private void logAiFire(LivingEntity target, double coneDeg) {
         VehicleWeapons.FireGate gate = VehicleWeapons.tryAiFireAssistResult(
-                this.vehicle, this.unit, target, coneDeg);
+                this.vehicle, this.unit, target, Math.max(coneDeg, fireConeDeg()));
         if (gate == VehicleWeapons.FireGate.FIRED) {
             this.cycleFired = true;
             this.coneFailAttempts = 0;
@@ -1673,7 +1694,7 @@ public class DriveHelicopterGoal extends Goal {
         } else {
             aimNoseOnly(target, horizDist);
         }
-        logAiFire(target, SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+        logAiFire(target, fireConeDeg());
     }
 
     // Nose onto the fire-assist aimpoint (shootPos → target, with short motion lead).
@@ -1891,7 +1912,14 @@ public class DriveHelicopterGoal extends Goal {
         applyCollective(withAvoidFloor(desiredY));
         this.vehicle.setHoverMode(false); // full control authority while moving
 
-        double desiredSpeed = Math.min(CRUISE_SPEED, dist * approachGain);
+        // Heavy airframes: climb-first when well below the leg altitude — forward
+        // capture starved collective on AH-64 / Ka-52.
+        boolean heavy = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.isHeavyHeli(this.vehicle);
+        double cruiseCap = heavy ? CRUISE_SPEED * 0.75 : CRUISE_SPEED;
+        if (heavy && this.vehicle.getY() < desiredY - ALT_DEADBAND * 2.0) {
+            cruiseCap = 0.0;
+        }
+        double desiredSpeed = Math.min(cruiseCap, dist * approachGain);
         double speedAlong = vel.x * travelDir.x + vel.z * travelDir.z;
         double speedErr = desiredSpeed - speedAlong;
 
@@ -1955,9 +1983,13 @@ public class DriveHelicopterGoal extends Goal {
     // forwardInputDown is the collective on a helicopter, NOT translation.
     private void applyCollective(double desiredY) {
         double dy = desiredY - this.vehicle.getY();
-        double deadband = ALT_DEADBAND;
+        // Heavy attack helis (AH-64 / Ka-52): narrower deadband so collective engages sooner
+        // when ascending, and never starve climb for forward transit.
+        boolean heavy = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.isHeavyHeli(this.vehicle);
+        double deadband = heavy ? ALT_DEADBAND * 0.5 : ALT_DEADBAND;
+        double climbCap = heavy ? CLIMB_RATE_CAP * 1.25 : CLIMB_RATE_CAP;
         double vy = this.vehicle.getDeltaMovement().y;
-        boolean climb = dy > deadband && vy < CLIMB_RATE_CAP;
+        boolean climb = dy > deadband && vy < climbCap;
         boolean descend = dy < -deadband && vy > -DESCEND_RATE_CAP;
         this.vehicle.setForwardInputDown(climb);
         this.vehicle.setDownInputDown(descend);

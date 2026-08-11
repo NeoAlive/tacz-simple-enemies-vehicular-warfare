@@ -39,6 +39,8 @@ import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.compat.AshAmmoCompat;
 import com.neoalive.tacz_sewv.compat.McspAmmoCompat;
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
+import com.neoalive.tacz_sewv.compat.VvpAmmoCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
@@ -52,6 +54,11 @@ public final class TankSpawner {
     /** Which faction crews the vehicle; each has its own world-overridable vehicle pool. */
     public enum TankFaction {
         RU, US, PMC;
+
+        /** Fixed AT / grenade emplacements (SBW TOW, VVP Kornet / AGS-30, …). */
+        public List<? extends String> towPool(ServerLevel level) {
+            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.TOW);
+        }
 
         /** Ground armour / IFV pool for this world (COMMON config is the seed only). */
         public List<? extends String> vehiclePool(ServerLevel level) {
@@ -376,7 +383,9 @@ public final class TankSpawner {
         // in spawnTankWithCrew. Same gotcha DerelictVehicleEvent already works around; this call
         // site never got the fix, so no helicopter spawned through TankSpawner ever took off.
         try {
-            if (tank.computed().getEngineType() == EngineType.HELICOPTER
+            EngineType engine = tank.computed().getEngineType();
+            engine = NpcVehicleOverrides.applyEngineHint(entityId(tank), engine);
+            if (engine == EngineType.HELICOPTER
                     && tank.getFirstPassenger() instanceof IHelicopterPilot pilot) {
                 pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_TAKEOFF);
             }
@@ -457,7 +466,9 @@ public final class TankSpawner {
         }
 
         try {
-            if (tank.computed().getEngineType() == EngineType.HELICOPTER
+            EngineType engine = tank.computed().getEngineType();
+            engine = NpcVehicleOverrides.applyEngineHint(entityId(tank), engine);
+            if (engine == EngineType.HELICOPTER
                     && tank.getFirstPassenger() instanceof IHelicopterPilot pilot) {
                 pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_TAKEOFF);
             }
@@ -519,6 +530,9 @@ public final class TankSpawner {
         if (ammo.isEmpty() && AshAmmoCompat.isAshHull(id)) {
             ammo = AshAmmoCompat.fallbackAmmo();
         }
+        if (ammo.isEmpty() && VvpAmmoCompat.isVvpHull(id)) {
+            ammo = VvpAmmoCompat.fallbackAmmo();
+        }
         if (ammo.isEmpty()) return;
 
         tank.setItem(0, new ItemStack(ammo.get(0), count));
@@ -573,13 +587,22 @@ public final class TankSpawner {
      *
      * <p>ASH Sapsan-style missile systems have no gun ammo and leave the container empty.
      */
+    /**
+     * Stocks a hull for combat (full magazine stacks). Public for emplacement / Fixed AT
+     * spawn paths that do not go through {@link #spawnCrewedVehicle}.
+     */
+    public static void stockCombatAmmo(VehicleEntity tank, TankFaction faction) {
+        stockAmmo(tank, faction);
+    }
+
     private static void stockAmmo(VehicleEntity tank, TankFaction faction) {
         if (!tank.hasContainer() || tank.getContainerSize() <= 0) return;
 
         String id = entityId(tank);
         if (AshAmmoCompat.isMissileSystemHull(id)) return; // Sapsan: ballistic spawn, no magazine
 
-        boolean addonNative = McspAmmoCompat.isMcspHull(id) || AshAmmoCompat.isAshHull(id);
+        boolean addonNative = McspAmmoCompat.isMcspHull(id) || AshAmmoCompat.isAshHull(id)
+                || VvpAmmoCompat.isVvpHull(id);
 
         if (!addonNative && faction != TankFaction.PMC && SewvConfig.FACTION_INFINITE_AMMO.get()) {
             tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
@@ -592,6 +615,9 @@ public final class TankSpawner {
         }
         if (ammo.isEmpty() && AshAmmoCompat.isAshHull(id)) {
             ammo = AshAmmoCompat.fallbackAmmo();
+        }
+        if (ammo.isEmpty() && VvpAmmoCompat.isVvpHull(id)) {
+            ammo = VvpAmmoCompat.fallbackAmmo();
         }
         if (ammo.isEmpty()) {
             if (!addonNative && SewvConfig.CREATIVE_AMMO_FALLBACK.get()) {

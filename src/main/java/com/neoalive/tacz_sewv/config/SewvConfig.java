@@ -174,6 +174,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PLANE_AUTO_HEAVY_RANGE;
     public static final ForgeConfigSpec.IntValue PLANE_BOMB_STICK;
     public static final ForgeConfigSpec.IntValue PLANE_BOMB_STICK_INTERVAL;
+    public static final ForgeConfigSpec.DoubleValue PLANE_BOMB_SIGHT_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_ATTACK_RUN_LENGTH;
     public static final ForgeConfigSpec.DoubleValue PLANE_LAND_TRANSIT_AGL;
@@ -643,6 +644,18 @@ public final class SewvConfig {
                         "Game ticks between bombs in a carpet stick. Wider spacing covers more ground and",
                         "concentrates less on the aim point.")
                 .defineInRange("planeBombStickIntervalTicks", 4, 1, 40);
+        PLANE_BOMB_SIGHT_RADIUS = builder.comment(
+                        "Smallest release window (blocks) a plane will ever bomb through - a FLOOR under the",
+                        "window, not the window itself. The window is normally the bomb's own blast radius,",
+                        "on the reasoning that a release is worth taking when the target will be inside the",
+                        "explosion rather than only when the bomb will land on it; that is what absorbs the",
+                        "few blocks of track error an AI pass cannot help and the distance a target drives",
+                        "during the fall. A Mk 82's 22-block blast therefore gives a window far wider than",
+                        "this, and this only binds for a store whose datapack declares no blast at all.",
+                        "Raising it does not make planes bomb more accurately, it makes them release",
+                        "earlier; if planes overfly without dropping, the run-in is what to look at, and",
+                        "planeCombatDebug prints the sight error that says which part of it.")
+                .defineInRange("planeBombSightRadius", 8.0, 1.0, 32.0);
         PLANE_ENGAGE_RADIUS = builder.comment(
                         "How far out (blocks) a plane rolls in on a target instead of just closing on it.",
                         "This is the single number that sets the scale a plane operates at: it is the length",

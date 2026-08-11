@@ -47,12 +47,13 @@ public class WorldVehicleClasses extends SavedData {
     }
 
     private static final List<String> DEFAULT_IFV = List.of(
-            "bradley", "bmp", "bmd", "cv90", "puma", "marder");
+            "bradley", "bmp", "bmd", "cv90", "cv_90", "puma", "marder",
+            "lav", "aavp", "btr", "stryker", "zbd", "ajax");
     private static final List<String> DEFAULT_ANTI_AIR = List.of(
             "gepard", "pantsir", "pa_pantsir");
     private static final List<String> DEFAULT_MISSILE = List.of("sapsan", "grim2");
     private static final List<String> DEFAULT_ARTILLERY = List.of(
-            "plz_05", "mk_42", "mle_1934", "bl_132");
+            "plz_05", "mk_42", "mle_1934", "bl_132", "tos");
     private static final List<String> DEFAULT_PLANE_MISSILE = List.of(
             "missile", "anti_ground_missile", "anti_air_missile", "agm", "kh_", "atgm", "maverick");
     private static final List<String> DEFAULT_PLANE_BOMB = List.of(

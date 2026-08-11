@@ -15,6 +15,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.item.Item;
@@ -77,8 +78,15 @@ public final class EmplacementSpawner {
                                       TankSpawner.TankFaction faction, @Nullable UUID ownerId,
                                       @Nullable FireMission fireMission) {
         if (!TankSpawner.spawnsEnabled(level, faction)) return null;
-        EntityType<? extends VehicleEntity> entityType =
-                type == Emplacement.MORTAR ? ModEntities.MORTAR.get() : ModEntities.TOW.get();
+
+        EntityType<? extends VehicleEntity> entityType;
+        if (type == Emplacement.MORTAR) {
+            entityType = ModEntities.MORTAR.get();
+        } else {
+            entityType = pickTowType(level, faction);
+            if (entityType == null) return null;
+        }
+
         BlockPos pos = TankSpawner.findClearSpawn(level, requestedPos, entityType);
         if (pos == null) return null;
 
@@ -97,16 +105,42 @@ public final class EmplacementSpawner {
             // Cannot fail: a mortar has no seat to refuse the crew, which is the whole reason
             // the claim exists instead of a mount.
             crewMortar(level, (MortarEntity) weapon, crew, fireMission);
-        } else if (!crewTow((TowEntity) weapon, crew)) {
+        } else if (!crew.startRiding(weapon)) {
             // The seat refused the rider — don't leave a crewless launcher standing next to a
             // launcher-less crew.
             crew.discard();
             weapon.discard();
             return null;
+        } else if (!(weapon instanceof TowEntity)) {
+            // Fixed AT / AGS magazine hulls (Kornet, AGS-30); SBW TowEntity uses crew pockets.
+            TankSpawner.stockCombatAmmo(weapon, faction);
         }
 
-        supply(crew, faction, type, level.random);
+        supply(crew, faction, type, level.random, weapon);
         return weapon;
+    }
+
+    /**
+     * Pick a Fixed AT / grenade emplacement from the faction TOW pool, falling back to
+     * {@code superbwarfare:tow} when the pool is empty or every id is missing.
+     */
+    @SuppressWarnings("unchecked")
+    private static EntityType<? extends VehicleEntity> pickTowType(ServerLevel level,
+                                                                   TankSpawner.TankFaction faction) {
+        for (String id : faction.towPool(level)) {
+            ResourceLocation rl = ResourceLocation.tryParse(id);
+            if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
+            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            if (type == null) continue;
+            // Create once to confirm VehicleEntity — discarded immediately.
+            Entity probe = type.create(level);
+            if (probe instanceof VehicleEntity) {
+                probe.discard();
+                return (EntityType<? extends VehicleEntity>) type;
+            }
+            if (probe != null) probe.discard();
+        }
+        return ModEntities.TOW.get();
     }
 
     private static void crewMortar(ServerLevel level, MortarEntity mortar, AbstractUnit crew,
@@ -114,10 +148,6 @@ public final class EmplacementSpawner {
         MortarSupport.claim(crew, mortar);
         ((IMortarCrew) crew).sewv$setFireMission(fireMission);
         holdChunk(level, crew);
-    }
-
-    private static boolean crewTow(TowEntity tow, AbstractUnit crew) {
-        return crew.startRiding(tow);
     }
 
     /**
@@ -134,8 +164,8 @@ public final class EmplacementSpawner {
      * resupplied is doctrine and doctrine should be readable where the crew is made.
      */
     private static void supply(AbstractUnit crew, TankSpawner.TankFaction faction,
-                               Emplacement type, RandomSource random) {
-        Item ammo = ammoFor(type, random);
+                               Emplacement type, RandomSource random, VehicleEntity weapon) {
+        Item ammo = ammoFor(type, random, weapon);
         if (faction == TankSpawner.TankFaction.PMC) {
             fillInventory(crew, ammo);
         } else if (crew instanceof IIssuedAmmo issued) {
@@ -144,8 +174,16 @@ public final class EmplacementSpawner {
     }
 
     /** What a crew of this weapon shoots. */
-    private static Item ammoFor(Emplacement type, RandomSource random) {
-        if (type == Emplacement.TOW) return ModItems.MEDIUM_ANTI_GROUND_MISSILE.get();
+    private static Item ammoFor(Emplacement type, RandomSource random, VehicleEntity weapon) {
+        if (type == Emplacement.TOW) {
+            // VVP AGS uses 30mm grenades; Kornet / SBW TOW use AT missiles.
+            String id = ForgeRegistries.ENTITY_TYPES.getKey(weapon.getType()).toString();
+            if (id.contains("ags")) {
+                Item ags = ForgeRegistries.ITEMS.getValue(new ResourceLocation("vvp:item_30mm"));
+                if (ags != null && ags != net.minecraft.world.item.Items.AIR) return ags;
+            }
+            return ModItems.MEDIUM_ANTI_GROUND_MISSILE.get();
+        }
 
         // Rolled once, per crew, so a battery's tubes can differ from each other but a given
         // tube shoots one thing throughout rather than alternating at random.

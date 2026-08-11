@@ -96,6 +96,9 @@ public class ManVehicleMortarGoal extends Goal {
     public void tick() {
         updateChunkLoading();
         VehicleMortarSupport.reload(this.hull, this.unit);
+        // Driver may still be issuing inputs on ticks where DriveVehicleGoal has not
+        // yet yielded — clear every tick while we have work so the hull parks for the shot.
+        VehicleMortarSupport.stopMovement(this.hull);
 
         Vec3 aimCentre = VehicleMortarSupport.aimpoint(this.unit);
         if (aimCentre == null) {

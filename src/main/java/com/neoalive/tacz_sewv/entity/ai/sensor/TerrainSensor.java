@@ -63,6 +63,11 @@ public abstract class TerrainSensor {
         dropCache();
     }
 
+    /** Absolute game time — for caches that key off the same tick the whisker runs on. */
+    public final long gameTime() {
+        return this.unit.level().getGameTime();
+    }
+
     /** Hook for per-hull facts a subclass resolves once rather than per probe. */
     protected void onAttach(VehicleEntity v) {}
 

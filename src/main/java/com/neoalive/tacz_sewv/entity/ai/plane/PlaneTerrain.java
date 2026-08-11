@@ -47,6 +47,12 @@ public final class PlaneTerrain {
     /** Cost added to a leg whose continuation is blocked — flyable now, a dead end shortly. */
     private static final double DEAD_END_COST = 120.0;
     private static final int CACHE_TTL_TICKS = 20;
+    /** Whisker TTL: shorter than the corridor — traffic moves, terrain does not. */
+    private static final int WHISKER_CACHE_TTL_TICKS = 8;
+    /** Heading buckets for the whisker cache (~5°), matching the corridor quantiser. */
+    private static final double WHISKER_HEADING_BUCKET_DEG = 5.0;
+    /** Speed buckets so a climb/dive that changes airspeed refreshes the reach. */
+    private static final double WHISKER_SPEED_BUCKET = 0.5;
 
     /** Steps the dive integrator takes along the run before it trusts the geometry. */
     private static final int DIVE_SAMPLES = 12;
@@ -58,11 +64,21 @@ public final class PlaneTerrain {
     private Vec3 cacheDir;
     private boolean cacheValid;
 
-    /** Drop the cached corridor — a new hull, or a deliberate re-plan. */
+    // Whisker cache — holdAbout used to pay a full fan every tick for an orbit that barely turns.
+    private long whiskerCacheTick = Long.MIN_VALUE;
+    private int whiskerHeadingQ;
+    private int whiskerSpeedQ;
+    private Vec3 whiskerCacheDir;
+    private boolean whiskerCacheValid;
+
+    /** Drop the cached corridor and whisker — a new hull, or a deliberate re-plan. */
     public void clear() {
         this.cacheValid = false;
         this.cacheDir = null;
         this.cacheTick = Long.MIN_VALUE;
+        this.whiskerCacheValid = false;
+        this.whiskerCacheDir = null;
+        this.whiskerCacheTick = Long.MIN_VALUE;
     }
 
     /**
@@ -191,9 +207,29 @@ public final class PlaneTerrain {
     /**
      * Whisker convenience: is this bearing clear for the aircraft's current speed? Kept here so
      * every caller uses the same speed-scaled reach rather than each picking its own constant.
+     *
+     * <p>Cached a few ticks by quantized heading and speed so an orbiting hold does not re-fan
+     * the block whisker every tick — the corridor already does the same for heightmap routing.
      */
-    public static Vec3 clearBearing(AirTerrainSensor sensor, Vec3 desired, double speed) {
-        return sensor.chooseClearBearing(desired, probeDistance(speed));
+    public Vec3 clearBearing(AirTerrainSensor sensor, Vec3 desired, double speed) {
+        Vec3 desiredN = desired.lengthSqr() > 1.0E-8 ? desired.normalize() : desired;
+        int headingQ = desiredN.lengthSqr() > 1.0E-8
+                ? Mth.floor(Math.toDegrees(Math.atan2(desiredN.x, desiredN.z)) / WHISKER_HEADING_BUCKET_DEG)
+                : 0;
+        int speedQ = Mth.floor(Math.max(speed, 0.0) / WHISKER_SPEED_BUCKET);
+        long gameTime = sensor.gameTime();
+        if (this.whiskerCacheValid && gameTime - this.whiskerCacheTick < WHISKER_CACHE_TTL_TICKS
+                && headingQ == this.whiskerHeadingQ && speedQ == this.whiskerSpeedQ) {
+            return this.whiskerCacheDir;
+        }
+
+        Vec3 found = sensor.chooseClearBearing(desired, probeDistance(speed));
+        this.whiskerCacheValid = true;
+        this.whiskerCacheTick = gameTime;
+        this.whiskerHeadingQ = headingQ;
+        this.whiskerSpeedQ = speedQ;
+        this.whiskerCacheDir = found;
+        return found;
     }
 
     /** Highest surface on the leg to a point, including a lateral band — the cruise hold floor. */

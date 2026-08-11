@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Action;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalBrain;
@@ -122,6 +123,8 @@ public class DriveVehicleGoal extends Goal {
         if (this.hull.isMissileSystem() && AshMissileSupport.shouldEngage(this.unit)) return false;
         // Artillery: ManArtilleryGoal lays and fires — do not close on the designation.
         if (this.hull.isArtillery() && ArtillerySupport.hasFireWork(this.unit)) return false;
+        // FCP vehicle mortar: park while the gunner lays/fires.
+        if (VehicleMortarSupport.shouldPark(v)) return false;
 
         this.vehicle = v;
         this.driver.attach(v);
@@ -133,6 +136,7 @@ public class DriveVehicleGoal extends Goal {
     public boolean canContinueToUse() {
         if (this.hull.isMissileSystem() && AshMissileSupport.shouldEngage(this.unit)) return false;
         if (this.hull.isArtillery() && ArtillerySupport.hasFireWork(this.unit)) return false;
+        if (this.vehicle != null && VehicleMortarSupport.shouldPark(this.vehicle)) return false;
         return this.unit.getVehicle() == this.vehicle
                 && this.vehicle != null
                 && this.vehicle.getFirstPassenger() == this.unit

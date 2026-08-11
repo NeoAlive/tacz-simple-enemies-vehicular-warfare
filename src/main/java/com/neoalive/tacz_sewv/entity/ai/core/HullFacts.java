@@ -12,6 +12,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
 
@@ -28,10 +29,15 @@ import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
  */
 public final class HullFacts {
 
-    private static final List<String> IFV_NAME_CLUES = List.of("bradley", "bmp", "bmd", "cv90", "puma", "marder");
+    private static final List<String> IFV_NAME_CLUES = List.of(
+            "bradley", "bmp", "bmd", "cv90", "cv_90", "puma", "marder",
+            "lav", "aavp", "btr", "stryker", "zbd", "ajax");
     private static final List<String> MISSILE_SYSTEM_NAME_CLUES = List.of("sapsan", "grim2");
     private static final List<String> ANTI_AIR_NAME_CLUES = List.of("gepard", "pantsir", "pa_pantsir");
-    private static final List<String> ARTILLERY_NAME_CLUES = List.of("plz_05", "mk_42", "mle_1934", "bl_132");
+    private static final List<String> ARTILLERY_NAME_CLUES = List.of(
+            "plz_05", "mk_42", "mle_1934", "bl_132", "tos");
+    /** Substrings that look like IFV clues but are softskin technicals. */
+    private static final List<String> IFV_DENY = List.of("hilux_bmp", "toyota_hilux_bmp");
 
     private VehicleEntity vehicle;
     private boolean helicopter;
@@ -300,15 +306,36 @@ public final class HullFacts {
         try {
             String id = ForgeRegistries.ENTITY_TYPES.getKey(v.getType()).toString().toLowerCase(Locale.ROOT);
             for (String clue : clues) {
-                if (!clue.isBlank() && id.contains(clue.toLowerCase(Locale.ROOT))) return true;
+                if (clue.isBlank()) continue;
+                String c = clue.toLowerCase(Locale.ROOT);
+                if (!id.contains(c)) continue;
+                if (isIfvClue(c) && isDeniedIfv(id)) continue;
+                return true;
             }
         } catch (Exception ignored) {}
         return false;
     }
 
+    private static boolean isIfvClue(String clue) {
+        for (String c : IFV_NAME_CLUES) {
+            if (c.equalsIgnoreCase(clue)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isDeniedIfv(String id) {
+        for (String deny : IFV_DENY) {
+            if (!deny.isBlank() && id.contains(deny.toLowerCase(Locale.ROOT))) return true;
+        }
+        return false;
+    }
+
     private static boolean computeHelicopter(VehicleEntity v) {
         try {
-            return v.computed().getEngineType() == EngineType.HELICOPTER;
+            EngineType t = NpcVehicleOverrides.applyEngineHint(
+                    ForgeRegistries.ENTITY_TYPES.getKey(v.getType()).toString(),
+                    v.computed().getEngineType());
+            return t == EngineType.HELICOPTER;
         } catch (Throwable ignored) {
             return false;
         }
@@ -316,7 +343,10 @@ public final class HullFacts {
 
     private static boolean computePlane(VehicleEntity v) {
         try {
-            return v.computed().getEngineType() == EngineType.AIRCRAFT;
+            EngineType t = NpcVehicleOverrides.applyEngineHint(
+                    ForgeRegistries.ENTITY_TYPES.getKey(v.getType()).toString(),
+                    v.computed().getEngineType());
+            return t == EngineType.AIRCRAFT;
         } catch (Throwable ignored) {
             return false;
         }

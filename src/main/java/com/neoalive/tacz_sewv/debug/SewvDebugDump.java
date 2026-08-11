@@ -34,7 +34,7 @@ public final class SewvDebugDump {
 
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final String[] SOFT_DEPS = {
-            "berezka_api", "xaeroworldmap", "openpartiesandclaims", "fcp", "mcsp", "ashvehicle",
+            "berezka_api", "xaeroworldmap", "openpartiesandclaims", "fcp", "mcsp", "ashvehicle", "vvp",
             "configured"
     };
 

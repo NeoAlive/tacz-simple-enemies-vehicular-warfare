@@ -169,6 +169,10 @@ public class DrivePlaneGoal extends Goal {
     private static final double DIVE_PATH_CLEARANCE = 24.0;
     private static final double PULLUP_LEAD_TICKS = 14.0;
     private static final float HARD_CLIMB_PITCH_DEG = 30.0F;
+    /** The climb a slow aircraft is allowed instead — shallow enough for the wing to hold it. */
+    private static final float SOFT_CLIMB_PITCH_DEG = 10.0F;
+    /** Airspeed below which the hard climb is refused. See {@link #climbPitch}. */
+    private static final double CLIMB_MIN_SPEED = 0.9;
     private static final float MAX_DIVE_PITCH_DEG = 55.0F;
     /**
      * How nose-down each kind of store is delivered. This is the doctrine, not a tuning number: a
@@ -198,6 +202,19 @@ public class DrivePlaneGoal extends Goal {
     private static final double RUN_ALIGN_DEG = 12.0;
     /** Room left between the computed bomb release point and the start of the run that offers it. */
     private static final double BOMB_RELEASE_MARGIN = 24.0;
+    /**
+     * Pure-pursuit lookahead for the bombing ground track, in blocks.
+     *
+     * <p>Long, and deliberately so. It is the same primitive the landing approach steers by, but
+     * the two want opposite settings: a final approach converges over a hundred-odd blocks and
+     * wants a short carrot, while a bombing run has the whole engage bubble to null a few blocks
+     * of offset in and has to arrive <b>wings level</b>, because the release window is only a few
+     * ticks wide and a hull still rolling out of a correction throws the store sideways. A short
+     * carrot here corrects hard, late, and is still correcting at the release point.
+     */
+    private static final double BOMB_TRACK_LOOKAHEAD = 160.0;
+    /** Inside this, the bombing track stops correcting and just holds the axis. */
+    private static final double BOMB_TRACK_MIN_PURSUIT = 32.0;
     /**
      * How nose-down the run-in itself may get while it comes down onto the roll-in height.
      *
@@ -296,6 +313,8 @@ public class DrivePlaneGoal extends Goal {
     private double runDirZ = Double.NaN;
     private double runStartX;
     private double runStartZ;
+    /** Altitude the current run was briefed at, held fixed for its duration (NaN = none). */
+    private double runY = Double.NaN;
 
     /** Temporary altitude floor held while climbing out of a fully blocked cone. */
     private double avoidFloorY = Double.NaN;
@@ -743,7 +762,7 @@ public class DrivePlaneGoal extends Goal {
         this.control.throttleUp();
         this.vehicle.setGearUp(true);
         Vec3 ahead = this.kinematics.forwardFlat();
-        Vec3 clear = PlaneTerrain.clearBearing(this.sensor, ahead, this.kinematics.speed());
+        Vec3 clear = this.terrain.clearBearing(this.sensor, ahead, this.kinematics.speed());
         this.control.steerYaw(clear != null ? clear : ahead, TURN_YAW_SCALE);
         this.control.commandPitch(-TAKEOFF_PITCH_DEG);
     }
@@ -858,7 +877,7 @@ public class DrivePlaneGoal extends Goal {
         Vec3 steer = PlaneNav.orbitSteer(this.vehicle.getX() - centre.x,
                 this.vehicle.getZ() - centre.z, radius, orbitClockwise());
         this.control.throttleUp();
-        Vec3 clear = PlaneTerrain.clearBearing(this.sensor, steer, this.kinematics.speed());
+        Vec3 clear = this.terrain.clearBearing(this.sensor, steer, this.kinematics.speed());
         if (clear == null) {
             avoidBlocked(steer, desiredY);
             return;
@@ -912,7 +931,7 @@ public class DrivePlaneGoal extends Goal {
                 Math.min(dist, TERRAIN_LOOKAHEAD), this.unit.level().getGameTime());
         Vec3 desiredBearing = corridor != null ? corridor : dirToDest;
 
-        Vec3 travelDir = PlaneTerrain.clearBearing(this.sensor, desiredBearing,
+        Vec3 travelDir = this.terrain.clearBearing(this.sensor, desiredBearing,
                 this.kinematics.speed());
         if (travelDir == null) {
             avoidBlocked(desiredBearing, desiredY);
@@ -970,9 +989,10 @@ public class DrivePlaneGoal extends Goal {
         double dist = Math.hypot(target.getX() - this.vehicle.getX(),
                 target.getZ() - this.vehicle.getZ());
         this.weapons.ensureSelected(target, dist);
-        double approachY = Math.max(runAltitude(target),
-                AirframeSupport.highestGroundToward(this.vehicle, target.getX(), target.getZ(),
-                        TERRAIN_LOOKAHEAD) + MIN_INGRESS_CLEARANCE);
+        // The height the run will be flown at, not a separate approach height. They were computed
+        // by two different expressions and the approach one was the higher, so every attack began
+        // with an unbriefed descent — see runAltitude.
+        double approachY = runAltitude(target);
         if (!Double.isNaN(this.runInDirX)) {
             // Repositioning: hold the latched heading outbound until clear of the bubble, and the
             // branch below then flies the long straight leg back in. There is no way to turn onto
@@ -1010,15 +1030,22 @@ public class DrivePlaneGoal extends Goal {
         this.runDirZ = dir.z;
         this.runStartX = this.vehicle.getX();
         this.runStartZ = this.vehicle.getZ();
+        // Briefed once, then flown. A run altitude recomputed every tick is a moving setpoint, and
+        // an altitude loop chasing one is never settled — which for a bomb is the difference
+        // between a platform and a guess, since the store leaves along the velocity vector the
+        // chasing is bending. It is also what {@code runWouldBeSafe} just cleared the whole run
+        // length against, so re-deriving it mid-run would be flying a profile nothing checked.
+        this.runY = runAltitude(target);
         this.weapons.beginRun(target, toT.length());
-        SewvDiag.plane("run start kind={} range={} dir=({},{})", this.weapons.selectedKind(),
-                String.format("%.0f", toT.length()),
+        SewvDiag.plane("run start kind={} range={} alt={} dir=({},{})", this.weapons.selectedKind(),
+                String.format("%.0f", toT.length()), String.format("%.0f", this.runY),
                 String.format("%.2f", dir.x), String.format("%.2f", dir.z));
     }
 
     private void resetRun() {
         this.runDirX = Double.NaN;
         this.runDirZ = Double.NaN;
+        this.runY = Double.NaN;
     }
 
     /**
@@ -1065,13 +1092,17 @@ public class DrivePlaneGoal extends Goal {
         double clearance = this.vehicle.getY() - groundRef;
         double pullupTrigger = MIN_ATTACK_CLEARANCE + this.kinematics.sinkRate() * PULLUP_LEAD_TICKS;
 
-        boolean stickDone = this.weapons.hasBombSelected() && this.weapons.stickComplete();
-        if (passedTarget || stickDone || clearance <= pullupTrigger
+        // A completed stick is deliberately NOT an exit. The last bomb goes at the release point,
+        // which for a level delivery is a hundred blocks short of the target, so breaking there
+        // pulls the aircraft up before it ever reaches what it just bombed — and pulls it up out of
+        // the one profile in this class that is flown slow. The overfly costs a couple of seconds
+        // and is what {@code passedTarget} is already for.
+        if (passedTarget || clearance <= pullupTrigger
                 || distFromStart >= runLengthLimit(target)) {
             this.mode = PlaneMode.BREAK;
             resetRun();
             this.control.holdHeading();
-            this.control.commandPitch(-HARD_CLIMB_PITCH_DEG);
+            this.control.commandPitch(climbPitch());
             return;
         }
 
@@ -1106,20 +1137,70 @@ public class DrivePlaneGoal extends Goal {
      * from the hull's own velocity, so the run's whole job is to present a straight, level, stable
      * platform over the target's track and let the release decide.
      *
-     * <p>Steering follows the <b>locked run axis</b> rather than the live bearing to the target:
-     * the axis was laid through the target when the run began, chasing the bearing would swing the
-     * aircraft violently as it passes overhead, and a carpet is by definition a straight line.
+     * <p>Steering follows the <b>locked run axis as a line</b>, not as a heading, and not as the
+     * live bearing to the target. All three are different and only the first is right: a heading
+     * hold flies parallel to the line it should be on, and chasing the bearing swings the aircraft
+     * violently as it passes overhead, when a carpet is by definition straight.
      */
     private void bombRun(LivingEntity target) {
-        this.control.steerYaw(new Vec3(this.runDirX, 0.0, this.runDirZ));
-        this.control.holdAltitude(runAltitude(target));
+        Vec3 axis = new Vec3(this.runDirX, 0.0, this.runDirZ);
+        // The point the ground track has to pass over is where the bomb has to ARRIVE, not where
+        // the target is now — the same led point the release solves against, so the steering and
+        // the gate can never disagree about what is being bombed.
+        Vec3 aim = this.weapons.bombGroundAim(target);
+        double along = PlaneNav.alongTrack(aim.x - this.vehicle.getX(),
+                aim.z - this.vehicle.getZ(), axis);
+
+        // Cross-track, not heading. The axis was laid THROUGH the target at run start, but matching
+        // only its direction leaves the aircraft on a line parallel to that one, offset by however
+        // far it drifted while it turned — and for a store aimed by where it is released, lateral
+        // offset is the entire miss. It cannot be timed out of: a predicted impact that passes a
+        // few blocks to the side never enters the release window on any tick, so the aircraft flies
+        // the whole run with the bay shut. Same pure pursuit the landing axis is flown by.
+        //
+        // Close in, the pursuit is switched off and the wings are simply held level. Steering at a
+        // point a few blocks ahead turns a fraction of a block of residual offset into a hard
+        // correction — the aircraft would jink over the target, which is the worst possible moment
+        // for it — and past the aim point the carrot sits BEHIND the aircraft and the correction
+        // becomes a reversal. There is nothing left to align by then anyway: the offset is closed
+        // out on the long leg or not at all.
+        if (along > BOMB_TRACK_MIN_PURSUIT) {
+            Vec3 carrot = PlaneNav.approachCarrot(aim.x, aim.z, axis, along, BOMB_TRACK_LOOKAHEAD);
+            this.control.steerYaw(new Vec3(carrot.x - this.vehicle.getX(), 0.0,
+                    carrot.z - this.vehicle.getZ()));
+        } else {
+            this.control.steerYaw(axis);
+        }
+        double runY = runAltitude(target);
+        this.control.holdAltitude(runY);
         // Braked like the dive, and for a sharper reason than buying tracking time: a bomb's
         // downrange travel and its whole time of fall scale with the speed it is let go at, and
         // everything that can go wrong between release and impact — the target driving out from
         // under it, the release solution going stale — grows with that time. Slower is nearer, and
         // nearer is more accurate.
-        this.control.airbrake(this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
-        this.weapons.releaseBombIfOnTarget(target, this.kinematics.forwardFlat());
+        //
+        // The brake comes off the moment the stick is away, so the aircraft spends the overfly
+        // building the speed the break-off climb has to be paid for with. Braking through it and
+        // then hauling up is how a bombing pass ended in a stall.
+        this.control.airbrake(!this.weapons.stickComplete()
+                && this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
+        this.weapons.releaseBombIfOnTarget(target, this.kinematics.forwardFlat(), runY);
+    }
+
+    /**
+     * How hard the aircraft may pull up, given what it is doing it on.
+     *
+     * <p>A fixed-wing hull in SBW makes its lift out of forward airspeed, so a climb is bought
+     * with speed and there has to be some to spend. The dive profile always has plenty — it has
+     * just traded height for it — but the bombing run is flown <b>level and on the brake</b>, and
+     * settles near {@link #DIVE_BRAKE_MIN_SPEED} by design. Commanding the full climb from there
+     * asks for a pitch attitude the wing cannot hold: the aircraft rotates, stops flying and comes
+     * down, which is exactly the "pitches up and then falls out of the sky" a bombing pass ended
+     * with. Below the threshold it climbs gently instead and lets the engine build the speed back.
+     */
+    private float climbPitch() {
+        return this.kinematics.speed() >= CLIMB_MIN_SPEED
+                ? -HARD_CLIMB_PITCH_DEG : -SOFT_CLIMB_PITCH_DEG;
     }
 
     /** How nose-down the current store is delivered — see the run-pitch constants. */
@@ -1155,7 +1236,7 @@ public class DrivePlaneGoal extends Goal {
                 this.vehicle.getX(), this.vehicle.getZ(), dir, recoverY, TERRAIN_LOOKAHEAD,
                 this.unit.level().getGameTime());
         Vec3 wanted = corridor != null ? corridor : dir;
-        Vec3 clear = PlaneTerrain.clearBearing(this.sensor, wanted, this.kinematics.speed());
+        Vec3 clear = this.terrain.clearBearing(this.sensor, wanted, this.kinematics.speed());
         if (clear == null) {
             avoidBlocked(wanted, recoverY);
             return;
@@ -1167,7 +1248,7 @@ public class DrivePlaneGoal extends Goal {
         // roll-in altitude and immediately descend again between every pass.
         boolean recovered = this.kinematics.agl() >= ATTACK_ENTRY_AGL;
         if (!recovered) {
-            this.control.commandPitch(-HARD_CLIMB_PITCH_DEG);
+            this.control.commandPitch(climbPitch());
         } else {
             this.control.holdAltitude(recoverY);
         }
@@ -1210,10 +1291,21 @@ public class DrivePlaneGoal extends Goal {
      * the ground, and the ceiling is the roll-in height a strafing pass wants.
      */
     private double runAltitude(LivingEntity target) {
+        if (!Double.isNaN(this.runY)) return this.runY;
         double geometric = Math.tan(Math.toRadians(deliveryPitchLimit()))
                 * SewvConfig.PLANE_ENGAGE_RADIUS.get();
         double agl = Mth.clamp(geometric, MIN_RUN_AGL, ATTACK_ENTRY_AGL);
-        return Math.max(groundAt(target) + agl, target.getY() + MIN_OVER_DEST);
+        double planned = Math.max(groundAt(target) + agl, target.getY() + MIN_OVER_DEST);
+        // The same terrain floor the approach is flown at, because otherwise the two disagree and
+        // the run spends itself undoing the approach. Ingress holds 80 blocks over the HIGHEST
+        // ground on the way in, which over anything but a plain is well above the target's own
+        // ground — so a run altitude derived from the target alone commands a descent the moment
+        // the run starts, and the aircraft arrives nose-down and still descending at the release
+        // point. That is the "slight nosedive and flies on": not a refusal to bomb, an aircraft
+        // that was never on its bombing profile to begin with.
+        double enRoute = AirframeSupport.highestGroundToward(this.vehicle, target.getX(),
+                target.getZ(), TERRAIN_LOOKAHEAD) + MIN_INGRESS_CLEARANCE;
+        return Math.max(planned, enRoute);
     }
 
     private int groundAt(LivingEntity target) {

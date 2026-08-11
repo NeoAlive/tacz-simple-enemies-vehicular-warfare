@@ -59,6 +59,15 @@ import com.neoalive.tacz_sewv.util.VehicleDarknessAccuracy;
  *   <li><b>The TOW</b> — nominally affected, actually not: a WireGuideMissileEntity re-steers
  *       onto the launcher's barrel line every tick, so it rides out any launch dispersion.
  *       Correct by accident, and correct in principle — a wire-guided missile IS accurate.</li>
+ *   <li><b>Fixed-wing aircraft</b> — the premise above does not hold for one. A plane never
+ *       touches {@code turretAutoAimFromUuid}: {@code DrivePlaneGoal} points the whole hull, at
+ *       roughly half a degree of pitch per tick, inside an attack run that lasts a second or two,
+ *       and then gates the shot on the angle within which it would still land. There is no perfect
+ *       solution here to spoil — the pointing error IS the difficulty, and it is already the
+ *       largest of any platform in the game. Adding four degrees on top of it was charging an
+ *       aircraft twice for the same thing: measured against the A-10's cannon, whose own datapack
+ *       spread is 0.5, it was eight times the weapon's dispersion and about 2.7 blocks of scatter
+ *       at a hundred against a four-block blast.</li>
  * </ul>
  */
 @Mixin(targets = "com.atsuishio.superbwarfare.item.gun.GunItem")
@@ -84,7 +93,12 @@ public abstract class MixinAiAimSpread {
         // beside its tube and drops out here, and so does any unit shooting something else.
         if (!(unit.getVehicle() instanceof VehicleEntity vehicle)) return spread;
 
-        String mode = SewvConfig.AI_AIM_ACCURACY.get();
+        // An aircraft's own pointing error is already the handicap this would add (see the class
+        // note), so it skips the difficulty term — but not the darkness one below, which is
+        // environmental and applies even in accurate mode.
+        String mode = HullFacts.isPlaneHull(vehicle)
+                ? TACZ_SEWV$ACCURATE
+                : SewvConfig.AI_AIM_ACCURACY.get();
         if (!TACZ_SEWV$ACCURATE.equals(mode)) {
             double added = SewvConfig.AI_AIM_SPREAD_DEG.get();
             if (TACZ_SEWV$SCALED.equals(mode)) {

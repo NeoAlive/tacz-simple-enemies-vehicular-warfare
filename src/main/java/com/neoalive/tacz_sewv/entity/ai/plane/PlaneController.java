@@ -70,7 +70,24 @@ public final class PlaneController {
         this.vehicle.setRightInputDown(false);
     }
 
-    /** Air brake — {@code downInput} is what actually sheds speed on an SBW aircraft. */
+    /**
+     * Air brake. This is the only speed control worth having on an SBW aircraft, and the reason is
+     * that it is entirely <b>multiplicative</b>: holding {@code downInput} makes the engine read
+     * {@code resistance * 1.5} instead of {@code resistance} and decay {@code power * 0.97} each
+     * tick. Both terms are the hull's own datapack numbers, so a heavy bomber and a light jet each
+     * shed a proportion of their own speed and settle at their own lower equilibrium against drag.
+     * No block-per-tick figure appears anywhere, which is what makes it safe against a datapack
+     * that retunes an airframe or adds one this mod has never seen.
+     *
+     * <p>It is also nearly free in control terms. SBW scales yaw by airspeed
+     * ({@code 0.24 * speed * stick}) but then clamps it to a roll-dependent ceiling that any
+     * cruising speed already saturates, and it scales pitch by {@code clamp(v·nose - 0.24, 0.1,
+     * 0.2)}, which is at its maximum for anything above 0.44 blocks/tick. So slowing an aircraft
+     * down buys time without costing it the authority to use that time — the trade only turns bad
+     * near walking pace, which is what the caller's speed gate is for.
+     *
+     * <p>Latched, like every SBW input: {@link #throttleUp()} is what releases it again.
+     */
     public void airbrake(boolean on) {
         this.vehicle.setDownInputDown(on);
     }
@@ -146,6 +163,21 @@ public final class PlaneController {
     /** Hold an altitude: below it, nose up (negative attitude); above it, nose down. */
     public void holdAltitude(double desiredY) {
         commandPitch(altitudePitch(desiredY));
+    }
+
+    /**
+     * Hold an altitude, but allow the descent to be steeper than the cruise bound.
+     *
+     * <p>{@link #MAX_CRUISE_PITCH_DEG} is the right ceiling for transiting between two heights and
+     * the wrong one for arriving somewhere: an aircraft coming down onto a roll-in height at the
+     * gentle cruise angle is still stepping down when it gets there, and the nose then has to go
+     * over at the last moment. Raising only the nose-<b>down</b> half leaves climbs alone, which
+     * matters because a climb is limited by thrust and a descent is not.
+     */
+    public void holdAltitude(double desiredY, float maxNoseDownDeg) {
+        double altErr = desiredY - this.vehicle.getY();
+        commandPitch((float) Mth.clamp(-altErr * ALT_PITCH_PER_BLOCK,
+                -MAX_CRUISE_PITCH_DEG, maxNoseDownDeg));
     }
 
     /** The attitude an altitude error asks for, bounded to a gentle cruise angle. */

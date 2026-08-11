@@ -8,6 +8,7 @@ import com.atsuishio.superbwarfare.data.gun.AmmoConsumer;
 import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.atsuishio.superbwarfare.tools.ProjectileCalculator;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
@@ -68,10 +69,24 @@ public final class PlaneWeapons {
     private static final double DEFAULT_VELOCITY = 10.0;
     /** Tightest a release window is ever allowed to be, for a bomb whose datapack declares no blast. */
     private static final double BOMB_HIT_TOLERANCE_MIN = 3.0;
+    /** Share of the blast radius the predicted impact may be out by and still count as on target. */
+    private static final double BOMB_HIT_TOLERANCE_FRACTION = 1.0 / 3.0;
+    /** How much looser the cheap prefilter is than the real gate, so it can only ever agree early. */
+    private static final double BOMB_PREFILTER_SLACK = 2.0;
     /** The bomb sim gives up after this long; a climbing aircraft never brings one down. */
     private static final int BOMB_SIM_MAX_TICKS = 200;
     /** Bombs are only released with the nose roughly along the flight path, never in a hard turn. */
     private static final double BOMB_MAX_TRACK_ERROR_DEG = 15.0;
+    /**
+     * And never off a climb or a dive. A bomb inherits the aircraft's velocity vector outright
+     * ({@code Directions: "DeltaMovement"}), so the flight path angle <em>is</em> the launch angle,
+     * and while the altitude hold is still settling it commands up to twenty degrees of pitch and
+     * swings the predicted impact by tens of blocks a tick. The prediction follows that faithfully,
+     * which is the problem: a wide release window then triggers on a transient rather than on a
+     * solution. Matched to {@code DrivePlaneGoal.BOMB_RUN_PITCH_DEG} — the run is flown to that
+     * limit, so demanding the same of the path asks for nothing the profile does not already give.
+     */
+    private static final double BOMB_MAX_PATH_ANGLE_DEG = 8.0;
     /**
      * Accuracy demanded of a weapon whose datapack declares no blast at all — a plain kinetic gun.
      * Roughly a vehicle's own width, so "on target" means the burst is on the hull.
@@ -362,10 +377,20 @@ public final class PlaneWeapons {
                 projectileVelocity(), projectileGravity());
     }
 
-    /** SBW's live firing direction for the selected slot — the thing that has to be on target. */
+    /**
+     * The line the round will actually leave on — the thing that has to be put on target.
+     *
+     * <p><b>{@code getShootVec}, not {@code getShootDirectionForHud}.</b> The two are different
+     * datapack fields and a hull may declare them apart: the A-10's cannon fires along
+     * {@code [0,-0.02,1]} and draws its HUD pip along {@code [0,-0.03,1]}, so aiming the HUD line
+     * put every round 0.57 degrees high — a block at a hundred, on every shot, forever. The HUD
+     * value is worse than useless for a bomb, where it is the string {@code "Bomb"} and resolves
+     * through {@code bombHitPos}, which is client-only and answers {@code Vec3.ZERO} on a server:
+     * the resulting "gun line" points at the world origin.
+     */
     public Vec3 gunLine() {
         try {
-            Vec3 dir = this.vehicle.getShootDirectionForHud(this.unit, 1.0F);
+            Vec3 dir = this.vehicle.getShootVec(this.unit, 1.0F);
             if (dir != null && dir.lengthSqr() > 1.0E-8) return dir;
         } catch (Exception ignored) {
             // fall through to the hull axis
@@ -397,8 +422,10 @@ public final class PlaneWeapons {
         Vec3 toAim = toAim(aimPoint);
         double range = toAim.length();
         double cone = fireConeDeg(range);
+        // Hand the gate the same line the steering loop is driving, so "on target" means the same
+        // thing in both places and both mean the barrel rather than the HUD pip.
         VehicleWeapons.FireGate gate = VehicleWeapons.tryAiFireAssistResult(
-                this.vehicle, this.unit, target, aimPoint, cone, false);
+                this.vehicle, this.unit, target, aimPoint, cone, false, gunLine());
         if (gate == VehicleWeapons.FireGate.FIRED) {
             SewvDiag.plane("FIRED {} range={} cone={}", kindName(),
                     String.format("%.0f", range), String.format("%.1f", cone));
@@ -471,6 +498,7 @@ public final class PlaneWeapons {
                     && PlaneNav.headingErrorDeg(forwardFlat, track) > BOMB_MAX_TRACK_ERROR_DEG) {
                 return false;
             }
+            if (Math.abs(PlaneNav.pitchOfDeg(vel)) > BOMB_MAX_PATH_ANGLE_DEG) return false;
             if (!bombWouldHit(target)) return false;
         }
 
@@ -490,7 +518,39 @@ public final class PlaneWeapons {
         return true;
     }
 
+    /**
+     * Would a bomb let go this tick land on the target?
+     *
+     * <p>Answered twice, cheap then authoritative. The closed form below is exact for the ordinary
+     * case and costs a few dozen additions; SBW's own {@code ProjectileCalculator} is the answer
+     * that actually counts — same physics by construction, and it clips against terrain, so a
+     * ridge between the aircraft and the target is a bomb held rather than a hillside cratered —
+     * but it steps at a twentieth of a tick and raycasts every step, which is several hundred
+     * clips for one fall. Running that on every tick of every bombing run to be told "not yet"
+     * would be paying the full price for the answer we already know. So the cheap one gates, at a
+     * deliberately loose tolerance so it can never veto a release the precise one would have
+     * allowed, and the precise one decides.
+     */
     private boolean bombWouldHit(LivingEntity target) {
+        if (!bombRoughlyOnTarget(target)) return false;
+
+        Vec3 impact;
+        try {
+            impact = ProjectileCalculator.calculatePreciseImpactPoint(
+                    this.vehicle.level(), shootPos(), this.vehicle.getDeltaMovement(),
+                    this.vehicle.getDeltaMovement().length() * projectileVelocity(1.0),
+                    -projectileGravity(0.06));
+        } catch (Throwable e) {
+            return true; // the prefilter already agreed; do not lose the release to a jar change
+        }
+        double dx = impact.x - target.getX();
+        double dz = impact.z - target.getZ();
+        double tol = bombHitTolerance();
+        return dx * dx + dz * dz <= tol * tol;
+    }
+
+    /** Flat-ground closed form: step the store's own ballistics down to the target's altitude. */
+    private boolean bombRoughlyOnTarget(LivingEntity target) {
         Vec3 pos = shootPos();
         Vec3 vel = this.vehicle.getDeltaMovement().scale(projectileVelocity(1.0));
         double gravity = projectileGravity(0.06);
@@ -503,7 +563,7 @@ public final class PlaneWeapons {
             if (pos.y <= impactY) {
                 double dx = pos.x - tx;
                 double dz = pos.z - tz;
-                double tol = bombHitTolerance();
+                double tol = bombHitTolerance() * BOMB_PREFILTER_SLACK;
                 return dx * dx + dz * dz <= tol * tol;
             }
         }
@@ -518,7 +578,7 @@ public final class PlaneWeapons {
      * it is a release window measured in single ticks: the predicted impact walks forward by a
      * whole tick of travel every tick — one to three blocks — so a three-block gate is a coin
      * flip on whether any tick ever lands inside it, and the aircraft simply overflies with the
-     * bay shut. Half the lethal radius is a window several ticks wide instead.
+     * bay shut. A third of the lethal radius is a window several ticks wide instead.
      *
      * <p>Widening it also gives the stick the right shape for free. The predicted impact starts
      * short and walks through the target as the aircraft closes, so the first bomb now goes while
@@ -526,7 +586,7 @@ public final class PlaneWeapons {
      * is what a stick is for, rather than three craters in one hole.
      */
     private double bombHitTolerance() {
-        return Math.max(BOMB_HIT_TOLERANCE_MIN, lethalRadius() * 0.5);
+        return Math.max(BOMB_HIT_TOLERANCE_MIN, lethalRadius() * BOMB_HIT_TOLERANCE_FRACTION);
     }
 
     /**

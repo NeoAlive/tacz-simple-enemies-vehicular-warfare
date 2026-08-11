@@ -105,49 +105,68 @@ public class DrivePlaneGoal extends Goal {
     private static final float PRESERVE_DECOY_CHANCE = 0.5F;
 
     // --- Cruise altitude (terrain-relative, clamped to this band) ------------------------------
-    // Planes operate ~3x higher than helicopters: the pilot's cruise stepper (30-50) is scaled up
-    // and the band widened to match, so a jet cruises well above the terrain it is diving on.
-    private static final double ALT_SCALE = 3.0;
-    private static final double MIN_FLIGHT_ALT = 90.0;
-    private static final double MAX_FLIGHT_ALT = 180.0;
-    private static final double MIN_OVER_DEST = 20.0;
-    private static final double TERRAIN_LOOKAHEAD = 96.0;
+    /**
+     * How much higher than the pilot's cruise stepper (30-50) a plane actually flies. This is the
+     * vertical half of the operating scale and it is the one axis that cannot simply be multiplied
+     * with the rest: the horizontal envelope has the whole world to grow into, while altitude runs
+     * out of sky. At this scale a stepper of 40 puts a jet 200 blocks over the terrain, and terrain
+     * of any height plus the top of the band is already near the build limit. Raising it further
+     * buys nothing anyway — what a dive needs is the height to trade, and 200 is more than any
+     * delivery in {@link #deliveryPitchLimit} can spend across the engage bubble.
+     */
+    private static final double ALT_SCALE = 5.0;
+    private static final double MIN_FLIGHT_ALT = 150.0;
+    private static final double MAX_FLIGHT_ALT = 300.0;
+    private static final double MIN_OVER_DEST = 60.0;
+    /**
+     * How far ahead terrain is read. Deliberately <b>not</b> scaled with the engagement envelope:
+     * this distance answers "can the aircraft still get out of the way", which is a function of its
+     * turn radius and sink rate, and neither of those changed. It is scaled up somewhat regardless
+     * because the cruise band did, and cruise altitude is picked from the highest ground along the
+     * leg — a lookahead much shorter than the leg makes a high-flying aircraft step over each ridge
+     * separately instead of clearing the range.
+     */
+    private static final double TERRAIN_LOOKAHEAD = 240.0;
     private static final float CLIMB_AVOID_PITCH_DEG = 25.0F;
     /**
      * When every bearing is blocked the aircraft climbs and holds a floor until it is clear, rather
      * than pitching up for one tick and letting momentum carry it into the face. Decays back so the
      * surplus height is given up gradually. Same shape as the helicopter's avoidance floor.
      */
-    private static final double AVOID_CLIMB_STEP = 24.0;
+    private static final double AVOID_CLIMB_STEP = 48.0;
     private static final double AVOID_FLOOR_DECAY = 0.15;
 
     // --- Takeoff -------------------------------------------------------------------------------
     private static final double TAKEOFF_RUNWAY_RADIUS = 64.0;
     private static final double ROTATE_SPEED = 0.35;
     private static final float TAKEOFF_PITCH_DEG = 15.0F;
-    private static final double CLIMBOUT_ABOVE_GROUND = 72.0;
+    private static final double CLIMBOUT_ABOVE_GROUND = 200.0;
     private static final double[] RUNWAY_FAN_DEG = {0.0, 20.0, -20.0, 40.0, -40.0, 65.0, -65.0};
     private static final int RUNWAY_MAX_STEP = 2;
 
     // --- Combat --------------------------------------------------------------------------------
-    private static final double OVERFLY_MARGIN = 15.0;
-    private static final double MIN_ATTACK_CLEARANCE = 22.0;
+    private static final double OVERFLY_MARGIN = 40.0;
+    private static final double MIN_ATTACK_CLEARANCE = 50.0;
     /**
-     * Height above the ground at the target that the aircraft rolls in from. Cruise is 90-180 AGL,
-     * and a dive from there onto something 96 blocks away is a 45-60 degree drop the aircraft
-     * cannot recover from inside its pull-up margin — so the ingress trades that height for a
-     * ~25 degree run-in. Low for a transit, which is why it is only ever flown at the target and
-     * only with {@link #MIN_INGRESS_CLEARANCE} still held over everything on the way.
+     * Height above the ground at the target that the aircraft rolls in from, and the height the
+     * break-off climbs back to before the next pass.
+     *
+     * <p>It is set against the engage bubble rather than picked: the roll-in height and the run-in
+     * length are two sides of the same triangle, and the angle between them is the dive. At 200
+     * over a target 480 blocks away that angle is 23 degrees — a long, shallow, steady descent the
+     * aircraft can hold the gun line down for the whole way. Cutting the height without cutting the
+     * bubble flattens the run until there is nothing to dive; cutting the bubble without cutting
+     * the height is the near-vertical plunge this constant exists to prevent.
      */
-    private static final double ATTACK_ENTRY_AGL = 64.0;
+    private static final double ATTACK_ENTRY_AGL = 200.0;
     /** Air kept over the highest ground between here and the target while closing on it. */
-    private static final double MIN_INGRESS_CLEARANCE = 40.0;
+    private static final double MIN_INGRESS_CLEARANCE = 100.0;
     /**
      * Clearance required under the <b>planned</b> dive path. Lower than the pull-up floor because
      * the run deliberately ends at that floor: requiring the full margin at the end of the run
      * would refuse every attack, which is exactly what the first version of this check did.
      */
-    private static final double DIVE_PATH_CLEARANCE = 12.0;
+    private static final double DIVE_PATH_CLEARANCE = 30.0;
     private static final double PULLUP_LEAD_TICKS = 14.0;
     private static final float HARD_CLIMB_PITCH_DEG = 30.0F;
     private static final float MAX_DIVE_PITCH_DEG = 55.0F;
@@ -161,9 +180,9 @@ public class DrivePlaneGoal extends Goal {
     private static final double GUIDED_RUN_PITCH_DEG = 25.0;
     private static final double BOMB_RUN_PITCH_DEG = 8.0;
     /** No delivery is flown lower than this over the target's own ground. */
-    private static final double MIN_RUN_AGL = 40.0;
+    private static final double MIN_RUN_AGL = 100.0;
     /** Yaw rate scale in the reversal — gentle, so a heavy hull's momentum can follow the nose. */
-    private static final double TURN_YAW_SCALE = 0.5;
+    private static final double TURN_YAW_SCALE = 0.3;
     private static final double TURN_ALIGN_DEG = 35.0;
     /**
      * How straight the aircraft has to already be flying at the target before the run may start.
@@ -179,11 +198,43 @@ public class DrivePlaneGoal extends Goal {
     private static final double RUN_ALIGN_DEG = 12.0;
     /** Room left between the computed bomb release point and the start of the run that offers it. */
     private static final double BOMB_RELEASE_MARGIN = 24.0;
+    /**
+     * How nose-down the run-in itself may get while it comes down onto the roll-in height.
+     *
+     * <p>The approach used to descend at the ordinary cruise bound, which is a gentle angle chosen
+     * for transiting rather than for arriving. From the cruise band that is a descent long enough
+     * that the aircraft was still stepping down as it reached the target, and the whole nose-over
+     * then had to happen at the merge — the nose going down late is the same thing as the gun
+     * settling late. Letting the approach come down steeply puts the aircraft on its roll-in height
+     * well before it gets there, so the dive it flies is the one the geometry asked for and it
+     * starts at the beginning of the run.
+     */
+    private static final float INGRESS_DIVE_PITCH_DEG = 35.0F;
+    /**
+     * Airspeed at which the dive brake comes off again, in blocks per tick.
+     *
+     * <p>Braking a diving aircraft is close to free — see {@link PlaneController#airbrake} — but
+     * only down to SBW's pitch-authority knee, which sits at 0.44 blocks/tick along the nose.
+     * Below that the engine halves the response to the pitch stick, and an aircraft that has traded
+     * its authority for time has nothing left to spend the time on.
+     */
+    private static final double DIVE_BRAKE_MIN_SPEED = 0.6;
 
     // --- Hold ----------------------------------------------------------------------------------
-    /** Hold circle radius as a multiple of the demonstrated turn radius — comfortably flyable. */
-    private static final double HOLD_RADIUS_FACTOR = 1.35;
-    private static final double HOLD_RADIUS_MIN = 48.0;
+    /**
+     * Hold circle radius as a multiple of the demonstrated turn radius. Well clear of the tightest
+     * circle the hull can fly, not merely inside it: an orbit flown at the limit is flown with the
+     * stick against its stop, which leaves nothing to correct the drift with and skids the hull
+     * through the turn instead of taking it round.
+     */
+    private static final double HOLD_RADIUS_FACTOR = 2.0;
+    /**
+     * Floor under that radius. It is the engage bubble's own order of magnitude on purpose: the
+     * aircraft rolls in off this circle, and a circle much tighter than the run it feeds presents
+     * every tangent at a steep angle to the target, which is the geometry {@link #RUN_ALIGN_DEG}
+     * then has to reject.
+     */
+    private static final double HOLD_RADIUS_MIN = 240.0;
 
     // --- Landing -------------------------------------------------------------------------------
     private static final double LAND_GLIDE_RATIO = 0.35;
@@ -837,6 +888,11 @@ public class DrivePlaneGoal extends Goal {
      * blocks and catches the things a heightmap cannot (a wall, a bridge, another aircraft).
      */
     private void flyToward(double destX, double destZ, double desiredY) {
+        flyToward(destX, destZ, desiredY, PlaneController.MAX_CRUISE_PITCH_DEG);
+    }
+
+    /** As above, with a descent allowed steeper than the cruise bound — see the ingress dive. */
+    private void flyToward(double destX, double destZ, double desiredY, float maxNoseDownDeg) {
         Vec3 avoid = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjustHorizontal(
                 this.vehicle, destX, destZ);
         destX = avoid.x;
@@ -863,7 +919,7 @@ public class DrivePlaneGoal extends Goal {
             return;
         }
         this.control.steerYaw(travelDir);
-        this.control.holdAltitude(held);
+        this.control.holdAltitude(held, maxNoseDownDeg);
     }
 
     /**
@@ -896,13 +952,15 @@ public class DrivePlaneGoal extends Goal {
 
     /**
      * Closing on the target: come down to the height this store is delivered from, wings mostly
-     * level, no diving yet.
+     * level, no aiming yet.
      *
-     * <p>The descent is the point. Ingress used to hold the full cruise band right up to the
-     * engagement, which leaves the aircraft directly above its target with nothing to do but a
-     * near-vertical dive it cannot pull out of — so it flew over instead, again and again. Coming
-     * down while still 100+ blocks out converts that into an ordinary shallow run-in, and the
-     * terrain floor below keeps the descent honest over anything in the way.
+     * <p>The descent is the point, and getting it <b>finished early</b> is the point of the
+     * descent. Ingress used to hold the full cruise band right up to the engagement, which leaves
+     * the aircraft directly above its target with nothing to do but a near-vertical dive it cannot
+     * pull out of — so it flew over instead, again and again. Coming down converts that into an
+     * ordinary shallow run-in; coming down at {@link #INGRESS_DIVE_PITCH_DEG} rather than the
+     * cruise bound is what gets it level on the roll-in height before the run rather than during
+     * it. The terrain floor below keeps the descent honest over anything in the way.
      */
     private void ingress(@Nullable LivingEntity target) {
         if (target == null) {
@@ -924,13 +982,14 @@ public class DrivePlaneGoal extends Goal {
             // rolled in off the circle and committed to a run it was ninety degrees across.
             double out = engageRange(target) * 2.0;
             flyToward(this.vehicle.getX() + this.runInDirX * out,
-                    this.vehicle.getZ() + this.runInDirZ * out, approachY);
+                    this.vehicle.getZ() + this.runInDirZ * out, approachY,
+                    INGRESS_DIVE_PITCH_DEG);
         } else if (dist < engageRange(target)) {
             // Inside the bubble, on the axis, and still not attacking — the dive must have been
             // refused. Circling keeps the target in reach while the geometry changes.
             holdAbout(new Vec3(target.getX(), 0.0, target.getZ()), approachY);
         } else {
-            flyToward(target.getX(), target.getZ(), approachY);
+            flyToward(target.getX(), target.getZ(), approachY, INGRESS_DIVE_PITCH_DEG);
         }
         // A shot that lines up on the way in is still a shot, and it is gated exactly as tightly
         // as one on the run — this is not the old "spray while transiting" path.
@@ -964,8 +1023,14 @@ public class DrivePlaneGoal extends Goal {
 
     /**
      * The attack run: hold the locked line, put the <b>weapon</b> on the intercept, and fire only
-     * when the shot would land. The run is short by design — the old 440-block line is most of why
-     * a plane in a fight ended up on the other side of the map.
+     * when the shot would land.
+     *
+     * <p>The run is <b>long</b> by design, and every one of its exit conditions is a real event
+     * rather than a distance budget — passed the target, stick gone, ground coming up, off the end
+     * of the bubble. A short line was tried, on the reasoning that it kept a plane near the fight,
+     * and it does: it keeps it near the fight missing, because the line is the only place the
+     * aircraft has to get its nose onto the target and it is pointed a fraction of a degree at a
+     * time.
      *
      * <p>Which delivery is flown comes from what was selected, not from a mode flag here: a gun is
      * dived, a missile is launched from a shallow descent, a bomb is dropped from level flight.
@@ -1023,6 +1088,15 @@ public class DrivePlaneGoal extends Goal {
         Vec3 aim = this.weapons.aimPoint(target);
         this.control.trackGunLine(this.weapons.gunLine(), this.weapons.toAim(aim),
                 -PlaneController.MAX_CRUISE_PITCH_DEG, (float) deliveryPitchLimit());
+
+        // Brake into the dive. The run is the only stretch where the aircraft has to hold a line
+        // rather than get somewhere, so it is the one place airspeed is worth less than time: the
+        // gun converges at a rate set by the airframe, and slowing the closure simply gives that
+        // rate more ticks to work in before the pull-up. SBW's brake is two multipliers on the
+        // hull's own datapack numbers, so this asks for "slower than whatever this aircraft is",
+        // never for a speed — a jet and a piston bomber both give up the same proportion.
+        this.control.airbrake(this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
+
         this.weapons.fire(target, aim);
     }
 

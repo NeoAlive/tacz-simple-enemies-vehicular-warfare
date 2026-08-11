@@ -78,7 +78,8 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         VehicleEntity self = (VehicleEntity) (Object) this;
         long now = self.level().getGameTime();
         if (this.tacz_sewv$lastAiShotTick != Long.MIN_VALUE
-                && now - this.tacz_sewv$lastAiShotTick < SewvConfig.AI_FIRE_COOLDOWN_TICKS.get()) {
+                && now - this.tacz_sewv$lastAiShotTick
+                        < tacz_sewv$effectiveCooldown(self, living)) {
             cir.setReturnValue(false);
             return;
         }
@@ -164,11 +165,40 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         VehicleEntity self = (VehicleEntity) (Object) this;
         long now = self.level().getGameTime();
         if (this.tacz_sewv$lastAiShotTick != Long.MIN_VALUE
-                && now - this.tacz_sewv$lastAiShotTick < SewvConfig.AI_FIRE_COOLDOWN_TICKS.get()) {
+                && now - this.tacz_sewv$lastAiShotTick
+                        < tacz_sewv$effectiveCooldown(self, living)) {
             ci.cancel();
             return;
         }
         this.tacz_sewv$lastAiShotTick = now;
+    }
+
+    /**
+     * The configured wait, but never slower than the weapon's own cyclic rate allows.
+     *
+     * <p>{@code aiFireCooldownTicks} is a pacing knob written for a main gun: a tank shell, a TOW
+     * missile, one loud thing at a time. Applied flat it also rate-limits an <b>automatic</b>
+     * weapon, and there it is not pacing, it is a different gun. The A-10's GAU-8 declares 1200
+     * RPM — a round a tick — and five ticks between shots turns it into a 240 RPM cannon, so a
+     * firing pass of a second and a half delivers six rounds where it should deliver thirty.
+     * Volume of fire is the entire reason a 4-block-blast cannon can hit anything from a moving
+     * aircraft, and throttling it read in-game as an accuracy problem rather than a rate one.
+     *
+     * <p>Taking the minimum is safe for the weapons the knob was written for: a 12 RPM tank gun
+     * has a natural interval of 100 ticks, so the configured 5 still binds — and SBW's own RPM
+     * gate independently enforces the 100 regardless. Only a weapon that genuinely cycles faster
+     * than the config is let off it.
+     */
+    @Unique
+    private static int tacz_sewv$effectiveCooldown(VehicleEntity self, LivingEntity living) {
+        int configured = SewvConfig.AI_FIRE_COOLDOWN_TICKS.get();
+        try {
+            int rpm = self.vehicleWeaponRpm(living);
+            if (rpm <= 0) return configured;
+            return Math.min(configured, Math.max(1, (int) Math.ceil(1200.0 / rpm)));
+        } catch (Exception e) {
+            return configured;
+        }
     }
 
     // Blocked only when BOTH the target's center and its eyes are behind blocks:

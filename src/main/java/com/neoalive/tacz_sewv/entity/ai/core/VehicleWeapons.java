@@ -692,6 +692,30 @@ public final class VehicleWeapons {
                                                  LivingEntity target,
                                                  @javax.annotation.Nullable Vec3 aimPoint,
                                                  double coneDeg, boolean npcConeFloor) {
+        return tryAiFireAssistResult(vehicle, unit, target, aimPoint, coneDeg, npcConeFloor, null);
+    }
+
+    /**
+     * As above, with the barrel direction supplied by the caller.
+     *
+     * <p><b>shootDir</b> exists because the vector this gate has always read is not the vector SBW
+     * fires along. {@code getShootDirectionForHud} resolves the datapack's
+     * {@code ShootDirectionForHud}, while {@code GunItem.shootBullet} launches along
+     * {@code getShootVec}, which resolves {@code Directions} — and a hull is free to declare them
+     * differently. The A-10's cannon does: {@code [0,-0.02,1]} against a HUD line of
+     * {@code [0,-0.03,1]}, 0.57 degrees apart, so a shot centred by this gate leaves that much high
+     * every time, forever. Worse for a bomb, whose HUD direction is the string {@code "Bomb"} and
+     * resolves through {@code bombHitPos}, which answers {@code Vec3.ZERO} on the server.
+     *
+     * <p>Passing null keeps the HUD vector. Ground and rotary crews still do: they were tuned
+     * against it, their turrets are aimed by SBW's own solver rather than by this mod, and
+     * correcting them is a separate question from correcting an aircraft that points itself.
+     */
+    public static FireGate tryAiFireAssistResult(VehicleEntity vehicle, AbstractUnit unit,
+                                                 LivingEntity target,
+                                                 @javax.annotation.Nullable Vec3 aimPoint,
+                                                 double coneDeg, boolean npcConeFloor,
+                                                 @javax.annotation.Nullable Vec3 shootDirOverride) {
         try {
             double effectiveCone = npcConeFloor ? npcAssistConeDeg(coneDeg) : Math.max(coneDeg, 0.1);
 
@@ -700,7 +724,9 @@ public final class VehicleWeapons {
             if (vehicle.tickCount % interval != 0) return FireGate.RPM_WAIT;
             if (!vehicle.canShoot(unit)) return FireGate.CANNOT_SHOOT;
 
-            Vec3 shootDir = vehicle.getShootDirectionForHud(unit, 1.0F);
+            Vec3 shootDir = shootDirOverride != null
+                    ? shootDirOverride
+                    : vehicle.getShootDirectionForHud(unit, 1.0F);
             Vec3 aim = aimPoint != null ? aimPoint : target.getBoundingBox().getCenter();
             Vec3 toTarget = aim.subtract(vehicle.getShootPos(unit, 1.0F));
             if (shootDir.lengthSqr() < 1.0E-6 || toTarget.lengthSqr() < 1.0E-6) {

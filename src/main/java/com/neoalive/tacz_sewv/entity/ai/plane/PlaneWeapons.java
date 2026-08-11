@@ -371,6 +371,9 @@ public final class PlaneWeapons {
     public Vec3 aimPoint(LivingEntity target) {
         Vec3 targetCentre = target.getBoundingBox().getCenter();
         if (this.selected == null) return targetCentre;
+        // A level-delivery store is not aimed by pointing, so there is nothing to lead here: a
+        // missile steers itself, and a bomb's lead is a function of its time of fall rather than
+        // of the aircraft's attitude, so it is solved at the release instead (bombAimPoint).
         if (this.selected.kind().levelDelivery()) return targetCentre;
         Vec3 muzzle = shootPos();
         return PlaneNav.interceptPoint(muzzle, targetCentre, target.getDeltaMovement(),
@@ -521,8 +524,8 @@ public final class PlaneWeapons {
     /**
      * Would a bomb let go this tick land on the target?
      *
-     * <p>Answered twice, cheap then authoritative. The closed form below is exact for the ordinary
-     * case and costs a few dozen additions; SBW's own {@code ProjectileCalculator} is the answer
+     * <p>Answered twice, cheap then authoritative. {@link PlaneNav#freefallImpact} is exact for
+     * the ordinary case and costs a few dozen additions; SBW's own {@code ProjectileCalculator} is the answer
      * that actually counts — same physics by construction, and it clips against terrain, so a
      * ridge between the aircraft and the target is a bomb held rather than a hillside cratered —
      * but it steps at a twentieth of a tick and raycasts every step, which is several hundred
@@ -530,9 +533,22 @@ public final class PlaneWeapons {
      * would be paying the full price for the answer we already know. So the cheap one gates, at a
      * deliberately loose tolerance so it can never veto a release the precise one would have
      * allowed, and the precise one decides.
+     *
+     * <p>The cheap pass earns its keep twice over: it is also what supplies the <b>time of fall</b>
+     * the aim point has to be led by, which the precise one does not report.
      */
     private boolean bombWouldHit(LivingEntity target) {
-        if (!bombRoughlyOnTarget(target)) return false;
+        Vec3 launchVel = this.vehicle.getDeltaMovement().scale(projectileVelocity(1.0));
+        PlaneNav.Impact rough = PlaneNav.freefallImpact(shootPos(), launchVel,
+                projectileGravity(0.06), target.getY(), BOMB_SIM_MAX_TICKS);
+        if (rough == null) return false; // never comes down in the window — hold the bomb
+
+        // Aim at where the target WILL be, not where it is. See bombAimPoint.
+        Vec3 aim = bombAimPoint(target, rough.ticks());
+
+        double tol = bombHitTolerance();
+        double roughSlack = tol * BOMB_PREFILTER_SLACK;
+        if (!within(rough.x() - aim.x, rough.z() - aim.z, roughSlack)) return false;
 
         Vec3 impact;
         try {
@@ -543,31 +559,34 @@ public final class PlaneWeapons {
         } catch (Throwable e) {
             return true; // the prefilter already agreed; do not lose the release to a jar change
         }
-        double dx = impact.x - target.getX();
-        double dz = impact.z - target.getZ();
-        double tol = bombHitTolerance();
-        return dx * dx + dz * dz <= tol * tol;
+        return within(impact.x - aim.x, impact.z - aim.z, tol);
     }
 
-    /** Flat-ground closed form: step the store's own ballistics down to the target's altitude. */
-    private boolean bombRoughlyOnTarget(LivingEntity target) {
-        Vec3 pos = shootPos();
-        Vec3 vel = this.vehicle.getDeltaMovement().scale(projectileVelocity(1.0));
-        double gravity = projectileGravity(0.06);
-        double impactY = target.getY();
-        double tx = target.getX();
-        double tz = target.getZ();
-        for (int t = 0; t < BOMB_SIM_MAX_TICKS; t++) {
-            pos = pos.add(vel);
-            vel = new Vec3(vel.x, vel.y - gravity, vel.z);
-            if (pos.y <= impactY) {
-                double dx = pos.x - tx;
-                double dz = pos.z - tz;
-                double tol = bombHitTolerance() * BOMB_PREFILTER_SLACK;
-                return dx * dx + dz * dz <= tol * tol;
-            }
-        }
-        return false; // never comes down in the window — hold the bomb
+    /**
+     * Where the bomb has to be thrown for it to arrive on the target: the target's position
+     * advanced by its own travel over the store's time of fall.
+     *
+     * <p>This is the one thing a bombing run needs that a gun does not have to think about, and it
+     * was missing. A gun's round arrives in a tick or two, so {@link #aimPoint} solving an
+     * intercept for it is close to a formality; a bomb falls for the better part of a minute. From
+     * the 80-block run altitude that is ~52 ticks, over which a tank rolling at 0.15 blocks/tick
+     * travels eight blocks and a fast one considerably more — against a release window a third of
+     * the blast radius wide. Comparing the predicted impact to where the target stood at release
+     * therefore misses every mover by roughly its own speed times the fall, and the error grows
+     * with release altitude, which is why raising the operating scale is what exposed it.
+     *
+     * <p>The velocity is read off the target's <b>root vehicle</b>. The targets worth bombing are
+     * mostly crews, and a passenger's own {@code getDeltaMovement} is near zero while the hull
+     * carrying it does the moving — leading by the passenger's velocity would be leading by
+     * nothing at all.
+     */
+    private static Vec3 bombAimPoint(LivingEntity target, int fallTicks) {
+        Vec3 vel = target.getRootVehicle().getDeltaMovement();
+        return PlaneNav.leadPoint(target.position(), vel, fallTicks);
+    }
+
+    private static boolean within(double dx, double dz, double tolerance) {
+        return dx * dx + dz * dz <= tolerance * tolerance;
     }
 
     /**

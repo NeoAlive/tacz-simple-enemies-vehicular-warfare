@@ -111,13 +111,13 @@ public class DrivePlaneGoal extends Goal {
      * with the rest: the horizontal envelope has the whole world to grow into, while altitude runs
      * out of sky. At this scale a stepper of 40 puts a jet 200 blocks over the terrain, and terrain
      * of any height plus the top of the band is already near the build limit. Raising it further
-     * buys nothing anyway — what a dive needs is the height to trade, and 200 is more than any
+     * buys nothing anyway — what a dive needs is the height to trade, and 160 is more than any
      * delivery in {@link #deliveryPitchLimit} can spend across the engage bubble.
      */
-    private static final double ALT_SCALE = 5.0;
-    private static final double MIN_FLIGHT_ALT = 150.0;
-    private static final double MAX_FLIGHT_ALT = 300.0;
-    private static final double MIN_OVER_DEST = 60.0;
+    private static final double ALT_SCALE = 4.0;
+    private static final double MIN_FLIGHT_ALT = 120.0;
+    private static final double MAX_FLIGHT_ALT = 240.0;
+    private static final double MIN_OVER_DEST = 48.0;
     /**
      * How far ahead terrain is read. Deliberately <b>not</b> scaled with the engagement envelope:
      * this distance answers "can the aircraft still get out of the way", which is a function of its
@@ -126,47 +126,47 @@ public class DrivePlaneGoal extends Goal {
      * leg — a lookahead much shorter than the leg makes a high-flying aircraft step over each ridge
      * separately instead of clearing the range.
      */
-    private static final double TERRAIN_LOOKAHEAD = 240.0;
+    private static final double TERRAIN_LOOKAHEAD = 192.0;
     private static final float CLIMB_AVOID_PITCH_DEG = 25.0F;
     /**
      * When every bearing is blocked the aircraft climbs and holds a floor until it is clear, rather
      * than pitching up for one tick and letting momentum carry it into the face. Decays back so the
      * surplus height is given up gradually. Same shape as the helicopter's avoidance floor.
      */
-    private static final double AVOID_CLIMB_STEP = 48.0;
+    private static final double AVOID_CLIMB_STEP = 40.0;
     private static final double AVOID_FLOOR_DECAY = 0.15;
 
     // --- Takeoff -------------------------------------------------------------------------------
     private static final double TAKEOFF_RUNWAY_RADIUS = 64.0;
     private static final double ROTATE_SPEED = 0.35;
     private static final float TAKEOFF_PITCH_DEG = 15.0F;
-    private static final double CLIMBOUT_ABOVE_GROUND = 200.0;
+    private static final double CLIMBOUT_ABOVE_GROUND = 160.0;
     private static final double[] RUNWAY_FAN_DEG = {0.0, 20.0, -20.0, 40.0, -40.0, 65.0, -65.0};
     private static final int RUNWAY_MAX_STEP = 2;
 
     // --- Combat --------------------------------------------------------------------------------
-    private static final double OVERFLY_MARGIN = 40.0;
-    private static final double MIN_ATTACK_CLEARANCE = 50.0;
+    private static final double OVERFLY_MARGIN = 32.0;
+    private static final double MIN_ATTACK_CLEARANCE = 40.0;
     /**
      * Height above the ground at the target that the aircraft rolls in from, and the height the
      * break-off climbs back to before the next pass.
      *
      * <p>It is set against the engage bubble rather than picked: the roll-in height and the run-in
-     * length are two sides of the same triangle, and the angle between them is the dive. At 200
-     * over a target 480 blocks away that angle is 23 degrees — a long, shallow, steady descent the
+     * length are two sides of the same triangle, and the angle between them is the dive. At 160
+     * over a target 384 blocks away that angle is 23 degrees — a long, shallow, steady descent the
      * aircraft can hold the gun line down for the whole way. Cutting the height without cutting the
      * bubble flattens the run until there is nothing to dive; cutting the bubble without cutting
      * the height is the near-vertical plunge this constant exists to prevent.
      */
-    private static final double ATTACK_ENTRY_AGL = 200.0;
+    private static final double ATTACK_ENTRY_AGL = 160.0;
     /** Air kept over the highest ground between here and the target while closing on it. */
-    private static final double MIN_INGRESS_CLEARANCE = 100.0;
+    private static final double MIN_INGRESS_CLEARANCE = 80.0;
     /**
      * Clearance required under the <b>planned</b> dive path. Lower than the pull-up floor because
      * the run deliberately ends at that floor: requiring the full margin at the end of the run
      * would refuse every attack, which is exactly what the first version of this check did.
      */
-    private static final double DIVE_PATH_CLEARANCE = 30.0;
+    private static final double DIVE_PATH_CLEARANCE = 24.0;
     private static final double PULLUP_LEAD_TICKS = 14.0;
     private static final float HARD_CLIMB_PITCH_DEG = 30.0F;
     private static final float MAX_DIVE_PITCH_DEG = 55.0F;
@@ -180,7 +180,7 @@ public class DrivePlaneGoal extends Goal {
     private static final double GUIDED_RUN_PITCH_DEG = 25.0;
     private static final double BOMB_RUN_PITCH_DEG = 8.0;
     /** No delivery is flown lower than this over the target's own ground. */
-    private static final double MIN_RUN_AGL = 100.0;
+    private static final double MIN_RUN_AGL = 80.0;
     /** Yaw rate scale in the reversal — gentle, so a heavy hull's momentum can follow the nose. */
     private static final double TURN_YAW_SCALE = 0.3;
     private static final double TURN_ALIGN_DEG = 35.0;
@@ -234,7 +234,7 @@ public class DrivePlaneGoal extends Goal {
      * every tangent at a steep angle to the target, which is the geometry {@link #RUN_ALIGN_DEG}
      * then has to reject.
      */
-    private static final double HOLD_RADIUS_MIN = 240.0;
+    private static final double HOLD_RADIUS_MIN = 192.0;
 
     // --- Landing -------------------------------------------------------------------------------
     private static final double LAND_GLIDE_RATIO = 0.35;
@@ -1113,6 +1113,12 @@ public class DrivePlaneGoal extends Goal {
     private void bombRun(LivingEntity target) {
         this.control.steerYaw(new Vec3(this.runDirX, 0.0, this.runDirZ));
         this.control.holdAltitude(runAltitude(target));
+        // Braked like the dive, and for a sharper reason than buying tracking time: a bomb's
+        // downrange travel and its whole time of fall scale with the speed it is let go at, and
+        // everything that can go wrong between release and impact — the target driving out from
+        // under it, the release solution going stale — grows with that time. Slower is nearer, and
+        // nearer is more accurate.
+        this.control.airbrake(this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
         this.weapons.releaseBombIfOnTarget(target, this.kinematics.forwardFlat());
     }
 

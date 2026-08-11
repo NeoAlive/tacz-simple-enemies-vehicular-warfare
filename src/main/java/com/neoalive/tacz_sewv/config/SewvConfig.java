@@ -596,7 +596,7 @@ public final class SewvConfig {
                         "Must stay comfortably larger than planeEngageRadius: a plane repositions by flying",
                         "outbound until it is clear of its own engage bubble before turning back in, so a",
                         "leash near the bubble size recalls it in the middle of every run-in.")
-                .defineInRange("planeCommandRadius", 1280.0, 32.0, 4096.0);
+                .defineInRange("planeCommandRadius", 1024.0, 32.0, 4096.0);
         PLANE_GUN_CONE_DEG = builder.comment(
                         "Widest angle (degrees) off the gun line at which a plane will fire guns, rockets",
                         "and bombs. This is a ceiling, not the gate itself: the plane works out the angle",
@@ -609,18 +609,20 @@ public final class SewvConfig {
                         "Same ceiling for guided missiles, which steer out the rest after launch.")
                 .defineInRange("planeMissileConeDeg", 15.0, 1.0, 45.0);
         PLANE_MIN_CONE_DEG = builder.comment(
-                        "Floor under the derived firing angle above. It exists only to stop that angle",
-                        "demanding sub-degree accuracy at extreme range; at the default it does not bind",
-                        "until past about 115 blocks, so geometry governs every shot you will ever see.",
+                        "Floor under the derived firing angle above. It is a numerical backstop and",
+                        "nothing else, and it is set so that it does not bind anywhere inside the engage",
+                        "bubble - geometry governs every shot you will ever see.",
                         "Do NOT raise this to make reluctant planes shoot. The miss distance of a shot",
                         "fired X degrees off at range R is R*tan(X), so a wide floor buys shots precisely",
-                        "where they cannot land: at 8 degrees an A-10 may fire from 96 blocks and miss by",
+                        "where they cannot land: at 2 degrees an A-10 may fire from 384 blocks and miss by",
                         "13, against a 4-block blast. The derived angle is instead a range gate in",
                         "disguise - it stays shut until the plane is close enough that the accuracy it can",
                         "actually hold puts the round inside the blast (7.6 degrees at 30 blocks, 5.1 at",
-                        "45). A plane that finishes passes without firing is a plane that is not getting",
-                        "close or not lining up; look at planeEngageRadius and the run-in, not at this.")
-                .defineInRange("planeMinConeDeg", 2.0, 0.5, 20.0);
+                        "45, 2.4 at 96). A plane that finishes passes without firing is a plane that is not",
+                        "getting close or not lining up; look at planeEngageRadius and the run-in.",
+                        "Note this must be re-checked against planeEngageRadius if that is raised: the",
+                        "floor stops being harmless the moment the bubble reaches out past where it binds.")
+                .defineInRange("planeMinConeDeg", 0.5, 0.5, 20.0);
         PLANE_AUTO_ROCKET_RANGE = builder.comment(
                         "AUTO ordnance: closer than this (blocks) to the target, a plane uses guns only.",
                         "Heavier stores need room to fall or to guide, so the closer the target the fewer",
@@ -630,9 +632,9 @@ public final class SewvConfig {
                         "AUTO ordnance: bombs and guided missiles are only used from at least this far out.",
                         "Between this and planeAutoRocketRange the plane uses rockets.",
                         "This tracks the release geometry, not the engage bubble: a bomb let go from the",
-                        "100-block run altitude falls for about 58 ticks and travels roughly 145 blocks",
+                        "80-block run altitude falls for about 52 ticks and travels roughly 125 blocks",
                         "downrange at cruise, so anything nearer than that cannot be bombed at all.")
-                .defineInRange("planeAutoHeavyRange", 160.0, 0.0, 1024.0);
+                .defineInRange("planeAutoHeavyRange", 128.0, 0.0, 1024.0);
         PLANE_BOMB_STICK = builder.comment(
                         "How many bombs a plane releases in one carpet run, spaced along its track.",
                         "1 is a single aimed drop.")
@@ -649,12 +651,12 @@ public final class SewvConfig {
                         "a degree per tick, so a short bubble is a short line, and a short line is a pass",
                         "flown with the gun still swinging through the aim point.",
                         "Lowering this makes planes commit sooner and hit less.")
-                .defineInRange("planeEngageRadius", 480.0, 32.0, 1024.0);
+                .defineInRange("planeEngageRadius", 384.0, 32.0, 1024.0);
         PLANE_ATTACK_RUN_LENGTH = builder.comment(
                         "Length (blocks) of one straight attack run before the plane breaks off and turns back.",
                         "A floor, not a cap: the run is never cut shorter than the engage bubble it started",
                         "from, or it would end before the weapon's own release point.")
-                .defineInRange("planeAttackRunLength", 500.0, 40.0, 1024.0);
+                .defineInRange("planeAttackRunLength", 400.0, 40.0, 1024.0);
         PLANE_LAND_TRANSIT_AGL = builder.comment(
                         "Height (blocks) above the highest ground on the way in that a landing plane flies",
                         "the approach pattern at, before it lines up with the strip.")

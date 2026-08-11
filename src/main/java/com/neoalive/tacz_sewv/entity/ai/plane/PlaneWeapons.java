@@ -169,6 +169,13 @@ public final class PlaneWeapons {
         select(target, range);
     }
 
+    /** Grid-mark run (radio POSITION): same stick reset, target-less selection (prefers bombs). */
+    public void beginRunMark(double range) {
+        this.bombsDropped = 0;
+        this.nextBombTick = Long.MIN_VALUE;
+        select(null, range);
+    }
+
     /**
      * Make sure something is chosen before a shot of opportunity outside an attack run. Without
      * this the transit path aims and gates against a null selection, which reads as "cannon" and
@@ -176,6 +183,10 @@ public final class PlaneWeapons {
      */
     public void ensureSelected(LivingEntity target, double range) {
         if (this.selected == null) select(target, range);
+    }
+
+    public void ensureSelectedMark(double range) {
+        if (this.selected == null) select(null, range);
     }
 
     public boolean hasBombSelected() {
@@ -539,6 +550,42 @@ public final class PlaneWeapons {
         return true;
     }
 
+    /** Grid-mark release: same stick / sight against a fixed aimpoint. */
+    public boolean releaseBombIfOnTarget(Vec3 groundAim, Vec3 forwardFlat, double runAltitude) {
+        if (this.selected == null || this.selected.kind() != Kind.BOMB) return false;
+        if (stickComplete()) return false;
+
+        long now = this.vehicle.level().getGameTime();
+        boolean stickStarted = this.bombsDropped > 0;
+        if (stickStarted) {
+            if (now < this.nextBombTick) return false;
+        } else {
+            Vec3 vel = this.vehicle.getDeltaMovement();
+            Vec3 track = new Vec3(vel.x, 0.0, vel.z);
+            if (track.lengthSqr() > 1.0E-6
+                    && PlaneNav.headingErrorDeg(forwardFlat, track) > BOMB_MAX_TRACK_ERROR_DEG) {
+                return false;
+            }
+            if (Math.abs(PlaneNav.pitchOfDeg(vel)) > BOMB_MAX_PATH_ANGLE_DEG) {
+                return false;
+            }
+            BombSight sight = bombSight(groundAim, track);
+            if (!sight.release()) return false;
+        }
+
+        try {
+            this.vehicle.vehicleShoot(this.unit, this.selected.name());
+        } catch (Exception e) {
+            return false;
+        }
+        this.bombsDropped++;
+        this.nextBombTick = now + Math.max(SewvConfig.PLANE_BOMB_STICK_INTERVAL.get(),
+                SewvConfig.AI_FIRE_COOLDOWN_TICKS.get());
+        SewvDiag.plane("bomb {} of {} away (mark)",
+                this.bombsDropped, SewvConfig.PLANE_BOMB_STICK.get());
+        return true;
+    }
+
     /**
      * The bomb sight: how far the predicted impact is from the aim point, resolved along and
      * across the ground track, against the window each is allowed.
@@ -598,24 +645,38 @@ public final class PlaneWeapons {
     /** Where the bomb would land relative to where it has to, decomposed on the ground track. */
     public BombSight bombSight(LivingEntity target, Vec3 track) {
         double radius = bombWindow(target);
-        // The bomb leaves along the hull's velocity, so that is the axis its impact walks down.
-        Vec3 axis = new Vec3(track.x, 0.0, track.z);
-        axis = axis.lengthSqr() > 1.0E-6 ? axis.normalize() : new Vec3(0.0, 0.0, 1.0);
         double hx = (target.getBoundingBox().maxX - target.getBoundingBox().minX) / 2.0;
         double hz = (target.getBoundingBox().maxZ - target.getBoundingBox().minZ) / 2.0;
-        // The hitbox's own reach along and across the track, so the window is "on the target"
-        // rather than "near its centre". The cross axis is the track turned a quarter turn.
+        PlaneNav.Impact rough = roughImpact(target);
+        Vec3 aim = rough == null ? target.position() : bombAimPoint(target, rough.ticks());
+        return bombSight(aim, track, radius, hx, hz, target.getY(), rough);
+    }
+
+    /** Grid-mark sight: fixed aim, no hitbox padding. */
+    public BombSight bombSight(Vec3 aim, Vec3 track) {
+        double range = Math.max(this.vehicle.position().distanceTo(aim), 1.0);
+        double floor = SewvConfig.PLANE_BOMB_SIGHT_RADIUS.get();
+        double coneDeg = PlaneNav.fireConeDeg(lethalRadius(), range,
+                Math.toDegrees(Math.atan(floor / range)), BOMB_MAX_CONE_DEG);
+        double radius = range * Math.tan(Math.toRadians(coneDeg));
+        PlaneNav.Impact rough = roughImpactAt(aim.y);
+        return bombSight(aim, track, radius, 0.0, 0.0, aim.y, rough);
+    }
+
+    private BombSight bombSight(Vec3 aim, Vec3 track, double radius, double hx, double hz,
+                                double groundY, @Nullable PlaneNav.Impact rough) {
+        Vec3 axis = new Vec3(track.x, 0.0, track.z);
+        axis = axis.lengthSqr() > 1.0E-6 ? axis.normalize() : new Vec3(0.0, 0.0, 1.0);
         double alongLimit = radius + PlaneNav.boxExtent(axis.x, axis.z, hx, hz);
         double crossLimit = radius + PlaneNav.boxExtent(axis.z, axis.x, hx, hz);
 
-        PlaneNav.Impact rough = roughImpact(target);
         if (rough == null) {
-            // Never comes down inside the window — a release off a climb. No numbers worth having.
+            rough = roughImpactAt(groundY);
+        }
+        if (rough == null) {
             return new BombSight(0.0, 0.0, crossLimit, alongLimit, false);
         }
 
-        // Aim at where the target WILL be, not where it is. See bombAimPoint.
-        Vec3 aim = bombAimPoint(target, rough.ticks());
         BombSight cheap = resolve(rough.x() - aim.x, rough.z() - aim.z, axis,
                 crossLimit * BOMB_PREFILTER_SLACK, alongLimit * BOMB_PREFILTER_SLACK);
         if (!cheap.release()) {
@@ -629,7 +690,6 @@ public final class PlaneWeapons {
                     this.vehicle.getDeltaMovement().length() * projectileVelocity(1.0),
                     -projectileGravity(0.06));
         } catch (Throwable e) {
-            // The prefilter already agreed; do not lose the release to a jar change.
             return new BombSight(0.0, 0.0, crossLimit, alongLimit, true);
         }
         return resolve(impact.x - aim.x, impact.z - aim.z, axis, crossLimit, alongLimit);
@@ -711,12 +771,22 @@ public final class PlaneWeapons {
         return rough == null ? target.position() : bombAimPoint(target, rough.ticks());
     }
 
+    /** Static grid mark — no lead; the ground is not moving. */
+    public Vec3 bombGroundAim(Vec3 mark) {
+        return mark;
+    }
+
     /** The cheap fall solution both the aim point and the release prefilter are built on. */
     @Nullable
     private PlaneNav.Impact roughImpact(LivingEntity target) {
+        return roughImpactAt(target.getY());
+    }
+
+    @Nullable
+    private PlaneNav.Impact roughImpactAt(double groundY) {
         Vec3 launchVel = this.vehicle.getDeltaMovement().scale(projectileVelocity(1.0));
         return PlaneNav.freefallImpact(shootPos(), launchVel, projectileGravity(0.06),
-                target.getY(), BOMB_SIM_MAX_TICKS);
+                groundY, BOMB_SIM_MAX_TICKS);
     }
 
     /**

@@ -26,9 +26,13 @@ public enum RadioFrequency {
         return this == MORTAR;
     }
 
-    /** Indirect fire on a map grid rather than a live entity designation. */
+    /**
+     * Grid designation rather than a live entity. Mortars shell the mark; aircraft bomb it
+     * ({@link com.neoalive.tacz_sewv.bridge.FireMission} on the pilot). TOW / artillery stay
+     * entity-only — they need a lock, not a grid square.
+     */
     public boolean supportsPositionTarget() {
-        return this == MORTAR;
+        return this == MORTAR || this == AIR;
     }
 
     public RadioFrequency next() {

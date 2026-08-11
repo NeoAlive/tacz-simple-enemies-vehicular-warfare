@@ -218,6 +218,100 @@ public final class PlaneNav {
     }
 
     /**
+     * Elevation of a direction expressed as an SBW pitch, i.e. <b>positive is nose down</b>. Used to
+     * convert a measured gun line into the same units the pitch stick is commanded in.
+     */
+    public static double pitchOfDeg(Vec3 dir) {
+        double len = dir.length();
+        if (len < EPS) return 0.0;
+        return -Math.toDegrees(Math.asin(Mth.clamp(dir.y / len, -1.0, 1.0)));
+    }
+
+    /**
+     * How far the <b>gun line</b> is off the aim point, in degrees of pitch — positive meaning the
+     * shot needs to come down.
+     *
+     * <p>This exists because pointing the hull's nose at a target is not the same as pointing its
+     * weapon at one, and the difference is not small enough to ignore. Every SBW gun declares a
+     * {@code ShootDirectionForHud} relative to the hull (the A-10's cannon is {@code [0,-0.03,1]},
+     * about 1.7 degrees below the nose) and fires from a {@code ShootPos} metres forward of the
+     * hull origin. Commanding an attitude computed from hull-origin-to-target geometry therefore
+     * leaves a fixed depression error on every shot at every range — which inside a few-degree fire
+     * gate is a large fraction of the whole budget, and always in the same direction.
+     *
+     * <p>Closing the loop on the measured gun line instead makes the error self-cancelling: it does
+     * not matter where the barrel sits or which way it is canted, because what is driven to zero is
+     * the thing that actually has to be zero.
+     *
+     * @param shootDir the weapon's current firing direction in world space
+     * @param toAim muzzle to aim point, in world space
+     */
+    public static double gunPitchErrorDeg(Vec3 shootDir, Vec3 toAim) {
+        if (shootDir.lengthSqr() < EPS || toAim.lengthSqr() < EPS) return 0.0;
+        return pitchOfDeg(toAim) - pitchOfDeg(shootDir);
+    }
+
+    /**
+     * Total angle (degrees) between the gun line and the aim point — the quantity the fire gate is
+     * a threshold on, and the honest measure of how well the autopilot is pointing.
+     */
+    public static double gunErrorDeg(Vec3 shootDir, Vec3 toAim) {
+        if (shootDir.lengthSqr() < EPS || toAim.lengthSqr() < EPS) return 180.0;
+        double cos = shootDir.normalize().dot(toAim.normalize());
+        return Math.toDegrees(Math.acos(Mth.clamp(cos, -1.0, 1.0)));
+    }
+
+    /**
+     * The angular tolerance within which a shot still lands inside {@code lethalRadius} of the aim
+     * point at {@code range}: {@code atan(lethalRadius / range)}.
+     *
+     * <p>A fixed cone is the wrong shape for this and was the original miss. A miss lands about
+     * {@code range x tan(angle)} wide, so one angle is simultaneously far too loose far out (six
+     * degrees at 96 blocks is a ten-block miss, which a cannon's four-block burst radius does not
+     * cover) and needlessly strict up close (the same six degrees at twenty blocks is two blocks,
+     * refusing shots a bomb with a twenty-block radius would obliterate). Deriving it from the
+     * weapon's own blast radius makes one rule serve every weapon: the aircraft holds fire until
+     * the shot would <em>land on</em> the target, whatever "on" means for what it is carrying.
+     *
+     * @param lethalRadius blocks — the weapon's explosion radius, or its accuracy requirement
+     * @param minDeg never tighter than this, or a heavy airframe never qualifies at all
+     * @param maxDeg never looser than this, whatever the blast radius claims
+     */
+    public static double fireConeDeg(double lethalRadius, double range, double minDeg,
+                                     double maxDeg) {
+        double r = Math.max(range, 1.0);
+        double cone = Math.toDegrees(Math.atan(Math.max(lethalRadius, 0.0) / r));
+        return Mth.clamp(cone, Math.min(minDeg, maxDeg), maxDeg);
+    }
+
+    /**
+     * How far downrange a free-fall store carries between release and impact — the distance a
+     * bombing run has to be <b>started</b> from, as opposed to the distance it is released at.
+     *
+     * <p>This is the number the whole bomb envelope has to be sized off, and the reason is that it
+     * is large and it scales with airspeed. An A-10 releasing from 40 blocks up takes ~36 ticks to
+     * bring a Mk 82 down, so at 1.5 blocks/tick the bomb travels ~52 blocks forward and at 2.5 it
+     * travels ~87. A run that may only begin inside 96 blocks therefore hands the release solution
+     * a window a few ticks wide at best, and none at all once the aircraft is fast — which is not
+     * a release that is mistimed, it is a release that is never offered.
+     *
+     * <p>Continuous form, {@code t = sqrt(2h/g)}, against the tick-stepped integration the actual
+     * release decision uses. The small disagreement does not matter here: this sizes the approach
+     * so the release point falls comfortably inside the run, and the exact instant is still chosen
+     * by simulating the drop.
+     *
+     * @param releaseHeight blocks between the bomb bay and the impact altitude
+     * @param groundSpeed the store's initial horizontal speed, blocks/tick — for SBW's
+     *                    {@code AddShooterDeltaMovement} stores that is the hull's own speed
+     *                    scaled by the weapon's {@code Velocity}, not the hull's speed raw
+     * @return blocks; 0 when any input makes the question meaningless
+     */
+    public static double ballisticLead(double releaseHeight, double groundSpeed, double gravity) {
+        if (!(releaseHeight > 0.0) || !(groundSpeed > 0.0) || !(gravity > 0.0)) return 0.0;
+        return groundSpeed * Math.sqrt(2.0 * releaseHeight / gravity);
+    }
+
+    /**
      * Rotate a horizontal unit vector about the vertical axis. Local copy of the shared helper so
      * this class stays pure and self-checkable without dragging in the targeting core.
      */

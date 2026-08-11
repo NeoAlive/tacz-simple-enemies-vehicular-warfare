@@ -85,7 +85,7 @@ public final class PlaySelfCheck {
             if (a.role != Assignment.Role.MANEUVER) continue;
             assertEq(Assignment.FlankSide.LEFT, a.flankSide, "open flank is LEFT");
             assertNear(expectX, a.destX, 1.0e-9, "maneuver dest = enemy-side flank mark X");
-            assertNear(expectZ, a.destZ, 1.0e-9, "maneuver dest = enemy-side flank mark Z");
+            assertNear(expectZ, a.destZ, 1.0e-9, "er dest = enemy-side flank mark Z");
             assertTrue(Math.abs(a.destZ - bf.enemyCentroidZ) < Math.abs(a.destZ - bf.friendlyCentroidZ),
                     "maneuver mark is on the enemy side of the fight");
             maneuverOnEnemyFlank = true;

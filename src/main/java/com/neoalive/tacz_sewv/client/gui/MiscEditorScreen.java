@@ -28,7 +28,7 @@ public class MiscEditorScreen extends Screen {
 
     private enum Tab {
         IFV, ANTI_AIR, MISSILE_SYSTEM, ARTILLERY,
-        PLANE_MISSILE, PLANE_BOMB, PLANE_ROCKET,
+        PLANE_MISSILE, PLANE_BOMB, PLANE_ROCKET, PLANE_CANNON,
         ARMOR_RU, ARMOR_US, ARMOR_PMC
     }
 
@@ -78,6 +78,7 @@ public class MiscEditorScreen extends Screen {
             case PLANE_MISSILE -> this.cues.get(CueKind.PLANE_MISSILE);
             case PLANE_BOMB -> this.cues.get(CueKind.PLANE_BOMB);
             case PLANE_ROCKET -> this.cues.get(CueKind.PLANE_ROCKET);
+            case PLANE_CANNON -> this.cues.get(CueKind.PLANE_CANNON);
             case ARMOR_RU -> this.armor.get(TankFaction.RU);
             case ARMOR_US -> this.armor.get(TankFaction.US);
             case ARMOR_PMC -> this.armor.get(TankFaction.PMC);
@@ -201,6 +202,7 @@ public class MiscEditorScreen extends Screen {
             case PLANE_MISSILE -> this.cues.put(CueKind.PLANE_MISSILE, new ArrayList<>(this.cueDefaults.get(CueKind.PLANE_MISSILE)));
             case PLANE_BOMB -> this.cues.put(CueKind.PLANE_BOMB, new ArrayList<>(this.cueDefaults.get(CueKind.PLANE_BOMB)));
             case PLANE_ROCKET -> this.cues.put(CueKind.PLANE_ROCKET, new ArrayList<>(this.cueDefaults.get(CueKind.PLANE_ROCKET)));
+            case PLANE_CANNON -> this.cues.put(CueKind.PLANE_CANNON, new ArrayList<>(this.cueDefaults.get(CueKind.PLANE_CANNON)));
             case ARMOR_RU -> this.armor.put(TankFaction.RU, new ArrayList<>(this.armorDefaults.get(TankFaction.RU)));
             case ARMOR_US -> this.armor.put(TankFaction.US, new ArrayList<>(this.armorDefaults.get(TankFaction.US)));
             case ARMOR_PMC -> this.armor.put(TankFaction.PMC, new ArrayList<>(this.armorDefaults.get(TankFaction.PMC)));

@@ -23,8 +23,9 @@ import com.neoalive.tacz_sewv.item.RadioFrequency;
 import com.neoalive.tacz_sewv.item.RadioSettings;
 
 /**
- * Player radio GUI → server fire mission. {@link PlaneAttackMode} is carried on the wire and
- * stored on the item for a future CAS pass; it does not reach {@code PlaneWeapons} yet.
+ * Player radio GUI → server fire mission. The {@link PlaneAttackMode} rides along with the target
+ * designation: it is stored back on the item so the panel remembers it, and stamped onto every CAS
+ * pilot the call reaches so the aircraft flies the profile the button asked for.
  */
 public class PacketRadioCommand {
 
@@ -78,9 +79,7 @@ public class PacketRadioCommand {
             RadioFrequency frequency = frequencies[
                     Math.min(Math.max(this.frequencyOrdinal, 0), frequencies.length - 1)];
 
-            PlaneAttackMode[] planeModes = PlaneAttackMode.values();
-            PlaneAttackMode planeMode = planeModes[
-                    Math.min(Math.max(this.planeModeOrdinal, 0), planeModes.length - 1)];
+            PlaneAttackMode planeMode = PlaneAttackMode.byOrdinal(this.planeModeOrdinal);
 
             RadioSettings.State settings = new RadioSettings.State(
                     frequency,
@@ -113,7 +112,7 @@ public class PacketRadioCommand {
             FireMissionSupport.Call call = FireMissionSupport.callRadioMission(
                     player.level(), player.getUUID(), player.position(),
                     SewvConfig.MORTAR_RADIO_RANGE.get(), frequency, entityTarget, posTarget,
-                    settings.delaySeconds());
+                    settings.delaySeconds(), settings.planeMode());
 
             if (call.empty()) {
                 hint(player, "message.tacz_sewv.radio.no_crews", ChatFormatting.GRAY);

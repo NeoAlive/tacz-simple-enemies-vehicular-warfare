@@ -36,6 +36,7 @@ import com.neoalive.tacz_sewv.entity.ai.plane.PlaneWeapons;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
+import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
@@ -150,9 +151,34 @@ public class DrivePlaneGoal extends Goal {
     private static final double PULLUP_LEAD_TICKS = 14.0;
     private static final float HARD_CLIMB_PITCH_DEG = 30.0F;
     private static final float MAX_DIVE_PITCH_DEG = 55.0F;
+    /**
+     * How nose-down each kind of store is delivered. This is the doctrine, not a tuning number: a
+     * gun has to be pointed at what it is hitting, so it is flown as a dive; a guided missile only
+     * has to have the target inside its seeker cone, so it is launched from a shallow descent; and
+     * a free-fall bomb is aimed by <em>where it is released</em>, not by where the aircraft is
+     * pointing, so a bombing run is flown level and diving on one would only throw the store long.
+     */
+    private static final double GUIDED_RUN_PITCH_DEG = 25.0;
+    private static final double BOMB_RUN_PITCH_DEG = 8.0;
+    /** No delivery is flown lower than this over the target's own ground. */
+    private static final double MIN_RUN_AGL = 40.0;
     /** Yaw rate scale in the reversal — gentle, so a heavy hull's momentum can follow the nose. */
     private static final double TURN_YAW_SCALE = 0.5;
     private static final double TURN_ALIGN_DEG = 35.0;
+    /**
+     * How straight the aircraft has to already be flying at the target before the run may start.
+     *
+     * <p>The run locks an axis and immediately starts the firing and pull-up clocks, and nothing
+     * used to check that the aircraft was <em>on</em> that axis — only that it was near the target.
+     * Rolling in from a hold circle means committing from a tangent, up to ninety degrees off, and
+     * an aircraft is pointed by hauling the whole hull round at a fraction of a degree per tick
+     * inside a run that lasts a second or two. It cannot be done, so every such pass was flown with
+     * the gun swinging through the aim point and the gate never satisfied. Twelve degrees is what
+     * the airframe can wash out during the run itself.
+     */
+    private static final double RUN_ALIGN_DEG = 12.0;
+    /** Room left between the computed bomb release point and the start of the run that offers it. */
+    private static final double BOMB_RELEASE_MARGIN = 24.0;
 
     // --- Hold ----------------------------------------------------------------------------------
     /** Hold circle radius as a multiple of the demonstrated turn radius — comfortably flyable. */
@@ -207,6 +233,12 @@ public class DrivePlaneGoal extends Goal {
     // Takeoff roll heading, NaN until the roll begins.
     private double takeoffDirX = Double.NaN;
     private double takeoffDirZ = Double.NaN;
+
+    // Latched run-in axis while repositioning onto it (NaN = not repositioning). It has to be
+    // latched: derived from the live bearing it would sit behind the aircraft and flip sides on
+    // every turn, which is the same chase the landing pattern avoids by remembering its axis.
+    private double runInDirX = Double.NaN;
+    private double runInDirZ = Double.NaN;
 
     // Locked straight-line heading of the current attack run (NaN = none).
     private double runDirX = Double.NaN;
@@ -334,6 +366,9 @@ public class DrivePlaneGoal extends Goal {
 
         IHelicopterPilot pilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
         maybeEmergencyLand(pilot, max, now);
+        // A standing radio order, re-read rather than latched: the player may change it mid-sortie
+        // and the next run should honour the new one.
+        this.weapons.setMode(pilot != null ? pilot.sewv$getPlaneAttackMode() : PlaneAttackMode.AUTO);
 
         LivingEntity target = resolveCombatTarget();
         PlaneMode next = chooseMode(pilot, target, now);
@@ -342,7 +377,7 @@ public class DrivePlaneGoal extends Goal {
             this.mode = next;
         }
         if (SewvDiag.planeVerbose()) {
-            SewvDiag.planeThrottled(now, "mode={} leash={} spd={} agl={} r={} target={}",
+            SewvDiag.planeHeartbeat(now, "mode={} leash={} spd={} agl={} r={} target={}",
                     this.mode, this.leash.state(),
                     String.format("%.2f", this.kinematics.speed()),
                     String.format("%.1f", this.kinematics.agl()),
@@ -442,20 +477,86 @@ public class DrivePlaneGoal extends Goal {
         double dx = target.getX() - this.vehicle.getX();
         double dz = target.getZ() - this.vehicle.getZ();
         double dist = Math.sqrt(dx * dx + dz * dz);
-        if (dist > SewvConfig.PLANE_ENGAGE_RADIUS.get()) return PlaneMode.INGRESS;
-
-        // Inside the bubble but the dive would fly us into the ground: keep working the geometry
-        // rather than committing. An attack run that has to be abandoned halfway is a pass wasted
-        // and, on a heavy hull, a recovery that may not fit under the terrain.
-        Vec3 dir = dist > 1.0E-4 ? new Vec3(dx / dist, 0, dz / dist) : this.kinematics.forwardFlat();
-        if (!diveWouldBeSafe(target, dir)) {
-            // The single most useful line in this whole file when a plane "just won't attack".
-            SewvDiag.planeThrottled(now, "dive refused dist={} y={} floor={} — orbiting",
-                    String.format("%.0f", dist), String.format("%.0f", this.vehicle.getY()),
-                    String.format("%.0f", attackFloorY(target)));
+        // The store has to be chosen before the geometry is judged: what counts as a safe run
+        // depends entirely on what is being delivered, and a bomb run is not a dive.
+        this.weapons.ensureSelected(target, dist);
+        if (dist > engageRange(target)) {
+            this.runInDirX = Double.NaN;
+            this.runInDirZ = Double.NaN;
             return PlaneMode.INGRESS;
         }
+
+        // Inside the bubble but not lined up on it: fly the run-in leg first. Committing from here
+        // is what produced the pass that never fires — see RUN_ALIGN_DEG.
+        Vec3 dir = dist > 1.0E-4 ? new Vec3(dx / dist, 0, dz / dist) : this.kinematics.forwardFlat();
+        if (!establishedForRun(target, dir)) {
+            SewvDiag.planeThrottled(now, "not established dist={} hdgErr={} — flying the run-in",
+                    String.format("%.0f", dist),
+                    String.format("%.0f",
+                            PlaneNav.headingErrorDeg(this.kinematics.forwardFlat(), dir)));
+            return PlaneMode.INGRESS;
+        }
+
+        // Inside the bubble but the run would fly us into the ground: keep working the geometry
+        // rather than committing. An attack run that has to be abandoned halfway is a pass wasted
+        // and, on a heavy hull, a recovery that may not fit under the terrain.
+        if (!runWouldBeSafe(target, dir)) {
+            // The single most useful line in this whole file when a plane "just won't attack".
+            SewvDiag.planeThrottled(now, "run refused kind={} dist={} y={} floor={} — orbiting",
+                    this.weapons.selectedKind(), String.format("%.0f", dist),
+                    String.format("%.0f", this.vehicle.getY()),
+                    String.format("%.0f", runFloorY(target)));
+            return PlaneMode.INGRESS;
+        }
+        this.runInDirX = Double.NaN;
+        this.runInDirZ = Double.NaN;
         return PlaneMode.ATTACK;
+    }
+
+    /**
+     * How far out the attack run has to begin — the engage bubble for a weapon that is aimed, and
+     * the ballistic release distance plus room to settle for one that is dropped.
+     *
+     * <p>A bomb is the case that forced this. Its release point is tens of blocks upwind of the
+     * target and scales with airspeed: an A-10 at 40 blocks over the deck lets go 52 blocks out at
+     * 1.5 blocks/tick and 87 out at 2.5. A run that could only begin inside the fixed 96-block
+     * bubble therefore handed the release solution a window a few ticks wide, and at any real jet
+     * speed no window at all — the aircraft crossed the release point while still in ingress, where
+     * bombs are deliberately never pickled, and by the time the run started the only solutions left
+     * were long. That is the reported "it drops after it has flown over".
+     */
+    private double engageRange(LivingEntity target) {
+        double base = SewvConfig.PLANE_ENGAGE_RADIUS.get();
+        if (!this.weapons.hasBombSelected()) return base;
+        double release = this.weapons.bombReleaseRange(runAltitude(target) - target.getY());
+        return Math.max(base, release + BOMB_RELEASE_MARGIN);
+    }
+
+    /** The run may not be longer than the bubble it started from, or it ends before the release. */
+    private double runLengthLimit(LivingEntity target) {
+        return Math.max(SewvConfig.PLANE_ATTACK_RUN_LENGTH.get(),
+                engageRange(target) + OVERFLY_MARGIN);
+    }
+
+    /**
+     * Is the aircraft already pointing down a line through the target, or merely near it? Latches
+     * a run-in axis on the first miss so {@link #ingress} has a stable point to fly the leg to.
+     *
+     * <p>What is latched is the aircraft's own <b>heading</b>, because the reposition is flown
+     * outbound: an initial point derived from the bearing to the target sits <em>behind</em> an
+     * aircraft that is already inside the bubble, so steering at it is a reversal onto a track
+     * pointing away from the target and the aircraft arrives there facing the wrong way.
+     */
+    private boolean establishedForRun(LivingEntity target, Vec3 bearing) {
+        if (PlaneNav.headingErrorDeg(this.kinematics.forwardFlat(), bearing) <= RUN_ALIGN_DEG) {
+            return true;
+        }
+        if (Double.isNaN(this.runInDirX)) {
+            Vec3 heading = this.kinematics.forwardFlat();
+            this.runInDirX = heading.x;
+            this.runInDirZ = heading.z;
+        }
+        return false;
     }
 
     private void onModeChange(PlaneMode from, PlaneMode to, @Nullable LivingEntity target) {
@@ -794,7 +895,8 @@ public class DrivePlaneGoal extends Goal {
     // --- Combat --------------------------------------------------------------------------------
 
     /**
-     * Closing on the target: come down to the roll-in height, wings mostly level, no diving yet.
+     * Closing on the target: come down to the height this store is delivered from, wings mostly
+     * level, no diving yet.
      *
      * <p>The descent is the point. Ingress used to hold the full cruise band right up to the
      * engagement, which leaves the aircraft directly above its target with nothing to do but a
@@ -807,23 +909,31 @@ public class DrivePlaneGoal extends Goal {
             hold();
             return;
         }
-        double approachY = Math.max(rollInY(target),
-                AirframeSupport.highestGroundToward(this.vehicle, target.getX(), target.getZ(),
-                        TERRAIN_LOOKAHEAD) + MIN_INGRESS_CLEARANCE);
-
         double dist = Math.hypot(target.getX() - this.vehicle.getX(),
                 target.getZ() - this.vehicle.getZ());
-        if (dist < SewvConfig.PLANE_ENGAGE_RADIUS.get()) {
-            // Already inside the bubble and still not attacking — the dive must have been refused.
-            // Circling keeps the target in reach while the geometry changes; flying at it just
-            // puts the aircraft over the top of it with nothing to shoot, which is the overfly.
+        this.weapons.ensureSelected(target, dist);
+        double approachY = Math.max(runAltitude(target),
+                AirframeSupport.highestGroundToward(this.vehicle, target.getX(), target.getZ(),
+                        TERRAIN_LOOKAHEAD) + MIN_INGRESS_CLEARANCE);
+        if (!Double.isNaN(this.runInDirX)) {
+            // Repositioning: hold the latched heading outbound until clear of the bubble, and the
+            // branch below then flies the long straight leg back in. There is no way to turn onto
+            // an aligned run from inside the bubble — that is the whole problem, the room to
+            // straighten out is the distance itself. Circling here instead, which is what this did
+            // before, aligns nothing at all: an orbit's tangent is never radial, so the aircraft
+            // rolled in off the circle and committed to a run it was ninety degrees across.
+            double out = engageRange(target) * 2.0;
+            flyToward(this.vehicle.getX() + this.runInDirX * out,
+                    this.vehicle.getZ() + this.runInDirZ * out, approachY);
+        } else if (dist < engageRange(target)) {
+            // Inside the bubble, on the axis, and still not attacking — the dive must have been
+            // refused. Circling keeps the target in reach while the geometry changes.
             holdAbout(new Vec3(target.getX(), 0.0, target.getZ()), approachY);
         } else {
             flyToward(target.getX(), target.getZ(), approachY);
         }
         // A shot that lines up on the way in is still a shot, and it is gated exactly as tightly
         // as one on the run — this is not the old "spray while transiting" path.
-        this.weapons.ensureSelected(target);
         this.weapons.arm();
         // Bombs are never pickled off the transit: a release is a predicted-impact decision made on
         // a stable run-in, and the ordinary fire gate knows nothing about where one would land.
@@ -832,7 +942,7 @@ public class DrivePlaneGoal extends Goal {
         }
     }
 
-    /** Lock the run axis and pick the weapon for what we are about to attack. */
+    /** Lock the run axis and pick the weapon for what we are about to attack, and from how far. */
     private void startRun(LivingEntity target) {
         Vec3 toT = new Vec3(target.getX() - this.vehicle.getX(), 0,
                 target.getZ() - this.vehicle.getZ());
@@ -841,8 +951,9 @@ public class DrivePlaneGoal extends Goal {
         this.runDirZ = dir.z;
         this.runStartX = this.vehicle.getX();
         this.runStartZ = this.vehicle.getZ();
-        this.weapons.beginRun(target);
-        SewvDiag.plane("run start kind={} dir=({},{})", this.weapons.selectedKind(),
+        this.weapons.beginRun(target, toT.length());
+        SewvDiag.plane("run start kind={} range={} dir=({},{})", this.weapons.selectedKind(),
+                String.format("%.0f", toT.length()),
                 String.format("%.2f", dir.x), String.format("%.2f", dir.z));
     }
 
@@ -852,9 +963,12 @@ public class DrivePlaneGoal extends Goal {
     }
 
     /**
-     * The attack run: hold the locked line, point the nose at the intercept, and fire only when the
-     * nose is genuinely there. The run is short by design — the old 440-block line is most of why a
-     * plane in a fight ended up on the other side of the map.
+     * The attack run: hold the locked line, put the <b>weapon</b> on the intercept, and fire only
+     * when the shot would land. The run is short by design — the old 440-block line is most of why
+     * a plane in a fight ended up on the other side of the map.
+     *
+     * <p>Which delivery is flown comes from what was selected, not from a mode flag here: a gun is
+     * dived, a missile is launched from a shallow descent, a bomb is dropped from level flight.
      */
     private void attack(@Nullable LivingEntity target) {
         if (target == null) {
@@ -886,8 +1000,9 @@ public class DrivePlaneGoal extends Goal {
         double clearance = this.vehicle.getY() - groundRef;
         double pullupTrigger = MIN_ATTACK_CLEARANCE + this.kinematics.sinkRate() * PULLUP_LEAD_TICKS;
 
-        if (passedTarget || clearance <= pullupTrigger
-                || distFromStart >= SewvConfig.PLANE_ATTACK_RUN_LENGTH.get()) {
+        boolean stickDone = this.weapons.hasBombSelected() && this.weapons.stickComplete();
+        if (passedTarget || stickDone || clearance <= pullupTrigger
+                || distFromStart >= runLengthLimit(target)) {
             this.mode = PlaneMode.BREAK;
             resetRun();
             this.control.holdHeading();
@@ -895,24 +1010,47 @@ public class DrivePlaneGoal extends Goal {
             return;
         }
 
-        // Aim both axes at the intercept point, not at where the target is standing. Firing is
-        // gated on the same point, so the shot goes when the geometry is right rather than when a
-        // generous cone happens to admit it.
         this.weapons.arm();
-        Vec3 aim = this.weapons.aimPoint(target);
-        this.control.steerYaw(new Vec3(aim.x - gx, 0, aim.z - gz));
-
-        double horiz = Math.hypot(aim.x - gx, aim.z - gz);
-        double depressionDeg = Math.toDegrees(
-                Math.atan2(this.vehicle.getY() - aim.y, Math.max(horiz, 1.0)));
-        this.control.commandPitch((float) Mth.clamp(depressionDeg,
-                -PlaneController.MAX_CRUISE_PITCH_DEG, MAX_DIVE_PITCH_DEG));
-
         if (this.weapons.hasBombSelected()) {
-            this.weapons.releaseBombIfOnTarget(target, this.kinematics.forwardFlat());
-        } else {
-            this.weapons.fire(target, aim);
+            bombRun(target);
+            return;
         }
+
+        // Put the GUN LINE on the intercept point, not the nose on the target. SBW's weapons sit
+        // forward of the hull origin and canted off its axis, so an attitude worked out from hull
+        // geometry aims every shot slightly wrong, in the same direction, forever. Firing is gated
+        // against the same measured line, so the shot goes when it would actually land.
+        Vec3 aim = this.weapons.aimPoint(target);
+        this.control.trackGunLine(this.weapons.gunLine(), this.weapons.toAim(aim),
+                -PlaneController.MAX_CRUISE_PITCH_DEG, (float) deliveryPitchLimit());
+        this.weapons.fire(target, aim);
+    }
+
+    /**
+     * Level bombing pass. There is no aiming here in the pointing sense — a free-fall store is
+     * aimed by <em>when</em> it leaves the aircraft, which {@code releaseBombIfOnTarget} solves
+     * from the hull's own velocity, so the run's whole job is to present a straight, level, stable
+     * platform over the target's track and let the release decide.
+     *
+     * <p>Steering follows the <b>locked run axis</b> rather than the live bearing to the target:
+     * the axis was laid through the target when the run began, chasing the bearing would swing the
+     * aircraft violently as it passes overhead, and a carpet is by definition a straight line.
+     */
+    private void bombRun(LivingEntity target) {
+        this.control.steerYaw(new Vec3(this.runDirX, 0.0, this.runDirZ));
+        this.control.holdAltitude(runAltitude(target));
+        this.weapons.releaseBombIfOnTarget(target, this.kinematics.forwardFlat());
+    }
+
+    /** How nose-down the current store is delivered — see the run-pitch constants. */
+    private double deliveryPitchLimit() {
+        PlaneWeapons.Kind kind = this.weapons.selectedKind();
+        if (kind == null) return MAX_DIVE_PITCH_DEG;
+        return switch (kind) {
+            case BOMB -> BOMB_RUN_PITCH_DEG;
+            case GUIDED -> GUIDED_RUN_PITCH_DEG;
+            default -> MAX_DIVE_PITCH_DEG;
+        };
     }
 
     /**
@@ -960,27 +1098,42 @@ public class DrivePlaneGoal extends Goal {
         }
     }
 
-    /** Would the dive along {@code dir} clear the ground all the way in? */
-    private boolean diveWouldBeSafe(LivingEntity target, Vec3 dir) {
+    /** Would the run along {@code dir} clear the ground all the way in? */
+    private boolean runWouldBeSafe(LivingEntity target, Vec3 dir) {
         double runLength = Math.min(SewvConfig.PLANE_ATTACK_RUN_LENGTH.get(),
                 Math.hypot(target.getX() - this.vehicle.getX(),
                         target.getZ() - this.vehicle.getZ()) + OVERFLY_MARGIN);
         return PlaneTerrain.diveSafe(this.unit.level(), this.vehicle.getX(), this.vehicle.getY(),
-                this.vehicle.getZ(), dir, runLength, attackFloorY(target), DIVE_PATH_CLEARANCE);
+                this.vehicle.getZ(), dir, runLength, runFloorY(target), DIVE_PATH_CLEARANCE);
     }
 
     /**
-     * The lowest altitude a run is planned down to. For something on the ground that is the pull-up
-     * floor over its own terrain; for something already flying it is that aircraft's altitude,
-     * since there is no reason to stay above a helicopter you are shooting at.
+     * The lowest altitude this run is planned down to, which depends on what is being delivered.
+     * A gun run ends at the pull-up floor over the target's own terrain (or at the target's own
+     * altitude, if it is airborne — there is no reason to stay above a helicopter you are shooting
+     * at). A bomb or missile run never descends past its release height at all, so judging it
+     * against a strafing floor would refuse perfectly safe passes.
      */
-    private double attackFloorY(LivingEntity target) {
+    private double runFloorY(LivingEntity target) {
+        if (this.weapons.levelDelivery()) return runAltitude(target);
         return Math.max(groundAt(target) + MIN_ATTACK_CLEARANCE, target.getY());
     }
 
-    /** Height the ingress descends to so that the roll-in is a flyable angle rather than a plunge. */
-    private double rollInY(LivingEntity target) {
-        return Math.max(groundAt(target) + ATTACK_ENTRY_AGL, target.getY() + MIN_OVER_DEST);
+    /**
+     * Height the run is flown at, chosen so that the delivery angle the selected store wants is
+     * actually achievable at the engagement range: {@code tan(deliveryAngle) x engageRadius}.
+     *
+     * <p>Deriving it rather than fixing it is what stops the two failures that bracket this. Held
+     * at cruise, the aircraft arrives directly above its target with nothing available but a
+     * near-vertical plunge it cannot recover from — so it flew over instead, again and again. Fixed
+     * low, a gun run has no height to trade for the dive. The floor keeps every profile clear of
+     * the ground, and the ceiling is the roll-in height a strafing pass wants.
+     */
+    private double runAltitude(LivingEntity target) {
+        double geometric = Math.tan(Math.toRadians(deliveryPitchLimit()))
+                * SewvConfig.PLANE_ENGAGE_RADIUS.get();
+        double agl = Mth.clamp(geometric, MIN_RUN_AGL, ATTACK_ENTRY_AGL);
+        return Math.max(groundAt(target) + agl, target.getY() + MIN_OVER_DEST);
     }
 
     private int groundAt(LivingEntity target) {

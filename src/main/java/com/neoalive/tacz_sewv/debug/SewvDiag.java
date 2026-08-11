@@ -146,9 +146,25 @@ public final class SewvDiag {
         LOG.info("[sewv-diag][plane] " + msg, args);
     }
 
+    /**
+     * The per-tick "what is the aircraft doing" heartbeat, on a deadline of its <b>own</b>.
+     *
+     * <p>It cannot share {@link #planeThrottled}'s budget. The heartbeat runs every tick and runs
+     * <em>first</em>, so it claimed every window and permanently starved the lines that say why
+     * something did not happen — "holding fire ... gate=CONE err=14" and "run refused" were
+     * unreachable for as long as the channel was on, which is exactly when they are wanted.
+     */
+    public static void planeHeartbeat(long gameTime, String msg, Object... args) {
+        if (!planeVerbose()) return;
+        if (gameTime - lastPlaneHeartbeat < PLANE_LOG_INTERVAL_TICKS) return;
+        lastPlaneHeartbeat = gameTime;
+        LOG.info("[sewv-diag][plane] " + msg, args);
+    }
+
     /** ~1 s between throttled plane lines. */
     private static final long PLANE_LOG_INTERVAL_TICKS = 20L;
     private static volatile long lastPlaneLog = Long.MIN_VALUE;
+    private static volatile long lastPlaneHeartbeat = Long.MIN_VALUE;
 
     /**
      * Said once, ever, the first time a fixed-wing AI takes a hull — at INFO whether or not the

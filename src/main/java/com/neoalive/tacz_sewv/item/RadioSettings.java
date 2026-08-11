@@ -17,7 +17,7 @@ public final class RadioSettings {
             PlaneAttackMode planeMode) {
 
         public static State defaults() {
-            return new State(RadioFrequency.MORTAR, false, 0, PlaneAttackMode.ATS);
+            return new State(RadioFrequency.MORTAR, false, 0, PlaneAttackMode.AUTO);
         }
 
         public State withFrequency(RadioFrequency frequency) {
@@ -36,8 +36,7 @@ public final class RadioSettings {
                 MthClamp(tag.getInt("frequency"), 0, RadioFrequency.values().length - 1)];
         boolean position = tag.getBoolean("position");
         int delay = Math.max(0, tag.getInt("delay"));
-        PlaneAttackMode planeMode = PlaneAttackMode.values()[
-                MthClamp(tag.getInt("plane"), 0, PlaneAttackMode.values().length - 1)];
+        PlaneAttackMode planeMode = PlaneAttackMode.byOrdinal(tag.getInt("plane"));
         return new State(frequency, position, delay, planeMode).withFrequency(frequency);
     }
 

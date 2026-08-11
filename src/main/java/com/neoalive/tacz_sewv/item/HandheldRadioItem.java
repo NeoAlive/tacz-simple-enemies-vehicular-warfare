@@ -129,7 +129,11 @@ public class HandheldRadioItem extends Item {
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.use").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.standdown").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.unit").withStyle(ChatFormatting.GRAY));
+        // Search-tree rebuild can call this before COMMON config is baked; .get() throws then.
+        double range = SewvConfig.SPEC.isLoaded()
+                ? SewvConfig.MORTAR_RADIO_RANGE.get()
+                : SewvConfig.MORTAR_RADIO_RANGE.getDefault();
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.range",
-                (int) (double) SewvConfig.MORTAR_RADIO_RANGE.get()).withStyle(ChatFormatting.DARK_GRAY));
+                (int) range).withStyle(ChatFormatting.DARK_GRAY));
     }
 }

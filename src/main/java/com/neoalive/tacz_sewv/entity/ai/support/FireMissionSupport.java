@@ -26,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -34,6 +35,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
+import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.item.RadioFrequency;
 
 /**
@@ -193,10 +195,20 @@ public final class FireMissionSupport {
     public static Call callRadioMission(Level level, @Nullable UUID owner, Vec3 origin,
                                         double range, RadioFrequency frequency,
                                         @Nullable LivingEntity entityTarget, @Nullable BlockPos posTarget,
-                                        int delaySeconds) {
+                                        int delaySeconds, PlaneAttackMode planeMode) {
         Set<Kind> kinds = frequency.kinds();
         List<SupportCrew> crews = supportInRange(level, CrewFacts.Faction.PMC, owner, origin, range, kinds);
         if (crews.isEmpty()) return new Call(0, EnumSet.noneOf(Kind.class));
+
+        // The ordnance choice rides with the target designation and is stamped on every aircraft
+        // this call reaches, whether or not the target itself resolves — a crew told "bombs" keeps
+        // that instruction for the rest of the sortie, which is what makes the button mean
+        // anything. Only CAS crews carry it; a mortar has one thing to shoot.
+        for (SupportCrew support : crews) {
+            if (support.kind == Kind.CAS && support.unit instanceof IHelicopterPilot pilot) {
+                pilot.sewv$setPlaneAttackMode(planeMode);
+            }
+        }
 
         if (delaySeconds > 0 && frequency.supportsDelay()) {
             applyMortarDelay(level, crews, delaySeconds);

@@ -169,6 +169,11 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_GUN_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue PLANE_MISSILE_CONE_DEG;
+    public static final ForgeConfigSpec.DoubleValue PLANE_MIN_CONE_DEG;
+    public static final ForgeConfigSpec.DoubleValue PLANE_AUTO_ROCKET_RANGE;
+    public static final ForgeConfigSpec.DoubleValue PLANE_AUTO_HEAVY_RANGE;
+    public static final ForgeConfigSpec.IntValue PLANE_BOMB_STICK;
+    public static final ForgeConfigSpec.IntValue PLANE_BOMB_STICK_INTERVAL;
     public static final ForgeConfigSpec.DoubleValue PLANE_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_ATTACK_RUN_LENGTH;
     public static final ForgeConfigSpec.DoubleValue PLANE_LAND_TRANSIT_AGL;
@@ -590,13 +595,44 @@ public final class SewvConfig {
                         "Combat is abandoned outright at 1.5x this distance.")
                 .defineInRange("planeCommandRadius", 256.0, 32.0, 1024.0);
         PLANE_GUN_CONE_DEG = builder.comment(
-                        "How closely (degrees) a plane must have its nose on the target before firing guns,",
-                        "rockets and bombs. A miss lands roughly range x tan(angle) away, so 45 degrees at",
-                        "60 blocks is a 60-block miss. Superb Warfare's own mob gate is 4 degrees.")
-                .defineInRange("planeGunConeDeg", 6.0, 1.0, 45.0);
+                        "Widest angle (degrees) off the gun line at which a plane will fire guns, rockets",
+                        "and bombs. This is a ceiling, not the gate itself: the plane works out the angle",
+                        "at which the shot would still land inside the weapon's own blast radius at the",
+                        "current range and uses that, so it holds fire far out and lets go up close.",
+                        "It only binds in very close: an A-10 cannon (4-block blast) reaches 12 degrees",
+                        "at 19 blocks, so past that it is planeMinConeDeg below that decides. Raise THAT",
+                        "one if your planes are too reluctant to shoot.")
+                .defineInRange("planeGunConeDeg", 12.0, 1.0, 45.0);
         PLANE_MISSILE_CONE_DEG = builder.comment(
-                        "Same gate for guided missiles, which steer out the rest after launch.")
-                .defineInRange("planeMissileConeDeg", 8.0, 1.0, 45.0);
+                        "Same ceiling for guided missiles, which steer out the rest after launch.")
+                .defineInRange("planeMissileConeDeg", 15.0, 1.0, 45.0);
+        PLANE_MIN_CONE_DEG = builder.comment(
+                        "Floor under the derived firing angle above, and in practice the gate that governs",
+                        "every shot past about 20 blocks. Without one, a long-range shot demands an accuracy",
+                        "no airframe can hold and the plane simply never shoots.",
+                        "Superb Warfare's own hard-coded mob gate is 4 degrees, and an aircraft holds a line",
+                        "far worse than a turret does: it is pointed by pitching the whole hull, which moves",
+                        "about half a degree a tick near convergence, inside an attack run that lasts one to",
+                        "two seconds. Lower this for tighter shooting at the cost of a plane that often",
+                        "completes a pass without firing.")
+                .defineInRange("planeMinConeDeg", 8.0, 0.5, 20.0);
+        PLANE_AUTO_ROCKET_RANGE = builder.comment(
+                        "AUTO ordnance: closer than this (blocks) to the target, a plane uses guns only.",
+                        "Heavier stores need room to fall or to guide, so the closer the target the fewer",
+                        "of them are eligible.")
+                .defineInRange("planeAutoRocketRange", 40.0, 0.0, 320.0);
+        PLANE_AUTO_HEAVY_RANGE = builder.comment(
+                        "AUTO ordnance: bombs and guided missiles are only used from at least this far out.",
+                        "Between this and planeAutoRocketRange the plane uses rockets.")
+                .defineInRange("planeAutoHeavyRange", 72.0, 0.0, 320.0);
+        PLANE_BOMB_STICK = builder.comment(
+                        "How many bombs a plane releases in one carpet run, spaced along its track.",
+                        "1 is a single aimed drop.")
+                .defineInRange("planeBombStick", 3, 1, 12);
+        PLANE_BOMB_STICK_INTERVAL = builder.comment(
+                        "Game ticks between bombs in a carpet stick. Wider spacing covers more ground and",
+                        "concentrates less on the aim point.")
+                .defineInRange("planeBombStickIntervalTicks", 4, 1, 40);
         PLANE_ENGAGE_RADIUS = builder.comment(
                         "How far out (blocks) a plane rolls in on a target instead of just closing on it.")
                 .defineInRange("planeEngageRadius", 96.0, 32.0, 320.0);

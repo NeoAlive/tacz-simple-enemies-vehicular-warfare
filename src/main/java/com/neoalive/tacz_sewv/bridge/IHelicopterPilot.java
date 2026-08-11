@@ -4,6 +4,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 
+import com.neoalive.tacz_sewv.item.PlaneAttackMode;
+
 /**
  * Player-issued flight command carried on a unit entity, read by
  * {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal}. Set server-side by
@@ -39,6 +41,14 @@ public interface IHelicopterPilot {
     String TAG_HELI_COMMAND = "tacz_sewv_heli_command";
     String TAG_HELI_LAND_POS = "tacz_sewv_heli_land_pos";
     String TAG_HELI_CRUISE_ALT = "tacz_sewv_heli_cruise_alt";
+    /**
+     * Ordnance the last radio fire mission asked this pilot for
+     * ({@link com.neoalive.tacz_sewv.item.PlaneAttackMode}). Persistent for the same reason the
+     * flight command is: it is a standing instruction, not a per-tick decision, and a pilot that
+     * forgot it on reload would silently revert a bombing mission to guns. Zero — a missing key —
+     * is {@code AUTO}, which is the correct answer for every crew nobody ever radioed.
+     */
+    String TAG_PLANE_ATTACK_MODE = "tacz_sewv_plane_attack_mode";
 
     default void sewv$setHeliCommand(int command) {
         ((Entity) this).getPersistentData().putInt(TAG_HELI_COMMAND, command);
@@ -69,5 +79,15 @@ public interface IHelicopterPilot {
     default int sewv$getCruiseAltitude() {
         CompoundTag tag = ((Entity) this).getPersistentData();
         return tag.contains(TAG_HELI_CRUISE_ALT) ? tag.getInt(TAG_HELI_CRUISE_ALT) : DEFAULT_CRUISE_ALTITUDE;
+    }
+
+    default void sewv$setPlaneAttackMode(PlaneAttackMode mode) {
+        ((Entity) this).getPersistentData().putInt(TAG_PLANE_ATTACK_MODE,
+                mode == null ? PlaneAttackMode.AUTO.ordinal() : mode.ordinal());
+    }
+
+    default PlaneAttackMode sewv$getPlaneAttackMode() {
+        return PlaneAttackMode.byOrdinal(
+                ((Entity) this).getPersistentData().getInt(TAG_PLANE_ATTACK_MODE));
     }
 }

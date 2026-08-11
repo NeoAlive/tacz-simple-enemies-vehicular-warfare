@@ -20,6 +20,9 @@ public final class PlaneGuidanceSelfCheck {
         if (!assertionsOn) throw new IllegalStateException("run with -ea, or this checks nothing");
 
         checkIntercept();
+        checkGunLine();
+        checkFireCone();
+        checkBallisticLead();
         checkOrbit();
         checkApproachAxis();
         checkLandingPredicates();
@@ -34,6 +37,107 @@ public final class PlaneGuidanceSelfCheck {
     }
 
     // --- Aiming ---------------------------------------------------------------------------------
+
+    /**
+     * The gun line, not the nose. Pinned because the error it removes is silent: an aircraft aimed
+     * by hull geometry flies and looks exactly right and misses low on every single shot.
+     */
+    private static void checkGunLine() {
+        // SBW pitch convention: positive is nose DOWN, so a direction with negative y is a
+        // depression. Getting this backwards would command a climb at a ground target.
+        assert PlaneNav.pitchOfDeg(new Vec3(0.0, -1.0, 0.0)) > 0.0
+                : "straight down must be positive pitch";
+        assert Math.abs(PlaneNav.pitchOfDeg(new Vec3(1.0, 0.0, 0.0))) < EPS
+                : "level must be zero pitch";
+
+        // The A-10's cannon fires 1.7 degrees below the hull axis. With the nose exactly on a level
+        // target the gun is therefore already low, and the correction must ask for MORE nose up.
+        Vec3 cantedGun = new Vec3(0.0, -0.03, 1.0);
+        Vec3 levelTarget = new Vec3(0.0, 0.0, 100.0);
+        double err = PlaneNav.gunPitchErrorDeg(cantedGun, levelTarget);
+        assert err < 0.0 : "a low-canted gun must be corrected upward, got " + err;
+        assert Math.abs(err + Math.toDegrees(Math.atan(0.03))) < 1.0E-6
+                : "correction must equal the cant exactly, got " + err;
+
+        // And the loop is a fixed point: apply the correction, and the error is gone. This is the
+        // property that makes barrel geometry cancel rather than accumulate.
+        Vec3 corrected = new Vec3(0.0, 0.0, 1.0);
+        assert Math.abs(PlaneNav.gunPitchErrorDeg(corrected, levelTarget)) < 1.0E-9
+                : "corrected gun line must have zero error";
+
+        // Total error is unsigned and agrees with the pitch error when the offset is purely
+        // vertical — the fire gate and the steering must be measuring the same thing.
+        double total = PlaneNav.gunErrorDeg(cantedGun, levelTarget);
+        assert Math.abs(total - Math.abs(err)) < 1.0E-6
+                : "gun error and pitch error disagree: " + total + " vs " + err;
+    }
+
+    /**
+     * The derived fire cone. Both directions of the old bug are pinned here: a cone that stays wide
+     * at range is the "fires 50 blocks from the target" report, and one that stays tight up close
+     * is the "engages but never shoots" one.
+     */
+    private static void checkFireCone() {
+        double min = 3.0;
+        double max = 12.0;
+
+        // Far out, the tolerance tightens toward the geometric answer rather than staying at the
+        // ceiling: a 4-block burst radius at 90 blocks is about 2.5 degrees, so the floor governs.
+        double far = PlaneNav.fireConeDeg(4.0, 90.0, min, max);
+        assert far <= max : "far cone must not exceed the ceiling: " + far;
+        assert far >= min : "far cone must not go under the floor: " + far;
+
+        // Up close the same weapon earns a much wider cone, because the same angle is a much
+        // smaller miss. Monotonicity in range is the property, not the numbers.
+        double near = PlaneNav.fireConeDeg(4.0, 20.0, min, max);
+        assert near > far : "cone must open as the range closes: " + near + " vs " + far;
+
+        // A bigger blast earns a bigger cone at the same range — a 22-block bomb does not need
+        // cannon accuracy, and demanding it is why bombs never went.
+        double bomb = PlaneNav.fireConeDeg(22.0, 60.0, min, max);
+        double gun = PlaneNav.fireConeDeg(4.0, 60.0, min, max);
+        assert bomb > gun : "blast radius must widen the cone: " + bomb + " vs " + gun;
+
+        // The angle actually means what it claims: a shot at exactly the cone edge lands at about
+        // the lethal radius. This is the whole justification for deriving it.
+        double range = 60.0;
+        double lethal = 5.0;
+        double cone = PlaneNav.fireConeDeg(lethal, range, 0.1, 89.0);
+        double miss = range * Math.tan(Math.toRadians(cone));
+        assert Math.abs(miss - lethal) < 1.0E-6
+                : "cone does not correspond to the lethal radius: miss=" + miss;
+
+        // Degenerate inputs must not produce a cone of zero (never fires) or of 180 (fires at the
+        // horizon): unreadable gun data has to degrade to the bounds.
+        assert PlaneNav.fireConeDeg(0.0, 100.0, min, max) >= min : "zero blast must floor, not zero";
+        assert PlaneNav.fireConeDeg(1000.0, 1.0, min, max) <= max : "huge blast must respect the cap";
+    }
+
+    /**
+     * The bomb release distance. Pinned because it is the number that decides whether a bombing
+     * run is <em>offered</em> a release at all: sizing the run off a fixed 96-block bubble while
+     * the store needs 87 blocks of fall is not a mistimed drop, it is a drop that can never happen,
+     * and it looks from the ground exactly like an aircraft that overflies and forgets to pickle.
+     */
+    private static void checkBallisticLead() {
+        // A-10 numbers: 40 blocks up, Mk 82 at gravity 0.06. Roughly 36 ticks of fall, so the lead
+        // is about 35 times the ground speed and is well outside the engage bubble at jet speed.
+        double slow = PlaneNav.ballisticLead(40.0, 1.0, 0.06);
+        double fast = PlaneNav.ballisticLead(40.0, 2.5, 0.06);
+        assert Math.abs(slow - Math.sqrt(2.0 * 40.0 / 0.06)) < 1.0E-9 : "lead at unit speed is the fall time";
+        assert fast > 80.0 : "a fast aircraft must release from well outside the bubble: " + fast;
+        assert Math.abs(fast - slow * 2.5) < 1.0E-9 : "lead must be linear in speed";
+
+        // Higher release, longer fall, longer lead — the property the run altitude depends on.
+        assert PlaneNav.ballisticLead(64.0, 2.0, 0.06) > PlaneNav.ballisticLead(40.0, 2.0, 0.06)
+                : "a higher release must carry further";
+
+        // Degenerate inputs answer zero rather than NaN or infinity: a stationary or climbing
+        // aircraft must simply not be offered a bombing envelope.
+        assert PlaneNav.ballisticLead(0.0, 2.0, 0.06) == 0.0 : "no height, no lead";
+        assert PlaneNav.ballisticLead(40.0, 0.0, 0.06) == 0.0 : "no speed, no lead";
+        assert PlaneNav.ballisticLead(40.0, 2.0, 0.0) == 0.0 : "no gravity, no lead";
+    }
 
     private static void checkIntercept() {
         // Stationary target: the intercept is the straight-line flight time and the aim point is

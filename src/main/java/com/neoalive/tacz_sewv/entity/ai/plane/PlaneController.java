@@ -122,6 +122,27 @@ public final class PlaneController {
                 (float) Mth.clamp(err * PITCH_STICK_PER_DEG, -MAX_PITCH_STICK, MAX_PITCH_STICK));
     }
 
+    /**
+     * Point the <b>weapon</b> at a world point, rather than the nose at one.
+     *
+     * <p>The distinction is the difference between hitting and not. A gun sits forward of the hull
+     * origin and is usually canted a degree or two off the hull axis, so an attitude computed from
+     * where the hull is and where the target is leaves a constant error on the shot — invisible in
+     * the flight model, fatal inside a fire gate measured in single degrees. Here the error between
+     * the live gun line and the line to the aim point is measured directly and driven to zero, so
+     * whatever the barrel geometry is, it cancels.
+     *
+     * @param shootDir the weapon's firing direction in world space, from SBW
+     * @param toAim muzzle to aim point, in world space
+     * @param minPitch commanded attitude floor (negative is nose up)
+     * @param maxPitch commanded attitude ceiling (positive is nose down)
+     */
+    public void trackGunLine(Vec3 shootDir, Vec3 toAim, float minPitch, float maxPitch) {
+        steerYaw(new Vec3(toAim.x, 0.0, toAim.z));
+        double err = PlaneNav.gunPitchErrorDeg(shootDir, toAim);
+        commandPitch((float) Mth.clamp(this.vehicle.getXRot() + err, minPitch, maxPitch));
+    }
+
     /** Hold an altitude: below it, nose up (negative attitude); above it, nose down. */
     public void holdAltitude(double desiredY) {
         commandPitch(altitudePitch(desiredY));

@@ -25,6 +25,16 @@ public class WorldVehicleClasses extends SavedData {
 
     private static final String DATA_NAME = "tacz_sewv_vehicle_classes";
 
+    /**
+     * The four {@code PLANE_*} lists classify an <b>aircraft weapon slot</b>, and they are matched
+     * against the slot's name and its ammo item id together. Both halves are needed: SBW names the
+     * A-10's slots {@code Cannon}/{@code Rocket}/{@code Bomb}/{@code Missile}, which is readable,
+     * but the Ju-87 calls its gun {@code MachineGun} and addon packs name slots whatever they like
+     * — whereas the ammo id ({@code small_shell_ap}, {@code small_rocket}, {@code
+     * medium_aerial_bomb}, {@code large_anti_ground_missile}) is real datapack metadata that says
+     * what the round actually is. The lists are consulted in the order GUIDED, BOMB, ROCKET,
+     * CANNON, so a longer clue can carve a special case out of a broader one.
+     */
     public enum CueKind {
         IFV,
         ANTI_AIR,
@@ -32,7 +42,8 @@ public class WorldVehicleClasses extends SavedData {
         ARTILLERY,
         PLANE_MISSILE,
         PLANE_BOMB,
-        PLANE_ROCKET
+        PLANE_ROCKET,
+        PLANE_CANNON
     }
 
     private static final List<String> DEFAULT_IFV = List.of(
@@ -43,9 +54,14 @@ public class WorldVehicleClasses extends SavedData {
     private static final List<String> DEFAULT_ARTILLERY = List.of(
             "plz_05", "mk_42", "mle_1934", "bl_132");
     private static final List<String> DEFAULT_PLANE_MISSILE = List.of(
-            "missile", "agm", "kh_", "atgm", "maverick");
-    private static final List<String> DEFAULT_PLANE_BOMB = List.of("bomb");
-    private static final List<String> DEFAULT_PLANE_ROCKET = List.of("rocket", "hydra");
+            "missile", "anti_ground_missile", "anti_air_missile", "agm", "kh_", "atgm", "maverick");
+    private static final List<String> DEFAULT_PLANE_BOMB = List.of(
+            "bomb", "aerial_bomb", "mortar_shell");
+    private static final List<String> DEFAULT_PLANE_ROCKET = List.of(
+            "rocket", "small_rocket", "hydra");
+    private static final List<String> DEFAULT_PLANE_CANNON = List.of(
+            "cannon", "machinegun", "gau", "shell_ap", "shell_he", "shell_aa",
+            "rifleammo", "heavyammo");
 
     private final Map<CueKind, List<String>> cues = new EnumMap<>(CueKind.class);
     private final Map<TankFaction, List<String>> armor = new EnumMap<>(TankFaction.class);
@@ -145,6 +161,7 @@ public class WorldVehicleClasses extends SavedData {
             case PLANE_MISSILE -> DEFAULT_PLANE_MISSILE;
             case PLANE_BOMB -> DEFAULT_PLANE_BOMB;
             case PLANE_ROCKET -> DEFAULT_PLANE_ROCKET;
+            case PLANE_CANNON -> DEFAULT_PLANE_CANNON;
         };
     }
 

@@ -7,6 +7,7 @@ import java.util.Map;
 import com.atsuishio.superbwarfare.data.vehicle.VehicleData;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.nekoyuni.SimpleEnemyMod.entity.client.pmc_unit.PmcUnitRenderer;
 import net.nekoyuni.SimpleEnemyMod.entity.client.ru_unit.RUunitRenderer;
@@ -19,17 +20,37 @@ import org.spongepowered.asm.mixin.injection.Coerce;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
+
 /**
- * Hides any mounted unit whose seat encloses it ({@code getHidePassenger}). One mixin for
- * all three unit renderers — they share no SEM base class (each extends MobRenderer
- * directly), so the entity parameter's type differs per target and is {@code @Coerce}d to
- * the common {@link AbstractUnit}.
+ * Two jobs on SEM's unit renderers. Hides any mounted unit whose seat encloses it
+ * ({@code getHidePassenger}), and swaps in a {@link CrewSkinRegistry} uniform so the unit's
+ * camo matches the armor it is wearing. One mixin for all three unit renderers — they share no
+ * SEM base class (each extends MobRenderer directly), so the entity parameter's type differs
+ * per target and is {@code @Coerce}d to the common {@link AbstractUnit}.
+ *
+ * <p>The texture inject does not reach this mod's own medic/engineer types: their renderers
+ * ({@code RuSupportRenderer}/{@code UsSupportRenderer}) override {@code getTextureLocation} and
+ * never call super, so they consult the registry themselves.
  */
 @Mixin({PmcUnitRenderer.class, RUunitRenderer.class, USunitRenderer.class})
 public abstract class MixinUnitRenderer {
 
     @Unique
     private static final Map<EntityType<?>, boolean[]> TACZ_SEWV$HIDDEN_SEATS = new IdentityHashMap<>();
+
+    /**
+     * No pooled uniform for this unit's faction+category+camo → no cancel, and SEM's own
+     * {@code <FACTION>UNIT_TEXTURES[getVariant()]} runs untouched. That is the intended fallback:
+     * a camo only needs uniform art once someone draws it.
+     */
+    @Inject(method = "getTextureLocation", at = @At("HEAD"), cancellable = true, remap = false)
+    private void tacz_sewv$pooledUniform(@Coerce AbstractUnit entity, CallbackInfoReturnable<ResourceLocation> cir) {
+        ResourceLocation skin = CrewSkinRegistry.bodySkin(entity);
+        if (skin != null) {
+            cir.setReturnValue(skin);
+        }
+    }
 
     @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true, remap = false)
     private void tacz_sewv$hideMountedInEnclosedSeat(

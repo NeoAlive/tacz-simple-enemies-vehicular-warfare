@@ -5,6 +5,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.nekoyuni.SimpleEnemyMod.entity.client.ru_unit.RUunitRenderer;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 
+import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
+
 /**
  * SEM's RU unit renderer with a fixed skin, so a medic or engineer is distinguishable from the
  * riflemen around it.
@@ -22,8 +24,14 @@ public class RuSupportRenderer extends RUunitRenderer {
         this.texture = texture;
     }
 
+    /**
+     * A pooled uniform in this unit's armor camo if there is one, else the fixed skin — which is
+     * this role's "default SEM variation", since a medic or engineer never had a variant pool.
+     * The {@code MixinUnitRenderer} inject cannot cover these: this override never calls super.
+     */
     @Override
     public ResourceLocation getTextureLocation(RUunitEntity entity) {
-        return this.texture;
+        ResourceLocation pooled = CrewSkinRegistry.bodySkin(entity);
+        return pooled != null ? pooled : this.texture;
     }
 }

@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import com.neoalive.tacz_sewv.client.skin.ArmorSkinRegistry;
+import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 
 /**
@@ -36,7 +36,7 @@ public abstract class MixinGeoArmorRenderer {
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(wearer);
         if (faction == null) return;
 
-        ResourceLocation skin = ArmorSkinRegistry.textureFor(wearer, stack, faction);
+        ResourceLocation skin = CrewSkinRegistry.textureFor(wearer, stack, faction);
         if (skin != null) {
             cir.setReturnValue(skin);
         }

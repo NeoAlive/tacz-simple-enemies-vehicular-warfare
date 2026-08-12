@@ -106,7 +106,9 @@ public class SewvCommand {
                         .then(Commands.literal("guncache")
                                 .executes(ctx -> debugGunCache(ctx.getSource())))
                         .then(Commands.literal("reloadSkins")
-                                .executes(ctx -> debugReloadSkins(ctx.getSource())))
+                                .executes(ctx -> debugReloadSkins(ctx.getSource(), false)))
+                        .then(Commands.literal("poolSkinResetToDefault")
+                                .executes(ctx -> debugReloadSkins(ctx.getSource(), true)))
                         .then(Commands.literal("dump")
                                 .executes(ctx -> debugDump(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
@@ -508,8 +510,12 @@ public class SewvCommand {
         }
     }
 
-    private static int debugReloadSkins(CommandSourceStack source) {
-        PacketReloadVehicleSkins packet = new PacketReloadVehicleSkins();
+    /**
+     * The work happens client-side: the skin folders live in the <b>client's</b> config directory,
+     * which is not the machine this command ran on once a dedicated server is involved.
+     */
+    private static int debugReloadSkins(CommandSourceStack source, boolean reset) {
+        PacketReloadVehicleSkins packet = new PacketReloadVehicleSkins(reset);
         if (source.getEntity() instanceof ServerPlayer player) {
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
         } else if (source.getServer() != null) {
@@ -517,7 +523,9 @@ public class SewvCommand {
                 NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
             }
         }
-        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.reload_skins"), true);
+        source.sendSuccess(() -> Component.translatable(reset
+                ? "command.tacz_sewv.debug.reset_skins"
+                : "command.tacz_sewv.debug.reload_skins"), true);
         return 1;
     }
 

@@ -20,6 +20,7 @@ import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fml.loading.FMLPaths;
@@ -42,6 +43,8 @@ import com.neoalive.tacz_sewv.crew.CrewFacts;
  *
  * <p>On every reload, missing files are seeded from jar defaults under
  * {@code assets/tacz_sewv/vehicle_skins_defaults/} — existing config files are never overwritten.
+ * The default set is enumerated out of the jar by {@link SkinFiles}; the hardcoded list this used
+ * to carry named 4 of the 20 skins actually shipped, so 16 of them never reached disk.
  */
 @OnlyIn(Dist.CLIENT)
 public final class VehicleSkinRegistry {
@@ -49,13 +52,7 @@ public final class VehicleSkinRegistry {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final String LOG_PREFIX = "[sewv-skins]";
 
-    /** Bundled examples shipped in the jar; copied into the config folder only if absent. */
-    private static final String[] DEFAULT_SKINS = {
-            "m_1a_2_ru.png",
-            "m_1a_2_pmc.png",
-            "t_90a_us.png",
-            "t_90a_pmc.png",
-    };
+    private static final String DEFAULTS_ROOT = "vehicle_skins_defaults";
 
     /** vehicle registry path + faction → plain and/or numbered pool. */
     private static final Map<String, Entry> ENTRIES = new HashMap<>();
@@ -72,7 +69,7 @@ public final class VehicleSkinRegistry {
     }
 
     /** Release prior dynamics and re-scan the folder. Safe to call repeatedly. */
-    public static synchronized void reload() {
+    public static synchronized void reload(ResourceManager resources) {
         TextureManager textures = Minecraft.getInstance().getTextureManager();
         for (ResourceLocation id : REGISTERED) {
             textures.release(id);
@@ -92,7 +89,7 @@ public final class VehicleSkinRegistry {
             return;
         }
 
-        seedDefaults(dir);
+        SkinFiles.seed(dir, DEFAULTS_ROOT, resources, LOG_PREFIX);
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "*.png")) {
             for (Path file : stream) {
@@ -181,26 +178,10 @@ public final class VehicleSkinRegistry {
      * Copy jar-bundled example skins into the config folder. Never overwrites an existing file —
      * so iterating on art keeps edits, and a fresh install still gets working examples.
      */
-    private static void seedDefaults(Path dir) {
-        int copied = 0;
-        for (String name : DEFAULT_SKINS) {
-            Path dest = dir.resolve(name);
-            if (Files.exists(dest)) continue;
-            String resource = "/assets/" + TaczSewv.MODID + "/vehicle_skins_defaults/" + name;
-            try (InputStream in = VehicleSkinRegistry.class.getResourceAsStream(resource)) {
-                if (in == null) {
-                    LOGGER.warn("{} missing jar default: {}", LOG_PREFIX, resource);
-                    continue;
-                }
-                Files.copy(in, dest);
-                copied++;
-            } catch (Exception e) {
-                LOGGER.warn("{} could not seed {}: {}", LOG_PREFIX, name, e.toString());
-            }
-        }
-        if (copied > 0) {
-            LOGGER.info("{} seeded {} default skin(s) into {}", LOG_PREFIX, copied, dir);
-        }
+    /** Throw away whatever is on disk and put the jar's own art back. */
+    public static synchronized void resetToDefaults(ResourceManager resources) {
+        SkinFiles.wipe(skinsDirectory(), LOG_PREFIX);
+        reload(resources);
     }
 
     private static void tryLoad(Path file) {

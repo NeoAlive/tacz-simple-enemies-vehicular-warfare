@@ -4,6 +4,7 @@ import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.api.distmarker.Dist;
@@ -15,7 +16,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.client.skin.ArmorSkinRegistry;
+import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
 import com.neoalive.tacz_sewv.init.ModEntities;
@@ -56,18 +57,23 @@ public class ClientModEvents {
      */
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
-        event.enqueueWork(() -> {
-            VehicleSkinRegistry.reload();
-            ArmorSkinRegistry.reload();
-        });
         if (ModList.get().isLoaded(XaeroMapCompat.MODID)) {
             XaeroMapCompat.register();
         }
     }
 
+    /**
+     * Skins load as a reload listener rather than at client setup because seeding the config
+     * folders enumerates the jar defaults through the {@link net.minecraft.server.packs.resources.ResourceManager},
+     * which is not reliably populated that early. F3+T picking up edited PNGs comes free with it.
+     */
     @SubscribeEvent
     public static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(new SandbagSeatPose.Loader());
+        event.registerReloadListener((ResourceManagerReloadListener) resources -> {
+            VehicleSkinRegistry.reload(resources);
+            CrewSkinRegistry.reload(resources);
+        });
     }
 
     @SubscribeEvent

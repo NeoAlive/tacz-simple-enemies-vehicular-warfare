@@ -232,10 +232,20 @@ tasks.register('selfCheckSounds', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckCrewSkins', JavaExec) {
+    group = 'verification'
+    description = 'Asserts the crew-skin filename grammar and that shipped defaults match it.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.skin.CrewSkinSelfCheck'
+    workingDir = project.projectDir
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckEngineGates', 'selfCheckSounds'
+    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins'
 }
 
 mixin {

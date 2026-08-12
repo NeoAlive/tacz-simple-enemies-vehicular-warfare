@@ -70,7 +70,8 @@ public class NetworkHandler {
     // 43: PacketEntrench (ENTRENCHED area task).
     // 44: PacketRadioCommand (handheld radio GUI fire mission).
     // 45: Category.TOW in vehicle pool editor packets.
-    private static final String PROTOCOL_VERSION = "46";
+    // 47: PacketReloadVehicleSkins carries a reset-to-jar-defaults flag.
+    private static final String PROTOCOL_VERSION = "47";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

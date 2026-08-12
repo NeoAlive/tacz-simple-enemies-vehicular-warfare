@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "tacz_sewv:emplacement_block"
+    "tacz_sewv:emplacement_block",
+    "tacz_sewv:runway_block"
   ]
 }

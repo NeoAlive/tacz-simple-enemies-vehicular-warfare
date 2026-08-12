@@ -9,6 +9,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlock;
 import com.neoalive.tacz_sewv.block.EmplacementBlock;
 import com.neoalive.tacz_sewv.block.FoxholeBlock;
+import com.neoalive.tacz_sewv.block.RunwayBlock;
 import com.neoalive.tacz_sewv.block.SandbagBlock;
 import com.neoalive.tacz_sewv.block.TeamBaseBlock;
 import com.neoalive.tacz_sewv.block.TrenchBlock;
@@ -42,4 +43,8 @@ public class ModBlocks {
     /** Directional sandbag fighting position with a one-person seat. */
     public static final RegistryObject<Block> SANDBAG =
             BLOCKS.register("sandbag", SandbagBlock::new);
+
+    /** PMC player-defined strip marker. */
+    public static final RegistryObject<Block> RUNWAY =
+            BLOCKS.register("runway_block", RunwayBlock::new);
 }

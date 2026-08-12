@@ -385,6 +385,32 @@ public final class PlaneNav {
         return new Vec3(dir.x * cos - dir.z * sin, 0.0, dir.x * sin + dir.z * cos);
     }
 
+    /**
+     * The entity yaw that points a hull along a horizontal direction.
+     *
+     * <p><b>Yaw is not a bearing, and the two differ by a sign.</b> SBW's
+     * {@code getForwardDirection()} is {@code (-sin(yRot), 0, cos(yRot))}, vanilla's convention, so
+     * a hull facing +X sits at yaw -90 — while the compass bearing this codebase stores in
+     * {@code TAG_APPROACH_YAW} and in an airport's heading is {@code atan2(x, z)}, which is +90 for
+     * the same direction. The two agree for a north-south strip and are exactly reversed for an
+     * east-west one, which is the sort of bug that looks like "it works on my runway".
+     */
+    public static float yawFromDirection(Vec3 dir) {
+        if (dir == null || dir.lengthSqr() < EPS) return 0.0F;
+        return (float) Mth.wrapDegrees(-Math.toDegrees(Math.atan2(dir.x, dir.z)));
+    }
+
+    /** The entity yaw for a stored compass bearing. See {@link #yawFromDirection}. */
+    public static float yawFromBearingDeg(double bearingDeg) {
+        return (float) Mth.wrapDegrees(-bearingDeg);
+    }
+
+    /** Unit horizontal direction for a stored compass bearing. */
+    public static Vec3 directionFromBearingDeg(double bearingDeg) {
+        double rad = Math.toRadians(bearingDeg);
+        return new Vec3(Math.sin(rad), 0.0, Math.cos(rad));
+    }
+
     /** Smallest absolute angle (degrees) between two horizontal directions. */
     public static double headingErrorDeg(Vec3 from, Vec3 to) {
         double a = Math.atan2(from.x, from.z);

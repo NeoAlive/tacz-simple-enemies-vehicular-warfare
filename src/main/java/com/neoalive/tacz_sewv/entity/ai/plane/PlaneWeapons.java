@@ -74,6 +74,14 @@ public final class PlaneWeapons {
     /** Bombs are only released with the nose roughly along the flight path, never in a hard turn. */
     private static final double BOMB_MAX_TRACK_ERROR_DEG = 15.0;
     /**
+     * Shortest spacing a stick is ever laid at, whatever the config says. Two bombs let go within
+     * a few ticks of each other land close enough to detonate as one blast — a chain of craters on
+     * top of one another rather than ordnance walked across a target, which is both the wrong
+     * effect and a poor thing to watch. Half a second is the point at which the spacing reads as
+     * separate impacts at every speed an SBW airframe flies.
+     */
+    private static final int MIN_BOMB_SPACING_TICKS = 10;
+    /**
      * And never off a hard climb or dive. A bomb inherits the aircraft's velocity vector outright
      * ({@code Directions: "DeltaMovement"}), so the flight path angle <em>is</em> the launch angle.
      * This is a bound on how far the geometry may be from the profile the run was planned as, not
@@ -540,14 +548,25 @@ public final class PlaneWeapons {
             return false;
         }
         this.bombsDropped++;
-        // Floored at the global AI fire cooldown, which gates vehicleShoot itself: a stick spaced
-        // tighter than that would have its intervening releases silently cancelled upstream while
-        // this counter still ran, so a "three-bomb" carpet would quietly drop one.
-        this.nextBombTick = now + Math.max(SewvConfig.PLANE_BOMB_STICK_INTERVAL.get(),
-                SewvConfig.AI_FIRE_COOLDOWN_TICKS.get());
+        this.nextBombTick = now + stickSpacing();
         SewvDiag.plane("bomb {} of {} away",
                 this.bombsDropped, SewvConfig.PLANE_BOMB_STICK.get());
         return true;
+    }
+
+    /**
+     * Ticks between two bombs of a stick.
+     *
+     * <p>Floored twice, for two unrelated reasons. The global AI fire cooldown gates
+     * {@code vehicleShoot} itself, so a stick spaced tighter than that would have its intervening
+     * releases silently cancelled upstream while this counter still ran — a "three-bomb" carpet
+     * that quietly drops one. {@link #MIN_BOMB_SPACING_TICKS} is the separation the impacts need
+     * to read as a carpet rather than one overlapping blast.
+     */
+    private static int stickSpacing() {
+        return Math.max(MIN_BOMB_SPACING_TICKS,
+                Math.max(SewvConfig.PLANE_BOMB_STICK_INTERVAL.get(),
+                        SewvConfig.AI_FIRE_COOLDOWN_TICKS.get()));
     }
 
     /** Grid-mark release: same stick / sight against a fixed aimpoint. */
@@ -579,8 +598,7 @@ public final class PlaneWeapons {
             return false;
         }
         this.bombsDropped++;
-        this.nextBombTick = now + Math.max(SewvConfig.PLANE_BOMB_STICK_INTERVAL.get(),
-                SewvConfig.AI_FIRE_COOLDOWN_TICKS.get());
+        this.nextBombTick = now + stickSpacing();
         SewvDiag.plane("bomb {} of {} away (mark)",
                 this.bombsDropped, SewvConfig.PLANE_BOMB_STICK.get());
         return true;

@@ -58,6 +58,9 @@ public class ModItems {
     public static final RegistryObject<Item> SANDBAG = ITEMS.register("sandbag",
             () -> new BlockItem(ModBlocks.SANDBAG.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> RUNWAY = ITEMS.register("runway_block",
+            () -> new BlockItem(ModBlocks.RUNWAY.get(), new Item.Properties()));
+
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer, brown combat engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",

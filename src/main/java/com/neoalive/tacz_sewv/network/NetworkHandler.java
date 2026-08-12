@@ -71,7 +71,8 @@ public class NetworkHandler {
     // 44: PacketRadioCommand (handheld radio GUI fire mission).
     // 45: Category.TOW in vehicle pool editor packets.
     // 47: PacketReloadVehicleSkins carries a reset-to-jar-defaults flag.
-    private static final String PROTOCOL_VERSION = "47";
+    // 48: PacketOpenAirportGui + PacketAirportAction (PMC runway editor).
+    private static final String PROTOCOL_VERSION = "49";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -319,6 +320,21 @@ public class NetworkHandler {
                 PacketRadioCommand::encode,
                 PacketRadioCommand::new,
                 PacketRadioCommand::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenAirportGui.class,
+                PacketOpenAirportGui::encode,
+                PacketOpenAirportGui::new,
+                PacketOpenAirportGui::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketAirportAction.class,
+                PacketAirportAction::encode,
+                PacketAirportAction::new,
+                PacketAirportAction::handle
         );
     }
 }

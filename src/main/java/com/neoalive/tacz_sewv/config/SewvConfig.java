@@ -177,11 +177,23 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PLANE_BOMB_SIGHT_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_ATTACK_RUN_LENGTH;
+    public static final ForgeConfigSpec.DoubleValue PLANE_MAX_ALTITUDE;
+    public static final ForgeConfigSpec.BooleanValue PLANE_DIVE_SNAP;
     public static final ForgeConfigSpec.DoubleValue PLANE_LAND_TRANSIT_AGL;
     public static final ForgeConfigSpec.DoubleValue PLANE_LAND_FLARE_AGL;
     public static final ForgeConfigSpec.DoubleValue PLANE_LAND_FLARE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_LAND_SETTLE_RADIUS;
     public static final ForgeConfigSpec.BooleanValue PLANE_COMBAT_DEBUG;
+    public static final ForgeConfigSpec.DoubleValue AIRPORT_MIN_ASPECT_RATIO;
+    public static final ForgeConfigSpec.IntValue AIRPORT_MIN_LENGTH_BLOCKS;
+    public static final ForgeConfigSpec.IntValue AIRPORT_MAX_AREA_BLOCKS;
+    public static final ForgeConfigSpec.DoubleValue AIRPORT_LANDING_SEARCH_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue AIRPORT_ALIGNMENT_DISTANCE;
+    public static final ForgeConfigSpec.DoubleValue AIRPORT_ALIGNMENT_SNAP_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue AIRPORT_SLOT_SIZE_FACTOR;
+    public static final ForgeConfigSpec.DoubleValue AIRPORT_SLOT_BUFFER_FACTOR;
+    public static final ForgeConfigSpec.DoubleValue AIRPORT_EXTRA_TAKEOFF_FACTOR;
+    public static final ForgeConfigSpec.DoubleValue AIRPORT_TAXI_SPEED;
 
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
     public static final ForgeConfigSpec.IntValue MORTAR_FIRE_COOLDOWN_TICKS;
@@ -642,8 +654,10 @@ public final class SewvConfig {
                 .defineInRange("planeBombStick", 3, 1, 12);
         PLANE_BOMB_STICK_INTERVAL = builder.comment(
                         "Game ticks between bombs in a carpet stick. Wider spacing covers more ground and",
-                        "concentrates less on the aim point.")
-                .defineInRange("planeBombStickIntervalTicks", 4, 1, 40);
+                        "concentrates less on the aim point. There is a hard floor of 10 ticks in code:",
+                        "closer than that the impacts overlap into one blast instead of walking across the",
+                        "target, so a smaller number here does nothing.")
+                .defineInRange("planeBombStickIntervalTicks", 10, 1, 40);
         PLANE_BOMB_SIGHT_RADIUS = builder.comment(
                         "Smallest release window (blocks) a plane will ever bomb through - a FLOOR under the",
                         "window, not the window itself. The window is normally the bomb's own blast radius,",
@@ -670,6 +684,22 @@ public final class SewvConfig {
                         "A floor, not a cap: the run is never cut shorter than the engage bubble it started",
                         "from, or it would end before the weapon's own release point.")
                 .defineInRange("planeAttackRunLength", 400.0, 40.0, 1024.0);
+        PLANE_MAX_ALTITUDE = builder.comment(
+                        "Absolute world Y a plane will never fly above. This is a ceiling, not a cruise",
+                        "height: the cruise band is measured above the ground under the aircraft, so over",
+                        "high terrain it would otherwise stack on top of a mountain and put the aircraft in",
+                        "the stratosphere - out of sight, out of the fight, and above the build limit in a",
+                        "dimension with a low one. Every climb this AI commands stops here, and the",
+                        "dimension's own build height (less a little headroom) binds it further.")
+                .defineInRange("planeMaxAltitude", 300.0, 64.0, 1024.0);
+        PLANE_DIVE_SNAP = builder.comment(
+                        "Place a plane exactly on its attack line at the moment it rolls in on a diving",
+                        "pass (guns and rockets; bombs and guided missiles are released from level flight",
+                        "and are unaffected). The same trick the airport approach uses, and for the same",
+                        "reason: a fixed wing is pointed a fraction of a degree per tick, so anything not",
+                        "corrected before the run is still being corrected during it, and the burst goes",
+                        "wide. Turn off if you would rather planes never be repositioned.")
+                .define("planeDiveSnap", true);
         PLANE_LAND_TRANSIT_AGL = builder.comment(
                         "Height (blocks) above the highest ground on the way in that a landing plane flies",
                         "the approach pattern at, before it lines up with the strip.")
@@ -687,6 +717,53 @@ public final class SewvConfig {
         PLANE_COMBAT_DEBUG = builder.comment(
                         "Developer logs for plane flight mode, aim and landing. Leave off unless debugging.")
                 .define("planeCombatDebug", false);
+        AIRPORT_MIN_ASPECT_RATIO = builder.comment(
+                        "Minimum long:short ratio for a player-defined PMC runway. Below this the strip",
+                        "is rejected as not runway-shaped.")
+                .defineInRange("airportMinAspectRatio", 3.0, 1.5, 20.0);
+        AIRPORT_MIN_LENGTH_BLOCKS = builder.comment(
+                        "Minimum long-side length (blocks) for a PMC runway. Matches the clear distance",
+                        "DrivePlaneGoal already demands for takeoff.")
+                .defineInRange("airportMinLengthBlocks", 64, 32, 512);
+        AIRPORT_MAX_AREA_BLOCKS = builder.comment(
+                        "Hard ceiling on runway footprint area (blocks). Rejects typo'd coordinates",
+                        "before they scan millions of columns on the server thread.")
+                .defineInRange("airportMaxAreaBlocks", 65536, 1024, 1048576);
+        AIRPORT_LANDING_SEARCH_RADIUS = builder.comment(
+                        "How far (blocks) from the AIRCRAFT to look for a cleared PMC airport when it is",
+                        "ordered to land. The ordered point is only a fallback, so raise this rather than",
+                        "clicking near the strip. 0 disables airport landings and keeps approach inference.")
+                .defineInRange("airportLandingSearchRadius", 1024.0, 0.0, 16384.0);
+        AIRPORT_ALIGNMENT_DISTANCE = builder.comment(
+                        "Length (blocks) of the alignment line an aircraft is placed on before an airport",
+                        "landing: the straight-in leg whose far end is this far back from the touchdown.")
+                .defineInRange("airportAlignmentDistance", 170.0, 60.0, 512.0);
+        AIRPORT_ALIGNMENT_SNAP_RADIUS = builder.comment(
+                        "How close (blocks) an aircraft must get to the start of that alignment line before",
+                        "it is placed onto it, pointed at the strip, and committed to the approach.")
+                .defineInRange("airportAlignmentSnapRadius", 48.0, 8.0, 256.0);
+        // The three below are STARTING VALUES for a newly placed runway block, not live settings.
+        // Segmentation belongs to a runway — a forward strip packing in light aircraft wants
+        // nothing like a bomber base's spacing — so each one keeps its own, edited by the sliders
+        // in its GUI. Changing these does not touch a runway that already exists.
+        AIRPORT_SLOT_SIZE_FACTOR = builder.comment(
+                        "Default parking slot length as a FRACTION of the runway's long side. Proportional",
+                        "rather than a block count so one setting suits a 64-block strip and a 400-block",
+                        "airbase; a floor of 8 blocks applies either way. Higher means fewer slots.")
+                .defineInRange("airportSlotSizeFactor", 0.10, 0.02, 0.5);
+        AIRPORT_SLOT_BUFFER_FACTOR = builder.comment(
+                        "Default separation between adjacent parking slots, again as a fraction of runway",
+                        "length (floor 2 blocks). The last slot needs no buffer behind it.")
+                .defineInRange("airportSlotBufferFactor", 0.03, 0.0, 0.2);
+        AIRPORT_EXTRA_TAKEOFF_FACTOR = builder.comment(
+                        "Default extra takeoff room beyond the automatic baseline, as a fraction of runway",
+                        "length. The baseline is interpolated from the runway's size and always applies;",
+                        "this can only ADD to it, at the cost of parking slots.")
+                .defineInRange("airportExtraTakeoffFactor", 0.0, 0.0, 0.5);
+        AIRPORT_TAXI_SPEED = builder.comment(
+                        "Blocks per tick an aircraft backs up the runway toward its parking slot after",
+                        "touchdown.")
+                .defineInRange("airportTaxiSpeed", 0.18, 0.02, 1.0);
         builder.pop();
 
         builder.push("mortar_ai");

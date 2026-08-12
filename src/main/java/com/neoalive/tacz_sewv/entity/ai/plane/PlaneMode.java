@@ -34,6 +34,8 @@ public enum PlaneMode {
     LAND_PATTERN,
     /** Established on the approach axis: glideslope, flare, touchdown. */
     LAND_FINAL,
+    /** Down on a cleared strip, backing up the runway into an assigned parking slot. */
+    LAND_TAXI,
     /** Down and shut off. Sticky until a new takeoff order. */
     LANDED;
 
@@ -45,11 +47,11 @@ public enum PlaneMode {
     /** Modes that own the whole tick and may not be interrupted by combat or orders. */
     public boolean isCommitted() {
         return this == TAKEOFF || this == LAND_PATTERN || this == LAND_FINAL
-                || this == LANDED || this == GROUNDED;
+                || this == LAND_TAXI || this == LANDED || this == GROUNDED;
     }
 
-    /** Landing pair, for the "am I on an approach" tests that must cover both halves. */
+    /** The landing set, for the "am I on an approach" tests that must cover every half. */
     public boolean isLanding() {
-        return this == LAND_PATTERN || this == LAND_FINAL;
+        return this == LAND_PATTERN || this == LAND_FINAL || this == LAND_TAXI;
     }
 }

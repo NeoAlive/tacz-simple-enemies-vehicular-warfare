@@ -36,15 +36,12 @@ public class HelicopterKeybind {
     }
 
     /**
-     * Order owned aircraft pilots to set down on {@code pad}. Prefer resolving the pad
-     * from the live crosshair when the TDT button is pressed; a null pad hints to look at a block.
+     * Order owned aircraft pilots to land. The pad is resolved from the live crosshair when the TDT
+     * button is pressed, and may be null: a plane lands at the nearest cleared airport whether one
+     * was aimed at or not, and the server refuses the order for anything left with nowhere to go
+     * (a helicopter, or a plane with no airport in range).
      */
     public static void orderLand(@Nullable BlockPos pad) {
-        if (pad == null) {
-            Player player = Minecraft.getInstance().player;
-            if (player != null) BoardKeybind.hint(player, "message.tacz_sewv.heli.no_pad");
-            return;
-        }
         withPilots("message.tacz_sewv.heli.land.none", HelicopterKeybind::isAircraftPilot,
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
                         new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_LANDING, pad, 0)));

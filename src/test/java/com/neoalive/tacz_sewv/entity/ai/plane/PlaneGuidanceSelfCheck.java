@@ -29,6 +29,7 @@ public final class PlaneGuidanceSelfCheck {
         checkBombWindow();
         checkOrbit();
         checkApproachAxis();
+        checkYawConvention();
         checkLandingPredicates();
         checkDiveProfile();
         checkLeash();
@@ -38,6 +39,27 @@ public final class PlaneGuidanceSelfCheck {
         checkModes();
 
         System.out.println("plane guidance self-check: OK");
+    }
+
+    /**
+     * Yaw is the negation of a compass bearing, and the two agree on a north-south runway — so an
+     * east-west strip is the only place the mistake shows. Pinned by reconstructing SBW's own
+     * {@code getForwardDirection()}, {@code (-sin(yaw), 0, cos(yaw))}, from the answer.
+     */
+    private static void checkYawConvention() {
+        for (double bearing : new double[] {0.0, 90.0, 180.0, -90.0, 37.0}) {
+            Vec3 dir = PlaneNav.directionFromBearingDeg(bearing);
+            float yaw = PlaneNav.yawFromDirection(dir);
+            double rad = Math.toRadians(yaw);
+            Vec3 forward = new Vec3(-Math.sin(rad), 0.0, Math.cos(rad));
+            assert forward.subtract(dir).length() < 1.0E-6
+                    : "bearing " + bearing + " -> yaw " + yaw + " points " + forward;
+            assert Math.abs(PlaneNav.yawFromBearingDeg(bearing) - yaw) < 1.0E-3
+                    : "bearing and direction forms disagree at " + bearing;
+        }
+        // The case that hid the bug, spelled out: +X is bearing +90 but yaw -90.
+        assert Math.abs(PlaneNav.yawFromDirection(new Vec3(1.0, 0.0, 0.0)) + 90.0F) < 1.0E-3;
+        assert Math.abs(PlaneNav.yawFromDirection(new Vec3(0.0, 0.0, 1.0))) < 1.0E-3;
     }
 
     // --- Aiming ---------------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -21,6 +22,9 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.airport.AirportRegistry;
+import com.neoalive.tacz_sewv.airport.RunwaySlots;
+import com.neoalive.tacz_sewv.airport.RunwayTraffic;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
@@ -81,12 +85,71 @@ public class DrivePlaneGoal extends Goal {
      * axis change under it, and go round again forever.
      */
     public static final String TAG_APPROACH_YAW = "sewv:plane_approach_yaw";
+    /**
+     * Set when a player-defined airport wrote the approach axis. A go-around must not discard
+     * that heading — Check Clearance already validated the corridor.
+     */
+    public static final String TAG_APPROACH_LOCKED = "sewv:plane_approach_locked";
+    /**
+     * Latched the first time the wheels touch on final, because commitment cannot be re-derived
+     * from {@code onGround()} every tick: a fixed-wing hull bounces, and a tick spent airborne
+     * again sends the aircraft back to the glideslope branch, which commands the nose up toward
+     * {@code padY + along * glideRatio} and (having just braked below the approach speed cap)
+     * firewalls the throttle. That is the porpoise — brush, climb, brush again — and the way out
+     * is to remember the touchdown rather than to ask the ground about it.
+     */
+    public static final String TAG_TOUCHED_DOWN = "sewv:plane_touched_down";
+    /**
+     * Game time by which the taxi to a parking slot must be finished. A backstop, not a schedule:
+     * the reverse leg is a written displacement so it cannot stall, but it is also the one part of
+     * an arrival that runs on the ground where something can get in the way, and an aircraft that
+     * never reaches its slot would sit on the runway holding it forever.
+     */
+    public static final String TAG_TAXI_DEADLINE = "sewv:plane_taxi_deadline";
+    /**
+     * The pose a parked aircraft is held at, written when it is placed on its slot. Releasing the
+     * inputs is not the same as being stopped: SBW keeps integrating {@code deltaMovement}, the
+     * hull sits on a friction model rather than a handbrake, and anything that nudges it — a
+     * landing shell, another aircraft's wake of a collision box, a chunk reload restoring stale
+     * motion — walks it off its slot with nothing to put it back. So a parked hull is pinned to
+     * this pose every tick and is only let go when a takeoff order comes.
+     */
+    public static final String TAG_PARKED = "sewv:plane_parked";
+
+    /** Pin an aircraft to where it stands until it is ordered to fly. */
+    public static void parkAt(VehicleEntity v, double x, double y, double z, float yaw) {
+        if (v == null) return;
+        CompoundTag park = new CompoundTag();
+        park.putDouble("X", x);
+        park.putDouble("Y", y);
+        park.putDouble("Z", z);
+        park.putFloat("Yaw", yaw);
+        v.getPersistentData().put(TAG_PARKED, park);
+    }
+
+    public static void clearPark(VehicleEntity v) {
+        if (v != null) v.getPersistentData().remove(TAG_PARKED);
+    }
 
     public static void setForcedLand(VehicleEntity v, BlockPos pad) {
         if (v == null || pad == null) return;
-        v.getPersistentData().putBoolean(TAG_FORCED_LAND, true);
-        v.getPersistentData().putLong(TAG_LAND_PAD, pad.asLong());
-        v.getPersistentData().remove(TAG_APPROACH_YAW); // a new pad wants a new approach
+        CompoundTag tag = v.getPersistentData();
+        tag.putBoolean(TAG_FORCED_LAND, true);
+        tag.putLong(TAG_LAND_PAD, pad.asLong());
+        tag.remove(TAG_APPROACH_YAW); // a new pad wants a new approach
+        tag.remove(TAG_APPROACH_LOCKED);
+        tag.remove(TAG_TOUCHED_DOWN);
+    }
+
+    /** Airport landing: pad + heading are both authoritative; do not fan for a new axis. */
+    public static void setForcedLand(VehicleEntity v, BlockPos pad, float headingDeg) {
+        if (v == null || pad == null) return;
+        CompoundTag tag = v.getPersistentData();
+        tag.putBoolean(TAG_FORCED_LAND, true);
+        tag.putLong(TAG_LAND_PAD, pad.asLong());
+        tag.putDouble(TAG_APPROACH_YAW, headingDeg);
+        tag.putBoolean(TAG_APPROACH_LOCKED, true);
+        tag.remove(TAG_TOUCHED_DOWN);
     }
 
     public static void clearForcedLand(VehicleEntity v) {
@@ -95,7 +158,25 @@ public class DrivePlaneGoal extends Goal {
         tag.remove(TAG_FORCED_LAND);
         tag.remove(TAG_LAND_PAD);
         tag.remove(TAG_APPROACH_YAW);
+        tag.remove(TAG_APPROACH_LOCKED);
+        tag.remove(TAG_TOUCHED_DOWN);
+        tag.remove(TAG_TAXI_DEADLINE);
     }
+
+    // --- Airport arrivals ----------------------------------------------------------------------
+    /**
+     * Height above the strip at which a cleared-airport arrival stops flying and is placed on the
+     * runway. Two blocks is under the wheels of most of these hulls, so the aircraft is landing
+     * either way; taking it here trades the last fraction of a second of descent for a touchdown
+     * that is exactly on the centreline and carries no momentum into the parking runs.
+     */
+    private static final double TOUCHDOWN_SNAP_AGL = 2.0;
+    /** How close the slot centre has to be before the aircraft is stood in it. */
+    private static final double TAXI_ARRIVE_DISTANCE = 1.5;
+    /** Backstop for the reverse leg. Comfortably longer than the longest strip's worth of taxi. */
+    private static final int TAXI_TIMEOUT_TICKS = 400;
+    /** A pad IS an airport's touchdown when it is this close to one; it is normally the same block. */
+    private static final double AIRPORT_PAD_MATCH_RADIUS = 8.0;
 
     // --- Health / power ---------------------------------------------------------------------
     /** Below this SBW flies the plane into its own death spiral; let go of the controls. */
@@ -120,6 +201,12 @@ public class DrivePlaneGoal extends Goal {
     private static final double MIN_FLIGHT_ALT = 120.0;
     private static final double MAX_FLIGHT_ALT = 240.0;
     private static final double MIN_OVER_DEST = 48.0;
+    /**
+     * Blocks kept between the ceiling and the dimension's roof. The band above is terrain-relative
+     * and would otherwise stack a mountain on top of the build limit; the gap is only so an
+     * aircraft levelling off at the top has somewhere to overshoot into.
+     */
+    private static final double CEILING_HEADROOM = 8.0;
     /**
      * How far ahead terrain is read. Deliberately <b>not</b> scaled with the engagement envelope:
      * this distance answers "can the aircraft still get out of the way", which is a function of its
@@ -256,11 +343,24 @@ public class DrivePlaneGoal extends Goal {
     private static final double HOLD_RADIUS_MIN = 192.0;
 
     // --- Landing -------------------------------------------------------------------------------
-    private static final double LAND_GLIDE_RATIO = 0.35;
+    /**
+     * Blocks of height per block of distance on the approach. Also read by
+     * {@code airport.AirportClearance} so a checked strip and a flown one agree.
+     *
+     * <p>0.35 was a slope the aircraft could not fly. It asks for a 19-degree descent, and
+     * {@code holdAltitude} may command 20 degrees of nose-<b>down attitude</b> — which, on a wing
+     * still making lift, buys a flight path considerably shallower than that. So the hull sat above
+     * its own glideslope the whole way in, arrived high over the numbers, missed the flare gate
+     * (which wants 8 blocks AGL) and flew on past the pad. 0.15 is about 8.5 degrees: steep by real
+     * aviation standards, comfortably inside what the pitch bound can actually hold, and it also
+     * lowers the alignment entry — the entry altitude is derived from this ratio — from 59 blocks
+     * over the strip to 25.
+     */
+    public static final double LAND_GLIDE_RATIO = 0.15;
     private static final double LAND_MAX_APPROACH_HEIGHT = 90.0;
     private static final float LAND_FLARE_PITCH_DEG = -8.0F;
     /** Length of the final approach leg; the fix sits this far back up the axis from the pad. */
-    private static final double FINAL_LEG_LENGTH = 140.0;
+    public static final double FINAL_LEG_LENGTH = 140.0;
     /** How far off the axis still counts as established. */
     private static final double APPROACH_CORRIDOR = 24.0;
     private static final double APPROACH_HEADING_TOLERANCE_DEG = 40.0;
@@ -272,8 +372,8 @@ public class DrivePlaneGoal extends Goal {
     private static final double[] APPROACH_FAN_DEG = {
             0.0, 30.0, -30.0, 60.0, -60.0, 90.0, -90.0, 130.0, -130.0, 180.0
     };
-    private static final double APPROACH_SAMPLE_STEP = 8.0;
-    private static final double APPROACH_CLEARANCE = 10.0;
+    public static final double APPROACH_SAMPLE_STEP = 8.0;
+    public static final double APPROACH_CLEARANCE = 10.0;
     /** Speed above which the approach runs reduced power; SBW's throttle has no analogue setting. */
     private static final double APPROACH_SPEED_CAP = 0.9;
     private static final int APPROACH_THROTTLE_PERIOD = 4;
@@ -461,11 +561,15 @@ public class DrivePlaneGoal extends Goal {
         // Every branch below issues a complete set of inputs. There is no "do nothing" case: the
         // sticks decay, so a silent tick is a control release at flying speed.
         switch (this.mode) {
-            case LANDED, GROUNDED -> this.control.release();
+            case LANDED, GROUNDED -> {
+                this.control.release();
+                holdPark();
+            }
             case TAKEOFF -> doTakeoff(pilot);
             case CLIMBOUT -> climbout();
             case LAND_PATTERN -> landPattern(pilot);
             case LAND_FINAL -> landFinal(pilot);
+            case LAND_TAXI -> landTaxi(pilot);
             case RTB -> returnToAnchor();
             case INGRESS -> {
                 if (target != null) ingress(target);
@@ -509,8 +613,11 @@ public class DrivePlaneGoal extends Goal {
                     pilot.sewv$setHeliLandPos(pad);
                 }
                 this.unit.setTarget(null); // do not fight while landing
-                return this.mode == PlaneMode.LAND_FINAL ? PlaneMode.LAND_FINAL
-                        : PlaneMode.LAND_PATTERN;
+                // Both post-pattern states are sticky: the aircraft is on the strip by then and
+                // there is no version of "back to the pattern" available to it.
+                if (this.mode == PlaneMode.LAND_FINAL) return PlaneMode.LAND_FINAL;
+                if (this.mode == PlaneMode.LAND_TAXI) return PlaneMode.LAND_TAXI;
+                return PlaneMode.LAND_PATTERN;
             }
         }
 
@@ -530,7 +637,8 @@ public class DrivePlaneGoal extends Goal {
 
         // Still below the flight band right after a roll: climb before anything else asks for a
         // manoeuvre, or the first turn is flown at treetop height.
-        if (this.mode == PlaneMode.CLIMBOUT && this.kinematics.agl() < CLIMBOUT_ABOVE_GROUND) {
+        if (this.mode == PlaneMode.CLIMBOUT && this.kinematics.agl() < CLIMBOUT_ABOVE_GROUND
+                && !atCeiling()) {
             return PlaneMode.CLIMBOUT;
         }
 
@@ -706,9 +814,18 @@ public class DrivePlaneGoal extends Goal {
         if (from == PlaneMode.ATTACK) {
             resetRun();
         }
+        if (from == PlaneMode.LANDED || from == PlaneMode.GROUNDED) {
+            // Off the slot: the pin only means "stand still where you are", so it has to go the
+            // moment the aircraft is doing anything else. Clearing it on the way OUT rather than
+            // only on takeoff is what stops the worst version of this — a hull that is sent away,
+            // lands in a field, and gets yanked back to its old parking spot across the map.
+            clearPark(this.vehicle);
+        }
         if (to == PlaneMode.TAKEOFF) {
             this.takeoffDirX = Double.NaN;
             this.takeoffDirZ = Double.NaN;
+            // Leaving for good: give the parking slot back, so a later arrival can be sent to it.
+            RunwayTraffic.release(this.vehicle);
         }
         if (to == PlaneMode.HOLD) {
             // Anchor the circle where the hold began, not wherever the aircraft drifts to.
@@ -718,6 +835,14 @@ public class DrivePlaneGoal extends Goal {
             this.holdCentre = null;
         }
         if (!to.isLanding() && from.isLanding()) {
+            this.terrain.clear();
+        }
+        if (to == PlaneMode.LAND_FINAL) {
+            // Committed: the whisker and its climb floor are off from here down. Flying at the
+            // ground IS the manoeuvre, so an obstacle cone would abort every arrival, and a floor
+            // raised by something met en route would still be holding the aircraft up over its own
+            // runway — it decays at 0.15/tick, so a single avoidance outlives a whole approach.
+            this.avoidFloorY = Double.NaN;
             this.terrain.clear();
         }
         SewvDiag.plane("mode {} -> {}", from, to);
@@ -850,7 +975,7 @@ public class DrivePlaneGoal extends Goal {
         Vec3 ahead = this.kinematics.forwardFlat();
         Vec3 clear = this.terrain.clearBearing(this.sensor, ahead, this.kinematics.speed());
         this.control.steerYaw(clear != null ? clear : ahead, TURN_YAW_SCALE);
-        this.control.commandPitch(-TAKEOFF_PITCH_DEG);
+        this.control.commandPitch(atCeiling() ? 0.0F : -TAKEOFF_PITCH_DEG);
     }
 
     // Pick a takeoff heading by a GROUND-relative clearance scan, NOT the airborne whisker: the
@@ -859,6 +984,11 @@ public class DrivePlaneGoal extends Goal {
     // first. This compares the surface height ahead to the plane's own instead.
     @Nullable
     private Vec3 pickRunwayHeading() {
+        CompoundTag tag = this.vehicle.getPersistentData();
+        if (tag.getBoolean(TAG_APPROACH_LOCKED) && tag.contains(TAG_APPROACH_YAW)) {
+            double rad = Math.toRadians(tag.getDouble(TAG_APPROACH_YAW));
+            return new Vec3(Math.sin(rad), 0, Math.cos(rad));
+        }
         Vec3 facing = this.kinematics.forwardFlat();
         for (double offDeg : RUNWAY_FAN_DEG) {
             Vec3 cand = VehicleTargeting.rotateY(facing, Math.toRadians(offDeg));
@@ -969,7 +1099,7 @@ public class DrivePlaneGoal extends Goal {
             return;
         }
         this.control.steerYaw(clear);
-        this.control.holdAltitude(applyAvoidFloor(desiredY));
+        this.control.holdAltitude(heldAltitude(desiredY));
     }
 
     /**
@@ -1011,7 +1141,7 @@ public class DrivePlaneGoal extends Goal {
         Vec3 dirToDest = dist > 1.0E-4
                 ? new Vec3(dx / dist, 0, dz / dist) : this.kinematics.forwardFlat();
 
-        double held = applyAvoidFloor(desiredY);
+        double held = heldAltitude(desiredY);
         Vec3 corridor = this.terrain.corridorBearing(this.unit.level(),
                 this.vehicle.getX(), this.vehicle.getZ(), dirToDest, held,
                 Math.min(dist, TERRAIN_LOOKAHEAD), this.unit.level().getGameTime());
@@ -1031,15 +1161,25 @@ public class DrivePlaneGoal extends Goal {
      * Boxed in: climb, and keep climbing until clear. Raising a floor rather than commanding one
      * nose-up tick is what makes this work at speed — momentum eats a single pitch input, and the
      * aircraft arrives at the obstacle still level.
+     *
+     * <p>The floor is the one thing here with no natural bound — every blocked tick raises it —
+     * so it is where the ceiling matters most. At the top the aircraft stops climbing and turns
+     * instead: it has nothing above it to hide behind anyway, and a whisker that stays blocked
+     * would otherwise fly it out of the world.
      */
     private void avoidBlocked(Vec3 desiredBearing, double desiredY) {
         double floor = this.vehicle.getY() + AVOID_CLIMB_STEP;
-        this.avoidFloorY = Double.isNaN(this.avoidFloorY)
-                ? floor : Math.max(this.avoidFloorY, floor);
+        this.avoidFloorY = capAltitude(Double.isNaN(this.avoidFloorY)
+                ? floor : Math.max(this.avoidFloorY, floor));
         this.control.throttleUp();
         this.control.steerYaw(desiredBearing, TURN_YAW_SCALE);
-        this.control.commandPitch(-CLIMB_AVOID_PITCH_DEG);
+        this.control.commandPitch(atCeiling() ? 0.0F : -CLIMB_AVOID_PITCH_DEG);
         SewvDiag.plane("blocked cone, climbing to floor {}", this.avoidFloorY);
+    }
+
+    /** The altitude actually held: the avoidance floor over it, the ceiling under both. */
+    private double heldAltitude(double desiredY) {
+        return capAltitude(applyAvoidFloor(desiredY));
     }
 
     /** Surplus avoidance height is given back gradually, and only once it is no longer needed. */
@@ -1051,6 +1191,30 @@ public class DrivePlaneGoal extends Goal {
         }
         this.avoidFloorY -= AVOID_FLOOR_DECAY;
         return Math.max(desiredY, this.avoidFloorY);
+    }
+
+    /**
+     * The absolute ceiling, and the single place it is decided.
+     *
+     * <p>Cruise height is measured above the ground <em>under the aircraft</em>, which is the
+     * right way to fly it and the reason a plane can end up absurdly high: over a mountain range
+     * the band sits on top of the mountain, and the result is an aircraft nobody can see, that
+     * cannot see anything either, in a dimension whose build limit it may already be through. The
+     * configured value binds first; the dimension's own roof binds it further, since a ceiling
+     * above the world is not one.
+     */
+    private double ceilingY() {
+        return Math.min(SewvConfig.PLANE_MAX_ALTITUDE.get(),
+                this.unit.level().getMaxBuildHeight() - CEILING_HEADROOM);
+    }
+
+    private double capAltitude(double desiredY) {
+        return Math.min(desiredY, ceilingY());
+    }
+
+    /** At the roof: nothing may command a climb, and anything waiting on one must stop waiting. */
+    private boolean atCeiling() {
+        return this.vehicle.getY() >= ceilingY();
     }
 
     // --- Combat --------------------------------------------------------------------------------
@@ -1123,6 +1287,7 @@ public class DrivePlaneGoal extends Goal {
         // length against, so re-deriving it mid-run would be flying a profile nothing checked.
         this.runY = runAltitude(target);
         this.weapons.beginRun(target, toT.length());
+        if (!this.weapons.levelDelivery()) snapToRunLine(dir, target);
         SewvDiag.plane("run start kind={} range={} alt={} dir=({},{})", this.weapons.selectedKind(),
                 String.format("%.0f", toT.length()), String.format("%.0f", this.runY),
                 String.format("%.2f", dir.x), String.format("%.2f", dir.z));
@@ -1132,6 +1297,54 @@ public class DrivePlaneGoal extends Goal {
         this.runDirX = Double.NaN;
         this.runDirZ = Double.NaN;
         this.runY = Double.NaN;
+    }
+
+    /**
+     * Roll-in: place the aircraft on the line it is about to attack down — the airport approach's
+     * alignment snap, applied to the one other place in this class where a fixed wing has to be
+     * exactly somewhere.
+     *
+     * <p>Only for a <b>dive</b> delivery, guns and rockets. A bomb or a guided missile is released
+     * from level flight and is aimed by when it leaves the aircraft rather than by where the nose
+     * is, so there is no line to be put on.
+     *
+     * <p>Everything it corrects is something the run would otherwise spend itself correcting. The
+     * hull is pointed by hauling it round a fraction of a degree per tick, so a run entered with
+     * the nose off the axis, the wings still rolled from the turn in, or a velocity vector
+     * crabbing across the line is a run flown with the gun swinging through the aim point instead
+     * of settled on it. All three are set exactly and the airspeed is left alone.
+     *
+     * <p>The height goes to the briefed roll-in altitude and the nose to the depression angle that
+     * puts the target on the sight line, clamped to what the delivery is allowed to dive at. The
+     * ingress descent has normally arrived there already, so this is a correction rather than a
+     * jump — and where it has not, the correction is exactly the "arrived on top of the target
+     * with nothing available but a plunge" case that made a run overfly rather than attack.
+     */
+    private void snapToRunLine(Vec3 dir, LivingEntity target) {
+        if (!SewvConfig.PLANE_DIVE_SNAP.get()) return;
+        double y = capAltitude(this.runY);
+        double x = this.vehicle.getX();
+        double z = this.vehicle.getZ();
+        Vec3 aim = target.getBoundingBox().getCenter();
+        double ground = Math.hypot(aim.x - x, aim.z - z);
+        double descentDeg = ground < 1.0E-3 ? 0.0
+                : Math.toDegrees(Math.atan2(y - aim.y, ground));
+        descentDeg = Mth.clamp(descentDeg, 0.0, deliveryPitchLimit());
+
+        double speed = this.kinematics.speed();
+        double rad = Math.toRadians(descentDeg);
+        this.vehicle.moveTo(x, y, z, PlaneNav.yawFromDirection(dir), (float) descentDeg);
+        this.vehicle.setOldPosAndRot();
+        this.vehicle.setZRot(0.0F);
+        this.vehicle.setDeltaMovement(dir.x * speed * Math.cos(rad), -speed * Math.sin(rad),
+                dir.z * speed * Math.cos(rad));
+        this.vehicle.setOnGround(false);
+        this.vehicle.hurtMarked = true;
+        // A jump is not a turn: leaving it in the sample would inflate the measured agility every
+        // geometry in this class is sized off, for the rest of the sortie.
+        this.kinematics.reset();
+        SewvDiag.plane("dive snap alt={} descent={}", String.format("%.0f", y),
+                String.format("%.1f", descentDeg));
     }
 
     /**
@@ -1376,6 +1589,7 @@ public class DrivePlaneGoal extends Goal {
      * with. Below the threshold it climbs gently instead and lets the engine build the speed back.
      */
     private float climbPitch() {
+        if (atCeiling()) return 0.0F;
         return this.kinematics.speed() >= CLIMB_MIN_SPEED
                 ? -HARD_CLIMB_PITCH_DEG : -SOFT_CLIMB_PITCH_DEG;
     }
@@ -1423,7 +1637,9 @@ public class DrivePlaneGoal extends Goal {
         // The break exists to buy back the height the dive spent, so it is over at exactly the
         // height the next run starts from. Any other number here makes the aircraft climb past the
         // roll-in altitude and immediately descend again between every pass.
-        boolean recovered = this.kinematics.agl() >= ATTACK_ENTRY_AGL;
+        // The ceiling counts as recovered: over ground high enough that the roll-in height is above
+        // it, waiting for an AGL that can never arrive is a break that never ends.
+        boolean recovered = this.kinematics.agl() >= ATTACK_ENTRY_AGL || atCeiling();
         if (!recovered) {
             this.control.commandPitch(climbPitch());
         } else {
@@ -1564,20 +1780,29 @@ public class DrivePlaneGoal extends Goal {
         double along = PlaneNav.alongTrack(dx, dz, axis);
         double cross = PlaneNav.crossTrack(dx, dz, axis);
         double headingErr = PlaneNav.headingErrorDeg(this.kinematics.forwardFlat(), axis);
+        double distToPad = Math.sqrt(dx * dx + dz * dz);
+
+        // Already on the ground next to the pad — a plane ordered to land where it is parked. Take
+        // the arrival rather than flying a circuit to get back to the spot it is standing on.
+        // Tested before anything else: the alignment snap below would otherwise pick a parked
+        // aircraft up off its own runway and throw it back into the sky.
+        if (this.vehicle.onGround()
+                && distToPad <= SewvConfig.PLANE_LAND_SETTLE_RADIUS.get()) {
+            settleLanded(pilot);
+            return;
+        }
+
+        // A cleared airport gets the alignment line instead of a self-flown join.
+        if (this.vehicle.getPersistentData().getBoolean(TAG_APPROACH_LOCKED)
+                && !this.vehicle.onGround()) {
+            alignmentTick(pilot, pad, axis);
+            return;
+        }
 
         if (PlaneNav.established(cross, along, headingErr, APPROACH_CORRIDOR, FINAL_LEG_LENGTH,
                 APPROACH_HEADING_TOLERANCE_DEG)) {
             this.mode = PlaneMode.LAND_FINAL;
             landFinal(pilot);
-            return;
-        }
-
-        // Already on the ground next to the pad — a plane ordered to land where it is parked. Take
-        // the arrival rather than flying a circuit to get back to the spot it is standing on.
-        double distToPad = Math.sqrt(dx * dx + dz * dz);
-        if (this.vehicle.onGround()
-                && distToPad <= SewvConfig.PLANE_LAND_SETTLE_RADIUS.get()) {
-            settleLanded(pilot);
             return;
         }
 
@@ -1591,6 +1816,73 @@ public class DrivePlaneGoal extends Goal {
                 "pattern along={} cross={} hdgErr={} transitY={}",
                 String.format("%.0f", along), String.format("%.0f", cross),
                 String.format("%.0f", headingErr), String.format("%.0f", transitY));
+    }
+
+    /**
+     * The alignment line: a straight leg drawn back from the touchdown along the strip's own
+     * heading. The aircraft flies to its far end and is then <b>placed</b> on it — position,
+     * heading, attitude and velocity — and flies the ordinary final from there.
+     *
+     * <p>The teleport is deliberate, and it is what makes an airport arrival repeatable. Every
+     * self-flown version of this join left the aircraft rolling out of a turn with cross-track and
+     * heading error it then spent the whole final washing out, which is how it ended up on the
+     * ground short of the strip. The entry sits on the glideslope the final already flies, so
+     * nothing steps when the modes change, and it happens at cruise altitude a long way out where
+     * there is nothing to see it.
+     */
+    private void alignmentTick(@Nullable IHelicopterPilot pilot, BlockPos pad, Vec3 axis) {
+        double padX = pad.getX() + 0.5;
+        double padZ = pad.getZ() + 0.5;
+        double legLength = SewvConfig.AIRPORT_ALIGNMENT_DISTANCE.get();
+        Vec3 entry = PlaneNav.approachFix(padX, padZ, axis, legLength);
+        double entryY = glideslopeY(pad, legLength);
+
+        double ex = entry.x - this.vehicle.getX();
+        double ez = entry.z - this.vehicle.getZ();
+        double toEntry = Math.sqrt(ex * ex + ez * ez);
+
+        if (toEntry <= SewvConfig.AIRPORT_ALIGNMENT_SNAP_RADIUS.get()) {
+            snapToAlignment(entry, entryY, axis);
+            this.mode = PlaneMode.LAND_FINAL;
+            SewvDiag.plane("alignment snap: entry={} {} {} leg={}",
+                    String.format("%.0f", entry.x), String.format("%.0f", entryY),
+                    String.format("%.0f", entry.z), String.format("%.0f", legLength));
+            landFinal(pilot);
+            return;
+        }
+
+        double transitY = Math.max(entryY,
+                AirframeSupport.highestGroundToward(this.vehicle, entry.x, entry.z, TERRAIN_LOOKAHEAD)
+                        + SewvConfig.PLANE_LAND_TRANSIT_AGL.get());
+        flyToward(entry.x, entry.z, transitY);
+        SewvDiag.planeThrottled(this.unit.level().getGameTime(),
+                "alignment run-in toEntry={} transitY={}",
+                String.format("%.0f", toEntry), String.format("%.0f", transitY));
+    }
+
+    /**
+     * Put the aircraft on the line. Velocity is redirected rather than zeroed — a fixed wing with
+     * no airspeed has no lift and no control authority, so a snap that stopped it would drop it —
+     * and the measured agility is reset, because a jump is not a turn and leaving it in the sample
+     * would inflate {@code turnRadius} (and every geometry sized off it) for the rest of the sortie.
+     */
+    private void snapToAlignment(Vec3 entry, double entryY, Vec3 axis) {
+        double speed = Math.max(this.kinematics.speed(), APPROACH_SPEED_CAP);
+        this.vehicle.moveTo(entry.x, entryY, entry.z, PlaneNav.yawFromDirection(axis), 0.0F);
+        this.vehicle.setOldPosAndRot();
+        this.vehicle.setZRot(0.0F);
+        this.vehicle.setDeltaMovement(axis.x * speed, 0.0, axis.z * speed);
+        this.vehicle.setOnGround(false);
+        this.vehicle.hurtMarked = true; // sync the new motion; the jump itself forces a teleport packet
+        this.vehicle.setGearUp(false);
+        this.vehicle.getPersistentData().remove(TAG_TOUCHED_DOWN);
+        this.kinematics.reset();
+    }
+
+    /** Height of the glideslope {@code along} blocks back from the pad. */
+    private double glideslopeY(BlockPos pad, double along) {
+        return pad.getY() + Mth.clamp(along * LAND_GLIDE_RATIO,
+                SewvConfig.PLANE_LAND_FLARE_AGL.get(), LAND_MAX_APPROACH_HEIGHT);
     }
 
     /**
@@ -1615,8 +1907,18 @@ public class DrivePlaneGoal extends Goal {
         double dist = Math.sqrt(dx * dx + dz * dz);
         double along = PlaneNav.alongTrack(dx, dz, axis);
         double settleRadius = SewvConfig.PLANE_LAND_SETTLE_RADIUS.get();
+        double agl = this.vehicle.getY() - touchdownSurface(pad);
 
-        if (this.vehicle.onGround()) {
+        // Committed the moment the wheels touch, and it stays committed through a bounce. On a
+        // cleared strip the commitment comes a little earlier — the last couple of blocks of the
+        // descent are given up in exchange for a touchdown that is exactly on the centreline.
+        CompoundTag landTag = this.vehicle.getPersistentData();
+        boolean lowOverStrip = landTag.getBoolean(TAG_APPROACH_LOCKED)
+                && agl <= TOUCHDOWN_SNAP_AGL
+                && dist <= SewvConfig.PLANE_LAND_FLARE_RADIUS.get();
+        if (this.vehicle.onGround() || landTag.getBoolean(TAG_TOUCHED_DOWN) || lowOverStrip) {
+            landTag.putBoolean(TAG_TOUCHED_DOWN, true);
+            if (beginTaxi(pilot, pad)) return;
             rollOut(pilot, axis, dist, settleRadius);
             return;
         }
@@ -1624,7 +1926,11 @@ public class DrivePlaneGoal extends Goal {
             SewvDiag.plane("go-around: flown past the pad, dist={} along={}",
                     String.format("%.0f", dist), String.format("%.0f", along));
             this.mode = PlaneMode.LAND_PATTERN;
-            this.vehicle.getPersistentData().remove(TAG_APPROACH_YAW); // re-plan the circuit
+            CompoundTag tag = this.vehicle.getPersistentData();
+            // Airport corridors stay locked across a go-around; inferred ones re-pick.
+            if (!tag.getBoolean(TAG_APPROACH_LOCKED)) {
+                tag.remove(TAG_APPROACH_YAW);
+            }
             landPattern(pilot);
             return;
         }
@@ -1636,7 +1942,6 @@ public class DrivePlaneGoal extends Goal {
         this.control.steerYaw(new Vec3(carrot.x - this.vehicle.getX(), 0,
                 carrot.z - this.vehicle.getZ()));
 
-        double agl = this.vehicle.getY() - touchdownSurface(pad);
         if (PlaneNav.flareReady(agl, dist, SewvConfig.PLANE_LAND_FLARE_AGL.get(),
                 SewvConfig.PLANE_LAND_FLARE_RADIUS.get())) {
             // Both gates matter. Height alone flared over whatever the aircraft happened to be
@@ -1647,18 +1952,22 @@ public class DrivePlaneGoal extends Goal {
         }
 
         // Approach speed: a fixed wing cannot idle without stalling, so "slower" is a duty cycle.
-        // The air brake does the real work of shedding speed.
+        // The air brake does the real work of shedding speed and is held for the WHOLE final, not
+        // only while fast. Engine and brake together is not a contradiction here — SBW's brake is
+        // multiplicative (resistance x1.5, power x0.97/tick), so with the engine still running it
+        // simply settles the hull at a lower speed instead of letting it accelerate down the
+        // glideslope. Arriving fast is what floated the flare, ran the touchdown long, and put the
+        // aircraft past the pad often enough to go around; releasing the brake the moment it dipped
+        // under the cap just let it build the speed straight back up.
         if (this.kinematics.speed() > APPROACH_SPEED_CAP) {
             this.control.throttleDuty(this.unit.level().getGameTime(),
                     APPROACH_THROTTLE_PERIOD, APPROACH_THROTTLE_ON);
-            this.control.airbrake(true);
         } else {
             this.control.throttleUp();
-            this.control.airbrake(false);
         }
+        this.control.airbrake(true); // after the throttle: throttleUp() releases this input
 
-        double glideY = pad.getY() + Mth.clamp(along * LAND_GLIDE_RATIO,
-                SewvConfig.PLANE_LAND_FLARE_AGL.get(), LAND_MAX_APPROACH_HEIGHT);
+        double glideY = glideslopeY(pad, along);
         this.control.holdAltitude(glideY);
         SewvDiag.planeThrottled(this.unit.level().getGameTime(),
                 "final dist={} along={} agl={} glideY={} spd={}",
@@ -1671,19 +1980,173 @@ public class DrivePlaneGoal extends Goal {
      * On the wheels: brakes on, straight down the strip, done when it stops or reaches the pad.
      * This is a landing in progress and nothing may interrupt it — a rolling hull has no lift to
      * fly away with, so there is no "abort" available here even if the touchdown was untidy.
+     *
+     * <p>The ground flag is read live rather than assumed, because this also runs through a bounce
+     * (see {@link #TAG_TOUCHED_DOWN}) and a landing must not be declared from a few blocks up:
+     * braked and level, the hull is back on the strip within a tick or two.
      */
     private void rollOut(@Nullable IHelicopterPilot pilot, Vec3 axis, double distToPad,
                          double settleRadius) {
         this.control.idleAndBrake();
         this.control.steerYaw(axis, TURN_YAW_SCALE);
         this.control.commandPitch(0.0F);
-        if (PlaneNav.settled(true, distToPad, settleRadius, this.kinematics.speed(),
-                ROLLOUT_STOP_SPEED)) {
+        if (PlaneNav.settled(this.vehicle.onGround(), distToPad, settleRadius,
+                this.kinematics.speed(), ROLLOUT_STOP_SPEED)) {
             settleLanded(pilot);
             return;
         }
         SewvDiag.planeThrottled(this.unit.level().getGameTime(), "rolling out dist={} spd={}",
                 String.format("%.0f", distToPad), String.format("%.2f", this.kinematics.speed()));
+    }
+
+    /** The cleared strip this pad belongs to, or null when the pad is just a spot on the ground. */
+    @Nullable
+    private AirportRegistry.Airport airportOf(BlockPos pad) {
+        if (!(this.unit.level() instanceof ServerLevel level)) return null;
+        return AirportRegistry.get(level).nearest(pad, AIRPORT_PAD_MATCH_RADIUS);
+    }
+
+    /**
+     * Touchdown on a cleared strip: put the aircraft down on the centreline, dead stop, and take a
+     * parking slot.
+     *
+     * <p>The placement is the point. A rollout is a hundred blocks of a hull that steers by
+     * airspeed it no longer has, ending wherever its momentum ran out — off the side, past the far
+     * end, or on top of whatever was already parked there. Putting it on the strip instead makes
+     * the arrival exact and, more importantly, makes it <b>finite</b>: the aircraft is stationary
+     * on a known point of a known runway, which is what the slot assignment needs to be able to
+     * hand out the rest of the strip to the next arrival.
+     *
+     * @return false when this pad is not an airport, leaving the caller to roll out as before
+     */
+    private boolean beginTaxi(@Nullable IHelicopterPilot pilot, BlockPos pad) {
+        AirportRegistry.Airport airport = airportOf(pad);
+        if (airport == null) return false;
+        RunwaySlots slots = airport.slots();
+        // Down somewhere else entirely — short of the strip, or off the side of it. That is a
+        // crash landing, not an arrival, and dragging the hull onto the runway from out there
+        // would be a teleport nobody could read as anything but a bug.
+        if (this.vehicle.position().distanceToSqr(pad.getX() + 0.5, this.vehicle.getY(),
+                pad.getZ() + 0.5) > (double) slots.length() * slots.length()) {
+            return false;
+        }
+
+        Vec3 spot = slots.nearestCentreline(this.vehicle.getX(), this.vehicle.getZ());
+        placeOnStrip(spot.x, slots.threshold().getY(), spot.z, slots.headingDeg());
+
+        int index = RunwayTraffic.claim(this.unit.level(), slots, this.vehicle);
+        this.vehicle.getPersistentData().putLong(TAG_TAXI_DEADLINE,
+                this.unit.level().getGameTime() + TAXI_TIMEOUT_TICKS);
+        this.mode = PlaneMode.LAND_TAXI;
+        SewvDiag.plane("touchdown snap: x={} z={} slot={} of {}",
+                String.format("%.0f", spot.x), String.format("%.0f", spot.z),
+                index, slots.capacity());
+        landTaxi(pilot);
+        return true;
+    }
+
+    /**
+     * Back up the runway into the assigned slot, then stop there exactly.
+     *
+     * <p>Reverse rather than a turn: the slots are behind the touchdown point (they have to be —
+     * the aircraft lands over them into the one stretch of strip that is kept clear), and a hull
+     * whose steering is a function of airspeed cannot be turned round on the spot at all. The
+     * displacement is written directly instead of being asked of the engine, because SBW gives an
+     * aircraft no reverse gear worth the name; the back input is still asserted, so the airframe
+     * brakes and reads as taxiing rather than sliding.
+     */
+    private void landTaxi(@Nullable IHelicopterPilot pilot) {
+        BlockPos pad = resolveLandPad(pilot);
+        AirportRegistry.Airport airport = pad == null ? null : airportOf(pad);
+        if (airport == null) {
+            settleLanded(pilot);
+            return;
+        }
+        RunwaySlots slots = airport.slots();
+        RunwaySlots.Slot slot = slots.slot(RunwayTraffic.heldSlot(this.vehicle, slots));
+        if (slot == null) {
+            // Runway full: stop where it stands rather than taxi into someone. The strip is
+            // blocked either way, and a hull sitting on the numbers is at least visible.
+            SewvDiag.plane("no free slot on arrival (capacity {}) — parking on the runway",
+                    slots.capacity());
+            park(slots.headingDeg());
+            settleLanded(pilot);
+            return;
+        }
+
+        this.control.idleAndBrake(); // the backwards input, and the brakes with it
+        this.control.holdHeading();
+        this.control.commandPitch(0.0F);
+
+        double y = slots.threshold().getY();
+        double tx = slot.center().getX() + 0.5;
+        double tz = slot.center().getZ() + 0.5;
+        double dx = tx - this.vehicle.getX();
+        double dz = tz - this.vehicle.getZ();
+        double dist = Math.sqrt(dx * dx + dz * dz);
+        boolean overdue = this.unit.level().getGameTime()
+                >= this.vehicle.getPersistentData().getLong(TAG_TAXI_DEADLINE);
+
+        if (dist <= TAXI_ARRIVE_DISTANCE || overdue) {
+            placeOnStrip(tx, y, tz, slots.headingDeg());
+            park(slots.headingDeg());
+            SewvDiag.plane("parked in slot {}{}", slot.index(), overdue ? " (taxi timed out)" : "");
+            settleLanded(pilot);
+            return;
+        }
+
+        double step = Math.min(SewvConfig.AIRPORT_TAXI_SPEED.get(), dist);
+        placeOnStrip(this.vehicle.getX() + dx / dist * step, y,
+                this.vehicle.getZ() + dz / dist * step, slots.headingDeg());
+        SewvDiag.planeThrottled(this.unit.level().getGameTime(), "taxi to slot {} dist={}",
+                slot.index(), String.format("%.1f", dist));
+    }
+
+    /** Pin the aircraft where it now stands, facing down the strip. */
+    private void park(float headingDeg) {
+        parkAt(this.vehicle, this.vehicle.getX(), this.vehicle.getY(), this.vehicle.getZ(),
+                PlaneNav.yawFromBearingDeg(headingDeg));
+    }
+
+    /**
+     * Hold a parked aircraft on its slot. Runs on every LANDED/GROUNDED tick, which is the same
+     * set of ticks that already release the controls, and does nothing at all for an aircraft
+     * that was never placed on a strip — a hull that landed in a field has no pose to be pinned
+     * to and should be left where physics put it.
+     */
+    private void holdPark() {
+        CompoundTag tag = this.vehicle.getPersistentData();
+        if (!tag.contains(TAG_PARKED)) return;
+        CompoundTag park = tag.getCompound(TAG_PARKED);
+        standAt(park.getDouble("X"), park.getDouble("Y"), park.getDouble("Z"),
+                park.getFloat("Yaw"));
+    }
+
+    /**
+     * Stand the hull on the strip at a point, nose down the runway, with no momentum left in it.
+     * Zeroing the velocity is the whole trick asked of the touchdown: whatever the approach ended
+     * up carrying, from here the aircraft only moves because this method moved it.
+     */
+    private void placeOnStrip(double x, double y, double z, float headingDeg) {
+        standAt(x, y, z, PlaneNav.yawFromBearingDeg(headingDeg));
+    }
+
+    /**
+     * The pose write itself, in entity yaw. Zeroing the velocity is unconditional — that is the
+     * lock — while the position and a resync packet are only issued when the hull has actually
+     * moved, because this also runs every tick of every parked aircraft's life.
+     */
+    private void standAt(double x, double y, double z, float yaw) {
+        this.vehicle.setDeltaMovement(Vec3.ZERO);
+        this.vehicle.setOnGround(true);
+        this.vehicle.setXRot(0.0F);
+        this.vehicle.setZRot(0.0F);
+        this.vehicle.setYRot(yaw);
+        this.vehicle.yRotO = yaw;
+        if (this.vehicle.position().distanceToSqr(x, y, z) < 1.0E-6) return;
+        this.vehicle.setPos(x, y, z);
+        this.vehicle.hurtMarked = true;
+        this.kinematics.reset();
     }
 
     /**
@@ -1695,8 +2158,7 @@ public class DrivePlaneGoal extends Goal {
     private Vec3 approachAxis(double padX, double padZ) {
         CompoundTag tag = this.vehicle.getPersistentData();
         if (tag.contains(TAG_APPROACH_YAW)) {
-            double rad = Math.toRadians(tag.getDouble(TAG_APPROACH_YAW));
-            return new Vec3(Math.sin(rad), 0, Math.cos(rad));
+            return PlaneNav.directionFromBearingDeg(tag.getDouble(TAG_APPROACH_YAW));
         }
         double dx = padX - this.vehicle.getX();
         double dz = padZ - this.vehicle.getZ();

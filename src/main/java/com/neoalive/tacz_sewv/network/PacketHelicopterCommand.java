@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.network;
 import java.util.List;
 import java.util.function.Supplier;
 
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -13,7 +15,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.airport.AirportRegistry;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
@@ -87,18 +91,32 @@ public class PacketHelicopterCommand {
                     boolean plane = HullFacts.isPlaneHull(v);
                     if (!plane && !HullFacts.isHelicopterHull(v)) continue;
                     if (!withinCommandRange(player, v, plane)) continue;
-                    // LANDING without a pad is immediately cleared by DriveHelicopterGoal and
-                    // looks like a successful order that then resumes FOLLOW orbit.
-                    if (this.command == IHelicopterPilot.HELI_CMD_LANDING && this.landPos == null) {
+                    AirportRegistry.Airport airport =
+                            plane ? nearestAirport(sp.serverLevel(), v) : null;
+                    // LANDING with nowhere to go is immediately cleared by the flight goal and
+                    // looks like a successful order that then resumes FOLLOW orbit. A plane with an
+                    // airport needs no clicked block at all.
+                    if (this.command == IHelicopterPilot.HELI_CMD_LANDING
+                            && this.landPos == null && airport == null) {
                         continue;
                     }
                     IHelicopterPilot pilot = (IHelicopterPilot) pmc;
                     pilot.sewv$setHeliCommand(this.command);
                     if (this.command == IHelicopterPilot.HELI_CMD_LANDING) {
-                        pilot.sewv$setHeliLandPos(this.landPos);
                         if (plane) {
-                            DrivePlaneGoal.setForcedLand(v, this.landPos);
+                            // The airport OUTRANKS the clicked block. The pilot's pad is what
+                            // DrivePlaneGoal.resolveLandPad reads first, so setting it to the click
+                            // and the heading to the strip flew the airport's approach onto
+                            // whatever the player happened to be looking at.
+                            BlockPos pad = airport != null ? airport.touchdown() : this.landPos;
+                            pilot.sewv$setHeliLandPos(pad);
+                            if (airport != null) {
+                                DrivePlaneGoal.setForcedLand(v, pad, airport.headingDeg());
+                            } else {
+                                DrivePlaneGoal.setForcedLand(v, pad);
+                            }
                         } else {
+                            pilot.sewv$setHeliLandPos(this.landPos);
                             DriveHelicopterGoal.setForcedLand(v, this.landPos);
                         }
                     } else {
@@ -129,6 +147,28 @@ public class PacketHelicopterCommand {
                     ordered, ChatFormatting.GREEN, ordered);
         });
         ctx.get().setPacketHandled(true);
+    }
+
+    /**
+     * The strip a plane is being sent home to: nearest to the <b>aircraft</b>, not to whatever the
+     * player clicked. "Land" means "land at an airport" once one exists, and a runway is a fixed
+     * place the player already surveyed — asking them to also aim at it was the reason a plane put
+     * itself down in a field beside the strip.
+     *
+     * <p>The ordered point is still consulted as a fallback, so an install whose configured radius
+     * predates this (it used to be measured from the click, and defaulted to 128) keeps working
+     * when the player does click near the strip.
+     */
+    @Nullable
+    private AirportRegistry.Airport nearestAirport(net.minecraft.server.level.ServerLevel level,
+                                                   VehicleEntity v) {
+        double radius = SewvConfig.AIRPORT_LANDING_SEARCH_RADIUS.get();
+        AirportRegistry registry = AirportRegistry.get(level);
+        AirportRegistry.Airport airport = registry.nearest(v.blockPosition(), radius);
+        if (airport == null && this.landPos != null) {
+            airport = registry.nearest(this.landPos, radius);
+        }
+        return airport;
     }
 
     /**

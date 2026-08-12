@@ -33,6 +33,7 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.FOXHOLE.get());
                         output.accept(ModItems.EMPLACEMENT.get());
                         output.accept(ModItems.SANDBAG.get());
+                        output.accept(ModItems.RUNWAY.get());
                         output.accept(ModItems.RU_MEDIC_SPAWN_EGG.get());
                         output.accept(ModItems.US_MEDIC_SPAWN_EGG.get());
                         output.accept(ModItems.RU_ENGINEER_SPAWN_EGG.get());

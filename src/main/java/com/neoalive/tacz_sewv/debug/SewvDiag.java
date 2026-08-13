@@ -120,6 +120,18 @@ public final class SewvDiag {
         LOG.info("[sewv-diag][flight] " + msg, args);
     }
 
+    /**
+     * Refused orders, and why. <b>Default on</b>, unlike every other channel here, because it is
+     * silent until something actually fails and one line per reason per tick is not a log volume
+     * worth opting into. It is the only report a refusal produces in text — the player-facing half
+     * is the crew's spoken reply — so switching it off means a failed order leaves no written trace
+     * anywhere.
+     */
+    public static void orderFail(String msg, Object... args) {
+        if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.ORDER_FAILURE_DEBUG.get()) return;
+        LOG.info("[sewv-diag][order] " + msg, args);
+    }
+
     /** Fixed-wing mode / aim / landing diagnosis. Default off. */
     public static boolean planeVerbose() {
         return SewvConfig.SPEC.isLoaded() && SewvConfig.PLANE_COMBAT_DEBUG.get();

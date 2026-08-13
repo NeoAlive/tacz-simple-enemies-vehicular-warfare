@@ -23,7 +23,10 @@ public enum PlaneAttackMode {
     BOMB,
     /** Guns first, rockets if the hull has no gun — a strafing pass either way. */
     CANNON,
-    /** Guided missiles only: launched at range, steering themselves in. */
+    /**
+     * Guided missiles only: a shallow diving pass, held on the target long enough for the seeker
+     * to settle, then launched at range for the round to steer itself in.
+     */
     GUIDED;
 
     public PlaneAttackMode next() {

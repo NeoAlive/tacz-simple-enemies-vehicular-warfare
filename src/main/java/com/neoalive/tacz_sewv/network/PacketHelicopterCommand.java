@@ -207,12 +207,16 @@ public class PacketHelicopterCommand {
         }
         int bx = v.getBlockX();
         int bz = v.getBlockZ();
-        for (int r = 0; r <= 24; r += 4) {
+        for (int r = 0; r <= 48; r += 4) {
             for (int dx = -r; dx <= r; dx += 4) {
                 for (int dz = -r; dz <= r; dz += 4) {
                     if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r) continue;
                     int x = bx + dx;
                     int z = bz + dz;
+                    // Never generate terrain to look at it: getHeight would, and a helicopter can
+                    // be a long way from anyone. Its own chunk is loaded, which is the case that
+                    // matters for something that lands by descending vertically.
+                    if (!level.hasChunkAt(x, z)) continue;
                     int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
                     if (y <= level.getMinBuildHeight()) continue;
                     BlockPos pad = new BlockPos(x, y, z);

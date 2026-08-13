@@ -13,11 +13,18 @@ import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 
 /**
- * A unit carrying a handheld radio calls its own contacts in to the mortar and TOW crews
- * behind it, turning any rifleman into a forward observer.
+ * A unit carrying a handheld radio calls its own contacts in to the supporting crews behind it,
+ * turning any rifleman into a forward observer.
  *
  * <p>The unit keeps fighting normally — this only relays whatever it has already found to
  * crews that could never have seen it themselves.
+ *
+ * <p><b>Nothing about this call is chosen.</b> The radio only has to be somewhere in the unit's
+ * inventory, the target is whatever the unit has already acquired for itself, and the call goes to
+ * {@link FireMissionSupport#ANY} — mortars, TOW, artillery, the missile system and aircraft alike —
+ * so what answers is decided entirely by what happens to be in range. Aircraft are put on
+ * {@code AUTO} ordnance by the call itself, since an observer reporting a contact is in no position
+ * to say what should be dropped on it; see {@code FireMissionSupport.callFireMission}.
  */
 public class RadioObserverGoal extends Goal {
 

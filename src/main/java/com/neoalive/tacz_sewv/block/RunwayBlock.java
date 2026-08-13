@@ -65,6 +65,7 @@ public class RunwayBlock extends BaseEntityBlock {
 
     @Override
     public RenderShape getRenderShape(BlockState state) {
+        // Cube is baked so neighbours still occlude against it; the mast is a BER on top.
         return RenderShape.MODEL;
     }
 }

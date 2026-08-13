@@ -169,6 +169,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_GUN_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue PLANE_MISSILE_CONE_DEG;
+    public static final ForgeConfigSpec.IntValue PLANE_MISSILE_LOCK_TICKS;
     public static final ForgeConfigSpec.DoubleValue PLANE_MIN_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue PLANE_AUTO_ROCKET_RANGE;
     public static final ForgeConfigSpec.DoubleValue PLANE_AUTO_HEAVY_RANGE;
@@ -194,6 +195,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue AIRPORT_SLOT_BUFFER_FACTOR;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_EXTRA_TAKEOFF_FACTOR;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_TAXI_SPEED;
+    public static final ForgeConfigSpec.BooleanValue DEBUG_AUTO_PLANE_DEPLOY;
 
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
     public static final ForgeConfigSpec.IntValue MORTAR_FIRE_COOLDOWN_TICKS;
@@ -208,8 +210,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_DELAY_TICKS;
     public static final ForgeConfigSpec.DoubleValue IDLE_VOICELINE_HEALTH_FRACTION;
 
-    public static final ForgeConfigSpec.BooleanValue ORDER_FAILURE_REPORTING;
-    public static final ForgeConfigSpec.BooleanValue TARGET_VETO_REPORTING;
+    public static final ForgeConfigSpec.BooleanValue ORDER_FAILURE_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue TARGET_VETO_DEBUG;
     public static final ForgeConfigSpec.IntValue TARGET_VETO_COOLDOWN_TICKS;
 
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -623,8 +625,17 @@ public final class SewvConfig {
                         "at 19 blocks, so past that the derived angle is what decides.")
                 .defineInRange("planeGunConeDeg", 12.0, 1.0, 45.0);
         PLANE_MISSILE_CONE_DEG = builder.comment(
-                        "Same ceiling for guided missiles, which steer out the rest after launch.")
+                        "Same ceiling for guided missiles, which steer out the rest after launch.",
+                        "Doubles as the seeker cone the lock dwell below is measured against.")
                 .defineInRange("planeMissileConeDeg", 15.0, 1.0, 45.0);
+        PLANE_MISSILE_LOCK_TICKS = builder.comment(
+                        "Game ticks a guided missile's seeker must be held on the target, unbroken, before",
+                        "it will launch (20 = 1 second). Leaving the firing cone resets it to zero.",
+                        "This is why a missile pass is flown as a shallow dive rather than a level overfly:",
+                        "the nose has to stay pointed at the target for the whole count. 0 disables the",
+                        "dwell and launches on the first tick the cone is satisfied, which is the old",
+                        "behaviour and reliably threw missiles off during a slew.")
+                .defineInRange("planeMissileLockTicks", 20, 0, 200);
         PLANE_MIN_CONE_DEG = builder.comment(
                         "Floor under the derived firing angle above. It is a numerical backstop and",
                         "nothing else, and it is set so that it does not bind anywhere inside the engage",
@@ -768,6 +779,12 @@ public final class SewvConfig {
                         "Blocks per tick an aircraft backs up the runway toward its parking slot after",
                         "touchdown.")
                 .defineInRange("airportTaxiSpeed", 0.18, 0.02, 1.0);
+        DEBUG_AUTO_PLANE_DEPLOY = builder.comment(
+                        "Testing shortcut: Deploy Plane spawns a fresh aircraft, fuelled, armed and with a",
+                        "full PMC crew already aboard, ignoring whatever the container was holding. Off, the",
+                        "container is unpacked as it was packed — the aircraft it stored, in the state it",
+                        "stored it, with nobody in it — and you crew it yourself.")
+                .define("sewvDebugAutoPlaneDeploy", false);
         builder.pop();
 
         builder.push("mortar_ai");
@@ -806,14 +823,18 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("orderFeedback");
-        ORDER_FAILURE_REPORTING = builder.comment(
-                        "Say in chat why an order was refused, instead of letting it fail silently.")
-                .define("orderFailureReporting", true);
-        TARGET_VETO_REPORTING = builder.comment(
-                        "Also report when a unit refuses a target on its own (medic, excluded by target",
+        ORDER_FAILURE_DEBUG = builder.comment(
+                        "Log to the server console why an order was refused, instead of letting it fail",
+                        "silently. One line per reason per tick, so unlike the other developer logs this is",
+                        "on by default — it says nothing at all until an order actually fails.",
+                        "Refusals are deliberately NOT put in chat: the crew's spoken reply is the",
+                        "in-world answer, and a running commentary of every rejected click was noise.")
+                .define("orderFailureDebug", true);
+        TARGET_VETO_DEBUG = builder.comment(
+                        "Also log when a unit refuses a target on its own (medic, excluded by target",
                         "priority, outside its patrol area). Heavily throttled, but this is the noisy half —",
-                        "turn it off if it reads as spam rather than raising the cooldown until it is meaningless.")
-                .define("targetVetoReporting", true);
+                        "turn it off if it fills the log rather than raising the cooldown until it is meaningless.")
+                .define("targetVetoDebug", true);
         TARGET_VETO_COOLDOWN_TICKS = builder.comment(
                         "Minimum game ticks between two reports of the SAME reason from the SAME unit.")
                 .defineInRange("targetVetoCooldownTicks", 200, 20, 12000);

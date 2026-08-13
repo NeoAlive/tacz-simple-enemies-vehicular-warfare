@@ -4,9 +4,21 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import software.bernie.geckolib.animatable.GeoBlockEntity;
+import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.core.animation.AnimatableManager;
+import software.bernie.geckolib.core.animation.AnimationController;
+import software.bernie.geckolib.core.animation.AnimationState;
+import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.core.object.PlayState;
+import software.bernie.geckolib.util.GeckoLibUtil;
 
 import com.neoalive.tacz_sewv.airport.AirportClearance;
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
@@ -17,7 +29,16 @@ import com.neoalive.tacz_sewv.init.ModBlockEntities;
  * Player-defined PMC strip: two corners, a cleared flag, and the cached (touchdown, heading)
  * that {@link com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal} already knows how to fly.
  */
-public class RunwayBlockEntity extends BlockEntity {
+public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
+
+    private static final RawAnimation SPIN =
+            RawAnimation.begin().thenLoop("animation.runway_block.spin");
+    /**
+     * The mast tops out 2.6 blocks up, and the dish sweeps a 9.7px radius around a pivot that is
+     * not the block centre, so it reaches to x=1.45 / z=-0.45 as it turns. A default 1×1×1 box
+     * would frustum-cull it while you were still looking at it.
+     */
+    private static final AABB RENDER_EXTENT = new AABB(-0.5, 0.0, -0.5, 1.5, 2.75, 1.0);
 
     private int x1;
     private int z1;
@@ -40,6 +61,7 @@ public class RunwayBlockEntity extends BlockEntity {
     private double extraFactor = SewvConfig.AIRPORT_EXTRA_TAKEOFF_FACTOR.get();
     /** Derived from the four numbers above; rebuilt whenever they change, never saved. */
     @Nullable private AirportRegistry.Airport airport;
+    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     public RunwayBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.RUNWAY.get(), pos, state);
@@ -70,6 +92,14 @@ public class RunwayBlockEntity extends BlockEntity {
         this.extraFactor = extraFactor;
         this.airport = null;
         setChanged();
+    }
+
+    /**
+     * Check Clearance has stored a flyable strip. The radar dish spins only then — an uncleared
+     * marker is a metal cube with a parked antenna.
+     */
+    public boolean hasCachedAirport() {
+        return cleared && threshold != null && length > 0;
     }
 
     /** The cached strip: geometry plus its parking slots. Null while it is not cleared. */
@@ -109,7 +139,7 @@ public class RunwayBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             AirportRegistry.get(serverLevel).note(worldPosition, airport());
         }
-        setChanged();
+        syncClient();
     }
 
     public void clearClearance() {
@@ -123,7 +153,47 @@ public class RunwayBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             AirportRegistry.get(serverLevel).forget(worldPosition);
         }
+        syncClient();
+    }
+
+    private void syncClient() {
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    @Nullable
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    @Override
+    public CompoundTag getUpdateTag() {
+        return saveWithoutMetadata();
+    }
+
+    @Override
+    public AABB getRenderBoundingBox() {
+        return RENDER_EXTENT.move(worldPosition);
+    }
+
+    @Override
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        controllers.add(new AnimationController<>(this, "spin", 0, this::spinPredicate));
+    }
+
+    private PlayState spinPredicate(AnimationState<RunwayBlockEntity> state) {
+        // Evaluated from the BER, so a culled dish does not tick the spin — and an uncleared
+        // strip never starts it in the first place.
+        if (!hasCachedAirport()) return PlayState.STOP;
+        return state.setAndContinue(SPIN);
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return this.cache;
     }
 
     @Override

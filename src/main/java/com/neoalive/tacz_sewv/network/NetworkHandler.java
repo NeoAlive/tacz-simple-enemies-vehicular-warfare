@@ -19,19 +19,18 @@ public class NetworkHandler {
      * took the order, {@code color} otherwise. Every caller passes the count of units the SERVER
      * actually accepted, never the client's optimistic guess.
      *
-     * <p>The {@code .none} variant is flagged as an aggregate, which lets {@link OrderReport} drop
-     * it when the same tick also produced a specific reason: "No eligible aircraft" adds nothing
-     * above "Not at the controls (x3)", and printing both reads as two separate failures.
+     * <p>The {@code .none} variant is the player's <b>only</b> notice that an order did nothing —
+     * the specific reason goes to the server console, not to chat — so it is always sent.
      */
     public static void orderFeedback(Player player, String base, int count, ChatFormatting color, Object... args) {
         String key = base + (count == 0 ? ".none" : count == 1 ? ".single" : ".multiple");
         OrderReport.ok(player, Component.translatable(key, args)
-                .withStyle(count == 0 ? ChatFormatting.GRAY : color), count == 0);
+                .withStyle(count == 0 ? ChatFormatting.GRAY : color));
     }
 
     /** Buffered until the end of the tick so it comes out beside any refusals it should be read with. */
     public static void sendOrderFeedback(Player player, Component message) {
-        OrderReport.ok(player, message, false);
+        OrderReport.ok(player, message);
     }
 
     /** Straight down the wire, no buffering — {@link OrderReport}'s own flush. */

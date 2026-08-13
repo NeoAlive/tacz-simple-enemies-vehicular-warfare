@@ -115,7 +115,7 @@ public final class PlaneWeapons {
         CANNON(1),
         ROCKET(2),
         BOMB(3),
-        /** Fire-and-forget missile: aimed flat, no lead, and it steers itself in. */
+        /** Missile: no lead, it steers itself in — but the seeker has to be held on first. */
         GUIDED(3);
 
         private final int tier;
@@ -132,9 +132,29 @@ public final class PlaneWeapons {
             return this == GUIDED;
         }
 
-        /** Free-fall or self-guiding stores are released from level flight, never out of a dive. */
+        /**
+         * Free-fall stores are released from level flight; everything else is delivered out of a
+         * dive.
+         *
+         * <p>A guided missile used to be in here alongside the bomb, on the reasoning that it only
+         * needs the target inside its seeker cone rather than under its nose. That is true of the
+         * shot and false of everything leading up to it: the launch is gated on holding the aim
+         * point inside the cone for {@code planeMissileLockTicks}, and a level pass over a target
+         * on the ground leaves the aim point sliding down and out of the cone as the range closes,
+         * so the lock kept breaking a fraction before it completed. Flown as a shallow dive the
+         * nose is already pointed where the seeker is looking and the geometry holds still.
+         */
         public boolean levelDelivery() {
-            return this == BOMB || this == GUIDED;
+            return this == BOMB;
+        }
+
+        /**
+         * Whether the aim point has to be led ahead of the target. A bomb is aimed by where it is
+         * released and a missile flies itself to whatever it locked, so both are aimed at the
+         * target itself; only a ballistic shot needs the intercept solved.
+         */
+        public boolean leadsTarget() {
+            return this == CANNON || this == ROCKET;
         }
     }
 
@@ -152,6 +172,12 @@ public final class PlaneWeapons {
     private int bombsDropped;
     private long nextBombTick = Long.MIN_VALUE;
 
+    // Seeker state for a guided store. Kept across runs on purpose: a lock built during the ingress
+    // is the whole point of starting the run with one.
+    private int lockTicks;
+    private int lockTargetId = -1;
+    private long lockLastTick = Long.MIN_VALUE;
+
     public PlaneWeapons(VehicleEntity vehicle, AbstractUnit unit) {
         this.vehicle = vehicle;
         this.unit = unit;
@@ -164,6 +190,9 @@ public final class PlaneWeapons {
         this.selected = null;
         this.bombsDropped = 0;
         this.nextBombTick = Long.MIN_VALUE;
+        this.lockTicks = 0;
+        this.lockTargetId = -1;
+        this.lockLastTick = Long.MIN_VALUE;
     }
 
     /** The ordnance the last radio mission asked for. Re-read each tick; it is a standing order. */
@@ -393,10 +422,9 @@ public final class PlaneWeapons {
     public Vec3 aimPoint(LivingEntity target) {
         Vec3 targetCentre = target.getBoundingBox().getCenter();
         if (this.selected == null) return targetCentre;
-        // A level-delivery store is not aimed by pointing, so there is nothing to lead here: a
-        // missile steers itself, and a bomb's lead is a function of its time of fall rather than
+        // A missile steers itself, and a bomb's lead is a function of its time of fall rather than
         // of the aircraft's attitude, so it is solved at the release instead (bombAimPoint).
-        if (this.selected.kind().levelDelivery()) return targetCentre;
+        if (!this.selected.kind().leadsTarget()) return targetCentre;
         Vec3 muzzle = shootPos();
         return PlaneNav.interceptPoint(muzzle, targetCentre, target.getDeltaMovement(),
                 projectileVelocity(), projectileGravity());
@@ -447,6 +475,7 @@ public final class PlaneWeapons {
         Vec3 toAim = toAim(aimPoint);
         double range = toAim.length();
         double cone = fireConeDeg(range);
+        if (!seekerLocked(target, toAim)) return false;
         // Hand the gate the same line the steering loop is driving, so "on target" means the same
         // thing in both places and both mean the barrel rather than the HUD pip.
         VehicleWeapons.FireGate gate = VehicleWeapons.tryAiFireAssistResult(
@@ -463,6 +492,59 @@ public final class PlaneWeapons {
                     String.format("%.1f", cone), String.format("%.0f", range));
         }
         return gate == VehicleWeapons.FireGate.FIRED;
+    }
+
+    /**
+     * Whether a missile may go yet. Everything else may always go.
+     *
+     * <p>A guided round is the one store on the aircraft that is not aimed so much as <em>handed a
+     * target</em>, and handing it one takes time: the seeker has to be settled on the thing before
+     * the round leaves the rail, or it goes off the rail pointed at whatever the nose was sweeping
+     * across. The aircraft could previously satisfy the cone for a single tick in the middle of a
+     * fast slew and launch on it, which is why missile passes read as fired-and-missed rather than
+     * as never-fired.
+     *
+     * <p>So: the aim point has to stay inside the <b>seeker</b> cone for
+     * {@code planeMissileLockTicks} consecutive ticks. Leaving it <b>resets the count to zero</b>
+     * rather than decaying it — a seeker that half-remembers a target it lost is exactly the thing
+     * this is meant to stop — and so does switching targets. Nothing here is a rate limit: once
+     * locked it stays locked while the nose stays on, and the ordinary fire gate owns the trigger
+     * from there.
+     *
+     * <p>The seeker cone is {@code planeMissileConeDeg} flat, deliberately <b>not</b> the
+     * range-derived firing cone the shot itself is gated on. Those answer different questions: the
+     * firing cone asks whether this shot would land, and shrinks with range until it is well under
+     * a degree, which is a tolerance no autopilot holds for a whole second — gating the dwell on it
+     * would have turned "fires and misses" into "never fires", a worse bug wearing a fix's clothes.
+     * The dwell asks only whether the aircraft has been pointing at the target rather than sweeping
+     * across it.
+     *
+     * <p>The count is in game ticks because {@code DrivePlaneGoal} runs every game tick
+     * ({@code requiresUpdateEveryTick}), and it is driven off the game clock rather than a call
+     * counter so that a tick in which {@code fire} is not reached at all breaks the lock instead of
+     * silently preserving it.
+     */
+    private boolean seekerLocked(LivingEntity target, Vec3 toAim) {
+        if (this.selected == null || !this.selected.kind().guided()) return true;
+        int required = SewvConfig.PLANE_MISSILE_LOCK_TICKS.get();
+        if (required <= 0) return true;
+
+        long now = this.vehicle.level().getGameTime();
+        boolean onTarget = PlaneNav.gunErrorDeg(gunLine(), toAim)
+                < SewvConfig.PLANE_MISSILE_CONE_DEG.get();
+        boolean continuous = target.getId() == this.lockTargetId && now == this.lockLastTick + 1;
+        if (!onTarget || !continuous) {
+            this.lockTicks = onTarget ? 1 : 0;
+        } else {
+            this.lockTicks++;
+        }
+        this.lockTargetId = target.getId();
+        this.lockLastTick = now;
+
+        if (this.lockTicks >= required) return true;
+        SewvDiag.planeThrottled(now, "missile lock {}/{} on {}", this.lockTicks, required,
+                target.getName().getString());
+        return false;
     }
 
     /** The angular tolerance this weapon earns at this range. Public so the goal can log it. */

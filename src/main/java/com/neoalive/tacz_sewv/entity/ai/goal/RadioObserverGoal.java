@@ -10,6 +10,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 
 /**
  * A unit carrying a handheld radio calls its own contacts in to the mortar and TOW crews
@@ -79,7 +80,9 @@ public class RadioObserverGoal extends Goal {
         if (call.empty()) {
             this.nextCheck = now + NO_CREWS_BACKOFF;
         } else {
-            var ack = FireMissionSupport.ackFor(call.kinds());
+            // A unit phoning in its own contact names no ordnance — it is reporting what it sees,
+            // not choosing how the aircraft attacks.
+            var ack = FireMissionSupport.ackFor(call.kinds(), PlaneAttackMode.AUTO);
             if (ack != null) {
                 this.unit.level().playSound(null, this.unit, ack,
                         SoundSource.NEUTRAL, 1.0F, 1.0F);

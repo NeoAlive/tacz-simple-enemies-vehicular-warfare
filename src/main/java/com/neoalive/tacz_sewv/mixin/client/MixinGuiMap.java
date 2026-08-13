@@ -26,6 +26,7 @@ import xaero.map.gui.GuiMap;
 import xaero.map.gui.dropdown.rightclick.GuiRightClickMenu;
 import xaero.map.gui.dropdown.rightclick.RightClickOption;
 
+import com.neoalive.tacz_sewv.client.AirportPlots;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.client.xaero.CruisePlot;
@@ -34,6 +35,7 @@ import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
 import com.neoalive.tacz_sewv.client.xaero.VehicleMarkerElements;
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.init.ModBlocks;
 import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 import com.neoalive.tacz_sewv.map.MarkerOrder;
@@ -353,6 +355,7 @@ public abstract class MixinGuiMap extends Screen {
         // straight from the synced markers (so they clear themselves when an order is dismissed or
         // overridden); the live drag is the transient line being laid down right now.
         if (ClientConfig.mapMarkersEnabled()) {
+            tacz_sewv$drawAirportOverlay(guiGraphics);
             tacz_sewv$drawStandingPreviews(guiGraphics);
             tacz_sewv$drawSweepOverlay(guiGraphics);
             if (ClientConfig.MAP_SHOW_COMMAND_DEBUG.get()) {
@@ -447,6 +450,51 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private double tacz_sewv$worldToScreen(double blocks) {
         return blocks * this.scale / this.screenScale;
+    }
+
+    /**
+     * Every runway whose clearance check has passed, shaded as a filled rectangle.
+     *
+     * <p>Drawn first of the overlays so a strip reads as ground the other marks sit on rather than
+     * as something painted over them. It is flat-shaded and unpulsed for the same reason: a cleared
+     * strip is a fixed piece of terrain, not a live task like a sweep box or a standing order.
+     *
+     * <p>A plot is dropped when its runway block is <b>gone</b>, which is what keeps a broken strip
+     * from shading the map until the next relog — {@code isLoaded} is the whole guard, since an
+     * unloaded chunk reports air for a block that is perfectly well still there.
+     */
+    @Unique
+    private void tacz_sewv$drawAirportOverlay(GuiGraphics guiGraphics) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null) return;
+        ResourceKey<Level> dim = mc.player.level().dimension();
+        final int color = 0xFF88CCFF;
+
+        for (AirportPlots.Plot plot : AirportPlots.plots()) {
+            if (!dim.equals(plot.dimension())) continue;
+            if (mc.level.isLoaded(plot.runway())
+                    && !mc.level.getBlockState(plot.runway()).is(ModBlocks.RUNWAY.get())) {
+                AirportPlots.forget(plot.runway());
+                continue;
+            }
+
+            int[] a = tacz_sewv$toScreenXZ(Math.min(plot.x1(), plot.x2()),
+                    Math.min(plot.z1(), plot.z2()));
+            int[] b = tacz_sewv$toScreenXZ(Math.max(plot.x1(), plot.x2()) + 1.0,
+                    Math.max(plot.z1(), plot.z2()) + 1.0);
+            int x0 = Math.min(a[0], b[0]);
+            int y0 = Math.min(a[1], b[1]);
+            int x1 = Math.max(a[0], b[0]);
+            int y1 = Math.max(a[1], b[1]);
+            if (x1 <= x0 || y1 <= y0) continue;
+            if (x1 < 0 || y1 < 0 || x0 > this.width || y0 > this.height) continue;
+
+            guiGraphics.fill(x0, y0, x1, y1, (color & 0x00FFFFFF) | 0x44000000);
+            guiGraphics.fill(x0, y0, x1, y0 + 1, color);
+            guiGraphics.fill(x0, y1 - 1, x1, y1, color);
+            guiGraphics.fill(x0, y0, x0 + 1, y1, color);
+            guiGraphics.fill(x1 - 1, y0, x1, y1, color);
+        }
     }
 
     /**

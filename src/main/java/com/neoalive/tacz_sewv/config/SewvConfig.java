@@ -208,6 +208,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_DELAY_TICKS;
     public static final ForgeConfigSpec.DoubleValue IDLE_VOICELINE_HEALTH_FRACTION;
 
+    public static final ForgeConfigSpec.BooleanValue ORDER_FAILURE_REPORTING;
+    public static final ForgeConfigSpec.BooleanValue TARGET_VETO_REPORTING;
+    public static final ForgeConfigSpec.IntValue TARGET_VETO_COOLDOWN_TICKS;
+
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
@@ -799,6 +803,20 @@ public final class SewvConfig {
                 .defineInRange("idleVoicelineDelayTicks", 320, 20, 12000);
         IDLE_VOICELINE_HEALTH_FRACTION = builder.comment("No idle chatter when the vehicle is below this health (0.3 = 30%).")
                 .defineInRange("idleVoicelineHealthFraction", 0.3, 0.0, 1.0);
+        builder.pop();
+
+        builder.push("orderFeedback");
+        ORDER_FAILURE_REPORTING = builder.comment(
+                        "Say in chat why an order was refused, instead of letting it fail silently.")
+                .define("orderFailureReporting", true);
+        TARGET_VETO_REPORTING = builder.comment(
+                        "Also report when a unit refuses a target on its own (medic, excluded by target",
+                        "priority, outside its patrol area). Heavily throttled, but this is the noisy half —",
+                        "turn it off if it reads as spam rather than raising the cooldown until it is meaningless.")
+                .define("targetVetoReporting", true);
+        TARGET_VETO_COOLDOWN_TICKS = builder.comment(
+                        "Minimum game ticks between two reports of the SAME reason from the SAME unit.")
+                .defineInRange("targetVetoCooldownTicks", 200, 20, 12000);
         builder.pop();
 
         builder.push("interaction");

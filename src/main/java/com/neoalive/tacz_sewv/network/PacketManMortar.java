@@ -15,6 +15,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Assigns a unit to a mortar. The client broadcasts every owned unit it can see, the
@@ -46,31 +48,30 @@ public class PacketManMortar {
             Player player = ctx.get().getSender();
             if (player == null) return;
 
-            PmcUnitEntity assigned = null;
-            String failure = "message.tacz_sewv.mortar.ordered.none";
-
             Entity target = player.level().getEntity(this.mortarId);
             if (!(target instanceof MortarEntity mortar) || !mortar.isAlive()) {
-                failure = "message.tacz_sewv.mortar.gone";
-            } else if (MortarSupport.isMortarClaimed(mortar, null)) {
+                OrderReport.fail(player, OrderFailure.MORTAR_GONE);
+                return;
+            }
+            if (MortarSupport.isMortarClaimed(mortar, null)) {
                 // One crew per mortar. Without this, every unit in range would converge on
                 // the same tube and fight over its aim.
-                failure = "message.tacz_sewv.mortar.taken";
-            } else {
-                assigned = nearestFreeUnit(player, mortar);
-                if (assigned != null) claim(assigned, mortar);
+                OrderReport.fail(player, OrderFailure.MORTAR_TAKEN);
+                return;
             }
 
-            if (assigned != null) {
-                NetworkHandler.sendOrderFeedback(player, Component.translatable(
-                        "message.tacz_sewv.mortar.ordered.single", assigned.getDisplayName())
-                        .copy().withStyle(ChatFormatting.GREEN));
-            } else {
-                // Always shown regardless of the flag: a failure explanation is not the success
-                // spam SHOW_ORDER_FEEDBACK exists to cut, and disabling it shouldn't leave the
-                // player guessing why nothing happened.
-                player.displayClientMessage(Component.translatable(failure).copy().withStyle(ChatFormatting.GRAY), true);
+            PmcUnitEntity assigned = nearestFreeUnit(player, mortar);
+            if (assigned == null) {
+                // Aggregate: the loop has already reported why each candidate was passed over, and
+                // OrderReport drops this line whenever it did.
+                NetworkHandler.orderFeedback(player, "message.tacz_sewv.mortar.ordered", 0,
+                        ChatFormatting.GRAY);
+                return;
             }
+            claim(assigned, mortar);
+            NetworkHandler.sendOrderFeedback(player, Component.translatable(
+                    "message.tacz_sewv.mortar.ordered.single", assigned.getDisplayName())
+                    .copy().withStyle(ChatFormatting.GREEN));
         });
         ctx.get().setPacketHandled(true);
     }
@@ -90,11 +91,27 @@ public class PacketManMortar {
 
             // Ownership-check each unit individually so a spoofed packet can't commandeer
             // another player's units by id.
-            if (!(entity instanceof PmcUnitEntity pmc) || !pmc.isOwnedBy(player)) continue;
-            if (!pmc.isAlive()) continue;
+            if (!(entity instanceof PmcUnitEntity pmc)) {
+                OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
+                continue;
+            }
+            if (!pmc.isOwnedBy(player)) {
+                OrderReport.fail(player, OrderFailure.NOT_OWNED);
+                continue;
+            }
+            if (!pmc.isAlive()) {
+                OrderReport.fail(player, OrderFailure.UNIT_DEAD);
+                continue;
+            }
             // One mortar per unit: a crew already holding one isn't up for reassignment.
-            if (MortarSupport.hasMortarClaim(pmc)) continue;
-            if (pmc.getVehicle() != null) continue; // busy crewing a hull
+            if (MortarSupport.hasMortarClaim(pmc)) {
+                OrderReport.fail(player, OrderFailure.BUSY_MORTAR, pmc);
+                continue;
+            }
+            if (pmc.getVehicle() != null) {
+                OrderReport.fail(player, OrderFailure.BUSY_CREWING, pmc);
+                continue;
+            }
 
             double distSq = pmc.distanceToSqr(mortar);
             if (distSq < bestDistSq) {

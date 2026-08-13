@@ -16,6 +16,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Forms the player's owned crews into one of the {@link FormationShape}s, laid out along the cardinal
@@ -71,7 +73,12 @@ public class PacketVehicleFormation {
             if (com.neoalive.tacz_sewv.invasion.InvasionOrderGate.denyIfActive(sp)) return;
 
             Direction axis = IFormationMember.directionOf(this.axis);
-            if (axis == null) return; // malformed — nothing worth saying
+            if (axis == null) {
+                // Only reachable from a forged packet, but "nothing happened and nothing was said"
+                // is precisely the failure mode this reporting exists to remove.
+                OrderReport.fail(player, OrderFailure.MALFORMED);
+                return;
+            }
             FormationShape shape = FormationShape.byId(this.shapeId);
             int rowSize = Mth.clamp(this.rowSize, MIN_ROW_SIZE, MAX_ROW_SIZE);
 
@@ -79,10 +86,19 @@ public class PacketVehicleFormation {
             // player's units into formation by id.
             List<PmcUnitEntity> units = new ArrayList<>();
             for (int unitId : this.unitIds) {
-                if (player.level().getEntity(unitId) instanceof PmcUnitEntity pmc
-                        && pmc.isOwnedBy(player) && pmc.isAlive()) {
-                    units.add(pmc);
+                if (!(player.level().getEntity(unitId) instanceof PmcUnitEntity pmc)) {
+                    OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
+                    continue;
                 }
+                if (!pmc.isOwnedBy(player)) {
+                    OrderReport.fail(player, OrderFailure.NOT_OWNED);
+                    continue;
+                }
+                if (!pmc.isAlive()) {
+                    OrderReport.fail(player, OrderFailure.UNIT_DEAD);
+                    continue;
+                }
+                units.add(pmc);
             }
 
             int hulls = VehicleFormation.assign(player, units, shape, axis, rowSize);

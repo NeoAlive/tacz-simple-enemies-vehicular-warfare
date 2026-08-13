@@ -15,6 +15,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Cache a GUARD_POSITION on each named driver's hull. Does not change the standing SEM order.
@@ -48,12 +50,20 @@ public class PacketSetGuardPosition {
             int set = 0;
             for (int unitId : this.unitIds) {
                 Entity e = player.level().getEntity(unitId);
-                if (!(e instanceof PmcUnitEntity pmc) || !OrderAuth.check(sp, pmc, "PacketSetGuardPosition")) {
+                if (!(e instanceof PmcUnitEntity pmc)) {
+                    OrderReport.fail(sp, OrderFailure.NOT_A_UNIT);
                     continue;
                 }
-                if (!(pmc.getVehicle() instanceof VehicleEntity hull) || hull.getFirstPassenger() != pmc) {
+                if (!OrderAuth.check(sp, pmc, "PacketSetGuardPosition")) {
+                    OrderReport.fail(sp, OrderFailure.NOT_OWNED);
                     continue;
                 }
+                if (!(pmc.getVehicle() instanceof VehicleEntity hull)) {
+                    OrderReport.fail(sp, OrderFailure.NOT_MOUNTED, pmc);
+                    continue;
+                }
+                // A gunner from the same hull: its driver is in this list and takes the order.
+                if (hull.getFirstPassenger() != pmc) continue;
                 GuardSupport.set(hull, this.pos);
                 set++;
             }

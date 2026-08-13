@@ -124,7 +124,8 @@ public class BoardKeybind {
         order.accept(player, unitIds);
     }
 
+    /** An order's outcome, so chat rather than the bar — see {@code PacketOrderFeedback.show}. */
     static void hint(Player player, String key) {
-        player.displayClientMessage(Component.translatable(key).withStyle(ChatFormatting.GRAY), true);
+        player.displayClientMessage(Component.translatable(key).withStyle(ChatFormatting.GRAY), false);
     }
 }

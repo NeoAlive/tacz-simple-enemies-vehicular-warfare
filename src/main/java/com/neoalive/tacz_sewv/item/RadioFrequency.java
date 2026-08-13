@@ -35,6 +35,15 @@ public enum RadioFrequency {
         return this == MORTAR || this == AIR;
     }
 
+    /**
+     * The crew shoots along its own line of sight, so an obstructed target is a refusal rather than
+     * the normal case. Mortars and artillery are the opposite — shelling something nobody can see is
+     * what they are for — and aircraft bring their own eyes.
+     */
+    public boolean directFire() {
+        return this == TOW;
+    }
+
     public RadioFrequency next() {
         RadioFrequency[] values = values();
         return values[(ordinal() + 1) % values.length];

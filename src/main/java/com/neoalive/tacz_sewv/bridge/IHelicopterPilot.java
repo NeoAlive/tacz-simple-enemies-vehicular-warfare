@@ -31,6 +31,15 @@ public interface IHelicopterPilot {
     int HELI_CMD_TAKEOFF = 1;
     int HELI_CMD_LANDING = 2;
     int HELI_CMD_LANDED = 3;
+    /**
+     * Wire-only: "put down somewhere near you". It is <b>never stored</b> — no goal has a case for
+     * it, and it must not be, because the difference between it and {@link #HELI_CMD_LANDING} is
+     * entirely a difference in <i>which pad gets chosen</i>, which is a decision
+     * {@link com.neoalive.tacz_sewv.network.PacketHelicopterCommand} makes once and then writes down
+     * as an ordinary landing. Adding a fifth state to the flight machine to express "the same thing,
+     * arrived at differently" would give every landing branch a second case that behaves identically.
+     */
+    int HELI_CMD_EMERGENCY_LAND = 4;
 
     // Terrain-relative cruise offset a pilot holds, set live by the takeoff order and read by
     // DriveHelicopterGoal (which clamps it to its own 30-50 flight band). This replaced the old

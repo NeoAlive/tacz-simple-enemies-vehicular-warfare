@@ -15,12 +15,16 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.item.RadioFrequency;
 import com.neoalive.tacz_sewv.item.RadioSettings;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
+import com.neoalive.tacz_sewv.order.TargetReachability;
 
 /**
  * Player radio GUI → server fire mission. The {@link PlaneAttackMode} rides along with the target
@@ -73,7 +77,10 @@ public class PacketRadioCommand {
             if (player == null) return;
 
             ItemStack radio = findRadio(player);
-            if (radio.isEmpty()) return;
+            if (radio.isEmpty()) {
+                OrderReport.fail(player, OrderFailure.NO_RADIO);
+                return;
+            }
 
             RadioFrequency[] frequencies = RadioFrequency.values();
             RadioFrequency frequency = frequencies[
@@ -93,20 +100,36 @@ public class PacketRadioCommand {
             if (settings.positionTarget()) {
                 posTarget = this.targetPos;
                 if (posTarget == null) {
-                    hint(player, "message.tacz_sewv.radio.no_position", ChatFormatting.GRAY);
+                    OrderReport.fail(player, OrderFailure.TARGET_GONE);
                     return;
                 }
             } else {
                 Entity entity = player.level().getEntity(this.targetEntityId);
                 if (!(entity instanceof LivingEntity living) || !HandheldRadioItem.isDesignatable(entity)) {
-                    hint(player, "message.tacz_sewv.radio.no_target", ChatFormatting.GRAY);
+                    OrderReport.fail(player, OrderFailure.TARGET_GONE);
                     return;
                 }
                 if (entity instanceof PmcUnitEntity) {
-                    hint(player, "message.tacz_sewv.radio.friendly", ChatFormatting.RED);
+                    OrderReport.fail(player, OrderFailure.TARGET_FRIENDLY);
                     return;
                 }
                 entityTarget = living;
+            }
+
+            // Designation-time validation, which is the only place it can live: by the time a mortar
+            // crew has the mission it has no way to answer the player, and a shell that cannot reach
+            // is indistinguishable from one still in flight.
+            BlockPos aimpoint = entityTarget != null ? entityTarget.blockPosition() : posTarget;
+            if (TargetReachability.underground(player.level(), aimpoint)) {
+                OrderReport.fail(player, OrderFailure.TARGET_UNDERGROUND);
+                return;
+            }
+            if (frequency.directFire() && entityTarget != null
+                    && FireMissionSupport.noCrewCanSee(player.level(), CrewFacts.Faction.PMC,
+                            player.getUUID(), player.position(), SewvConfig.MORTAR_RADIO_RANGE.get(),
+                            frequency.kinds(), entityTarget)) {
+                OrderReport.fail(player, OrderFailure.TARGET_OBSTRUCTED);
+                return;
             }
 
             FireMissionSupport.Call call = FireMissionSupport.callRadioMission(
@@ -115,11 +138,11 @@ public class PacketRadioCommand {
                     settings.delaySeconds(), settings.planeMode());
 
             if (call.empty()) {
-                hint(player, "message.tacz_sewv.radio.no_crews", ChatFormatting.GRAY);
+                OrderReport.fail(player, OrderFailure.OUT_OF_RANGE);
                 return;
             }
 
-            var ack = FireMissionSupport.ackFor(call.kinds());
+            var ack = FireMissionSupport.ackFor(call.kinds(), settings.planeMode());
             if (ack != null) {
                 player.level().playSound(null, player, ack, net.minecraft.sounds.SoundSource.NEUTRAL, 1.0F, 1.0F);
             }

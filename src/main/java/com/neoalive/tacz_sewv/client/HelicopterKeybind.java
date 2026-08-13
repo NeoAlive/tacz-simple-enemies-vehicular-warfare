@@ -36,15 +36,25 @@ public class HelicopterKeybind {
     }
 
     /**
-     * Order owned aircraft pilots to land. The pad is resolved from the live crosshair when the TDT
-     * button is pressed, and may be null: a plane lands at the nearest cleared airport whether one
-     * was aimed at or not, and the server refuses the order for anything left with nowhere to go
-     * (a helicopter, or a plane with no airport in range).
+     * Order owned aircraft pilots home to the nearest cleared airport. The pad is a <b>hint</b>
+     * resolved from the live crosshair when the TDT button is pressed, and may be null — the server
+     * searches around the aircraft first and around the hint second, and refuses the order outright
+     * for anything with no strip in range.
      */
     public static void orderLand(@Nullable BlockPos pad) {
         withPilots("message.tacz_sewv.heli.land.none", HelicopterKeybind::isAircraftPilot,
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
                         new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_LANDING, pad, 0)));
+    }
+
+    /**
+     * Order owned aircraft pilots down wherever they can manage it — no airport, no aiming. The
+     * server picks the pad next to each aircraft, so this carries no position at all.
+     */
+    public static void orderEmergencyLand() {
+        withPilots("message.tacz_sewv.heli.emergency_land.none", HelicopterKeybind::isAircraftPilot,
+                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
+                        unitIds, IHelicopterPilot.HELI_CMD_EMERGENCY_LAND, null, 0)));
     }
 
     /** Order owned helicopter pilots to rappel weaponless passengers (Stages 1–5 sequence). */

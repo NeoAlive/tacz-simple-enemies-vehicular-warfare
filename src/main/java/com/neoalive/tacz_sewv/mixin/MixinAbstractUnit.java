@@ -15,6 +15,8 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Hard friendly-fire gate, applied at the source. SEM's retaliation goal
@@ -84,7 +86,10 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
                         target.getClass().getSimpleName(), target.getId(),
                         sameClassFriendly);
             }
-            if (!VehicleTargeting.categoryAllowed(self, target)) ci.cancel();
+            if (!VehicleTargeting.categoryAllowed(self, target)) {
+                OrderReport.veto(self, OrderFailure.TARGET_EXCLUDED);
+                ci.cancel();
+            }
             return;
         }
         // Same-faction friends and medics (neutral to everyone) are never taken as a target.
@@ -96,6 +101,7 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
                         self.getClass().getSimpleName(), self.getId(),
                         target.getClass().getSimpleName(), target.getId());
             }
+            OrderReport.veto(self, medic ? OrderFailure.TARGET_IS_MEDIC : OrderFailure.TARGET_FRIENDLY);
             ci.cancel();
             return;
         }
@@ -105,6 +111,10 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
                     "MixinAbstractUnit BLOCK supportRoleRefuse self={}#{} target={}#{}",
                     self.getClass().getSimpleName(), self.getId(),
                     target.getClass().getSimpleName(), target.getId());
+            // A PMC's support role is what it is HOLDING, so the reason is "take the kit back",
+            // not "this unit is the wrong type" — worth distinguishing from the missing sidearm.
+            OrderReport.veto(self, SupportRole.of(self) == SupportRole.MEDIC
+                    ? OrderFailure.SELF_IS_MEDIC : OrderFailure.SELF_NO_SIDEARM);
             ci.cancel();
             return;
         }
@@ -115,10 +125,19 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
                     "MixinAbstractUnit BLOCK outOfAreaTask self={}#{} target={}#{}",
                     self.getClass().getSimpleName(), self.getId(),
                     target.getClass().getSimpleName(), target.getId());
+            OrderReport.veto(self, OrderFailure.TARGET_OUT_OF_AREA);
             ci.cancel();
             return;
         }
+        // The one veto with no diag line of its own, and the noisiest: the default priority table
+        // excludes every category but monster, so this fires constantly until a player edits it.
+        // OrderReport's per-unit cooldown is what makes reporting it survivable.
         if (!VehicleTargeting.categoryAllowed(self, target)) {
+            SewvDiag.setTarget(
+                    "MixinAbstractUnit BLOCK categoryNotAllowed self={}#{} target={}#{}",
+                    self.getClass().getSimpleName(), self.getId(),
+                    target.getClass().getSimpleName(), target.getId());
+            OrderReport.veto(self, OrderFailure.TARGET_EXCLUDED);
             ci.cancel();
         }
     }

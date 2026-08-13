@@ -56,7 +56,10 @@ public final class SoundPoolSelfCheck {
         for (var e : json.entrySet()) {
             if (!e.getValue().isJsonObject()) {
                 problems.add("sounds.json entry " + e.getKey() + " is not a JsonObject (comments are illegal)");
+                continue;
             }
+            // The other direction: a key nothing registers ships an .ogg that can never play.
+            checkKey(json, soundsDir, problems, e.getKey());
         }
 
         if (!problems.isEmpty()) {
@@ -66,8 +69,7 @@ public final class SoundPoolSelfCheck {
         System.out.println("sound-pool self-check: OK");
     }
 
-    private static void checkKey(JsonObject json, Path soundsDir, List<String> problems, String key)
-            throws IOException {
+    private static void checkKey(JsonObject json, Path soundsDir, List<String> problems, String key) {
         JsonElement entry = json.get(key);
         if (entry == null) {
             problems.add("sounds.json missing key " + key);
@@ -77,16 +79,33 @@ public final class SoundPoolSelfCheck {
             problems.add("sounds.json entry " + key + " must be a JsonObject");
             return;
         }
-        Path ogg = findOgg(soundsDir, key);
-        if (ogg == null) {
-            problems.add("missing .ogg for " + key);
+        JsonElement sounds = entry.getAsJsonObject().get("sounds");
+        if (sounds == null || !sounds.isJsonArray() || sounds.getAsJsonArray().isEmpty()) {
+            problems.add("sounds.json entry " + key + " lists no sound files");
+            return;
+        }
+        // Resolve the path the entry actually DECLARES rather than guessing <key>.ogg: a mistyped
+        // path inside sounds.json is silent at build time and only shows up as a missing-sound
+        // warning in a running game, which is the failure this check exists to make impossible.
+        for (JsonElement element : sounds.getAsJsonArray()) {
+            String name = element.isJsonObject()
+                    ? asString(element.getAsJsonObject().get("name"))
+                    : asString(element);
+            if (name == null) {
+                problems.add("sounds.json entry " + key + " has a sound with no name");
+                continue;
+            }
+            int colon = name.indexOf(':');
+            String namespace = colon < 0 ? "tacz_sewv" : name.substring(0, colon);
+            String path = colon < 0 ? name : name.substring(colon + 1);
+            if (!"tacz_sewv".equals(namespace)) continue; // borrowed from another mod's assets
+            if (!Files.isRegularFile(soundsDir.resolve(path + ".ogg"))) {
+                problems.add("missing .ogg for " + key + ": sounds/" + path + ".ogg");
+            }
         }
     }
 
-    private static Path findOgg(Path soundsDir, String key) throws IOException {
-        if (!Files.isDirectory(soundsDir)) return null;
-        try (var walk = Files.walk(soundsDir)) {
-            return walk.filter(p -> p.getFileName().toString().equals(key + ".ogg")).findFirst().orElse(null);
-        }
+    private static String asString(JsonElement element) {
+        return element != null && element.isJsonPrimitive() ? element.getAsString() : null;
     }
 }

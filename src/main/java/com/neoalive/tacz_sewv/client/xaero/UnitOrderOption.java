@@ -70,11 +70,6 @@ public class UnitOrderOption extends RightClickOption {
     private static final int NO_HEIGHT = 32767;
 
     /**
-     * What the entry does. {@code ackKey} is null where the <b>server</b> reports the result
-     * (takeoff counts how many of the selection were actually helicopter pilots, which the client
-     * cannot know), so the player never gets told twice.
-     */
-    /**
      * The colour families the menu is grouped by, mirroring the terminal's columns — the map has no
      * room for headers, so colour carries the grouping instead. Xaero applies this through the
      * {@code Style} its own entries use for the grey coordinate readout, and it loses to
@@ -95,32 +90,38 @@ public class UnitOrderOption extends RightClickOption {
         }
     }
 
+    /**
+     * <b>No entry acknowledges itself.</b> Every one of these ends in a server-side handler that can
+     * refuse per unit, and the client cannot know which will — the SEM orders in particular are
+     * dropped silently on an ownership mismatch. So the result is reported once, from the server,
+     * after the fact; the six SEM entries here used to print an optimistic GREEN count at send time
+     * and it contradicted every real refusal that followed it.
+     */
     public enum Action {
-        MOVE("move_here", "message.tacz_sewv.map.ordered", true, Category.MOVEMENT),
-        FOLLOW("follow_me", "message.tacz_sewv.map.following", false, Category.MOVEMENT),
-        HOLD("hold", "message.tacz_sewv.map.held", false, Category.STANCE),
-        FREE_FIRE("free_fire", "message.tacz_sewv.map.free_fire", false, Category.STANCE),
-        CEASE_FIRE("cease_fire", "message.tacz_sewv.map.cease_fire", false, Category.STANCE),
-        ATTACK_THAT("attack_that", "message.tacz_sewv.map.attack_that", false, Category.STANCE),
-        TAKEOFF("takeoff", null, false, Category.AIR),
-        LAND_HERE("land_here", null, true, Category.AIR),
-        PATROL_HERE("patrol_here", null, true, Category.AREA_TASK),
-        SAD_HERE("sad_here", null, true, Category.AREA_TASK),
-        SWEEP_AND_ADVANCE("sweep_and_advance", null, true, Category.AREA_TASK),
-        ENTRENCH_HERE("entrench_here", null, true, Category.AREA_TASK),
-        CRUISE("cruise", null, false, Category.MOVEMENT),
-        SET_GUARD("set_guard", null, false, Category.MOVEMENT),
-        REACH_GUARD("reach_guard", null, false, Category.MOVEMENT),
-        DISMISS("dismiss", null, false, Category.STAND_DOWN);
+        MOVE("move_here", true, Category.MOVEMENT),
+        FOLLOW("follow_me", false, Category.MOVEMENT),
+        HOLD("hold", false, Category.STANCE),
+        FREE_FIRE("free_fire", false, Category.STANCE),
+        CEASE_FIRE("cease_fire", false, Category.STANCE),
+        ATTACK_THAT("attack_that", false, Category.STANCE),
+        TAKEOFF("takeoff", false, Category.AIR),
+        LAND_AIRPORT("land_airport", true, Category.AIR),
+        EMERGENCY_LAND("emergency_land", false, Category.AIR),
+        PATROL_HERE("patrol_here", true, Category.AREA_TASK),
+        SAD_HERE("sad_here", true, Category.AREA_TASK),
+        SWEEP_AND_ADVANCE("sweep_and_advance", true, Category.AREA_TASK),
+        ENTRENCH_HERE("entrench_here", true, Category.AREA_TASK),
+        CRUISE("cruise", false, Category.MOVEMENT),
+        SET_GUARD("set_guard", false, Category.MOVEMENT),
+        REACH_GUARD("reach_guard", false, Category.MOVEMENT),
+        DISMISS("dismiss", false, Category.STAND_DOWN);
 
         final String labelKey;
-        final String ackKey;
         final boolean positional;
         final Category category;
 
-        Action(String label, String ackKey, boolean positional, Category category) {
+        Action(String label, boolean positional, Category category) {
             this.labelKey = "gui.tacz_sewv.map." + label;
-            this.ackKey = ackKey;
             this.positional = positional;
             this.category = category;
         }
@@ -194,12 +195,12 @@ public class UnitOrderOption extends RightClickOption {
         }
 
         if (this.action == Action.CRUISE) {
-            if (CruisePlot.arm()) hint("message.tacz_sewv.cruise.plotting", 0);
+            if (CruisePlot.arm()) prompt("message.tacz_sewv.cruise.plotting", 0);
             return;
         }
 
         if (this.action == Action.SET_GUARD) {
-            if (GuardPlot.arm()) hint("message.tacz_sewv.guard.plotting");
+            if (GuardPlot.arm()) prompt("message.tacz_sewv.guard.plotting");
             return;
         }
 
@@ -255,11 +256,21 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
-        if (this.action == Action.LAND_HERE) {
-            // Land the aircraft ON the clicked point (its pad), same flight channel as takeoff. A plane
-            // flies a glideslope onto it; a helicopter sets down vertically. Server filters to pilots.
+        if (this.action == Action.LAND_AIRPORT) {
+            // Same flight channel as takeoff. The clicked point is a HINT, not the pad: the server
+            // looks for a surveyed strip near the aircraft first and near the click second, so
+            // clicking a distant airfield sends them there instead of to their local one. With no
+            // strip in range the order is refused outright rather than becoming a field landing.
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
                     new ArrayList<>(drivers), IHelicopterPilot.HELI_CMD_LANDING, mapPos(player), 0));
+            return;
+        }
+
+        if (this.action == Action.EMERGENCY_LAND) {
+            // Deliberately not positional: this puts the aircraft down near ITSELF, and a pad taken
+            // from a map click halfway across the world is the opposite of an emergency landing.
+            NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
+                    new ArrayList<>(drivers), IHelicopterPilot.HELI_CMD_EMERGENCY_LAND, null, 0));
             return;
         }
 
@@ -270,7 +281,6 @@ public class UnitOrderOption extends RightClickOption {
                         new PacketIssueOrder(driverId, OrderType.ATTACK_THAT_TARGET, Vec3.ZERO, 0,
                                 this.attackTargetId));
             }
-            if (this.action.ackKey != null) hint(this.action.ackKey, drivers.size());
             return;
         }
 
@@ -280,7 +290,6 @@ public class UnitOrderOption extends RightClickOption {
                     new PacketIssueOrder(driverId, orderType(), destination, 0, -1));
         }
         if (this.action == Action.MOVE) MapMarkers.clearSelection();
-        if (this.action.ackKey != null) hint(this.action.ackKey, drivers.size());
     }
 
     private OrderType orderType() {
@@ -291,8 +300,8 @@ public class UnitOrderOption extends RightClickOption {
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
             case ATTACK_THAT -> OrderType.ATTACK_THAT_TARGET;
-            case TAKEOFF, LAND_HERE, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE, ENTRENCH_HERE, CRUISE,
-                    SET_GUARD, REACH_GUARD, DISMISS ->
+            case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE,
+                    ENTRENCH_HERE, CRUISE, SET_GUARD, REACH_GUARD, DISMISS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
         };
     }
@@ -326,7 +335,7 @@ public class UnitOrderOption extends RightClickOption {
     /**
      * The BlockPos the player clicked on the MAP — X/Z from the click, Y from the surface there (or
      * the player's own Y on an unexplored tile). The single source of the map-selected position for
-     * every map-positional order (patrol/search/land here), so none of them read the player's spot.
+     * every map-positional order (patrol/search/airport hint), so none of them read the player's spot.
      */
     private BlockPos mapPos(Player player) {
         return new BlockPos(this.x, (int) destination(player).y, this.z);
@@ -345,7 +354,16 @@ public class UnitOrderOption extends RightClickOption {
         return options;
     }
 
+    /** The outcome of an order, so chat — it is worth being able to scroll back to. */
     private static void hint(String key, Object... args) {
+        Player player = Minecraft.getInstance().player;
+        if (player != null) {
+            player.displayClientMessage(Component.translatable(key, args).withStyle(ChatFormatting.GREEN), false);
+        }
+    }
+
+    /** "Now click somewhere" — transient status about what the UI is doing, so the action bar. */
+    private static void prompt(String key, Object... args) {
         Player player = Minecraft.getInstance().player;
         if (player != null) {
             player.displayClientMessage(Component.translatable(key, args).withStyle(ChatFormatting.GREEN), true);

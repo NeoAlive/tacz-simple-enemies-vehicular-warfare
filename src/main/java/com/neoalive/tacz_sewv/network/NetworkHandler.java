@@ -10,26 +10,33 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 public class NetworkHandler {
 
     /**
-     * Action-bar result of an order: {@code base + ".none"/".single"/".multiple"} by count —
-     * GRAY when nothing took the order, {@code color} otherwise. Every caller passes the count
-     * of units the SERVER actually accepted, never the client's optimistic guess.
+     * Result of an order: {@code base + ".none"/".single"/".multiple"} by count — GRAY when nothing
+     * took the order, {@code color} otherwise. Every caller passes the count of units the SERVER
+     * actually accepted, never the client's optimistic guess.
+     *
+     * <p>The {@code .none} variant is flagged as an aggregate, which lets {@link OrderReport} drop
+     * it when the same tick also produced a specific reason: "No eligible aircraft" adds nothing
+     * above "Not at the controls (x3)", and printing both reads as two separate failures.
      */
     public static void orderFeedback(Player player, String base, int count, ChatFormatting color, Object... args) {
         String key = base + (count == 0 ? ".none" : count == 1 ? ".single" : ".multiple");
-        sendOrderFeedback(player, Component.translatable(key, args)
-                .withStyle(count == 0 ? ChatFormatting.GRAY : color));
+        OrderReport.ok(player, Component.translatable(key, args)
+                .withStyle(count == 0 ? ChatFormatting.GRAY : color), count == 0);
     }
 
+    /** Buffered until the end of the tick so it comes out beside any refusals it should be read with. */
     public static void sendOrderFeedback(Player player, Component message) {
-        if (player instanceof ServerPlayer serverPlayer) {
-            CHANNEL.send(PacketDistributor.PLAYER.with(() -> serverPlayer), new PacketOrderFeedback(message));
-        } else {
-            player.displayClientMessage(message, true);
-        }
+        OrderReport.ok(player, message, false);
+    }
+
+    /** Straight down the wire, no buffering — {@link OrderReport}'s own flush. */
+    public static void sendRaw(ServerPlayer player, Component message) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new PacketOrderFeedback(message));
     }
 
     // Bumped when the wire format changes (2: list sizes/ids became VarInts; 3: added the mortar
@@ -73,7 +80,10 @@ public class NetworkHandler {
     // 47: PacketReloadVehicleSkins carries a reset-to-jar-defaults flag.
     // 48: PacketOpenAirportGui + PacketAirportAction (PMC runway editor).
     // 50: target-priority editor open + update packets.
-    private static final String PROTOCOL_VERSION = "50";
+    // 51: the flight command carries HELI_CMD_EMERGENCY_LAND. The field layout is unchanged, but an
+    //     older server reads the new value as an unknown command and parks the order on the pilot,
+    //     which is a silent wrong answer rather than a parse error — exactly what this gate is for.
+    private static final String PROTOCOL_VERSION = "51";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

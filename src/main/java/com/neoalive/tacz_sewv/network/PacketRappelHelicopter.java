@@ -13,6 +13,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Player → server: order owned PMC helicopter pilots to run the rappel sequence
@@ -42,13 +44,27 @@ public final class PacketRappelHelicopter {
             int ordered = 0;
             for (int unitId : this.unitIds) {
                 Entity e = player.level().getEntity(unitId);
-                if (!(e instanceof PmcUnitEntity pmc) || !pmc.isOwnedBy(player)) continue;
-                if (!(pmc.getVehicle() instanceof VehicleEntity v)) continue;
+                if (!(e instanceof PmcUnitEntity pmc)) {
+                    OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
+                    continue;
+                }
+                if (!pmc.isOwnedBy(player)) {
+                    OrderReport.fail(player, OrderFailure.NOT_OWNED);
+                    continue;
+                }
+                if (!(pmc.getVehicle() instanceof VehicleEntity v)) {
+                    OrderReport.fail(player, OrderFailure.NOT_MOUNTED, pmc);
+                    continue;
+                }
                 if (v.getFirstPassenger() instanceof PmcUnitEntity driver && driver.isOwnedBy(player)) {
                     pmc = driver;
                 }
+                // The rest of this hull's crew is in the same list; the pilot above speaks for it.
                 if (v.getFirstPassenger() != pmc) continue;
-                if (!HullFacts.isHelicopterHull(v)) continue;
+                if (!HullFacts.isHelicopterHull(v)) {
+                    OrderReport.fail(player, OrderFailure.WRONG_HULL, pmc);
+                    continue;
+                }
                 // Empty cargo still accepts the order — Stage 5 exits promptly after settle.
                 DriveHelicopterGoal.setForcedRappel(v);
                 ordered++;

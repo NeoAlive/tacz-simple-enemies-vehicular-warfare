@@ -178,5 +178,19 @@
   "us_drone_2": { "sounds": ["tacz_sewv:us/us_drone_2"] },
   "us_drone_3": { "sounds": ["tacz_sewv:us/us_drone_3"] },
 
+  "pmc_ats_1": { "sounds": ["tacz_sewv:pmc/pmc_ats_1"] },
+  "pmc_ats_2": { "sounds": ["tacz_sewv:pmc/pmc_ats_2"] },
+  "pmc_bombing_1": { "sounds": ["tacz_sewv:pmc/pmc_bombing_1"] },
+  "pmc_bombing_2": { "sounds": ["tacz_sewv:pmc/pmc_bombing_2"] },
+  "pmc_cannon_1": { "sounds": ["tacz_sewv:pmc/pmc_cannon_1"] },
+  "pmc_cannon_2": { "sounds": ["tacz_sewv:pmc/pmc_cannon_2"] },
+
+  "pmc_target_gone": { "sounds": ["tacz_sewv:pmc/pmc_target_gone"] },
+  "pmc_target_not_vehicle": { "sounds": ["tacz_sewv:pmc/pmc_target_not_vehicle"] },
+  "pmc_target_friendly": { "sounds": ["tacz_sewv:pmc/pmc_target_friendly"] },
+  "pmc_target_obstructed": { "sounds": ["tacz_sewv:pmc/pmc_target_obstructed"] },
+  "pmc_underground": { "sounds": ["tacz_sewv:pmc/pmc_underground"] },
+  "pmc_self_is_medic": { "sounds": ["tacz_sewv:pmc/pmc_self_is_medic"] },
+
   "interact_beep": { "sounds": ["tacz_sewv:interact_beep"] }
 }

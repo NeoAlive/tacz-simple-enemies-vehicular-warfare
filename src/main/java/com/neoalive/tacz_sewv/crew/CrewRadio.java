@@ -101,6 +101,20 @@ public final class CrewRadio {
     }
 
     /**
+     * A one-shot reply to something the player just did — the refusal clips picked by
+     * {@code OrderFailure}, and nothing ambient.
+     *
+     * <p>Deliberately <b>outside</b> the {@link Line} pacing above. That machinery exists to stop
+     * repeated ambient chatter from clumping, and running an answer through it would let idle
+     * chatter swallow the explanation for an order the player is waiting on. The caller does its own
+     * throttling, which it must anyway: it is rate-limiting the reason, not the voice.
+     */
+    public static void speakRefusal(AbstractUnit speaker, net.minecraft.sounds.SoundEvent clip) {
+        if (speaker.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return;
+        speaker.level().playSound(null, speaker, clip, SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
+    }
+
+    /**
      * The faction's pool for this line, with the <b>navy</b> variants standing in on a boat: a
      * ground crew's idle chatter and contact calls talk about tanks and ground targets, which reads
      * as nonsense from a gunboat. Only the two lines that name what they are looking at are

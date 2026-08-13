@@ -594,6 +594,7 @@ public class ClientEvents {
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         MapMarkers.clear();
         MapTrenchMarkers.clear();
+        AirportPlots.clear();
         InvasionHudClient.clear();
         clearEscort();
         clearGuard();

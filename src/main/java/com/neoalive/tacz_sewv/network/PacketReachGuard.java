@@ -20,6 +20,8 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * REACH_GUARD_POSITION: MOVE_TO_POSITION to the hull's cached guard, then promote to HOLD on arrive
@@ -50,14 +52,25 @@ public class PacketReachGuard {
             int ordered = 0;
             for (int unitId : this.unitIds) {
                 Entity e = player.level().getEntity(unitId);
-                if (!(e instanceof PmcUnitEntity pmc) || !OrderAuth.check(sp, pmc, "PacketReachGuard")) {
+                if (!(e instanceof PmcUnitEntity pmc)) {
+                    OrderReport.fail(sp, OrderFailure.NOT_A_UNIT);
                     continue;
                 }
-                if (!(pmc.getVehicle() instanceof VehicleEntity hull) || hull.getFirstPassenger() != pmc) {
+                if (!OrderAuth.check(sp, pmc, "PacketReachGuard")) {
+                    OrderReport.fail(sp, OrderFailure.NOT_OWNED);
                     continue;
                 }
+                if (!(pmc.getVehicle() instanceof VehicleEntity hull)) {
+                    OrderReport.fail(sp, OrderFailure.NOT_MOUNTED, pmc);
+                    continue;
+                }
+                // A gunner from the same hull: its driver is in this list and takes the order.
+                if (hull.getFirstPassenger() != pmc) continue;
                 BlockPos guard = GuardSupport.get(hull);
-                if (guard == null) continue;
+                if (guard == null) {
+                    OrderReport.fail(sp, OrderFailure.NO_GUARD_POST, pmc);
+                    continue;
+                }
 
                 if (((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
                         || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {

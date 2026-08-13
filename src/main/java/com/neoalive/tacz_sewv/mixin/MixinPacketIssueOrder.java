@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.mixin;
 import java.util.function.Supplier;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.ChatFormatting;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.network.NetworkEvent;
@@ -22,6 +23,8 @@ import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Two things that both hang off a <b>player-given</b> order, which is exactly what SEM's order
@@ -54,8 +57,19 @@ public abstract class MixinPacketIssueOrder {
             return;
         }
         Entity ordered = sender.level().getEntity(((AccessorPacketIssueOrder) packet).tacz_sewv$entityId());
-        if (!(ordered instanceof PmcUnitEntity pmc)) return;
-        if (!OrderAuth.check(sender, pmc, "PacketIssueOrder")) return;
+        // SEM drops an order it does not like and sends no reply, so these two are the whole reason
+        // the client-side "order sent" ack had to go: it was printed before either was checked.
+        if (!(ordered instanceof PmcUnitEntity pmc)) {
+            OrderReport.fail(sender, OrderFailure.NOT_A_UNIT);
+            return;
+        }
+        if (!OrderAuth.check(sender, pmc, "PacketIssueOrder")) {
+            OrderReport.fail(sender, OrderFailure.NOT_OWNED);
+            return;
+        }
+        // SEM's packet is one unit per send, so a section arrives as several packets in one tick;
+        // okEach counts them and the flush prints the total once.
+        OrderReport.okEach(sender, "message.tacz_sewv.tdt.order", ChatFormatting.GREEN);
 
         // Cleared for any ordered unit, mounted or not: an area task only means anything to a
         // driver, but clearing one that was never set costs nothing and never has to ask.

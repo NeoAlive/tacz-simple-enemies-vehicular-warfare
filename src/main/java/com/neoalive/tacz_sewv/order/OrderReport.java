@@ -26,6 +26,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
  * Collects every result of a player's orders during one tick and emits them together at the end of
@@ -38,10 +39,16 @@ import com.neoalive.tacz_sewv.crew.CrewRadio;
  * what lets the aggregate {@code .none} line be dropped once a specific reason is known, since by
  * flush time we know whether one was.
  *
- * <p><b>Successes and failures leave by different doors, on purpose.</b> Successes go through
- * {@code PacketOrderFeedback}, so {@code ClientConfig.SHOW_ORDER_FEEDBACK} still turns them off; a
- * failure is sent as a plain system message and always arrives, because a player who has switched
- * off the running commentary still needs to be told an order did not happen. Both land in chat.
+ * <p><b>Successes and failures leave by different doors, on purpose.</b> Successes go to the
+ * player, through {@code PacketOrderFeedback}, so {@code ClientConfig.SHOW_ORDER_FEEDBACK} still
+ * turns them off. Failures go to the <b>server console</b> and never to chat: a running commentary
+ * of every rejected click was noise, and the answer a player actually wants — that the unit heard
+ * and refused — is better given by the crew's own spoken reply, which still plays. The written
+ * reason is for whoever is diagnosing why, which is a log's job.
+ *
+ * <p>That is also why the aggregate "nothing took the order" success line is no longer suppressed
+ * when a specific reason is known. It used to be, on the grounds that the reason said more; now the
+ * reason is not in chat at all, so suppressing it would leave the player with nothing.
  */
 public final class OrderReport {
 
@@ -60,10 +67,8 @@ public final class OrderReport {
 
     private OrderReport() {}
 
-    private record Success(Component message, boolean aggregate) {}
-
     private static final class Pending {
-        final List<Success> successes = new ArrayList<>(2);
+        final List<Component> successes = new ArrayList<>(2);
         final Map<String, Integer> accepted = new LinkedHashMap<>();
         final EnumMap<OrderFailure, Integer> failures = new EnumMap<>(OrderFailure.class);
         @Nullable AbstractUnit voice;
@@ -85,12 +90,12 @@ public final class OrderReport {
     }
 
     /** An order took. Routed here from {@code NetworkHandler} so every existing call site joins the flush. */
-    public static void ok(Player player, Component message, boolean aggregate) {
+    public static void ok(Player player, Component message) {
         if (!(player instanceof ServerPlayer server)) {
             player.displayClientMessage(message, false);
             return;
         }
-        pending(server).successes.add(new Success(message, aggregate));
+        pending(server).successes.add(message);
     }
 
     public static void fail(@Nullable Player player, OrderFailure why) {
@@ -103,7 +108,6 @@ public final class OrderReport {
      */
     public static void fail(@Nullable Player player, OrderFailure why, @Nullable AbstractUnit speaker) {
         if (!(player instanceof ServerPlayer server)) return;
-        if (!SewvConfig.ORDER_FAILURE_REPORTING.get()) return;
 
         Pending p = pending(server);
         p.failures.merge(why, 1, Integer::sum);
@@ -129,7 +133,10 @@ public final class OrderReport {
     public static void veto(AbstractUnit unit, OrderFailure why) {
         if (!(unit instanceof PmcUnitEntity pmc)) return;
         if (unit.level().isClientSide) return;
-        if (!SewvConfig.ORDER_FAILURE_REPORTING.get() || !SewvConfig.TARGET_VETO_REPORTING.get()) return;
+        // Gates the spoken reply as well as the log line, deliberately: this flag means "report
+        // refusals a unit made on its own account", and a squad of medics answering aloud every
+        // time they decline a target is the same spam in a different medium.
+        if (!SewvConfig.TARGET_VETO_DEBUG.get()) return;
 
         UUID ownerId = pmc.getOwnerUUID();
         if (ownerId == null) return;
@@ -172,11 +179,8 @@ public final class OrderReport {
     }
 
     private static void emit(ServerPlayer player, Pending p) {
-        boolean explained = !p.failures.isEmpty();
-        for (Success s : p.successes) {
-            // "No eligible aircraft." is worth saying only when nothing better is about to be said.
-            if (s.aggregate() && explained) continue;
-            com.neoalive.tacz_sewv.network.NetworkHandler.sendRaw(player, s.message());
+        for (Component s : p.successes) {
+            com.neoalive.tacz_sewv.network.NetworkHandler.sendRaw(player, s);
         }
         for (Map.Entry<String, Integer> a : p.accepted.entrySet()) {
             String[] parts = a.getKey().split("\u0000", 2);
@@ -186,13 +190,12 @@ public final class OrderReport {
                             .withStyle(ChatFormatting.valueOf(parts[1])));
         }
 
+        // Named, not translated: the console has no player locale to translate for, and on a
+        // dedicated server a Component.translatable of a mod key resolves to the key anyway.
         for (Map.Entry<OrderFailure, Integer> f : p.failures.entrySet()) {
             int count = f.getValue();
-            Component reason = f.getKey().text();
-            Component line = count == 1
-                    ? reason
-                    : Component.translatable("message.tacz_sewv.fail.wrap_many", reason, count);
-            player.sendSystemMessage(line.copy().withStyle(ChatFormatting.GRAY));
+            SewvDiag.orderFail("{} refused: {}{}", player.getGameProfile().getName(),
+                    f.getKey().name(), count == 1 ? "" : " x" + count);
         }
 
         if (p.voice != null && p.clip != null && p.voice.isAlive()) {

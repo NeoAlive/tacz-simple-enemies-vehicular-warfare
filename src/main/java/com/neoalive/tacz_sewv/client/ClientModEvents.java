@@ -19,6 +19,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
+import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModEntities;
 
 /**
@@ -78,6 +79,7 @@ public class ClientModEvents {
 
     @SubscribeEvent
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerBlockEntityRenderer(ModBlockEntities.RUNWAY.get(), RunwayBlockRenderer::new);
         event.registerEntityRenderer(ModEntities.SANDBAG_SEAT.get(), NoopRenderer::new);
         event.registerEntityRenderer(ModEntities.RU_MEDIC.get(), ctx -> new RuSupportRenderer(ctx, RU_MEDIC_SKIN));
         event.registerEntityRenderer(ModEntities.US_MEDIC.get(), ctx -> new UsSupportRenderer(ctx, US_MEDIC_SKIN));

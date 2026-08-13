@@ -166,6 +166,15 @@ public final class FireMissionSupport {
         for (SupportCrew support : crews) {
             AbstractUnit crew = support.unit;
             triggered.add(support.kind);
+            // Nothing on this path names ordnance — an observer relaying a contact and a tank
+            // crew asking for air are both reporting a target, not choosing how it is attacked.
+            // So the aircraft is put back on AUTO rather than left on it: the radio GUI's choice
+            // is a standing instruction that lasts the rest of the sortie, so a plane last told
+            // BOMB by hand would answer an automatic call with a bombing run at whatever the
+            // observer happened to see, including infantry twenty blocks from the observer.
+            if (support.kind == Kind.CAS && crew instanceof IHelicopterPilot pilot) {
+                pilot.sewv$setPlaneAttackMode(PlaneAttackMode.AUTO);
+            }
             if (crew instanceof PmcUnitEntity pmc) {
                 pmc.setAttackTargetId(target.getId());
                 pmc.setOrder(OrderType.ATTACK_THAT_TARGET);

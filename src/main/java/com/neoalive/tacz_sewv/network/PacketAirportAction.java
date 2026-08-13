@@ -24,6 +24,7 @@ import com.neoalive.tacz_sewv.airport.AirportRegistry;
 import com.neoalive.tacz_sewv.airport.RunwaySlots;
 import com.neoalive.tacz_sewv.airport.RunwayTraffic;
 import com.neoalive.tacz_sewv.block.RunwayBlockEntity;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneNav;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -138,8 +139,15 @@ public class PacketAirportAction {
             return;
         }
         String entityId = tag.getString("EntityType");
-        VehicleEntity plane = TankSpawner.spawnPlaneWithCrew(
-                level, airport.threshold(), TankSpawner.TankFaction.PMC, player.getUUID(), entityId);
+        // The container is unpacked, not used as a spawn token: whatever aircraft was put in it
+        // comes back out in the state it went in, with nobody aboard. The crewed-and-fuelled
+        // version is a testing shortcut and says so.
+        VehicleEntity plane = SewvConfig.DEBUG_AUTO_PLANE_DEPLOY.get()
+                ? TankSpawner.spawnPlaneWithCrew(level, airport.threshold(),
+                        TankSpawner.TankFaction.PMC, player.getUUID(), entityId)
+                : TankSpawner.unpackPlane(level, airport.threshold(),
+                        TankSpawner.TankFaction.PMC, entityId,
+                        tag.contains("Entity") ? tag.getCompound("Entity") : null);
         if (plane == null) {
             reply(player, be, AirportClearance.Status.NOT_POOLED, null);
             return;

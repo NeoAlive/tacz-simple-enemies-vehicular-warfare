@@ -16,6 +16,7 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -500,6 +501,47 @@ public final class TankSpawner {
         vehicle.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
         level.addFreshEntity(vehicle);
         return vehicle; // no setEnergy, no stockAmmo, no crew — deliberately inert
+    }
+
+    /**
+     * Unpacks a vehicle container onto the ground: the aircraft it was holding, restored to the
+     * state it was packed in, with nobody aboard.
+     *
+     * <p>This is the honest counterpart to {@link #spawnPlaneWithCrew}, which manufactures a fresh
+     * airframe. A container carries the machine the player already owned — its damage, its fuel,
+     * its magazines and its skin all live in {@code entityTag} — so reading only the entity id off
+     * it and building a new one from scratch quietly replaced the player's aircraft with a better
+     * one every time they unpacked it. A container with no {@code entityTag} was never packed from
+     * a live vehicle (it is a crafted or creative crate), and an empty airframe is exactly what it
+     * should produce: energy and ammunition are the player's problem, the same as they are for
+     * SuperbWarfare's own crate.
+     *
+     * <p>The stored UUID is deliberately <b>discarded</b>. It identifies the vehicle that was
+     * packed, and {@code addFreshEntity} silently refuses an entity whose UUID is already in the
+     * level — so two copies of one crate (a creative duplicate, an inventory-duplication bug)
+     * would unpack once and then fail with no error at all.
+     *
+     * @param entityTag the packed vehicle's NBT, or null for a crate that stores only a type.
+     */
+    @Nullable
+    public static VehicleEntity unpackPlane(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                            String vehicleId, @Nullable CompoundTag entityTag) {
+        EntityType<?> type = selectVehicleType(faction.planePool(level), vehicleId, level.random);
+        if (type == null) return null;
+        BlockPos pos = findClearSpawn(level, requestedPos, type);
+        if (pos == null) return null;
+
+        Entity entity = type.create(level);
+        if (!(entity instanceof VehicleEntity vehicle)) return null;
+        if (entityTag != null && !entityTag.isEmpty()) {
+            vehicle.load(entityTag);
+            vehicle.setUUID(UUID.randomUUID());
+        }
+        // After the load, which restores the position and motion the vehicle was packed at.
+        vehicle.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        vehicle.setDeltaMovement(Vec3.ZERO);
+        level.addFreshEntity(vehicle);
+        return vehicle;
     }
 
     /**

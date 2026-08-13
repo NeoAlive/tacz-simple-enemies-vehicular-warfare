@@ -65,6 +65,14 @@ minecraft {
             args '--username', 'SEWV_Test_B'
         }
 
+        // Average-modpack client — jars from modpack/ (synced from Prism; see syncModpack).
+        // Overlaps already on the FG classpath (libs + soft runtimeOnly) are stripped so
+        // Forge does not double-load them; this mod is always the sourceset, never the jar.
+        modded {
+            parent runs.client
+            workingDirectory project.file('run-modded')
+        }
+
         server {
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
@@ -103,9 +111,52 @@ minecraft {
 // Gradle's JavaExec tasks default to an empty stdin; this wires the real terminal through.
 // configureEach fires lazily when each task is registered — safe regardless of when
 // ForgeGradle adds its run tasks (afterEvaluate ordering is not guaranteed).
+// Average-modpack jars live in modpack/ (gitignored). syncModpack pulls from Prism;
+// syncRunModdedMods mirrors them into run-modded/mods without the FG-classpath overlaps.
+// Named away from prepareRunModded — ForgeGradle already owns that for the modded run.
+def modpackSource = file(findProperty('modpack_source')
+        ?: "${System.getProperty('user.home')}/.local/share/PrismLauncher/instances/1.20.1(1)/minecraft/mods")
+def modpackDir = file('modpack')
+def runModdedMods = file('run-modded/mods')
+// Already loaded via dependencies { } — putting these in run/mods double-registers the modid.
+def modpackClasspathOverlaps = [
+        'tacz_sewv*.jar',
+        'superbwarfare*.jar',
+        'curios*.jar',
+        'geckolib*.jar',
+        'kotlinforforge*.jar',
+        'simpleenemymod*.jar',
+        'tacz-*.jar',           // not taczaddon / tacz_presence / tacz_x_guns
+        'xaeroworldmap*.jar',
+        'open-parties-and-claims*.jar',
+]
+
+tasks.register('syncModpack', Sync) {
+    group = 'forge'
+    description = "Copies enabled jars from ${modpackSource} into modpack/ (skips *.disabled)."
+    from(modpackSource) {
+        include '*.jar'
+        exclude 'tacz_sewv*.jar'
+    }
+    into modpackDir
+}
+
+tasks.register('syncRunModdedMods', Sync) {
+    group = 'forge'
+    description = 'Mirrors modpack/ into run-modded/mods, excluding jars already on the FG classpath.'
+    from(modpackDir) {
+        include '*.jar'
+        exclude modpackClasspathOverlaps
+    }
+    into runModdedMods
+}
+
 tasks.configureEach { task ->
     if (task.name == 'runServerDev' && task instanceof JavaExec) {
         task.standardInput = System.in
+    }
+    if (task.name == 'runModded') {
+        task.dependsOn 'syncRunModdedMods'
     }
 }
 

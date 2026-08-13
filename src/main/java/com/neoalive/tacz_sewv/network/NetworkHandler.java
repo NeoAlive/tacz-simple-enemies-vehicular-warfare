@@ -72,7 +72,8 @@ public class NetworkHandler {
     // 45: Category.TOW in vehicle pool editor packets.
     // 47: PacketReloadVehicleSkins carries a reset-to-jar-defaults flag.
     // 48: PacketOpenAirportGui + PacketAirportAction (PMC runway editor).
-    private static final String PROTOCOL_VERSION = "49";
+    // 50: target-priority editor open + update packets.
+    private static final String PROTOCOL_VERSION = "50";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -335,6 +336,20 @@ public class NetworkHandler {
                 PacketAirportAction::encode,
                 PacketAirportAction::new,
                 PacketAirportAction::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenTargetPriority.class,
+                PacketOpenTargetPriority::encode,
+                PacketOpenTargetPriority::new,
+                PacketOpenTargetPriority::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketUpdateTargetPriority.class,
+                PacketUpdateTargetPriority::encode,
+                PacketUpdateTargetPriority::new,
+                PacketUpdateTargetPriority::handle
         );
     }
 }

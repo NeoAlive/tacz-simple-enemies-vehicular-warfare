@@ -14,6 +14,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
@@ -115,6 +116,9 @@ public class SeekAbandonedVehicleGoal extends Goal {
         // filter it here rather than letting BoardVehicleGoal walk over and fail.
         if (hull instanceof MortarEntity) return false;
         if (hull.getMaxPassengers() <= 0) return false;
+        // Addon hulls that only a Player may ride. Same class of problem as the mortar above —
+        // an order that can never complete — but invisible from the seat data, so it is by id.
+        if (NpcVehicleOverrides.refusesNpcRiders(hull)) return false;
 
         // COMPLETELY empty, OR every currently free seat is a tank-rider "Climb" handhold
         // (HullFacts.hasFreeClimbSeat) — a hull with a driver/gunner/commander still aboard is

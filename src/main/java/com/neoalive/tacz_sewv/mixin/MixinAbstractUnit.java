@@ -84,6 +84,7 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
                         target.getClass().getSimpleName(), target.getId(),
                         sameClassFriendly);
             }
+            if (!VehicleTargeting.categoryAllowed(self, target)) ci.cancel();
             return;
         }
         // Same-faction friends and medics (neutral to everyone) are never taken as a target.
@@ -114,6 +115,10 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
                     "MixinAbstractUnit BLOCK outOfAreaTask self={}#{} target={}#{}",
                     self.getClass().getSimpleName(), self.getId(),
                     target.getClass().getSimpleName(), target.getId());
+            ci.cancel();
+            return;
+        }
+        if (!VehicleTargeting.categoryAllowed(self, target)) {
             ci.cancel();
         }
     }

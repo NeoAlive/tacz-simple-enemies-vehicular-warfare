@@ -2,6 +2,9 @@ package com.neoalive.tacz_sewv.compat;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+
+import javax.annotation.Nullable;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -26,7 +29,6 @@ public final class AshAmmoCompat {
             "ashvehicle:agm158item",
             "ashvehicle:gbu57item",
             "ashvehicle:cbu87item",
-            "ashvehicle:nuclearbombitem",
             "ashvehicle:40mmitem",
             "ashvehicle:105mmitem",
             "ashvehicle:20mmitem",
@@ -40,6 +42,19 @@ public final class AshAmmoCompat {
 
     public static boolean isAshHull(String entityId) {
         return entityId != null && entityId.startsWith(MODID + ":");
+    }
+
+    /**
+     * AshVehicle's B-2 nuke (item {@code nuclearbombitem}, weapon {@code MegaBomb},
+     * projectile {@code nuke_bomb}). Never stocked and never selected by plane AI.
+     */
+    public static boolean isBannedMunition(@Nullable String idOrName) {
+        if (idOrName == null || idOrName.isEmpty()) return false;
+        String lower = idOrName.toLowerCase(Locale.ROOT);
+        return lower.contains("nuclearbombitem")
+                || lower.contains("nuke_bomb")
+                || lower.contains("mega_bomb")
+                || lower.contains("atomic_bomb");
     }
 
     /** Coordinate ballistic launchers (Sapsan) have empty Weapons — no container ammo to stock. */

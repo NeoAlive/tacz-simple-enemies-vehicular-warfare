@@ -346,7 +346,7 @@ public class VehicleTargetScanGoal extends Goal {
                             this.unit.getClass().getSimpleName(), this.unit.getId(),
                             e.getClass().getSimpleName(), e.getId(),
                             e instanceof Enemy);
-                    return e instanceof Enemy;
+                    return VehicleTargeting.categoryAllowed(this.unit, e);
                 }
                 SewvDiag.scan(
                         "VehicleTargetScanGoal.isValidTarget REJECT hardPmcExclusion "
@@ -357,12 +357,16 @@ public class VehicleTargetScanGoal extends Goal {
                         e instanceof Enemy);
                 return false;
             }
-            return e instanceof Enemy;
+            return VehicleTargeting.categoryAllowed(this.unit, e);
         }
         if (e instanceof Player p) return !p.isCreative() && !p.isSpectator();
         if (e instanceof IronGolem) return true;
-        if (this.unit instanceof RUunitEntity) return e instanceof Enemy && !(e instanceof RUunitEntity);
-        if (this.unit instanceof USunitEntity) return e instanceof Enemy && !(e instanceof USunitEntity);
+        if (this.unit instanceof RUunitEntity) {
+            return VehicleTargeting.categoryAllowed(this.unit, e) && !(e instanceof RUunitEntity);
+        }
+        if (this.unit instanceof USunitEntity) {
+            return VehicleTargeting.categoryAllowed(this.unit, e) && !(e instanceof USunitEntity);
+        }
         return false;
     }
 

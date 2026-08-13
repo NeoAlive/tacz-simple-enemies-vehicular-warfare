@@ -28,6 +28,7 @@ import com.neoalive.tacz_sewv.airport.RunwayTraffic;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -319,10 +320,12 @@ public class DrivePlaneGoal extends Goal {
     /**
      * Airspeed at which the dive brake comes off again, in blocks per tick.
      *
-     * <p>Braking a diving aircraft is close to free — see {@link PlaneController#airbrake} — but
-     * only down to SBW's pitch-authority knee, which sits at 0.44 blocks/tick along the nose.
-     * Below that the engine halves the response to the pitch stick, and an aircraft that has traded
-     * its authority for time has nothing left to spend the time on.
+     * <p>This is the floor, not the trigger: braking is not free (see
+     * {@link PlaneController#airbrake}, and {@link PlaneController#airbrakeDuty} for what the
+     * combat profiles actually use), and below SBW's pitch-authority knee at 0.44 blocks/tick
+     * along the nose it stops being worth anything at all — the engine halves the response to the
+     * pitch stick there, and an aircraft that has traded its authority for time has nothing left
+     * to spend the time on.
      */
     private static final double DIVE_BRAKE_MIN_SPEED = 0.6;
 
@@ -588,6 +591,10 @@ public class DrivePlaneGoal extends Goal {
             case CRUISE -> cruise();
             case HOLD -> hold();
         }
+
+        // After the switch, because it reads the inputs the branch just issued. A no-op on every
+        // airframe but the one whose engine answers the throttle for players only.
+        NpcVehicleOverrides.mirrorThrottle(this.vehicle);
     }
 
     // --- Mode selection ---------------------------------------------------------------------
@@ -1422,10 +1429,14 @@ public class DrivePlaneGoal extends Goal {
         // Brake into the dive. The run is the only stretch where the aircraft has to hold a line
         // rather than get somewhere, so it is the one place airspeed is worth less than time: the
         // gun converges at a rate set by the airframe, and slowing the closure simply gives that
-        // rate more ticks to work in before the pull-up. SBW's brake is two multipliers on the
-        // hull's own datapack numbers, so this asks for "slower than whatever this aircraft is",
-        // never for a speed — a jet and a piston bomber both give up the same proportion.
-        this.control.airbrake(this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
+        // rate more ticks to work in before the pull-up.
+        //
+        // Pulsed, not held. Held, SBW's brake settles the throttle at a fifth of whatever the
+        // airframe's own is (see PlaneController#airbrake), which the A-10 this profile was flown
+        // against survives and a smaller-winged jet does not — it sinks, and the altitude loop
+        // answers a sink by pitching up, which is how a gun run ended in the trees.
+        this.control.airbrakeDuty(this.unit.level().getGameTime(),
+                this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
 
         this.weapons.fire(target, aim);
     }
@@ -1516,8 +1527,9 @@ public class DrivePlaneGoal extends Goal {
         }
         double runY = runAltitude(mark);
         this.control.holdAltitude(runY);
-        this.control.airbrake(!this.weapons.stickComplete()
-                && this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
+        this.control.airbrakeDuty(this.unit.level().getGameTime(),
+                !this.weapons.stickComplete()
+                        && this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
         this.weapons.releaseBombIfOnTarget(aim, this.kinematics.forwardFlat(), runY);
     }
 
@@ -1572,8 +1584,14 @@ public class DrivePlaneGoal extends Goal {
         // The brake comes off the moment the stick is away, so the aircraft spends the overfly
         // building the speed the break-off climb has to be paid for with. Braking through it and
         // then hauling up is how a bombing pass ended in a stall.
-        this.control.airbrake(!this.weapons.stickComplete()
-                && this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
+        //
+        // Pulsed for the same reason as the gun run, and it matters more here: this pass is flown
+        // LEVEL, so unlike the dive there is no height being traded for the speed the brake is
+        // taking away, and a held brake leaves the aircraft trying to hold altitude on a fifth of
+        // its thrust for the whole ingress.
+        this.control.airbrakeDuty(this.unit.level().getGameTime(),
+                !this.weapons.stickComplete()
+                        && this.kinematics.speed() > DIVE_BRAKE_MIN_SPEED);
         this.weapons.releaseBombIfOnTarget(target, this.kinematics.forwardFlat(), runY);
     }
 

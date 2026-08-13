@@ -16,11 +16,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 
 /**
  * Unit held-item presentation: engineer MAIN↔OFF switching, emplacement in-hand hide, and the
@@ -45,10 +47,12 @@ public final class UnitHolster {
     // --- Emplacement in-hand hide -----------------------------------------------------------
 
     /**
-     * When held items should not draw in-hand: crewing a TOW, or standing at a mortar tube.
-     * Approach / path failure / overrun / dead tube clear the mortar flag so the rifle shows again.
+     * When held items should not draw in-hand: driver or armed seat, crewing a TOW, or standing
+     * at a mortar tube. Commander / Climb seats keep the rifle visible. Approach / path failure
+     * / overrun / dead tube clear the mortar flag so the rifle shows again.
      */
     public static boolean hideHeldItems(LivingEntity entity) {
+        if (entity instanceof Mob mob && VehicleWeapons.controlsVehicleWeapon(mob)) return true;
         if (entity.getVehicle() instanceof TowEntity tow && tow.isAlive() && !tow.isWreck()) {
             return true;
         }

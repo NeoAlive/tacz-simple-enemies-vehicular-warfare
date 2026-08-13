@@ -9,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -39,6 +40,8 @@ import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.WorldTargetPriority;
 
 /**
  * Shared "where should this crew go?" resolution for any mounted-vehicle drive
@@ -500,7 +503,32 @@ public final class VehicleTargeting {
      * every SEWV-owned path that would spread or invent a lock.
      */
     public static boolean mayAssignTarget(AbstractUnit unit, @Nullable LivingEntity target) {
-        return target != null && target.isAlive() && !isNonHostile(unit, target);
+        return target != null && target.isAlive() && !isNonHostile(unit, target)
+                && categoryAllowed(unit, target);
+    }
+
+    /**
+     * Whether this faction's target-priority allow-list admits {@code e}'s spawn category.
+     * Players are not category-gated (callers keep creative/spectator / PMC-never-auto-player).
+     * SEM troops ({@link AbstractUnit}) stay politics-only: US units are registered
+     * {@code MISC} and RU/PMC {@code MONSTER}, so a category gate would break faction combat.
+     * Iron Golems stay explicitly allowed for RU/US even when {@code misc} is excluded.
+     */
+    public static boolean categoryAllowed(AbstractUnit unit, LivingEntity e) {
+        if (e instanceof Player) return true;
+        TankFaction faction = factionOf(unit);
+        if (faction == null) return false;
+        if (e instanceof IronGolem && faction != TankFaction.PMC) return true;
+        if (e instanceof AbstractUnit) return true;
+        return !WorldTargetPriority.get(unit.level()).isExcluded(faction, e.getType().getCategory().getName());
+    }
+
+    @Nullable
+    private static TankFaction factionOf(AbstractUnit unit) {
+        if (unit instanceof RUunitEntity) return TankFaction.RU;
+        if (unit instanceof USunitEntity) return TankFaction.US;
+        if (unit instanceof PmcUnitEntity) return TankFaction.PMC;
+        return null;
     }
 
     /**

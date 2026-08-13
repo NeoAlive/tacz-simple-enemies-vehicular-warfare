@@ -7,7 +7,6 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -209,7 +208,7 @@ public class CrewTargetPriorityGoal extends Goal {
                                     + "unit={}#{} cand={}#{}",
                             this.unit.getClass().getSimpleName(), this.unit.getId(),
                             e.getClass().getSimpleName(), e.getId());
-                    return e instanceof Enemy;
+                    return VehicleTargeting.categoryAllowed(this.unit, e);
                 }
                 SewvDiag.scan(
                         "CrewTargetPriorityGoal.isValidTarget REJECT hardPmcExclusion "
@@ -218,10 +217,10 @@ public class CrewTargetPriorityGoal extends Goal {
                         e.getClass().getSimpleName(), e.getId());
                 return false;
             }
-            return e instanceof Enemy;
+            return VehicleTargeting.categoryAllowed(this.unit, e);
         }
         if (e instanceof Player p) return !p.isCreative() && !p.isSpectator();
-        return e instanceof Enemy;
+        return VehicleTargeting.categoryAllowed(this.unit, e);
     }
 
     /**

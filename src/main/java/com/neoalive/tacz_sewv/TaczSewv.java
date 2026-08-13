@@ -48,6 +48,7 @@ import com.neoalive.tacz_sewv.procedural.events.NavalBattleEvent;
 import com.neoalive.tacz_sewv.procedural.events.OverflightEvent;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner;
 import com.neoalive.tacz_sewv.util.ChunkTicketSweep;
+import com.neoalive.tacz_sewv.util.WorldTargetPriority;
 
 @Mod(TaczSewv.MODID)
 public class TaczSewv {
@@ -140,6 +141,7 @@ public class TaczSewv {
         // Same moment, same reason: doctrine presets are read from our own config, which is
         // equally unsafe to touch from an AI tick before it has been baked.
         Doctrine.refreshPresets();
+        WorldTargetPriority.refreshCatalog();
     }
 
     // Every unit reaches the world through here, whichever door it came in by, which is what makes

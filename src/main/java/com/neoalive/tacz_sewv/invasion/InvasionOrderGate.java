@@ -1,9 +1,11 @@
 package com.neoalive.tacz_sewv.invasion;
 
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Player order surfaces are locked while an invasion match is live — AI capture + command-tier
@@ -18,8 +20,7 @@ public final class InvasionOrderGate {
     }
 
     public static void deny(Player player) {
-        player.displayClientMessage(
-                Component.translatable("message.tacz_sewv.invasion.orders_locked"), true);
+        OrderReport.fail(player, OrderFailure.ORDERS_LOCKED);
     }
 
     /** True when the sender's dimension has a live invasion (caller should abort). */

@@ -14,6 +14,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * "Escort that entity." Carries the owned units to order and the network id of the entity they
@@ -46,13 +48,29 @@ public class PacketEscort {
             if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
             if (com.neoalive.tacz_sewv.invasion.InvasionOrderGate.denyIfActive(sp)) return;
 
+            Entity vip = player.level().getEntity(this.targetEntityId);
+            if (vip == null || !vip.isAlive()) {
+                OrderReport.fail(player, OrderFailure.TARGET_GONE);
+                return;
+            }
+
             int ordered = 0;
             for (int unitId : this.unitIds) {
                 Entity e = player.level().getEntity(unitId);
                 // Ownership-check each unit so a spoofed packet can't command another player's units.
-                if (!(e instanceof PmcUnitEntity pmc) || !pmc.isOwnedBy(player)) continue;
+                if (!(e instanceof PmcUnitEntity pmc)) {
+                    OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
+                    continue;
+                }
+                if (!pmc.isOwnedBy(player)) {
+                    OrderReport.fail(player, OrderFailure.NOT_OWNED);
+                    continue;
+                }
                 // Leave a crew committed to a mortar on its tube, exactly as the board order does.
-                if (MortarSupport.hasMortarClaim(pmc)) continue;
+                if (MortarSupport.hasMortarClaim(pmc)) {
+                    OrderReport.fail(player, OrderFailure.BUSY_MORTAR, pmc);
+                    continue;
+                }
 
                 ((IEscort) pmc).tacz_sewv$setEscortTargetId(this.targetEntityId);
                 // Escort and board both drive the unit on foot at goal priority 1 — mutually

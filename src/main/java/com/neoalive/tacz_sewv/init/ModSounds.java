@@ -69,6 +69,26 @@ public final class ModSounds {
     public static final SoundPool US_NAVY_IDLE    = pool("us_navy_idle", 5);
     public static final SoundPool US_NAVY_TARGET  = pool("us_navy_target", 5);
 
+    // Ordnance acknowledgements for a radio fire mission that names a PlaneAttackMode. Separate from
+    // PMC_CAS, which answers "aircraft are coming"; these answer "with THAT". AUTO gets none — it
+    // picks per target, so there is no single thing to announce.
+    public static final SoundPool PMC_ATS     = pool("pmc_ats", 2);
+    public static final SoundPool PMC_BOMBING = pool("pmc_bombing", 2);
+    public static final SoundPool PMC_CANNON  = pool("pmc_cannon", 2);
+
+    // Refusal replies, one clip per reason, played by OrderFailure rather than through
+    // CrewRadio.Line. They are single events and not pools because one line each is what was
+    // recorded; a reason with no recording stays silent rather than borrowing another's clip.
+    // PMC only: reporting needs an owner to report to, and RU/US have none.
+    // Note PMC_UNDERGROUND breaks the pmc_target_* pattern the other five follow — the name here
+    // must match the file on disk, not the pattern.
+    public static final RegistryObject<SoundEvent> PMC_TARGET_GONE = register("pmc_target_gone");
+    public static final RegistryObject<SoundEvent> PMC_TARGET_NOT_VEHICLE = register("pmc_target_not_vehicle");
+    public static final RegistryObject<SoundEvent> PMC_TARGET_FRIENDLY = register("pmc_target_friendly");
+    public static final RegistryObject<SoundEvent> PMC_TARGET_OBSTRUCTED = register("pmc_target_obstructed");
+    public static final RegistryObject<SoundEvent> PMC_UNDERGROUND = register("pmc_underground");
+    public static final RegistryObject<SoundEvent> PMC_SELF_IS_MEDIC = register("pmc_self_is_medic");
+
     /** UI click for the Tactical Data Terminal (and similar interactable panels). */
     public static final RegistryObject<SoundEvent> INTERACT_BEEP = register("interact_beep");
 

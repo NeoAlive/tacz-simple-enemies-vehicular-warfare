@@ -32,10 +32,16 @@ public class PacketOrderFeedback {
         ctx.get().setPacketHandled(true);
     }
 
+    /**
+     * Chat, not the action bar. The bar is one line that the next message overwrites, so an order's
+     * result and the reason a unit refused it could never be read together — and there is no
+     * scrollback to check afterwards. Every server-side order result flows through this one call,
+     * which is why the whole channel moves here rather than at ~20 call sites.
+     */
     private void show() {
         if (!ClientConfig.SHOW_ORDER_FEEDBACK.get()) return;
         if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(this.message, true);
+            Minecraft.getInstance().player.displayClientMessage(this.message, false);
         }
     }
 }

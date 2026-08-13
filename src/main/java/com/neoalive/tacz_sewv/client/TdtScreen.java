@@ -249,6 +249,8 @@ public class TdtScreen extends Screen {
                 () -> HelicopterKeybind.orderTakeoff(heliAltitude), StepperKind.ALTITUDE);
         add(Category.AIR, "gui.tacz_sewv.tdt.land", "gui.tacz_sewv.tdt.land.tip", true,
                 () -> HelicopterKeybind.orderLand(liveLandPad()));
+        add(Category.AIR, "gui.tacz_sewv.tdt.emergency_land", "gui.tacz_sewv.tdt.emergency_land.tip",
+                true, HelicopterKeybind::orderEmergencyLand);
         add(Category.AIR, "gui.tacz_sewv.tdt.rappel", "gui.tacz_sewv.tdt.rappel.tip", true, HelicopterKeybind::orderRappel);
 
         add(Category.FORM, "gui.tacz_sewv.tdt.sem_wedge", null, true, () -> issueSemOrder(OrderType.FORM_WEDGE));
@@ -358,15 +360,9 @@ public class TdtScreen extends Screen {
         for (int i = 0; i < ids.size(); i++) {
             ModNetworking.sendToServer(new PacketIssueOrder(ids.get(i), order, Vec3.ZERO, i, -1));
         }
-        if (this.minecraft != null && this.minecraft.player != null) {
-            this.minecraft.player.displayClientMessage(
-                    Component.translatable(
-                                    ids.size() == 1
-                                            ? "message.tacz_sewv.tdt.order.single"
-                                            : "message.tacz_sewv.tdt.order.multiple",
-                                    ids.size())
-                            .withStyle(ChatFormatting.GREEN), true);
-        }
+        // No ack here on purpose. SEM validates ownership server-side and silently drops what it
+        // rejects, so a count printed at send time was a guess that contradicted every real refusal
+        // arriving after it. MixinPacketIssueOrder now answers with the count that actually took.
     }
 
     private void armMoveTo() {

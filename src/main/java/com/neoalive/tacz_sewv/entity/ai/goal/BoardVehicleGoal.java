@@ -5,7 +5,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import net.minecraft.ChatFormatting;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -14,7 +13,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
-import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -186,15 +186,12 @@ public class BoardVehicleGoal extends Goal {
         if (last != null && now - last < CANCEL_FEEDBACK_COOLDOWN) return;
         LAST_CANCEL_FEEDBACK.put(ownerId, now);
 
-        String key = switch (reason) {
-            case FULL -> "message.tacz_sewv.board.cancel.full";
-            case WRECKED -> "message.tacz_sewv.board.cancel.wrecked";
-            case TIMEOUT -> "message.tacz_sewv.board.cancel.timeout";
-            case GONE -> "message.tacz_sewv.board.cancel.gone";
-        };
-        NetworkHandler.sendOrderFeedback(owner,
-                net.minecraft.network.chat.Component.translatable(key)
-                        .withStyle(ChatFormatting.GRAY));
+        OrderReport.fail(owner, switch (reason) {
+            case FULL -> OrderFailure.VEHICLE_FULL;
+            case WRECKED -> OrderFailure.VEHICLE_WRECKED;
+            case TIMEOUT -> OrderFailure.UNREACHABLE;
+            case GONE -> OrderFailure.VEHICLE_GONE;
+        }, this.unit);
     }
 
     private static boolean isFull(VehicleEntity v) {

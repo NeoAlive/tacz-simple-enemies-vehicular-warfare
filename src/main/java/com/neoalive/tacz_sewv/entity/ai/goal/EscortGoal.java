@@ -1,12 +1,15 @@
 package com.neoalive.tacz_sewv.entity.ai.goal;
 
 import java.util.EnumSet;
+import java.util.UUID;
 
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IEscort;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Keeps a unit beside a chosen entity — "FOLLOW_ME, but the leader is whatever the player
@@ -67,6 +70,10 @@ public class EscortGoal extends Goal {
         Entity target = this.unit.level().getEntity(escortId());
         if (target == null || !target.isAlive() || target == this.unit) {
             clearEscort(); // the VIP is gone or nonsense — free the unit
+            // Reported once, not every tick: the id is now -1, so canUse bails above on the next.
+            UUID owner = this.unit.getOwnerUUID();
+            OrderReport.fail(owner != null ? this.unit.level().getPlayerByUUID(owner) : null,
+                    OrderFailure.TARGET_GONE, this.unit);
             return false;
         }
         this.escortTarget = target;

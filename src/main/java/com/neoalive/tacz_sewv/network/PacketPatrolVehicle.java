@@ -8,6 +8,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -22,6 +23,8 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Player → server patrol order for owned ground-vehicle crews. The radius is clamped to the valid
@@ -107,7 +110,7 @@ public class PacketPatrolVehicle {
             }
 
             if (this.mode == IVehiclePatrol.MODE_CRUISE) {
-                assignCruise(player);
+                assignCruise(sp);
                 return;
             }
 
@@ -119,13 +122,8 @@ public class PacketPatrolVehicle {
             // circle, so it has to know how many hulls are taking the task.
             List<PmcUnitEntity> crews = new ArrayList<>();
             for (int unitId : this.unitIds) {
-                Entity e = player.level().getEntity(unitId);
-                if (e instanceof PmcUnitEntity pmc && OrderAuth.check(sp, pmc, "PacketPatrolVehicle")
-                        && pmc.getVehicle() instanceof VehicleEntity v
-                        && v.getFirstPassenger() == pmc
-                        && !HullFacts.isHelicopterHull(v) && !HullFacts.isPlaneHull(v)) {
-                    crews.add(pmc);
-                }
+                PmcUnitEntity pmc = groundDriver(sp, unitId);
+                if (pmc != null) crews.add(pmc);
             }
 
             for (int i = 0; i < crews.size(); i++) {
@@ -155,27 +153,55 @@ public class PacketPatrolVehicle {
      * <p>The route is capped rather than trusted: a plot is a list from the client, and nothing
      * else bounds how long it could be.
      */
-    private void assignCruise(Player player) {
-        if (this.route.isEmpty()) return;
+    private void assignCruise(ServerPlayer player) {
+        if (this.route.isEmpty()) {
+            OrderReport.fail(player, OrderFailure.NO_ROUTE);
+            return;
+        }
         List<BlockPos> route = this.route.size() > MAX_ROUTE_NODES
                 ? this.route.subList(0, MAX_ROUTE_NODES) : this.route;
 
         int ordered = 0;
         for (int unitId : this.unitIds) {
-            Entity e = player.level().getEntity(unitId);
-            if (e instanceof PmcUnitEntity pmc && player instanceof net.minecraft.server.level.ServerPlayer sp
-                    && OrderAuth.check(sp, pmc, "PacketPatrolVehicle")
-                    && pmc.getVehicle() instanceof VehicleEntity v
-                    && v.getFirstPassenger() == pmc
-                    && !HullFacts.isHelicopterHull(v) && !HullFacts.isPlaneHull(v)) {
-                pmc.setOrder(OrderType.FREE_FIRE);
-                PatrolSupport.beginCruise(pmc, route);
-                ordered++;
-            }
+            PmcUnitEntity pmc = groundDriver(player, unitId);
+            if (pmc == null) continue;
+            pmc.setOrder(OrderType.FREE_FIRE);
+            PatrolSupport.beginCruise(pmc, route);
+            ordered++;
         }
 
         NetworkHandler.orderFeedback(player, "message.tacz_sewv.cruise.ordered", ordered,
                 ChatFormatting.GREEN, ordered, route.size());
+    }
+
+    /**
+     * The one crew filter all three area tasks share: the driver of an owned ground hull.
+     *
+     * <p>A gunner in the same selection answers null <b>silently</b> — its driver is in the list
+     * too, so the order is not being refused, it is simply being taken by somebody else in the same
+     * vehicle. Everything above it is a real refusal and says so.
+     */
+    @Nullable
+    private static PmcUnitEntity groundDriver(ServerPlayer player, int unitId) {
+        Entity e = player.level().getEntity(unitId);
+        if (!(e instanceof PmcUnitEntity pmc)) {
+            OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
+            return null;
+        }
+        if (!OrderAuth.check(player, pmc, "PacketPatrolVehicle")) {
+            OrderReport.fail(player, OrderFailure.NOT_OWNED);
+            return null;
+        }
+        if (!(pmc.getVehicle() instanceof VehicleEntity v)) {
+            OrderReport.fail(player, OrderFailure.NOT_MOUNTED, pmc);
+            return null;
+        }
+        if (v.getFirstPassenger() != pmc) return null;
+        if (HullFacts.isHelicopterHull(v) || HullFacts.isPlaneHull(v)) {
+            OrderReport.fail(player, OrderFailure.WRONG_HULL, pmc);
+            return null;
+        }
+        return pmc;
     }
 
     /**

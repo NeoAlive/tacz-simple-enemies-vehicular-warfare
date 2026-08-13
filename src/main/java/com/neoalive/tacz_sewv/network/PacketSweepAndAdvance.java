@@ -25,6 +25,8 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Map → server Sweep &amp; Advance: chunk AABB from Xaero MapTileSelection + selected unit ids.
@@ -92,9 +94,7 @@ public class PacketSweepAndAdvance {
             ResourceKey<Level> dimKey = ResourceKey.create(
                     net.minecraft.core.registries.Registries.DIMENSION, this.dim);
             if (!dimKey.equals(player.level().dimension())) {
-                NetworkHandler.sendOrderFeedback(player,
-                        Component.translatable("message.tacz_sewv.map.wrong_dimension")
-                                .withStyle(ChatFormatting.RED));
+                OrderReport.fail(player, OrderFailure.WRONG_DIMENSION);
                 return;
             }
 
@@ -102,8 +102,14 @@ public class PacketSweepAndAdvance {
             List<PmcUnitEntity> onFoot = new ArrayList<>();
             for (int unitId : this.unitIds) {
                 Entity e = player.level().getEntity(unitId);
-                if (!(e instanceof PmcUnitEntity pmc)) continue;
-                if (!OrderAuth.check(player, pmc, "PacketSweepAndAdvance")) continue;
+                if (!(e instanceof PmcUnitEntity pmc)) {
+                    OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
+                    continue;
+                }
+                if (!OrderAuth.check(player, pmc, "PacketSweepAndAdvance")) {
+                    OrderReport.fail(player, OrderFailure.NOT_OWNED);
+                    continue;
+                }
 
                 if (pmc.getVehicle() instanceof VehicleEntity v
                         && v.getFirstPassenger() == pmc
@@ -111,6 +117,10 @@ public class PacketSweepAndAdvance {
                     mounted.add(pmc);
                 } else if (!pmc.isPassenger()) {
                     onFoot.add(pmc);
+                } else {
+                    // A gunner drives nothing and cannot walk a sweep line; the aircrew of a
+                    // selected helicopter lands in the same branch, hence the hull wording.
+                    OrderReport.fail(player, OrderFailure.WRONG_HULL, pmc);
                 }
             }
 

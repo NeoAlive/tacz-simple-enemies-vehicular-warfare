@@ -14,6 +14,8 @@ import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 public class PacketDismountVehicle {
 
@@ -42,23 +44,31 @@ public class PacketDismountVehicle {
 
             // Ownership-check each unit individually so a spoofed packet can't
             // dismount another player's units by id.
-            if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
-                boolean wasMounted = pmc.getVehicle() != null;
-                if (wasMounted) {
-                    pmc.stopRiding();
-                }
-                IVehicleBoarder boarder = (IVehicleBoarder) pmc;
-                boarder.tacz_sewv$setBoarding(false);
-                boarder.tacz_sewv$setMountTargetId(-1);
-                // This key is the stand-down verb for every order, so it also frees any
-                // mortar the unit was holding — otherwise nothing else could ever be
-                // assigned to that tube — and cancels any standing patrol order.
-                MortarSupport.releaseClaim(pmc);
-                PatrolSupport.clearSweepMembership(pmc, "PacketDismountVehicle");
-                // Likewise any escort order — dismount stands a unit fully down.
-                ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
-                if (wasMounted) dismounted++;
+            if (!(e instanceof PmcUnitEntity pmc)) {
+                OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
+                continue;
             }
+            if (!pmc.isOwnedBy(player)) {
+                OrderReport.fail(player, OrderFailure.NOT_OWNED);
+                continue;
+            }
+            boolean wasMounted = pmc.getVehicle() != null;
+            if (wasMounted) {
+                pmc.stopRiding();
+            }
+            IVehicleBoarder boarder = (IVehicleBoarder) pmc;
+            boarder.tacz_sewv$setBoarding(false);
+            boarder.tacz_sewv$setMountTargetId(-1);
+            // This key is the stand-down verb for every order, so it also frees any
+            // mortar the unit was holding — otherwise nothing else could ever be
+            // assigned to that tube — and cancels any standing patrol order.
+            MortarSupport.releaseClaim(pmc);
+            PatrolSupport.clearSweepMembership(pmc, "PacketDismountVehicle");
+            // Likewise any escort order — dismount stands a unit fully down.
+            ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
+            // An on-foot unit is stood down all the same; it just has no seat to leave, so it is
+            // not counted and not reported as a refusal either.
+            if (wasMounted) dismounted++;
         }
 
         NetworkHandler.orderFeedback(player, "message.tacz_sewv.dismount", dismounted,

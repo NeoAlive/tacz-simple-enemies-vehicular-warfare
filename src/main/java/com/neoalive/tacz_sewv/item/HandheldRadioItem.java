@@ -65,7 +65,7 @@ public class HandheldRadioItem extends Item {
             if (target instanceof PmcUnitEntity) {
                 player.displayClientMessage(
                         Component.translatable("message.tacz_sewv.radio.friendly").withStyle(ChatFormatting.RED),
-                        true);
+                        false);
                 return InteractionResult.FAIL;
             }
             LivingEntity designated = target;
@@ -121,7 +121,7 @@ public class HandheldRadioItem extends Item {
     }
 
     private static void hint(Player player, String key, ChatFormatting style) {
-        player.displayClientMessage(Component.translatable(key).withStyle(style), true);
+        player.displayClientMessage(Component.translatable(key).withStyle(style), false);
     }
 
     @Override

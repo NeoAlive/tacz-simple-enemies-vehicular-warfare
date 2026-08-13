@@ -9,9 +9,12 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -23,12 +26,23 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneLeash;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
- * Player → server flight command for owned aircraft crews: takeoff, or land at a
- * looked-at block. Sets the {@link IHelicopterPilot} command that
+ * Player → server flight command for owned aircraft crews: takeoff, land at the nearest airport, or
+ * an emergency landing in whatever field is to hand. Sets the {@link IHelicopterPilot} command that
  * {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal} and
  * {@link DrivePlaneGoal} consume — the command set is aircraft-generic despite the name.
+ *
+ * <p><b>The two landing orders differ only in how the pad is chosen, and that choice is made here.</b>
+ * "Land at nearest airport" resolves a surveyed strip and <i>refuses the order</i> when there is
+ * none, which is the point of naming it that: the old "land here" silently degraded to a field
+ * arrival beside a runway the player thought they were sending the aircraft to. "Emergency land"
+ * <i>is</i> that field arrival, asked for deliberately — it runs the same flat-ground search the
+ * damaged-airframe path uses ({@link DrivePlaneGoal#findFieldPad}) and needs no airport, no
+ * clicked block and no surveyed anything. Both are written down as {@code HELI_CMD_LANDING}, so the
+ * flight goals are untouched by the split.
  */
 public class PacketHelicopterCommand {
 
@@ -69,6 +83,11 @@ public class PacketHelicopterCommand {
             if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
             if (com.neoalive.tacz_sewv.invasion.InvasionOrderGate.denyIfActive(sp)) return;
 
+            boolean emergency = this.command == IHelicopterPilot.HELI_CMD_EMERGENCY_LAND;
+            boolean landing = emergency || this.command == IHelicopterPilot.HELI_CMD_LANDING;
+            // Emergency land never reaches an entity as itself — see IHelicopterPilot.
+            int stored = emergency ? IHelicopterPilot.HELI_CMD_LANDING : this.command;
+
             int ordered = 0;
             for (int unitId : this.unitIds) {
                 Entity e = player.level().getEntity(unitId);
@@ -78,90 +97,147 @@ public class PacketHelicopterCommand {
                 // Only the unit at the stick (seat 0 of a helicopter) takes the order:
                 // gunners/passengers/ground units are not flight crews, and counting
                 // them reported one "helicopter" per crew member in the feedback.
-                if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)
-                        && pmc.getVehicle() instanceof VehicleEntity v) {
-                    if (v.getFirstPassenger() instanceof PmcUnitEntity driver && driver.isOwnedBy(player)) {
-                        pmc = driver;
+                if (!(e instanceof PmcUnitEntity pmc)) {
+                    OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
+                    continue;
+                }
+                if (!pmc.isOwnedBy(player)) {
+                    OrderReport.fail(player, OrderFailure.NOT_OWNED);
+                    continue;
+                }
+                if (!(pmc.getVehicle() instanceof VehicleEntity v)) {
+                    OrderReport.fail(player, OrderFailure.NOT_MOUNTED, pmc);
+                    continue;
+                }
+                if (v.getFirstPassenger() instanceof PmcUnitEntity driver && driver.isOwnedBy(player)) {
+                    pmc = driver;
+                }
+                // Every crew member of one aircraft is in this list, so a gunner or passenger
+                // reaching here is the normal case, not a failure worth a line of its own.
+                if (v.getFirstPassenger() != pmc) continue;
+                // Fixed-wing takes the same commands: IHelicopterPilot's NONE/TAKEOFF/LANDING/
+                // LANDED is aircraft-generic despite the name, and DrivePlaneGoal consumes it.
+                // This filter used to be rotary-wing only, which is why the TDT and map Land
+                // button silently did nothing to a plane.
+                boolean plane = HullFacts.isPlaneHull(v);
+                if (!plane && !HullFacts.isHelicopterHull(v)) {
+                    OrderReport.fail(player, OrderFailure.WRONG_HULL, pmc);
+                    continue;
+                }
+                if (!withinCommandRange(player, v, plane)) {
+                    OrderReport.fail(player, OrderFailure.OUT_OF_RANGE, pmc);
+                    continue;
+                }
+
+                // Resolve the pad BEFORE touching the pilot: a landing order with nowhere to go
+                // is cleared again by the flight goal on its next tick, which reads as a
+                // successful order that then quietly resumes the FOLLOW orbit. Refusing it here
+                // is what lets the feedback say so.
+                BlockPos pad = null;
+                AirportRegistry.Airport airport = null;
+                if (landing) {
+                    if (emergency) {
+                        pad = emergencyPad(sp.serverLevel(), v, plane);
+                    } else {
+                        airport = nearestAirport(sp.serverLevel(), v);
+                        if (airport != null) pad = airport.touchdown();
                     }
-                    if (v.getFirstPassenger() != pmc) continue;
-                    // Fixed-wing takes the same commands: IHelicopterPilot's NONE/TAKEOFF/LANDING/
-                    // LANDED is aircraft-generic despite the name, and DrivePlaneGoal consumes it.
-                    // This filter used to be rotary-wing only, which is why the TDT and map Land
-                    // button silently did nothing to a plane.
-                    boolean plane = HullFacts.isPlaneHull(v);
-                    if (!plane && !HullFacts.isHelicopterHull(v)) continue;
-                    if (!withinCommandRange(player, v, plane)) continue;
-                    AirportRegistry.Airport airport =
-                            plane ? nearestAirport(sp.serverLevel(), v) : null;
-                    // LANDING with nowhere to go is immediately cleared by the flight goal and
-                    // looks like a successful order that then resumes FOLLOW orbit. A plane with an
-                    // airport needs no clicked block at all.
-                    if (this.command == IHelicopterPilot.HELI_CMD_LANDING
-                            && this.landPos == null && airport == null) {
+                    if (pad == null) {
+                        OrderReport.fail(player,
+                                emergency ? OrderFailure.NO_PAD : OrderFailure.NO_AIRPORT, pmc);
                         continue;
                     }
-                    IHelicopterPilot pilot = (IHelicopterPilot) pmc;
-                    pilot.sewv$setHeliCommand(this.command);
-                    if (this.command == IHelicopterPilot.HELI_CMD_LANDING) {
-                        if (plane) {
-                            // The airport OUTRANKS the clicked block. The pilot's pad is what
-                            // DrivePlaneGoal.resolveLandPad reads first, so setting it to the click
-                            // and the heading to the strip flew the airport's approach onto
-                            // whatever the player happened to be looking at.
-                            BlockPos pad = airport != null ? airport.touchdown() : this.landPos;
-                            pilot.sewv$setHeliLandPos(pad);
-                            if (airport != null) {
-                                DrivePlaneGoal.setForcedLand(v, pad, airport.headingDeg());
-                            } else {
-                                DrivePlaneGoal.setForcedLand(v, pad);
-                            }
+                }
+
+                IHelicopterPilot pilot = (IHelicopterPilot) pmc;
+                pilot.sewv$setHeliCommand(stored);
+                if (landing) {
+                    pilot.sewv$setHeliLandPos(pad);
+                    if (plane) {
+                        // A surveyed strip also fixes the approach AXIS, which is the whole
+                        // difference between arriving on a runway and arriving across it. A
+                        // field pad has no axis, so the goal fans for one itself.
+                        if (airport != null) {
+                            DrivePlaneGoal.setForcedLand(v, pad, airport.headingDeg());
                         } else {
-                            pilot.sewv$setHeliLandPos(this.landPos);
-                            DriveHelicopterGoal.setForcedLand(v, this.landPos);
+                            DrivePlaneGoal.setForcedLand(v, pad);
                         }
                     } else {
-                        pilot.sewv$setHeliLandPos(null);
-                        if (plane) {
-                            DrivePlaneGoal.clearForcedLand(v);
-                        } else {
-                            DriveHelicopterGoal.clearForcedLand(v);
-                        }
+                        DriveHelicopterGoal.setForcedLand(v, pad);
                     }
-                    // Takeoff carries the live cruise trim; clamp to the flight band (never trust the
-                    // client) and store it on the pilot for DriveHelicopterGoal to read every tick.
-                    if (this.command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
-                        pilot.sewv$setCruiseAltitude(Mth.clamp(this.altitude, MIN_ALTITUDE, MAX_ALTITUDE));
-                        // Plane-only ack: helicopters stay on the generic ORDERS path (SEM packet)
-                        // and spawn/auto takeoffs never come through here.
-                        if (plane) {
-                            CrewRadio.play(v, CrewRadio.Line.TAKEOFF);
-                        }
+                } else {
+                    pilot.sewv$setHeliLandPos(null);
+                    if (plane) {
+                        DrivePlaneGoal.clearForcedLand(v);
+                    } else {
+                        DriveHelicopterGoal.clearForcedLand(v);
                     }
-                    ordered++;
                 }
+                // Takeoff carries the live cruise trim; clamp to the flight band (never trust the
+                // client) and store it on the pilot for DriveHelicopterGoal to read every tick.
+                if (this.command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
+                    pilot.sewv$setCruiseAltitude(Mth.clamp(this.altitude, MIN_ALTITUDE, MAX_ALTITUDE));
+                    // Plane-only ack: helicopters stay on the generic ORDERS path (SEM packet)
+                    // and spawn/auto takeoffs never come through here.
+                    if (plane) {
+                        CrewRadio.play(v, CrewRadio.Line.TAKEOFF);
+                    }
+                }
+                ordered++;
             }
 
-            NetworkHandler.orderFeedback(player,
-                    this.command == IHelicopterPilot.HELI_CMD_LANDING
-                            ? "message.tacz_sewv.heli.land" : "message.tacz_sewv.heli.takeoff",
-                    ordered, ChatFormatting.GREEN, ordered);
+            String base = emergency ? "message.tacz_sewv.heli.emergency_land"
+                    : landing ? "message.tacz_sewv.heli.land" : "message.tacz_sewv.heli.takeoff";
+            NetworkHandler.orderFeedback(player, base, ordered, ChatFormatting.GREEN, ordered);
         });
         ctx.get().setPacketHandled(true);
     }
 
     /**
-     * The strip a plane is being sent home to: nearest to the <b>aircraft</b>, not to whatever the
-     * player clicked. "Land" means "land at an airport" once one exists, and a runway is a fixed
-     * place the player already surveyed — asking them to also aim at it was the reason a plane put
-     * itself down in a field beside the strip.
-     *
-     * <p>The ordered point is still consulted as a fallback, so an install whose configured radius
-     * predates this (it used to be measured from the click, and defaulted to 128) keeps working
-     * when the player does click near the strip.
+     * Where an emergency landing puts the aircraft down. A plane needs a strip it can roll out on,
+     * which is exactly {@link DrivePlaneGoal#findFieldPad}; a helicopter needs nothing but ground
+     * that is not water, so asking it for 32 blocks of flat rollout would refuse pads it can
+     * obviously use. Both search around the <b>aircraft</b> — "nearby" means near the thing that is
+     * coming down, and this order carries no clicked point for exactly that reason.
      */
     @Nullable
-    private AirportRegistry.Airport nearestAirport(net.minecraft.server.level.ServerLevel level,
-                                                   VehicleEntity v) {
+    private static BlockPos emergencyPad(ServerLevel level, VehicleEntity v, boolean plane) {
+        if (plane) {
+            return DrivePlaneGoal.findFieldPad(v, Vec3.directionFromRotation(0.0F, v.getYRot()));
+        }
+        int bx = v.getBlockX();
+        int bz = v.getBlockZ();
+        for (int r = 0; r <= 24; r += 4) {
+            for (int dx = -r; dx <= r; dx += 4) {
+                for (int dz = -r; dz <= r; dz += 4) {
+                    if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r) continue;
+                    int x = bx + dx;
+                    int z = bz + dz;
+                    int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                    if (y <= level.getMinBuildHeight()) continue;
+                    BlockPos pad = new BlockPos(x, y, z);
+                    if (level.getFluidState(pad).isEmpty()) return pad;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The strip an aircraft is being sent home to: nearest to the <b>aircraft</b>, not to whatever
+     * the player clicked. A runway is a fixed place the player already surveyed — asking them to
+     * also aim at it was the reason a plane put itself down in a field beside the strip.
+     *
+     * <p>The ordered point is still consulted as a fallback, so clicking near a distant strip on the
+     * map sends the aircraft to <i>that</i> one rather than to the one nearest its current position.
+     *
+     * <p>Helicopters go through this too. They cannot use a runway's slots or its glideslope, but a
+     * cleared strip is still the one piece of guaranteed-flat, guaranteed-empty ground the player
+     * has told the game about, so it is the right answer to "land at the nearest airport" for
+     * anything that flies.
+     */
+    @Nullable
+    private AirportRegistry.Airport nearestAirport(ServerLevel level, VehicleEntity v) {
         double radius = SewvConfig.AIRPORT_LANDING_SEARCH_RADIUS.get();
         AirportRegistry registry = AirportRegistry.get(level);
         AirportRegistry.Airport airport = registry.nearest(v.blockPosition(), radius);

@@ -7,12 +7,10 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
@@ -44,6 +42,8 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
@@ -1026,11 +1026,8 @@ public class DrivePlaneGoal extends Goal {
         this.takeoffDirZ = Double.NaN;
         if (this.unit instanceof PmcUnitEntity pmc) {
             UUID owner = pmc.getOwnerUUID();
-            Player p = owner != null ? this.unit.level().getPlayerByUUID(owner) : null;
-            if (p != null) {
-                p.displayClientMessage(
-                        Component.translatable("message.tacz_sewv.plane.takeoff.no_runway"), true);
-            }
+            OrderReport.fail(owner != null ? this.unit.level().getPlayerByUUID(owner) : null,
+                    OrderFailure.NO_RUNWAY, this.unit);
         }
     }
 
@@ -2241,16 +2238,30 @@ public class DrivePlaneGoal extends Goal {
         setForcedLand(this.vehicle, pad);
     }
 
-    /**
-     * Flat-enough strip for an emergency arrival. Scored along the bearing the aircraft would
-     * actually approach on rather than the one it happens to be pointing, since a pad that is only
-     * flat crosswind is a pad it cannot land on.
-     */
     @Nullable
     private BlockPos pickEmergencyPad() {
-        Level level = this.unit.level();
-        int bx = this.vehicle.getBlockX();
-        int bz = this.vehicle.getBlockZ();
+        return findFieldPad(this.vehicle, this.kinematics.forwardFlat());
+    }
+
+    /**
+     * Flat-enough strip for an arrival with no airport in it. Scored along the bearing the aircraft
+     * would actually approach on rather than the one it happens to be pointing, since a pad that is
+     * only flat crosswind is a pad it cannot land on.
+     *
+     * <p>Static and public because the player's Emergency Land order needs exactly this answer
+     * before any goal has run — {@link com.neoalive.tacz_sewv.network.PacketHelicopterCommand} has
+     * to write a pad down at the moment the order arrives, and the aircraft it is writing it for may
+     * well be in the middle of an attack run. It is the same search the damaged-airframe path takes,
+     * deliberately: "less strict than an airport" is one standard, not two.
+     *
+     * @param fallbackForward bearing to score against when the pad is directly underneath, where
+     *                        the approach vector degenerates.
+     */
+    @Nullable
+    public static BlockPos findFieldPad(VehicleEntity vehicle, Vec3 fallbackForward) {
+        Level level = vehicle.level();
+        int bx = vehicle.getBlockX();
+        int bz = vehicle.getBlockZ();
         for (int r = 0; r <= 48; r += 4) {
             for (int dx = -r; dx <= r; dx += 4) {
                 for (int dz = -r; dz <= r; dz += 4) {
@@ -2261,19 +2272,20 @@ public class DrivePlaneGoal extends Goal {
                     if (y <= level.getMinBuildHeight()) continue;
                     BlockPos pad = new BlockPos(x, y, z);
                     if (!level.getFluidState(pad).isEmpty()) continue;
-                    if (fieldClearOnApproach(pad)) return pad;
+                    if (fieldClearOnApproach(vehicle, pad, fallbackForward)) return pad;
                 }
             }
         }
         return null;
     }
 
-    private boolean fieldClearOnApproach(BlockPos pad) {
-        double ax = pad.getX() + 0.5 - this.vehicle.getX();
-        double az = pad.getZ() + 0.5 - this.vehicle.getZ();
+    private static boolean fieldClearOnApproach(VehicleEntity vehicle, BlockPos pad,
+                                                Vec3 fallbackForward) {
+        double ax = pad.getX() + 0.5 - vehicle.getX();
+        double az = pad.getZ() + 0.5 - vehicle.getZ();
         Vec3 approach = (ax * ax + az * az) > 1.0E-4
-                ? new Vec3(ax, 0, az).normalize() : this.kinematics.forwardFlat();
-        Level level = this.unit.level();
+                ? new Vec3(ax, 0, az).normalize() : fallbackForward;
+        Level level = vehicle.level();
         int base = pad.getY();
         // The roll-out beyond the touchdown point has to be flat too, or the aircraft lands into
         // the side of something.

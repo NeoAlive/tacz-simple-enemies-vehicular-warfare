@@ -183,7 +183,7 @@ public final class OrderPreview {
     private static void hint(String key, Object... args) {
         Player player = Minecraft.getInstance().player;
         if (player != null) {
-            player.displayClientMessage(Component.translatable(key, args).withStyle(ChatFormatting.GREEN), true);
+            player.displayClientMessage(Component.translatable(key, args).withStyle(ChatFormatting.GREEN), false);
         }
     }
 }

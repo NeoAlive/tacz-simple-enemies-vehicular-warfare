@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.network;
 import java.util.List;
 import java.util.function.Supplier;
 
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.Entity;
@@ -13,6 +14,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
+import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderReport;
 
 public class PacketBoardVehicle {
 
@@ -43,40 +46,48 @@ public class PacketBoardVehicle {
         Player player = ctx.get().getSender();
         if (player == null) return;
 
+        Entity hull = player.level().getEntity(this.vehicleId);
+        if (!(hull instanceof VehicleEntity vehicle) || !vehicle.isAlive()) {
+            OrderReport.fail(player, OrderFailure.VEHICLE_GONE);
+            return;
+        }
+
         int ordered = 0;
-        int mortarSkipped = 0;
         for (int unitId : this.unitIds) {
             Entity e = player.level().getEntity(unitId);
-            if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player)) {
-                // A board order goes out to every owned unit in range, so leave crews that
-                // are already committed to a mortar out of it — otherwise pressing this at
-                // a vehicle silently pulls a working mortar team off its tube, including
-                // the units that would only walk over and bounce off a full hull anyway.
-                // Stand a crew down with the dismount key first to free it up.
-                if (MortarSupport.hasMortarClaim(pmc)) {
-                    mortarSkipped++;
-                    continue;
-                }
-
-                IVehicleBoarder boarder = (IVehicleBoarder) pmc;
-                boarder.tacz_sewv$setMountTargetId(this.vehicleId);
-                boarder.tacz_sewv$setPassengerOnly(this.passengerOnly);
-                boarder.tacz_sewv$setBoarding(true);
-                // Board and escort both drive the unit on foot at goal priority 1 — a unit can't do
-                // both. Boarding wins the moment it's ordered.
-                ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
-                ordered++;
+            if (!(e instanceof PmcUnitEntity pmc)) {
+                OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
+                continue;
             }
+            if (!pmc.isOwnedBy(player)) {
+                OrderReport.fail(player, OrderFailure.NOT_OWNED);
+                continue;
+            }
+            // A board order goes out to every owned unit in range, so leave crews that
+            // are already committed to a mortar out of it — otherwise pressing this at
+            // a vehicle silently pulls a working mortar team off its tube, including
+            // the units that would only walk over and bounce off a full hull anyway.
+            // Stand a crew down with the dismount key first to free it up.
+            if (MortarSupport.hasMortarClaim(pmc)) {
+                OrderReport.fail(player, OrderFailure.BUSY_MORTAR, pmc);
+                continue;
+            }
+
+            IVehicleBoarder boarder = (IVehicleBoarder) pmc;
+            boarder.tacz_sewv$setMountTargetId(this.vehicleId);
+            boarder.tacz_sewv$setPassengerOnly(this.passengerOnly);
+            boarder.tacz_sewv$setBoarding(true);
+            // Board and escort both drive the unit on foot at goal priority 1 — a unit can't do
+            // both. Boarding wins the moment it's ordered.
+            ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
+            ordered++;
         }
 
-        if (ordered == 0 && mortarSkipped > 0) {
-            NetworkHandler.sendOrderFeedback(player,
-                    net.minecraft.network.chat.Component.translatable("message.tacz_sewv.board.mortar_busy")
-                            .withStyle(ChatFormatting.GRAY));
-        } else {
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.board.ordered", ordered,
-                    ChatFormatting.GREEN, ordered);
-        }
+        // The ".none" this emits at zero is suppressed by OrderReport whenever one of the refusals
+        // above already said something more specific — which is why the old bespoke "busy on a
+        // mortar" branch is gone rather than moved.
+        NetworkHandler.orderFeedback(player, "message.tacz_sewv.board.ordered", ordered,
+                ChatFormatting.GREEN, ordered);
     });
     ctx.get().setPacketHandled(true);
 }

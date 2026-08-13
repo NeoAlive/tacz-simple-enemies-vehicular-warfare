@@ -267,13 +267,23 @@ public final class FireMissionSupport {
      * One PMC radio ack for the kinds that answered. Single-kind calls map 1:1
      * (mortar→pmc_mortar, CAS→pmc_cas, TOW→pmc_tow); a mixed answer picks one of those pools
      * at random — never a generic line.
+     *
+     * <p>When the call named ordnance, the CAS ack becomes the line for <b>that</b> ordnance —
+     * a substitution, not an addition, because two voice clips played at once are just noise and
+     * "bombing run" already says everything "aircraft inbound" would. {@code AUTO} keeps the plain
+     * CAS line: it picks a weapon per target, so there is no single thing to announce.
      */
     @Nullable
-    public static SoundEvent ackFor(Set<Kind> triggered) {
+    public static SoundEvent ackFor(Set<Kind> triggered, PlaneAttackMode mode) {
         List<SoundPool> pools = new ArrayList<>(3);
         if (triggered.contains(Kind.MORTAR)) pools.add(ModSounds.PMC_MORTAR);
         if (triggered.contains(Kind.TOW)) pools.add(ModSounds.PMC_TOW);
-        if (triggered.contains(Kind.CAS)) pools.add(ModSounds.PMC_CAS);
+        if (triggered.contains(Kind.CAS)) pools.add(switch (mode) {
+            case BOMB -> ModSounds.PMC_BOMBING;
+            case CANNON -> ModSounds.PMC_CANNON;
+            case GUIDED -> ModSounds.PMC_ATS;
+            case AUTO -> ModSounds.PMC_CAS;
+        });
         // Indirect fires share the mortar ack — area fires, not direct-support lines.
         if ((triggered.contains(Kind.MISSILE_SYSTEM) || triggered.contains(Kind.ARTILLERY))
                 && !triggered.contains(Kind.MORTAR)) {
@@ -319,6 +329,24 @@ public final class FireMissionSupport {
             released++;
         }
         return released;
+    }
+
+    /**
+     * True when crews would answer this call but not one of them can see the target — the case
+     * worth refusing, because a direct-fire crew given a target behind a hill sits doing nothing.
+     *
+     * <p>Deliberately answers <b>false</b> when no crew is in range at all: that is a different
+     * failure with its own message, and reporting it as "obstructed" would send the player looking
+     * for cover that is not the problem.
+     */
+    public static boolean noCrewCanSee(Level level, @Nullable CrewFacts.Faction faction, @Nullable UUID owner,
+                                       Vec3 origin, double range, Set<Kind> kinds, LivingEntity target) {
+        boolean any = false;
+        for (SupportCrew crew : supportInRange(level, faction, owner, origin, range, kinds)) {
+            if (crew.unit.hasLineOfSight(target)) return false;
+            any = true;
+        }
+        return any;
     }
 
     private static List<SupportCrew> supportInRange(Level level, CrewFacts.Faction faction, UUID owner,

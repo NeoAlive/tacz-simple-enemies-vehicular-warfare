@@ -99,6 +99,12 @@ public class SewvCommand {
                                 .executes(ctx -> openPoolEditor(ctx.getSource())))
                         .then(Commands.literal("misc")
                                 .executes(ctx -> openMiscEditor(ctx.getSource()))))
+                .then(Commands.literal("targetPriority")
+                        .requires(source -> source.hasPermission(2))
+                        .executes(ctx -> openTargetPriority(ctx.getSource())))
+                .then(Commands.literal("targeting")
+                        .requires(source -> source.hasPermission(2))
+                        .executes(ctx -> openTargetPriority(ctx.getSource())))
                 .then(Commands.literal("debug")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("rappel")
@@ -270,6 +276,14 @@ public class SewvCommand {
             return 0;
         }
         return com.neoalive.tacz_sewv.invasion.MiscEditorAccess.open(player);
+    }
+
+    private static int openTargetPriority(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.pool.player_only"));
+            return 0;
+        }
+        return com.neoalive.tacz_sewv.util.TargetPriorityAccess.open(player);
     }
 
     private static CompletableFuture<Suggestions> suggestOpenPacFactions(

@@ -661,7 +661,10 @@ public final class TankSpawner {
                     for (AmmoConsumer c : consumers) {
                         if (c == null) continue;
                         ItemStack stack = c.stack();
-                        if (!stack.isEmpty() && !ammo.contains(stack.getItem())) ammo.add(stack.getItem());
+                        if (stack.isEmpty()) continue;
+                        ResourceLocation key = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                        if (key != null && AshAmmoCompat.isBannedMunition(key.toString())) continue;
+                        if (!ammo.contains(stack.getItem())) ammo.add(stack.getItem());
                     }
                 } catch (Exception ignored) {
                     // exotic/modded weapon data — skip this slot, keep spawning

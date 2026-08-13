@@ -439,5 +439,11 @@
   "gui.tacz_sewv.airport.status.too_large": "Footprint %d exceeds the %d block limit.",
   "gui.tacz_sewv.airport.status.obstructed": "Blocked at %d, %d, %d.",
   "gui.tacz_sewv.airport.status.not_pooled": "That aircraft is not in the PMC plane pool.",
-  "message.tacz_sewv.airport.marshalled": "%d aircraft marshalled into parking slots."
+  "message.tacz_sewv.airport.marshalled": "%d aircraft marshalled into parking slots.",
+  "gui.tacz_sewv.target_priority.title": "Faction Target Priority",
+  "gui.tacz_sewv.target_priority.allowed": "Allowed",
+  "gui.tacz_sewv.target_priority.excluded": "Excluded",
+  "gui.tacz_sewv.target_priority.reset": "Reset defaults",
+  "gui.tacz_sewv.target_priority.hint": "Excluded categories are never acquired. Troops and players keep faction rules.",
+  "message.tacz_sewv.target_priority.saved": "Target priority saved for this world."
 }

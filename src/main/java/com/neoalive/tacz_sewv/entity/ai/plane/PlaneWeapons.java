@@ -16,6 +16,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.compat.AshAmmoCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
@@ -244,7 +245,10 @@ public final class PlaneWeapons {
             for (int w = 0; w < count; w++) {
                 if (!VehicleWeapons.isRealWeapon(this.vehicle, seat, w)) continue;
                 String raw = this.vehicle.getGunName(seat, w);
-                String signature = signature(raw, ammoId(seat, w));
+                String ammo = ammoId(seat, w);
+                if (AshAmmoCompat.isBannedMunition(raw) || AshAmmoCompat.isBannedMunition(ammo)) continue;
+                String signature = signature(raw, ammo);
+                if (AshAmmoCompat.isBannedMunition(signature)) continue;
                 Kind kind = classify(level, signature);
                 this.weapons.add(new Weapon(w, kind, raw));
                 SewvDiag.plane("slot {} '{}' [{}] -> {}", w, raw, signature, kind);

@@ -27,6 +27,7 @@ run-client-a/
 run-client-b/
 logs/
 run-server-dev/
+run-modded/
 
 # Accidental decompiled / extracted classes
 net/
@@ -42,3 +43,6 @@ classes/
 libs/*.jar
 libmods/.git_backup/
 libmods/
+
+# Average-modpack jars for ./gradlew runModded (synced from Prism via syncModpack)
+modpack/

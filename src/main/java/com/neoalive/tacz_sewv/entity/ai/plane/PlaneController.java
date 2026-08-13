@@ -71,25 +71,58 @@ public final class PlaneController {
     }
 
     /**
-     * Air brake. This is the only speed control worth having on an SBW aircraft, and the reason is
-     * that it is entirely <b>multiplicative</b>: holding {@code downInput} makes the engine read
-     * {@code resistance * 1.5} instead of {@code resistance} and decay {@code power * 0.97} each
-     * tick. Both terms are the hull's own datapack numbers, so a heavy bomber and a light jet each
-     * shed a proportion of their own speed and settle at their own lower equilibrium against drag.
-     * No block-per-tick figure appears anywhere, which is what makes it safe against a datapack
-     * that retunes an airframe or adds one this mod has never seen.
+     * Brake ticks out of every {@link #BRAKE_PERIOD}, for {@link #airbrakeDuty}.
      *
-     * <p>It is also nearly free in control terms. SBW scales yaw by airspeed
-     * ({@code 0.24 * speed * stick}) but then clamps it to a roll-dependent ceiling that any
-     * cruising speed already saturates, and it scales pitch by {@code clamp(v·nose - 0.24, 0.1,
-     * 0.2)}, which is at its maximum for anything above 0.44 blocks/tick. So slowing an aircraft
-     * down buys time without costing it the authority to use that time — the trade only turns bad
-     * near walking pace, which is what the caller's speed gate is for.
+     * <p>The two numbers are read straight off the arithmetic below. With the throttle open every
+     * tick and the brake held on one tick in {@code P}, the power setting settles where
+     * {@code p = (p + P * 0.006 * increment) * 0.97}, i.e. at {@code 0.194 * P * increment}. So
+     * {@code P = 1} (the brake simply held) pins an aircraft at <b>19%</b> of its own throttle,
+     * {@code P = 3} at 58%, and {@code P = 4} at <b>78%</b>. Four is the value here because the
+     * failure it is guarding against is an aircraft that cannot hold altitude, and losing a fifth
+     * of the thrust is a margin an unknown airframe can absorb where losing four fifths is not.
+     */
+    private static final int BRAKE_PERIOD = 4;
+
+    private static final int BRAKE_ON_TICKS = 1;
+
+    /**
+     * Air brake, held. Two things happen while {@code downInput} is down, and only the first is
+     * the one this was wanted for: the engine reads {@code resistance * 1.5} instead of
+     * {@code resistance}, and it decays {@code power *= 0.97} <b>every tick</b>.
+     *
+     * <p>Those two are not the same order of magnitude, and the second is the one that bites. Drag
+     * is {@code 0.96 - 0.0017 * resistance * speed^2}, so at the 1-3 blocks/tick these aircraft
+     * actually fly the extra half of a default resistance of 1 is worth a few thousandths per tick
+     * — nothing. The power decay is geometric and the throttle only answers it linearly
+     * ({@code +0.006 * increment}), so holding the brake does not slow an aircraft so much as
+     * <b>strangle its engine</b>, and where it settles is a property of SBW's constants rather
+     * than of the airframe. An A-10 flies on a fifth of its thrust; a jet with a smaller wing
+     * mushes, sinks, and is pitched up by the altitude loop into sinking faster.
+     *
+     * <p>So this form is for the cases that genuinely want the engine held down — the final
+     * approach and the flare, where the wing is done working and arriving fast is the failure.
+     * Anything still flying wants {@link #airbrakeDuty}.
      *
      * <p>Latched, like every SBW input: {@link #throttleUp()} is what releases it again.
      */
     public void airbrake(boolean on) {
         this.vehicle.setDownInputDown(on);
+    }
+
+    /**
+     * Air brake as a duty cycle, for an aircraft that still has to fly afterwards.
+     *
+     * <p>Same trick as {@link #throttleDuty} and the ship goal's turn duty, and for the same
+     * reason: SBW's brake is a boolean, so "less brake" can only be spelled as less often. Pulsing
+     * it keeps the parts that were wanted — the resistance boost lands on the ticks it is held,
+     * and {@code PLANE_BREAK} (the flaps) decays at 0.8/tick from a +10 step, so a quarter duty
+     * settles them partly deployed rather than at the 60 cap — while leaving the power setting
+     * near enough to open that the aircraft can still hold its altitude. See {@link #BRAKE_PERIOD}
+     * for the arithmetic.
+     */
+    public void airbrakeDuty(long gameTime, boolean want) {
+        this.vehicle.setDownInputDown(
+                want && Math.floorMod(gameTime, BRAKE_PERIOD) < BRAKE_ON_TICKS);
     }
 
     /** Throttle closed and braking: only correct in the flare, where the wing is done working. */

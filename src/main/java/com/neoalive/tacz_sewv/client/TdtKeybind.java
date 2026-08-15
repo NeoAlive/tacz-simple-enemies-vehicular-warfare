@@ -69,6 +69,7 @@ public final class TdtKeybind {
             event.register(OPEN_TDT);
             event.register(MapMarkersKeybind.TOGGLE_MAP_MARKERS);
             event.register(BoardMyVehicleKeybind.BOARD_MY_VEHICLE);
+            event.register(RadioZoom.ZOOM);
         }
     }
 

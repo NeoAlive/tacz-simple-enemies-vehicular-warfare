@@ -156,6 +156,7 @@ public class HandheldRadioItem extends Item {
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.use").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.standdown").withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.zoom").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.unit").withStyle(ChatFormatting.GRAY));
         // Search-tree rebuild can call this before COMMON config is baked; .get() throws then.
         double range = SewvConfig.SPEC.isLoaded()

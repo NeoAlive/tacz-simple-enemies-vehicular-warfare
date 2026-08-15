@@ -79,4 +79,9 @@ public class ModItems {
             ITEMS.register("us_combat_engineer_spawn_egg",
                     () -> new ForgeSpawnEggItem(ModEntities.US_COMBAT_ENGINEER, 0x7a7250, 0x8b4513,
                             new Item.Properties()));
+    /** Debug/testing only — the Commander never appears in a random faction spawn pool. */
+    public static final RegistryObject<Item> PMC_COMMANDER_SPAWN_EGG =
+            ITEMS.register("pmc_commander_spawn_egg",
+                    () -> new ForgeSpawnEggItem(ModEntities.PMC_COMMANDER, 0x2b2b2b, 0xffd700,
+                            new Item.Properties()));
 }

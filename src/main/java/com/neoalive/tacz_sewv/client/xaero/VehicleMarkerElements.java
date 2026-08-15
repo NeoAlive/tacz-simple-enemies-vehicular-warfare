@@ -167,6 +167,8 @@ public final class VehicleMarkerElements {
             drawCommandDebug(guiGraphics, marker);
             drawPlayRoleTag(guiGraphics, marker);
             drawPmcVitals(guiGraphics, marker);
+            drawPlatoonBar(guiGraphics, marker);
+            drawCommanderBadge(guiGraphics, marker);
 
             pose.popPose();
             return true;
@@ -195,6 +197,34 @@ public final class VehicleMarkerElements {
                 guiGraphics.drawString(mc.font, gid, -gw / 2, -HIT_BOX - mc.font.lineHeight - 1,
                         0xFFCCCCCC, false);
             }
+        }
+
+        /**
+         * Platoon colour bar, centred just above the icon — owner-only (the server already zeroes
+         * this field on anything but an {@code OWN} marker), always on, no debug gate. Kept clear of
+         * the debug group-id label above it (rarely coexists — that label needs the debug flag on).
+         */
+        private void drawPlatoonBar(GuiGraphics guiGraphics, VehicleMarker marker) {
+            if (marker.platoonColorRgb() == 0) return;
+            int color = 0xFF000000 | marker.platoonColorRgb();
+            int barLeft = -BAR_W / 2;
+            int y = -HIT_BOX - BAR_H - 2;
+            guiGraphics.fill(barLeft - 1, y - 1, barLeft + BAR_W + 1, y + BAR_H + 1, 0xFF000000);
+            guiGraphics.fill(barLeft, y, barLeft + BAR_W, y + BAR_H, color);
+        }
+
+        /**
+         * Always-on ★ top-left for a {@code PmcCommanderEntity} — entity identity, not the debug-only
+         * "currently elected {@code BattleGroup} commander" star {@link #drawCommandDebug} already
+         * draws top-right (a different, narrower, still debug-gated condition kept intentionally
+         * separate; see the Commander/Platoon feature notes).
+         */
+        private void drawCommanderBadge(GuiGraphics guiGraphics, VehicleMarker marker) {
+            if (!marker.isCommanderUnit()) return;
+            Minecraft mc = Minecraft.getInstance();
+            String glyph = "★";
+            int color = marker.platoonColorRgb() != 0 ? (0xFF000000 | marker.platoonColorRgb()) : 0xFFFFD700;
+            guiGraphics.drawString(mc.font, glyph, -HIT_BOX, -HIT_BOX - 1, color, false);
         }
 
         /**
@@ -235,7 +265,7 @@ public final class VehicleMarkerElements {
         private void drawPmcVitals(GuiGraphics guiGraphics, VehicleMarker marker) {
             if (marker.faction() != CrewFacts.Faction.PMC) return;
             // Vehicles only — on-foot PMC markers stay clean.
-            if (isInfantryKind(marker.kind())) return;
+            if (marker.kind().isInfantry()) return;
             boolean health = ClientConfig.MAP_SHOW_HEALTH_BAR.get();
             boolean energy = ClientConfig.MAP_SHOW_ENERGY_BAR.get()
                     && marker.energyFrac() >= 0.0F;
@@ -252,12 +282,6 @@ public final class VehicleMarkerElements {
                 drawVitalBar(guiGraphics, mc, "⚡", marker.energyFrac(),
                         barColor(marker.energyFrac(), false), y);
             }
-        }
-
-        private static boolean isInfantryKind(VehicleMarker.Kind kind) {
-            return kind == VehicleMarker.Kind.INFANTRY
-                    || kind == VehicleMarker.Kind.INFANTRY_MEDIC
-                    || kind == VehicleMarker.Kind.INFANTRY_ENGINEER;
         }
 
         private void drawVitalBar(GuiGraphics guiGraphics, Minecraft mc, String glyph,

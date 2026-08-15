@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
@@ -15,6 +17,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 
 // RUunitEntity/USunitEntity extend AbstractUnit directly (siblings of PmcUnitEntity, not
@@ -51,6 +54,12 @@ public abstract class MixinFactionUnitEntity
     @Unique
     private boolean tacz_sewv$passengerOnly = false;
 
+    // Never set true for RU/US — passenger-only is a player-issued order and these units have no
+    // order queue a player command could arrive through — but the interface has no default methods,
+    // so every implementor needs the field regardless.
+    @Unique
+    private boolean tacz_sewv$boardCleared = false;
+
     @Unique
     private int tacz_sewv$mortarTargetId = IMortarCrew.NO_MORTAR;
 
@@ -85,6 +94,16 @@ public abstract class MixinFactionUnitEntity
     }
 
     @Override
+    public void tacz_sewv$setBoardCleared(boolean cleared) {
+        this.tacz_sewv$boardCleared = cleared;
+    }
+
+    @Override
+    public boolean tacz_sewv$isBoardCleared() {
+        return this.tacz_sewv$boardCleared;
+    }
+
+    @Override
     public void sewv$setMortarTargetId(int id) {
         this.tacz_sewv$mortarTargetId = id;
     }
@@ -96,6 +115,23 @@ public abstract class MixinFactionUnitEntity
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
     private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
-        VehicleAiGoals.addDriveGoals((AbstractUnit) (Object) this);
+        AbstractUnit self = (AbstractUnit) (Object) this;
+        VehicleAiGoals.addDriveGoals(self);
+
+        // SEM's own plain HurtByTargetGoal (RU/US retaliation, priority 1) never excludes a
+        // same-faction attacker — see MixinPmcUnitEntity's identical fix for the PMC side and
+        // NoFriendlyHurtByTargetGoal's doc for why this is more than a log-spam fix. Players are
+        // deliberately still valid retaliation targets here, matching SEM's own RU/US behaviour —
+        // only PMC's original excluded them.
+        Mob mob = (Mob) self;
+        mob.targetSelector.removeAllGoals(g -> g.getClass() == HurtByTargetGoal.class);
+        NoFriendlyHurtByTargetGoal retaliate = new NoFriendlyHurtByTargetGoal(self, false);
+        if (self instanceof USunitEntity) {
+            retaliate.setAlertOthers(USunitEntity.class);
+        } else {
+            retaliate.setAlertOthers();
+        }
+        retaliate.setUnseenMemoryTicks(600);
+        mob.targetSelector.addGoal(1, retaliate);
     }
 }

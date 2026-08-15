@@ -13,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.entity.ai.support.CommanderSeating;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -134,19 +135,23 @@ public class BoardVehicleGoal extends Goal {
         boolean navStuck = this.unit.getNavigation().isDone() && distSq <= NAV_STUCK_DISTANCE_SQ;
 
         if (distSq <= MOUNT_DISTANCE * MOUNT_DISTANCE || navStuck) {
-            // Passenger-only order: never take the wheel. SBW's driver is just the FIRST
-            // passenger, so boarding an empty hull would make this unit the driver. Wait beside
-            // it until someone else is aboard; MAX_BOARDING_TICKS bounds the wait.
-            if (boarder().tacz_sewv$isPassengerOnly() && this.targetVehicle.getFirstPassenger() == null) {
+            // Passenger-only order: never take the wheel, and never board ahead of the player.
+            // SBW's driver is just the FIRST passenger, so boarding an empty hull would make this
+            // unit the driver. Wait beside it until the owning player presses "board my vehicle"
+            // from a seat in THIS hull (PacketClearBoarding) — giving them first pick of seat —
+            // and only then pile in; MAX_BOARDING_TICKS still bounds the wait.
+            if (boarder().tacz_sewv$isPassengerOnly() && !boarder().tacz_sewv$isBoardCleared()) {
                 return;
             }
             // A refused mount (seat raced away, another mod cancelled it) keeps the order:
             // the full-vehicle check above and the timeout still bound the retries.
+            CommanderSeating.install(this.targetVehicle);
             if (this.unit.startRiding(this.targetVehicle)) {
                 // Clear the order so it doesn't loop, or re-board after a dismount.
                 boarder().tacz_sewv$setBoarding(false);
                 boarder().tacz_sewv$setMountTargetId(-1);
                 boarder().tacz_sewv$setPassengerOnly(false);
+                boarder().tacz_sewv$setBoardCleared(false);
                 this.unit.getNavigation().stop();
                 TankSpawner.maybeStockFactionBoardAmmo(this.targetVehicle, this.unit);
             }
@@ -169,6 +174,7 @@ public class BoardVehicleGoal extends Goal {
         boarder().tacz_sewv$setBoarding(false);
         boarder().tacz_sewv$setMountTargetId(-1);
         boarder().tacz_sewv$setPassengerOnly(false);
+        boarder().tacz_sewv$setBoardCleared(false);
         this.targetVehicle = null;
         notifyOwner(reason);
     }

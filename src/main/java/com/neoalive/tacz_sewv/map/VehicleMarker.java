@@ -29,7 +29,11 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
                             /** 0 = client uses config colour; else 0xRRGGBB from OpenPAC (server). */
                             int tintRgb,
                             /** Hull has a cached GUARD_POSITION (OWN markers only matter for greying). */
-                            boolean hasGuard) {
+                            boolean hasGuard,
+                            /** 0xRRGGBB platoon colour, 0 = not in a platoon. OWN markers only. */
+                            int platoonColorRgb,
+                            /** Driver is a {@code PmcCommanderEntity}. OWN markers only. */
+                            boolean isCommanderUnit) {
 
     /** Sentinel: hull has no energy storage — do not draw an energy bar. */
     public static final float NO_ENERGY = -1.0F;
@@ -105,7 +109,10 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
         /** ASH Gepard/Pantsir-style AA. Reuses armor art until a dedicated symbol ships. */
         ANTI_AIR("armor"),
         /** Self-propelled / bindable artillery. Reuses emplacement art. */
-        ARTILLERY("emplacement");
+        ARTILLERY("emplacement"),
+        INFANTRY_COMMANDER("infantry_commander"),
+        INFANTRY_COMBAT_ENGINEER("infantry_combat_engineer"),
+        DRONE("drone");
 
         private static final Kind[] VALUES = values();
         private final String texture;
@@ -116,6 +123,11 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
 
         public String textureName() {
             return this.texture;
+        }
+
+        public boolean isInfantry() {
+            return this == INFANTRY || this == INFANTRY_MEDIC || this == INFANTRY_ENGINEER
+                    || this == INFANTRY_COMMANDER || this == INFANTRY_COMBAT_ENGINEER;
         }
 
         public static Kind byId(int id) {

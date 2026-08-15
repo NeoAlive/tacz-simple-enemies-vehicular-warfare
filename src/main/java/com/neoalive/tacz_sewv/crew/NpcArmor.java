@@ -18,6 +18,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
 
@@ -32,6 +33,9 @@ public final class NpcArmor {
 
     public static void issue(AbstractUnit unit) {
         if (!SewvConfig.NPC_ARMOR_ENABLED.get()) return;
+        // The Commander's own skin/beret is its uniform — a chest rig drawn over it would make it
+        // read as an ordinary rifleman again, the same reason support units get helmet-only below.
+        if (unit instanceof PmcCommanderEntity) return;
 
         CompoundTag data = unit.getPersistentData();
         if (data.getBoolean(ISSUED)) return;

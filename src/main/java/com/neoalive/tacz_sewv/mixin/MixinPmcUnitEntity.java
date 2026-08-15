@@ -7,6 +7,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
+import net.nekoyuni.SimpleEnemyMod.entity.ai.goals.NoPlayerHurtByTargetGoal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -31,6 +32,8 @@ import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.FollowCommanderGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MoveToPositionGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.PlatoonCohesionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcCombatDebugGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
@@ -80,6 +83,9 @@ public abstract class MixinPmcUnitEntity
     private boolean tacz_sewv$passengerOnly = false;
 
     @Unique
+    private boolean tacz_sewv$boardCleared = false;
+
+    @Unique
     private int tacz_sewv$mortarTargetId = IMortarCrew.NO_MORTAR;
 
     /**
@@ -118,6 +124,16 @@ public abstract class MixinPmcUnitEntity
     @Override
     public boolean tacz_sewv$isPassengerOnly() {
         return this.tacz_sewv$passengerOnly;
+    }
+
+    @Override
+    public void tacz_sewv$setBoardCleared(boolean cleared) {
+        this.tacz_sewv$boardCleared = cleared;
+    }
+
+    @Override
+    public boolean tacz_sewv$isBoardCleared() {
+        return this.tacz_sewv$boardCleared;
     }
 
     @Override
@@ -237,6 +253,9 @@ public abstract class MixinPmcUnitEntity
         // Sweep & Advance on-foot: same priority band as escort so MoveToAttackRange cannot yank
         // infantry out of the selected rectangle while the sweep is active.
         ((Mob) self).goalSelector.addGoal(1, new SweepInfantryGoal(self));
+        // Platoon regroup: same priority band — it only ever engages when idle (no target, no
+        // standing order), which is mutually exclusive with what the other MOVE goals here gate on.
+        ((Mob) self).goalSelector.addGoal(1, new PlatoonCohesionGoal(self));
         // Diagnostic only (off unless pmcCombatDebugLogging is set): logs why an owned PMC that was
         // just shot isn't shooting back. Claims no flags and always declines to run — see the class.
         ((Mob) self).goalSelector.addGoal(1, new PmcCombatDebugGoal(self));
@@ -245,5 +264,13 @@ public abstract class MixinPmcUnitEntity
         // ManMortarGoal lives in addDriveGoals with the rest of the crew-served wiring:
         // working a tube needs no network bridge, so RU/US crews get it too.
         VehicleAiGoals.addDriveGoals(self);
+
+        // SEM's own NoPlayerHurtByTargetGoal excludes players but not same-faction attackers, so a
+        // unit clipped by a squadmate's splash damage retaliates against it — MixinAbstractUnit's
+        // setTarget guard blocks the assignment, but canUse() still returns true, leaving the goal
+        // "active" against nothing and starving the real target scan. See NoFriendlyHurtByTargetGoal.
+        ((Mob) self).targetSelector.removeAllGoals(g -> g instanceof NoPlayerHurtByTargetGoal);
+        ((Mob) self).targetSelector.addGoal(1,
+                new NoFriendlyHurtByTargetGoal(self, true).setAlertOthers().setUnseenMemoryTicks(600));
     }
 }

@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.client;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
@@ -33,7 +35,8 @@ public final class TdtSelection {
 
     public static final double SCAN_RADIUS = 512.0;
 
-    public record Entry(int id, VehicleMarker.Kind kind) {}
+    /** {@code vehicleId} is -1 when dismounted — what {@link #distinctCount} dedupes a crew by. */
+    public record Entry(int id, VehicleMarker.Kind kind, boolean isCommander, int platoonColorRgb, int vehicleId) {}
 
     private static final LinkedHashSet<Integer> SELECTED = new LinkedHashSet<>();
     private static List<Entry> scanned = List.of();
@@ -135,12 +138,41 @@ public final class TdtSelection {
         syncGlow();
     }
 
+    /** Non-platoon entries only — a platoon member shows under {@link #byPlatoon} instead. */
     public static Map<VehicleMarker.Kind, List<Entry>> byKind() {
         Map<VehicleMarker.Kind, List<Entry>> map = new EnumMap<>(VehicleMarker.Kind.class);
         for (Entry e : scanned) {
+            if (e.platoonColorRgb() != 0) continue;
             map.computeIfAbsent(e.kind(), k -> new ArrayList<>()).add(e);
         }
         return map;
+    }
+
+    /** Platoon entries, keyed by the platoon's colour (the only platoon identity synced to the client). */
+    public static Map<Integer, List<Entry>> byPlatoon() {
+        Map<Integer, List<Entry>> map = new LinkedHashMap<>();
+        for (Entry e : scanned) {
+            if (e.platoonColorRgb() == 0) continue;
+            map.computeIfAbsent(e.platoonColorRgb(), c -> new ArrayList<>()).add(e);
+        }
+        return map;
+    }
+
+    /** How many distinct vehicles/dismounted units a bucket represents — a shared crew counts once. */
+    public static int distinctCount(List<Entry> entries) {
+        Set<Integer> keys = new HashSet<>();
+        for (Entry e : entries) {
+            keys.add(e.vehicleId() >= 0 ? e.vehicleId() : e.id());
+        }
+        return keys.size();
+    }
+
+    /** Generic armor/infantry icon for a platoon bucket — every member shares one broad family. */
+    public static VehicleMarker.Kind representativeKind(List<Entry> entries) {
+        if (!entries.isEmpty() && entries.get(0).kind().isInfantry()) {
+            return VehicleMarker.Kind.INFANTRY;
+        }
+        return VehicleMarker.Kind.ARMOR;
     }
 
     public static void syncGlow() {
@@ -180,18 +212,35 @@ public final class TdtSelection {
             double dx = pmc.getX() - player.getX();
             double dz = pmc.getZ() - player.getZ();
             if (dx * dx + dz * dz > rSq) continue;
-            out.add(new Entry(pmc.getId(), kindOf(pmc)));
+            VehicleMarker marker = MapMarkers.markerForDriver(pmc.getId());
+            int vehicleId = -1;
+            if (pmc.getVehicle() instanceof VehicleEntity hull) {
+                vehicleId = hull.getId();
+                // MapMarkers carries one marker per hull, keyed by its driver's id — a non-driver
+                // seat (gunner etc.) has none of its own, so fall back to the hull's actual driver.
+                if (marker == null && hull.getFirstPassenger() != null) {
+                    marker = MapMarkers.markerForDriver(hull.getFirstPassenger().getId());
+                }
+            }
+            int platoonColor = marker != null ? marker.platoonColorRgb() : 0;
+            out.add(new Entry(pmc.getId(), kindOf(pmc), pmc instanceof PmcCommanderEntity, platoonColor, vehicleId));
         }
         out.sort((a, b) -> Integer.compare(a.id(), b.id()));
         return List.copyOf(out);
     }
 
     private static VehicleMarker.Kind infantryKind(PmcUnitEntity unit) {
-        if (VehicleTargeting.isMedic(unit) || SupportRole.of(unit) == SupportRole.MEDIC) {
+        if (unit instanceof PmcCommanderEntity) {
+            return VehicleMarker.Kind.INFANTRY_COMMANDER;
+        }
+        SupportRole role = SupportRole.of(unit);
+        if (VehicleTargeting.isMedic(unit) || role == SupportRole.MEDIC) {
             return VehicleMarker.Kind.INFANTRY_MEDIC;
         }
-        if (VehicleTargeting.isEngineer(unit) || SupportRole.of(unit) == SupportRole.ENGINEER
-                || SupportRole.of(unit) == SupportRole.COMBAT_ENGINEER) {
+        if (role == SupportRole.COMBAT_ENGINEER) {
+            return VehicleMarker.Kind.INFANTRY_COMBAT_ENGINEER;
+        }
+        if (VehicleTargeting.isEngineer(unit) || role == SupportRole.ENGINEER) {
             return VehicleMarker.Kind.INFANTRY_ENGINEER;
         }
         return VehicleMarker.Kind.INFANTRY;
@@ -199,7 +248,7 @@ public final class TdtSelection {
 
     /** Client-safe mirror of OwnedVehicleTracker.computeKind — no NBT cache write. */
     private static VehicleMarker.Kind hullKind(VehicleEntity hull) {
-        if (hull instanceof DroneEntity) return VehicleMarker.Kind.ROTARY_WING;
+        if (hull instanceof DroneEntity) return VehicleMarker.Kind.DRONE;
         EngineType engine = null;
         try {
             engine = hull.computed().getEngineType();

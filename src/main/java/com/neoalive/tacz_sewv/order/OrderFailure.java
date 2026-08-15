@@ -70,7 +70,16 @@ public enum OrderFailure {
     // --- Permission: the player may not give this order ---
     ORDERS_LOCKED,
     NOT_OPERATOR,
-    NO_RADIO;
+    NO_RADIO,
+
+    // --- Platoon ---
+    NOT_IN_PLATOON,
+    NOT_COMMANDER,
+    ALREADY_IN_PLATOON,
+    NO_PLATOON_HERE,
+    MUST_BE_ON_FOOT,
+    MUST_BE_MOUNTED,
+    PLATOON_FULL;
 
     @Nullable private final RegistryObject<SoundEvent> sound;
 

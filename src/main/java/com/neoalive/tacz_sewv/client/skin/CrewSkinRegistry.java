@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
@@ -87,6 +88,7 @@ public final class CrewSkinRegistry {
     private static final String MEDIC = "medic";
     private static final String COMBAT_ENGINEER = "combat_engineer";
     private static final String MECHANICAL_ENGINEER = "mechanical_engineer";
+    private static final String COMMANDER = "commander";
 
     /** faction_kind → plain and/or camo pools. */
     private static final Map<String, Entry> ENTRIES = new HashMap<>();
@@ -266,6 +268,7 @@ public final class CrewSkinRegistry {
      */
     private static String category(LivingEntity unit, CrewFacts.Faction faction) {
         if (faction == CrewFacts.Faction.PMC) {
+            if (unit instanceof PmcCommanderEntity) return COMMANDER;
             return switch (SupportRole.of(unit)) {
                 case MEDIC -> MEDIC;
                 case COMBAT_ENGINEER -> COMBAT_ENGINEER;

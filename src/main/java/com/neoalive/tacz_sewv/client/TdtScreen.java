@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.client;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
@@ -37,12 +38,15 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketExitPlatoon;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketReachGuard;
+import com.neoalive.tacz_sewv.network.PacketToggleAutoOrders;
 import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
 
 /**
@@ -76,6 +80,11 @@ public class TdtScreen extends Screen {
     private static final int RIBBON_H = 54;
     private static final int ICON_SIZE = 24;
     private static final int FLOAT_ICON = 22;
+    /** All/None select buttons, top ribbon row. */
+    private static final int BTN_W = 40;
+    private static final int BTN_H = 14;
+    /** Where the icon row starts, clear of the stacked All/None/Live-Sel button column. */
+    private static final int RIBBON_ICONS_X = BTN_W * 2 + 2 + 6;
 
     private static final int RADIUS_STEP = 16;
     private static final int DEFAULT_RADIUS = 256;
@@ -102,9 +111,10 @@ public class TdtScreen extends Screen {
     private static final int STRIPE_AREA = 0x4DC9A15A;
     private static final int STRIPE_AIR = 0x4DB57ED1;
     private static final int STRIPE_FORM = 0x4DD98F6B;
+    private static final int STRIPE_PLATOON = 0x4DD9C96B;
 
     enum Category {
-        ALL, ORDERS, CREW, AREA, AIR, FORM
+        ALL, ORDERS, CREW, AREA, AIR, FORM, PLATOON
     }
 
     private enum StepperKind { PATROL, SEARCH, ALTITUDE, LINE }
@@ -153,10 +163,14 @@ public class TdtScreen extends Screen {
 
     @Nullable
     private VehicleMarker.Kind floatKind;
+    /** Set instead of {@code floatKind} when the expanded flyout is a platoon group, not a Kind bucket. */
+    @Nullable
+    private Integer floatPlatoonColor;
     private float floatAnim;
     private int floatX;
     private int floatY;
     private final EnumMap<VehicleMarker.Kind, Float> ribbonAlpha = new EnumMap<>(VehicleMarker.Kind.class);
+    private final Map<Integer, Float> platoonRibbonAlpha = new HashMap<>();
     @Nullable
     private String pendingTip;
 
@@ -214,8 +228,7 @@ public class TdtScreen extends Screen {
 
         rebuildCells();
         this.scroll = Mth.clamp(this.scroll, 0, maxScroll());
-        this.floatKind = null;
-        this.floatAnim = 0.0F;
+        clearFloat();
     }
 
     private void buildCatalog() {
@@ -265,6 +278,13 @@ public class TdtScreen extends Screen {
                 () -> BoardKeybind.orderFormation(FormationShape.ECHELON_LEFT, this.formationAxis, lineRowSize));
         add(Category.FORM, "gui.tacz_sewv.tdt.echelon_right", null, true,
                 () -> BoardKeybind.orderFormation(FormationShape.ECHELON_RIGHT, this.formationAxis, lineRowSize));
+
+        add(Category.PLATOON, "gui.tacz_sewv.tdt.join_platoon", "gui.tacz_sewv.tdt.join_platoon.tip",
+                true, ClientEvents::armJoinPlatoon);
+        add(Category.PLATOON, "gui.tacz_sewv.tdt.exit_platoon", "gui.tacz_sewv.tdt.exit_platoon.tip",
+                true, this::orderExitPlatoon);
+        add(Category.PLATOON, "gui.tacz_sewv.tdt.toggle_auto_orders", "gui.tacz_sewv.tdt.toggle_auto_orders.tip",
+                true, this::orderToggleAutoOrders);
     }
 
     private void add(Category cat, String label, @Nullable String tip, boolean closes, Runnable action) {
@@ -286,7 +306,7 @@ public class TdtScreen extends Screen {
         int cellW = (innerW - CELL_GAP * (GRID_COLS - 1)) / GRID_COLS;
 
         Category[] order = allView
-                ? new Category[]{Category.ORDERS, Category.CREW, Category.AREA, Category.AIR, Category.FORM}
+                ? new Category[]{Category.ORDERS, Category.CREW, Category.AREA, Category.AIR, Category.FORM, Category.PLATOON}
                 : new Category[]{this.category};
 
         for (Category cat : order) {
@@ -343,6 +363,7 @@ public class TdtScreen extends Screen {
             case AREA -> STRIPE_AREA;
             case AIR -> STRIPE_AIR;
             case FORM -> STRIPE_FORM;
+            case PLATOON -> STRIPE_PLATOON;
             default -> COL_STRIPE;
         };
     }
@@ -422,6 +443,16 @@ public class TdtScreen extends Screen {
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketReachGuard(unitIds)));
     }
 
+    private void orderExitPlatoon() {
+        BoardKeybind.withOwnedUnits(pmc -> true, "message.tacz_sewv.platoon.exit.none",
+                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketExitPlatoon(unitIds)));
+    }
+
+    private void orderToggleAutoOrders() {
+        BoardKeybind.withOwnedUnits(pmc -> pmc instanceof PmcCommanderEntity, "message.tacz_sewv.platoon.auto_orders.none",
+                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketToggleAutoOrders(unitIds)));
+    }
+
     private void orderAreaTask(int radius, int mode) {
         if (radius < PacketPatrolVehicle.MIN_RADIUS) {
             if (this.minecraft != null && this.minecraft.player != null) {
@@ -441,13 +472,13 @@ public class TdtScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
 
-        if (this.floatKind != null && clickFloat(mouseX, mouseY)) {
+        boolean floatOpen = this.floatKind != null || this.floatPlatoonColor != null;
+        if (floatOpen && clickFloat(mouseX, mouseY)) {
             clickSound();
             return true;
         }
-        if (this.floatKind != null) {
-            this.floatKind = null;
-            this.floatAnim = 0.0F;
+        if (floatOpen) {
+            clearFloat();
         }
 
         // Clicks outside the docked panel are swallowed (world stays non-interactive).
@@ -585,31 +616,57 @@ public class TdtScreen extends Screen {
 
         int allX = this.panelLeft + PAD;
         int allY = this.ribbonTop + 4;
-        int allW = 40;
-        int allH = 14;
-        if (mx >= allX && mx < allX + allW && my >= allY && my < allY + allH) {
+        if (mx >= allX && mx < allX + BTN_W && my >= allY && my < allY + BTN_H) {
             TdtSelection.toggleSelectAll();
             return true;
         }
 
-        int liveY = allY + allH + 2;
+        int noneX = allX + BTN_W + 2;
+        if (mx >= noneX && mx < noneX + BTN_W && my >= allY && my < allY + BTN_H) {
+            TdtSelection.deselectAll();
+            return true;
+        }
+
+        int liveY = allY + BTN_H + 2;
         int liveW = 48;
-        if (mx >= allX && mx < allX + liveW && my >= liveY && my < liveY + allH) {
+        if (mx >= allX && mx < allX + liveW && my >= liveY && my < liveY + BTN_H) {
             ClientEvents.armLiveSelection();
             onClose();
             return true;
         }
 
-        Map<VehicleMarker.Kind, List<TdtSelection.Entry>> byKind = TdtSelection.byKind();
-        int x = this.panelLeft + PAD + 54;
+        int x = allX + RIBBON_ICONS_X;
         int y = this.ribbonTop + 6;
+
+        Map<Integer, List<TdtSelection.Entry>> byPlatoon = TdtSelection.byPlatoon();
+        for (Map.Entry<Integer, List<TdtSelection.Entry>> e : byPlatoon.entrySet()) {
+            List<TdtSelection.Entry> units = e.getValue();
+            if (units.isEmpty()) continue;
+            if (mx >= x && mx < x + ICON_SIZE && my >= y && my < y + ICON_SIZE) {
+                if (TdtSelection.distinctCount(units) == 1) {
+                    toggleGroup(units);
+                } else {
+                    this.floatKind = null;
+                    this.floatPlatoonColor = e.getKey();
+                    this.floatX = x;
+                    this.floatY = this.ribbonTop - 8;
+                    this.floatAnim = 0.0F;
+                }
+                return true;
+            }
+            x += ICON_SIZE + 6;
+            if (x + ICON_SIZE > this.panelLeft + this.panelW - PAD) return false;
+        }
+
+        Map<VehicleMarker.Kind, List<TdtSelection.Entry>> byKind = TdtSelection.byKind();
         for (Map.Entry<VehicleMarker.Kind, List<TdtSelection.Entry>> e : byKind.entrySet()) {
             List<TdtSelection.Entry> units = e.getValue();
             if (units.isEmpty()) continue;
             if (mx >= x && mx < x + ICON_SIZE && my >= y && my < y + ICON_SIZE) {
-                if (units.size() == 1) {
-                    TdtSelection.toggle(units.get(0).id());
+                if (TdtSelection.distinctCount(units) == 1) {
+                    toggleGroup(units);
                 } else {
+                    this.floatPlatoonColor = null;
                     this.floatKind = e.getKey();
                     this.floatX = x;
                     this.floatY = this.ribbonTop - 8;
@@ -624,10 +681,10 @@ public class TdtScreen extends Screen {
     }
 
     private boolean clickFloat(double mx, double my) {
-        if (this.floatKind == null) return false;
-        List<TdtSelection.Entry> units = TdtSelection.byKind().getOrDefault(this.floatKind, List.of());
+        if (this.floatKind == null && this.floatPlatoonColor == null) return false;
+        List<TdtSelection.Entry> units = currentFloatUnits();
         if (units.isEmpty()) {
-            this.floatKind = null;
+            clearFloat();
             return false;
         }
 
@@ -644,8 +701,10 @@ public class TdtScreen extends Screen {
         }
 
         if (my >= fy + pad && my < fy + pad + 14 && mx >= fx + pad && mx < fx + fw - pad) {
-            TdtSelection.selectKind(this.floatKind);
-            this.floatKind = null;
+            for (TdtSelection.Entry unit : units) {
+                TdtSelection.select(unit.id());
+            }
+            clearFloat();
             return true;
         }
 
@@ -663,6 +722,55 @@ public class TdtScreen extends Screen {
             }
         }
         return true;
+    }
+
+    private void clearFloat() {
+        this.floatKind = null;
+        this.floatPlatoonColor = null;
+        this.floatAnim = 0.0F;
+    }
+
+    /** Whichever bucket is currently expanded — a platoon group, or a plain Kind bucket. */
+    private List<TdtSelection.Entry> currentFloatUnits() {
+        if (this.floatPlatoonColor != null) {
+            return TdtSelection.byPlatoon().getOrDefault(this.floatPlatoonColor, List.of());
+        }
+        if (this.floatKind != null) {
+            return TdtSelection.byKind().getOrDefault(this.floatKind, List.of());
+        }
+        return List.of();
+    }
+
+    /** Select all if none of the group is selected yet, otherwise deselect all of it. */
+    private static void toggleGroup(List<TdtSelection.Entry> entries) {
+        boolean anySelected = false;
+        for (TdtSelection.Entry e : entries) {
+            if (TdtSelection.isSelected(e.id())) {
+                anySelected = true;
+                break;
+            }
+        }
+        for (TdtSelection.Entry e : entries) {
+            if (anySelected) {
+                TdtSelection.deselect(e.id());
+            } else {
+                TdtSelection.select(e.id());
+            }
+        }
+    }
+
+    private static boolean unitsAnySelected(List<TdtSelection.Entry> units) {
+        for (TdtSelection.Entry u : units) {
+            if (TdtSelection.isSelected(u.id())) return true;
+        }
+        return false;
+    }
+
+    private static boolean unitsAnyCommander(List<TdtSelection.Entry> units) {
+        for (TdtSelection.Entry u : units) {
+            if (u.isCommander()) return true;
+        }
+        return false;
     }
 
     private static void clickSound() {
@@ -708,7 +816,7 @@ public class TdtScreen extends Screen {
         renderTabs(g);
         renderList(g, mouseX, mouseY);
         renderRibbon(g);
-        if (this.floatKind != null) {
+        if (this.floatKind != null || this.floatPlatoonColor != null) {
             renderFloat(g);
         }
 
@@ -824,31 +932,62 @@ public class TdtScreen extends Screen {
         String allLabel = I18n.get(all ? "gui.tacz_sewv.tdt.deselect_all" : "gui.tacz_sewv.tdt.select_all");
         int allX = this.panelLeft + PAD;
         int allY = this.ribbonTop + 4;
-        g.fill(allX, allY, allX + 40, allY + 14, COL_SURFACE);
+        g.fill(allX, allY, allX + BTN_W, allY + BTN_H, COL_SURFACE);
         if (all) {
-            g.fill(allX, allY + 13, allX + 40, allY + 14, COL_ACCENT);
+            g.fill(allX, allY + BTN_H - 1, allX + BTN_W, allY + BTN_H, COL_ACCENT);
         }
-        g.drawCenteredString(this.font, allLabel, allX + 20, allY + 3, COL_TEXT);
+        g.drawCenteredString(this.font, allLabel, allX + BTN_W / 2, allY + 3, COL_TEXT);
 
-        int liveY = allY + 14 + 2;
+        int noneX = allX + BTN_W + 2;
+        g.fill(noneX, allY, noneX + BTN_W, allY + BTN_H, COL_SURFACE);
+        g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.select_none"), noneX + BTN_W / 2, allY + 3, COL_TEXT);
+
+        int liveY = allY + BTN_H + 2;
         int liveW = 48;
-        g.fill(allX, liveY, allX + liveW, liveY + 14, COL_SURFACE);
+        g.fill(allX, liveY, allX + liveW, liveY + BTN_H, COL_SURFACE);
         g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.live_sel"),
                 allX + liveW / 2, liveY + 3, COL_TEXT);
 
-        Map<VehicleMarker.Kind, List<TdtSelection.Entry>> byKind = TdtSelection.byKind();
-        int x = allX + 54;
+        int x = allX + RIBBON_ICONS_X;
         int y = this.ribbonTop + 6;
+
+        // Platoons get their own expandable entry, separate from the plain Kind buckets below —
+        // one icon per platoon (armor/infantry generic, per representativeKind), vehicles counted
+        // once each regardless of crew size (TdtSelection.distinctCount).
+        Map<Integer, List<TdtSelection.Entry>> byPlatoon = TdtSelection.byPlatoon();
+        for (Map.Entry<Integer, List<TdtSelection.Entry>> e : byPlatoon.entrySet()) {
+            List<TdtSelection.Entry> units = e.getValue();
+            if (units.isEmpty()) continue;
+            int color = e.getKey();
+            boolean anySelected = unitsAnySelected(units);
+            float target = anySelected ? 1.0f : 0.5f;
+            float cur = this.platoonRibbonAlpha.getOrDefault(color, 0.0f);
+            cur = cur + (target - cur) * 0.2f;
+            this.platoonRibbonAlpha.put(color, cur);
+
+            if (anySelected) {
+                g.fill(x - 1, y - 1, x + ICON_SIZE + 1, y + ICON_SIZE + 1, COL_ACCENT);
+            }
+            g.fill(x - 2, y - 2, x + ICON_SIZE + 2, y + ICON_SIZE + 3, 0xFF000000 | color);
+            ResourceLocation tex = KIND_TEX.get(TdtSelection.representativeKind(units));
+            g.setColor(1.0f, 1.0f, 1.0f, cur);
+            g.blit(tex, x, y, 0, 0, ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE);
+            g.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+            String badge = "x" + TdtSelection.distinctCount(units);
+            g.drawString(this.font, badge, x + ICON_SIZE - this.font.width(badge), y + ICON_SIZE - 8, COL_TEXT, true);
+            if (unitsAnyCommander(units)) {
+                g.drawString(this.font, "★", x - 1, y - 1, starColor(color), true);
+            }
+            x += ICON_SIZE + 6;
+            if (x + ICON_SIZE > this.panelLeft + this.panelW - PAD) break;
+        }
+        this.platoonRibbonAlpha.keySet().removeIf(k -> !byPlatoon.containsKey(k) || byPlatoon.get(k).isEmpty());
+
+        Map<VehicleMarker.Kind, List<TdtSelection.Entry>> byKind = TdtSelection.byKind();
         for (Map.Entry<VehicleMarker.Kind, List<TdtSelection.Entry>> e : byKind.entrySet()) {
             List<TdtSelection.Entry> units = e.getValue();
             if (units.isEmpty()) continue;
-            boolean anySelected = false;
-            for (TdtSelection.Entry u : units) {
-                if (TdtSelection.isSelected(u.id())) {
-                    anySelected = true;
-                    break;
-                }
-            }
+            boolean anySelected = unitsAnySelected(units);
             float target = anySelected ? 1.0f : 0.5f;
             float cur = this.ribbonAlpha.getOrDefault(e.getKey(), 0.0f);
             cur = cur + (target - cur) * 0.2f;
@@ -861,8 +1000,12 @@ public class TdtScreen extends Screen {
             g.setColor(1.0f, 1.0f, 1.0f, cur);
             g.blit(tex, x, y, 0, 0, ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE);
             g.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-            String badge = "x" + units.size();
+            // A vehicle's whole crew still counts as one — "x3" for a 3-man tank was misleading.
+            String badge = "x" + TdtSelection.distinctCount(units);
             g.drawString(this.font, badge, x + ICON_SIZE - this.font.width(badge), y + ICON_SIZE - 8, COL_TEXT, true);
+            if (unitsAnyCommander(units)) {
+                g.drawString(this.font, "★", x - 1, y - 1, 0xFFFFD700, true);
+            }
             x += ICON_SIZE + 6;
             if (x + ICON_SIZE > this.panelLeft + this.panelW - PAD) break;
         }
@@ -875,7 +1018,7 @@ public class TdtScreen extends Screen {
     }
 
     private void renderFloat(GuiGraphics g) {
-        List<TdtSelection.Entry> units = TdtSelection.byKind().getOrDefault(this.floatKind, List.of());
+        List<TdtSelection.Entry> units = currentFloatUnits();
         if (units.isEmpty()) return;
 
         int cols = Math.min(units.size(), 5);
@@ -896,21 +1039,32 @@ public class TdtScreen extends Screen {
 
         int ix = fx + pad;
         int iy = fy + pad + 16;
-        ResourceLocation tex = KIND_TEX.get(this.floatKind);
         for (TdtSelection.Entry unit : units) {
             boolean sel = TdtSelection.isSelected(unit.id());
             if (sel) {
                 g.fill(ix - 1, iy - 1, ix + FLOAT_ICON + 1, iy + FLOAT_ICON + 1, COL_ACCENT);
             }
             g.setColor(1.0f, 1.0f, 1.0f, sel ? 1.0f : 0.45f);
-            g.blit(tex, ix, iy, 0, 0, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON);
+            g.blit(KIND_TEX.get(unit.kind()), ix, iy, 0, 0, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON);
             g.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+            if (unit.platoonColorRgb() != 0) {
+                g.fill(ix, iy + FLOAT_ICON + 1, ix + FLOAT_ICON, iy + FLOAT_ICON + 2,
+                        0xFF000000 | unit.platoonColorRgb());
+            }
+            if (unit.isCommander()) {
+                g.drawString(this.font, "★", ix - 1, iy - 1, starColor(unit.platoonColorRgb()), true);
+            }
             ix += FLOAT_ICON + 4;
             if (ix + FLOAT_ICON > fx + fw - pad) {
                 ix = fx + pad;
                 iy += FLOAT_ICON + 4;
             }
         }
+    }
+
+    /** The commander star tints with its platoon's colour when it has one; gold otherwise. */
+    private static int starColor(int platoonColorRgb) {
+        return platoonColorRgb != 0 ? (0xFF000000 | platoonColorRgb) : 0xFFFFD700;
     }
 
     private record StepperSpec(IntSupplier get, IntConsumer set, int min, int max, int step, int redBelow) {}

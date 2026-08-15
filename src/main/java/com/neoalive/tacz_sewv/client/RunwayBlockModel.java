@@ -12,7 +12,7 @@ public class RunwayBlockModel extends GeoModel<RunwayBlockEntity> {
     private static final ResourceLocation GEO =
             new ResourceLocation(TaczSewv.MODID, "geo/runway_block.geo.json");
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(TaczSewv.MODID, "textures/block/runway_block.png");
+            new ResourceLocation(TaczSewv.MODID, "textures/block/runway_mast.png");
     private static final ResourceLocation ANIM =
             new ResourceLocation(TaczSewv.MODID, "animations/runway_block.animation.json");
 

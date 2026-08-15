@@ -19,6 +19,9 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
+import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModel;
+import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModelLayers;
+import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderRenderer;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModEntities;
 
@@ -89,6 +92,15 @@ public class ClientModEvents {
                 ctx -> new RuSupportRenderer(ctx, RU_COMBAT_ENGINEER_SKIN));
         event.registerEntityRenderer(ModEntities.US_COMBAT_ENGINEER.get(),
                 ctx -> new UsSupportRenderer(ctx, US_COMBAT_ENGINEER_SKIN));
+        event.registerEntityRenderer(ModEntities.PMC_COMMANDER.get(), PmcCommanderRenderer::new);
+    }
+
+    /** {@code PmcCommanderModel} is a genuinely new model, unlike the support units above (which
+     * reuse SEM's own baked RU/US layers) — nothing else in this mod has needed its own layer
+     * definition registration point before. */
+    @SubscribeEvent
+    public static void onRegisterLayers(EntityRenderersEvent.RegisterLayerDefinitions event) {
+        event.registerLayerDefinition(PmcCommanderModelLayers.PMC_COMMANDER_LAYER, PmcCommanderModel::createBodyLayer);
     }
 
     @SubscribeEvent
@@ -102,6 +114,7 @@ public class ClientModEvents {
         addUnitLayers(event, ModEntities.US_ENGINEER.get());
         addUnitLayers(event, ModEntities.RU_COMBAT_ENGINEER.get());
         addUnitLayers(event, ModEntities.US_COMBAT_ENGINEER.get());
+        addUnitLayers(event, ModEntities.PMC_COMMANDER.get());
     }
 
     private static <T extends LivingEntity> void addUnitLayers(EntityRenderersEvent.AddLayers event, EntityType<T> type) {

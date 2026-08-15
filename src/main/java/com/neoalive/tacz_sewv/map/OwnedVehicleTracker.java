@@ -39,12 +39,17 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
 import com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator;
+import com.neoalive.tacz_sewv.entity.ai.command.platoon.Platoon;
+import com.neoalive.tacz_sewv.entity.ai.command.platoon.PlatoonRegistry;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
+import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
+import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
 import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -116,7 +121,13 @@ public final class OwnedVehicleTracker {
                              boolean factionFriendly, MarkerOrder order, int driverId, int vehicleId,
                              double x, double y, double z, float yaw,
                              ResourceKey<Level> dimension, float healthFrac, float energyFrac,
-                             int tintRgb, boolean hasGuard) {}
+                             int tintRgb, boolean hasGuard, int platoonColorRgb, boolean isCommanderUnit) {}
+
+    /** Platoon colour for this driver, or 0 (not in a platoon). */
+    private static int platoonColorOf(ServerLevel level, int driverId) {
+        Platoon p = PlatoonRegistry.platoonOf(level, driverId);
+        return p != null ? p.colorRgb() : 0;
+    }
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
@@ -243,7 +254,8 @@ public final class OwnedVehicleTracker {
                     hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension(),
                     healthFrac(hull), energyFrac(hull),
                     FactionColors.wireTint(level.getServer(), CrewFacts.pmcOwner(hull)),
-                    GuardSupport.has(hull)));
+                    GuardSupport.has(hull),
+                    platoonColorOf(level, driver.getId()), crew instanceof PmcCommanderEntity));
         }
     }
 
@@ -274,13 +286,13 @@ public final class OwnedVehicleTracker {
                 mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension(),
                 healthFrac(mortar), energyFrac(mortar),
                 FactionColors.wireTint(level.getServer(), pmcOwner),
-                false));
+                false, platoonColorOf(level, crew.getId()), crew instanceof PmcCommanderEntity));
     }
 
     /**
      * Recon drones are seatless, like mortars: faction/owner come from the engineer tagged on the
      * hull ({@link DroneSupport#crewOf}), position from the drone. Drawn as
-     * {@link VehicleMarker.Kind#ROTARY_WING} — SBW's datapack {@code Type} is {@code Drone}, not
+     * {@link VehicleMarker.Kind#DRONE} — SBW's datapack {@code Type} is {@code Drone}, not
      * {@code HELICOPTER}.
      */
     private static void collectDrone(ServerLevel level, DroneEntity drone, List<Candidate> candidates) {
@@ -292,14 +304,14 @@ public final class OwnedVehicleTracker {
 
         UUID pmcOwner = crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
         candidates.add(new Candidate(
-                VehicleMarker.Kind.ROTARY_WING, faction,
+                VehicleMarker.Kind.DRONE, faction,
                 pmcOwner,
                 VehicleTargeting.isFactionFriendly(crew), MarkerOrder.NONE,
                 crew.getId(), drone.getId(),
                 drone.getX(), drone.getY(), drone.getZ(), drone.getYRot(), level.dimension(),
                 healthFrac(drone), energyFrac(drone),
                 FactionColors.wireTint(level.getServer(), pmcOwner),
-                false));
+                false, platoonColorOf(level, crew.getId()), crew instanceof PmcCommanderEntity));
     }
 
     /**
@@ -328,22 +340,29 @@ public final class OwnedVehicleTracker {
                     Mth.clamp(unit.getHealth() / unit.getMaxHealth(), 0.0F, 1.0F),
                     VehicleMarker.NO_ENERGY,
                     FactionColors.wireTint(level.getServer(), pmcOwner),
-                    false));
+                    false, platoonColorOf(level, unit.getId()), unit instanceof PmcCommanderEntity));
         }
     }
 
     /**
-     * Which infantry symbol a unit draws as. Covers both the dedicated RU/US medic/engineer entity
-     * types ({@link VehicleTargeting#isMedic}/{@link VehicleTargeting#isEngineer}) and a PMC the
-     * player has field-assigned by handing it a kit or a repair tool ({@link SupportRole#of}). Medic
-     * wins a tie, matching {@code SupportRole.of}.
+     * Which infantry symbol a unit draws as. Covers dedicated RU/US entity types and a PMC the
+     * player has field-assigned via {@link SupportRole#of}. Commander wins (entity identity), then
+     * medic, then combat-engineer before mechanical — {@link VehicleTargeting#isEngineer} includes
+     * both engineer classes so the combat check has to go first.
      */
     private static VehicleMarker.Kind infantryKind(AbstractUnit unit) {
-        if (VehicleTargeting.isMedic(unit) || SupportRole.of(unit) == SupportRole.MEDIC) {
+        if (unit instanceof PmcCommanderEntity) {
+            return VehicleMarker.Kind.INFANTRY_COMMANDER;
+        }
+        SupportRole role = SupportRole.of(unit);
+        if (VehicleTargeting.isMedic(unit) || role == SupportRole.MEDIC) {
             return VehicleMarker.Kind.INFANTRY_MEDIC;
         }
-        if (VehicleTargeting.isEngineer(unit) || SupportRole.of(unit) == SupportRole.ENGINEER
-                || SupportRole.of(unit) == SupportRole.COMBAT_ENGINEER) {
+        if (unit instanceof RuCombatEngineerEntity || unit instanceof UsCombatEngineerEntity
+                || role == SupportRole.COMBAT_ENGINEER) {
+            return VehicleMarker.Kind.INFANTRY_COMBAT_ENGINEER;
+        }
+        if (VehicleTargeting.isEngineer(unit) || role == SupportRole.ENGINEER) {
             return VehicleMarker.Kind.INFANTRY_ENGINEER;
         }
         return VehicleMarker.Kind.INFANTRY;
@@ -424,9 +443,12 @@ public final class OwnedVehicleTracker {
             role = tag.commander() ? VehicleMarker.CommandRole.COMMANDER : VehicleMarker.CommandRole.MEMBER;
         }
         VehicleMarker.PlayRole playRole = playRoleOf(CommandCoordinator.assignmentRoleForDriver(c.driverId()));
+        // Platoon/commander cues are owner-only — never leaked on a FRIENDLY/HOSTILE marker.
+        boolean own = allegiance == VehicleMarker.Allegiance.OWN;
         return new VehicleMarker(c.driverId(), c.vehicleId(), c.x(), c.y(), c.z(), c.yaw(),
                 c.kind(), allegiance, c.faction(), order, c.dimension(),
-                c.healthFrac(), c.energyFrac(), role, groupId, playRole, c.tintRgb(), c.hasGuard());
+                c.healthFrac(), c.energyFrac(), role, groupId, playRole, c.tintRgb(), c.hasGuard(),
+                own ? c.platoonColorRgb() : 0, own && c.isCommanderUnit());
     }
 
     private static VehicleMarker.PlayRole playRoleOf(@javax.annotation.Nullable Assignment.Role role) {
@@ -512,7 +534,7 @@ public final class OwnedVehicleTracker {
 
     private static VehicleMarker.Kind computeKind(VehicleEntity hull) {
         // Datapack Type "Drone" is not EngineType.HELICOPTER — pin it before the engine switch.
-        if (hull instanceof DroneEntity) return VehicleMarker.Kind.ROTARY_WING;
+        if (hull instanceof DroneEntity) return VehicleMarker.Kind.DRONE;
         EngineType engine;
         try {
             engine = hull.computed().getEngineType();

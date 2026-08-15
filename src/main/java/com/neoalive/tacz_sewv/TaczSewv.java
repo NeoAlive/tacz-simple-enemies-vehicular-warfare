@@ -77,6 +77,7 @@ public class TaczSewv {
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionHudTracker.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.command.platoon.PlatoonRegistry.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.crew.PlayerJoinHandler.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.VehicleDrops.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.SweepAdvancement.class);

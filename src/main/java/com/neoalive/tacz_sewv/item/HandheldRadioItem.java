@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.item;
 
 import java.util.List;
 
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundSource;
@@ -24,7 +25,9 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.client.RadioScreen;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
 
@@ -79,8 +82,12 @@ public class HandheldRadioItem extends Item {
         return InteractionResult.SUCCESS;
     }
 
-    /** Whether a unit is carrying a radio, and so can call missions in on its own. */
+    /**
+     * Whether a unit is carrying a radio, and so can call missions in on its own. Commander-only —
+     * a regular PMC handed a radio simply finds it inert.
+     */
     public static boolean isCarriedBy(PmcUnitEntity unit) {
+        if (!(unit instanceof PmcCommanderEntity)) return false;
         IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
         if (inventory == null) return false;
 
@@ -113,11 +120,32 @@ public class HandheldRadioItem extends Item {
                 player, msg.copy().withStyle(ChatFormatting.YELLOW));
     }
 
+    /**
+     * A bare hull is designatable too — its crew rides inside, often behind a hidden-passenger
+     * seat, so aiming at the actual crew hitbox is unreliable to impossible. {@link #representativeCrew}
+     * is what a raycast hit actually resolves to; mortars/TOWs/CAS still need a {@code LivingEntity}
+     * to fire at, never a bare vehicle id.
+     */
     public static boolean isDesignatable(Entity entity) {
+        if (entity instanceof VehicleEntity hull) {
+            return hull.isAlive() && representativeCrew(hull) != null;
+        }
         return entity instanceof LivingEntity
                 && entity.isAlive()
                 && !entity.isSpectator()
                 && !(entity instanceof PmcUnitEntity);
+    }
+
+    /** A living crew member to designate on behalf of a hull, or null for an empty/own-faction one. */
+    @Nullable
+    public static LivingEntity representativeCrew(VehicleEntity hull) {
+        if (CrewFacts.factionOf(hull) == CrewFacts.Faction.PMC) return null;
+        for (Entity passenger : hull.getPassengers()) {
+            if (passenger instanceof LivingEntity living && living.isAlive() && isDesignatable(living)) {
+                return living;
+            }
+        }
+        return null;
     }
 
     private static void hint(Player player, String key, ChatFormatting style) {

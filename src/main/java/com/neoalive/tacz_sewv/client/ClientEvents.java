@@ -32,12 +32,14 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.RadioSettings;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketEntrench;
 import com.neoalive.tacz_sewv.network.PacketEscort;
+import com.neoalive.tacz_sewv.network.PacketJoinPlatoon;
 import com.neoalive.tacz_sewv.network.PacketRadioCommand;
 import com.neoalive.tacz_sewv.network.PacketSetGuardPosition;
 
@@ -79,6 +81,11 @@ public class ClientEvents {
     private static RadioSettings.State pendingRadioSettings = null;
     private static int pendingRadioEntityId = -1;
     private static final double RADIO_PICK_RANGE = 256.0;
+
+    // Join Platoon pick: same arm pattern as escort, but the target is a PmcCommanderEntity —
+    // SEM's own CommanderRayTrace deliberately skips PMCs, so this needs its own raycast.
+    private static boolean pendingJoinPlatoon = false;
+    private static List<Integer> pendingJoinPlatoonUnits = List.of();
 
     private static int promptCooldown = 0;
 
@@ -187,6 +194,28 @@ public class ClientEvents {
         promptCooldown = 0;
     }
 
+    /**
+     * Arm Join Platoon selection mode. Called by the TDT's Join Platoon button, which then closes
+     * the screen. The next left-click on an owned Commander sends the selected units to join its
+     * platoon; the server re-validates ownership, type match and capacity per unit and reports
+     * whichever ones did not take.
+     */
+    public static void armJoinPlatoon() {
+        clearEscort();
+        clearGuard();
+        clearEntrench();
+        clearLiveSelection();
+        clearRadioPick();
+        List<Integer> units = snapshotOwnedUnits();
+        if (units.isEmpty()) {
+            hint("message.tacz_sewv.platoon.no_units");
+            return;
+        }
+        pendingJoinPlatoon = true;
+        pendingJoinPlatoonUnits = units;
+        promptCooldown = 0;
+    }
+
     private static List<Integer> snapshotOwnedUnits() {
         return TdtSelection.resolve(CLIENT_DISCOVERY_RADIUS);
     }
@@ -277,6 +306,18 @@ public class ClientEvents {
             return;
         }
 
+        if (pendingJoinPlatoon) {
+            if (event.isAttack()) {
+                joinPlatoonClick(mc);
+                event.setCanceled(true);
+            } else if (event.isUseItem()) {
+                clearJoinPlatoon();
+                hint("message.tacz_sewv.platoon.join.cancelled");
+                event.setCanceled(true);
+            }
+            return;
+        }
+
         if (!event.isAttack()) return;
         if (!holdingTerminal(mc.player)) return;
         TdtScreen.open();
@@ -307,7 +348,7 @@ public class ClientEvents {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         if (!pendingEscort && !pendingGuard && !pendingEntrench && !pendingLiveSelection
-                && !pendingRadioEntity && !pendingRadioPosition) {
+                && !pendingRadioEntity && !pendingRadioPosition && !pendingJoinPlatoon) {
             return;
         }
 
@@ -319,6 +360,7 @@ public class ClientEvents {
                 clearEntrench();
                 clearLiveSelection();
                 clearRadioPick();
+                clearJoinPlatoon();
             }
             return;
         }
@@ -345,6 +387,8 @@ public class ClientEvents {
                 hint("message.tacz_sewv.escort.select");
             } else if (pendingGuard) {
                 hint("message.tacz_sewv.guard.select");
+            } else if (pendingJoinPlatoon) {
+                hint("message.tacz_sewv.platoon.join.select");
             } else {
                 hint("message.tacz_sewv.entrench.select");
             }
@@ -390,6 +434,10 @@ public class ClientEvents {
             } else {
                 hint("message.tacz_sewv.entrench.no_block");
             }
+            return;
+        }
+        if (pendingJoinPlatoon) {
+            joinPlatoonClick(mc);
         }
     }
 
@@ -407,7 +455,45 @@ public class ClientEvents {
         } else if (pendingEntrench) {
             clearEntrench();
             hint("message.tacz_sewv.entrench.cancelled");
+        } else if (pendingJoinPlatoon) {
+            clearJoinPlatoon();
+            hint("message.tacz_sewv.platoon.join.cancelled");
         }
+    }
+
+    private static void joinPlatoonClick(Minecraft mc) {
+        if (mc.player == null) return;
+        Entity target = rayTraceCommander(mc.player, ESCORT_PICK_RANGE);
+        if (target instanceof PmcCommanderEntity commander) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketJoinPlatoon(pendingJoinPlatoonUnits, commander.getId()));
+            clearJoinPlatoon();
+        } else {
+            hint("message.tacz_sewv.platoon.join.no_commander");
+        }
+    }
+
+    /** SEM's own {@code CommanderRayTrace} deliberately skips PMCs, so joining needs its own pick. */
+    @Nullable
+    private static Entity rayTraceCommander(Player player, double distance) {
+        Vec3 eye = player.getEyePosition(1.0F);
+        Vec3 look = player.getViewVector(1.0F);
+        Vec3 reach = eye.add(look.scale(distance));
+        AABB box = player.getBoundingBox().expandTowards(look.scale(distance)).inflate(1.0D);
+
+        Entity best = null;
+        double closest = distance;
+        for (Entity entity : player.level().getEntities(player, box)) {
+            if (!(entity instanceof PmcCommanderEntity commander) || !commander.isOwnedBy(player)) continue;
+            AABB bb = entity.getBoundingBox().inflate(entity.getPickRadius());
+            Optional<Vec3> hit = bb.clip(eye, reach);
+            if (hit.isEmpty()) continue;
+            double dist = eye.distanceTo(hit.get());
+            if (dist < closest) {
+                best = entity;
+                closest = dist;
+            }
+        }
+        return best;
     }
 
     private static void radioPickClick(Minecraft mc) {
@@ -456,6 +542,11 @@ public class ClientEvents {
         NetworkHandler.CHANNEL.sendToServer(new PacketRadioCommand(settings, entityId, null));
     }
 
+    /**
+     * A hit on a bare hull resolves to one of its living crew — see
+     * {@link HandheldRadioItem#representativeCrew} — so aiming at the vehicle itself designates it,
+     * not just whichever crew hitbox happens to be reachable (often none, behind a hidden seat).
+     */
     @Nullable
     private static LivingEntity pickRadioEntity(Player player) {
         Vec3 eye = player.getEyePosition();
@@ -464,7 +555,10 @@ public class ClientEvents {
         AABB search = player.getBoundingBox().expandTowards(reach).inflate(1.0);
         EntityHitResult hit = ProjectileUtil.getEntityHitResult(
                 player, eye, end, search, HandheldRadioItem::isDesignatable, RADIO_PICK_RANGE * RADIO_PICK_RANGE);
-        return hit != null && hit.getEntity() instanceof LivingEntity living ? living : null;
+        if (hit == null) return null;
+        Entity entity = hit.getEntity();
+        if (entity instanceof VehicleEntity hull) return HandheldRadioItem.representativeCrew(hull);
+        return entity instanceof LivingEntity living ? living : null;
     }
 
     private static void hintRadioEntity() {
@@ -590,6 +684,12 @@ public class ClientEvents {
         promptCooldown = 0;
     }
 
+    private static void clearJoinPlatoon() {
+        pendingJoinPlatoon = false;
+        pendingJoinPlatoonUnits = List.of();
+        promptCooldown = 0;
+    }
+
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         MapMarkers.clear();
@@ -601,6 +701,7 @@ public class ClientEvents {
         clearEntrench();
         clearLiveSelection();
         clearRadioPick();
+        clearJoinPlatoon();
     }
 
     private static void hint(String key) {

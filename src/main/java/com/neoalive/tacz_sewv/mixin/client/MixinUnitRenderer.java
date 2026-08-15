@@ -21,6 +21,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
+import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderRenderer;
 
 /**
  * Two jobs on SEM's unit renderers. Hides any mounted unit whose seat encloses it
@@ -33,7 +34,7 @@ import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
  * ({@code RuSupportRenderer}/{@code UsSupportRenderer}) override {@code getTextureLocation} and
  * never call super, so they consult the registry themselves.
  */
-@Mixin({PmcUnitRenderer.class, RUunitRenderer.class, USunitRenderer.class})
+@Mixin({PmcUnitRenderer.class, RUunitRenderer.class, USunitRenderer.class, PmcCommanderRenderer.class})
 public abstract class MixinUnitRenderer {
 
     @Unique

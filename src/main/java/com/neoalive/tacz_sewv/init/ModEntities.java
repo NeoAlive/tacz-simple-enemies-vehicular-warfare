@@ -13,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
@@ -43,6 +44,9 @@ public class ModEntities {
             register("ru_combat_engineer", RuCombatEngineerEntity::new, MobCategory.MONSTER);
     public static final RegistryObject<EntityType<UsCombatEngineerEntity>> US_COMBAT_ENGINEER =
             register("us_combat_engineer", UsCombatEngineerEntity::new, MobCategory.MONSTER);
+    /** Debug/egg-spawn only — never picked by TankSpawner's crew construction. */
+    public static final RegistryObject<EntityType<PmcCommanderEntity>> PMC_COMMANDER =
+            register("pmc_commander", PmcCommanderEntity::new, MobCategory.MISC);
 
     public static final RegistryObject<EntityType<SandbagSeatEntity>> SANDBAG_SEAT =
             ENTITY_TYPES.register("sandbag_seat", () -> EntityType.Builder
@@ -71,5 +75,6 @@ public class ModEntities {
         event.put(US_ENGINEER.get(), AbstractUnit.createAttributes().build());
         event.put(RU_COMBAT_ENGINEER.get(), AbstractUnit.createAttributes().build());
         event.put(US_COMBAT_ENGINEER.get(), AbstractUnit.createAttributes().build());
+        event.put(PMC_COMMANDER.get(), AbstractUnit.createAttributes().build());
     }
 }

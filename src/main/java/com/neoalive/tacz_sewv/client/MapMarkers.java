@@ -35,6 +35,7 @@ public final class MapMarkers {
 
     private static List<VehicleMarker> markers = List.of();
     private static final Int2ObjectOpenHashMap<VehicleMarker> BY_VEHICLE_ID = new Int2ObjectOpenHashMap<>();
+    private static final Int2ObjectOpenHashMap<VehicleMarker> BY_DRIVER_ID = new Int2ObjectOpenHashMap<>();
     private static List<BattleFieldMarker> battleFields = List.of();
     @Nullable
     private static SweepOverlayState sweepOverlay;
@@ -50,7 +51,11 @@ public final class MapMarkers {
                               @Nullable SweepOverlayState sweep) {
         markers = List.copyOf(incoming);
         BY_VEHICLE_ID.clear();
-        for (VehicleMarker marker : markers) BY_VEHICLE_ID.put(marker.vehicleId(), marker);
+        BY_DRIVER_ID.clear();
+        for (VehicleMarker marker : markers) {
+            BY_VEHICLE_ID.put(marker.vehicleId(), marker);
+            BY_DRIVER_ID.put(marker.driverId(), marker);
+        }
         battleFields = List.copyOf(fields);
         sweepOverlay = sweep;
         // A selected hull that is gone is not selectable any more, and leaving it in would keep
@@ -62,6 +67,7 @@ public final class MapMarkers {
     public static void clear() {
         markers = List.of();
         BY_VEHICLE_ID.clear();
+        BY_DRIVER_ID.clear();
         battleFields = List.of();
         sweepOverlay = null;
         SELECTED.clear();
@@ -74,6 +80,12 @@ public final class MapMarkers {
     @Nullable
     public static VehicleMarker markerForVehicle(int vehicleId) {
         return BY_VEHICLE_ID.get(vehicleId);
+    }
+
+    /** Same marker, looked up by the commanding unit's own id rather than the hull's. */
+    @Nullable
+    public static VehicleMarker markerForDriver(int driverId) {
+        return BY_DRIVER_ID.get(driverId);
     }
 
     /** Debug BattleField overlays synced with the vehicle markers — empty when none populated. */

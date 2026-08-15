@@ -76,6 +76,7 @@ public class PacketBoardVehicle {
             IVehicleBoarder boarder = (IVehicleBoarder) pmc;
             boarder.tacz_sewv$setMountTargetId(this.vehicleId);
             boarder.tacz_sewv$setPassengerOnly(this.passengerOnly);
+            boarder.tacz_sewv$setBoardCleared(false);
             boarder.tacz_sewv$setBoarding(true);
             // Board and escort both drive the unit on foot at goal priority 1 — a unit can't do
             // both. Boarding wins the moment it's ordered.

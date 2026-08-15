@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 
 /**
  * Server-side owner of battle groups: scans eligible drivers on the utility cadence, battle-gates,
@@ -524,6 +525,9 @@ public final class CommandCoordinator {
                                  double maxRadius, UtilityWeights weights) {
         List<Election.Candidate> members = new ArrayList<>();
         Integer designatedNetId = resolveDesignation(level, group);
+        if (designatedNetId == null) {
+            designatedNetId = resolveCommanderEntity(level, group);
+        }
 
         for (int memberId : group.memberIds()) {
             var entity = level.getEntity(memberId);
@@ -582,6 +586,22 @@ public final class CommandCoordinator {
             if (e != null && designated.equals(e.getUUID())) return memberId;
         }
         return null; // dead or left group — fall through to auto
+    }
+
+    /**
+     * A live, Facts-ready {@link PmcCommanderEntity} in the group wins election outright, the same
+     * seam a player designation would use — "automatically elected leader... as long as eligible
+     * for doctrine operations". Checked ahead of ordinary fitness scoring; an unready Commander
+     * simply defers to the next scan rather than forcing an election.
+     */
+    @Nullable
+    private static Integer resolveCommanderEntity(ServerLevel level, BattleGroup group) {
+        for (int memberId : group.memberIds()) {
+            if (!(level.getEntity(memberId) instanceof PmcCommanderEntity)) continue;
+            Facts facts = Facts.of(memberId);
+            if (facts != null && facts.ready()) return memberId;
+        }
+        return null;
     }
 
     private static void applyAssignments(Map<Integer, BattleGroup> levelGroups,

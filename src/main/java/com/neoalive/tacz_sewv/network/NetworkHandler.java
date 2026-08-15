@@ -82,7 +82,11 @@ public class NetworkHandler {
     // 51: the flight command carries HELI_CMD_EMERGENCY_LAND. The field layout is unchanged, but an
     //     older server reads the new value as an unknown command and parks the order on the pilot,
     //     which is a silent wrong answer rather than a parse error — exactly what this gate is for.
-    private static final String PROTOCOL_VERSION = "51";
+    // 52: PacketOwnedVehicles carries platoon colour + commander flag.
+    // 53: PacketExitPlatoon; PacketToggleAutoOrders (TDT Platoon category).
+    // 54: PacketJoinPlatoon (TDT Platoon category).
+    // 55: PacketClearBoarding ("board my vehicle" keybind).
+    private static final String PROTOCOL_VERSION = "55";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -359,6 +363,34 @@ public class NetworkHandler {
                 PacketUpdateTargetPriority::encode,
                 PacketUpdateTargetPriority::new,
                 PacketUpdateTargetPriority::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketExitPlatoon.class,
+                PacketExitPlatoon::encode,
+                PacketExitPlatoon::new,
+                PacketExitPlatoon::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketToggleAutoOrders.class,
+                PacketToggleAutoOrders::encode,
+                PacketToggleAutoOrders::new,
+                PacketToggleAutoOrders::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketJoinPlatoon.class,
+                PacketJoinPlatoon::encode,
+                PacketJoinPlatoon::new,
+                PacketJoinPlatoon::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketClearBoarding.class,
+                PacketClearBoarding::encode,
+                PacketClearBoarding::new,
+                PacketClearBoarding::handle
         );
     }
 }

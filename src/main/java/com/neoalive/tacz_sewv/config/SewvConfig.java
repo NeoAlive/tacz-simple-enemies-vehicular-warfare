@@ -112,6 +112,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue ENGINEER_REPAIR_PER_TREAT;
     public static final ForgeConfigSpec.IntValue ENGINEER_REPAIR_COOLDOWN;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ENGINEER_SIDEARM_POOL;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> COMMANDER_SIDEARM_POOL;
     public static final ForgeConfigSpec.IntValue DRONE_MAX_PER_ENGINEER;
     public static final ForgeConfigSpec.IntValue DRONE_DEPLOY_CHECK_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue DRONE_DEPLOY_CHANCE;
@@ -154,6 +155,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue COMMAND_MAX_UNITS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_ENGAGEMENT_RADIUS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_MARGIN;
+    public static final ForgeConfigSpec.DoubleValue PLATOON_COHESION_RADIUS;
+    public static final ForgeConfigSpec.IntValue PLATOON_MAX_SIZE;
+    public static final ForgeConfigSpec.IntValue PLATOON_MIN_SIZE;
     public static final ForgeConfigSpec.DoubleValue INFLUENCE_CELL_SIZE;
     public static final ForgeConfigSpec.IntValue INFLUENCE_MAX_CELLS;
     public static final ForgeConfigSpec.IntValue MIN_PLAY_TICKS;
@@ -477,6 +481,8 @@ public final class SewvConfig {
                 .defineInRange("engineerRepairCooldown", 10, 1, 200);
         ENGINEER_SIDEARM_POOL = builder.comment("Pistols engineers may carry (TACZ gun ids).")
                 .defineList("engineerSidearmPool", List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"), SewvConfig::isValidResourceId);
+        COMMANDER_SIDEARM_POOL = builder.comment("Pistols PMC Commanders may carry (TACZ gun ids).")
+                .defineList("commanderSidearmPool", List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"), SewvConfig::isValidResourceId);
         DRONE_MAX_PER_ENGINEER = builder.comment("Max attack drones each RU/US engineer may have out at once.")
                 .defineInRange("droneMaxPerEngineer", 1, 0, 8);
         DRONE_DEPLOY_CHECK_INTERVAL_TICKS = builder.comment("How often (game ticks) an engineer considers launching another drone.")
@@ -579,6 +585,15 @@ public final class SewvConfig {
                 .defineInRange("minPlayTicks", 200, 20, 2400);
         PLAY_SWITCH_MARGIN = builder.comment("How much better a new battle plan must score to replace the current one.")
                 .defineInRange("playSwitchMargin", 10.0, 0.0, 100.0);
+        builder.pop();
+
+        builder.push("platoon");
+        PLATOON_COHESION_RADIUS = builder.comment("Platoons try to stay within this many blocks of each other, unless tasked into a doctrine play.")
+                .defineInRange("platoonCohesionRadius", 30.0, 8.0, 128.0);
+        PLATOON_MAX_SIZE = builder.comment("Max members in one platoon (PMC infantry, or ground-vehicle crews — never mixed).")
+                .defineInRange("platoonMaxSize", 4, 2, 12);
+        PLATOON_MIN_SIZE = builder.comment("A platoon disbands once membership drops below this.")
+                .defineInRange("platoonMinSize", 2, 2, 8);
         builder.pop();
 
         builder.push("flight_ai");

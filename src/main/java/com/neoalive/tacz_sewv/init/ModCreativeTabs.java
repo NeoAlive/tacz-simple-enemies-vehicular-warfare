@@ -40,6 +40,7 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.US_ENGINEER_SPAWN_EGG.get());
                         output.accept(ModItems.RU_COMBAT_ENGINEER_SPAWN_EGG.get());
                         output.accept(ModItems.US_COMBAT_ENGINEER_SPAWN_EGG.get());
+                        output.accept(ModItems.PMC_COMMANDER_SPAWN_EGG.get());
                     })
                     .build());
 

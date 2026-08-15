@@ -68,6 +68,7 @@ public final class TdtKeybind {
         public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
             event.register(OPEN_TDT);
             event.register(MapMarkersKeybind.TOGGLE_MAP_MARKERS);
+            event.register(BoardMyVehicleKeybind.BOARD_MY_VEHICLE);
         }
     }
 

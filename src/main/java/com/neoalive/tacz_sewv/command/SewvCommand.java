@@ -89,6 +89,7 @@ public class SewvCommand {
                         .then(supportSpawn("usengineer", false, SupportRole.ENGINEER))
                         .then(supportSpawn("rucombatengineer", true, SupportRole.COMBAT_ENGINEER))
                         .then(supportSpawn("uscombatengineer", false, SupportRole.COMBAT_ENGINEER))
+                        .then(commanderSpawn("pmccommander"))
                 )
                 // Ungated (unlike spawn, above): any player can check on their own units.
                 .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
@@ -652,6 +653,34 @@ public class SewvCommand {
         String label = (ru ? "RU " : "US ") + role.name().toLowerCase();
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.spawn.success", label, pos.toShortString()), true);
+        return 1;
+    }
+
+    // The Commander takes no vehicle id, like the other support units; owned by whoever ran the
+    // command (if a player), so radio/order gating has someone to check against.
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> commanderSpawn(
+            String literal) {
+        return Commands.literal(literal)
+                .executes(ctx -> spawnCommander(ctx.getSource(), null))
+                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                        .executes(ctx -> spawnCommander(ctx.getSource(),
+                                BlockPosArgument.getLoadedBlockPos(ctx, "pos"))));
+    }
+
+    private static int spawnCommander(CommandSourceStack source, @Nullable BlockPos explicitPos) {
+        ServerLevel level = source.getLevel();
+        BlockPos pos = explicitPos != null
+                ? explicitPos
+                : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
+        UUID ownerId = source.getEntity() instanceof ServerPlayer player ? player.getUUID() : null;
+
+        if (com.neoalive.tacz_sewv.spawn.PmcCommanderSpawner.spawn(level, pos, ownerId) == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.support_fail"));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.translatable(
+                "command.tacz_sewv.spawn.success", "PMC Commander", pos.toShortString()), true);
         return 1;
     }
 

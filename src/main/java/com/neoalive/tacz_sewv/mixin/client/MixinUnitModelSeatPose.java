@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.client.SandbagSeatPose;
 import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
+import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModel;
 
 /**
  * Seat posing for SEM units: sandbag Bedrock pose, or vanilla riding legs on SBW vehicles.
@@ -28,7 +29,7 @@ import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
  * every {@code setupAnim} with {@code root().getAllParts().forEach(ModelPart::resetPose)}, so a
  * seated bone's transform cannot survive into the next frame.
  */
-@Mixin({RUunitModel.class, USunitModel.class, PmcUnitModel.class})
+@Mixin({RUunitModel.class, USunitModel.class, PmcUnitModel.class, PmcCommanderModel.class})
 public abstract class MixinUnitModelSeatPose {
 
     @Inject(method = "setupAnim", at = @At("TAIL"))

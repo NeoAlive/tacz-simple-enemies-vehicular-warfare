@@ -14,4 +14,13 @@ public interface IVehicleBoarder {
      */
     void tacz_sewv$setPassengerOnly(boolean passengerOnly);
     boolean tacz_sewv$isPassengerOnly();
+
+    /**
+     * Whether a passenger-only order may proceed past the wait-beside-the-hull stage. Set true by
+     * the owning player's "board my vehicle" keypress ({@code PacketClearBoarding}) once they are
+     * seated in the target hull themselves, so the squad piles in only after the player has had the
+     * chance to pick their own seat. Reset to false whenever a new board order is issued.
+     */
+    void tacz_sewv$setBoardCleared(boolean cleared);
+    boolean tacz_sewv$isBoardCleared();
 }

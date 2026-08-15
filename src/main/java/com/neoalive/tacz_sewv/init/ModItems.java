@@ -10,6 +10,7 @@ import net.minecraftforge.registries.RegistryObject;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.item.MedalOfHonorItem;
 import com.neoalive.tacz_sewv.item.PoolClipboardItem;
 import com.neoalive.tacz_sewv.item.TacticalDataTerminalItem;
 
@@ -31,6 +32,10 @@ public class ModItems {
     /** The doctrine editor's access key. Handed out once per player; craft another to respec. */
     public static final RegistryObject<Item> DOCTRINE_LEDGER =
             ITEMS.register("doctrine_ledger", DoctrineLedgerItem::new);
+
+    /** Promotes an owned PMC to Commander. Consumed on use. */
+    public static final RegistryObject<Item> MEDAL_OF_HONOR =
+            ITEMS.register("medal_of_honor", MedalOfHonorItem::new);
 
     /** Creative-tab admin clipboard for per-world vehicle spawn pools. Op-gated, uncraftable. */
     public static final RegistryObject<Item> POOL_CLIPBOARD =

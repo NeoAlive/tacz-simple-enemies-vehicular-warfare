@@ -36,6 +36,8 @@ This project depends on the following projects:
   - Code licensed under the GNU General Public License v3.0.
   - Assets licensed separately under the CC BY-NC-SA 3.0 License.
 
+- [Default642172](https://www.planetminecraft.com/member/default642172/) and his outstanding skins, used in this project. 
+
 This project was also developed with reference to and inspiration from
 [SBW: Superb Recruits](https://github.com/LogicalMaximus/SuperbRecruitz) by **LogicalMaximus**,
 which is licensed under the MIT License. While this project does not include any assets from

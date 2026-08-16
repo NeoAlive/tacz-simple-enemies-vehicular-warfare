@@ -10,6 +10,7 @@ import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.client.invasion.InvasionEditorClient;
+import com.neoalive.tacz_sewv.invasion.PmcOwnerKind;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /** Server → client: open the team_base config screen. */
@@ -26,15 +27,23 @@ public class PacketOpenTeamBaseGui {
     private final String ownedTeam;
     private final boolean invisible;
     private final boolean endInvasionOnCapture;
+    private final PmcOwnerKind pmcOwnerKind;
+    private final String pmcOwnerValue;
     private final List<String> vehiclePool;
+    private final List<String> enemyTeams;
     private final List<String> teams;
+    private final List<String> onlinePlayerNames;
+    private final List<String> onlinePlayerUuids;
     private final List<String> catalog;
 
     public PacketOpenTeamBaseGui(BlockPos pos, String assignedTeam, boolean playerOwned,
                                  boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                                  int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
                                  String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
-                                 List<String> vehiclePool, List<String> teams, List<String> catalog) {
+                                 PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
+                                 List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
+                                 List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
+                                 List<String> catalog) {
         this.pos = pos;
         this.assignedTeam = assignedTeam == null ? "" : assignedTeam;
         this.playerOwned = playerOwned;
@@ -46,8 +55,13 @@ public class PacketOpenTeamBaseGui {
         this.ownedTeam = ownedTeam == null ? "" : ownedTeam;
         this.invisible = invisible;
         this.endInvasionOnCapture = endInvasionOnCapture;
+        this.pmcOwnerKind = pmcOwnerKind == null ? PmcOwnerKind.NONE : pmcOwnerKind;
+        this.pmcOwnerValue = pmcOwnerValue == null ? "" : pmcOwnerValue;
         this.vehiclePool = vehiclePool;
+        this.enemyTeams = enemyTeams;
         this.teams = teams;
+        this.onlinePlayerNames = onlinePlayerNames;
+        this.onlinePlayerUuids = onlinePlayerUuids;
         this.catalog = catalog;
     }
 
@@ -63,8 +77,13 @@ public class PacketOpenTeamBaseGui {
         this.ownedTeam = buf.readUtf();
         this.invisible = buf.readBoolean();
         this.endInvasionOnCapture = buf.readBoolean();
+        this.pmcOwnerKind = PmcOwnerKind.fromOrdinal(buf.readVarInt());
+        this.pmcOwnerValue = buf.readUtf();
         this.vehiclePool = PacketOpenPoolEditor.readStringList(buf);
+        this.enemyTeams = PacketOpenPoolEditor.readStringList(buf);
         this.teams = PacketOpenPoolEditor.readStringList(buf);
+        this.onlinePlayerNames = PacketOpenPoolEditor.readStringList(buf);
+        this.onlinePlayerUuids = PacketOpenPoolEditor.readStringList(buf);
         this.catalog = PacketOpenPoolEditor.readStringList(buf);
     }
 
@@ -80,8 +99,13 @@ public class PacketOpenTeamBaseGui {
         buf.writeUtf(this.ownedTeam);
         buf.writeBoolean(this.invisible);
         buf.writeBoolean(this.endInvasionOnCapture);
+        buf.writeVarInt(this.pmcOwnerKind.ordinal());
+        buf.writeUtf(this.pmcOwnerValue);
         PacketOpenPoolEditor.writeStringList(buf, this.vehiclePool);
+        PacketOpenPoolEditor.writeStringList(buf, this.enemyTeams);
         PacketOpenPoolEditor.writeStringList(buf, this.teams);
+        PacketOpenPoolEditor.writeStringList(buf, this.onlinePlayerNames);
+        PacketOpenPoolEditor.writeStringList(buf, this.onlinePlayerUuids);
         PacketOpenPoolEditor.writeStringList(buf, this.catalog);
     }
 
@@ -91,7 +115,9 @@ public class PacketOpenTeamBaseGui {
                         this.pos, this.assignedTeam, this.playerOwned, this.spawnPlayerOwnedTanksWithNpc,
                         this.crewFaction, this.aiVehicleCount, this.timeToCaptureSeconds,
                         this.radiusInBlocks, this.ownedTeam, this.invisible, this.endInvasionOnCapture,
-                        this.vehiclePool, this.teams, this.catalog)));
+                        this.pmcOwnerKind, this.pmcOwnerValue,
+                        this.vehiclePool, this.enemyTeams, this.teams,
+                        this.onlinePlayerNames, this.onlinePlayerUuids, this.catalog)));
         ctx.get().setPacketHandled(true);
     }
 }

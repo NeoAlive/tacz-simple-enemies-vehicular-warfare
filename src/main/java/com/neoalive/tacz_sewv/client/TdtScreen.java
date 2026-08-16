@@ -36,7 +36,6 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
-import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
@@ -193,11 +192,6 @@ public class TdtScreen extends Screen {
     public static void open() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
-        if (InvasionHudClient.isActive()) {
-            mc.player.displayClientMessage(
-                    Component.translatable("message.tacz_sewv.invasion.orders_locked"), true);
-            return;
-        }
 
         Entity target = mc.hitResult instanceof EntityHitResult ehr
                 && (ehr.getEntity() instanceof MortarEntity || ehr.getEntity() instanceof VehicleEntity)

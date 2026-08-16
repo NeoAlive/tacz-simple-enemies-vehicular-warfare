@@ -7,7 +7,8 @@
   "refmap": "tacz_sewv.refmap.json",
   "mixins": [],
   "client": [
-    "MixinKmodoDormancy"
+    "MixinKmodoDormancy",
+    "MixinKmodoLight"
   ],
   "server": [],
   "injectors": {

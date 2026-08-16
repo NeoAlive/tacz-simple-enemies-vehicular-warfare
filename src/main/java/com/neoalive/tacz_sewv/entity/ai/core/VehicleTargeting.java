@@ -40,6 +40,8 @@ import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
+import com.neoalive.tacz_sewv.invasion.InvasionHostility;
+import com.neoalive.tacz_sewv.invasion.InvasionTags;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WorldTargetPriority;
 
@@ -477,6 +479,14 @@ public final class VehicleTargeting {
     public static boolean isNonHostile(AbstractUnit unit, LivingEntity target) {
         if (target instanceof Player p && (p.isCreative() || p.isSpectator())) return true;
 
+        // Explicit enemy list stamped at invasion spawn — allies on our team never count as enemies.
+        if (InvasionHostility.isAlly(unit, target)) {
+            return true;
+        }
+        if (InvasionHostility.isEnemy(unit, target)) {
+            return false;
+        }
+
         DiplomacyEval dipl = diplomacyEval(unit, target);
         if (dipl.relation == DiplomacyData.Relation.ENEMY) {
             logTargetingDiag(unit, target, dipl, false, isFriendly(unit, target),
@@ -488,7 +498,6 @@ public final class VehicleTargeting {
         boolean friendlyFlag = friendlyFlagShields(unit, target);
         boolean result = sameFaction || friendlyFlag;
         String deciding = sameFaction ? "sameFaction" : friendlyFlag ? "friendlyFlag" : "none";
-        // Diplomacy was consulted when names resolve, but only ENEMY overrides the decision.
         logTargetingDiag(unit, target, dipl, false, sameFaction, friendlyFlag, result, false, deciding);
         return result;
     }
@@ -532,11 +541,27 @@ public final class VehicleTargeting {
     }
 
     /**
-     * True when Stage 4 diplomacy says these two are enemies. Used by {@code MixinAbstractUnit}'s
-     * setTarget veto so an ENEMY pair is not cancelled by the SEM same-class friendly gate.
+     * True when Stage 4 diplomacy <b>or</b> invasion opposite-team polarity says these two are
+     * enemies. Used by {@code MixinAbstractUnit}'s setTarget veto so an enemy pair is not
+     * cancelled by the SEM same-class friendly gate, and by PMC's player-target keep so SEM
+     * cannot null out an opposing player.
      */
     public static boolean isDiplomacyEnemy(AbstractUnit unit, LivingEntity target) {
+        if (InvasionHostility.isEnemy(unit, target)) return true;
         return diplomacyEval(unit, target).relation == DiplomacyData.Relation.ENEMY;
+    }
+
+    /** Scoreboard / invasion-tag team on an entity, or empty if untagged. */
+    @Nullable
+    public static String invasionTeamOf(Entity entity) {
+        if (entity == null) return null;
+        String team = entity.getPersistentData().getString(InvasionTags.TEAM);
+        return team == null || team.isEmpty() ? null : team;
+    }
+
+    /** Target's team is on this unit's stamped invasion enemy list. */
+    public static boolean isInvasionEnemy(AbstractUnit unit, LivingEntity target) {
+        return InvasionHostility.isEnemy(unit, target);
     }
 
     private record DiplomacyEval(

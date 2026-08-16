@@ -38,10 +38,12 @@ public final class CaptureOrderSupport {
     }
 
     /**
-     * AI fleet of any faction, or any invasion-spawned PMC (player co-crew / PMC-faction AI base).
+     * AI fleet of any faction, or ownerless invasion-spawned PMC. Player-commandable PMC
+     * ({@link PmcOwnerSupport#isPlayerCommandable}) stay off the capture pipeline so orders work.
      */
     public static boolean isCaptureCrew(AbstractUnit unit) {
         if (!unit.getPersistentData().getBoolean(InvasionTags.SPAWN)) return false;
+        if (PmcOwnerSupport.isPlayerCommandable(unit)) return false;
         if (unit.getPersistentData().getBoolean(InvasionTags.AI)) return true;
         return unit instanceof PmcUnitEntity;
     }

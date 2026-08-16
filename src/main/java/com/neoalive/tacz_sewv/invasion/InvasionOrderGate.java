@@ -4,30 +4,25 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
-import com.neoalive.tacz_sewv.order.OrderFailure;
-import com.neoalive.tacz_sewv.order.OrderReport;
-
 /**
- * Player order surfaces are locked while an invasion match is live — AI capture + command-tier
- * tactics own the match. Server gates packets so forged sends cannot bypass the UI.
+ * Formerly locked every player order surface while an invasion match was live. That conflicted with
+ * team-base PMC Owner (and player-owned invasion fleets): markers could not be commanded from Xaero
+ * or the TDT. Ownership is still enforced by {@link com.neoalive.tacz_sewv.crew.OrderAuth}.
  */
 public final class InvasionOrderGate {
 
     private InvasionOrderGate() {}
 
     public static boolean blocked(ServerLevel level) {
-        return InvasionSession.isActive(level);
+        return false;
     }
 
     public static void deny(Player player) {
-        OrderReport.fail(player, OrderFailure.ORDERS_LOCKED);
+        // no-op — gate retired
     }
 
-    /** True when the sender's dimension has a live invasion (caller should abort). */
+    /** Always false: invasion no longer blocks order packets. */
     public static boolean denyIfActive(ServerPlayer player) {
-        if (player == null) return true;
-        if (!blocked(player.serverLevel())) return false;
-        deny(player);
-        return true;
+        return false;
     }
 }

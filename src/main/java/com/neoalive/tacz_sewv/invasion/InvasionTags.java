@@ -17,5 +17,17 @@ public final class InvasionTags {
     /** AI-base fleet hull (topped up to that base's {@code aiVehicleCount} while the session is live). */
     public static final String AI = "sewv:invasion_ai";
 
+    /**
+     * Scoreboard team name that owns this PMC for order auth when the team base's PMC Owner is a
+     * team (membership re-polled live — not a frozen UUID list).
+     */
+    public static final String PMC_OWNER_TEAM = "sewv:pmc_owner_team";
+
+    /**
+     * Scoreboard team names this crew treats as enemies (ListTag of strings), stamped from the
+     * spawning team_base's enemy list. Empty = invasion hostility does not apply.
+     */
+    public static final String ENEMIES = "sewv:invasion_enemies";
+
     private InvasionTags() {}
 }

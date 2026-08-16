@@ -50,6 +50,9 @@ import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
+import com.neoalive.tacz_sewv.invasion.InvasionHostility;
+import com.neoalive.tacz_sewv.invasion.InvasionTags;
+import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
 import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
 import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -118,6 +121,8 @@ public final class OwnedVehicleTracker {
 
     /** A crewed hull, resolved once per sync and then served to every player from this. */
     private record Candidate(VehicleMarker.Kind kind, CrewFacts.Faction faction, UUID pmcOwner,
+                             @Nullable String pmcOwnerTeam, @Nullable String invasionTeam,
+                             List<String> enemyTeams,
                              boolean factionFriendly, MarkerOrder order, int driverId, int vehicleId,
                              double x, double y, double z, float yaw,
                              ResourceKey<Level> dimension, float healthFrac, float energyFrac,
@@ -249,6 +254,7 @@ public final class OwnedVehicleTracker {
 
             candidates.add(new Candidate(
                     kindOf(hull), faction, CrewFacts.pmcOwner(hull),
+                    ownerTeamOf(crew), invasionTeamOf(crew), InvasionHostility.enemiesOf(crew),
                     VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
                     driver.getId(), hull.getId(),
                     hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension(),
@@ -280,7 +286,7 @@ public final class OwnedVehicleTracker {
         UUID pmcOwner = crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
         candidates.add(new Candidate(
                 VehicleMarker.Kind.EMPLACEMENT, faction,
-                pmcOwner,
+                pmcOwner, ownerTeamOf(crew), invasionTeamOf(crew), InvasionHostility.enemiesOf(crew),
                 VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
                 crew.getId(), mortar.getId(),
                 mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension(),
@@ -305,7 +311,7 @@ public final class OwnedVehicleTracker {
         UUID pmcOwner = crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
         candidates.add(new Candidate(
                 VehicleMarker.Kind.DRONE, faction,
-                pmcOwner,
+                pmcOwner, ownerTeamOf(crew), invasionTeamOf(crew), InvasionHostility.enemiesOf(crew),
                 VehicleTargeting.isFactionFriendly(crew), MarkerOrder.NONE,
                 crew.getId(), drone.getId(),
                 drone.getX(), drone.getY(), drone.getZ(), drone.getYRot(), level.dimension(),
@@ -333,7 +339,7 @@ public final class OwnedVehicleTracker {
             UUID pmcOwner = unit instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
             candidates.add(new Candidate(
                     infantryKind(unit), faction,
-                    pmcOwner,
+                    pmcOwner, ownerTeamOf(unit), invasionTeamOf(unit), InvasionHostility.enemiesOf(unit),
                     VehicleTargeting.isFactionFriendly(unit), orderPreviewOf(unit),
                     unit.getId(), unit.getId(),
                     unit.getX(), unit.getY(), unit.getZ(), unit.getYRot(), level.dimension(),
@@ -383,7 +389,7 @@ public final class OwnedVehicleTracker {
         List<Candidate> own = new ArrayList<>();
 
         for (Candidate c : candidates) {
-            if (player.getUUID().equals(c.pmcOwner())) {
+            if (isOwn(player, c)) {
                 own.add(c);
                 markers.add(marker(c, VehicleMarker.Allegiance.OWN));
             }
@@ -393,17 +399,37 @@ public final class OwnedVehicleTracker {
 
         for (Candidate c : candidates) {
             if (markers.size() >= MAX_MARKERS) break;
+            if (isOwn(player, c)) continue;
             if (c.pmcOwner() != null) {
-                if (player.getUUID().equals(c.pmcOwner())) continue;
                 if (!OpenPacCompat.allied(player.server, player.getUUID(), c.pmcOwner())) continue;
                 if (!spotted(player, own, c, spotRadiusSq)) continue;
                 markers.add(marker(c, VehicleMarker.Allegiance.FRIENDLY));
                 continue;
             }
+            if (c.pmcOwnerTeam() != null && PmcOwnerSupport.playerOnTeam(player, c.pmcOwnerTeam())) {
+                // Team-owned but already handled in isOwn — should not reach here.
+                continue;
+            }
             if (!spotted(player, own, c, spotRadiusSq)) continue;
-            markers.add(marker(c, allegianceOf(c)));
+            markers.add(marker(c, allegianceOf(player, c)));
         }
         return markers;
+    }
+
+    private static boolean isOwn(ServerPlayer player, Candidate c) {
+        if (player.getUUID().equals(c.pmcOwner())) return true;
+        return c.pmcOwnerTeam() != null && PmcOwnerSupport.playerOnTeam(player, c.pmcOwnerTeam());
+    }
+
+    @Nullable
+    private static String ownerTeamOf(AbstractUnit crew) {
+        return PmcOwnerSupport.ownerTeamOf(crew);
+    }
+
+    @Nullable
+    private static String invasionTeamOf(AbstractUnit crew) {
+        String team = crew.getPersistentData().getString(InvasionTags.TEAM);
+        return team == null || team.isEmpty() ? null : team;
     }
 
     private static boolean spotted(ServerPlayer player, List<Candidate> own, Candidate c, double radiusSq) {
@@ -420,12 +446,20 @@ public final class OwnedVehicleTracker {
     }
 
     /**
-     * A faction is friendly when SEM's own {@code ruUnitsFriendly}/{@code usUnitsFriendly} toggle
-     * says so — read through {@link VehicleTargeting}, which resolves those fields by class-name
-     * across SEM versions rather than hard-linking them. An ownerless PMC crew (a structure or
-     * village garrison) is friendly by definition; it is on your side and has no commander.
+     * Invasion crews with a stamped enemy list: player's scoreboard team on that list → HOSTILE;
+     * same invasion team → FRIENDLY. Otherwise SEM-friendly / ownerless-PMC defaults.
      */
-    private static VehicleMarker.Allegiance allegianceOf(Candidate c) {
+    private static VehicleMarker.Allegiance allegianceOf(ServerPlayer player, Candidate c) {
+        if (c.invasionTeam() != null && !c.enemyTeams().isEmpty()) {
+            if (PmcOwnerSupport.playerOnTeam(player, c.invasionTeam())) {
+                return VehicleMarker.Allegiance.FRIENDLY;
+            }
+            for (String enemy : c.enemyTeams()) {
+                if (PmcOwnerSupport.playerOnTeam(player, enemy)) {
+                    return VehicleMarker.Allegiance.HOSTILE;
+                }
+            }
+        }
         if (c.faction() == CrewFacts.Faction.PMC) return VehicleMarker.Allegiance.FRIENDLY;
         return c.factionFriendly() ? VehicleMarker.Allegiance.FRIENDLY : VehicleMarker.Allegiance.HOSTILE;
     }

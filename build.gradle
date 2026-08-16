@@ -313,6 +313,9 @@ mixin {
     config "tacz_sewv.mixins.json"
     // Separate config + XaeroMixinPlugin gate — World Map is optional; main config is required.
     config "tacz_sewv.xaero.mixins.json"
+    // Separate config + KomodoMixinPlugin gate — Komodo is optional and targeted by string name
+    // (no compile-time Komodo dependency needed at all, unlike Xaero).
+    config "tacz_sewv.komodo.mixins.json"
 }
 
 repositories {
@@ -373,6 +376,15 @@ dependencies {
     compileOnly "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
     if (!project.hasProperty('noXaero')) {
         runtimeOnly "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
+    }
+    // Soft: compile against Komodo (client-only SBW vehicle renderer); keep it off installs that
+    // omit it. libs/komodo.jar is the official Forge 1.20.1 release jar (github.com/
+    // Warfactory-Official/Komodo), same flatDir pattern as the other libs/*.jar deps.
+    // Absent-path verification: ./gradlew runClient -PnoKomodo  (skips runtimeOnly;
+    // KomodoMixinPlugin then refuses MixinKmodoDormancy so no "target was not found" warning).
+    compileOnly fg.deobf("blank:komodo:1.0")
+    if (!project.hasProperty('noKomodo')) {
+        runtimeOnly fg.deobf("blank:komodo:1.0")
     }
     // Soft: Extermination Tripod shield compat. No compileOnly — we never reference
     // Extermination types (registry-id only). Softcompat code stays; the jar is off the

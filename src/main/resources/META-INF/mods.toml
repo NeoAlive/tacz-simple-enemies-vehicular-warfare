@@ -18,6 +18,12 @@ config="tacz_sewv.mixins.json"
 [[mixins]]
 config="tacz_sewv.xaero.mixins.json"
 
+# Komodo (client-only SBW vehicle renderer) compat. Separate config ("required": false) +
+# KomodoMixinPlugin (LoadingModList gate on mod id komodo) so an absent Komodo never queues
+# MixinKmodoDormancy. Compiled against libs/komodo.jar (compileOnly), same as Xaero above.
+[[mixins]]
+config="tacz_sewv.komodo.mixins.json"
+
 [[dependencies.tacz_sewv]] #optional
     modId="forge" #mandatory
     mandatory=true #mandatory
@@ -67,6 +73,15 @@ config="tacz_sewv.xaero.mixins.json"
     modId="xaeroworldmap"
     mandatory=false
     versionRange="[1.44.0,)"
+    ordering="AFTER"
+    side="CLIENT"
+
+# Soft compat: Komodo speeds up SBW vehicle rendering and lets AI-crewed hulls that are actually
+# idle enter its dormancy fast path (MixinKmodoDormancy). Client-only, absent by default.
+[[dependencies.tacz_sewv]]
+    modId="komodo"
+    mandatory=false
+    versionRange="[0,)"
     ordering="AFTER"
     side="CLIENT"
 

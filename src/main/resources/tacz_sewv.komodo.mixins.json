@@ -1,0 +1,16 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.neoalive.tacz_sewv.mixin.client",
+  "plugin": "com.neoalive.tacz_sewv.mixin.KomodoMixinPlugin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "tacz_sewv.refmap.json",
+  "mixins": [],
+  "client": [
+    "MixinKmodoDormancy"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

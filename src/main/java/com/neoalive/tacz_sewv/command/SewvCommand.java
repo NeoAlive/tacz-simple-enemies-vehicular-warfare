@@ -36,6 +36,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.GunCacheProbe;
+import com.neoalive.tacz_sewv.debug.PerfProbe;
 import com.neoalive.tacz_sewv.debug.SewvConfigFix;
 import com.neoalive.tacz_sewv.debug.SewvDebugDump;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
@@ -118,6 +119,8 @@ public class SewvCommand {
                                 .executes(ctx -> debugReloadSkins(ctx.getSource(), true)))
                         .then(Commands.literal("dump")
                                 .executes(ctx -> debugDump(ctx.getSource())))
+                        .then(Commands.literal("perf")
+                                .executes(ctx -> debugPerf(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
                                 .executes(ctx -> debugStartConfigFix(ctx.getSource())))
                         .then(Commands.literal("digFoxhole")
@@ -487,6 +490,13 @@ public class SewvCommand {
         }
         source.sendFailure(Component.literal(result));
         return 0;
+    }
+
+    private static int debugPerf(CommandSourceStack source) {
+        for (String line : PerfProbe.report(source.getLevel()).split("\n")) {
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
+        return 1;
     }
 
     /** Tell clients to re-scan config/tacz_sewv/vehicle_skins/ without a restart. */

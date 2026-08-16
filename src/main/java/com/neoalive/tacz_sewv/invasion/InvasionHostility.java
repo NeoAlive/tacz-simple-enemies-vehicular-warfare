@@ -8,10 +8,11 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.scores.Team;
+import net.minecraft.world.scores.PlayerTeam;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 
@@ -50,12 +51,30 @@ public final class InvasionHostility {
         return out.isEmpty() ? List.of() : Collections.unmodifiableList(out);
     }
 
-    /** Scoreboard team of a player, or {@link InvasionTags#TEAM} on an invasion entity. */
+    /**
+     * Enemy list on the unit, or — when empty and the unit is seated — on its hull. Spawn stamps
+     * both, but a remount / partial tag must not leave the crew unable to read hostility.
+     */
+    public static List<String> enemiesForShooter(AbstractUnit shooter) {
+        List<String> own = enemiesOf(shooter);
+        if (!own.isEmpty()) return own;
+        Entity vehicle = shooter.getVehicle();
+        return vehicle == null ? List.of() : enemiesOf(vehicle);
+    }
+
+    /**
+     * Scoreboard team of a player (server scoreboard, same source as capture / spawn), or
+     * {@link InvasionTags#TEAM} on an invasion entity.
+     */
     @Nullable
     public static String teamOf(LivingEntity target) {
         if (target instanceof Player player) {
-            Team scoreboard = player.getTeam();
-            return scoreboard == null ? null : scoreboard.getName();
+            if (player.level() instanceof ServerLevel server) {
+                PlayerTeam team = server.getScoreboard().getPlayersTeam(player.getScoreboardName());
+                return team == null ? null : team.getName();
+            }
+            PlayerTeam team = player.level().getScoreboard().getPlayersTeam(player.getScoreboardName());
+            return team == null ? null : team.getName();
         }
         String tagged = target.getPersistentData().getString(InvasionTags.TEAM);
         return tagged == null || tagged.isEmpty() ? null : tagged;
@@ -66,7 +85,7 @@ public final class InvasionHostility {
      * team is on that list.
      */
     public static boolean isEnemy(AbstractUnit shooter, LivingEntity target) {
-        List<String> enemies = enemiesOf(shooter);
+        List<String> enemies = enemiesForShooter(shooter);
         if (enemies.isEmpty()) return false;
         String other = teamOf(target);
         if (other == null) return false;
@@ -76,6 +95,12 @@ public final class InvasionHostility {
     /** Same invasion/scoreboard team as the shooter (never hostile via invasion). */
     public static boolean isAlly(AbstractUnit shooter, LivingEntity target) {
         String self = shooter.getPersistentData().getString(InvasionTags.TEAM);
+        if (self == null || self.isEmpty()) {
+            Entity vehicle = shooter.getVehicle();
+            if (vehicle != null) {
+                self = vehicle.getPersistentData().getString(InvasionTags.TEAM);
+            }
+        }
         if (self == null || self.isEmpty()) return false;
         String other = teamOf(target);
         return self.equals(other);

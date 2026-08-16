@@ -1,6 +1,8 @@
 package com.neoalive.tacz_sewv.network;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import net.minecraft.core.BlockPos;
@@ -35,6 +37,8 @@ public class PacketOpenTeamBaseGui {
     private final List<String> onlinePlayerNames;
     private final List<String> onlinePlayerUuids;
     private final List<String> catalog;
+    /** Current world GROUND pools per faction — same source as {@code /sewv pool} Armor. */
+    private final Map<TankFaction, List<String>> armorPools;
 
     public PacketOpenTeamBaseGui(BlockPos pos, String assignedTeam, boolean playerOwned,
                                  boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
@@ -43,7 +47,7 @@ public class PacketOpenTeamBaseGui {
                                  PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
                                  List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
                                  List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
-                                 List<String> catalog) {
+                                 List<String> catalog, Map<TankFaction, List<String>> armorPools) {
         this.pos = pos;
         this.assignedTeam = assignedTeam == null ? "" : assignedTeam;
         this.playerOwned = playerOwned;
@@ -63,6 +67,7 @@ public class PacketOpenTeamBaseGui {
         this.onlinePlayerNames = onlinePlayerNames;
         this.onlinePlayerUuids = onlinePlayerUuids;
         this.catalog = catalog;
+        this.armorPools = armorPools == null ? Map.of() : armorPools;
     }
 
     public PacketOpenTeamBaseGui(FriendlyByteBuf buf) {
@@ -85,6 +90,11 @@ public class PacketOpenTeamBaseGui {
         this.onlinePlayerNames = PacketOpenPoolEditor.readStringList(buf);
         this.onlinePlayerUuids = PacketOpenPoolEditor.readStringList(buf);
         this.catalog = PacketOpenPoolEditor.readStringList(buf);
+        Map<TankFaction, List<String>> armor = new EnumMap<>(TankFaction.class);
+        for (TankFaction faction : TankFaction.values()) {
+            armor.put(faction, PacketOpenPoolEditor.readStringList(buf));
+        }
+        this.armorPools = armor;
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -107,6 +117,10 @@ public class PacketOpenTeamBaseGui {
         PacketOpenPoolEditor.writeStringList(buf, this.onlinePlayerNames);
         PacketOpenPoolEditor.writeStringList(buf, this.onlinePlayerUuids);
         PacketOpenPoolEditor.writeStringList(buf, this.catalog);
+        for (TankFaction faction : TankFaction.values()) {
+            List<String> list = this.armorPools.getOrDefault(faction, List.of());
+            PacketOpenPoolEditor.writeStringList(buf, list);
+        }
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -117,7 +131,8 @@ public class PacketOpenTeamBaseGui {
                         this.radiusInBlocks, this.ownedTeam, this.invisible, this.endInvasionOnCapture,
                         this.pmcOwnerKind, this.pmcOwnerValue,
                         this.vehiclePool, this.enemyTeams, this.teams,
-                        this.onlinePlayerNames, this.onlinePlayerUuids, this.catalog)));
+                        this.onlinePlayerNames, this.onlinePlayerUuids, this.catalog,
+                        this.armorPools)));
         ctx.get().setPacketHandled(true);
     }
 }

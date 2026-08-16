@@ -409,7 +409,7 @@ public final class InvasionSpawn {
         return findCapturables(level);
     }
 
-    static List<TeamBaseBlockEntity> findTeamBases(ServerLevel level) {
+    public static List<TeamBaseBlockEntity> findTeamBases(ServerLevel level) {
         List<TeamBaseBlockEntity> found = new ArrayList<>();
         for (CapturableBlockEntity zone : findCapturables(level)) {
             if (zone instanceof TeamBaseBlockEntity base) found.add(base);

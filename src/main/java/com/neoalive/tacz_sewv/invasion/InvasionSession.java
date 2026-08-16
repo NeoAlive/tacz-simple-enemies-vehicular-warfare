@@ -112,13 +112,22 @@ public final class InvasionSession {
         InvasionSession session = of(level);
         boolean wasActive = session.active || InvasionLayout.get(level).isSessionActive();
         if (!wasActive) return;
+        forceEnd(level);
+    }
+
+    /**
+     * Always tear down invasion spawns/tickets/HUD and clear the persisted session flag —
+     * even when memory already thinks the match is idle (orphaned SPAWN NBT after a crash).
+     */
+    public static void forceEnd(ServerLevel level) {
+        InvasionSession session = of(level);
         session.active = false;
         session.hudLayout = null;
         InvasionHudTracker.clear(level);
         InvasionSpawn.teardown(level);
         InvasionTickets.releaseAll(level);
         InvasionLayout.get(level).setSessionActive(false);
-        SewvDiag.invasion("session INACTIVE dim={}", level.dimension().location());
+        SewvDiag.invasion("session FORCE_END dim={}", level.dimension().location());
     }
 
     /**

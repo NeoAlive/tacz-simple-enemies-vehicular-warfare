@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.invasion;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -13,7 +15,10 @@ import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenCapturePointGui;
 import com.neoalive.tacz_sewv.network.PacketOpenTeamBaseGui;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.PoolEditorAccess;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
 
 /** Op-only open path for invasion block config screens. */
 public final class InvasionBlockEditor {
@@ -64,6 +69,11 @@ public final class InvasionBlockEditor {
             playerNames.add(online.getGameProfile().getName());
             playerUuids.add(online.getUUID().toString());
         }
+        WorldVehiclePools pools = WorldVehiclePools.get(player.serverLevel());
+        Map<TankFaction, List<String>> armor = new EnumMap<>(TankFaction.class);
+        for (TankFaction faction : TankFaction.values()) {
+            armor.put(faction, new ArrayList<>(pools.list(faction, Category.GROUND)));
+        }
         NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                 new PacketOpenTeamBaseGui(
                         be.getBlockPos(),
@@ -84,6 +94,7 @@ public final class InvasionBlockEditor {
                         scoreboardTeamNames(player),
                         playerNames,
                         playerUuids,
-                        PoolEditorAccess.catalog()));
+                        PoolEditorAccess.catalog(),
+                        armor));
     }
 }

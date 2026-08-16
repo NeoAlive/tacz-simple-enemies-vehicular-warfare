@@ -28,6 +28,8 @@ import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
+import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
@@ -47,9 +49,11 @@ import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SandbagSupport;
 import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
+import com.neoalive.tacz_sewv.invasion.InvasionHudTracker;
 import com.neoalive.tacz_sewv.invasion.InvasionLayout;
 import com.neoalive.tacz_sewv.invasion.InvasionSession;
 import com.neoalive.tacz_sewv.invasion.InvasionSpawn;
+import com.neoalive.tacz_sewv.invasion.InvasionTickets;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
@@ -126,7 +130,13 @@ public class SewvCommand {
                         .then(Commands.literal("digFoxhole")
                                 .executes(ctx -> debugDigFoxhole(ctx.getSource())))
                         .then(Commands.literal("seatSandbag")
-                                .executes(ctx -> debugSeatSandbag(ctx.getSource()))))
+                                .executes(ctx -> debugSeatSandbag(ctx.getSource())))
+                        .then(Commands.literal("InvasionForceEnd")
+                                .executes(ctx -> debugInvasionForceEnd(ctx.getSource())))
+                        .then(Commands.literal("InvasionResetTeamBlockCounter")
+                                .executes(ctx -> debugInvasionResetTeamBlockCounter(ctx.getSource())))
+                        .then(Commands.literal("InvasionResetAllPoints")
+                                .executes(ctx -> debugInvasionResetAllPoints(ctx.getSource()))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("add")
@@ -459,6 +469,65 @@ public class SewvCommand {
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.seatSandbag.ok",
                 unit.getDisplayName(), unit.getId(),
                 bag.getX(), bag.getY(), bag.getZ()), true);
+        return 1;
+    }
+
+    private static int debugInvasionForceEnd(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        InvasionSession.forceEnd(level);
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.InvasionForceEnd.ok"), true);
+        return 1;
+    }
+
+    private static int debugInvasionResetTeamBlockCounter(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        InvasionLayout layout = InvasionLayout.get(level);
+        java.util.Set<Long> previous = layout.teamBasePositions();
+        layout.clearTeamBases();
+        for (long packed : previous) {
+            BlockPos pos = BlockPos.of(packed);
+            InvasionTickets.ensureLoaded(level, pos);
+            if (level.getBlockEntity(pos) instanceof TeamBaseBlockEntity) {
+                layout.noteTeamBase(pos);
+            }
+        }
+        for (TeamBaseBlockEntity base : InvasionSpawn.findTeamBases(level)) {
+            layout.noteTeamBase(base.getBlockPos());
+        }
+        int count = layout.teamBasePositions().size();
+        source.sendSuccess(() -> Component.translatable(
+                "command.tacz_sewv.debug.InvasionResetTeamBlockCounter.ok", count), true);
+        return 1;
+    }
+
+    private static int debugInvasionResetAllPoints(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        InvasionLayout layout = InvasionLayout.get(level);
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        int cleared = 0;
+        for (long packed : layout.capturePointPositions()) {
+            BlockPos pos = BlockPos.of(packed);
+            InvasionTickets.ensureLoaded(level, pos);
+            if (!(level.getBlockEntity(pos) instanceof CapturePointBlockEntity point)) continue;
+            point.setOwnedTeam("");
+            point.clearCaptureProgress();
+            seen.add(packed);
+            cleared++;
+        }
+        for (CapturableBlockEntity zone : InvasionSpawn.findLoadedCapturables(level)) {
+            if (!(zone instanceof CapturePointBlockEntity point)) continue;
+            layout.noteCapturePoint(point.getBlockPos());
+            if (!seen.add(point.getBlockPos().asLong())) continue;
+            point.setOwnedTeam("");
+            point.clearCaptureProgress();
+            cleared++;
+        }
+        if (InvasionSession.isActive(level)) {
+            InvasionHudTracker.push(level);
+        }
+        int n = cleared;
+        source.sendSuccess(() -> Component.translatable(
+                "command.tacz_sewv.debug.InvasionResetAllPoints.ok", n), true);
         return 1;
     }
 

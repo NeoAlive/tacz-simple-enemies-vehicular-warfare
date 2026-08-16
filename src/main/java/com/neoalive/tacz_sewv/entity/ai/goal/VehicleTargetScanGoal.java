@@ -325,8 +325,9 @@ public class VehicleTargetScanGoal extends Goal {
         // and moves on to the next candidate rather than spinning on one it can never lock.
         boolean nonHostile = VehicleTargeting.isNonHostile(this.unit, e);
         if (nonHostile) {
-            // Only spam for PMC↔PMC — the gap under investigation.
-            if (this.unit instanceof PmcUnitEntity && e instanceof PmcUnitEntity) {
+            // PMC↔PMC and PMC↔Player are the gaps under investigation (invasion enemy lists).
+            if (this.unit instanceof PmcUnitEntity
+                    && (e instanceof PmcUnitEntity || e instanceof Player)) {
                 SewvDiag.scan(
                         "VehicleTargetScanGoal.isValidTarget REJECT isNonHostile=true unit={}#{} cand={}#{}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),

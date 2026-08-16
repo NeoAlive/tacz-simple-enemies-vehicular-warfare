@@ -1,8 +1,10 @@
 package com.neoalive.tacz_sewv.client.gui;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
@@ -47,6 +49,7 @@ public class TeamBaseScreen extends Screen {
     private final List<String> onlinePlayerNames;
     private final List<String> onlinePlayerUuids;
     private final List<String> catalog;
+    private final Map<TankFaction, List<String>> armorPools;
 
     private EditBox timeBox;
     private EditBox radiusBox;
@@ -75,7 +78,7 @@ public class TeamBaseScreen extends Screen {
                           PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
                           List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
                           List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
-                          List<String> catalog) {
+                          List<String> catalog, Map<TankFaction, List<String>> armorPools) {
         super(Component.translatable("gui.tacz_sewv.invasion.team_base.title"));
         this.pos = pos;
         this.assignedTeam = assignedTeam == null ? "" : assignedTeam;
@@ -99,6 +102,14 @@ public class TeamBaseScreen extends Screen {
         this.onlinePlayerNames = List.copyOf(onlinePlayerNames);
         this.onlinePlayerUuids = List.copyOf(onlinePlayerUuids);
         this.catalog = List.copyOf(catalog);
+        Map<TankFaction, List<String>> armor = new EnumMap<>(TankFaction.class);
+        if (armorPools != null) {
+            for (TankFaction faction : TankFaction.values()) {
+                List<String> list = armorPools.get(faction);
+                armor.put(faction, list == null ? List.of() : List.copyOf(list));
+            }
+        }
+        this.armorPools = armor;
     }
 
     @Override
@@ -196,6 +207,9 @@ public class TeamBaseScreen extends Screen {
                 .bounds(left + COL_W - 80, listBottom + 4, 80, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.remove"), b -> removeSelected())
                 .bounds(left, listBottom + 28, 100, 20).build());
+        // Same source as /sewv pool Armor for the selected crew faction.
+        addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.reset"), b -> fillFromArmorPool())
+                .bounds(left + 104, listBottom + 28, 100, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("▲"), b -> {
             if (this.scroll > 0) this.scroll--;
@@ -374,6 +388,16 @@ public class TeamBaseScreen extends Screen {
         if (this.selected < 0 || this.selected >= this.vehiclePool.size()) return;
         this.vehiclePool.remove(this.selected);
         if (this.selected >= this.vehiclePool.size()) this.selected = this.vehiclePool.size() - 1;
+        refreshFilter();
+    }
+
+    /** Replace the base pool with the world GROUND (armor) pool for the current crew faction. */
+    private void fillFromArmorPool() {
+        List<String> src = this.armorPools.getOrDefault(this.crewFaction, List.of());
+        this.vehiclePool.clear();
+        this.vehiclePool.addAll(src);
+        this.selected = -1;
+        this.scroll = 0;
         refreshFilter();
     }
 

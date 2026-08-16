@@ -30,6 +30,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.FollowCommanderGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.InvasionEnemyPlayerTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MoveToPositionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
@@ -190,8 +191,10 @@ public abstract class MixinPmcUnitEntity
                     ordinal = 0))
     private LivingEntity tacz_sewv$keepDiplomacyPlayerTarget(LivingEntity cleared) {
         LivingEntity pending = this.tacz_sewv$pendingSetTarget;
-        if (pending instanceof Player
-                && VehicleTargeting.isDiplomacyEnemy((PmcUnitEntity) (Object) this, pending)) {
+        if (!(pending instanceof Player)) return cleared;
+        PmcUnitEntity self = (PmcUnitEntity) (Object) this;
+        // Invasion enemy list (or OpenPAC ENEMY) — the only cases SEM's hard Player null-out must lose.
+        if (VehicleTargeting.isDiplomacyEnemy(self, pending)) {
             return pending;
         }
         return cleared;
@@ -272,5 +275,10 @@ public abstract class MixinPmcUnitEntity
         ((Mob) self).targetSelector.removeAllGoals(g -> g instanceof NoPlayerHurtByTargetGoal);
         ((Mob) self).targetSelector.addGoal(1,
                 new NoFriendlyHurtByTargetGoal(self, true).setAlertOthers().setUnseenMemoryTicks(600));
+        // SEM never installs a Player target goal on PMC. Invasion enemy lists / OpenPAC ENEMY
+        // therefore had no on-foot acquisition path — only the mounted VehicleTargetScanGoal, and
+        // even that lost the lock when SEM's setTarget(Player)→null won. Priority 2 matches the
+        // vehicle scan; the goal self-disables while seated.
+        ((Mob) self).targetSelector.addGoal(2, new InvasionEnemyPlayerTargetGoal(self));
     }
 }

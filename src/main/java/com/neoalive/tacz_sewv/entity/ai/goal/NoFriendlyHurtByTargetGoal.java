@@ -40,7 +40,10 @@ public class NoFriendlyHurtByTargetGoal extends HurtByTargetGoal {
         if (!super.canUse()) return false;
 
         LivingEntity attacker = this.mob.getLastHurtByMob();
-        if (excludePlayer && attacker instanceof Player) {
+        // SEM's PMC retaliation never fires on Players. Invasion / OpenPAC ENEMY players must —
+        // otherwise an opposing driver can shoot AI PMC forever without a lock sticking.
+        if (excludePlayer && attacker instanceof Player
+                && !VehicleTargeting.isDiplomacyEnemy(self, attacker)) {
             this.mob.setTarget(null);
             return false;
         }

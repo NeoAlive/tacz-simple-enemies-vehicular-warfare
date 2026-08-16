@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.client.invasion;
 
 import java.util.List;
+import java.util.Map;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -31,11 +32,12 @@ public final class InvasionEditorClient {
                                     PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
                                     List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
                                     List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
-                                    List<String> catalog) {
+                                    List<String> catalog, Map<TankFaction, List<String>> armorPools) {
         Minecraft.getInstance().setScreen(new TeamBaseScreen(
                 pos, assignedTeam, playerOwned, spawnPlayerOwnedTanksWithNpc, crewFaction,
                 aiVehicleCount, timeToCaptureSeconds, radiusInBlocks, ownedTeam, invisible,
                 endInvasionOnCapture, pmcOwnerKind, pmcOwnerValue,
-                vehiclePool, enemyTeams, teams, onlinePlayerNames, onlinePlayerUuids, catalog));
+                vehiclePool, enemyTeams, teams, onlinePlayerNames, onlinePlayerUuids, catalog,
+                armorPools));
     }
 }

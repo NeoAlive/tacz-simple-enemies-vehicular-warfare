@@ -88,7 +88,8 @@ public class NetworkHandler {
     // 55: PacketClearBoarding ("board my vehicle" keybind).
     // 56: team_base PMC Owner (kind/value) + online player list on open packet.
     // 57: team_base enemyTeams list on open+save packets.
-    private static final String PROTOCOL_VERSION = "57";
+    // 58: team_base open packet carries per-faction GROUND (armor) pools for autofill.
+    private static final String PROTOCOL_VERSION = "58";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

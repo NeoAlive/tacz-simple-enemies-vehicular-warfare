@@ -8,9 +8,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -26,7 +24,7 @@ import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.invasion.InvasionBlockEditor;
 import com.neoalive.tacz_sewv.invasion.InvasionLayout;
 
-public class CapturePointBlock extends BaseEntityBlock {
+public class CapturePointBlock extends InvasionNodeBlock {
 
     public CapturePointBlock() {
         super(BlockBehaviour.Properties.of()
@@ -48,18 +46,14 @@ public class CapturePointBlock extends BaseEntityBlock {
                                   InteractionHand hand, BlockHitResult hit) {
         if (level.isClientSide) return InteractionResult.SUCCESS;
         if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
+        if (!InvasionBlockEditor.mayEdit(serverPlayer)) {
+            InvasionBlockEditor.deny(serverPlayer);
+            return InteractionResult.CONSUME;
+        }
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof CapturePointBlockEntity capturePoint)) return InteractionResult.PASS;
         InvasionBlockEditor.openCapturePoint(serverPlayer, capturePoint);
         return InteractionResult.CONSUME;
-    }
-
-    /** Survival / adventure cannot mine map nodes — creative only. */
-    @Override
-    @SuppressWarnings("deprecation")
-    public float getDestroyProgress(BlockState state, Player player, BlockGetter level, BlockPos pos) {
-        if (!player.getAbilities().instabuild) return 0.0f;
-        return super.getDestroyProgress(state, player, level, pos);
     }
 
     /** Forget on real break/replace only — not on chunk unload. */

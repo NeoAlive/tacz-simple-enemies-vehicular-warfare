@@ -88,6 +88,13 @@ public class InvasionLayout extends SavedData {
         if (teamBases.remove(pos.asLong())) setDirty();
     }
 
+    /** Wipe the persisted team_base position set (debug / repair ghost counts). */
+    public void clearTeamBases() {
+        if (teamBases.isEmpty()) return;
+        teamBases.clear();
+        setDirty();
+    }
+
     public Set<Long> capturePointPositions() {
         return Set.copyOf(capturePoints);
     }

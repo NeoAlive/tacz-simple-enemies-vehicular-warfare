@@ -14,6 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
@@ -83,6 +84,10 @@ public abstract class MixinPacketIssueOrder {
         // EscortGoal is priority 1 MOVE and ignores the SEM order — an uncleared VIP steals
         // MOVE_TO_POSITION / FOLLOW / HOLD until the escort id is dropped.
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
+        // Capture pipeline outranks SEM orders in resolveDestination — drop it so the order sticks.
+        if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) {
+            capture.sewv$clearCaptureOrder();
+        }
 
         if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
             CrewRadio.play(hull, CrewRadio.Line.ORDERS);

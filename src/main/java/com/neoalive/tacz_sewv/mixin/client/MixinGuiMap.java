@@ -28,7 +28,6 @@ import xaero.map.gui.dropdown.rightclick.RightClickOption;
 
 import com.neoalive.tacz_sewv.client.AirportPlots;
 import com.neoalive.tacz_sewv.client.MapMarkers;
-import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.client.xaero.CruisePlot;
 import com.neoalive.tacz_sewv.client.xaero.GuardPlot;
 import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
@@ -334,7 +333,6 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "getRightClickOptions", at = @At("RETURN"))
     private void tacz_sewv$orderOptions(CallbackInfoReturnable<ArrayList<RightClickOption>> cir) {
         if (!ClientConfig.mapMarkersEnabled()) return;
-        if (InvasionHudClient.isActive()) return; // invasion locks player orders
         ArrayList<RightClickOption> options = cir.getReturnValue();
         if (options == null) return;
 

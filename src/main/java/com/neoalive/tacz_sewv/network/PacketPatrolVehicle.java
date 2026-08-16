@@ -192,6 +192,10 @@ public class PacketPatrolVehicle {
             OrderReport.fail(player, OrderFailure.NOT_OWNED);
             return null;
         }
+        if (pmc instanceof com.neoalive.tacz_sewv.bridge.ICaptureOrder capture
+                && capture.sewv$hasCaptureOrder()) {
+            capture.sewv$clearCaptureOrder();
+        }
         if (!(pmc.getVehicle() instanceof VehicleEntity v)) {
             OrderReport.fail(player, OrderFailure.NOT_MOUNTED, pmc);
             return null;
@@ -213,7 +217,8 @@ public class PacketPatrolVehicle {
         int dismissed = 0;
         for (int unitId : this.unitIds) {
             if (!(player.level().getEntity(unitId) instanceof PmcUnitEntity pmc)
-                    || !pmc.isOwnedBy(player)) continue;
+                    || !(player instanceof ServerPlayer sp)
+                    || !OrderAuth.check(sp, pmc, "PacketPatrolVehicle.dismiss")) continue;
             boolean had = ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
                     || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()
                     || EntrenchSupport.isEntrenched(pmc);

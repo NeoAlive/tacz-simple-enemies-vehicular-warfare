@@ -256,22 +256,42 @@ public final class InvasionSpawn {
         List<String> pool = base.getVehiclePool();
         if (pool.isEmpty() || count <= 0) return 0;
 
+        java.util.UUID ownerId = null;
+        PmcOwnerKind ownerKind = PmcOwnerKind.NONE;
+        String ownerValue = "";
+        if (faction == TankFaction.PMC) {
+            ownerKind = base.getPmcOwnerKind();
+            ownerValue = base.getPmcOwnerValue();
+            ownerId = PmcOwnerSupport.resolveSpawnOwnerUuid(level, ownerKind, ownerValue);
+        }
+
         int spawned = 0;
         for (int i = 0; i < count; i++) {
             String vehicleId = pickRandom(pool, level);
             BlockPos at = offsetInRadius(level, base.getBlockPos(), base.getRadiusInBlocks(),
                     spawned + (int) (level.getGameTime() & 0x7fff));
             VehicleEntity hull = TankSpawner.spawnTankWithCrewFromPool(
-                    level, at, faction, null, vehicleId, pool);
+                    level, at, faction, ownerId, vehicleId, pool);
             if (hull == null) {
                 SewvDiag.invasion("spawnFail AI base={} id={}", base.getBlockPos(), vehicleId);
                 continue;
             }
-            tagHullAndCrew(hull, team, base.getBlockPos(), true);
+            tagHullAndCrew(hull, team, base.getBlockPos(), true, base.getEnemyTeams());
+            if (faction == TankFaction.PMC && ownerKind == PmcOwnerKind.TEAM) {
+                stampPmcOwnerTeam(hull, ownerValue);
+            }
             beginCaptureOrdersOnCrew(hull);
             spawned++;
         }
         return spawned;
+    }
+
+    private static void stampPmcOwnerTeam(VehicleEntity hull, String ownerTeam) {
+        if (ownerTeam == null || ownerTeam.isEmpty()) return;
+        for (Entity passenger : hull.getPassengers()) {
+            if (passenger instanceof ServerPlayer) continue;
+            PmcOwnerSupport.applyOwnerTeamTag(passenger, PmcOwnerKind.TEAM, ownerTeam);
+        }
     }
 
     private static void beginCaptureOrdersOnCrew(VehicleEntity hull) {
@@ -297,7 +317,7 @@ public final class InvasionSpawn {
                     player.getGameProfile().getName(), base.getBlockPos(), vehicleId);
             return null;
         }
-        tagHullAndCrew(hull, team, base.getBlockPos(), false);
+        tagHullAndCrew(hull, team, base.getBlockPos(), false, base.getEnemyTeams());
         beginCaptureOrdersOnCrew(hull);
         return hull;
     }
@@ -306,22 +326,30 @@ public final class InvasionSpawn {
         return pool.get(level.random.nextInt(pool.size()));
     }
 
-    public static void tagHullAndCrew(VehicleEntity hull, String team, BlockPos basePos, boolean aiFleet) {
-        tag(hull, team, basePos, aiFleet);
+    public static void tagHullAndCrew(VehicleEntity hull, String team, BlockPos basePos, boolean aiFleet,
+                                      List<String> enemyTeams) {
+        tag(hull, team, basePos, aiFleet, enemyTeams);
         for (Entity passenger : hull.getPassengers()) {
             // Never tag players — teardown discards SPAWN entities and would delete the rider.
             if (passenger instanceof ServerPlayer) continue;
-            tag(passenger, team, basePos, aiFleet);
+            tag(passenger, team, basePos, aiFleet, enemyTeams);
         }
     }
 
-    private static void tag(Entity entity, String team, BlockPos basePos, boolean aiFleet) {
+    /** @deprecated prefer {@link #tagHullAndCrew(VehicleEntity, String, BlockPos, boolean, List)} */
+    public static void tagHullAndCrew(VehicleEntity hull, String team, BlockPos basePos, boolean aiFleet) {
+        tagHullAndCrew(hull, team, basePos, aiFleet, List.of());
+    }
+
+    private static void tag(Entity entity, String team, BlockPos basePos, boolean aiFleet,
+                            List<String> enemyTeams) {
         entity.getPersistentData().putBoolean(InvasionTags.SPAWN, true);
         entity.getPersistentData().putString(InvasionTags.TEAM, team);
         entity.getPersistentData().putLong(InvasionTags.BASE, basePos.asLong());
         if (aiFleet) {
             entity.getPersistentData().putBoolean(InvasionTags.AI, true);
         }
+        InvasionHostility.stampEnemies(entity, enemyTeams);
     }
 
     private static int countAiHulls(ServerLevel level, BlockPos basePos) {

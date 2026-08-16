@@ -138,6 +138,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
     public static final ForgeConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
     public static final ForgeConfigSpec.BooleanValue SEWV_DIAG_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue KOMODO_RENDER_FIX_ENABLED;
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
     public static final ForgeConfigSpec.IntValue IDLE_WANDER_RADIUS;
@@ -538,6 +539,13 @@ public final class SewvConfig {
                         "Developer logs for targeting, orders, invasion, and related AI. Leave off unless debugging.",
                         "Ground driving logs use groundPathingDebug instead.")
                 .define("sewvDiagDebug", false);
+        KOMODO_RENDER_FIX_ENABLED = builder.comment(
+                        "Client-only. Komodo's retained-rendering fallback (used for the first frame or two of a",
+                        "newly seen vehicle model+texture, before its GPU-instanced path is baked) can call into",
+                        "vanilla's DynamicTexture off the render thread, which crashes the client with an NPE on",
+                        "replay. This makes that fallback no-op for that one frame instead of crashing when it is",
+                        "not safely on the render thread. No known downside; turn off only to isolate a Komodo bug report.")
+                .define("komodoRenderFixEnabled", true);
         PATROL_ROTATE_INTERVAL_TICKS = builder.comment("How long (game ticks) a patrol holds one spot before moving on.")
                 .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
         IDLE_WANDER_ENABLED = builder.comment("Crewed vehicles with nothing to do may wander nearby.")

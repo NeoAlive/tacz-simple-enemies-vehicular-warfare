@@ -4,15 +4,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
+import com.neoalive.tacz_sewv.invasion.PmcOwnerKind;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketSaveTeamBase;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
@@ -20,8 +24,9 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 /** Op config UI for a team_base. Snapshot edited locally; Save pushes {@link PacketSaveTeamBase}. */
 public class TeamBaseScreen extends Screen {
 
-    private static final int PANEL_W = 340;
-    private static final int LIST_ROWS = 6;
+    private static final int PANEL_W = 400;
+    private static final int LIST_ROWS = 5;
+    private static final int COL_W = PANEL_W / 2 - 4;
 
     private final BlockPos pos;
     private String assignedTeam;
@@ -34,8 +39,13 @@ public class TeamBaseScreen extends Screen {
     private String ownedTeam;
     private boolean invisible;
     private boolean endInvasionOnCapture;
+    private PmcOwnerKind pmcOwnerKind;
+    private String pmcOwnerValue;
     private final List<String> vehiclePool;
+    private final List<String> enemyTeams;
     private final List<String> teams;
+    private final List<String> onlinePlayerNames;
+    private final List<String> onlinePlayerUuids;
     private final List<String> catalog;
 
     private EditBox timeBox;
@@ -46,10 +56,12 @@ public class TeamBaseScreen extends Screen {
     private Button spawnNpcButton;
     private Button factionButton;
     private Button ownedTeamButton;
+    private Button pmcOwnerButton;
     private Button invisibleButton;
     private Button endOnCaptureButton;
     private Button aiCountLabel;
     private int scroll;
+    private int enemyScroll;
     private int selected = -1;
     private int timeLabelY;
     private int poolLabelY;
@@ -60,7 +72,10 @@ public class TeamBaseScreen extends Screen {
                           boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                           int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
                           String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
-                          List<String> vehiclePool, List<String> teams, List<String> catalog) {
+                          PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
+                          List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
+                          List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
+                          List<String> catalog) {
         super(Component.translatable("gui.tacz_sewv.invasion.team_base.title"));
         this.pos = pos;
         this.assignedTeam = assignedTeam == null ? "" : assignedTeam;
@@ -76,8 +91,13 @@ public class TeamBaseScreen extends Screen {
         this.ownedTeam = ownedTeam == null ? "" : ownedTeam;
         this.invisible = invisible;
         this.endInvasionOnCapture = endInvasionOnCapture;
+        this.pmcOwnerKind = pmcOwnerKind == null ? PmcOwnerKind.NONE : pmcOwnerKind;
+        this.pmcOwnerValue = pmcOwnerValue == null ? "" : pmcOwnerValue;
         this.vehiclePool = new ArrayList<>(vehiclePool);
+        this.enemyTeams = new ArrayList<>(enemyTeams);
         this.teams = new ArrayList<>(teams);
+        this.onlinePlayerNames = List.copyOf(onlinePlayerNames);
+        this.onlinePlayerUuids = List.copyOf(onlinePlayerUuids);
         this.catalog = List.copyOf(catalog);
     }
 
@@ -109,12 +129,24 @@ public class TeamBaseScreen extends Screen {
         this.factionButton = addRenderableWidget(Button.builder(factionLabel(), b -> {
             TankFaction[] vals = TankFaction.values();
             this.crewFaction = vals[(this.crewFaction.ordinal() + 1) % vals.length];
+            if (this.crewFaction != TankFaction.PMC) {
+                this.pmcOwnerKind = PmcOwnerKind.NONE;
+                this.pmcOwnerValue = "";
+            }
             this.factionButton.setMessage(factionLabel());
+            refreshPmcOwnerButton();
         }).bounds(left, y, PANEL_W / 2 - 2, 20).build());
         this.ownedTeamButton = addRenderableWidget(Button.builder(ownedLabel(), b -> {
             this.ownedTeam = cycleTeam(this.ownedTeam);
             this.ownedTeamButton.setMessage(ownedLabel());
         }).bounds(left + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
+        y += 22;
+
+        this.pmcOwnerButton = addRenderableWidget(Button.builder(pmcOwnerLabel(), b -> {
+            cyclePmcOwner();
+            this.pmcOwnerButton.setMessage(pmcOwnerLabel());
+        }).bounds(left, y, PANEL_W, 20).build());
+        refreshPmcOwnerButton();
         y += 22;
 
         addRenderableWidget(Button.builder(Component.literal("-"), b -> adjustAiCount(-1))
@@ -151,8 +183,9 @@ public class TeamBaseScreen extends Screen {
         y += 12;
         this.listTop = y;
         int listBottom = this.listTop + LIST_ROWS * 12;
+        int rightCol = left + COL_W + 8;
 
-        this.filterBox = new EditBox(this.font, left, listBottom + 4, PANEL_W - 90, 20,
+        this.filterBox = new EditBox(this.font, left, listBottom + 4, COL_W - 84, 20,
                 Component.translatable("gui.tacz_sewv.pool.filter"));
         this.filterBox.setMaxLength(128);
         this.filterBox.setResponder(s -> refreshFilter());
@@ -160,22 +193,63 @@ public class TeamBaseScreen extends Screen {
         refreshFilter();
 
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.add"), b -> addFromFilter())
-                .bounds(left + PANEL_W - 84, listBottom + 4, 84, 20).build());
+                .bounds(left + COL_W - 80, listBottom + 4, 80, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.remove"), b -> removeSelected())
                 .bounds(left, listBottom + 28, 100, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("▲"), b -> {
             if (this.scroll > 0) this.scroll--;
-        }).bounds(left + PANEL_W - 20, this.listTop, 20, 20).build());
+        }).bounds(left + COL_W - 20, this.listTop, 20, 20).build());
         addRenderableWidget(Button.builder(Component.literal("▼"), b -> {
             if (this.scroll + LIST_ROWS < this.vehiclePool.size()) this.scroll++;
-        }).bounds(left + PANEL_W - 20, listBottom - 20, 20, 20).build());
+        }).bounds(left + COL_W - 20, listBottom - 20, 20, 20).build());
+
+        addRenderableWidget(Button.builder(Component.literal("▲"), b -> {
+            if (this.enemyScroll > 0) this.enemyScroll--;
+        }).bounds(rightCol + COL_W - 20, this.listTop, 20, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("▼"), b -> {
+            if (this.enemyScroll + LIST_ROWS < this.teams.size()) this.enemyScroll++;
+        }).bounds(rightCol + COL_W - 20, listBottom - 20, 20, 20).build());
 
         int saveY = listBottom + 52;
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.invasion.save"), b -> save())
                 .bounds(left, saveY, PANEL_W / 2 - 4, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
                 .bounds(left + PANEL_W / 2 + 4, saveY, PANEL_W / 2 - 4, 20).build());
+    }
+
+    private void refreshPmcOwnerButton() {
+        boolean pmc = this.crewFaction == TankFaction.PMC;
+        this.pmcOwnerButton.active = pmc;
+        this.pmcOwnerButton.visible = pmc;
+        this.pmcOwnerButton.setMessage(pmcOwnerLabel());
+    }
+
+    private void cyclePmcOwner() {
+        // Options: NONE, each online player, each scoreboard team.
+        List<PmcOwnerKind> kinds = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        kinds.add(PmcOwnerKind.NONE);
+        values.add("");
+        int n = Math.min(this.onlinePlayerNames.size(), this.onlinePlayerUuids.size());
+        for (int i = 0; i < n; i++) {
+            kinds.add(PmcOwnerKind.PLAYER);
+            values.add(this.onlinePlayerUuids.get(i));
+        }
+        for (String team : this.teams) {
+            kinds.add(PmcOwnerKind.TEAM);
+            values.add(team);
+        }
+        int idx = 0;
+        for (int i = 0; i < kinds.size(); i++) {
+            if (kinds.get(i) == this.pmcOwnerKind && values.get(i).equals(this.pmcOwnerValue)) {
+                idx = i;
+                break;
+            }
+        }
+        int next = (idx + 1) % kinds.size();
+        this.pmcOwnerKind = kinds.get(next);
+        this.pmcOwnerValue = values.get(next);
     }
 
     private void adjustAiCount(int delta) {
@@ -209,6 +283,28 @@ public class TeamBaseScreen extends Screen {
     private Component ownedLabel() {
         String name = this.ownedTeam.isEmpty() ? "—" : this.ownedTeam;
         return Component.translatable("gui.tacz_sewv.invasion.owned_team", name);
+    }
+
+    private Component pmcOwnerLabel() {
+        if (this.crewFaction != TankFaction.PMC || this.pmcOwnerKind == PmcOwnerKind.NONE) {
+            return Component.translatable("gui.tacz_sewv.invasion.pmc_owner.empty");
+        }
+        MutableComponent value;
+        if (this.pmcOwnerKind == PmcOwnerKind.PLAYER) {
+            String display = playerNameForUuid(this.pmcOwnerValue);
+            value = Component.literal(display).withStyle(Style.EMPTY.withColor(ChatFormatting.AQUA));
+        } else {
+            value = Component.literal(this.pmcOwnerValue).withStyle(Style.EMPTY.withColor(ChatFormatting.GOLD));
+        }
+        return Component.translatable("gui.tacz_sewv.invasion.pmc_owner", value);
+    }
+
+    private String playerNameForUuid(String uuid) {
+        int n = Math.min(this.onlinePlayerNames.size(), this.onlinePlayerUuids.size());
+        for (int i = 0; i < n; i++) {
+            if (this.onlinePlayerUuids.get(i).equals(uuid)) return this.onlinePlayerNames.get(i);
+        }
+        return uuid.length() > 8 ? uuid.substring(0, 8) + "…" : uuid;
     }
 
     private Component invisibleLabel() {
@@ -288,29 +384,55 @@ public class TeamBaseScreen extends Screen {
         } catch (NumberFormatException e) {
             return;
         }
+        PmcOwnerKind kind = this.crewFaction == TankFaction.PMC ? this.pmcOwnerKind : PmcOwnerKind.NONE;
+        String value = this.crewFaction == TankFaction.PMC ? this.pmcOwnerValue : "";
         NetworkHandler.CHANNEL.sendToServer(new PacketSaveTeamBase(
                 this.pos, this.assignedTeam, this.playerOwned, this.spawnPlayerOwnedTanksWithNpc,
                 this.crewFaction, this.aiVehicleCount, this.timeToCaptureSeconds, this.radiusInBlocks,
-                this.ownedTeam, this.invisible, this.endInvasionOnCapture, this.vehiclePool));
+                this.ownedTeam, this.invisible, this.endInvasionOnCapture, kind, value,
+                this.vehiclePool, this.enemyTeams));
         onClose();
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         int left = (this.width - PANEL_W) / 2;
-        if (mouseX >= left && mouseX < left + PANEL_W - 24
-                && mouseY >= this.listTop && mouseY < this.listTop + LIST_ROWS * 12) {
-            int row = (int) ((mouseY - this.listTop) / 12) + this.scroll;
-            if (row >= 0 && row < this.vehiclePool.size()) {
-                this.selected = row;
-                return true;
+        int rightCol = left + COL_W + 8;
+        if (mouseY >= this.listTop && mouseY < this.listTop + LIST_ROWS * 12) {
+            if (mouseX >= left && mouseX < left + COL_W - 24) {
+                int row = (int) ((mouseY - this.listTop) / 12) + this.scroll;
+                if (row >= 0 && row < this.vehiclePool.size()) {
+                    this.selected = row;
+                    return true;
+                }
+            }
+            if (mouseX >= rightCol && mouseX < rightCol + COL_W - 24) {
+                int row = (int) ((mouseY - this.listTop) / 12) + this.enemyScroll;
+                if (row >= 0 && row < this.teams.size()) {
+                    toggleEnemy(this.teams.get(row));
+                    return true;
+                }
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
+    private void toggleEnemy(String team) {
+        if (team == null || team.isEmpty()) return;
+        if (team.equals(this.assignedTeam)) return; // cannot mark own assigned team
+        if (this.enemyTeams.contains(team)) this.enemyTeams.remove(team);
+        else this.enemyTeams.add(team);
+    }
+
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        int left = (this.width - PANEL_W) / 2;
+        int rightCol = left + COL_W + 8;
+        if (mouseX >= rightCol) {
+            if (delta > 0 && this.enemyScroll > 0) this.enemyScroll--;
+            else if (delta < 0 && this.enemyScroll + LIST_ROWS < this.teams.size()) this.enemyScroll++;
+            return true;
+        }
         if (delta > 0 && this.scroll > 0) this.scroll--;
         else if (delta < 0 && this.scroll + LIST_ROWS < this.vehiclePool.size()) this.scroll++;
         return true;
@@ -322,21 +444,37 @@ public class TeamBaseScreen extends Screen {
         super.render(graphics, mouseX, mouseY, partialTick);
 
         int left = (this.width - PANEL_W) / 2;
+        int rightCol = left + COL_W + 8;
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
 
         graphics.drawString(this.font, "Time (s)", left, this.timeLabelY + 6, 0xA0A0A0, false);
         graphics.drawString(this.font, "Radius", left + 170, this.timeLabelY + 6, 0xA0A0A0, false);
 
-        graphics.fill(left - 2, this.listTop - 2, left + PANEL_W - 22, this.listTop + LIST_ROWS * 12 + 2, 0x88000000);
+        graphics.fill(left - 2, this.listTop - 2, left + COL_W - 2, this.listTop + LIST_ROWS * 12 + 2, 0x88000000);
+        graphics.fill(rightCol - 2, this.listTop - 2, rightCol + COL_W - 2, this.listTop + LIST_ROWS * 12 + 2, 0x88000000);
         graphics.drawString(this.font,
                 Component.translatable("gui.tacz_sewv.invasion.vehicle_pool", this.vehiclePool.size()),
                 left, this.poolLabelY, 0xA0A0A0, false);
+        graphics.drawString(this.font,
+                Component.translatable("gui.tacz_sewv.invasion.enemy_teams"),
+                rightCol, this.poolLabelY, 0xA0A0A0, false);
 
         for (int i = 0; i < LIST_ROWS; i++) {
             int idx = i + this.scroll;
             if (idx >= this.vehiclePool.size()) break;
             int color = idx == this.selected ? 0xFFFFAA00 : 0xFFE0E0E0;
             graphics.drawString(this.font, this.vehiclePool.get(idx), left + 4, this.listTop + i * 12 + 2, color, false);
+        }
+        for (int i = 0; i < LIST_ROWS; i++) {
+            int idx = i + this.enemyScroll;
+            if (idx >= this.teams.size()) break;
+            String team = this.teams.get(idx);
+            boolean enemy = this.enemyTeams.contains(team);
+            boolean self = team.equals(this.assignedTeam);
+            Component label = Component.translatable(enemy
+                    ? "gui.tacz_sewv.invasion.enemy_yes" : "gui.tacz_sewv.invasion.enemy_no", team);
+            int color = self ? 0xFF666666 : enemy ? 0xFFFF5555 : 0xFF55FF55;
+            graphics.drawString(this.font, label, rightCol + 4, this.listTop + i * 12 + 2, color, false);
         }
 
         if (this.teams.isEmpty()) {

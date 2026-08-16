@@ -16,6 +16,7 @@ import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 import com.neoalive.tacz_sewv.invasion.InvasionBlockEditor;
+import com.neoalive.tacz_sewv.invasion.PmcOwnerKind;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /** Client → server: write team_base config from the editor. */
@@ -32,13 +33,17 @@ public class PacketSaveTeamBase {
     private final String ownedTeam;
     private final boolean invisible;
     private final boolean endInvasionOnCapture;
+    private final PmcOwnerKind pmcOwnerKind;
+    private final String pmcOwnerValue;
     private final List<String> vehiclePool;
+    private final List<String> enemyTeams;
 
     public PacketSaveTeamBase(BlockPos pos, String assignedTeam, boolean playerOwned,
                               boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                               int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
                               String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
-                              List<String> vehiclePool) {
+                              PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
+                              List<String> vehiclePool, List<String> enemyTeams) {
         this.pos = pos;
         this.assignedTeam = assignedTeam == null ? "" : assignedTeam;
         this.playerOwned = playerOwned;
@@ -50,7 +55,10 @@ public class PacketSaveTeamBase {
         this.ownedTeam = ownedTeam == null ? "" : ownedTeam;
         this.invisible = invisible;
         this.endInvasionOnCapture = endInvasionOnCapture;
+        this.pmcOwnerKind = pmcOwnerKind == null ? PmcOwnerKind.NONE : pmcOwnerKind;
+        this.pmcOwnerValue = pmcOwnerValue == null ? "" : pmcOwnerValue;
         this.vehiclePool = vehiclePool;
+        this.enemyTeams = enemyTeams;
     }
 
     public PacketSaveTeamBase(FriendlyByteBuf buf) {
@@ -65,7 +73,10 @@ public class PacketSaveTeamBase {
         this.ownedTeam = buf.readUtf();
         this.invisible = buf.readBoolean();
         this.endInvasionOnCapture = buf.readBoolean();
+        this.pmcOwnerKind = PmcOwnerKind.fromOrdinal(buf.readVarInt());
+        this.pmcOwnerValue = buf.readUtf();
         this.vehiclePool = PacketOpenPoolEditor.readStringList(buf);
+        this.enemyTeams = PacketOpenPoolEditor.readStringList(buf);
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -80,7 +91,10 @@ public class PacketSaveTeamBase {
         buf.writeUtf(this.ownedTeam);
         buf.writeBoolean(this.invisible);
         buf.writeBoolean(this.endInvasionOnCapture);
+        buf.writeVarInt(this.pmcOwnerKind.ordinal());
+        buf.writeUtf(this.pmcOwnerValue);
         PacketOpenPoolEditor.writeStringList(buf, this.vehiclePool);
+        PacketOpenPoolEditor.writeStringList(buf, this.enemyTeams);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -101,6 +115,9 @@ public class PacketSaveTeamBase {
             be.setOwnedTeam(this.ownedTeam);
             be.setInvisible(this.invisible);
             be.setEndInvasionOnCapture(this.endInvasionOnCapture);
+            be.setPmcOwner(
+                    this.crewFaction == TankFaction.PMC ? this.pmcOwnerKind : PmcOwnerKind.NONE,
+                    this.crewFaction == TankFaction.PMC ? this.pmcOwnerValue : "");
 
             List<String> cleaned = new ArrayList<>();
             for (String id : this.vehiclePool) {
@@ -108,6 +125,13 @@ public class PacketSaveTeamBase {
                 if (!cleaned.contains(id)) cleaned.add(id);
             }
             be.setVehiclePool(cleaned);
+
+            List<String> enemies = new ArrayList<>();
+            for (String team : this.enemyTeams) {
+                if (team == null || team.isEmpty()) continue;
+                if (!enemies.contains(team)) enemies.add(team);
+            }
+            be.setEnemyTeams(enemies);
 
             BlockState state = level.getBlockState(this.pos);
             level.sendBlockUpdated(this.pos, state, state, 3);

@@ -58,6 +58,12 @@ public final class InvasionBlockEditor {
             deny(player);
             return;
         }
+        List<String> playerNames = new ArrayList<>();
+        List<String> playerUuids = new ArrayList<>();
+        for (ServerPlayer online : player.server.getPlayerList().getPlayers()) {
+            playerNames.add(online.getGameProfile().getName());
+            playerUuids.add(online.getUUID().toString());
+        }
         NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                 new PacketOpenTeamBaseGui(
                         be.getBlockPos(),
@@ -71,8 +77,13 @@ public final class InvasionBlockEditor {
                         be.getOwnedTeam(),
                         be.isInvisible(),
                         be.isEndInvasionOnCapture(),
+                        be.getPmcOwnerKind(),
+                        be.getPmcOwnerValue(),
                         new ArrayList<>(be.getVehiclePool()),
+                        new ArrayList<>(be.getEnemyTeams()),
                         scoreboardTeamNames(player),
+                        playerNames,
+                        playerUuids,
                         PoolEditorAccess.catalog()));
     }
 }

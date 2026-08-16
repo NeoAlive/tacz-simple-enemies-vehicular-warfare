@@ -125,6 +125,13 @@ public final class InvasionValidate {
                 errors.add("ai_count_zero:" + team);
             }
 
+            if (base.getEnemyTeams().contains(team)) {
+                errors.add("self_enemy:" + team);
+            }
+            if (base.getEnemyTeams().isEmpty()) {
+                errors.add("no_enemies:" + team);
+            }
+
             if (base.isPlayerOwned()) {
                 List<ServerPlayer> members = membersOnline(level, team);
                 if (members.isEmpty()) {

@@ -14,7 +14,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
@@ -78,11 +77,6 @@ public class RadioScreen extends Screen {
     public static void open(@Nullable LivingEntity ignoredPrefill) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
-        if (InvasionHudClient.isActive()) {
-            mc.player.displayClientMessage(
-                    Component.translatable("message.tacz_sewv.invasion.orders_locked"), true);
-            return;
-        }
         ItemStack stack = findRadio(mc.player);
         if (stack.isEmpty()) return;
         ClientEvents.clearRadioPick();

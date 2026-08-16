@@ -25,7 +25,6 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.TdtScreen;
-import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketEntrench;
@@ -178,10 +177,6 @@ public class UnitOrderOption extends RightClickOption {
     public void onAction(Screen screen) {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
-        if (InvasionHudClient.isActive()) {
-            hint("message.tacz_sewv.invasion.orders_locked");
-            return;
-        }
 
         Set<Integer> drivers = MapMarkers.selected();
         if (drivers.isEmpty()) return;

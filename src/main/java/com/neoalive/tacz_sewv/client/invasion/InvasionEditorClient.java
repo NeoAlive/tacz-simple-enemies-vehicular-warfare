@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 
 import com.neoalive.tacz_sewv.client.gui.CapturePointScreen;
 import com.neoalive.tacz_sewv.client.gui.TeamBaseScreen;
+import com.neoalive.tacz_sewv.invasion.PmcOwnerKind;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
@@ -27,10 +28,14 @@ public final class InvasionEditorClient {
                                     boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                                     int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
                                     String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
-                                    List<String> vehiclePool, List<String> teams, List<String> catalog) {
+                                    PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
+                                    List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
+                                    List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
+                                    List<String> catalog) {
         Minecraft.getInstance().setScreen(new TeamBaseScreen(
                 pos, assignedTeam, playerOwned, spawnPlayerOwnedTanksWithNpc, crewFaction,
                 aiVehicleCount, timeToCaptureSeconds, radiusInBlocks, ownedTeam, invisible,
-                endInvasionOnCapture, vehiclePool, teams, catalog));
+                endInvasionOnCapture, pmcOwnerKind, pmcOwnerValue,
+                vehiclePool, enemyTeams, teams, onlinePlayerNames, onlinePlayerUuids, catalog));
     }
 }

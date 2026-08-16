@@ -16,6 +16,7 @@ import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionLayout;
+import com.neoalive.tacz_sewv.invasion.PmcOwnerKind;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
@@ -34,11 +35,19 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
     /** How many AI-crewed hulls this base fields (and keeps topped up) while a session is active. */
     private int aiVehicleCount = DEFAULT_AI_VEHICLE_COUNT;
     /**
+     * Who owns PMC crews when {@link #crewFaction} is PMC — a single player UUID or a scoreboard
+     * team name. Ignored for RU/US.
+     */
+    private PmcOwnerKind pmcOwnerKind = PmcOwnerKind.NONE;
+    private String pmcOwnerValue = "";
+    /**
      * When true, an enemy completing capture of this base ends the invasion session.
      * Legacy worlds without the NBT key inherit the old rule ({@code playerOwned}).
      */
     private boolean endInvasionOnCapture;
     private final List<String> vehiclePool = new ArrayList<>();
+    /** Scoreboard teams this base's crews treat as enemies (explicit — not inferred). */
+    private final List<String> enemyTeams = new ArrayList<>();
 
     public TeamBaseBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.TEAM_BASE.get(), pos, state);
@@ -84,6 +93,23 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         setChanged();
     }
 
+    public PmcOwnerKind getPmcOwnerKind() {
+        return pmcOwnerKind;
+    }
+
+    public String getPmcOwnerValue() {
+        return pmcOwnerValue;
+    }
+
+    public void setPmcOwner(PmcOwnerKind kind, String value) {
+        this.pmcOwnerKind = kind == null ? PmcOwnerKind.NONE : kind;
+        this.pmcOwnerValue = value == null ? "" : value;
+        if (this.pmcOwnerKind == PmcOwnerKind.NONE) {
+            this.pmcOwnerValue = "";
+        }
+        setChanged();
+    }
+
     public int getAiVehicleCount() {
         return aiVehicleCount;
     }
@@ -120,6 +146,25 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         setChanged();
     }
 
+    public List<String> getEnemyTeams() {
+        return enemyTeams;
+    }
+
+    public void setEnemyTeams(List<String> teams) {
+        enemyTeams.clear();
+        if (teams != null) {
+            for (String t : teams) {
+                if (t == null || t.isEmpty()) continue;
+                if (!enemyTeams.contains(t)) enemyTeams.add(t);
+            }
+        }
+        setChanged();
+    }
+
+    public boolean isEnemyTeam(String team) {
+        return team != null && !team.isEmpty() && enemyTeams.contains(team);
+    }
+
     /** Presence / capture tick while an {@link com.neoalive.tacz_sewv.invasion.InvasionSession} is active. */
     public static void serverTick(Level level, BlockPos pos, BlockState state, TeamBaseBlockEntity be) {
         CaptureSupport.tick(be);
@@ -141,12 +186,19 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         tag.putBoolean("SpawnPlayerOwnedTanksWithNpc", spawnPlayerOwnedTanksWithNpc);
         tag.putString("CrewFaction", crewFaction.name());
         tag.putInt("AiVehicleCount", aiVehicleCount);
+        tag.putString("PmcOwnerKind", pmcOwnerKind.name());
+        tag.putString("PmcOwnerValue", pmcOwnerValue);
         tag.putBoolean("EndInvasionOnCapture", endInvasionOnCapture);
         ListTag pool = new ListTag();
         for (String id : vehiclePool) {
             pool.add(StringTag.valueOf(id));
         }
         tag.put("VehiclePool", pool);
+        ListTag enemies = new ListTag();
+        for (String team : enemyTeams) {
+            enemies.add(StringTag.valueOf(team));
+        }
+        tag.put("EnemyTeams", enemies);
     }
 
     @Override
@@ -159,6 +211,11 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
             crewFaction = TankFaction.valueOf(tag.getString("CrewFaction"));
         } catch (IllegalArgumentException e) {
             crewFaction = TankFaction.US;
+        }
+        pmcOwnerKind = PmcOwnerKind.parse(tag.getString("PmcOwnerKind"));
+        pmcOwnerValue = tag.getString("PmcOwnerValue");
+        if (pmcOwnerKind == PmcOwnerKind.NONE) {
+            pmcOwnerValue = "";
         }
         aiVehicleCount = tag.contains("AiVehicleCount")
                 ? tag.getInt("AiVehicleCount")
@@ -175,6 +232,14 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
             ListTag pool = tag.getList("VehiclePool", Tag.TAG_STRING);
             for (int i = 0; i < pool.size(); i++) {
                 vehiclePool.add(pool.getString(i));
+            }
+        }
+        enemyTeams.clear();
+        if (tag.contains("EnemyTeams", Tag.TAG_LIST)) {
+            ListTag enemies = tag.getList("EnemyTeams", Tag.TAG_STRING);
+            for (int i = 0; i < enemies.size(); i++) {
+                String t = enemies.getString(i);
+                if (!t.isEmpty() && !enemyTeams.contains(t)) enemyTeams.add(t);
             }
         }
     }

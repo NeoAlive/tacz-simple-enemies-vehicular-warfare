@@ -86,7 +86,9 @@ public class NetworkHandler {
     // 53: PacketExitPlatoon; PacketToggleAutoOrders (TDT Platoon category).
     // 54: PacketJoinPlatoon (TDT Platoon category).
     // 55: PacketClearBoarding ("board my vehicle" keybind).
-    private static final String PROTOCOL_VERSION = "55";
+    // 56: team_base PMC Owner (kind/value) + online player list on open packet.
+    // 57: team_base enemyTeams list on open+save packets.
+    private static final String PROTOCOL_VERSION = "57";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

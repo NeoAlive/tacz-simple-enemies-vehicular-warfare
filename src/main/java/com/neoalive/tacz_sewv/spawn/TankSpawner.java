@@ -801,9 +801,9 @@ public final class TankSpawner {
     /**
      * Water-surface counterpart to {@link #findClearSpawn}, for a hull that must float rather
      * than stand — same spiral search and the same {@code +1} lift, but a candidate column only
-     * qualifies when it actually IS water at the surface, checked explicitly (the same idiom
-     * {@code GroundVehicleNodeEvaluator.hasWaterWithinMargin} uses to REJECT water, just asserting
-     * the opposite here). {@code groundY}'s heightmap already stops at a lake's surface rather
+     * qualifies when it actually IS water at the surface, checked explicitly (the same two-level
+     * fluid read {@link com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility#waterDepth} uses,
+     * just asserting the opposite here). {@code groundY}'s heightmap already stops at a lake's surface rather
      * than its bed (verified: {@code MOTION_BLOCKING_NO_LEAVES}'s predicate counts any non-empty
      * fluid state), but it has no PREFERENCE for water over land — without this check, a ship
      * spawn request next to a shore is just as likely to land on the bank as on the lake.
@@ -826,8 +826,7 @@ public final class TankSpawner {
         return null;
     }
 
-    // Checked at the raw heightmap Y and one below it, the same two-level margin
-    // GroundVehicleNodeEvaluator.hasWaterWithinMargin uses — a heightmap's exact "one above the
+    // Checked at the raw heightmap Y and one below it — a heightmap's exact "one above the
     // counted block" convention is easy to be off by one on, and a spurious miss here only costs
     // trying the next ring position, not a crash.
     private static boolean isWaterSurface(ServerLevel level, int x, int y, int z) {

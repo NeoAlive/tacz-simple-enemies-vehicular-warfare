@@ -57,7 +57,8 @@ public final class PerfProbe {
         sb.append("battle groups (all dimensions): ").append(groups)
                 .append(" (members=").append(members)
                 .append(", influenceCells=").append(influenceCells).append(")\n");
-        sb.append("HullLocalScan: ").append(HullLocalScan.stats());
+        sb.append("HullLocalScan: ").append(HullLocalScan.stats()).append('\n');
+        sb.append(PathingPerf.snapshotAndReset());
         return sb.toString();
     }
 

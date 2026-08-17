@@ -12,6 +12,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 
+import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import com.neoalive.tacz_sewv.entity.ai.sensor.GroundTerrainSensor;
@@ -75,7 +76,7 @@ public final class VehicleDriver {
     private static final int UNSTICK_DURATION = 24;           // straight reverse ~1.2s (matches bank-lip)
     private static final int UNSTICK_COOLDOWN = 60;           // sit out ~3s before stuck can re-fire
 
-    // Bank-lip faceplant: post-debounce dry-over-water center + full whisker fan blocked, with no
+    // Bank-lip faceplant: dry-over-deep-water center + full map blocked, with no
     // positional progress. Distinct from ordinary stuck (which ignores rotation) and from the wet
     // escape hatch (isInWater / amphibious). ~2s of full-fan rejection before reversing off the lip.
     private static final int BANK_LIP_BLOCK_TICKS = 40;
@@ -107,6 +108,7 @@ public final class VehicleDriver {
     private int unstickTicksLeft;
     private int unstickCooldown;
     private BlockPos lastLoggedSteerTarget;
+    private BlockPos lastPathNode;
 
     private int bankLipFanBlockedTicks;
     private int bankLipReverseTicksLeft;
@@ -266,7 +268,7 @@ public final class VehicleDriver {
             this.vehicle.setBackInputDown(true);
         } else {
             // The standoff point is pathfound to via the node evaluator, so it still respects
-            // hazards like the water margin. Ring math is shared with the flight goal.
+            // over-ford-depth water. Ring math is shared with the flight goal.
             navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, targetPos, retreatRadius),
                     distanceSq);
         }
@@ -326,6 +328,7 @@ public final class VehicleDriver {
         this.currentPath = null;
         this.lastPathTarget = null;
         this.lastLoggedSteerTarget = null;
+        this.lastPathNode = null;
         this.pathRecalcCooldown = 0;
         this.sensor.clear();
         clearRecovery();
@@ -366,7 +369,10 @@ public final class VehicleDriver {
                         destJumped,
                         this.currentPath == null);
             }
+            long t0 = System.nanoTime();
             recomputePath(dest);
+            PathingPerf.pathNanos += System.nanoTime() - t0;
+            PathingPerf.pathCalls++;
             this.lastPathTarget = dest;
             this.pathAge = 0;
             // Terrain won't have changed next tick — back off harder after a failed search.
@@ -392,6 +398,7 @@ public final class VehicleDriver {
             double nodeDistSq = this.vehicle.distanceToSqr(
                     node.getX() + 0.5, this.vehicle.getY(), node.getZ() + 0.5);
             if (nodeDistSq >= NODE_REACHED_SQ) {
+                notePathNode(node);
                 logSteerTarget("pathNode", node);
                 return node;
             }
@@ -403,8 +410,16 @@ public final class VehicleDriver {
             }
             this.currentPath.advance();
         }
+        notePathNode(dest);
         logSteerTarget("directDest", dest);
         return dest; // no usable path (or path exhausted) — steer straight at the goal
+    }
+
+    private void notePathNode(BlockPos node) {
+        if (this.lastPathNode != null && !this.lastPathNode.equals(node)) {
+            PathingPerf.pathFlips++;
+        }
+        this.lastPathNode = node;
     }
 
     private void recomputePath(BlockPos target) {

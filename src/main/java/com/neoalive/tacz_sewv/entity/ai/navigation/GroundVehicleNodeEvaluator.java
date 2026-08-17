@@ -7,7 +7,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
@@ -19,6 +18,7 @@ import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -33,13 +33,16 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
  * <ul>
  * <li><b>Footprint.</b> {@link #prepare} swaps the mob's dimensions for the hull's, so the
  *     whole inherited machinery searches for tank-sized clearance.</li>
- * <li><b>Water standoff.</b> Ground vehicles bog/sink in water, and the units have no
- *     negative water malus by default, so a route would otherwise cut straight through a
- *     lake whenever the dry detour is longer. Any node within {@link #WATER_MARGIN} blocks
- *     of water is BLOCKED outright.</li>
+ * <li><b>Fording.</b> Water deeper than {@link GroundMobility#FORD_DEPTH} is BLOCKED (lakes
+ *     cannot be shortcuts). One-block water is accepted with a smoothstep cost. Dry nodes
+ *     next to <em>deep</em> water take a soft margin cost — never a hard block, so a stream
+ *     remains crossable. A hull already wet, or an amphibious one, is never blocked by
+ *     water so it can path out.</li>
+ * <li><b>Slope.</b> Accepted nodes whose unfloored rise approaches the hull's
+ *     {@code maxUpStep} take a smoothstep cost; over that limit they are rejected.</li>
  * <li><b>Road preference.</b> Nodes whose footing is not in {@code #tacz_sewv:preferred_roads}
- *     take an {@link #OFF_ROAD_PENALTY} — same shape as the ship shallow-water cost — so a
- *     parallel dirt path / gravel / cobble wins without forbidding off-road cuts.</li>
+ *     take an {@link #OFF_ROAD_PENALTY} so a parallel dirt path / gravel / cobble wins
+ *     without forbidding off-road cuts.</li>
  * <li><b>Peer spacing.</b> Nodes near wrecks or allied hulls take a soft
  *     {@link VehiclePeerSpacing#PATH_PENALTY} that falls off with distance — preference only,
  *     never {@code BLOCKED}, so a narrow gap stays reachable.</li>
@@ -54,21 +57,17 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
  */
 public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
 
-    // Required clear distance (in blocks) between any drivable node and water.
-    private static final int WATER_MARGIN = 3;
-
     /** Extra path cost per off-road node; roads stay at zero so parallel roads win. */
     private static final float OFF_ROAD_PENALTY = 2.0F;
 
     public static final TagKey<Block> PREFERRED_ROADS = TagKey.create(
             Registries.BLOCK, new ResourceLocation(TaczSewv.MODID, "preferred_roads"));
 
-    // A hull that is already wet must be able to path OUT: the standoff blocks the start node
-    // and everything around it, so every search from in the water fails, and the drive goal is
-    // left steering blind at the destination. Keeping water out is only a rule for a dry hull.
     private boolean inWater;
-    private boolean loggedWaterMarginBlockThisSearch;
-    private final BlockPos.MutableBlockPos roadProbe = new BlockPos.MutableBlockPos();
+    private boolean amphibious;
+    private float maxUpStep = 1.0F;
+    private boolean loggedDeepWaterBlockThisSearch;
+    private final BlockPos.MutableBlockPos probe = new BlockPos.MutableBlockPos();
 
     /**
      * Peer hull centres + soft radii, latched once per {@link #prepare}. Empty when not driving.
@@ -79,21 +78,22 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     private double[] peerSoft = EMPTY;
     private static final double[] EMPTY = new double[0];
 
-    // ponytail: step/jump/fall limits stay the crewman's (vanilla reads them off this.mob),
-    // not the hull's — a >1.125-block ledge may not path, but the drive goal steers straight
-    // at the goal when no path exists and the hull's own physics climbs it. Override
-    // getNeighbors/findAcceptedNode if pathing over tall steps ever matters.
+    // ponytail: vanilla neighbor expansion still reads step/jump/fall off this.mob (the
+    // crewman). Hull maxUpStep is applied as extra cost / reject in findAcceptedNode.
     @Override
     public void prepare(PathNavigationRegion region, Mob mob) {
         super.prepare(region, mob);
         this.inWater = false;
-        this.loggedWaterMarginBlockThisSearch = false;
+        this.amphibious = false;
+        this.maxUpStep = 1.0F;
+        this.loggedDeepWaterBlockThisSearch = false;
         this.peerX = EMPTY;
         this.peerZ = EMPTY;
         this.peerSoft = EMPTY;
         if (mob.getVehicle() instanceof VehicleEntity vehicle) {
             this.inWater = vehicle.isInWater();
-            // The path is searched for the HULL's footprint, not the crewman's.
+            this.amphibious = GroundMobility.isAmphibious(vehicle);
+            this.maxUpStep = GroundMobility.maxUpStepOf(vehicle);
             this.entityWidth = Mth.floor(vehicle.getBbWidth() + 1.0F);
             this.entityHeight = Mth.floor(vehicle.getBbHeight() + 1.0F);
             this.entityDepth = Mth.floor(vehicle.getBbWidth() + 1.0F);
@@ -101,9 +101,10 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                 latchPeers(vehicle, unit);
             }
             if (SewvDiag.groundPathingVerbose()) {
-                SewvDiag.water("prepare vehicle={}#{} inWater={} size={}x{}x{} pos={}",
-                        vehicle.getName().getString(), vehicle.getId(), this.inWater,
-                        this.entityWidth, this.entityHeight, this.entityDepth, vehicle.blockPosition());
+                SewvDiag.water("prepare vehicle={}#{} inWater={} amphibious={} maxUpStep={} size={}x{}x{} pos={}",
+                        vehicle.getName().getString(), vehicle.getId(), this.inWater, this.amphibious,
+                        this.maxUpStep, this.entityWidth, this.entityHeight, this.entityDepth,
+                        vehicle.blockPosition());
             }
         }
     }
@@ -124,33 +125,23 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             VehicleEntity other = found.get(i);
             this.peerX[i] = other.getX();
             this.peerZ[i] = other.getZ();
-            // Soft bubble from peer centre: their half-width + preferred gap.
             this.peerSoft[i] = other.getBbWidth() * 0.5 + VehiclePeerSpacing.SOFT_DISTANCE;
         }
     }
 
     @Override
     public BlockPathTypes getBlockPathType(BlockGetter level, int x, int y, int z, Mob mob) {
-        // Water standoff: reject any node whose footprint sits within WATER_MARGIN blocks of
-        // water, so routes keep clear of shorelines instead of driving in. Done before the
-        // volume scan — a blocked node needs no further classifying. The aggregate result is
-        // cached per node by the inherited getCachedBlockType, so this runs at most once per
-        // unique node per search.
-        if (!this.inWater && this.hasWaterWithinMargin(level, x, y, z)) {
-            if (SewvDiag.groundPathingVerbose() && !this.loggedWaterMarginBlockThisSearch) {
-                this.loggedWaterMarginBlockThisSearch = true;
-                SewvDiag.water("waterMargin BLOCKED mob={}#{} node={}, {},{} inWater={} margin={} footprint={}x{}x{}",
+        int depth = footprintWaterDepth(level, x, y, z);
+        if (GroundMobility.waterBlocked(depth, this.amphibious, this.inWater)) {
+            if (SewvDiag.groundPathingVerbose() && !this.loggedDeepWaterBlockThisSearch) {
+                this.loggedDeepWaterBlockThisSearch = true;
+                SewvDiag.water("deepWater BLOCKED mob={}#{} node={},{},{} depth={} ford={} inWater={} amphibious={}",
                         mob.getClass().getSimpleName(), mob.getId(),
-                        x, y, z, this.inWater, WATER_MARGIN,
-                        this.entityWidth, this.entityHeight, this.entityDepth);
+                        x, y, z, depth, GroundMobility.FORD_DEPTH, this.inWater, this.amphibious);
             }
             return BlockPathTypes.BLOCKED;
         }
 
-        // Scans the vehicle's full W×H×D volume like vanilla, but bails out on the first
-        // block that rejects the node (fence/rail/negative malus) instead of classifying the
-        // entire volume first — a tank footprint is 100+ blocks, so hitting a wall face
-        // early saves almost the whole scan.
         BlockPathTypes center = BlockPathTypes.BLOCKED;
         BlockPathTypes worst = BlockPathTypes.BLOCKED;
         float worstMalus = mob.getPathfindingMalus(BlockPathTypes.BLOCKED);
@@ -159,6 +150,10 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             for (int j = 0; j < this.entityHeight; ++j) {
                 for (int k = 0; k < this.entityDepth; ++k) {
                     BlockPathTypes blockpathtypes = this.getBlockPathType(level, i + x, j + y, k + z);
+                    // Fordable water is walkable; cost is applied in findAcceptedNode.
+                    if (blockpathtypes == BlockPathTypes.WATER) {
+                        blockpathtypes = BlockPathTypes.WALKABLE;
+                    }
                     blockpathtypes = this.evaluateBlockPathType(level, mobPos, blockpathtypes);
                     if (i == 0 && j == 0 && k == 0) {
                         center = blockpathtypes;
@@ -180,18 +175,27 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         return center == BlockPathTypes.OPEN && worstMalus == 0.0F && this.entityWidth <= 1 ? BlockPathTypes.OPEN : worst;
     }
 
-    // True if any block within WATER_MARGIN of the node footprint (horizontally, at the
-    // driving level and one below to catch water under a shoreline ledge) is water.
-    private boolean hasWaterWithinMargin(BlockGetter level, int x, int y, int z) {
-        int minX = x - WATER_MARGIN;
-        int maxX = x + this.entityWidth - 1 + WATER_MARGIN;
-        int minZ = z - WATER_MARGIN;
-        int maxZ = z + this.entityDepth - 1 + WATER_MARGIN;
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (int cx = minX; cx <= maxX; ++cx) {
-            for (int cz = minZ; cz <= maxZ; ++cz) {
-                if (level.getFluidState(pos.set(cx, y, cz)).is(FluidTags.WATER)
-                        || level.getFluidState(pos.set(cx, y - 1, cz)).is(FluidTags.WATER)) {
+    private int footprintWaterDepth(BlockGetter level, int x, int y, int z) {
+        int max = 0;
+        int w = Math.max(1, this.entityWidth);
+        int d = Math.max(1, this.entityDepth);
+        for (int i = 0; i < w; i++) {
+            for (int k = 0; k < d; k++) {
+                max = Math.max(max, GroundMobility.waterDepth(level, this.probe, x + i, y, z + k));
+            }
+        }
+        return max;
+    }
+
+    private boolean nearDeepWater(int x, int y, int z) {
+        int margin = GroundMobility.DEEP_WATER_MARGIN;
+        int minX = x - margin;
+        int maxX = x + Math.max(1, this.entityWidth) - 1 + margin;
+        int minZ = z - margin;
+        int maxZ = z + Math.max(1, this.entityDepth) - 1 + margin;
+        for (int cx = minX; cx <= maxX; cx++) {
+            for (int cz = minZ; cz <= maxZ; cz++) {
+                if (GroundMobility.waterDepth(this.level, this.probe, cx, y, cz) > GroundMobility.FORD_DEPTH) {
                     return true;
                 }
             }
@@ -199,26 +203,34 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         return false;
     }
 
-    /**
-     * Prefer road footing the way ships prefer deep water: accepted nodes stay reachable, but
-     * off-road ones cost more so a dirt-path detour of similar length wins.
-     * Peer spacing uses the same soft-cost shape (never BLOCKED).
-     * Walk uses the 7-arg form (step/floor/direction); ships keep the 3-arg swim form.
-     */
     @Override
     protected Node findAcceptedNode(int x, int y, int z, int verticalDeltaLimit, double nodeFloorLevel,
                                     Direction direction, BlockPathTypes pathTypes) {
         Node node = super.findAcceptedNode(x, y, z, verticalDeltaLimit, nodeFloorLevel, direction, pathTypes);
         if (node == null) return null;
-        BlockState footing = this.level.getBlockState(this.roadProbe.set(node.x, node.y - 1, node.z));
+
+        BlockState footing = this.level.getBlockState(this.probe.set(node.x, node.y - 1, node.z));
         if (!footing.is(PREFERRED_ROADS)) {
             node.costMalus += OFF_ROAD_PENALTY;
         }
         node.costMalus += peerSpacingMalus(node);
+
+        VoxelShape shape = footing.getCollisionShape(this.level, this.probe);
+        double top = shape.isEmpty() ? node.y : (node.y - 1) + shape.max(Direction.Axis.Y);
+        float slope = GroundMobility.slopeMalus(top - nodeFloorLevel, this.maxUpStep);
+        if (Float.isInfinite(slope)) return null;
+        node.costMalus += slope;
+
+        int depth = footprintWaterDepth(this.level, node.x, node.y, node.z);
+        float ford = GroundMobility.fordMalus(depth, this.amphibious, this.inWater);
+        if (Float.isInfinite(ford)) return null;
+        node.costMalus += ford;
+        if (depth <= 0 && !this.amphibious && !this.inWater && nearDeepWater(node.x, node.y, node.z)) {
+            node.costMalus += GroundMobility.DEEP_MARGIN_PENALTY;
+        }
         return node;
     }
 
-    /** Linear falloff inside each peer's soft bubble; 0 outside. */
     private float peerSpacingMalus(Node node) {
         if (this.peerX.length == 0) return 0.0F;
         double cx = node.x + this.entityWidth * 0.5;
@@ -237,8 +249,6 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
 
     @Override
     public BlockPathTypes getBlockPathType(BlockGetter level, int x, int y, int z) {
-        // Same block classification as vanilla's getBlockPathTypeStatic, minus its
-        // 26-neighbour hazard scan (checkNeighbourBlocks) — see the class doc.
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, y, z);
         BlockPathTypes blockpathtypes = getBlockPathTypeRaw(level, pos);
         if (blockpathtypes == BlockPathTypes.OPEN && y >= level.getMinBuildHeight() + 1) {

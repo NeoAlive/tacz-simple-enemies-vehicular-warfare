@@ -89,7 +89,7 @@ public class NetworkHandler {
     // 56: team_base PMC Owner (kind/value) + online player list on open packet.
     // 57: team_base enemyTeams list on open+save packets.
     // 58: team_base open packet carries per-faction GROUND (armor) pools for autofill.
-    private static final String PROTOCOL_VERSION = "58";
+    private static final String PROTOCOL_VERSION = "59";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

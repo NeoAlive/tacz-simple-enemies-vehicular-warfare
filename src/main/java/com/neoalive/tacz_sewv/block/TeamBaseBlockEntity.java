@@ -45,6 +45,16 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
      * Legacy worlds without the NBT key inherit the old rule ({@code playerOwned}).
      */
     private boolean endInvasionOnCapture;
+    /**
+     * Seconds to wait after {@code /sewv invasion start} before fielding vehicles (players wait at
+     * world spawn). Session uses the max across both bases. Default 0 = spawn immediately.
+     */
+    private int spawnDelaySeconds;
+    /**
+     * When true, enemies cannot begin capturing this base until their team owns every capture_point
+     * in the dimension. Default true.
+     */
+    private boolean pointsHaveToBeConquered = true;
     private final List<String> vehiclePool = new ArrayList<>();
     /** Scoreboard teams this base's crews treat as enemies (explicit — not inferred). */
     private final List<String> enemyTeams = new ArrayList<>();
@@ -134,6 +144,24 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         setChanged();
     }
 
+    public int getSpawnDelaySeconds() {
+        return spawnDelaySeconds;
+    }
+
+    public void setSpawnDelaySeconds(int spawnDelaySeconds) {
+        this.spawnDelaySeconds = Math.max(0, Math.min(3600, spawnDelaySeconds));
+        setChanged();
+    }
+
+    public boolean isPointsHaveToBeConquered() {
+        return pointsHaveToBeConquered;
+    }
+
+    public void setPointsHaveToBeConquered(boolean pointsHaveToBeConquered) {
+        this.pointsHaveToBeConquered = pointsHaveToBeConquered;
+        setChanged();
+    }
+
     public List<String> getVehiclePool() {
         return vehiclePool;
     }
@@ -189,6 +217,8 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         tag.putString("PmcOwnerKind", pmcOwnerKind.name());
         tag.putString("PmcOwnerValue", pmcOwnerValue);
         tag.putBoolean("EndInvasionOnCapture", endInvasionOnCapture);
+        tag.putInt("SpawnDelaySeconds", spawnDelaySeconds);
+        tag.putBoolean("PointsHaveToBeConquered", pointsHaveToBeConquered);
         ListTag pool = new ListTag();
         for (String id : vehiclePool) {
             pool.add(StringTag.valueOf(id));
@@ -227,6 +257,12 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         endInvasionOnCapture = tag.contains("EndInvasionOnCapture")
                 ? tag.getBoolean("EndInvasionOnCapture")
                 : playerOwned;
+        spawnDelaySeconds = tag.contains("SpawnDelaySeconds")
+                ? Math.max(0, Math.min(3600, tag.getInt("SpawnDelaySeconds")))
+                : 0;
+        // Default true — missing key means require all points (new rule).
+        pointsHaveToBeConquered = !tag.contains("PointsHaveToBeConquered")
+                || tag.getBoolean("PointsHaveToBeConquered");
         vehiclePool.clear();
         if (tag.contains("VehiclePool", Tag.TAG_LIST)) {
             ListTag pool = tag.getList("VehiclePool", Tag.TAG_STRING);

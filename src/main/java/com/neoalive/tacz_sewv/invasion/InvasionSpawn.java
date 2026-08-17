@@ -5,10 +5,12 @@ import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -192,11 +194,16 @@ public final class InvasionSpawn {
 
     /** Re-assert pinned respawns while the session is live (beds must not steal them). */
     public static void reassertRespawns(ServerLevel level) {
+        BlockPos worldSpawn = worldSpawnPos(level);
         for (TeamBaseBlockEntity base : findTeamBases(level)) {
             if (!base.isPlayerOwned() || base.getAssignedTeam().isEmpty()) continue;
             BlockPos respawnPos = base.getBlockPos().above();
             for (ServerPlayer player : playersOnTeam(level, base.getAssignedTeam())) {
-                pinRespawn(player, level, respawnPos);
+                if (InvasionSession.isPlayerWaitingField(level, player.getUUID())) {
+                    pinRespawn(player, level, worldSpawn);
+                } else {
+                    pinRespawn(player, level, respawnPos);
+                }
             }
         }
     }
@@ -205,6 +212,7 @@ public final class InvasionSpawn {
      * Keep each base that fields AI at {@link TeamBaseBlockEntity#getAiVehicleCount()} live
      * non-wreck SPAWN hulls (player-owned bases too — count is additive to player tanks; 0 = off).
      * Each replacement is a fresh random pick from that base's pool.
+     * Shortfalls wait that base's {@code spawnDelaySeconds} before spawning (no world-spawn trip).
      */
     public static void topUpAiFleets(ServerLevel level) {
         for (TeamBaseBlockEntity base : findTeamBases(level)) {
@@ -213,11 +221,14 @@ public final class InvasionSpawn {
             int want = base.getAiVehicleCount();
             if (want <= 0) continue;
             int have = countAiHulls(level, base.getBlockPos());
-            if (have >= want) continue;
+            boolean shortfall = have < want;
+            if (!InvasionSession.mayTopUpAi(level, base, shortfall)) continue;
             int added = spawnForAiBase(level, base, want - have);
+            int nowHave = have + added;
+            InvasionSession.noteAiTopUpAttempt(level, base, nowHave < want);
             if (added > 0) {
                 SewvDiag.invasion("aiTopUp base={} added={} now={}/{}",
-                        base.getBlockPos(), added, have + added, want);
+                        base.getBlockPos(), added, nowHave, want);
             } else if (have < want) {
                 SewvDiag.invasion("aiTopUpFail base={} have={}/{} (spawn returned 0)",
                         base.getBlockPos(), have, want);
@@ -228,26 +239,80 @@ public final class InvasionSpawn {
     /**
      * After a participating player respawns during an active session, put them back in a
      * pool-picked hull at their team_base (deferred one tick so vanilla respawn settles).
+     * When the base's spawn delay &gt; 0 they wait at world spawn first.
      * Called from {@link InvasionSession} (this class is not on the Forge bus).
      */
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (event.getEntity().level().isClientSide()) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (!(player.level() instanceof ServerLevel level)) return;
-        if (!InvasionSession.isActive(level)) return;
+        if (!InvasionSession.hasFielded(level)) return;
         if (event.isEndConquered()) return;
 
         TeamBaseBlockEntity base = playerOwnedBaseFor(level, player);
         if (base == null || base.getVehiclePool().isEmpty()) return;
 
+        int delaySec = base.getSpawnDelaySeconds();
         // Defer: riding during the respawn event can fail before the player is fully placed.
         level.getServer().execute(() -> {
-            if (!InvasionSession.isActive(level) || !player.isAlive() || player.hasDisconnected()) return;
+            if (!InvasionSession.hasFielded(level) || !player.isAlive() || player.hasDisconnected()) return;
             if (player.getVehicle() instanceof VehicleEntity) return; // already mounted
-            VehicleEntity hull = spawnForPlayer(level, base, player);
-            SewvDiag.invasion("playerRespawnTank player={} ok={} base={}",
-                    player.getGameProfile().getName(), hull != null, base.getBlockPos());
+
+            if (delaySec <= 0) {
+                VehicleEntity hull = spawnForPlayer(level, base, player);
+                pinRespawn(player, level, base.getBlockPos().above());
+                SewvDiag.invasion("playerRespawnTank player={} ok={} base={}",
+                        player.getGameProfile().getName(), hull != null, base.getBlockPos());
+                return;
+            }
+
+            BlockPos at = worldSpawnPos(level);
+            teleportToWorldSpawn(player, level, at);
+            InvasionSession.schedulePlayerField(level, player, delaySec);
+            player.displayClientMessage(Component.translatable(
+                    "message.tacz_sewv.invasion.spawn_delay", delaySec), false);
+            SewvDiag.invasion("playerRespawnDelay player={} wait={}s at world spawn",
+                    player.getGameProfile().getName(), delaySec);
         });
+    }
+
+    /**
+     * End of a mid-match (or reconnect) spawn-delay: teleport to base, mount a fresh hull, pin respawn.
+     */
+    public static void fieldPlayerAfterDelay(ServerLevel level, ServerPlayer player) {
+        TeamBaseBlockEntity base = playerOwnedBaseFor(level, player);
+        if (base == null || base.getVehiclePool().isEmpty()) {
+            SewvDiag.invasion("fieldPlayerAfterDelay skip player={} — no base/pool",
+                    player.getGameProfile().getName());
+            return;
+        }
+        if (player.getVehicle() instanceof VehicleEntity) {
+            pinRespawn(player, level, base.getBlockPos().above());
+            return;
+        }
+        BlockPos origin = base.getBlockPos();
+        int radius = Math.max(2, base.getRadiusInBlocks());
+        BlockPos at = offsetInRadius(level, origin, radius, player.getId());
+        player.teleportTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
+        VehicleEntity hull = spawnForPlayer(level, base, player);
+        pinRespawn(player, level, base.getBlockPos().above());
+        player.displayClientMessage(Component.translatable(
+                "message.tacz_sewv.invasion.spawn_go"), false);
+        SewvDiag.invasion("playerFieldedAfterDelay player={} ok={} base={}",
+                player.getGameProfile().getName(), hull != null, base.getBlockPos());
+    }
+
+    public static BlockPos worldSpawnPos(ServerLevel level) {
+        BlockPos spawn = level.getSharedSpawnPos();
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, spawn.getX(), spawn.getZ());
+        return new BlockPos(spawn.getX(), y, spawn.getZ());
+    }
+
+    public static void teleportToWorldSpawn(ServerPlayer player, ServerLevel level, BlockPos at) {
+        player.teleportTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
+        pinRespawn(player, level, at);
+        SewvDiag.invasion("teleportWorldSpawn player={} → {}",
+                player.getGameProfile().getName(), at);
     }
 
     private static int spawnForAiBase(ServerLevel level, TeamBaseBlockEntity base, int count) {
@@ -377,7 +442,7 @@ public final class InvasionSpawn {
         return null;
     }
 
-    private static void pinRespawn(ServerPlayer player, ServerLevel level, BlockPos pos) {
+    public static void pinRespawn(ServerPlayer player, ServerLevel level, BlockPos pos) {
         player.setRespawnPosition(level.dimension(), pos, player.getYRot(), true, false);
     }
 

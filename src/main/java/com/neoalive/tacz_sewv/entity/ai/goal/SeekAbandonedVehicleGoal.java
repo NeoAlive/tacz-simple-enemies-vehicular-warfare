@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.item.LockItem;
 
 /**
  * Lets RU/US infantry claim an abandoned vehicle it walks past, so a hull whose crew bailed out
@@ -119,6 +120,7 @@ public class SeekAbandonedVehicleGoal extends Goal {
         // Addon hulls that only a Player may ride. Same class of problem as the mortar above —
         // an order that can never complete — but invisible from the seat data, so it is by id.
         if (NpcVehicleOverrides.refusesNpcRiders(hull)) return false;
+        if (LockItem.isLocked(hull)) return false;
 
         // COMPLETELY empty, OR every currently free seat is a tank-rider "Climb" handhold
         // (HullFacts.hasFreeClimbSeat) — a hull with a driver/gunner/commander still aboard is

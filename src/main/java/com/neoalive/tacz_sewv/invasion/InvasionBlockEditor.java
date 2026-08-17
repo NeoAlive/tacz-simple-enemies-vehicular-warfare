@@ -87,6 +87,8 @@ public final class InvasionBlockEditor {
                         be.getOwnedTeam(),
                         be.isInvisible(),
                         be.isEndInvasionOnCapture(),
+                        be.getSpawnDelaySeconds(),
+                        be.isPointsHaveToBeConquered(),
                         be.getPmcOwnerKind(),
                         be.getPmcOwnerValue(),
                         new ArrayList<>(be.getVehiclePool()),

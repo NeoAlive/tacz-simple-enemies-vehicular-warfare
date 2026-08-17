@@ -181,8 +181,14 @@ public class SewvCommand {
             source.sendSuccess(() -> invasionWarnComponent(warn), false);
         }
         InvasionSpawn.Result spawn = ok.spawn();
-        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.started",
-                spawn.bases(), spawn.aiVehicles(), spawn.playerVehicles()), true);
+        if (ok.spawnDelaySeconds() > 0) {
+            source.sendSuccess(() -> Component.translatable(
+                    "command.tacz_sewv.invasion.started_delayed",
+                    ok.spawnDelaySeconds(), spawn.bases()), true);
+        } else {
+            source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.started",
+                    spawn.bases(), spawn.aiVehicles(), spawn.playerVehicles()), true);
+        }
         return 1;
     }
 

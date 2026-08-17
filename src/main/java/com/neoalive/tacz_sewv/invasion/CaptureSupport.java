@@ -15,6 +15,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.scores.PlayerTeam;
 
+import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
@@ -90,6 +91,15 @@ public final class CaptureSupport {
             return;
         }
 
+        // Team base: optional "must own every capture_point first" gate.
+        if (be instanceof TeamBaseBlockEntity base && base.isPointsHaveToBeConquered()
+                && !teamOwnsAllCapturePoints(level, sole)) {
+            dirty |= be.setProgressIfChanged(0f);
+            be.setAdvancingTeam("");
+            if (dirty) sync(level, be);
+            return;
+        }
+
         String advancing = be.getAdvancingTeam();
         if (!advancing.isEmpty() && !sole.equals(advancing)) {
             dirty |= be.setProgressIfChanged(0f);
@@ -123,6 +133,20 @@ public final class CaptureSupport {
             return base.getAssignedTeam();
         }
         return "";
+    }
+
+    /** True when {@code team} owns every registered capture_point (vacuous if none exist). */
+    static boolean teamOwnsAllCapturePoints(ServerLevel level, String team) {
+        if (team == null || team.isEmpty()) return false;
+        var positions = InvasionLayout.get(level).capturePointPositions();
+        if (positions.isEmpty()) return true;
+        for (long packed : positions) {
+            BlockPos pos = BlockPos.of(packed);
+            InvasionTickets.ensureLoaded(level, pos);
+            if (!(level.getBlockEntity(pos) instanceof CapturePointBlockEntity point)) return false;
+            if (!team.equals(point.getOwnedTeam())) return false;
+        }
+        return true;
     }
 
     private static void completeCapture(ServerLevel level, CapturableBlockEntity be, String team) {

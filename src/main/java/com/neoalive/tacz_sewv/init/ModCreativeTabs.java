@@ -27,6 +27,7 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.TACTICAL_DATA_TERMINAL.get());
                         output.accept(ModItems.DOCTRINE_LEDGER.get());
                         output.accept(ModItems.MEDAL_OF_HONOR.get());
+                        output.accept(ModItems.LOCK.get());
                         output.accept(ModItems.POOL_CLIPBOARD.get());
                         output.accept(ModItems.CAPTURE_POINT.get());
                         output.accept(ModItems.TEAM_BASE.get());

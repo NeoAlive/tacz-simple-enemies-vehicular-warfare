@@ -192,5 +192,7 @@
   "pmc_underground": { "sounds": ["tacz_sewv:pmc/pmc_underground"] },
   "pmc_self_is_medic": { "sounds": ["tacz_sewv:pmc/pmc_self_is_medic"] },
 
-  "interact_beep": { "sounds": ["tacz_sewv:interact_beep"] }
+  "interact_beep": { "sounds": ["tacz_sewv:interact_beep"] },
+
+  "lock": { "sounds": ["tacz_sewv:lock"] }
 }

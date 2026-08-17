@@ -18,6 +18,7 @@ import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
+import com.neoalive.tacz_sewv.entity.ai.navigation.GroundRvo;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
 
 /**
@@ -29,15 +30,17 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
  * <p>The {@code amphibious} flag only ever RELAXES the water hazard. Land is never a
  * hazard here — an amphibious APC still drives on land.
  *
- * <p>Drops are allowed (SBW fall damage is forgiving). Height is measured as the
- * unfloored collision-shape jump between consecutive samples, so a 1.5-block fence is
- * a wall and a 1-block hill is a step.
+ * <p>Peer hulls use Reciprocal Velocity Obstacles (not a frozen AABB along the heading):
+ * each crew assumes the other takes half the dodge, which is what stops two tanks
+ * swapping sides every tick. Infantry on foot stay an AABB. Terrain stays on the maps.
  */
 public final class GroundTerrainSensor extends TerrainSensor {
 
     private static final double LOOKAHEAD_DISTANCE = 5.0;
     private static final int FLUID_PROBE_DEPTH = 8;
     private static final int N = GroundMobility.SLOT_COUNT;
+    /** Preferred speed used when the hull is nearly stopped, so RVO still sees incoming traffic. */
+    private static final double MIN_PREF_SPEED = 0.2;
 
     private boolean amphibious;
     private float maxUpStep = 1.0F;
@@ -69,6 +72,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
     private int lastWaterDepth;
 
     private List<AABB> allyFootObstacles = List.of();
+    private List<Peer> peers = List.of();
 
     public GroundTerrainSensor(AbstractUnit unit) {
         super(unit);
@@ -85,6 +89,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
         this.lastFanReasons = "";
         this.lastSlot = Integer.MIN_VALUE;
         this.allyFootObstacles = List.of();
+        this.peers = List.of();
     }
 
     /**
@@ -236,15 +241,23 @@ public final class GroundTerrainSensor extends TerrainSensor {
     private Probe probeHeading(Vec3 dir, double distance, boolean beam) {
         double half = halfWidth();
         Vec3 side = new Vec3(-dir.z, 0.0, dir.x);
-        if (!beam) return probeLine(dir, 0.0, distance, side);
-        Probe worst = new Probe();
-        for (int k = -1; k <= 1; k++) {
-            Probe p = probeLine(dir, k * half, distance, side);
-            if (p.hard >= GroundMobility.HARD_CAP) return p;
-            if (p.hard > worst.hard) worst = p;
-            else worst.skirt = Math.max(worst.skirt, p.skirt);
+        Probe p;
+        if (!beam) {
+            p = probeLine(dir, 0.0, distance, side);
+        } else {
+            p = new Probe();
+            for (int k = -1; k <= 1; k++) {
+                Probe sample = probeLine(dir, k * half, distance, side);
+                if (sample.hard >= GroundMobility.HARD_CAP) {
+                    p = sample;
+                    break;
+                }
+                if (sample.hard > p.hard) p = sample;
+                else p.skirt = Math.max(p.skirt, sample.skirt);
+            }
         }
-        return worst;
+        if (p.hard < GroundMobility.HARD_CAP) applyRvo(dir, p);
+        return p;
     }
 
     private Probe probeLine(Vec3 dir, double lateral, double distance, Vec3 side) {
@@ -253,7 +266,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double startX = this.vehicle.getX();
         double startZ = this.vehicle.getZ();
         double half = halfWidth();
-        List<AABB> hulls = obstacles(distance);
+        obstacles(distance);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         double floor = this.cachedCenterFloor;
         boolean crossedDrop = false;
@@ -266,12 +279,6 @@ public final class GroundTerrainSensor extends TerrainSensor {
                 out.reason = "ally";
                 return out;
             }
-            if (isBlockedByHull(hulls, sampleX, sampleZ)) {
-                out.hard = 1.0F;
-                out.reason = "hull";
-                return out;
-            }
-            out.skirt = Math.max(out.skirt, skirtAt(hulls, sampleX, sampleZ));
 
             Column col = probeColumn(level, pos, Mth.floor(sampleX), Mth.floor(sampleZ));
             out.waterDepth = Math.max(out.waterDepth, col.waterDepth);
@@ -314,6 +321,31 @@ public final class GroundTerrainSensor extends TerrainSensor {
             floor = col.floorY;
         }
         return out;
+    }
+
+    private void applyRvo(Vec3 dir, Probe p) {
+        if (this.peers.isEmpty()) return;
+        double speed = Math.max(MIN_PREF_SPEED, this.vehicle.getDeltaMovement().horizontalDistance());
+        double candX = dir.x * speed;
+        double candZ = dir.z * speed;
+        Vec3 v = this.vehicle.getDeltaMovement();
+        double ax = v.x;
+        double az = v.z;
+        double half = halfWidth();
+        double selfX = this.vehicle.getX();
+        double selfZ = this.vehicle.getZ();
+        for (Peer peer : this.peers) {
+            float d = GroundRvo.danger(
+                    peer.x - selfX, peer.z - selfZ,
+                    candX, candZ, ax, az, peer.vx, peer.vz,
+                    GroundRvo.radius(half, peer.half));
+            if (d >= GroundMobility.HARD_CAP) {
+                p.hard = 1.0F;
+                p.reason = "hull";
+                return;
+            }
+            p.skirt = Math.max(p.skirt, d);
+        }
     }
 
     private void ensureCenter() {
@@ -367,21 +399,6 @@ public final class GroundTerrainSensor extends TerrainSensor {
         return col;
     }
 
-    private float skirtAt(List<AABB> hulls, double x, double z) {
-        if (hulls.isEmpty()) return 0.0F;
-        double soft = VehiclePeerSpacing.SOFT_DISTANCE;
-        float best = 0.0F;
-        for (AABB box : hulls) {
-            if (x >= box.minX && x <= box.maxX && z >= box.minZ && z <= box.maxZ) continue;
-            double dx = x < box.minX ? box.minX - x : x > box.maxX ? x - box.maxX : 0.0;
-            double dz = z < box.minZ ? box.minZ - z : z > box.maxZ ? z - box.maxZ : 0.0;
-            double dist = Math.sqrt(dx * dx + dz * dz);
-            if (dist >= soft) continue;
-            best = Math.max(best, (float) (1.0 - dist / soft));
-        }
-        return best;
-    }
-
     private void logSteerTick(Vec3 desired, int slot, double offset, Probe sample, Vec3 heading) {
         if (!SewvDiag.groundPathingVerbose()) return;
         long now = this.unit.level().getGameTime();
@@ -416,15 +433,18 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double half = halfWidth();
         double range = reach + half + 1.0;
         AABB search = this.vehicle.getBoundingBox().inflate(range, 2.0, range);
-        List<AABB> hulls = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
+        this.peers = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
                         v -> v != this.vehicle && VehiclePeerSpacing.isPeer(this.vehicle, this.unit, v)).stream()
-                .map(v -> v.getBoundingBox().inflate(half, 0.0, half))
+                .map(v -> {
+                    Vec3 vel = v.getDeltaMovement();
+                    return new Peer(v.getX(), v.getZ(), vel.x, vel.z, v.getBbWidth() * 0.5);
+                })
                 .toList();
         this.allyFootObstacles = this.unit.level().getEntitiesOfClass(AbstractUnit.class, search,
                         this::isAllyFootObstacle).stream()
                 .map(u -> u.getBoundingBox().inflate(half, 0.0, half))
                 .toList();
-        return hulls;
+        return List.of();
     }
 
     private boolean isAllyFootObstacle(AbstractUnit other) {
@@ -452,5 +472,17 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double floorY = GroundMobility.NO_FLOOR;
         int waterDepth;
         boolean lava;
+    }
+
+    private static final class Peer {
+        final double x, z, vx, vz, half;
+
+        Peer(double x, double z, double vx, double vz, double half) {
+            this.x = x;
+            this.z = z;
+            this.vx = vx;
+            this.vz = vz;
+            this.half = half;
+        }
     }
 }

@@ -27,7 +27,7 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 public class TeamBaseScreen extends Screen {
 
     private static final int PANEL_W = 400;
-    private static final int LIST_ROWS = 5;
+    private static final int LIST_ROWS = 4;
     private static final int COL_W = PANEL_W / 2 - 4;
 
     private final BlockPos pos;
@@ -41,6 +41,8 @@ public class TeamBaseScreen extends Screen {
     private String ownedTeam;
     private boolean invisible;
     private boolean endInvasionOnCapture;
+    private int spawnDelaySeconds;
+    private boolean pointsHaveToBeConquered;
     private PmcOwnerKind pmcOwnerKind;
     private String pmcOwnerValue;
     private final List<String> vehiclePool;
@@ -53,6 +55,7 @@ public class TeamBaseScreen extends Screen {
 
     private EditBox timeBox;
     private EditBox radiusBox;
+    private EditBox spawnDelayBox;
     private EditBox filterBox;
     private Button assignedButton;
     private Button playerOwnedButton;
@@ -62,11 +65,13 @@ public class TeamBaseScreen extends Screen {
     private Button pmcOwnerButton;
     private Button invisibleButton;
     private Button endOnCaptureButton;
+    private Button pointsConqueredButton;
     private Button aiCountLabel;
     private int scroll;
     private int enemyScroll;
     private int selected = -1;
     private int timeLabelY;
+    private int delayLabelY;
     private int poolLabelY;
     private int listTop;
     private List<String> filteredCatalog = List.of();
@@ -75,6 +80,7 @@ public class TeamBaseScreen extends Screen {
                           boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                           int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
                           String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
+                          int spawnDelaySeconds, boolean pointsHaveToBeConquered,
                           PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
                           List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
                           List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
@@ -94,6 +100,8 @@ public class TeamBaseScreen extends Screen {
         this.ownedTeam = ownedTeam == null ? "" : ownedTeam;
         this.invisible = invisible;
         this.endInvasionOnCapture = endInvasionOnCapture;
+        this.spawnDelaySeconds = Math.max(0, Math.min(3600, spawnDelaySeconds));
+        this.pointsHaveToBeConquered = pointsHaveToBeConquered;
         this.pmcOwnerKind = pmcOwnerKind == null ? PmcOwnerKind.NONE : pmcOwnerKind;
         this.pmcOwnerValue = pmcOwnerValue == null ? "" : pmcOwnerValue;
         this.vehiclePool = new ArrayList<>(vehiclePool);
@@ -188,6 +196,18 @@ public class TeamBaseScreen extends Screen {
             this.endInvasionOnCapture = !this.endInvasionOnCapture;
             this.endOnCaptureButton.setMessage(endOnCaptureLabel());
         }).bounds(left + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
+        y += 22;
+
+        this.pointsConqueredButton = addRenderableWidget(Button.builder(pointsConqueredLabel(), b -> {
+            this.pointsHaveToBeConquered = !this.pointsHaveToBeConquered;
+            this.pointsConqueredButton.setMessage(pointsConqueredLabel());
+        }).bounds(left, y, PANEL_W / 2 - 2, 20).build());
+        this.delayLabelY = y;
+        this.spawnDelayBox = new EditBox(this.font, left + PANEL_W / 2 + 90, y, 70, 20,
+                Component.literal("spawnDelay"));
+        this.spawnDelayBox.setValue(Integer.toString(this.spawnDelaySeconds));
+        this.spawnDelayBox.setMaxLength(8);
+        addRenderableWidget(this.spawnDelayBox);
         y += 26;
 
         this.poolLabelY = y;
@@ -333,6 +353,12 @@ public class TeamBaseScreen extends Screen {
                 : "gui.tacz_sewv.invasion.end_on_capture.off");
     }
 
+    private Component pointsConqueredLabel() {
+        return Component.translatable(this.pointsHaveToBeConquered
+                ? "gui.tacz_sewv.invasion.points_required.on"
+                : "gui.tacz_sewv.invasion.points_required.off");
+    }
+
     private Component aiCountLabel() {
         if (this.aiVehicleCount <= 0) {
             return Component.translatable("gui.tacz_sewv.invasion.ai_vehicle_count.off");
@@ -405,6 +431,8 @@ public class TeamBaseScreen extends Screen {
         try {
             this.timeToCaptureSeconds = Math.max(1, Integer.parseInt(this.timeBox.getValue().trim()));
             this.radiusInBlocks = Math.max(1, Integer.parseInt(this.radiusBox.getValue().trim()));
+            this.spawnDelaySeconds = Math.max(0, Math.min(3600,
+                    Integer.parseInt(this.spawnDelayBox.getValue().trim())));
         } catch (NumberFormatException e) {
             return;
         }
@@ -413,7 +441,8 @@ public class TeamBaseScreen extends Screen {
         NetworkHandler.CHANNEL.sendToServer(new PacketSaveTeamBase(
                 this.pos, this.assignedTeam, this.playerOwned, this.spawnPlayerOwnedTanksWithNpc,
                 this.crewFaction, this.aiVehicleCount, this.timeToCaptureSeconds, this.radiusInBlocks,
-                this.ownedTeam, this.invisible, this.endInvasionOnCapture, kind, value,
+                this.ownedTeam, this.invisible, this.endInvasionOnCapture,
+                this.spawnDelaySeconds, this.pointsHaveToBeConquered, kind, value,
                 this.vehiclePool, this.enemyTeams));
         onClose();
     }
@@ -473,6 +502,9 @@ public class TeamBaseScreen extends Screen {
 
         graphics.drawString(this.font, "Time (s)", left, this.timeLabelY + 6, 0xA0A0A0, false);
         graphics.drawString(this.font, "Radius", left + 170, this.timeLabelY + 6, 0xA0A0A0, false);
+        graphics.drawString(this.font,
+                Component.translatable("gui.tacz_sewv.invasion.spawn_delay"),
+                left + PANEL_W / 2 + 2, this.delayLabelY + 6, 0xA0A0A0, false);
 
         graphics.fill(left - 2, this.listTop - 2, left + COL_W - 2, this.listTop + LIST_ROWS * 12 + 2, 0x88000000);
         graphics.fill(rightCol - 2, this.listTop - 2, rightCol + COL_W - 2, this.listTop + LIST_ROWS * 12 + 2, 0x88000000);

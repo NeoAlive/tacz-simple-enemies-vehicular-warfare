@@ -14,6 +14,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.CommanderSeating;
+import com.neoalive.tacz_sewv.item.LockItem;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -88,6 +89,10 @@ public class BoardVehicleGoal extends Goal {
             cancelBoarding(CancelReason.WRECKED);
             return false;
         }
+        if (LockItem.blocksNpc(v, this.unit)) {
+            cancelBoarding(CancelReason.GONE);
+            return false;
+        }
         if (isFull(v)) {
             cancelBoarding(CancelReason.FULL);
             return false;
@@ -124,6 +129,10 @@ public class BoardVehicleGoal extends Goal {
         }
         if (isFull(this.targetVehicle)) { // filled up while we walked over
             cancelBoarding(CancelReason.FULL);
+            return;
+        }
+        if (LockItem.blocksNpc(this.targetVehicle, this.unit)) {
+            cancelBoarding(CancelReason.GONE);
             return;
         }
 

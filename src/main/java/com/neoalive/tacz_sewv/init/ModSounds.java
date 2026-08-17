@@ -92,6 +92,9 @@ public final class ModSounds {
     /** UI click for the Tactical Data Terminal (and similar interactable panels). */
     public static final RegistryObject<SoundEvent> INTERACT_BEEP = register("interact_beep");
 
+    /** Vehicle lock / unlock. */
+    public static final RegistryObject<SoundEvent> LOCK = register("lock");
+
     private ModSounds() {}
 
     private static RegistryObject<SoundEvent> register(String name) {

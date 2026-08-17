@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.invasion;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import net.minecraft.core.BlockPos;
@@ -21,7 +22,9 @@ import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
- * Per-dimension invasion match state: validate → ticket → teleport → spawn → maintain → teardown.
+ * Per-dimension invasion match state: validate → ticket → (optional delay at world spawn) →
+ * teleport → spawn → maintain → teardown.
+ * Mid-match deaths reuse the same spawn-delay: players wait at world spawn; AI fleets just wait.
  */
 public final class InvasionSession {
 
@@ -29,7 +32,15 @@ public final class InvasionSession {
     private static final int RESPAWN_REASSERT_INTERVAL = 100; // 5s
 
     private boolean active;
+    /** False until vehicles/crews have been fielded (after any spawn delay). */
+    private boolean fielded;
+    /** Absolute game time when delayed spawn fires; {@link Long#MIN_VALUE} when not waiting. */
+    private long spawnAtGameTime = Long.MIN_VALUE;
     private int nextRespawnAssert = Integer.MIN_VALUE;
+    /** Player UUID → game time when they may leave world spawn and receive a tank. */
+    private final Map<UUID, Long> playerFieldAt = new ConcurrentHashMap<>();
+    /** Team-base packed pos → game time when AI top-up may spawn replacements. */
+    private final Map<Long, Long> aiTopUpAt = new ConcurrentHashMap<>();
     @javax.annotation.Nullable
     private InvasionHud.Layout hudLayout;
 
@@ -42,6 +53,18 @@ public final class InvasionSession {
     public static boolean isActive(ServerLevel level) {
         InvasionSession session = BY_DIM.get(level.dimension());
         return session != null && session.active;
+    }
+
+    /** True once AI/player hulls have been spawned (false during the pre-spawn delay). */
+    public static boolean hasFielded(ServerLevel level) {
+        InvasionSession session = BY_DIM.get(level.dimension());
+        return session != null && session.active && session.fielded;
+    }
+
+    /** True while a player is serving a mid-match (or start) spawn-delay at world spawn. */
+    public static boolean isPlayerWaitingField(ServerLevel level, UUID playerId) {
+        InvasionSession session = BY_DIM.get(level.dimension());
+        return session != null && session.playerFieldAt.containsKey(playerId);
     }
 
     public boolean isActive() {
@@ -58,12 +81,13 @@ public final class InvasionSession {
     }
 
     public sealed interface StartResult {
-        record Ok(InvasionSpawn.Result spawn, List<String> warnings) implements StartResult {}
+        record Ok(InvasionSpawn.Result spawn, List<String> warnings, int spawnDelaySeconds)
+                implements StartResult {}
         record Fail(List<String> errors) implements StartResult {}
     }
 
     /**
-     * Full start: validate (no partial spawn on fail) → ticket nodes → teleport teams → spawn.
+     * Full start: validate → ticket → optional world-spawn wait → teleport teams → spawn.
      */
     public static StartResult start(ServerLevel level) {
         InvasionSession session = of(level);
@@ -85,19 +109,50 @@ public final class InvasionSession {
             return new StartResult.Fail(List.of("need_exactly_two_bases"));
         }
 
+        int delaySec = maxSpawnDelay(report.bases());
+
         InvasionTickets.ticketAll(level);
-        teleportPlayersToBases(level, report.bases());
 
         session.active = true;
+        session.fielded = false;
         session.nextRespawnAssert = Integer.MIN_VALUE;
+        session.playerFieldAt.clear();
+        session.aiTopUpAt.clear();
         session.hudLayout = layout;
         InvasionLayout.get(level).setSessionActive(true);
 
-        InvasionSpawn.Result spawn = InvasionSpawn.spawnAll(level);
         InvasionHudTracker.push(level);
-        SewvDiag.invasion("session ACTIVE dim={} spawn={} hudSlots={}",
-                level.dimension().location(), spawn, layout.slots().size());
-        return new StartResult.Ok(spawn, List.copyOf(report.warnings()));
+
+        if (delaySec <= 0) {
+            session.spawnAtGameTime = Long.MIN_VALUE;
+            teleportPlayersToBases(level, report.bases());
+            InvasionSpawn.Result spawn = InvasionSpawn.spawnAll(level);
+            session.fielded = true;
+            SewvDiag.invasion("session ACTIVE dim={} spawn={} hudSlots={}",
+                    level.dimension().location(), spawn, layout.slots().size());
+            return new StartResult.Ok(spawn, List.copyOf(report.warnings()), 0);
+        }
+
+        session.spawnAtGameTime = level.getGameTime() + delaySec * 20L;
+        teleportPlayersToWorldSpawn(level, report.bases());
+        for (ServerPlayer player : level.players()) {
+            if (!playerOnAssignedTeam(level, player, report.bases())) continue;
+            session.playerFieldAt.put(player.getUUID(), session.spawnAtGameTime);
+            player.displayClientMessage(Component.translatable(
+                    "message.tacz_sewv.invasion.spawn_delay", delaySec), false);
+        }
+        SewvDiag.invasion("session ACTIVE dim={} spawnDelay={}s (waiting at world spawn)",
+                level.dimension().location(), delaySec);
+        return new StartResult.Ok(new InvasionSpawn.Result(report.bases().size(), 0, 0, 0),
+                List.copyOf(report.warnings()), delaySec);
+    }
+
+    private static int maxSpawnDelay(List<TeamBaseBlockEntity> bases) {
+        int max = 0;
+        for (TeamBaseBlockEntity base : bases) {
+            max = Math.max(max, base.getSpawnDelaySeconds());
+        }
+        return max;
     }
 
     /** @deprecated use {@link #start(ServerLevel)} */
@@ -122,6 +177,10 @@ public final class InvasionSession {
     public static void forceEnd(ServerLevel level) {
         InvasionSession session = of(level);
         session.active = false;
+        session.fielded = false;
+        session.spawnAtGameTime = Long.MIN_VALUE;
+        session.playerFieldAt.clear();
+        session.aiTopUpAt.clear();
         session.hudLayout = null;
         InvasionHudTracker.clear(level);
         InvasionSpawn.teardown(level);
@@ -153,10 +212,98 @@ public final class InvasionSession {
         for (ServerLevel level : event.getServer().getAllLevels()) {
             InvasionSession session = BY_DIM.get(level.dimension());
             if (session == null || !session.active) continue;
+
+            if (!session.fielded && session.spawnAtGameTime != Long.MIN_VALUE
+                    && level.getGameTime() >= session.spawnAtGameTime) {
+                finishDelayedSpawn(level, session);
+            }
+
+            if (!session.fielded) continue;
+            tickPlayerFieldDelays(level, session);
             if (tick < session.nextRespawnAssert) continue;
             session.nextRespawnAssert = tick + RESPAWN_REASSERT_INTERVAL;
             InvasionSpawn.maintain(level);
         }
+    }
+
+    /** Schedule a mid-match player fielding after {@code delaySeconds} at world spawn. */
+    public static void schedulePlayerField(ServerLevel level, ServerPlayer player, int delaySeconds) {
+        InvasionSession session = of(level);
+        long at = level.getGameTime() + Math.max(0, delaySeconds) * 20L;
+        session.playerFieldAt.put(player.getUUID(), at);
+    }
+
+    public static void clearPlayerField(ServerLevel level, UUID playerId) {
+        InvasionSession session = BY_DIM.get(level.dimension());
+        if (session != null) session.playerFieldAt.remove(playerId);
+    }
+
+    /**
+     * AI top-up gate: returns true when a shortfall may spawn now. First shortfall starts the
+     * base's spawn-delay clock; clears when the fleet is full again.
+     */
+    public static boolean mayTopUpAi(ServerLevel level, TeamBaseBlockEntity base, boolean shortfall) {
+        InvasionSession session = of(level);
+        long key = base.getBlockPos().asLong();
+        if (!shortfall) {
+            session.aiTopUpAt.remove(key);
+            return false;
+        }
+        int delaySec = base.getSpawnDelaySeconds();
+        if (delaySec <= 0) return true;
+        long now = level.getGameTime();
+        Long ready = session.aiTopUpAt.get(key);
+        if (ready == null) {
+            session.aiTopUpAt.put(key, now + delaySec * 20L);
+            SewvDiag.invasion("aiTopUpDelay base={} wait={}s", base.getBlockPos(), delaySec);
+            return false;
+        }
+        if (now < ready) return false;
+        return true;
+    }
+
+    /** After a delayed AI top-up attempt, restart the clock if still short. */
+    public static void noteAiTopUpAttempt(ServerLevel level, TeamBaseBlockEntity base, boolean stillShort) {
+        InvasionSession session = of(level);
+        long key = base.getBlockPos().asLong();
+        if (!stillShort) {
+            session.aiTopUpAt.remove(key);
+            return;
+        }
+        int delaySec = base.getSpawnDelaySeconds();
+        if (delaySec <= 0) {
+            session.aiTopUpAt.remove(key);
+            return;
+        }
+        session.aiTopUpAt.put(key, level.getGameTime() + delaySec * 20L);
+    }
+
+    private static void tickPlayerFieldDelays(ServerLevel level, InvasionSession session) {
+        if (session.playerFieldAt.isEmpty()) return;
+        long now = level.getGameTime();
+        for (Map.Entry<UUID, Long> entry : List.copyOf(session.playerFieldAt.entrySet())) {
+            if (now < entry.getValue()) continue;
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(entry.getKey());
+            if (player == null || player.level() != level) continue;
+            if (!player.isAlive() || player.hasDisconnected()) continue;
+            session.playerFieldAt.remove(entry.getKey());
+            InvasionSpawn.fieldPlayerAfterDelay(level, player);
+        }
+    }
+
+    private static void finishDelayedSpawn(ServerLevel level, InvasionSession session) {
+        session.spawnAtGameTime = Long.MIN_VALUE;
+        session.playerFieldAt.clear();
+        List<TeamBaseBlockEntity> bases = InvasionSpawn.findTeamBases(level);
+        teleportPlayersToBases(level, bases);
+        InvasionSpawn.Result spawn = InvasionSpawn.spawnAll(level);
+        session.fielded = true;
+        InvasionHudTracker.push(level);
+        for (ServerPlayer player : level.players()) {
+            player.displayClientMessage(Component.translatable(
+                    "message.tacz_sewv.invasion.spawn_go"), false);
+        }
+        SewvDiag.invasion("session FIELDING dim={} spawn={}", level.dimension().location(), spawn);
     }
 
     @SubscribeEvent
@@ -179,6 +326,25 @@ public final class InvasionSession {
                     base.getAssignedTeam(), capturingTeam), false);
         }
         deactivate(level);
+    }
+
+    private static void teleportPlayersToWorldSpawn(ServerLevel level, List<TeamBaseBlockEntity> bases) {
+        BlockPos at = InvasionSpawn.worldSpawnPos(level);
+        for (ServerPlayer player : level.players()) {
+            if (!playerOnAssignedTeam(level, player, bases)) continue;
+            InvasionSpawn.teleportToWorldSpawn(player, level, at);
+        }
+    }
+
+    private static boolean playerOnAssignedTeam(ServerLevel level, ServerPlayer player,
+                                                List<TeamBaseBlockEntity> bases) {
+        PlayerTeam team = level.getScoreboard().getPlayersTeam(player.getScoreboardName());
+        if (team == null) return false;
+        String name = team.getName();
+        for (TeamBaseBlockEntity base : bases) {
+            if (name.equals(base.getAssignedTeam())) return true;
+        }
+        return false;
     }
 
     private static void teleportPlayersToBases(ServerLevel level, List<TeamBaseBlockEntity> bases) {

@@ -29,6 +29,8 @@ public class PacketOpenTeamBaseGui {
     private final String ownedTeam;
     private final boolean invisible;
     private final boolean endInvasionOnCapture;
+    private final int spawnDelaySeconds;
+    private final boolean pointsHaveToBeConquered;
     private final PmcOwnerKind pmcOwnerKind;
     private final String pmcOwnerValue;
     private final List<String> vehiclePool;
@@ -44,6 +46,7 @@ public class PacketOpenTeamBaseGui {
                                  boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                                  int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
                                  String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
+                                 int spawnDelaySeconds, boolean pointsHaveToBeConquered,
                                  PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
                                  List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
                                  List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
@@ -59,6 +62,8 @@ public class PacketOpenTeamBaseGui {
         this.ownedTeam = ownedTeam == null ? "" : ownedTeam;
         this.invisible = invisible;
         this.endInvasionOnCapture = endInvasionOnCapture;
+        this.spawnDelaySeconds = Math.max(0, Math.min(3600, spawnDelaySeconds));
+        this.pointsHaveToBeConquered = pointsHaveToBeConquered;
         this.pmcOwnerKind = pmcOwnerKind == null ? PmcOwnerKind.NONE : pmcOwnerKind;
         this.pmcOwnerValue = pmcOwnerValue == null ? "" : pmcOwnerValue;
         this.vehiclePool = vehiclePool;
@@ -82,6 +87,8 @@ public class PacketOpenTeamBaseGui {
         this.ownedTeam = buf.readUtf();
         this.invisible = buf.readBoolean();
         this.endInvasionOnCapture = buf.readBoolean();
+        this.spawnDelaySeconds = buf.readVarInt();
+        this.pointsHaveToBeConquered = buf.readBoolean();
         this.pmcOwnerKind = PmcOwnerKind.fromOrdinal(buf.readVarInt());
         this.pmcOwnerValue = buf.readUtf();
         this.vehiclePool = PacketOpenPoolEditor.readStringList(buf);
@@ -109,6 +116,8 @@ public class PacketOpenTeamBaseGui {
         buf.writeUtf(this.ownedTeam);
         buf.writeBoolean(this.invisible);
         buf.writeBoolean(this.endInvasionOnCapture);
+        buf.writeVarInt(this.spawnDelaySeconds);
+        buf.writeBoolean(this.pointsHaveToBeConquered);
         buf.writeVarInt(this.pmcOwnerKind.ordinal());
         buf.writeUtf(this.pmcOwnerValue);
         PacketOpenPoolEditor.writeStringList(buf, this.vehiclePool);
@@ -129,6 +138,7 @@ public class PacketOpenTeamBaseGui {
                         this.pos, this.assignedTeam, this.playerOwned, this.spawnPlayerOwnedTanksWithNpc,
                         this.crewFaction, this.aiVehicleCount, this.timeToCaptureSeconds,
                         this.radiusInBlocks, this.ownedTeam, this.invisible, this.endInvasionOnCapture,
+                        this.spawnDelaySeconds, this.pointsHaveToBeConquered,
                         this.pmcOwnerKind, this.pmcOwnerValue,
                         this.vehiclePool, this.enemyTeams, this.teams,
                         this.onlinePlayerNames, this.onlinePlayerUuids, this.catalog,

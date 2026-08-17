@@ -29,6 +29,7 @@ public final class InvasionEditorClient {
                                     boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
                                     int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
                                     String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
+                                    int spawnDelaySeconds, boolean pointsHaveToBeConquered,
                                     PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
                                     List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
                                     List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
@@ -36,7 +37,8 @@ public final class InvasionEditorClient {
         Minecraft.getInstance().setScreen(new TeamBaseScreen(
                 pos, assignedTeam, playerOwned, spawnPlayerOwnedTanksWithNpc, crewFaction,
                 aiVehicleCount, timeToCaptureSeconds, radiusInBlocks, ownedTeam, invisible,
-                endInvasionOnCapture, pmcOwnerKind, pmcOwnerValue,
+                endInvasionOnCapture, spawnDelaySeconds, pointsHaveToBeConquered,
+                pmcOwnerKind, pmcOwnerValue,
                 vehiclePool, enemyTeams, teams, onlinePlayerNames, onlinePlayerUuids, catalog,
                 armorPools));
     }

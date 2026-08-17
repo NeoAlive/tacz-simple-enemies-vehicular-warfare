@@ -21,6 +21,13 @@ public final class GroundMobilitySelfCheck {
         pickPrefersClearFlank();
         interpolateLeansTowardHigherNeighbor();
         blendIsHalfway();
+        rvoHeadOnIsHard();
+        rvoParallelSameVelIsClear();
+        rvoStaticWreckHits();
+        rvoMovingAwayIsClear();
+        rvoOverlapClosingIsHard();
+        rvoOverlapSeparatingIsClear();
+        rvoRankStaysUnderHardCap();
 
         System.out.println("ground mobility self-check: OK");
     }
@@ -128,6 +135,43 @@ public final class GroundMobilitySelfCheck {
         GroundMobility.blendMaps(prev, cur);
         assertClose(0.5F, cur[0], "blend 1→0");
         assertClose(0.0F, cur[1], "blend untouched");
+    }
+
+    /** Two hulls closing at 0.4 each, 10 blocks apart, combined r=4.4: TTC ~7 ≤ IMMINENT. */
+    private static void rvoHeadOnIsHard() {
+        float d = GroundRvo.danger(0, 10, 0, 0.4, 0, 0.4, 0, -0.4, GroundRvo.radius(2, 2));
+        assertClose(1.0F, d, "head-on RVO");
+    }
+
+    private static void rvoParallelSameVelIsClear() {
+        float d = GroundRvo.danger(8, 0, 0, 0.4, 0, 0.4, 0, 0.4, GroundRvo.radius(2, 2));
+        assertClose(0.0F, d, "parallel same vel");
+    }
+
+    /** RVO vs a parked wreck is VO: relative vel is the candidate, not halved further. */
+    private static void rvoStaticWreckHits() {
+        float d = GroundRvo.danger(0, 6, 0, 0.4, 0, 0.4, 0, 0, GroundRvo.radius(2, 2));
+        assert d >= GroundMobility.HARD_CAP : "static wreck head-on, got " + d;
+    }
+
+    private static void rvoMovingAwayIsClear() {
+        float d = GroundRvo.danger(0, 10, 0, 0.4, 0, 0.4, 0, 0.8, GroundRvo.radius(2, 2));
+        assertClose(0.0F, d, "peer pulling away");
+    }
+
+    private static void rvoOverlapClosingIsHard() {
+        float d = GroundRvo.danger(0, 2, 0, 0.4, 0, 0.4, 0, -0.4, GroundRvo.radius(2, 2));
+        assertClose(1.0F, d, "overlap closing");
+    }
+
+    private static void rvoOverlapSeparatingIsClear() {
+        float d = GroundRvo.danger(0, 2, 0, -0.4, 0, -0.4, 0, 0.4, GroundRvo.radius(2, 2));
+        assertClose(0.0F, d, "overlap separating");
+    }
+
+    private static void rvoRankStaysUnderHardCap() {
+        float d = GroundRvo.danger(0, 20, 0, 0.4, 0, 0.4, 0, -0.4, GroundRvo.radius(2, 2));
+        assert d > 0.0F && d < GroundMobility.HARD_CAP : "mid-horizon rank, got " + d;
     }
 
     private static void assertClose(float expected, float actual, String label) {

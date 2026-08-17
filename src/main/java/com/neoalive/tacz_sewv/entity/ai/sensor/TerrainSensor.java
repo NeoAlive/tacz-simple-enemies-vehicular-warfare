@@ -17,10 +17,11 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
  * <p>What both do the same way, and what lives here:
  *
  * <ul>
- * <li><b>The whisker fan.</b> Probe the bearing we actually want; if it is blocked, fan out
- *     to alternating flanks and take the smallest deflection that is clear. A fully blocked
- *     forward cone answers null, which each goal handles in the way its medium allows —
- *     a ground hull turns in place at the edge, an aircraft climbs over.</li>
+ * <li><b>The whisker fan / context map.</b> Probe the bearing we actually want; if it is
+ *     blocked, fan out to alternating flanks (air) or fill interest/danger maps (ground)
+ *     and take a clear heading. A fully blocked forward cone answers null, which each goal
+ *     handles in the way its medium allows — a ground hull turns in place at the edge, an
+ *     aircraft climbs over.</li>
  * <li><b>The entity obstacle cache.</b> Other hulls are entities, so no block probe can see
  *     them; they have to be queried and their boxes pre-inflated by our own half-width, so a
  *     centerline point probe stands in for sweeping the full hull width along the bearing.

@@ -95,7 +95,8 @@ public final class HullFacts {
      * amphibious-aware, see {@code GroundTerrainSensor.computeAmphibious}) — the only thing this
      * fact changes is which {@code PathFinder}/node evaluator pair {@code recomputePath} picks,
      * since a hull that floats needs {@code ShipVehicleNodeEvaluator}'s water-surface search
-     * instead of {@code GroundVehicleNodeEvaluator}'s land one (which explicitly rejects water).
+     * instead of {@code GroundVehicleNodeEvaluator}'s land one (which blocks only water deeper
+     * than a one-block ford).
      * {@code isTracked()} is already correctly {@code false} for a ship (no {@code TrackRotSpeed}
      * in its data), so the existing wheeled "roll through the turn" steering branch already
      * matches a ship's own physics (turn rate scales with speed — it can't pivot at a standstill)

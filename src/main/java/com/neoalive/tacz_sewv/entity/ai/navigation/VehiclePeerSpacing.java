@@ -8,7 +8,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 /**
  * Soft standoff between allied / wreck hulls — preference only, never a hard block.
  * Used by {@link GroundVehicleNodeEvaluator} (path cost) and
- * {@link com.neoalive.tacz_sewv.entity.ai.sensor.GroundTerrainSensor} (whisker ranking).
+ * {@link com.neoalive.tacz_sewv.entity.ai.sensor.GroundTerrainSensor} (context-map ranking).
  * Same peer set as the whiskers' hard contact rule ({@code isWreck} + same-faction crew).
  */
 public final class VehiclePeerSpacing {

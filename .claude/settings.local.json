@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/wittgenstein/Progetti/REFERENCE REPOS/SuperbWarfare/build/classes/kotlin/main/**)",
+      "Bash(javap -p com/atsuishio/superbwarfare/client/overlay/VehicleTeamOverlay.class)",
+      "Bash(javap -p com/atsuishio/superbwarfare/client/overlay/CommonOverlay.class)"
+    ]
+  }
+}

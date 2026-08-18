@@ -8,10 +8,15 @@ import net.minecraft.core.BlockPos;
 import com.neoalive.tacz_sewv.airport.AirportClearance;
 import com.neoalive.tacz_sewv.client.gui.AirportScreen;
 
-/** Physical-client stub so network packets never touch {@link net.minecraft.client.gui.screens.Screen}. */
+/** Physical-client stub so common code never touches {@link net.minecraft.client.gui.screens.Screen}. */
 public final class AirportClient {
 
     private AirportClient() {}
+
+    /** Drop the map plot for a runway that was actually broken, not chunk-unloaded. */
+    public static void forgetPlot(BlockPos pos) {
+        AirportPlots.forget(pos);
+    }
 
     public static void open(BlockPos pos, int x1, int z1, int x2, int z2, boolean cleared,
                             AirportClearance.Status status, @Nullable BlockPos blocker,
@@ -24,7 +29,7 @@ public final class AirportClient {
         if (cleared && mc.level != null) {
             AirportPlots.note(pos, mc.level.dimension(), x1, z1, x2, z2);
         } else {
-            AirportPlots.forget(pos);
+            forgetPlot(pos);
         }
         mc.setScreen(new AirportScreen(
                 pos, x1, z1, x2, z2, cleared, status, blocker, stripLength, stripWidth, capacity,

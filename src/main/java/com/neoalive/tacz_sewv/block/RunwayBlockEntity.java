@@ -22,6 +22,7 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 
 import com.neoalive.tacz_sewv.airport.AirportClearance;
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
+import com.neoalive.tacz_sewv.client.AirportClient;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 
@@ -61,6 +62,12 @@ public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
     private double extraFactor = SewvConfig.AIRPORT_EXTRA_TAKEOFF_FACTOR.get();
     /** Derived from the four numbers above; rebuilt whenever they change, never saved. */
     @Nullable private AirportRegistry.Airport airport;
+    /**
+     * {@link #onChunkUnloaded()} runs before {@link #setRemoved()} when the chunk goes away, and
+     * does not run on a real break. That is the only way {@code setRemoved} can tell the two
+     * apart — and it must, because the client never sees {@link RunwayBlock#onRemove}.
+     */
+    private boolean chunkUnloaded;
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     public RunwayBlockEntity(BlockPos pos, BlockState state) {
@@ -201,6 +208,32 @@ public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
         super.onLoad();
         if (level instanceof ServerLevel serverLevel && airport() != null) {
             AirportRegistry.get(serverLevel).note(worldPosition, airport());
+        }
+    }
+
+    @Override
+    public void onChunkUnloaded() {
+        this.chunkUnloaded = true;
+        super.onChunkUnloaded();
+    }
+
+    @Override
+    public void setRemoved() {
+        // Real break/replace only. Walking away must leave the registry (and the map plot) so a
+        // land order can still resolve a strip whose chunk is not loaded.
+        if (!this.chunkUnloaded) {
+            dropAirportCache();
+        }
+        super.setRemoved();
+    }
+
+    /** Forget the derived strip, the dimension registry, and the client map plot. */
+    private void dropAirportCache() {
+        this.airport = null;
+        if (level instanceof ServerLevel serverLevel) {
+            AirportRegistry.get(serverLevel).forget(worldPosition);
+        } else if (level != null && level.isClientSide) {
+            AirportClient.forgetPlot(worldPosition);
         }
     }
 

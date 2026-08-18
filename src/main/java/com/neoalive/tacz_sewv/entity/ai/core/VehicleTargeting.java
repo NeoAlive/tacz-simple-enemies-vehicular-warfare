@@ -389,11 +389,12 @@ public final class VehicleTargeting {
         return target != null && target.isAlive();
     }
 
-    // The hard friendly-fire gate: true when `target` is a unit of the same
-    // faction. MixinAbstractUnit cancels any setTarget that fails this test, so a
-    // stray splash-damage hit can never escalate into an intra-faction firefight.
+    // The hard friendly-fire gate: true when `target` is a combat ally. MixinAbstractUnit
+    // cancels any setTarget that fails this test, so a stray splash-damage hit can never
+    // escalate into an intra-faction firefight.
     //
-    // Deliberately NARROW — same faction only, no config. It gates EVERY setTarget,
+    // Deliberately NARROW — same SEM faction only, no config, except Stage-4 / invasion
+    // ENEMY PMC pairs (same entity class, opposing sides). It gates EVERY setTarget,
     // including retaliation, and that is right for a same-faction hit (never fight a
     // squadmate) but wrong for a player: SEM keeps HurtByTargetGoal on a friendly RU/US
     // unit, so it fights back when shot. Blocking that here would make friendly units
@@ -876,9 +877,16 @@ public final class VehicleTargeting {
     // Package-visible: the obstacle filters in DriveVehicleGoal (hulls) and
     // DriveHelicopterGoal (airframes) define "ally" with this same test, so assist
     // doctrine and collision doctrine can't diverge.
+    //
+    // PMC is one SEM class, but Stage-4 diplomacy / invasion lists split it: two
+    // PmcUnitEntity whose owners are ENEMY are not allies. Treating them as one
+    // faction made enemy tanks count as friendly hulls (cannon held for "allied LOF",
+    // force-ratio counted them as friends, HurtBy refused to retaliate).
     public static boolean isSameFaction(AbstractUnit unit, AbstractUnit other) {
+        if (unit == other) return true;
         if (unit instanceof RUunitEntity) return other instanceof RUunitEntity;
         if (unit instanceof USunitEntity) return other instanceof USunitEntity;
-        return unit instanceof PmcUnitEntity && other instanceof PmcUnitEntity;
+        if (!(unit instanceof PmcUnitEntity) || !(other instanceof PmcUnitEntity)) return false;
+        return !isDiplomacyEnemy(unit, other);
     }
 }

@@ -431,7 +431,9 @@ public final class Facts {
         List<AbstractUnit> nearby = HullLocalScan.unitsInScanBox(hull);
         for (AbstractUnit other : nearby) {
             if (other == unit || !other.isAlive()) continue;
-            if (own != null && CrewFacts.factionOfCrew(other) == own) {
+            // Combat allyship, not SEM class: two PMCs whose owners are diplomacy ENEMY must
+            // not inflate the ally count (that parked every tank fight on HOLD + coaxial MG).
+            if (VehicleTargeting.isFriendly(unit, other)) {
                 allyCount++;
                 double range = hull.distanceTo(other);
                 if (range < nearestAllyRange) {

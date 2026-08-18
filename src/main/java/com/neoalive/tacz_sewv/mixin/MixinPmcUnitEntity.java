@@ -28,9 +28,9 @@ import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.goal.DiplomacyEnemyTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.FollowCommanderGoal;
-import com.neoalive.tacz_sewv.entity.ai.goal.InvasionEnemyPlayerTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MoveToPositionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
@@ -275,10 +275,11 @@ public abstract class MixinPmcUnitEntity
         ((Mob) self).targetSelector.removeAllGoals(g -> g instanceof NoPlayerHurtByTargetGoal);
         ((Mob) self).targetSelector.addGoal(1,
                 new NoFriendlyHurtByTargetGoal(self, true).setAlertOthers().setUnseenMemoryTicks(600));
-        // SEM never installs a Player target goal on PMC. Invasion enemy lists / OpenPAC ENEMY
+        // SEM never installs a Player or PMC-vs-PMC scan. Invasion lists / OpenPAC ENEMY
         // therefore had no on-foot acquisition path — only the mounted VehicleTargetScanGoal, and
-        // even that lost the lock when SEM's setTarget(Player)→null won. Priority 2 matches the
-        // vehicle scan; the goal self-disables while seated.
-        ((Mob) self).targetSelector.addGoal(2, new InvasionEnemyPlayerTargetGoal(self));
+        // even that lost a Player lock when SEM's setTarget(Player)→null won. Priority 2 matches
+        // the vehicle scan; both goals self-disable while seated.
+        ((Mob) self).targetSelector.addGoal(2, new DiplomacyEnemyTargetGoal<>(self, Player.class));
+        ((Mob) self).targetSelector.addGoal(2, new DiplomacyEnemyTargetGoal<>(self, PmcUnitEntity.class));
     }
 }

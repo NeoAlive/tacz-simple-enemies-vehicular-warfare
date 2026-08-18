@@ -23,6 +23,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
+import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
@@ -163,8 +164,8 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     // exactly as before this compat existed.
                     if (blockpathtypes == BlockPathTypes.BLOCKED && EnhancedFallingTreesCompat.available()) {
                         BlockState cellState = level.getBlockState(this.probe.set(i + x, j + y, k + z));
-                        if (EnhancedFallingTreesCompat.isFellable(level, this.probe, cellState)
-                                || EnhancedFallingTreesCompat.isFoliage(cellState)) {
+                        if (EnhancedFallingTreesFeller.isFellable(level, this.probe, cellState)
+                                || EnhancedFallingTreesFeller.isFoliage(cellState)) {
                             blockpathtypes = BlockPathTypes.WALKABLE;
                         }
                     }
@@ -264,8 +265,8 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             for (int j = 0; j < h; j++) {
                 for (int k = 0; k < d; k++) {
                     BlockState state = level.getBlockState(this.probe.set(x + i, y + j, z + k));
-                    if (EnhancedFallingTreesCompat.isFellable(level, this.probe, state)
-                            || EnhancedFallingTreesCompat.isFoliage(state)) {
+                    if (EnhancedFallingTreesFeller.isFellable(level, this.probe, state)
+                            || EnhancedFallingTreesFeller.isFoliage(state)) {
                         return true;
                     }
                 }

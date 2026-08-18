@@ -8,8 +8,9 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 /**
  * Soft standoff between allied / wreck hulls — preference only, never a hard block.
  * Used by {@link GroundVehicleNodeEvaluator} (path cost). The sensor's moving-peer
- * half is RVO ({@link GroundRvo}) over the same {@link #isPeer} set; the path
- * cost here is still a static bubble so A* prefers routes that already leave room.
+ * half is ORCA ({@link VehicleOrca}) over the same {@link #isPeer} set (both ground and
+ * ship — see {@code GroundTerrainSensor}/{@code ShipTerrainSensor}); the path cost here
+ * is still a static bubble so A* prefers routes that already leave room.
  */
 public final class VehiclePeerSpacing {
 
@@ -21,7 +22,7 @@ public final class VehiclePeerSpacing {
 
     private VehiclePeerSpacing() {}
 
-    /** Wrecks and allied crewed hulls — same set the sensor feeds RVO. */
+    /** Wrecks and allied crewed hulls — same set the sensors feed ORCA. */
     public static boolean isPeer(VehicleEntity self, AbstractUnit crew, VehicleEntity other) {
         if (other == self || !other.isAlive()) return false;
         if (other.isWreck()) return true;

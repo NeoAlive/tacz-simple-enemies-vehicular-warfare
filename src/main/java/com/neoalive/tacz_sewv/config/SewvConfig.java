@@ -137,6 +137,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue STALEMATE_SILENCE_TICKS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
     public static final ForgeConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue SHIP_PATHING_DEBUG;
     public static final ForgeConfigSpec.BooleanValue SEWV_DIAG_DEBUG;
     public static final ForgeConfigSpec.BooleanValue KOMODO_RENDER_FIX_ENABLED;
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
@@ -543,6 +544,9 @@ public final class SewvConfig {
         GROUND_PATHING_DEBUG = builder.comment(
                         "Developer logs for ground driving and shoreline problems. Leave off unless debugging.")
                 .define("groundPathingDebug", false);
+        SHIP_PATHING_DEBUG = builder.comment(
+                        "Developer logs for ship driving and shoreline problems. Leave off unless debugging.")
+                .define("shipPathingDebug", false);
         SEWV_DIAG_DEBUG = builder.comment(
                         "Developer logs for targeting, orders, invasion, and related AI. Leave off unless debugging.",
                         "Ground driving logs use groundPathingDebug instead.")

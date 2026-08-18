@@ -131,6 +131,16 @@ config="tacz_sewv.komodo.mixins.json"
     ordering="NONE"
     side="BOTH"
 
+# Soft compat: Enhanced Falling Trees. Ground vehicles fell whole trees they drive into instead
+# of routing around every trunk. Optional — absent installs skip all EnhancedFallingTreesCompat
+# paths and trees stay ordinary hard obstacles.
+[[dependencies.tacz_sewv]]
+    modId="efallingtrees"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
+
 # Soft compat: Configured (in-game ForgeConfigSpec GUI). Optional — no SEWV Java references;
 # Configured discovers SewvConfig via ConfigTracker (SERVER included). Absent installs are identical.
 [[dependencies.tacz_sewv]]

@@ -22,6 +22,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
@@ -154,6 +156,18 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     if (blockpathtypes == BlockPathTypes.WATER) {
                         blockpathtypes = BlockPathTypes.WALKABLE;
                     }
+                    // A fellable tree log is walkable too — the vehicle drives through and fells
+                    // it; the path-preference cost lives in findAcceptedNode, same split as
+                    // fording above. Gated on available() first so an absent Enhanced Falling
+                    // Trees never pays for the extra state read and a solid log stays BLOCKED
+                    // exactly as before this compat existed.
+                    if (blockpathtypes == BlockPathTypes.BLOCKED && EnhancedFallingTreesCompat.available()) {
+                        BlockState cellState = level.getBlockState(this.probe.set(i + x, j + y, k + z));
+                        if (EnhancedFallingTreesCompat.isFellable(level, this.probe, cellState)
+                                || EnhancedFallingTreesCompat.isFoliage(cellState)) {
+                            blockpathtypes = BlockPathTypes.WALKABLE;
+                        }
+                    }
                     blockpathtypes = this.evaluateBlockPathType(level, mobPos, blockpathtypes);
                     if (i == 0 && j == 0 && k == 0) {
                         center = blockpathtypes;
@@ -228,7 +242,36 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         if (depth <= 0 && !this.amphibious && !this.inWater && nearDeepWater(node.x, node.y, node.z)) {
             node.costMalus += GroundMobility.DEEP_MARGIN_PENALTY;
         }
+
+        // Unconditional rescan — by this point the classification pass above has already
+        // remapped every fellable tree cell to WALKABLE, so gating this on "still BLOCKED" the
+        // way the classification pass does would silently never fire.
+        if (EnhancedFallingTreesCompat.available()
+                && footprintHasFellableTree(this.level, node.x, node.y, node.z)) {
+            node.costMalus += SewvConfig.VEHICLE_TREE_PATH_MALUS.get();
+        }
         return node;
+    }
+
+    /** Same footprint shape as {@link #footprintWaterDepth}, but 3D (a tree log can sit at any
+     * height within the hull's box, not just at foot level) and boolean (a preference cost, not
+     * a depth to scale it by). Never hard-blocks — see the call site. */
+    private boolean footprintHasFellableTree(BlockGetter level, int x, int y, int z) {
+        int w = Math.max(1, this.entityWidth);
+        int h = Math.max(1, this.entityHeight);
+        int d = Math.max(1, this.entityDepth);
+        for (int i = 0; i < w; i++) {
+            for (int j = 0; j < h; j++) {
+                for (int k = 0; k < d; k++) {
+                    BlockState state = level.getBlockState(this.probe.set(x + i, y + j, z + k));
+                    if (EnhancedFallingTreesCompat.isFellable(level, this.probe, state)
+                            || EnhancedFallingTreesCompat.isFoliage(state)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private float peerSpacingMalus(Node node) {

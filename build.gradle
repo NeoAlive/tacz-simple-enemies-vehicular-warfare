@@ -395,6 +395,36 @@ dependencies {
     if (!project.hasProperty('noKomodo')) {
         runtimeOnly fg.deobf("blank:komodo:1.0")
     }
+    // Soft: compile against Enhanced Falling Trees (MC 1.20/Forge 46, github.com/addavriance/
+    // EnhancedFallingTrees). libs/efallingtrees.jar is its Forge release jar, same flatDir
+    // pattern as the other libs/*.jar deps. Every EFT class this mod references (TreeRegistry/
+    // TreeType/TreeEntity) is Architectury-free, so this compileOnly alone is enough to build —
+    // see EnhancedFallingTreesCompat's class javadoc.
+    compileOnly fg.deobf("blank:efallingtrees:1.0")
+    // Same "off by default, opt in for local testing" shape as Extermination/Configured below:
+    // EFT itself mandates Architectury API + Cloth Config (its own mods.toml), so both are pulled
+    // in here too, under the same flag, rather than being separate toggles nobody would remember
+    // to pair up correctly. Fetched from Modrinth (the real published, player-facing jars).
+    //   ./gradlew runClient -PwithEnhancedFallingTrees
+    //
+    // KNOWN LIMITATION, not fixable from this build script: every Forge build of
+    // architectury-api for 1.20.1 (tried 9.0.8 through 9.2.14, both Modrinth's copy and
+    // dev.architectury's own maven — same bytecode either way) fails to load under
+    // ForgeGradle's userdev launch specifically: its own bundled architectury.mixins.json
+    // ("MixinFallingBlockEntity") shadows a vanilla field by raw SRG name with no refmap entry
+    // for it, which only resolves inside Architectury Loom's own remap pipeline, not
+    // ForgeGradle's. Confirmed as a general upstream issue, not specific to this project or to
+    // EFT: an unrelated project hit the identical crash doing the same "architectury-api as a
+    // plain dependency in a non-Loom ForgeGradle project" thing
+    // (github.com/coding-1ab/mega-modpack/issues/4). A real, packaged Forge 1.20.1-47.2.0
+    // install (drop these jars in mods/, no ForgeGradle involved) does not go through this dev
+    // launch path and is the way to actually live-test this compat today; runClient/
+    // runGameTestServer with this flag will crash at world bootstrap until upstream fixes it.
+    if (project.hasProperty('withEnhancedFallingTrees')) {
+        runtimeOnly fg.deobf("blank:efallingtrees:1.0")
+        runtimeOnly "maven.modrinth:architectury-api:9.2.14+forge"
+        runtimeOnly "maven.modrinth:cloth-config:11.1.136+forge"
+    }
     // Soft: Extermination Tripod shield compat. No compileOnly — we never reference
     // Extermination types (registry-id only). Softcompat code stays; the jar is off the
     // run classpath by default ("good enough" for now). Opt back in with:

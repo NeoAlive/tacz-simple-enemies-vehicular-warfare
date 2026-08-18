@@ -13,6 +13,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -307,15 +308,26 @@ public final class GroundTerrainSensor extends TerrainSensor {
             if (floor != GroundMobility.NO_FLOOR) {
                 double step = col.floorY - floor;
                 out.stepDelta = step;
-                float stepD = GroundMobility.stepDanger(step, this.maxUpStep);
-                if (stepD >= GroundMobility.HARD_CAP) {
-                    out.hard = 1.0F;
-                    out.reason = "step";
-                    return out;
-                }
-                if (stepD > out.hard) {
-                    out.hard = stepD;
-                    out.reason = "step";
+                if (col.tree) {
+                    // Prefer around it, never hard-block: TreeFellingSupport clears it on real
+                    // contact, so a whisker treating it as an ordinary wall would steer the hull
+                    // away before it ever touches the tree it is meant to drive through.
+                    float treeDanger = SewvConfig.VEHICLE_TREE_SENSOR_DANGER.get().floatValue();
+                    if (treeDanger > out.hard) {
+                        out.hard = treeDanger;
+                        out.reason = "tree";
+                    }
+                } else {
+                    float stepD = GroundMobility.stepDanger(step, this.maxUpStep);
+                    if (stepD >= GroundMobility.HARD_CAP) {
+                        out.hard = 1.0F;
+                        out.reason = "step";
+                        return out;
+                    }
+                    if (stepD > out.hard) {
+                        out.hard = stepD;
+                        out.reason = "step";
+                    }
                 }
             }
             floor = col.floorY;
@@ -389,6 +401,11 @@ public final class GroundTerrainSensor extends TerrainSensor {
             var shape = state.getCollisionShape(level, pos);
             if (!shape.isEmpty()) {
                 col.floorY = y + shape.max(Direction.Axis.Y);
+                if (EnhancedFallingTreesCompat.available()
+                        && (EnhancedFallingTreesCompat.isFellable(level, pos, state)
+                                || EnhancedFallingTreesCompat.isFoliage(state))) {
+                    col.tree = true;
+                }
                 return col;
             }
             if (this.amphibious && state.getFluidState().is(FluidTags.WATER)) {
@@ -472,6 +489,9 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double floorY = GroundMobility.NO_FLOOR;
         int waterDepth;
         boolean lava;
+        /** Wall block is a fellable tree log — probeLine treats it as a soft hazard, not a hard
+         * step block. See {@link #probeColumn}. */
+        boolean tree;
     }
 
     private static final class Peer {

@@ -44,6 +44,7 @@ public final class HullFacts {
     private boolean plane;
     private boolean tracked;
     private boolean ship;
+    private boolean groundMobile;
     private boolean ifv;
     private boolean missileSystem;
     private boolean antiAir;
@@ -58,6 +59,7 @@ public final class HullFacts {
         this.plane = computePlane(v);
         this.tracked = computeTracked(v);
         this.ship = computeShip(v);
+        this.groundMobile = computeGroundMobile(v);
         this.ifv = computeIfv(v);
         this.missileSystem = computeMissileSystem(v);
         this.antiAir = computeAntiAir(v);
@@ -87,6 +89,12 @@ public final class HullFacts {
     /** Tracked hulls pivot in place; wheeled ones must roll through a turn. */
     public boolean isTracked() {
         return this.tracked;
+    }
+
+    /** Wheel or track hulls only — excludes {@code FIXED} emplacements (they don't drive),
+     * ships, helicopters and planes. Gates {@link TreeFellingSupport}. */
+    public boolean isGroundMobile() {
+        return this.groundMobile;
     }
 
     /**
@@ -378,6 +386,15 @@ public final class HullFacts {
     private static boolean computeShip(VehicleEntity v) {
         try {
             return v.computed().getEngineType() == EngineType.SHIP;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean computeGroundMobile(VehicleEntity v) {
+        try {
+            EngineType t = v.computed().getEngineType();
+            return t == EngineType.WHEEL || t == EngineType.TRACK;
         } catch (Throwable ignored) {
             return false;
         }

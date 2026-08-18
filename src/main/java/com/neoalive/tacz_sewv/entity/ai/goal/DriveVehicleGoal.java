@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TreeFellingSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Action;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
@@ -173,6 +174,7 @@ public class DriveVehicleGoal extends Goal {
     public void tick() {
         if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
         this.driver.tickTimers();
+        TreeFellingSupport.tick(this.unit, this.vehicle, this.hull);
 
         // Spots before re-score so DISTANT_CONTACT sees this tick's outer fields. noteSpot is
         // gated on getTarget()==null; observe (inside update) still owns Memory when locked.

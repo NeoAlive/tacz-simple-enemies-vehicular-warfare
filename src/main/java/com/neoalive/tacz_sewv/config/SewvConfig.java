@@ -246,6 +246,14 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue INVASION_POD_AVOID_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HEAT_RAY_SPEED;
 
+    // Optional Enhanced Falling Trees support: ground vehicles fell trees on contact.
+    public static final ForgeConfigSpec.BooleanValue VEHICLE_TREE_FELLING_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_TREE_FELL_DAMAGE;
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_TREE_PATH_MALUS;
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_TREE_SENSOR_DANGER;
+    public static final ForgeConfigSpec.BooleanValue VEHICLE_TREE_FELLING_EXEMPT_GIANT_TRUNKS;
+    public static final ForgeConfigSpec.IntValue VEHICLE_TREE_CONTACT_TICKS;
+
     private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
     private static final int[][] DOCTRINE_DEFAULTS = {
             {2, -1, 2, -1, 1, 0, -2, 2},
@@ -952,6 +960,37 @@ public final class SewvConfig {
         HEAT_RAY_SPEED = builder.comment(
                         "Speed of Extermination heat-ray shots. The original mod uses 3.5; default 10.5 is triple that.")
                 .defineInRange("heatRaySpeed", 10.5, 3.5, 40.0);
+        builder.pop();
+
+        builder.push("tree_felling");
+        VEHICLE_TREE_FELLING_ENABLED = builder.comment(
+                        "If the Enhanced Falling Trees mod is installed: ground (wheel/track) vehicles fell whole",
+                        "trees they drive into instead of treating every trunk as a wall. Does nothing if",
+                        "Enhanced Falling Trees is not installed.")
+                .define("vehicleTreeFellingEnabled", true);
+        VEHICLE_TREE_FELL_DAMAGE = builder.comment(
+                        "Self-damage a vehicle takes per tree felled (not per block, not per tick).")
+                .defineInRange("vehicleTreeFellDamage", 1.5, 0.0, 20.0);
+        VEHICLE_TREE_PATH_MALUS = builder.comment(
+                        "Extra A* path cost for routing through a fellable tree, so a clear route is preferred",
+                        "when one exists nearby but a forest is never impassable. Comparable scale to the",
+                        "existing ford/slope path costs (a few points), never infinite.")
+                .defineInRange("vehicleTreePathMalus", 5.0, 0.0, 50.0);
+        VEHICLE_TREE_SENSOR_DANGER = builder.comment(
+                        "Steering danger (0-1) a fellable tree registers as in the moment-to-moment avoidance fan.",
+                        "Must stay below 1.0 (hard-blocked) or trees become impassable walls again regardless of",
+                        "vehicleTreeFellingEnabled.")
+                .defineInRange("vehicleTreeSensorDanger", 0.6, 0.0, 0.99);
+        VEHICLE_TREE_FELLING_EXEMPT_GIANT_TRUNKS = builder.comment(
+                        "Multi-block trunks (2x2 or larger — every vanilla dark oak tree, and jungle mega-trees)",
+                        "are never felled and stay hard obstacles, since a vehicle should not be able to flatten",
+                        "an entire dark oak forest by driving through it. Turn off to fell those too.")
+                .define("vehicleTreeFellingExemptGiantTrunks", true);
+        VEHICLE_TREE_CONTACT_TICKS = builder.comment(
+                        "A hull must keep touching the same tree for this many CONSECUTIVE game ticks (20 = 1s)",
+                        "before it falls — a hull that only clips a tree in passing does not fell it. Contact",
+                        "must be unbroken; losing touch even for one tick resets that tree's timer to zero.")
+                .defineInRange("vehicleTreeContactTicks", 35, 0, 200);
         builder.pop();
 
         SPEC = builder.build();

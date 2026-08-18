@@ -14,12 +14,13 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
+import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
-import com.neoalive.tacz_sewv.entity.ai.navigation.GroundRvo;
+import com.neoalive.tacz_sewv.entity.ai.navigation.VehicleOrca;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
 
 /**
@@ -31,17 +32,32 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
  * <p>The {@code amphibious} flag only ever RELAXES the water hazard. Land is never a
  * hazard here — an amphibious APC still drives on land.
  *
- * <p>Peer hulls use Reciprocal Velocity Obstacles (not a frozen AABB along the heading):
- * each crew assumes the other takes half the dodge, which is what stops two tanks
- * swapping sides every tick. Infantry on foot stay an AABB. Terrain stays on the maps.
+ * <p>Peer hulls use Optimal Reciprocal Collision Avoidance (not a frozen AABB along the heading):
+ * each crew's half-plane construction assumes the other takes half the dodge, which is what
+ * stops two tanks swapping sides every tick. Infantry on foot stay an AABB. Terrain stays on the
+ * maps.
  */
 public final class GroundTerrainSensor extends TerrainSensor {
 
     private static final double LOOKAHEAD_DISTANCE = 5.0;
     private static final int FLUID_PROBE_DEPTH = 8;
     private static final int N = GroundMobility.SLOT_COUNT;
-    /** Preferred speed used when the hull is nearly stopped, so RVO still sees incoming traffic. */
+    /** Preferred speed used when the hull is nearly stopped, so ORCA still sees incoming traffic. */
     private static final double MIN_PREF_SPEED = 0.2;
+
+    /** ORCA time horizon in ticks — collisions beyond this are not anticipated. Matches the old
+     * GroundRvo.TAU value this replaces (behavior-parity seed, not re-derived). */
+    private static final double ORCA_TAU = 30.0;
+    /** Margin (blocks/tick) of half-plane penetration beyond which a heading is hard-blocked
+     * rather than merely ranked. Also the scale for the graded skirt ramp below that cutoff
+     * (skirt = penetration / this, clamped under HARD_CAP). Seeded to roughly the old
+     * IMMINENT=8-tick/TAU=30-tick ramp feel at cruise speed (the plain-RVO predecessor this
+     * replaced) — tune live, not derived. */
+    private static final double ORCA_HARD_MARGIN = 0.2;
+    /** Tiny bias to deterministically and reciprocally break the one real degeneracy in the
+     * half-plane construction: a perfectly symmetric head-on approach has no basis to prefer a
+     * side. See VehicleOrca#halfPlane. */
+    private static final double ORCA_TIE_EPS = 1.0E-6;
 
     private boolean amphibious;
     private float maxUpStep = 1.0F;
@@ -73,7 +89,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
     private int lastWaterDepth;
 
     private List<AABB> allyFootObstacles = List.of();
-    private List<Peer> peers = List.of();
+    private List<VehicleOrca.Peer> peers = List.of();
 
     public GroundTerrainSensor(AbstractUnit unit) {
         super(unit);
@@ -346,17 +362,29 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double half = halfWidth();
         double selfX = this.vehicle.getX();
         double selfZ = this.vehicle.getZ();
-        for (Peer peer : this.peers) {
-            float d = GroundRvo.danger(
-                    peer.x - selfX, peer.z - selfZ,
-                    candX, candZ, ax, az, peer.vx, peer.vz,
-                    GroundRvo.radius(half, peer.half));
-            if (d >= GroundMobility.HARD_CAP) {
+        int selfId = this.vehicle.getId();
+        for (VehicleOrca.Peer peer : this.peers) {
+            double radius = VehicleOrca.radius(half, peer.half());
+            double px = peer.x() - selfX;
+            double pz = peer.z() - selfZ;
+            if (VehicleOrca.overlappingAndClosing(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius)) {
                 p.hard = 1.0F;
                 p.reason = "hull";
                 return;
             }
-            p.skirt = Math.max(p.skirt, d);
+            double sideBias = ORCA_TIE_EPS * Integer.signum(selfId - peer.id());
+            VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(
+                    px, pz, ax, az, peer.vx(), peer.vz(), radius, ORCA_TAU, sideBias);
+            double margin = VehicleOrca.margin(candX, candZ, ax, az, hp);
+            if (margin < -ORCA_HARD_MARGIN) {
+                p.hard = 1.0F;
+                p.reason = "hull";
+                return;
+            }
+            if (margin < 0.0) {
+                float skirt = Math.min(0.99F, (float) (-margin / ORCA_HARD_MARGIN));
+                p.skirt = Math.max(p.skirt, skirt);
+            }
         }
     }
 
@@ -402,8 +430,8 @@ public final class GroundTerrainSensor extends TerrainSensor {
             if (!shape.isEmpty()) {
                 col.floorY = y + shape.max(Direction.Axis.Y);
                 if (EnhancedFallingTreesCompat.available()
-                        && (EnhancedFallingTreesCompat.isFellable(level, pos, state)
-                                || EnhancedFallingTreesCompat.isFoliage(state))) {
+                        && (EnhancedFallingTreesFeller.isFellable(level, pos, state)
+                                || EnhancedFallingTreesFeller.isFoliage(state))) {
                     col.tree = true;
                 }
                 return col;
@@ -448,13 +476,22 @@ public final class GroundTerrainSensor extends TerrainSensor {
     @Override
     protected List<AABB> buildObstacles(double reach) {
         double half = halfWidth();
-        double range = reach + half + 1.0;
+        // ORCA's own culling guidance (paper §5.1): a peer farther than (selfSpeed+peerSpeed)*tau
+        // can never collide within the horizon, so it's safe to leave out of the search — but
+        // that reach is a DIFFERENT quantity from the terrain-whisker lookahead this method is
+        // normally called with, and coupling the two meant a genuine 20-30-tick collision course
+        // starting a few blocks past LOOKAHEAD_DISTANCE was invisible until the peer was nearly
+        // on top of the hull. Peer speed is approximated as self speed absent a reliable per-hull
+        // max-speed source.
+        double selfSpeed = this.vehicle.getDeltaMovement().horizontalDistance();
+        double orcaReach = Math.max(LOOKAHEAD_DISTANCE, 2.0 * selfSpeed * ORCA_TAU);
+        double range = Math.max(reach, orcaReach) + half + 1.0;
         AABB search = this.vehicle.getBoundingBox().inflate(range, 2.0, range);
         this.peers = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
                         v -> v != this.vehicle && VehiclePeerSpacing.isPeer(this.vehicle, this.unit, v)).stream()
                 .map(v -> {
                     Vec3 vel = v.getDeltaMovement();
-                    return new Peer(v.getX(), v.getZ(), vel.x, vel.z, v.getBbWidth() * 0.5);
+                    return new VehicleOrca.Peer(v.getId(), v.getX(), v.getZ(), vel.x, vel.z, v.getBbWidth() * 0.5);
                 })
                 .toList();
         this.allyFootObstacles = this.unit.level().getEntitiesOfClass(AbstractUnit.class, search,
@@ -494,15 +531,4 @@ public final class GroundTerrainSensor extends TerrainSensor {
         boolean tree;
     }
 
-    private static final class Peer {
-        final double x, z, vx, vz, half;
-
-        Peer(double x, double z, double vx, double vz, double half) {
-            this.x = x;
-            this.z = z;
-            this.vx = vx;
-            this.vz = vz;
-            this.half = half;
-        }
-    }
 }

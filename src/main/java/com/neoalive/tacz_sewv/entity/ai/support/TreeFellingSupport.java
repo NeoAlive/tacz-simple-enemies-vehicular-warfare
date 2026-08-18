@@ -18,6 +18,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3d;
 
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
+import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
@@ -72,7 +73,7 @@ public final class TreeFellingSupport {
         List<BlockPos> touchedNow = new ArrayList<>();
         for (BlockPos pos : BlockPos.betweenClosed(minX, minY, minZ, maxX, maxY, maxZ)) {
             BlockState state = level.getBlockState(pos);
-            if (!EnhancedFallingTreesCompat.isFellable(level, pos, state)) continue;
+            if (!EnhancedFallingTreesFeller.isFellable(level, pos, state)) continue;
             if (!touchesHull(obbs, vehicle, pos)) continue;
             touchedNow.add(pos.immutable());
         }
@@ -86,7 +87,7 @@ public final class TreeFellingSupport {
         for (BlockPos pos : touchedNow) {
             long startedAt = contacts.getOrDefault(pos, now);
             if (now - startedAt >= contactTicks) {
-                if (EnhancedFallingTreesCompat.tryFell(level, pos, vehicle)) {
+                if (EnhancedFallingTreesFeller.tryFell(level, pos, vehicle)) {
                     felled++;
                     continue; // tree is gone; don't carry its contact forward
                 }

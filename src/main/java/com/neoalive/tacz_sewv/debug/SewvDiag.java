@@ -14,6 +14,7 @@ import com.neoalive.tacz_sewv.util.WarnOnce;
  * <ul>
  *   <li>{@link #pathing}/{@link #water}/{@link #pathingEvent}/{@link #waterEvent} —
  *       {@code groundPathingDebug}</li>
+ *   <li>{@link #ship} — {@code shipPathingDebug}</li>
  *   <li>{@link #flight} — {@code heliFlightDebug}</li>
  *   <li>Everything else — {@code sewvDiagDebug}</li>
  * </ul>
@@ -32,6 +33,11 @@ public final class SewvDiag {
         // OpenPacCompat (and similar) may call SewvDiag during COMMON_SETUP before the
         // server config is baked — ConfigValue.get() throws in that window in userdev.
         return SewvConfig.SPEC.isLoaded() && SewvConfig.GROUND_PATHING_DEBUG.get();
+    }
+
+    /** Heavy ship-pathing / shoreline investigation logs. Default off. */
+    public static boolean shipPathingVerbose() {
+        return SewvConfig.SPEC.isLoaded() && SewvConfig.SHIP_PATHING_DEBUG.get();
     }
 
     /** Helicopter flyToward / hover investigation logs. Default off. */
@@ -112,6 +118,12 @@ public final class SewvDiag {
     public static void waterEvent(String msg, Object... args) {
         if (!groundPathingVerbose()) return;
         LOG.info("[sewv-diag][water] " + msg, args);
+    }
+
+    /** Verbose ship-pathing / shoreline noise. No-op when {@link #shipPathingVerbose()} is false. */
+    public static void ship(String msg, Object... args) {
+        if (!shipPathingVerbose()) return;
+        LOG.info("[sewv-diag][ship] " + msg, args);
     }
 
     /** Helicopter flight-steering / hover diagnosis. No-op when {@link #heliFlightVerbose()} is false. */

@@ -6,6 +6,7 @@
   "refmap": "tacz_sewv.refmap.json",
   "mixins": [
     "MixinAbstractUnit",
+    "MixinUnitFactionTags",
     "MixinUnitVoicelines",
     "MixinVehicleVoicelines",
     "AccessorPacketIssueOrder",

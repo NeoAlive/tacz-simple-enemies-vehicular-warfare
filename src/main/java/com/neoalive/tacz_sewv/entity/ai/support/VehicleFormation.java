@@ -116,6 +116,15 @@ public final class VehicleFormation {
     }
 
     /**
+     * Drive-to point that keeps {@code anchor.y}. Helicopter formations use this so
+     * a wedge behind an airborne leader does not snap each slot down to the trees.
+     */
+    public static BlockPos slotPosAtAltitude(Vec3 anchor, Direction axis, FormationShape shape, int index, int rowSize) {
+        Vec3 center = slotCenter(anchor, axis, shape, index, rowSize);
+        return BlockPos.containing(center.x, center.y, center.z);
+    }
+
+    /**
      * The surface a hull would come to rest on. NO_LEAVES because a canopy is not ground. It
      * counts fluids, so a slot over water resolves to the water surface — harmless, since
      * GroundVehicleNodeEvaluator rejects that node anyway and the hull holds short of it.

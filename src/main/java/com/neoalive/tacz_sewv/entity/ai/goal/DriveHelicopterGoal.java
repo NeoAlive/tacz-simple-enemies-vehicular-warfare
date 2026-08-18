@@ -74,9 +74,12 @@ import com.neoalive.tacz_sewv.util.ChunkTicket;
  *     that happens to line up mid-leg. ATTACK_THAT_TARGET and FREE_FIRE hand the
  *     hull to the fight; autonomous RU/US crews (no order system) always
  *     fight.</li>
- * <li><b>FOLLOW_COMMANDER</b> parks the aircraft over the commander's X/Z at the
- *     cruise altitude above their ground (never closer than a fixed clearance
- *     over their head).</li>
+ * <li><b>FOLLOW_COMMANDER</b> / formation parks over the commander's X/Z. On foot
+ *     that is cruise AGL (TDT altitude, clamped 30-50) never closer than a
+ *     fixed clearance over their head. When the commander is in a helicopter,
+ *     followers match that hull's Y, with the same TDT cruise as a floor so a
+ *     low hover cannot drag them into the trees. Formation slots keep that
+ *     altitude rather than snapping to the ground.</li>
  * <li><b>Landing (CTRL+L)</b> outranks every other duty: it climbs clear of the
  *     leg, runs straight at the designated block under direct velocity command
  *     ({@code landingTick}), sinks on it, and settles into the sticky LANDED
@@ -759,22 +762,42 @@ public class DriveHelicopterGoal extends Goal {
         }
         double dx = dest.getX() + 0.5 - this.vehicle.getX();
         double dz = dest.getZ() + 0.5 - this.vehicle.getZ();
+        double px = dest.getX() + 0.5;
+        double pz = dest.getZ() + 0.5;
         if (dx * dx + dz * dz <= ARRIVE_RADIUS * ARRIVE_RADIUS) {
-            // Arrived — hold overhead: cruise level above the ground HERE, never
-            // closer than the fixed clearance over the destination (a followed
-            // commander's head included).
+            // Arrived — hold overhead: TDT cruise over the ground HERE, never
+            // closer than the fixed clearance over a commander on foot. A
+            // commander in a helicopter is matched instead (TDT still floors it).
             noteHoverMode("ARRIVE_HOVER");
-            holdHover(Math.max(cruiseAltitudeHere(), dest.getY() + MIN_OVER_DEST));
+            holdHover(orderAltitude(px, pz, dest, true));
         } else {
             if (this.flightWasArriveHover) {
                 noteArriveThrash();
             }
-            double px = dest.getX() + 0.5;
-            double pz = dest.getZ() + 0.5;
-            flyToward(px, pz,
-                    Math.max(cruiseAltitudeToward(px, pz), dest.getY() + MIN_OVER_DEST),
-                    "transit");
+            flyToward(px, pz, orderAltitude(px, pz, dest, false), "transit");
         }
+    }
+
+    /**
+     * Hover / transit Y for an ordered destination. TDT cruise (AGL, clamped) is
+     * always the floor. A commander in a helicopter is matched so follow and
+     * formation stay on their altitude; on foot the old dest+clearance rule
+     * still keeps the rotor off their head.
+     */
+    private double orderAltitude(double px, double pz, BlockPos dest, boolean arrived) {
+        double cruise = arrived ? cruiseAltitudeHere() : cruiseAltitudeToward(px, pz);
+        if (this.unit instanceof PmcUnitEntity pmc) {
+            OrderType order = pmc.getOrder();
+            if (order == OrderType.FOLLOW_COMMANDER
+                    || order == OrderType.FORM_WEDGE
+                    || order == OrderType.FORM_COLUMN) {
+                VehicleEntity leader = VehicleTargeting.commanderHelicopter(pmc);
+                if (leader != null) {
+                    return Math.max(cruise, leader.getY());
+                }
+            }
+        }
+        return Math.max(cruise, dest.getY() + MIN_OVER_DEST);
     }
 
     // True when the pilot's current SEM order explicitly owns the flight path.

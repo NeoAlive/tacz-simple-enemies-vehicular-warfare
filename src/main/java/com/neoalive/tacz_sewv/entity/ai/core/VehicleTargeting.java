@@ -151,8 +151,16 @@ public final class VehicleTargeting {
                 // hull geometry to drive to, so hold.
                 if (leader == null || axis == null || slot < 0) return null;
                 FormationShape shape = FormationShape.byId(member.sewv$getFormationShape());
+                int rowSize = member.sewv$getFormationRowSize();
+                // Air-to-air: keep the leader's altitude so a heli wedge does not collapse
+                // onto the terrain under the slot. Ground hulls still snap to the surface.
+                VehicleEntity leaderHeli = commanderHelicopter(pmc);
+                if (leaderHeli != null && HullFacts.isHelicopterHull(vehicle)) {
+                    Vec3 anchor = new Vec3(leader.getX(), leaderHeli.getY(), leader.getZ());
+                    return VehicleFormation.slotPosAtAltitude(anchor, axis, shape, slot, rowSize);
+                }
                 return VehicleFormation.slotPos(
-                        unit.level(), leader.position(), axis, shape, slot, member.sewv$getFormationRowSize());
+                        unit.level(), leader.position(), axis, shape, slot, rowSize);
             }
 
             default:
@@ -209,6 +217,20 @@ public final class VehicleTargeting {
     private static Player commander(PmcUnitEntity pmc) {
         UUID ownerId = pmc.getOwnerUUID();
         return ownerId != null ? pmc.level().getPlayerByUUID(ownerId) : null;
+    }
+
+    /**
+     * The owner's helicopter, or null when they are on foot / in anything else.
+     * Follow and formation read this so air crews can match altitude.
+     */
+    @Nullable
+    public static VehicleEntity commanderHelicopter(PmcUnitEntity pmc) {
+        Player leader = commander(pmc);
+        if (leader == null) return null;
+        if (leader.getVehicle() instanceof VehicleEntity v && HullFacts.isHelicopterHull(v)) {
+            return v;
+        }
+        return null;
     }
 
     // Point at `radius` straight out from the target through the vehicle — the ring

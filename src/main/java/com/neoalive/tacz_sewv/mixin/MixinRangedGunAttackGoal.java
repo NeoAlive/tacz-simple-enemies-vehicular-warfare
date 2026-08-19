@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.goals.RangedGunAttackGoal;
 import org.spongepowered.asm.mixin.Final;
@@ -10,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
+import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 
 /**
  * Stops a mounted crew member from firing its hand-held gun with SEM's
@@ -20,6 +22,10 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
  * <p>The gate is {@link VehicleWeapons#controlsVehicleWeapon}: drivers and armed
  * gunners are suppressed; pure passengers (no seat weapons) are excluded and keep
  * the goal, so a trooper riding in the back can still shoot out.
+ *
+ * <p>The fire LOS gate ({@code hasLineOfSightToTarget}) is a block clip of its own
+ * — it does not call {@code hasLineOfSight} — so hull occlusion is applied here
+ * as well, or an already-started burst keeps dumping into a tank in the way.
  */
 @Mixin(RangedGunAttackGoal.class)
 public abstract class MixinRangedGunAttackGoal {
@@ -39,6 +45,14 @@ public abstract class MixinRangedGunAttackGoal {
     @Inject(method = "canContinueToUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$stopGunWhenCrewingVehicle(CallbackInfoReturnable<Boolean> cir) {
         if (VehicleWeapons.controlsVehicleWeapon(this.mob)) {
+            cir.setReturnValue(false);
+        }
+    }
+
+    @Inject(method = "hasLineOfSightToTarget", at = @At("RETURN"), cancellable = true, remap = false)
+    private void tacz_sewv$hullsBlockGunLos(LivingEntity target, CallbackInfoReturnable<Boolean> cir) {
+        if (!cir.getReturnValue()) return;
+        if (VehiclePathObstacles.occludesLos(this.mob, target)) {
             cir.setReturnValue(false);
         }
     }

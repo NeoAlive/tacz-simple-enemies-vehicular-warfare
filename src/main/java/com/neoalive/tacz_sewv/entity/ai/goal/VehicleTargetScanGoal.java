@@ -22,8 +22,10 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TowSupport;
 
 /**
  * Target acquisition for mounted crews: a flat cylinder scan around the VEHICLE
@@ -311,6 +313,15 @@ public class VehicleTargetScanGoal extends Goal {
             return false;
         }
         if (e.getVehicle() == v) return false; // riding our own hull — crewmate or min-range hugger
+        // A TOW's own scan only ever freelances onto armor — a launcher round on an infantryman
+        // is a wasted missile. Infantry/monsters remain reachable, just not through this scan:
+        // a radio fire mission (FireMissionSupport) sets the target through SEM's own
+        // AttackSpecificTargetGoal (PMC) or a direct setTarget (RU/US), both of which run at a
+        // higher goal priority than this scan and are never routed through isValidTarget here.
+        if (TowSupport.isCrewing(this.unit)
+                && VehicleWeapons.classifyTarget(e) != VehicleWeapons.TargetCategory.VEHICLE) {
+            return false;
+        }
         // Area task commitment: only lock contacts inside the ordered ground (rect / disk).
         // The scan cylinder reaches far past a sweep AABB; without this a distant zombie steals
         // the lock, quiet never settles, and Sweep & Advance never claims.

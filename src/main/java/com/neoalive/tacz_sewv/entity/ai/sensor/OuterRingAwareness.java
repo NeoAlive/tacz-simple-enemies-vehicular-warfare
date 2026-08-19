@@ -385,7 +385,7 @@ public final class OuterRingAwareness {
     }
 
     private static void debug(String msg, Object... args) {
-        if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.OUTER_RING_DEBUG_LOGGING.get()) return;
+        if (!com.neoalive.tacz_sewv.init.ModGameRules.server(com.neoalive.tacz_sewv.init.ModGameRules.OUTER_RING_DEBUG_LOGGING)) return;
         LOG.info("[sewv-outer] " + msg, args);
     }
 }

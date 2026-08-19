@@ -70,31 +70,13 @@ public class SewvCommand {
         dispatcher.register(Commands.literal("sewv")
                 .then(Commands.literal("spawn")
                         .requires(source -> source.hasPermission(2)) // operators only
-                        .then(tankSpawn("ustank", TankFaction.US))
-                        .then(tankSpawn("rutank", TankFaction.RU))
-                        .then(tankSpawn("pmctank", TankFaction.PMC))
-                        .then(shipSpawn("usship", TankFaction.US))
-                        .then(shipSpawn("ruship", TankFaction.RU))
-                        .then(shipSpawn("pmcship", TankFaction.PMC))
-                        .then(planeSpawn("usplane", TankFaction.US))
-                        .then(planeSpawn("ruplane", TankFaction.RU))
-                        .then(planeSpawn("pmcplane", TankFaction.PMC))
-                        .then(heliSpawn("usheli", TankFaction.US))
-                        .then(heliSpawn("ruheli", TankFaction.RU))
-                        .then(heliSpawn("pmcheli", TankFaction.PMC))
-                        .then(emplacementSpawn("usmortar", TankFaction.US, Emplacement.MORTAR))
-                        .then(emplacementSpawn("rumortar", TankFaction.RU, Emplacement.MORTAR))
-                        .then(emplacementSpawn("pmcmortar", TankFaction.PMC, Emplacement.MORTAR))
-                        .then(emplacementSpawn("ustow", TankFaction.US, Emplacement.TOW))
-                        .then(emplacementSpawn("rutow", TankFaction.RU, Emplacement.TOW))
-                        .then(emplacementSpawn("pmctow", TankFaction.PMC, Emplacement.TOW))
-                        .then(supportSpawn("rumedic", true, SupportRole.MEDIC))
-                        .then(supportSpawn("usmedic", false, SupportRole.MEDIC))
-                        .then(supportSpawn("ruengineer", true, SupportRole.ENGINEER))
-                        .then(supportSpawn("usengineer", false, SupportRole.ENGINEER))
-                        .then(supportSpawn("rucombatengineer", true, SupportRole.COMBAT_ENGINEER))
-                        .then(supportSpawn("uscombatengineer", false, SupportRole.COMBAT_ENGINEER))
-                        .then(commanderSpawn("pmccommander"))
+                        // /sewv spawn <ru|us|pmc> <type> [entries] [location] — faction and vehicle/unit
+                        // type are separate arguments rather than combined literals (ustank, rumortar,
+                        // ...) so the tree reads as one consistent shape instead of one literal per
+                        // faction/type pair.
+                        .then(factionSpawn("ru", TankFaction.RU))
+                        .then(factionSpawn("us", TankFaction.US))
+                        .then(factionSpawn("pmc", TankFaction.PMC))
                 )
                 // Ungated (unlike spawn, above): any player can check on their own units.
                 .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
@@ -713,6 +695,31 @@ public class SewvCommand {
         return Component.translatable("command.tacz_sewv.status.idle");
     }
 
+    // One faction node under /sewv spawn, holding every vehicle/unit TYPE for that faction as its
+    // own literal (tank/ship/plane/heli/mortar/tow, plus medic/engineer/combatengineer for RU/US
+    // and commander for PMC — SEM gives neither RU nor US a commander-equivalent, and medic/
+    // engineer/combatengineer are SupportRole-only for PMC, held rather than spawned, so PMC gets
+    // no support-unit literals here).
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> factionSpawn(
+            String literal, TankFaction faction) {
+        var node = Commands.literal(literal)
+                .then(tankSpawn("tank", faction))
+                .then(shipSpawn("ship", faction))
+                .then(planeSpawn("plane", faction))
+                .then(heliSpawn("heli", faction))
+                .then(emplacementSpawn("mortar", faction, Emplacement.MORTAR))
+                .then(emplacementSpawn("tow", faction, Emplacement.TOW));
+        if (faction == TankFaction.PMC) {
+            node.then(commanderSpawn("commander"));
+        } else {
+            boolean ru = faction == TankFaction.RU;
+            node.then(supportSpawn("medic", ru, SupportRole.MEDIC))
+                    .then(supportSpawn("engineer", ru, SupportRole.ENGINEER))
+                    .then(supportSpawn("combatengineer", ru, SupportRole.COMBAT_ENGINEER));
+        }
+        return node;
+    }
+
     // Support units take no vehicle id; only an optional position, like the emplacements.
     private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> supportSpawn(
             String literal, boolean ru, SupportRole role) {
@@ -771,8 +778,8 @@ public class SewvCommand {
 
     // Emplacements take no vehicle id (there is exactly one mortar and one TOW), so the
     // only optional argument is the position:
-    //   /sewv spawn rumortar               at the source, ground-snapped
-    //   /sewv spawn rumortar <x y z>       at the coordinates (given Y)
+    //   /sewv spawn ru mortar               at the source, ground-snapped
+    //   /sewv spawn ru mortar <x y z>       at the coordinates (given Y)
     // A mortar spawned this way has no fire mission — it shoots what its crew can see, the
     // same as one a player ordered a unit onto. The mortar_shelling event is what hands out
     // standing missions.
@@ -813,10 +820,10 @@ public class SewvCommand {
     }
 
     // Each tank literal takes an OPTIONAL spawn position and an OPTIONAL vehicle id:
-    //   /sewv spawn ustank                     random vehicle at the source (ground-snapped)
-    //   /sewv spawn ustank <id>                that vehicle at the source
-    //   /sewv spawn ustank <x y z>             random vehicle at the coordinates (given Y)
-    //   /sewv spawn ustank <x y z> <id>        that vehicle at the coordinates
+    //   /sewv spawn us tank                     random vehicle at the source (ground-snapped)
+    //   /sewv spawn us tank <id>                that vehicle at the source
+    //   /sewv spawn us tank <x y z>             random vehicle at the coordinates (given Y)
+    //   /sewv spawn us tank <x y z> <id>        that vehicle at the coordinates
     // The pos branch is registered BEFORE the vehicle branch so numeric input parses
     // as coordinates; a namespaced vehicle id can't parse as a BlockPos, so it falls
     // through to the greedy vehicle branch. The id stays a greedy string (a ':' needs

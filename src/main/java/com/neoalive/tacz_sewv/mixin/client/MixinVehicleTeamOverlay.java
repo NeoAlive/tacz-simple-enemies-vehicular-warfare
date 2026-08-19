@@ -10,13 +10,14 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 
+import com.neoalive.tacz_sewv.client.ClientGameRules;
 import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.config.ClientConfig;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.map.FactionColors;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
@@ -58,7 +59,7 @@ public abstract class MixinVehicleTeamOverlay {
                     remap = true),
             index = 1)
     private Component tacz_sewv$appendHeliPhase(Component text) {
-        if (!ClientConfig.HELI_SHOW_RUN_PHASE.get() && !SewvConfig.HELI_COMBAT_DEBUG.get()) {
+        if (!ClientConfig.HELI_SHOW_RUN_PHASE.get() && !ClientGameRules.get(ModGameRules.HELI_COMBAT_DEBUG)) {
             return text;
         }
         if (!(lookingEntity instanceof VehicleEntity vehicle)) return text;

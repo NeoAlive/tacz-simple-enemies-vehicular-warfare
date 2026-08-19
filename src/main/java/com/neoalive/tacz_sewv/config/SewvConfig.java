@@ -111,6 +111,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue ENGINEER_SEARCH_RADIUS;
     public static final ForgeConfigSpec.DoubleValue ENGINEER_REPAIR_PER_TREAT;
     public static final ForgeConfigSpec.IntValue ENGINEER_REPAIR_COOLDOWN;
+    public static final ForgeConfigSpec.DoubleValue ENGINEER_REPAIR_SPEED_BOOST;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ENGINEER_SIDEARM_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> COMMANDER_SIDEARM_POOL;
     public static final ForgeConfigSpec.IntValue DRONE_MAX_PER_ENGINEER;
@@ -136,9 +137,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue STALEMATE_BREAKER_ENABLED;
     public static final ForgeConfigSpec.IntValue STALEMATE_SILENCE_TICKS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
-    public static final ForgeConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue SHIP_PATHING_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue SEWV_DIAG_DEBUG;
+    // groundPathingDebug/shipPathingDebug/sewvDiagDebug moved to gamerules
+    // (sewvGroundPathingDebug/sewvShipPathingDebug/sewvDiagDebug) — see ModGameRules.
     public static final ForgeConfigSpec.BooleanValue KOMODO_RENDER_FIX_ENABLED;
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
@@ -148,7 +148,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue OUTER_RING_ENABLED;
     public static final ForgeConfigSpec.DoubleValue OUTER_RING_MAX_BLOCKS;
-    public static final ForgeConfigSpec.BooleanValue OUTER_RING_DEBUG_LOGGING;
+    // outerRingDebugLogging moved to gamerule sewvOuterRingDebugLogging — see ModGameRules.
 
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_JOIN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_LEAVE_RADIUS;
@@ -168,8 +168,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HELI_MAX_DEPRESSION_DEG;
     public static final ForgeConfigSpec.DoubleValue HELI_MIN_STANDOFF;
-    public static final ForgeConfigSpec.BooleanValue HELI_COMBAT_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue HELI_FLIGHT_DEBUG;
+    // heliCombatDebug/heliFlightDebug moved to gamerules sewvHeliCombatDebug/sewvHeliFlightDebug.
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
@@ -190,7 +189,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PLANE_LAND_FLARE_AGL;
     public static final ForgeConfigSpec.DoubleValue PLANE_LAND_FLARE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_LAND_SETTLE_RADIUS;
-    public static final ForgeConfigSpec.BooleanValue PLANE_COMBAT_DEBUG;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_MIN_ASPECT_RATIO;
     public static final ForgeConfigSpec.IntValue AIRPORT_MIN_LENGTH_BLOCKS;
     public static final ForgeConfigSpec.IntValue AIRPORT_MAX_AREA_BLOCKS;
@@ -202,6 +200,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue AIRPORT_EXTRA_TAKEOFF_FACTOR;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_TAXI_SPEED;
     public static final ForgeConfigSpec.BooleanValue DEBUG_AUTO_PLANE_DEPLOY;
+    // planeCombatDebug moved to gamerule sewvPlaneCombatDebug — see ModGameRules.
 
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
     public static final ForgeConfigSpec.IntValue MORTAR_FIRE_COOLDOWN_TICKS;
@@ -216,8 +215,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_DELAY_TICKS;
     public static final ForgeConfigSpec.DoubleValue IDLE_VOICELINE_HEALTH_FRACTION;
 
-    public static final ForgeConfigSpec.BooleanValue ORDER_FAILURE_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue TARGET_VETO_DEBUG;
+    // orderFailureDebug/targetVetoDebug moved to gamerules sewvOrderFailureDebug/sewvTargetVetoDebug.
     public static final ForgeConfigSpec.IntValue TARGET_VETO_COOLDOWN_TICKS;
 
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -241,8 +239,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue TRIPOD_SHIELD_BREAK_DAMAGE;
     public static final ForgeConfigSpec.IntValue TRIPOD_SHIELD_REGEN_TICKS;
     public static final ForgeConfigSpec.IntValue TRIPOD_SHIELD_FLARE_TICKS;
-    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_FLARE_DEBUG_ALWAYS_ON;
-    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_DEBUG_WIREFRAME;
+    // tripodShieldFlareDebugAlwaysOn/tripodShieldDebugWireframe moved to gamerules
+    // sewvTripodShieldFlareAlwaysOn/sewvTripodShieldWireframe.
     public static final ForgeConfigSpec.DoubleValue TRIPOD_SHIELD_AXIS_SCALE;
     public static final ForgeConfigSpec.DoubleValue INVASION_POD_AVOID_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HEAT_RAY_SPEED;
@@ -489,6 +487,11 @@ public final class SewvConfig {
                 .defineInRange("engineerRepairPerTreat", 4.0, 0.5, 100.0);
         ENGINEER_REPAIR_COOLDOWN = builder.comment("Wait between repair actions, in AI ticks (about every other game tick).")
                 .defineInRange("engineerRepairCooldown", 10, 1, 200);
+        ENGINEER_REPAIR_SPEED_BOOST = builder.comment(
+                        "Movement speed multiplier for an engineer while tasked with reaching a repair",
+                        "target (1.0 = no boost). Without it a foot unit can be permanently outrun by the",
+                        "tank it was sent to fix.")
+                .defineInRange("engineerRepairSpeedBoost", 1.6, 1.0, 3.0);
         ENGINEER_SIDEARM_POOL = builder.comment("Pistols engineers may carry (TACZ gun ids).")
                 .defineList("engineerSidearmPool", List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"), SewvConfig::isValidResourceId);
         COMMANDER_SIDEARM_POOL = builder.comment("Pistols PMC Commanders may carry (TACZ gun ids).")
@@ -541,16 +544,6 @@ public final class SewvConfig {
                 .defineInRange("stalemateSilenceTicks", 300, 40, 2400);
         VEHICLE_TERRAIN_AVOIDANCE = builder.comment("AI drivers try to avoid water, walls, and other hazards.")
                 .define("vehicleTerrainAvoidance", true);
-        GROUND_PATHING_DEBUG = builder.comment(
-                        "Developer logs for ground driving and shoreline problems. Leave off unless debugging.")
-                .define("groundPathingDebug", false);
-        SHIP_PATHING_DEBUG = builder.comment(
-                        "Developer logs for ship driving and shoreline problems. Leave off unless debugging.")
-                .define("shipPathingDebug", false);
-        SEWV_DIAG_DEBUG = builder.comment(
-                        "Developer logs for targeting, orders, invasion, and related AI. Leave off unless debugging.",
-                        "Ground driving logs use groundPathingDebug instead.")
-                .define("sewvDiagDebug", false);
         KOMODO_RENDER_FIX_ENABLED = builder.comment(
                         "Client-only. Komodo's retained-rendering fallback (used for the first frame or two of a",
                         "newly seen vehicle model+texture, before its GPU-instanced path is baked) can call into",
@@ -577,8 +570,6 @@ public final class SewvConfig {
         OUTER_RING_MAX_BLOCKS = builder.comment(
                         "Max distance (blocks) for that long-range awareness. Also limited by the server's view/simulation distance.")
                 .defineInRange("outerRingMaxBlocks", 192.0, 96.0, 512.0);
-        OUTER_RING_DEBUG_LOGGING = builder.comment("Developer logs for long-range awareness. Leave off unless debugging.")
-                .define("outerRingDebugLogging", false);
         builder.pop();
 
         builder.push("command");
@@ -628,12 +619,6 @@ public final class SewvConfig {
                         "Closest horizontal range (blocks) for helicopter missile attacks,",
                         "even when the target is on a tall peak.")
                 .defineInRange("heliMinStandoff", 28.0, 16.0, 96.0);
-        HELI_COMBAT_DEBUG = builder.comment(
-                        "Developer logs for helicopter attack phases. Leave off unless debugging.")
-                .define("heliCombatDebug", false);
-        HELI_FLIGHT_DEBUG = builder.comment(
-                        "Developer logs for helicopter flight steering. Leave off unless debugging.")
-                .define("heliFlightDebug", false);
         HELI_CHUNK_LOADING = builder.comment(
                         "Keep AI helicopters active even when no player is nearby (uses chunk tickets).",
                         "Default true (matches mortarChunkLoading). Existing installs keep whatever",
@@ -764,9 +749,6 @@ public final class SewvConfig {
                         "How close (blocks) to the pad a touchdown counts as landed. Touching down further",
                         "out is treated as a missed approach and the plane goes around.")
                 .defineInRange("planeLandSettleRadius", 8.0, 4.0, 64.0);
-        PLANE_COMBAT_DEBUG = builder.comment(
-                        "Developer logs for plane flight mode, aim and landing. Leave off unless debugging.")
-                .define("planeCombatDebug", false);
         AIRPORT_MIN_ASPECT_RATIO = builder.comment(
                         "Minimum long:short ratio for a player-defined PMC runway. Below this the strip",
                         "is rejected as not runway-shaped.")
@@ -858,18 +840,8 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("orderFeedback");
-        ORDER_FAILURE_DEBUG = builder.comment(
-                        "Log to the server console why an order was refused, instead of letting it fail",
-                        "silently. One line per reason per tick, so unlike the other developer logs this is",
-                        "on by default — it says nothing at all until an order actually fails.",
-                        "Refusals are deliberately NOT put in chat: the crew's spoken reply is the",
-                        "in-world answer, and a running commentary of every rejected click was noise.")
-                .define("orderFailureDebug", true);
-        TARGET_VETO_DEBUG = builder.comment(
-                        "Also log when a unit refuses a target on its own (medic, excluded by target",
-                        "priority, outside its patrol area). Heavily throttled, but this is the noisy half —",
-                        "turn it off if it fills the log rather than raising the cooldown until it is meaningless.")
-                .define("targetVetoDebug", true);
+        // orderFailureDebug/targetVetoDebug moved to gamerules sewvOrderFailureDebug/
+        // sewvTargetVetoDebug (both still default true — silent until something fails/refuses).
         TARGET_VETO_COOLDOWN_TICKS = builder.comment(
                         "Minimum game ticks between two reports of the SAME reason from the SAME unit.")
                 .defineInRange("targetVetoCooldownTicks", 200, 20, 12000);
@@ -948,12 +920,8 @@ public final class SewvConfig {
         TRIPOD_SHIELD_FLARE_TICKS = builder.comment(
                         "How long the hit-spark effect lasts after a blocked shot, in game ticks (~8 ≈ 0.4 s).")
                 .defineInRange("tripodShieldFlareTicks", 8, 1, 100);
-        TRIPOD_SHIELD_FLARE_DEBUG_ALWAYS_ON = builder.comment(
-                        "Developer: keep playing the shield spark effect without needing hits.")
-                .define("tripodShieldFlareDebugAlwaysOn", false);
-        TRIPOD_SHIELD_DEBUG_WIREFRAME = builder.comment(
-                        "Developer: draw the shield outline in the world (client only).")
-                .define("tripodShieldDebugWireframe", false);
+        // tripodShieldFlareDebugAlwaysOn/tripodShieldDebugWireframe moved to gamerules
+        // sewvTripodShieldFlareAlwaysOn/sewvTripodShieldWireframe.
         TRIPOD_SHIELD_AXIS_SCALE = builder.comment(
                         "Size of the shield bubble for sparks/debug outline (1.0 = matches the hitbox).")
                 .defineInRange("tripodShieldAxisScale", 1.0, 0.25, 4.0);

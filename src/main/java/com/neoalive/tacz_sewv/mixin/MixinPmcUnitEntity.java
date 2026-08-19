@@ -48,7 +48,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 // The boarding order and mortar claim below are deliberately transient: they target
 // an entity by network id, which is not stable across sessions, so persisting them
 // would be wrong — a pending order is simply dropped on reload.
-// IIssuedAmmo is only set on a PMC crew SPAWNED onto an emplacement (/sewv spawn pmctow).
+// IIssuedAmmo is only set on a PMC crew SPAWNED onto an emplacement (/sewv spawn pmc tow).
 // One a player ordered onto a tube with the board key has none, and so reads the shells the
 // player actually gave it — which is the whole point of hand-loading one.
 @Mixin(PmcUnitEntity.class)

@@ -299,7 +299,7 @@ public final class ExterminationCompat {
             }
         }
 
-        if (!SewvConfig.TRIPOD_SHIELD_FLARE_DEBUG_ALWAYS_ON.get()) return;
+        if (!com.neoalive.tacz_sewv.init.ModGameRules.server(com.neoalive.tacz_sewv.init.ModGameRules.TRIPOD_SHIELD_FLARE_ALWAYS_ON)) return;
         if (!isShieldedPod(entity)) return;
         if (entity.tickCount % DEBUG_FLARE_INTERVAL != 0) return;
         try {

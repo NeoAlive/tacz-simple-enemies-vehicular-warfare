@@ -25,21 +25,26 @@ import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
  * full BEAM (port and starboard offsets, not just the centreline) so a bow that clears doesn't
  * drag a quarter onto a sandbar, and scales reach with current speed since a boat carries way.
  *
- * <p>Peer hulls use the same Optimal Reciprocal Collision Avoidance construction as the ground
- * sensor ({@link VehicleOrca}) rather than a static, velocity-blind AABB — ships previously had no
+ * <p>Peer hulls use {@link VehicleOrca}'s reciprocal ("each side takes half the dodge")
+ * time-to-collision test rather than a static, velocity-blind AABB — ships previously had no
  * anticipation of a closing course at all, which is a bigger real risk here than on the ground:
  * a ship cannot pivot in place, carries momentum through a turn, and cannot react at the last
  * second the way a tank can. Unlike ground, this is a strict pass/fail folded into
  * {@link #headingClear} — {@link TerrainSensor#chooseClearBearing}'s inherited try-each-offset
- * loop has no graded score to feed, so there is no soft/skirt tier here, only the hard cutoff.
- * That cutoff is a MARGIN THRESHOLD, not the raw geometric permitted/forbidden boundary: verified
- * numerically before this was wired up, {@code margin(vOptSelf,...) < 0} whenever ANY peer is in
- * range at all (continuing at the exact current velocity is structurally never fully "free" of
- * restriction once a peer's half-plane is nonzero) — a raw {@code margin>=0} gate rejected every
- * one of the whisker fan's candidate headings for something as mundane as two ships in a loose
- * convoy with a few degrees of heading difference. {@link #ORCA_HARD_MARGIN} is picked so mundane,
- * well-separated, near-parallel traffic stays fully open while a genuinely close approach still
- * narrows down to its evasive headings.
+ * loop has no graded score to feed, so there is only ever a hard yes/no here, no skirt tier.
+ *
+ * <p>Deliberately uses ONLY {@link VehicleOrca#imminent} (plus
+ * {@link VehicleOrca#overlappingAndClosing}) as that hard gate — not the half-plane/margin
+ * construction ground also uses for its graded preference. Two things ruled the half-plane out
+ * here, both found by direct calculation before this was wired up: a raw
+ * {@code margin(vOptSelf,...)>=0} test is false whenever ANY peer is in range at all (continuing
+ * at the exact current velocity is structurally never fully "free" of restriction once a peer's
+ * half-plane is nonzero), which rejected every one of the whisker fan's candidate headings for
+ * something as mundane as two ships in a loose convoy with a few degrees of heading difference;
+ * and even a threshold on that margin produced false "must stop" rejections for a wide-angle turn
+ * away from a peer 40+ blocks off, because half-plane penetration saturates (stays bounded) rather
+ * than diverging as contact nears. Time-to-collision does diverge toward zero as contact
+ * approaches, which is what a strict pass/fail gate with no graded fallback actually needs.
  */
 public final class ShipTerrainSensor extends TerrainSensor {
 
@@ -49,18 +54,14 @@ public final class ShipTerrainSensor extends TerrainSensor {
     private static final double SPEED_LOOKAHEAD = 24.0;
     private static final double MIN_REACH = 6.0;
 
-    /** ORCA time horizon in ticks. Meaningfully larger than ground's 30: a ship cannot react at
-     * the last second, has no pivot, and carries momentum through a turn, so avoidance needs to
-     * start well before a ground vehicle's equivalent would. Seed value — tune live. */
-    private static final double ORCA_TAU = 55.0;
-    /** Margin (blocks/tick) of half-plane penetration beyond which a heading is rejected. See the
-     * class doc — this is deliberately NOT zero. Seed value — tune live. */
-    private static final double ORCA_HARD_MARGIN = 0.15;
-    /** Preferred speed used when the hull is nearly stopped, so ORCA still sees incoming traffic. */
+    /** Ticks-to-impact under the reciprocal relative velocity at or below which a candidate
+     * heading is rejected outright. Larger than ground's 8 ticks: a ship cannot react at the
+     * last second, has no pivot, and carries momentum through a turn, so avoidance needs to start
+     * well before a ground vehicle's equivalent would. Seed value — tune live. */
+    private static final double ORCA_IMMINENT_TICKS = 15.0;
+    /** Preferred speed used when the hull is nearly stopped, so the imminent test still sees
+     * incoming traffic. */
     private static final double MIN_PREF_SPEED = 0.1;
-    /** Tiny bias to deterministically and reciprocally break the one real degeneracy in the
-     * half-plane construction — see VehicleOrca#halfPlane. */
-    private static final double ORCA_TIE_EPS = 1.0E-6;
 
     private List<VehicleOrca.Peer> peers = List.of();
     private long lastBlockedDiagTick = Long.MIN_VALUE;
@@ -122,19 +123,14 @@ public final class ShipTerrainSensor extends TerrainSensor {
         double half = halfWidth();
         double selfX = this.vehicle.getX();
         double selfZ = this.vehicle.getZ();
-        int selfId = this.vehicle.getId();
         for (VehicleOrca.Peer peer : this.peers) {
             double radius = VehicleOrca.radius(half, peer.half());
             double px = peer.x() - selfX;
             double pz = peer.z() - selfZ;
-            if (VehicleOrca.overlappingAndClosing(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius)) {
+            if (VehicleOrca.overlappingAndClosing(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius)
+                    || VehicleOrca.imminent(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius, ORCA_IMMINENT_TICKS)) {
                 return false;
             }
-            double sideBias = ORCA_TIE_EPS * Integer.signum(selfId - peer.id());
-            VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(
-                    px, pz, ax, az, peer.vx(), peer.vz(), radius, ORCA_TAU, sideBias);
-            double margin = VehicleOrca.margin(candX, candZ, ax, az, hp);
-            if (margin < -ORCA_HARD_MARGIN) return false;
         }
         return true;
     }
@@ -142,11 +138,11 @@ public final class ShipTerrainSensor extends TerrainSensor {
     @Override
     protected List<AABB> buildObstacles(double reach) {
         double half = halfWidth();
-        // Same ORCA culling guidance as the ground sensor (paper §5.1): a peer farther than
-        // (selfSpeed+peerSpeed)*tau can never collide within the horizon. Peer speed is
-        // approximated as self speed absent a reliable per-hull max-speed source.
+        // A peer farther than (selfSpeed+peerSpeed)*ORCA_IMMINENT_TICKS can never be imminent, so
+        // it's safe to leave out of the search. Peer speed is approximated as self speed absent a
+        // reliable per-hull max-speed source.
         double selfSpeed = this.vehicle.getDeltaMovement().horizontalDistance();
-        double orcaReach = Math.max(LOOKAHEAD_DISTANCE, 2.0 * selfSpeed * ORCA_TAU);
+        double orcaReach = Math.max(LOOKAHEAD_DISTANCE, 2.0 * selfSpeed * ORCA_IMMINENT_TICKS);
         double range = Math.max(reach, orcaReach) + half + 1.0;
         AABB search = this.vehicle.getBoundingBox().inflate(range, 2.0, range);
         this.peers = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,

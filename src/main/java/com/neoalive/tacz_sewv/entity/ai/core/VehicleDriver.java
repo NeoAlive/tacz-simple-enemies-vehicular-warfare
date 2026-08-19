@@ -89,6 +89,30 @@ public final class VehicleDriver {
     private static final int HULL_FAN_REVERSE_DURATION = 24;
     private static final double[] HULL_FAN_RETREAT_OFFSETS_DEG = {0.0, 25.0, -25.0};
 
+    // holdAtEdge hysteresis: once committed to a turn direction, keep it until the bearing swings
+    // clearly past center the OTHER way, rather than flipping on every sign change of a
+    // near-zero angle. A bare angle>0 test with no band is exactly the "alternating sides on a
+    // high-centered pit edge just rocks the hull in place" twitch the stuck-recovery comment
+    // above already names — that fix (straight reverse, no swing) covers updateStuck's own
+    // stuck-reverse, but holdAtEdge pivots via a completely separate path and needed the same
+    // protection. The self-perpetuating trap: any yaw change >1° reads as "moved" to updateStuck
+    // (STUCK_YAW_EPSILON_DEG), so an unbanded twitch never accumulates stuckTicks and the
+    // intended straight-reverse fallback never fires — the hull rocks in place indefinitely.
+    private static final double HOLD_AT_EDGE_HYSTERESIS_RAD = Math.toRadians(15.0);
+    // A genuinely wedged hull swings PAST whatever hysteresis band it's given before bouncing
+    // back off terrain — live-tested confirming this: with the band above already in place, a
+    // hull with a completely frozen target/desired/position still visibly wiggled, just more
+    // broadly, because the bounce itself is real physics, not noise a wider band could out-wait.
+    // A few flips is enough to tell "pivoting isn't converging" from "still turning toward an
+    // opening", so give up on the pivot at that point rather than let it keep rocking.
+    private static final int HOLD_AT_EDGE_FLIP_LIMIT = 3;
+    // Same bare angle>0 sign-test bug, third location: driveFaceAndReverse's facing correction
+    // has only a symmetric deadband (FACING_DEADBAND_RAD), no directional memory, so a hull that
+    // can't cleanly back away (colliding with terrain while reversing) flip-flops its facing
+    // turn every tick while setBackInputDown stays held the whole time — "wiggle and also goes
+    // backwards", live-tested as a distinct occurrence from the pure-pivot case above.
+    private static final double REVERSE_FACE_HYSTERESIS_RAD = Math.toRadians(15.0);
+
     private final AbstractUnit unit;
     private final HullFacts hull;
     private final GroundTerrainSensor sensor;
@@ -119,6 +143,15 @@ public final class VehicleDriver {
     private int hullFanReverseTicksLeft;
     private Vec3 lastHullFanPos;
     private Vec3 hullFanFaceDesired; // face the fouled goal / obstacle while reversing
+
+    // 0 = undecided, >0 = committed left, <0 = committed right — see holdAtEdge.
+    private int holdAtEdgeTurn;
+    // Counts commit-direction flips since the current "boxed in" episode began — see holdAtEdge
+    // and noteHoldAtEdgePivotFailing.
+    private int holdAtEdgeFlips;
+
+    // 0 = undecided, >0 = committed left, <0 = committed right — see driveFaceAndReverse.
+    private int reverseFaceTurn;
 
     public VehicleDriver(AbstractUnit unit, HullFacts hull) {
         this.unit = unit;
@@ -320,6 +353,9 @@ public final class VehicleDriver {
         this.hullFanReverseTicksLeft = 0;
         this.lastHullFanPos = null;
         this.hullFanFaceDesired = null;
+        this.holdAtEdgeTurn = 0;
+        this.holdAtEdgeFlips = 0;
+        this.reverseFaceTurn = 0;
     }
 
     /** Forget the hull entirely, for a crew leaving its seat. */
@@ -491,6 +527,9 @@ public final class VehicleDriver {
                 if (noteHullFanBlocked(desired)) {
                     return; // reverse armed — inputs already set
                 }
+                if (noteHoldAtEdgePivotFailing(desired)) {
+                    return; // reverse armed — inputs already set
+                }
                 holdAtEdge(desired);
                 return;
             }
@@ -509,6 +548,13 @@ public final class VehicleDriver {
 
         if (Math.abs(angle) < angleThreshold) {
             if (facingClear) {
+                // Truly done with holdAtEdge for this tick — safe to drop its hysteresis state.
+                // Resetting this unconditionally whenever steer != null (as an earlier version
+                // did) wiped it on every tick the "forward BLOCKED" branch below also runs,
+                // since that branch is reached with steer != null too — silently defeating the
+                // hysteresis for that call site by resetting it moments before every use.
+                this.holdAtEdgeTurn = 0;
+                this.holdAtEdgeFlips = 0;
                 this.vehicle.setForwardInputDown(true);
                 this.vehicle.setBackInputDown(false);
                 this.vehicle.setLeftInputDown(false);
@@ -525,6 +571,8 @@ public final class VehicleDriver {
                 holdAtEdge(steer);
             }
         } else {
+            this.holdAtEdgeTurn = 0;
+            this.holdAtEdgeFlips = 0;
             this.vehicle.setLeftInputDown(angle > 0);
             this.vehicle.setRightInputDown(angle < 0);
             this.vehicle.setForwardInputDown(!this.hull.isTracked() && facingClear);
@@ -536,11 +584,25 @@ public final class VehicleDriver {
      * Turn in place toward {@code dir} with no forward/back input. When already nearly aligned (the
      * hazard is dead ahead), force a consistent turn so the hull keeps rotating — this both scans
      * for an opening and keeps {@link #updateStuck} from firing a blind unstick reverse.
+     *
+     * <p>Committed via {@link #holdAtEdgeTurn} once a direction is chosen, and held through
+     * {@link #HOLD_AT_EDGE_HYSTERESIS_RAD} of swing the other way before switching — each fresh
+     * "boxed in" episode starts undecided again (reset alongside the other fan-block trackers).
      */
     private void holdAtEdge(Vec3 dir) {
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, dir);
-        boolean left = Math.abs(angle) < 0.05 || angle > 0;
+        boolean left;
+        if (this.holdAtEdgeTurn > 0) {
+            left = angle > -HOLD_AT_EDGE_HYSTERESIS_RAD;
+        } else if (this.holdAtEdgeTurn < 0) {
+            left = angle > HOLD_AT_EDGE_HYSTERESIS_RAD;
+        } else {
+            left = Math.abs(angle) < 0.05 || angle > 0;
+        }
+        int newTurn = left ? 1 : -1;
+        if (this.holdAtEdgeTurn != 0 && newTurn != this.holdAtEdgeTurn) this.holdAtEdgeFlips++;
+        this.holdAtEdgeTurn = newTurn;
         this.vehicle.setForwardInputDown(false);
         this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(left);
@@ -572,6 +634,7 @@ public final class VehicleDriver {
         this.bankLipReverseAway = desired;
         this.bankLipReverseTicksLeft = BANK_LIP_REVERSE_DURATION;
         this.bankLipFanBlockedTicks = 0;
+        this.reverseFaceTurn = 0;
         SewvDiag.waterEvent(
                 "bankLip reverse START unit={}#{} vehicle={}#{} pos={} inWater={} desired={} "
                         + "threshold={} duration={} — dry bank lip, full fan blocked, no progress",
@@ -613,7 +676,38 @@ public final class VehicleDriver {
         if (this.lastHullFanPos == null) this.lastHullFanPos = pos;
         this.hullFanBlockedTicks++;
         if (this.hullFanBlockedTicks < HULL_FAN_BLOCK_TICKS) return false;
+        this.hullFanBlockedTicks = 0;
+        return armFanReverse(desired, "hullDominated");
+    }
 
+    /**
+     * Repeated commit-direction flips inside {@link #holdAtEdge} mean the pivot itself keeps
+     * bouncing off terrain rather than converging toward an opening — live-tested confirming that
+     * widening the hysteresis band only delays this (a genuinely wedged hull still swings past
+     * whatever band it's given before bouncing back). Once the flip count crosses
+     * {@link #HOLD_AT_EDGE_FLIP_LIMIT}, give up on pivoting for this episode and fall back to the
+     * same doctrine-approved straight reverse the other fan-block cases use, instead of letting
+     * physics keep rocking the hull indefinitely.
+     */
+    private boolean noteHoldAtEdgePivotFailing(Vec3 desired) {
+        if (this.holdAtEdgeFlips < HOLD_AT_EDGE_FLIP_LIMIT) return false;
+        this.holdAtEdgeFlips = 0;
+        this.holdAtEdgeTurn = 0;
+        return armFanReverse(desired, "pivotFlipping");
+    }
+
+    /**
+     * Probe {@code -desired}, then ±25°, for a heading actually clear to reverse into — never
+     * blind-reverse into a second hazard. First clear wins; arms the shared hull-fan reverse
+     * countdown checked at the top of {@link #navigateTo}. Shared by {@link #noteHullFanBlocked}
+     * and {@link #noteHoldAtEdgePivotFailing} — same recovery, different triggers.
+     *
+     * @param trigger which caller armed this, for the log line only ({@code "hullDominated"} or
+     *                 {@code "pivotFlipping"})
+     * @return true when reverse was armed this tick (inputs already set); false when retreat was
+     *         skipped (logs {@code SKIP allRetreatBlocked}) so the caller can {@link #holdAtEdge}
+     */
+    private boolean armFanReverse(Vec3 desired, String trigger) {
         Vec3 retreatBase = desired.scale(-1.0);
         if (retreatBase.lengthSqr() < 1.0E-8) {
             Vector3f forward = this.vehicle.getForwardDirection().normalize();
@@ -634,15 +728,14 @@ public final class VehicleDriver {
             }
         }
 
-        this.hullFanBlockedTicks = 0;
         if (chosenRetreat == null) {
             SewvDiag.pathingEvent(
                     "hullFan reverse SKIP allRetreatBlocked unit={}#{} vehicle={}#{} pos={} "
-                            + "desired={} reasons=[{}] rule=hullCount*2>n "
+                            + "desired={} reasons=[{}] trigger={} "
                             + "probed=-desired,+25,-25 — holdAtEdge, no blind reverse",
                     this.unit.getClass().getSimpleName(), this.unit.getId(),
                     this.vehicle.getName().getString(), this.vehicle.getId(),
-                    this.vehicle.blockPosition(), desired, this.sensor.lastFanReasons());
+                    this.vehicle.blockPosition(), desired, this.sensor.lastFanReasons(), trigger);
             return false;
         }
 
@@ -650,14 +743,15 @@ public final class VehicleDriver {
         // (straight -desired when that probe won; a ±25° diagonal otherwise).
         this.hullFanFaceDesired = chosenRetreat.scale(-1.0).normalize();
         this.hullFanReverseTicksLeft = HULL_FAN_REVERSE_DURATION;
+        this.reverseFaceTurn = 0;
         SewvDiag.pathingEvent(
                 "hullFan reverse START unit={}#{} vehicle={}#{} pos={} desired={} retreat={} face={} "
-                        + "reasons=[{}] rule=hullCount*2>n hullDominated=true "
+                        + "reasons=[{}] trigger={} "
                         + "threshold={} duration={} — face opposite retreat, reverse along cleared bearing",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
                 this.vehicle.getName().getString(), this.vehicle.getId(),
                 this.vehicle.blockPosition(), desired, chosenRetreat, this.hullFanFaceDesired,
-                this.sensor.lastFanReasons(),
+                this.sensor.lastFanReasons(), trigger,
                 HULL_FAN_BLOCK_TICKS, HULL_FAN_REVERSE_DURATION);
         driveFaceAndReverse(this.hullFanFaceDesired);
         return true;
@@ -666,6 +760,14 @@ public final class VehicleDriver {
     /**
      * Face {@code face} (fouled goal / hazard) and reverse. Shared by bank-lip and hull-fan
      * recoveries — same "gun toward trouble, open distance the other way" shape.
+     */
+    /**
+     * Turn to face {@code face} while backing up. Same hysteresis shape as {@link #holdAtEdge}
+     * and for the same reason: a hull that can't back away cleanly (colliding with terrain while
+     * reversing) will swing past a bare deadband and bounce back, flip-flopping the facing turn
+     * every tick while {@code setBackInputDown} stays held throughout — visibly "wiggling while
+     * going backwards". {@link #reverseFaceTurn} is reset wherever a reverse is freshly armed
+     * (bank-lip, hull-fan), so each episode starts undecided.
      */
     private void driveFaceAndReverse(Vec3 face) {
         Vec3 away = face;
@@ -676,8 +778,17 @@ public final class VehicleDriver {
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, away);
         boolean aligned = Math.abs(angle) < FACING_DEADBAND_RAD;
-        this.vehicle.setLeftInputDown(!aligned && angle > 0);
-        this.vehicle.setRightInputDown(!aligned && angle < 0);
+        boolean left;
+        if (this.reverseFaceTurn > 0) {
+            left = angle > -REVERSE_FACE_HYSTERESIS_RAD;
+        } else if (this.reverseFaceTurn < 0) {
+            left = angle > REVERSE_FACE_HYSTERESIS_RAD;
+        } else {
+            left = angle > 0;
+        }
+        this.reverseFaceTurn = aligned ? 0 : (left ? 1 : -1);
+        this.vehicle.setLeftInputDown(!aligned && left);
+        this.vehicle.setRightInputDown(!aligned && !left);
         this.vehicle.setForwardInputDown(false);
         this.vehicle.setBackInputDown(true);
     }

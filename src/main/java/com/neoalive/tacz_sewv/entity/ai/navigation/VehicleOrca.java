@@ -159,4 +159,48 @@ public final class VehicleOrca {
         double vz = 2.0 * vCandZ - aVelZ - bVelZ;
         return px * vx + pz * vz > 0.0;
     }
+
+    /**
+     * Time-to-collision of a ray from the origin with velocity {@code (vx, vz)} against a disc
+     * at {@code (px, pz)} of radius {@code r}. {@code +∞} when it never hits.
+     */
+    public static double timeToCollision(double px, double pz, double vx, double vz, double r) {
+        double distSq = px * px + pz * pz;
+        double rSq = r * r;
+        if (distSq <= rSq) return 0.0;
+        double a = vx * vx + vz * vz;
+        if (a < 1.0E-12) return Double.POSITIVE_INFINITY;
+        double pv = px * vx + pz * vz;
+        if (pv <= 0.0) return Double.POSITIVE_INFINITY;
+        double c = distSq - rSq;
+        double disc = pv * pv - a * c;
+        if (disc < 0.0) return Double.POSITIVE_INFINITY;
+        double t = (pv - Math.sqrt(disc)) / a;
+        return t < 0.0 ? Double.POSITIVE_INFINITY : t;
+    }
+
+    /**
+     * True iff the candidate is on an imminent collision course under the reciprocal ("each side
+     * takes half") relative velocity {@code 2 vCand − vA − vB} — plain RVO's own construction,
+     * reused deliberately here rather than the half-plane geometry above.
+     *
+     * <p>This exists because {@link #margin} does NOT: it measures penetration into a τ-wide
+     * half-plane, a quantity that stays bounded (roughly ±0.3 blocks/tick in practice) even at
+     * near-contact range rather than diverging as impact approaches — verified numerically before
+     * this was added, continuing straight at a stationary wreck only 6 blocks away (barely more
+     * than a tank pair's combined ~5-block radius) never crossed a 0.2 hard-margin threshold at
+     * all. Time-to-collision does diverge toward zero as contact nears, which is what a decisive
+     * "you are about to hit this" veto actually needs — {@code margin}/{@link #halfPlane} remain
+     * the right tool for graded, reciprocal, oscillation-resistant PREFERENCE among candidates
+     * that are not imminently colliding; this is the tool for the hard stop plain RVO always had.
+     */
+    public static boolean imminent(double px, double pz,
+                                    double vCandX, double vCandZ,
+                                    double aVelX, double aVelZ,
+                                    double bVelX, double bVelZ,
+                                    double radius, double imminentTicks) {
+        double vx = 2.0 * vCandX - aVelX - bVelX;
+        double vz = 2.0 * vCandZ - aVelZ - bVelZ;
+        return timeToCollision(px, pz, vx, vz, radius) <= imminentTicks;
+    }
 }

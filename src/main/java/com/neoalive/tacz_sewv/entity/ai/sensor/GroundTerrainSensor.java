@@ -48,12 +48,21 @@ public final class GroundTerrainSensor extends TerrainSensor {
     /** ORCA time horizon in ticks — collisions beyond this are not anticipated. Matches the old
      * GroundRvo.TAU value this replaces (behavior-parity seed, not re-derived). */
     private static final double ORCA_TAU = 30.0;
-    /** Margin (blocks/tick) of half-plane penetration beyond which a heading is hard-blocked
-     * rather than merely ranked. Also the scale for the graded skirt ramp below that cutoff
-     * (skirt = penetration / this, clamped under HARD_CAP). Seeded to roughly the old
-     * IMMINENT=8-tick/TAU=30-tick ramp feel at cruise speed (the plain-RVO predecessor this
-     * replaced) — tune live, not derived. */
-    private static final double ORCA_HARD_MARGIN = 0.2;
+    /** Ticks-to-impact under the reciprocal relative velocity at or below which a candidate is
+     * hard-blocked outright — the decisive stop {@link VehicleOrca#margin} cannot provide on its
+     * own (penetration depth saturates rather than diverging as contact nears; verified
+     * numerically that continuing straight at a stationary wreck 6 blocks away, barely more than
+     * a tank pair's combined radius, never crossed a 0.2 hard-margin threshold at all). Matches
+     * the old GroundRvo.IMMINENT value this restores. */
+    private static final double ORCA_IMMINENT_TICKS = 8.0;
+    /** Scale (blocks/tick) for the graded skirt ramp: skirt = penetration / this, clamped under
+     * HARD_CAP. Not a hard threshold — {@link #ORCA_IMMINENT_TICKS} (plus overlap-and-closing) is
+     * the sole hard trigger; half-plane penetration only ever produces graded PREFERENCE here.
+     * Verified numerically this split matters: penetration depth saturates around ±0.3 blocks/tick
+     * even at long range for a wide-angle turn away from a peer 40+ blocks distant, so using it as
+     * a hard threshold too produced false "must stop" blocks nowhere near an actual collision.
+     * Seeded to roughly the old TAU=30-tick RVO ramp feel at cruise speed — tune live. */
+    private static final double ORCA_SKIRT_SCALE = 0.2;
     /** Tiny bias to deterministically and reciprocally break the one real degeneracy in the
      * half-plane construction: a perfectly symmetric head-on approach has no basis to prefer a
      * side. See VehicleOrca#halfPlane. */
@@ -367,7 +376,8 @@ public final class GroundTerrainSensor extends TerrainSensor {
             double radius = VehicleOrca.radius(half, peer.half());
             double px = peer.x() - selfX;
             double pz = peer.z() - selfZ;
-            if (VehicleOrca.overlappingAndClosing(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius)) {
+            if (VehicleOrca.overlappingAndClosing(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius)
+                    || VehicleOrca.imminent(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius, ORCA_IMMINENT_TICKS)) {
                 p.hard = 1.0F;
                 p.reason = "hull";
                 return;
@@ -376,13 +386,8 @@ public final class GroundTerrainSensor extends TerrainSensor {
             VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(
                     px, pz, ax, az, peer.vx(), peer.vz(), radius, ORCA_TAU, sideBias);
             double margin = VehicleOrca.margin(candX, candZ, ax, az, hp);
-            if (margin < -ORCA_HARD_MARGIN) {
-                p.hard = 1.0F;
-                p.reason = "hull";
-                return;
-            }
             if (margin < 0.0) {
-                float skirt = Math.min(0.99F, (float) (-margin / ORCA_HARD_MARGIN));
+                float skirt = Math.min(0.99F, (float) (-margin / ORCA_SKIRT_SCALE));
                 p.skirt = Math.max(p.skirt, skirt);
             }
         }

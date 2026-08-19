@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.init;
 
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.GameRules;
 import net.minecraftforge.fml.ModList;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -43,7 +45,56 @@ public final class ModGameRules {
     @Nullable
     public static GameRules.Key<GameRules.BooleanValue> INVASION_OVERRIDES;
 
+    // --- Diagnostic/developer logging, formerly SewvConfig booleans under [debug]-ish sections.
+    // Moved here so they can be flipped with /gamerule during a live session instead of editing
+    // config/tacz_sewv-common.toml and restarting/reloading. See ModGameRules.server(Key) for the
+    // read side — every call site funnels through it (or the client-side equivalent for the two
+    // that render client-only) rather than reading SewvConfig directly.
+
+    public static final GameRules.Key<GameRules.BooleanValue> GROUND_PATHING_DEBUG =
+            GameRules.register("sewvGroundPathingDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    public static final GameRules.Key<GameRules.BooleanValue> SHIP_PATHING_DEBUG =
+            GameRules.register("sewvShipPathingDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    public static final GameRules.Key<GameRules.BooleanValue> SEWV_DIAG_DEBUG =
+            GameRules.register("sewvDiagDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    public static final GameRules.Key<GameRules.BooleanValue> OUTER_RING_DEBUG_LOGGING =
+            GameRules.register("sewvOuterRingDebugLogging", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    public static final GameRules.Key<GameRules.BooleanValue> HELI_COMBAT_DEBUG =
+            GameRules.register("sewvHeliCombatDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    public static final GameRules.Key<GameRules.BooleanValue> HELI_FLIGHT_DEBUG =
+            GameRules.register("sewvHeliFlightDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    public static final GameRules.Key<GameRules.BooleanValue> PLANE_COMBAT_DEBUG =
+            GameRules.register("sewvPlaneCombatDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    public static final GameRules.Key<GameRules.BooleanValue> MORTAR_DEBUG_LOGGING =
+            GameRules.register("sewvMortarDebugLogging", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    /** Default ON — silent until an order actually fails; see the old orderFailureDebug comment. */
+    public static final GameRules.Key<GameRules.BooleanValue> ORDER_FAILURE_DEBUG =
+            GameRules.register("sewvOrderFailureDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(true));
+    /** Default ON — the noisy half of order-failure reporting; see the old targetVetoDebug comment. */
+    public static final GameRules.Key<GameRules.BooleanValue> TARGET_VETO_DEBUG =
+            GameRules.register("sewvTargetVetoDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(true));
+    public static final GameRules.Key<GameRules.BooleanValue> TRIPOD_SHIELD_FLARE_ALWAYS_ON =
+            GameRules.register("sewvTripodShieldFlareAlwaysOn", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    public static final GameRules.Key<GameRules.BooleanValue> TRIPOD_SHIELD_WIREFRAME =
+            GameRules.register("sewvTripodShieldWireframe", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+
     private ModGameRules() {}
+
+    /**
+     * Server-side read for a boolean gamerule from anywhere, with no {@code Level} needed at the
+     * call site — {@code ServerLifecycleHooks.getCurrentServer()} resolves the running (or
+     * integrated singleplayer) server directly. Answers false with no server running (main menu,
+     * or a call that raced world unload) rather than throwing.
+     *
+     * <p>Client-only render code cannot use this (a pure multiplayer client has no server in this
+     * JVM) — see the client-side reads in {@code HeliRunPhaseClient}, {@code
+     * MixinVehicleTeamOverlay} and {@code ExterminationShieldDebugRenderer}, which go through
+     * {@code Minecraft.getInstance().level.getGameRules()} instead.
+     */
+    public static boolean server(GameRules.Key<GameRules.BooleanValue> rule) {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        return server != null && server.getGameRules().getBoolean(rule);
+    }
 
     /** Force class init so {@link GameRules#register} runs before any world loads. */
     public static void bootstrap() {

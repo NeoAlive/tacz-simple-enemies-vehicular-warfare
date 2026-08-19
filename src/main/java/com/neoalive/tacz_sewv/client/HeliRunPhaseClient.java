@@ -5,8 +5,8 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 
 /**
  * Client cache of AI heli run phases (filled by {@link com.neoalive.tacz_sewv.network.PacketHeliRunPhase}).
@@ -42,7 +42,7 @@ public final class HeliRunPhaseClient {
         }
 
         boolean nowRappel = next == DriveHelicopterGoal.RunPhase.RAPPEL;
-        if (wasRappel != nowRappel && SewvConfig.HELI_COMBAT_DEBUG.get()) {
+        if (wasRappel != nowRappel && ClientGameRules.get(ModGameRules.HELI_COMBAT_DEBUG)) {
             LOGGER.info("[sewv heli] client #{} rappel={}", entityId, nowRappel);
         }
     }
@@ -59,7 +59,7 @@ public final class HeliRunPhaseClient {
 
     public static void clear(int entityId) {
         DriveHelicopterGoal.RunPhase prev = PHASES.remove(entityId);
-        if (prev == DriveHelicopterGoal.RunPhase.RAPPEL && SewvConfig.HELI_COMBAT_DEBUG.get()) {
+        if (prev == DriveHelicopterGoal.RunPhase.RAPPEL && ClientGameRules.get(ModGameRules.HELI_COMBAT_DEBUG)) {
             LOGGER.info("[sewv heli] client #{} rappel={}", entityId, false);
         }
     }

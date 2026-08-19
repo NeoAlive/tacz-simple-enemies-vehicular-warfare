@@ -10,6 +10,9 @@ import com.atsuishio.superbwarfare.init.ModParticleTypes;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
@@ -40,6 +43,14 @@ public class RepairGoal extends Goal {
     private static final int IDLE_RESCAN = 40;
     /** Give up walking to a hull after this long — it may be somewhere unreachable. */
     private static final int MAX_APPROACH_TICKS = 400;
+
+    /**
+     * A tracked/wheeled hull is faster than a walking unit, so without a boost an engineer sent
+     * after a moving tank simply never catches it. Fixed id so re-applying (goal restarts on a new
+     * target) never stacks a second copy.
+     */
+    private static final java.util.UUID SPEED_BOOST_ID =
+            java.util.UUID.fromString("b6a1f6a0-6e6c-4c9a-9d3a-2f6a2b6d3e10");
 
     private final AbstractUnit unit;
     private VehicleEntity target;
@@ -95,11 +106,13 @@ public class RepairGoal extends Goal {
         DroneOperatorGoal.unlockEngineer(this.unit);
         CrewRadio.speakUnit(this.unit, CrewRadio.Line.FIXING);
         this.unit.getNavigation().moveTo(this.target, 1.0);
+        applySpeedBoost();
     }
 
     @Override
     public void stop() {
         this.unit.getNavigation().stop();
+        clearSpeedBoost();
         // Clean exit (repaired to full, target destroyed, engineer reassigned/engaged) — release the
         // hull instantly rather than waiting out RepairLockSupport's grace period, which exists for
         // the unclean exits (engineer dies/despawns) this stop() is never called for.
@@ -142,6 +155,20 @@ public class RepairGoal extends Goal {
         VehicleSkinSupport.apply(this.target, CrewFacts.factionOfCrew(this.unit));
         showRepairEffects();
         this.cooldown = SewvConfig.ENGINEER_REPAIR_COOLDOWN.get();
+    }
+
+    /** Movement boost for the approach — a foot unit must be able to catch a moving tank. */
+    private void applySpeedBoost() {
+        AttributeInstance speed = this.unit.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed == null || speed.getModifier(SPEED_BOOST_ID) != null) return;
+        double amount = SewvConfig.ENGINEER_REPAIR_SPEED_BOOST.get() - 1.0;
+        speed.addTransientModifier(new AttributeModifier(
+                SPEED_BOOST_ID, "sewv_repair_speed_boost", amount, AttributeModifier.Operation.MULTIPLY_TOTAL));
+    }
+
+    private void clearSpeedBoost() {
+        AttributeInstance speed = this.unit.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed != null) speed.removeModifier(SPEED_BOOST_ID);
     }
 
     /**

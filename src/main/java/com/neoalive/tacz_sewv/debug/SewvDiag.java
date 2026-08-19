@@ -3,19 +3,20 @@ package com.neoalive.tacz_sewv.debug;
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.util.WarnOnce;
 
 /**
  * Temporary Stage 3–5 diagnosis logs. Prefix {@code [sewv-diag]} for grepping.
  * Observe-only — callers must not change control flow based on this class.
  *
- * <p>All channels are config-gated (default off):
+ * <p>All channels are gated by a per-world gamerule (default off), toggled in-game with
+ * {@code /gamerule <name> true|false} rather than editing config and reloading:
  * <ul>
  *   <li>{@link #pathing}/{@link #water}/{@link #pathingEvent}/{@link #waterEvent} —
- *       {@code groundPathingDebug}</li>
- *   <li>{@link #ship} — {@code shipPathingDebug}</li>
- *   <li>{@link #flight} — {@code heliFlightDebug}</li>
+ *       {@code sewvGroundPathingDebug}</li>
+ *   <li>{@link #ship} — {@code sewvShipPathingDebug}</li>
+ *   <li>{@link #flight} — {@code sewvHeliFlightDebug}</li>
  *   <li>Everything else — {@code sewvDiagDebug}</li>
  * </ul>
  * Callers of the verbose pathing / flight tiers should still guard expensive arg construction with
@@ -30,24 +31,22 @@ public final class SewvDiag {
 
     /** Heavy ground-pathing / shoreline investigation logs. Default off. */
     public static boolean groundPathingVerbose() {
-        // OpenPacCompat (and similar) may call SewvDiag during COMMON_SETUP before the
-        // server config is baked — ConfigValue.get() throws in that window in userdev.
-        return SewvConfig.SPEC.isLoaded() && SewvConfig.GROUND_PATHING_DEBUG.get();
+        return ModGameRules.server(ModGameRules.GROUND_PATHING_DEBUG);
     }
 
     /** Heavy ship-pathing / shoreline investigation logs. Default off. */
     public static boolean shipPathingVerbose() {
-        return SewvConfig.SPEC.isLoaded() && SewvConfig.SHIP_PATHING_DEBUG.get();
+        return ModGameRules.server(ModGameRules.SHIP_PATHING_DEBUG);
     }
 
     /** Helicopter flyToward / hover investigation logs. Default off. */
     public static boolean heliFlightVerbose() {
-        return SewvConfig.SPEC.isLoaded() && SewvConfig.HELI_FLIGHT_DEBUG.get();
+        return ModGameRules.server(ModGameRules.HELI_FLIGHT_DEBUG);
     }
 
     /** Non-pathing [sewv-diag] channels. Default off. */
     public static boolean diagEnabled() {
-        return SewvConfig.SPEC.isLoaded() && SewvConfig.SEWV_DIAG_DEBUG.get();
+        return ModGameRules.server(ModGameRules.SEWV_DIAG_DEBUG);
     }
 
     public static void targeting(String msg, Object... args) {
@@ -140,13 +139,13 @@ public final class SewvDiag {
      * anywhere.
      */
     public static void orderFail(String msg, Object... args) {
-        if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.ORDER_FAILURE_DEBUG.get()) return;
+        if (!ModGameRules.server(ModGameRules.ORDER_FAILURE_DEBUG)) return;
         LOG.info("[sewv-diag][order] " + msg, args);
     }
 
     /** Fixed-wing mode / aim / landing diagnosis. Default off. */
     public static boolean planeVerbose() {
-        return SewvConfig.SPEC.isLoaded() && SewvConfig.PLANE_COMBAT_DEBUG.get();
+        return ModGameRules.server(ModGameRules.PLANE_COMBAT_DEBUG);
     }
 
     /** Fixed-wing diagnosis. No-op when {@link #planeVerbose()} is false. */
@@ -198,8 +197,7 @@ public final class SewvDiag {
      */
     public static void planeAttached() {
         WarnOnce.info(LOG, "sewv-plane-ai", "[sewv-plane] fixed-wing AI active"
-                + (planeVerbose() ? " (planeCombatDebug on — per-tick detail follows)"
-                        : " (set planeCombatDebug=true under [flight_ai] in"
-                                + " config/tacz_sewv-common.toml for flight detail)"));
+                + (planeVerbose() ? " (sewvPlaneCombatDebug on — per-tick detail follows)"
+                        : " (run '/gamerule sewvPlaneCombatDebug true' for flight detail)"));
     }
 }

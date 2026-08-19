@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
@@ -45,7 +46,6 @@ import com.neoalive.tacz_sewv.util.ChunkTicket;
 public class ManMortarGoal extends Goal {
 
     private static final int APPROACH_TIMEOUT_TICKS = 300;
-    private static final boolean DEBUG_LOGGING = false;
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -377,9 +377,9 @@ public class ManMortarGoal extends Goal {
         this.laidOn = null;
     }
 
-    /** Names the gate the crew is stuck on, once per change, when mortarDebugLogging is on. */
+    /** Names the gate the crew is stuck on, once per change, when sewvMortarDebugLogging is on. */
     private void hold(String reason) {
-        if (!DEBUG_LOGGING) return;
+        if (!ModGameRules.server(ModGameRules.MORTAR_DEBUG_LOGGING)) return;
         if (reason.equals(this.lastHold)) return;
         this.lastHold = reason;
         LOGGER.info("[mortar] unit {} at mortar {}: {}",
@@ -390,10 +390,10 @@ public class ManMortarGoal extends Goal {
      * Same as {@link #hold(String)}, but for a reason that needs formatting first — the flag
      * check happens BEFORE the format/allocation, not inside {@code hold}, so a caller on the
      * approach/lay-on hot path doesn't pay for a {@code String.format} every tick that
-     * mortarDebugLogging is off (the common case).
+     * sewvMortarDebugLogging is off (the common case).
      */
     private void hold(String fmt, Object... args) {
-        if (!DEBUG_LOGGING) return;
+        if (!ModGameRules.server(ModGameRules.MORTAR_DEBUG_LOGGING)) return;
         hold(String.format(fmt, args));
     }
 

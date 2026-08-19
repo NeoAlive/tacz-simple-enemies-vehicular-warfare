@@ -19,7 +19,7 @@ import org.joml.Matrix4f;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.ExterminationCompat;
 import com.neoalive.tacz_sewv.compat.ExterminationShieldFx;
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 
 /**
  * Debug wireframe of the Tripod shield prolate spheroid (same math as
@@ -37,7 +37,7 @@ public final class ExterminationShieldDebugRenderer {
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) return;
-        if (!SewvConfig.TRIPOD_SHIELD_DEBUG_WIREFRAME.get()) return;
+        if (!ClientGameRules.get(ModGameRules.TRIPOD_SHIELD_WIREFRAME)) return;
         if (!ExterminationCompat.available()) return;
 
         Minecraft mc = Minecraft.getInstance();

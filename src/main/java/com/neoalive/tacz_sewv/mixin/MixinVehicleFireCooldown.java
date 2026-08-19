@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
@@ -21,6 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 import com.neoalive.tacz_sewv.util.SmokeVision;
 
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
@@ -103,9 +105,18 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         Vec3 from = self.getShootPos(living, 1f);            // muzzle
         Vec3 to = target.getBoundingBox().getCenter();       // target center
 
+        // Empty hulls and wrecks: the allied check below only names crewed friends,
+        // so a parked wreck between muzzle and target was a free shot. Same occupancy
+        // map infantry use; this hull and the target's ride are excluded.
+        if (self.level() instanceof ServerLevel server
+                && VehiclePathObstacles.occludes(server, from, to,
+                        self.getId(), VehiclePathObstacles.rideId(target))) {
+            return true;
+        }
         // Hold fire if a friendly hull is in the way — prevents the crew shelling
         // an ally that has driven between it and its target (living is always an
-        // AbstractUnit here; the caller gated on it).
+        // AbstractUnit here; the caller gated on it). Extra 1-block margin beyond
+        // the occupancy voxels, for near-grazes and shell blast.
         if (living instanceof AbstractUnit unit
                 && VehicleTargeting.alliedVehicleInLineOfFire(unit, self, from, to)) {
             return true;

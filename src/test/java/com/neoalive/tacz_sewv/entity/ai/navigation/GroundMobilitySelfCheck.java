@@ -21,6 +21,7 @@ public final class GroundMobilitySelfCheck {
         pickPrefersClearFlank();
         interpolateLeansTowardHigherNeighbor();
         blendIsHalfway();
+        VehiclePathObstacles.selfCheck();
 
         System.out.println("ground mobility self-check: OK");
     }

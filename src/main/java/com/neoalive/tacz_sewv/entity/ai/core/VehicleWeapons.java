@@ -157,6 +157,23 @@ public final class VehicleWeapons {
     private static final String[] AMMO_ANTI_LIGHT = {"_he", "_ap"};
     private static final String[] AMMO_ANTI_INFANTRY = {"_gs", "_he", "_ap"};
 
+    // One selection candidate: a role to try, and (for a multi-shell weapon) the shell preference
+    // to load if it's picked. null preferences means "single-ammo weapon — whatever it has".
+    private record WeaponCandidate(int role, @javax.annotation.Nullable String[] ammoPreferences) {}
+
+    // Doctrine as an ordered fallback table, not a single pick: the first candidate whose role
+    // exists on the seat AND still has usable ammo wins; a role that has gone dry is skipped in
+    // favor of the next one rather than leaving the crew locked onto a dead slot. Preserves today's
+    // behaviour whenever the first candidate has ammo (which is the common case).
+    private static final List<WeaponCandidate> VS_ARMORED = List.of(
+            new WeaponCandidate(WEAPON_CANNON, AMMO_ANTI_ARMOR), new WeaponCandidate(WEAPON_MG, null));
+    private static final List<WeaponCandidate> VS_LIGHT_VEHICLE = List.of(
+            new WeaponCandidate(WEAPON_CANNON, AMMO_ANTI_LIGHT), new WeaponCandidate(WEAPON_MG, null));
+    private static final List<WeaponCandidate> VS_SOFT_MOB = List.of(
+            new WeaponCandidate(WEAPON_MG, null), new WeaponCandidate(WEAPON_CANNON, AMMO_ANTI_INFANTRY));
+    private static final List<WeaponCandidate> VS_INFANTRY = List.of(
+            new WeaponCandidate(WEAPON_CANNON, AMMO_ANTI_INFANTRY), new WeaponCandidate(WEAPON_MG, null));
+
     private VehicleWeapons() {}
 
     /**
@@ -256,8 +273,6 @@ public final class VehicleWeapons {
         if (weaponCount == 0) return UNCLASSIFIED; // weaponless seat — nothing to select
 
         int[] slot = resolveRoleSlots(vehicle, seatIndex, weaponCount);
-        int cannon = slot[WEAPON_CANNON];
-        int mg = slot[WEAPON_MG];
         int special = slot[WEAPON_SPECIAL];
 
         // Last resort when a role lookup misses. NOT slot 0: on a hull whose first
@@ -273,15 +288,31 @@ public final class VehicleWeapons {
         if (special >= 0 && specialReady(vehicle, seatIndex, special)
                 && specialLinedUp(vehicle, shooter, target)) {
             chosen = special;
-        } else if (target.getVehicle() instanceof VehicleEntity hull) {
-            chosen = cannon >= 0 ? cannon : fallback;
-            ammo = hull.getMaxHealth() >= ARMORED_HEALTH ? AMMO_ANTI_ARMOR : AMMO_ANTI_LIGHT;
-        } else if (target.getMaxHealth() < SOFT_HEALTH && mg >= 0) {
-            chosen = mg;
         } else {
-            // Tough infantry, or a hull with no MG to answer with — grapeshot.
-            chosen = cannon >= 0 ? cannon : (mg >= 0 ? mg : fallback);
-            ammo = AMMO_ANTI_INFANTRY;
+            List<WeaponCandidate> candidates = target.getVehicle() instanceof VehicleEntity hull
+                    ? (hull.getMaxHealth() >= ARMORED_HEALTH ? VS_ARMORED : VS_LIGHT_VEHICLE)
+                    : (target.getMaxHealth() < SOFT_HEALTH ? VS_SOFT_MOB : VS_INFANTRY);
+
+            chosen = -1;
+            String[] chosenAmmo = null;
+            for (WeaponCandidate c : candidates) {
+                int slotIdx = slot[c.role()];
+                if (slotIdx < 0) continue;
+                if (hasUsableAmmo(vehicle, seatIndex, slotIdx, c.ammoPreferences())) {
+                    chosen = slotIdx;
+                    chosenAmmo = c.ammoPreferences();
+                    break;
+                }
+            }
+            if (chosen < 0) {
+                // Every candidate on the table is dry — commit to doctrine's first choice anyway,
+                // same as before this feature existed: an empty chamber the AI can't refill is not
+                // worse than firing nothing at all.
+                WeaponCandidate first = candidates.get(0);
+                chosen = slot[first.role()] >= 0 ? slot[first.role()] : fallback;
+                chosenAmmo = first.ammoPreferences();
+            }
+            ammo = chosenAmmo;
         }
 
         // Nothing on this seat is usable (every slot is a placeholder) — leave the
@@ -541,6 +572,44 @@ public final class VehicleWeapons {
     }
 
     /**
+     * True when {@code weaponIndex} has at least one round it could fire right now — read-only,
+     * never switches the chambered shell. {@code preferences} null means a single-ammo-type
+     * weapon (an MG): usable if any of its consumers (normally exactly one) is non-empty.
+     * Otherwise usable if any consumer matching a preference is non-empty, mirroring the same
+     * suffix match {@link #selectCannonAmmo} commits with.
+     *
+     * <p>Drives the cross-role fallback in {@link #selectWeaponForTarget}: doctrine's first
+     * choice is skipped in favor of the next candidate on the table when this reads false,
+     * rather than the crew staying parked on a dry slot.
+     */
+    private static boolean hasUsableAmmo(VehicleEntity vehicle, int seatIndex, int weaponIndex,
+                                         @javax.annotation.Nullable String[] preferences) {
+        try {
+            GunData gun = gunData(vehicle, seatIndex, weaponIndex);
+            if (gun == null) return true; // unreadable — don't let doctrine steer away on bad data
+            List<AmmoConsumer> consumers = gun.get(GunProp.AMMO_CONSUMER);
+            if (consumers == null || consumers.isEmpty()) return true; // no ammo concept at all
+
+            Entity supplier = vehicle.getAmmoSupplier();
+            Entity source = supplier != null ? supplier : vehicle;
+            if (preferences == null) {
+                for (AmmoConsumer c : consumers) {
+                    if (c != null && c.count(gun, source) > 0) return true;
+                }
+                return false;
+            }
+            for (String want : preferences) {
+                for (AmmoConsumer c : consumers) {
+                    if (c != null && lower(c.getAmmo()).endsWith(want) && c.count(gun, source) > 0) return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            return true; // defensive: unreadable data must never block a shot the AI would otherwise take
+        }
+    }
+
+    /**
      * Turn one weapon's ammo revolver to the first preference in {@code preferences} the
      * hull actually carries. AP/HE/GS on a cannon are not separate weapon slots — they are
      * {@code AmmoType} entries on the SAME slot, each overriding the gun's props — so this
@@ -556,7 +625,6 @@ public final class VehicleWeapons {
      * <p>A preference the hull has run out of is skipped rather than selected: an empty
      * chamber the AI can't refill is worse than the wrong shell.
      */
-    // TODO(phase2-ammo-scoring): see VehicleWeapons_ScoreRefactor_PLAN.md
     private static void selectCannonAmmo(VehicleEntity vehicle, int seatIndex, int weaponIndex,
                                          String[] preferences) {
         try {

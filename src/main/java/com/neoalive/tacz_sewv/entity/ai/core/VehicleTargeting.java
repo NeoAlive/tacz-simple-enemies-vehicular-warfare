@@ -67,6 +67,20 @@ public final class VehicleTargeting {
     // Ring around an allied crew an idle unit settles into to join its fight.
     private static final double ASSIST_RING_RADIUS = 16.0;
     private static final double ASSIST_RING_DEADBAND = 4.0;
+    /**
+     * How long an idle crew stays committed to reinforcing one ally before it may peel onto a
+     * different one — see {@link AllyAssist#assistTargetPos(AbstractUnit, VehicleEntity,
+     * Predicate, int, double)}'s {@code newEngagementCooldown} parameter. Matches
+     * {@code PatrolSupport.SEARCH_ASSIST_COOLDOWN}'s already-vetted value for the same doctrine.
+     * Traced live: without this, {@code findAllyInCombat}'s "nearest ally currently in combat"
+     * re-scan (on its own {@code VEHICLE_TARGET_SCAN_INTERVAL_TICKS} cadence) has nothing to stop
+     * it flipping to a DIFFERENT ally every scan whenever two allies' in-combat status alternates
+     * (one breaks contact just as the other regains it) — confirmed via a live log trace showing
+     * an idle RU crew's destination jumping between two allies' positions ~100 blocks apart,
+     * several times a second, with {@code VehicleTargetScanGoal} itself reporting no target of
+     * its own the whole time (ruling out the crew's own fight as the cause).
+     */
+    private static final int ASSIST_ENGAGEMENT_COOLDOWN = 400; // 20s at 20 ticks/s
     // How close a hull parks to an ordinary destination, on top of its own width. Deliberately
     // loose: closing to within a hull length of a combat approach is the last thing armor should
     // do. A formation slot and a player MOVE click need the opposite — see arrivalDistance.
@@ -89,8 +103,12 @@ public final class VehicleTargeting {
         if (!(unit instanceof PmcUnitEntity pmc)) {
             LivingEntity target = unit.getTarget();
             if (target != null) return target.blockPosition();
-            // No fight of our own — reinforce a nearby allied crew that has one.
-            BlockPos aid = assist != null ? assist.assistTargetPos(unit, vehicle) : null;
+            // No fight of our own — reinforce a nearby allied crew that has one. Cooldown-gated
+            // (see ASSIST_ENGAGEMENT_COOLDOWN) so this doesn't peel onto a different ally every
+            // scan interval.
+            BlockPos aid = assist != null
+                    ? assist.assistTargetPos(unit, vehicle, null, ASSIST_ENGAGEMENT_COOLDOWN, 0.0)
+                    : null;
             // Nothing to reinforce either: potter about rather than park like a statue.
             return aid != null ? aid : IdleSupport.wanderPos(unit, vehicle);
         }
@@ -132,8 +150,11 @@ public final class VehicleTargeting {
                 }
                 // Free-firing with nothing to shoot — reinforce an allied crew in combat, and failing
                 // that idle about. FREE_FIRE is the only order that idles: every other one is a
-                // positional instruction the player expects to be obeyed exactly.
-                BlockPos support = assist != null ? assist.assistTargetPos(unit, vehicle) : null;
+                // positional instruction the player expects to be obeyed exactly. Cooldown-gated —
+                // see ASSIST_ENGAGEMENT_COOLDOWN.
+                BlockPos support = assist != null
+                        ? assist.assistTargetPos(unit, vehicle, null, ASSIST_ENGAGEMENT_COOLDOWN, 0.0)
+                        : null;
                 return support != null ? support : IdleSupport.wanderPos(unit, vehicle);
 
             case FOLLOW_COMMANDER:
@@ -297,12 +318,6 @@ public final class VehicleTargeting {
         private VehicleEntity assistAlly;
         private long lastAssistScanTime = Long.MIN_VALUE;
         private long lastEngagementTime = Long.MIN_VALUE;
-
-        // Drive-to point for reinforcing an ally, or null when there is nothing to
-        // reinforce (or we're already inside the ally's ring — arrival, not failure).
-        public BlockPos assistTargetPos(AbstractUnit unit, VehicleEntity vehicle) {
-            return assistTargetPos(unit, vehicle, null, 0, 0.0);
-        }
 
         /**
          * Same, but restricted to allies passing {@code allyFilter} (null = any), optionally

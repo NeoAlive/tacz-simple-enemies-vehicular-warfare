@@ -799,7 +799,8 @@ public class SewvCommand {
                 ? explicitPos
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
 
-        VehicleEntity weapon = EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null);
+        VehicleEntity weapon = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
+                () -> EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null));
         if (weapon == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.emplacement_fail"));
             return 0;
@@ -927,7 +928,8 @@ public class SewvCommand {
         BlockPos pos = explicitPos != null
                 ? explicitPos
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
-        VehicleEntity heli = TankSpawner.spawnHeliWithCrew(level, pos, faction, ownerId, vehicleId);
+        VehicleEntity heli = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
+                () -> TankSpawner.spawnHeliWithCrew(level, pos, faction, ownerId, vehicleId));
 
         if (heli == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
@@ -960,7 +962,8 @@ public class SewvCommand {
         BlockPos pos = explicitPos != null
                 ? explicitPos
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
-        VehicleEntity tank = TankSpawner.spawnTankWithCrew(level, pos, faction, ownerId, vehicleId);
+        VehicleEntity tank = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
+                () -> TankSpawner.spawnTankWithCrew(level, pos, faction, ownerId, vehicleId));
 
         if (tank == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
@@ -989,7 +992,8 @@ public class SewvCommand {
         // water, so the source position's raw X/Z (with its own Y only as a chunk-unloaded
         // fallback) is all it needs.
         BlockPos requestedPos = explicitPos != null ? explicitPos : BlockPos.containing(source.getPosition());
-        VehicleEntity ship = TankSpawner.spawnShipWithCrew(level, requestedPos, faction, ownerId, vehicleId);
+        VehicleEntity ship = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
+                () -> TankSpawner.spawnShipWithCrew(level, requestedPos, faction, ownerId, vehicleId));
 
         if (ship == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
@@ -1017,7 +1021,8 @@ public class SewvCommand {
         BlockPos requestedPos = explicitPos != null
                 ? explicitPos
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
-        VehicleEntity plane = TankSpawner.spawnPlaneWithCrew(level, requestedPos, faction, ownerId, vehicleId);
+        VehicleEntity plane = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
+                () -> TankSpawner.spawnPlaneWithCrew(level, requestedPos, faction, ownerId, vehicleId));
 
         if (plane == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));

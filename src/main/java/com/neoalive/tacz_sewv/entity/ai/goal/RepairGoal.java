@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.RepairLockSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
 
@@ -99,6 +100,10 @@ public class RepairGoal extends Goal {
     @Override
     public void stop() {
         this.unit.getNavigation().stop();
+        // Clean exit (repaired to full, target destroyed, engineer reassigned/engaged) — release the
+        // hull instantly rather than waiting out RepairLockSupport's grace period, which exists for
+        // the unclean exits (engineer dies/despawns) this stop() is never called for.
+        if (this.target != null) RepairLockSupport.clear(this.target);
         this.target = null;
         this.approachTicks = 0;
         this.working = false;
@@ -122,6 +127,10 @@ public class RepairGoal extends Goal {
         }
         this.working = true;
         this.unit.getNavigation().stop();
+        // Holds the hull still while it's genuinely being worked on — refreshed every tick in the
+        // work band, independent of the heal cooldown below, so the lock tracks "an engineer is
+        // standing here" rather than "a heal just landed".
+        RepairLockSupport.refresh(this.target);
 
         if (this.cooldown > 0) {
             this.cooldown--;

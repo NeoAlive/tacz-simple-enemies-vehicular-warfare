@@ -33,6 +33,23 @@ public final class SupportSpawner {
 
     public enum SupportRole { MEDIC, ENGINEER, COMBAT_ENGINEER }
 
+    private static boolean companionRollSuppressed = false;
+
+    /**
+     * Runs {@code spawnAction} with the ambient companion roll disabled — for {@code /sewv spawn}'s
+     * debug crews, which already have dedicated support-spawn commands, so the command stays
+     * deterministic rather than seeding an extra medic/engineer nobody asked for.
+     */
+    public static <T> T withoutCompanions(java.util.function.Supplier<T> spawnAction) {
+        boolean previous = companionRollSuppressed;
+        companionRollSuppressed = true;
+        try {
+            return spawnAction.get();
+        } finally {
+            companionRollSuppressed = previous;
+        }
+    }
+
     /** Spawn a support unit of the given faction/role at {@code pos}, kitted and ready. */
     @Nullable
     public static AbstractUnit spawn(ServerLevel level, BlockPos pos, boolean ru, SupportRole role) {
@@ -58,6 +75,7 @@ public final class SupportSpawner {
      * <p>Combat engineers are command/egg-only for the Stage 3 MVP (no ambient companion roll).
      */
     public static void maybeSpawnCompanions(AbstractUnit unit) {
+        if (companionRollSuppressed) return;
         if (!(unit.level() instanceof ServerLevel level)) return;
         // Exact class: only plain RU/US units seed companions — not medics, engineers, or PMC.
         boolean ru = unit.getClass() == RUunitEntity.class;

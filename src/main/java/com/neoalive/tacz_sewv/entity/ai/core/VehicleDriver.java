@@ -16,6 +16,7 @@ import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import com.neoalive.tacz_sewv.entity.ai.sensor.GroundTerrainSensor;
+import com.neoalive.tacz_sewv.entity.ai.support.RepairLockSupport;
 
 /**
  * Makes a ground hull go where it is told. Knows nothing about why.
@@ -170,6 +171,7 @@ public final class VehicleDriver {
      * which reset the turn ramp constantly and left the tank pivoting in place forever.
      */
     public void navigateTo(BlockPos dest, double distanceSq) {
+        if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
         dest = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjust(this.vehicle, dest);
         // Bank-lip reverse: face the blocked destination (usually into the water) and reverse off
         // the overhang. Abort if SBW reports wet — that is the existing escape-hatch case, not
@@ -273,6 +275,7 @@ public final class VehicleDriver {
      * different episodes and must not share commitment state.
      */
     public void retreatFrom(BlockPos targetPos, double retreatRadius, double distanceSq) {
+        if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
         Vec3 toTarget = new Vec3(
                 targetPos.getX() + 0.5 - this.vehicle.getX(),
                 0,
@@ -321,6 +324,7 @@ public final class VehicleDriver {
      * a plain deadband is correct there since {@code steer} is known-good, not a scan for one.
      */
     public void faceHeading(Vec3 dir) {
+        if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, dir);
         if (Math.abs(angle) < FACING_DEADBAND_RAD) {

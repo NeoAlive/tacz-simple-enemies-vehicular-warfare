@@ -304,6 +304,7 @@
   "tooltip.tacz_sewv.lock.unlock": "Sneak + right-click to remove the lock.",
   "message.tacz_sewv.lock.applied": "Vehicle locked against RU/US crews.",
   "message.tacz_sewv.lock.cleared": "Vehicle unlocked.",
+  "message.tacz_sewv.revive.complete": "Revived.",
   "message.tacz_sewv.medal.promoted": "Unit promoted to Commander!",
   "message.tacz_sewv.medal.not_pmc": "Only a regular PMC unit can receive this.",
   "message.tacz_sewv.medal.not_yours": "That unit is not yours.",

@@ -107,6 +107,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PMC_REVIVE_SEARCH_RADIUS;
     public static final ForgeConfigSpec.IntValue PMC_REVIVE_CHANNEL_TICKS;
     public static final ForgeConfigSpec.BooleanValue PMC_REVIVE_FORCE_SINGLEPLAYER;
+    public static final ForgeConfigSpec.BooleanValue PMC_DOWNED_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue PMC_DOWNED_HEALTH;
+    public static final ForgeConfigSpec.IntValue PMC_DOWNED_BLEED_TICKS;
+    public static final ForgeConfigSpec.DoubleValue PMC_DOWNED_REVIVE_HEALTH;
     public static final ForgeConfigSpec.BooleanValue HEALTH_MOBILITY_ENABLED;
     public static final ForgeConfigSpec.DoubleValue HEALTH_MOBILITY_FLOOR;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SPAWN_CHANCE;
@@ -489,6 +493,16 @@ public final class SewvConfig {
                         + "servers (equivalent to setting PlayerReviveMod's own bleedInSingleplayer option). "
                         + "Without this, a singleplayer death never bleeds out and PMC auto-revive has nothing to do.")
                 .define("pmcReviveForceSingleplayer", true);
+        PMC_DOWNED_ENABLED = builder.comment(
+                "PMC units go down instead of dying and can be revived (by a player interacting with "
+                        + "them, or by a medic PMC) instead of dying outright. RU/US always just die.")
+                .define("pmcDownedEnabled", true);
+        PMC_DOWNED_HEALTH = builder.comment("Health a PMC is left with the moment it goes down.")
+                .defineInRange("pmcDownedHealth", 4.0, 1.0, 20.0);
+        PMC_DOWNED_BLEED_TICKS = builder.comment("Ticks a downed PMC has before it dies for real if not revived.")
+                .defineInRange("pmcDownedBleedTicks", 1200, 100, 6000);
+        PMC_DOWNED_REVIVE_HEALTH = builder.comment("Health a PMC is restored to when successfully revived.")
+                .defineInRange("pmcDownedReviveHealth", 6.0, 1.0, 40.0);
         HEALTH_MOBILITY_ENABLED = builder.comment("Damaged AI vehicles move more slowly.")
                 .define("healthMobilityEnabled", true);
         HEALTH_MOBILITY_FLOOR = builder.comment("Slowest a wrecked hull still moves (0.4 = 40% of normal speed).")

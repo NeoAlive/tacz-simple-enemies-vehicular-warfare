@@ -90,7 +90,9 @@ public class NetworkHandler {
     // 57: team_base enemyTeams list on open+save packets.
     // 58: team_base open packet carries per-faction GROUND (armor) pools for autofill.
     // 59: PacketPlaneLandingDebug + PacketClearPlaneLandingDebug (sewvPlaneCombatDebug Dubins wireframe).
-    private static final String PROTOCOL_VERSION = "60";
+    // 60: PacketReviveProgress (S->C revival ring, PlayerReviveGoal/PmcReviveGoal/PmcDownedSupport).
+    // 61: PacketHoldRevive (C->S hold-left-click-to-revive a downed PMC).
+    private static final String PROTOCOL_VERSION = "62";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -411,6 +413,24 @@ public class NetworkHandler {
                 PacketClearPlaneLandingDebug::encode,
                 PacketClearPlaneLandingDebug::new,
                 PacketClearPlaneLandingDebug::handle
+        );
+
+        // S->C, revival progress ring (RevivalRingOverlay).
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketReviveProgress.class,
+                PacketReviveProgress::encode,
+                PacketReviveProgress::new,
+                PacketReviveProgress::handle
+        );
+
+        // C->S, hold-left-click-to-revive (ReviveHoldInput / PmcDownedSupport.handleHoldRevive).
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketHoldRevive.class,
+                PacketHoldRevive::encode,
+                PacketHoldRevive::new,
+                PacketHoldRevive::handle
         );
     }
 }

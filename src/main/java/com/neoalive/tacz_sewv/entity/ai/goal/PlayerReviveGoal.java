@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 import java.util.Comparator;
 import java.util.EnumSet;
 
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -11,6 +13,8 @@ import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
+import com.neoalive.tacz_sewv.network.PacketReviveProgress;
 
 /**
  * Any friendly PMC — no medical kit or {@code SupportRole.MEDIC} required, unlike {@link MedicGoal} —
@@ -25,6 +29,16 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
  * {@link PlayerReviveCompat#revive} once. Two PMCs racing the same downed player is harmless: whichever
  * finishes first revives them, and the other's {@link #canContinueToUse} fails on its next check
  * because {@link PlayerReviveCompat#isDowned} has gone false, so it stops cleanly with no lock needed.
+ *
+ * <p>Because the reviver never joins {@code revivingPlayers()}, PlayerReviveMod's own progress
+ * bar / helper HUD never moves — that UI is driven entirely by that list's size, which an NPC
+ * structurally cannot join (see above), and injecting a fake entry (e.g. a Forge {@code FakePlayer})
+ * risks crashing PlayerReviveMod's own packet code, which assumes a real connection. So the downed
+ * player instead gets this mod's own ring widget ({@code sendRingProgress} →
+ * {@code PacketReviveProgress} → {@code RevivalRingOverlay} — SBW's own artillery-indicator ring,
+ * reinvoked for this), independent of PlayerReviveMod's HUD entirely. An earlier version also sent a
+ * repeating action-bar percentage; removed once the ring existed to show the same thing, keeping
+ * only the one-shot "Revived." message on completion.
  *
  * <p><b>Priority 1, and it deliberately does NOT yield to combat</b> — same reasoning as
  * {@code EscortGoal}: SEM's own chase goal ({@code MoveToAttackRangeGoal}) and rifle goal
@@ -55,6 +69,10 @@ public class PlayerReviveGoal extends Goal {
     private int approachTicks;
     /** Ticks left in the in-place revive channel once in range. */
     private int channelTicksLeft;
+    /** Total channel length for this session, fixed at {@link #start()} — the ring's denominator. */
+    private int channelTicksTotal;
+    /** One "reviving" voiceline per session, played when the channel starts, not when it ends. */
+    private boolean revivingVoiced;
 
     public PlayerReviveGoal(PmcUnitEntity unit) {
         this.unit = unit;
@@ -92,25 +110,37 @@ public class PlayerReviveGoal extends Goal {
     @Override
     public void start() {
         this.approachTicks = 0;
-        this.channelTicksLeft = SewvConfig.PMC_REVIVE_CHANNEL_TICKS.get();
+        this.channelTicksTotal = SewvConfig.PMC_REVIVE_CHANNEL_TICKS.get();
+        this.channelTicksLeft = this.channelTicksTotal;
+        this.revivingVoiced = false;
         this.unit.getNavigation().moveTo(this.patient, 1.0);
     }
 
     @Override
     public void stop() {
         this.unit.getNavigation().stop();
+        if (this.patient instanceof ServerPlayer sp) {
+            PacketReviveProgress.sendTo(sp, 0.0F, false);
+        }
         this.patient = null;
         this.approachTicks = 0;
         this.channelTicksLeft = 0;
+        this.revivingVoiced = false;
+        MedicControl.setTreating(this.unit, false);
     }
 
     @Override
     public void tick() {
         if (this.patient == null) return;
-        this.approachTicks++;
 
         this.unit.getLookControl().setLookAt(this.patient, 30.0F, 30.0F);
         if (this.unit.distanceToSqr(this.patient) > REVIVE_DISTANCE_SQ) {
+            // Only the walk-over counts against the approach budget — once channeling starts
+            // below, it must not also burn this timeout, or a long walk plus the channel itself
+            // can together exceed MAX_APPROACH_TICKS and abort a revive that was already in
+            // progress.
+            this.approachTicks++;
+            MedicControl.setTreating(this.unit, false);
             // Repath only once the last one has run out — an unreachable patient reports "done"
             // every tick and would otherwise force a full path search every tick until timeout.
             if (this.unit.getNavigation().isDone()) {
@@ -119,14 +149,36 @@ public class PlayerReviveGoal extends Goal {
             return;
         }
         this.unit.getNavigation().stop();
+        // Hides the held weapon (UnitHolster.hideHeldItems) and drives the treating animation for
+        // the whole in-range session, same as MedicGoal — a PMC administering aid should not be
+        // seen with a rifle up.
+        MedicControl.setTreating(this.unit, true);
+        if (!this.revivingVoiced) {
+            this.revivingVoiced = true;
+            // No dedicated "revive" voiceline/audio asset exists; HEALING is the closest existing
+            // fit. Played when the channel STARTS, so it lands while the revive is happening.
+            CrewRadio.speakUnit(this.unit, CrewRadio.Line.HEALING);
+        }
+
+        sendRingProgress();
 
         this.channelTicksLeft--;
         if (this.channelTicksLeft > 0) return;
 
         PlayerReviveCompat.revive(this.patient);
-        // No dedicated "revive" voiceline/audio asset exists; HEALING is the closest existing fit.
-        CrewRadio.speakUnit(this.unit, CrewRadio.Line.HEALING);
+        this.patient.displayClientMessage(Component.translatable("message.tacz_sewv.revive.complete"), true);
+        if (this.patient instanceof ServerPlayer sp) {
+            PacketReviveProgress.sendTo(sp, 1.0F, false);
+        }
         this.patient = null; // end the goal now rather than waiting for isDowned() to catch up
+    }
+
+    /** Ring update every tick (unlike the throttled action-bar text) — cheap, and smooth matters here. */
+    private void sendRingProgress() {
+        if (!(this.patient instanceof ServerPlayer sp)) return;
+        float fraction = this.channelTicksTotal <= 0 ? 1.0F
+                : 1.0F - (float) this.channelTicksLeft / this.channelTicksTotal;
+        PacketReviveProgress.sendTo(sp, fraction, true);
     }
 
     /**

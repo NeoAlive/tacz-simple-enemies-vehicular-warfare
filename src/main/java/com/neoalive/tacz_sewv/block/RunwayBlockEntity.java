@@ -60,6 +60,14 @@ public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
     private double slotFactor = SewvConfig.AIRPORT_SLOT_SIZE_FACTOR.get();
     private double bufferFactor = SewvConfig.AIRPORT_SLOT_BUFFER_FACTOR.get();
     private double extraFactor = SewvConfig.AIRPORT_EXTRA_TAKEOFF_FACTOR.get();
+    /**
+     * Which end of the strip the owner wants slot 0 (and the approach) anchored at — same
+     * {@code fromHighEnd} flag {@link com.neoalive.tacz_sewv.airport.AirportClearance#evaluate}
+     * already takes: {@code false} is the low-X/low-Z end of the two corners, {@code true} the
+     * high one. Only a preference: the clearance check still falls back to the other end if this
+     * one's approach is obstructed, same as the old auto-picked behaviour when nobody had one.
+     */
+    private boolean fromHighEnd;
     /** Derived from the four numbers above; rebuilt whenever they change, never saved. */
     @Nullable private AirportRegistry.Airport airport;
     /**
@@ -92,11 +100,18 @@ public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
     public double getSlotFactor() { return slotFactor; }
     public double getBufferFactor() { return bufferFactor; }
     public double getExtraFactor() { return extraFactor; }
+    public boolean isFromHighEnd() { return fromHighEnd; }
 
     public void setFactors(double slotFactor, double bufferFactor, double extraFactor) {
         this.slotFactor = slotFactor;
         this.bufferFactor = bufferFactor;
         this.extraFactor = extraFactor;
+        this.airport = null;
+        setChanged();
+    }
+
+    public void setFromHighEnd(boolean fromHighEnd) {
+        this.fromHighEnd = fromHighEnd;
         this.airport = null;
         setChanged();
     }
@@ -251,6 +266,7 @@ public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
         tag.putDouble("SlotFactor", slotFactor);
         tag.putDouble("BufferFactor", bufferFactor);
         tag.putDouble("ExtraFactor", extraFactor);
+        tag.putBoolean("FromHighEnd", fromHighEnd);
         if (touchdown != null) tag.putLong("Touchdown", touchdown.asLong());
         if (threshold != null) tag.putLong("Threshold", threshold.asLong());
     }
@@ -269,6 +285,7 @@ public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
         if (tag.contains("SlotFactor")) slotFactor = tag.getDouble("SlotFactor");
         if (tag.contains("BufferFactor")) bufferFactor = tag.getDouble("BufferFactor");
         if (tag.contains("ExtraFactor")) extraFactor = tag.getDouble("ExtraFactor");
+        fromHighEnd = tag.getBoolean("FromHighEnd");
         touchdown = tag.contains("Touchdown") ? BlockPos.of(tag.getLong("Touchdown")) : null;
         threshold = tag.contains("Threshold") ? BlockPos.of(tag.getLong("Threshold")) : null;
         airport = null;

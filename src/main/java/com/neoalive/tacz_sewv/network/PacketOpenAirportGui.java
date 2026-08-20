@@ -31,11 +31,13 @@ public class PacketOpenAirportGui {
     private final float slotFactor;
     private final float bufferFactor;
     private final float extraFactor;
+    private final boolean fromHighEnd;
 
     public PacketOpenAirportGui(BlockPos pos, int x1, int z1, int x2, int z2, boolean cleared,
                                 AirportClearance.Status status, @Nullable BlockPos blocker,
                                 int length, int width, int capacity,
-                                float slotFactor, float bufferFactor, float extraFactor) {
+                                float slotFactor, float bufferFactor, float extraFactor,
+                                boolean fromHighEnd) {
         this.pos = pos;
         this.x1 = x1;
         this.z1 = z1;
@@ -50,6 +52,7 @@ public class PacketOpenAirportGui {
         this.slotFactor = slotFactor;
         this.bufferFactor = bufferFactor;
         this.extraFactor = extraFactor;
+        this.fromHighEnd = fromHighEnd;
     }
 
     public PacketOpenAirportGui(FriendlyByteBuf buf) {
@@ -67,6 +70,7 @@ public class PacketOpenAirportGui {
         this.slotFactor = buf.readFloat();
         this.bufferFactor = buf.readFloat();
         this.extraFactor = buf.readFloat();
+        this.fromHighEnd = buf.readBoolean();
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -85,6 +89,7 @@ public class PacketOpenAirportGui {
         buf.writeFloat(this.slotFactor);
         buf.writeFloat(this.bufferFactor);
         buf.writeFloat(this.extraFactor);
+        buf.writeBoolean(this.fromHighEnd);
     }
 
     public static PacketOpenAirportGui open(RunwayBlockEntity runway) {
@@ -96,7 +101,7 @@ public class PacketOpenAirportGui {
                 null,
                 0, 0, 0,
                 (float) runway.getSlotFactor(), (float) runway.getBufferFactor(),
-                (float) runway.getExtraFactor());
+                (float) runway.getExtraFactor(), runway.isFromHighEnd());
     }
 
     public static PacketOpenAirportGui result(RunwayBlockEntity runway, AirportClearance.Status status,
@@ -108,7 +113,8 @@ public class PacketOpenAirportGui {
             AirportClearance.Result geo = AirportClearance.evaluate(
                     runway.corner1(), runway.corner2(), runway.getBlockPos().getY(),
                     AirportClearance.Rules.forRunway(runway.getSlotFactor(),
-                            runway.getBufferFactor(), runway.getExtraFactor()));
+                            runway.getBufferFactor(), runway.getExtraFactor()),
+                    runway.isFromHighEnd());
             length = geo.length();
             width = geo.width();
             capacity = geo.slots() == null ? 0 : geo.slots().capacity();
@@ -121,7 +127,7 @@ public class PacketOpenAirportGui {
                 blocker,
                 length, width, capacity,
                 (float) runway.getSlotFactor(), (float) runway.getBufferFactor(),
-                (float) runway.getExtraFactor());
+                (float) runway.getExtraFactor(), runway.isFromHighEnd());
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -131,7 +137,7 @@ public class PacketOpenAirportGui {
             AirportClient.open(
                     this.pos, this.x1, this.z1, this.x2, this.z2, this.cleared,
                     st, this.blocker, this.length, this.width, this.capacity,
-                    this.slotFactor, this.bufferFactor, this.extraFactor);
+                    this.slotFactor, this.bufferFactor, this.extraFactor, this.fromHighEnd);
         }));
         ctx.get().setPacketHandled(true);
     }

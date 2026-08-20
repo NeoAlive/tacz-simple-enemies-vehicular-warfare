@@ -493,6 +493,8 @@
   "gui.tacz_sewv.airport.diagram.legend": "%d slots · slot %db · gap %db · run %db · %d x %d",
   "gui.tacz_sewv.airport.preview.on": "Preview: ON",
   "gui.tacz_sewv.airport.preview.off": "Preview: OFF",
+  "gui.tacz_sewv.airport.flip_start": "Flip Start End",
+  "gui.tacz_sewv.airport.preview.note": "Green box = the runway. Orange box = where parking starts.",
   "gui.tacz_sewv.airport.status.ok": "Cleared — airport %s, %d x %d, %d parking slots",
   "gui.tacz_sewv.airport.status.aspect": "Not runway-shaped: needs a %.1f:1 long:short ratio.",
   "gui.tacz_sewv.airport.status.too_short": "Long side is %d, needs %d blocks.",

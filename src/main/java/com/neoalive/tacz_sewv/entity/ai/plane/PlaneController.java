@@ -134,6 +134,14 @@ public final class PlaneController {
         this.vehicle.setDownInputDown(true);
     }
 
+    /**
+     * The one control surface with a physics consequence, not just a visual one: SBW treats a hard
+     * ground contact with the gear even partway retracted as a strike impact (damage + bounce)
+     * rather than a landing, and separately forces it back down ({@code gearUp = false}) every tick
+     * the hull is already {@code onGround()} regardless of what is commanded here. So
+     * {@code gear(false)} while still airborne on approach is what actually matters — the
+     * ground-contact case is belt and braces.
+     */
     public void gear(boolean up) {
         this.vehicle.setGearUp(up);
     }

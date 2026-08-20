@@ -125,10 +125,33 @@ public final class PlaneController {
                 want && Math.floorMod(gameTime, BRAKE_PERIOD) < BRAKE_ON_TICKS);
     }
 
-    /** Throttle closed and braking: only correct in the flare, where the wing is done working. */
+    /**
+     * Throttle closed and braking: only correct in the flare, where the wing is done working.
+     *
+     * <p>{@code backInputDown} is doing two jobs here on purpose. Airborne it is just extra drag —
+     * SBW clamps the power it drives toward at {@code 0.025}, never negative — but the moment the
+     * hull is {@code onGround()} that same input drives power toward {@code -0.2}, i.e. reverse
+     * thrust, which is exactly the mechanism a runway rollout wants for backing into a parking
+     * slot. Anything that stops on the ground with no slot to back into (see {@link #groundBrake})
+     * must not hold this past touchdown.
+     */
     public void idleAndBrake() {
         this.vehicle.setForwardInputDown(false);
         this.vehicle.setBackInputDown(true);
+        this.vehicle.setLeftInputDown(false);
+        this.vehicle.setRightInputDown(false);
+        this.vehicle.setDownInputDown(true);
+    }
+
+    /**
+     * Airbrake only, no reverse thrust: a ground stop for a hull with nowhere to back into.
+     * {@link #idleAndBrake} is the wrong tool once down — its held {@code backInputDown} is what a
+     * runway rollout uses to reverse-taxi into a parking slot, and holding it after an emergency
+     * touchdown makes the hull back up as if one existed.
+     */
+    public void groundBrake() {
+        this.vehicle.setForwardInputDown(false);
+        this.vehicle.setBackInputDown(false);
         this.vehicle.setLeftInputDown(false);
         this.vehicle.setRightInputDown(false);
         this.vehicle.setDownInputDown(true);

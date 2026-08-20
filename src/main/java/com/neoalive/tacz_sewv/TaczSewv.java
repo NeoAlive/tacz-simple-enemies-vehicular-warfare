@@ -23,6 +23,7 @@ import com.neoalive.tacz_sewv.block.TrenchPathTypes;
 import com.neoalive.tacz_sewv.command.SewvCommand;
 import com.neoalive.tacz_sewv.compat.BerezkaStructureCompat;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
+import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.NpcArmor;
@@ -110,6 +111,9 @@ public class TaczSewv {
     // Soft compat: OpenPAC is compileOnly; only the facade may touch xaero.pac.*, and only
     // after isLoaded(). reportAvailability() never classloads Access when the mod is absent.
     OpenPacCompat.reportAvailability();
+    // Soft compat: PlayerReviveMod is compileOnly; only PlayerReviveCompat may touch
+    // team.creative.playerrevive.*, and only after isLoaded().
+    PlayerReviveCompat.reportAvailability();
     LOGGER.info("SEM<->SW vehicle bridge loading");
     }
 

@@ -103,6 +103,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue MEDIC_ENABLED;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SEARCH_RADIUS;
     public static final ForgeConfigSpec.DoubleValue MEDIC_HEAL_PER_TREAT;
+    public static final ForgeConfigSpec.BooleanValue PMC_REVIVE_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue PMC_REVIVE_SEARCH_RADIUS;
+    public static final ForgeConfigSpec.IntValue PMC_REVIVE_CHANNEL_TICKS;
+    public static final ForgeConfigSpec.BooleanValue PMC_REVIVE_FORCE_SINGLEPLAYER;
     public static final ForgeConfigSpec.BooleanValue HEALTH_MOBILITY_ENABLED;
     public static final ForgeConfigSpec.DoubleValue HEALTH_MOBILITY_FLOOR;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SPAWN_CHANCE;
@@ -474,6 +478,17 @@ public final class SewvConfig {
                 .defineInRange("medicSearchRadius", 24.0, 2.0, 48.0);
         MEDIC_HEAL_PER_TREAT = builder.comment("Health restored each time a medic treats someone.")
                 .defineInRange("medicHealPerTreat", 2.0, 0.5, 20.0);
+        PMC_REVIVE_ENABLED = builder.comment("PMC soldiers automatically revive a downed player (requires PlayerReviveMod).")
+                .define("pmcReviveEnabled", true);
+        PMC_REVIVE_SEARCH_RADIUS = builder.comment("How far (blocks) a PMC looks for a downed player to revive.")
+                .defineInRange("pmcReviveSearchRadius", 32.0, 2.0, 64.0);
+        PMC_REVIVE_CHANNEL_TICKS = builder.comment("Ticks a PMC must stand next to a downed player before reviving them.")
+                .defineInRange("pmcReviveChannelTicks", 100, 20, 400);
+        PMC_REVIVE_FORCE_SINGLEPLAYER = builder.comment(
+                "Forces PlayerReviveMod's bleed-out state to work in singleplayer, not just LAN/dedicated "
+                        + "servers (equivalent to setting PlayerReviveMod's own bleedInSingleplayer option). "
+                        + "Without this, a singleplayer death never bleeds out and PMC auto-revive has nothing to do.")
+                .define("pmcReviveForceSingleplayer", true);
         HEALTH_MOBILITY_ENABLED = builder.comment("Damaged AI vehicles move more slowly.")
                 .define("healthMobilityEnabled", true);
         HEALTH_MOBILITY_FLOOR = builder.comment("Slowest a wrecked hull still moves (0.4 = 40% of normal speed).")

@@ -44,9 +44,11 @@ public class PacketAirportAction {
     private final float slotFactor;
     private final float bufferFactor;
     private final float extraFactor;
+    private final boolean fromHighEnd;
 
     public PacketAirportAction(BlockPos pos, int x1, int z1, int x2, int z2, int action,
-                               float slotFactor, float bufferFactor, float extraFactor) {
+                               float slotFactor, float bufferFactor, float extraFactor,
+                               boolean fromHighEnd) {
         this.pos = pos;
         this.x1 = x1;
         this.z1 = z1;
@@ -56,6 +58,7 @@ public class PacketAirportAction {
         this.slotFactor = slotFactor;
         this.bufferFactor = bufferFactor;
         this.extraFactor = extraFactor;
+        this.fromHighEnd = fromHighEnd;
     }
 
     public PacketAirportAction(FriendlyByteBuf buf) {
@@ -68,6 +71,7 @@ public class PacketAirportAction {
         this.slotFactor = buf.readFloat();
         this.bufferFactor = buf.readFloat();
         this.extraFactor = buf.readFloat();
+        this.fromHighEnd = buf.readBoolean();
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -80,6 +84,7 @@ public class PacketAirportAction {
         buf.writeFloat(this.slotFactor);
         buf.writeFloat(this.bufferFactor);
         buf.writeFloat(this.extraFactor);
+        buf.writeBoolean(this.fromHighEnd);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -105,11 +110,13 @@ public class PacketAirportAction {
         be.setFactors(Mth.clamp(this.slotFactor, 0.02, 0.5),
                 Mth.clamp(this.bufferFactor, 0.0, 0.2),
                 Mth.clamp(this.extraFactor, 0.0, 0.5));
+        be.setFromHighEnd(this.fromHighEnd);
         be.clearClearance();
         AirportClearance.Result result = AirportClearance.check(
                 level, be.getBlockPos(), be.corner1(), be.corner2(),
                 AirportClearance.Rules.forRunway(this.slotFactor, this.bufferFactor,
-                        this.extraFactor));
+                        this.extraFactor),
+                this.fromHighEnd);
         if (result.status() == AirportClearance.Status.OK && result.touchdown() != null) {
             be.applyClearance(result);
             AirportRegistry.Airport airport = be.airport();

@@ -994,7 +994,7 @@ public class DrivePlaneGoal extends Goal {
 
         // Airborne and clear of the terrain: gear up, hand over to the climbout.
         if (!this.vehicle.onGround() && this.kinematics.agl() >= CLIMBOUT_ABOVE_GROUND) {
-            this.vehicle.setGearUp(true);
+            this.control.gear(true);
             if (pilot != null) pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
             this.takeoffDirX = Double.NaN;
             this.takeoffDirZ = Double.NaN;
@@ -1003,7 +1003,7 @@ public class DrivePlaneGoal extends Goal {
             return;
         }
 
-        if (this.vehicle.onGround()) this.vehicle.setGearUp(false);
+        if (this.vehicle.onGround()) this.control.gear(false);
         this.control.throttleUp();
         this.control.steerYaw(new Vec3(this.takeoffDirX, 0, this.takeoffDirZ));
         boolean rotate = this.kinematics.speed() >= ROTATE_SPEED;
@@ -1013,7 +1013,7 @@ public class DrivePlaneGoal extends Goal {
     /** Straight ahead and up until the flight band is reached. No turns down here. */
     private void climbout() {
         this.control.throttleUp();
-        this.vehicle.setGearUp(true);
+        this.control.gear(true);
         Vec3 ahead = this.kinematics.forwardFlat();
         Vec3 clear = this.terrain.clearBearing(this.sensor, ahead, this.kinematics.speed());
         this.control.steerYaw(clear != null ? clear : ahead, TURN_YAW_SCALE);
@@ -1821,7 +1821,7 @@ public class DrivePlaneGoal extends Goal {
             clearLanding(pilot);
             return;
         }
-        this.vehicle.setGearUp(false);
+        this.control.gear(false);
 
         double padX = pad.getX() + 0.5;
         double padZ = pad.getZ() + 0.5;
@@ -1997,13 +1997,26 @@ public class DrivePlaneGoal extends Goal {
 
         Vec3 carrot = this.dubinsPath.pointAt(
                 Math.min(this.dubinsProgress + DUBINS_LOOKAHEAD, this.dubinsPath.totalLength()));
-        this.control.steerYaw(new Vec3(carrot.x - this.vehicle.getX(), 0,
-                carrot.z - this.vehicle.getZ()));
+        Vec3 desiredBearing = new Vec3(carrot.x - this.vehicle.getX(), 0,
+                carrot.z - this.vehicle.getZ());
 
         double transitY = Math.max(entryY,
                 AirframeSupport.highestGroundToward(this.vehicle, entry.x, entry.z, TERRAIN_LOOKAHEAD)
                         + SewvConfig.PLANE_LAND_TRANSIT_AGL.get());
-        this.control.holdAltitude(transitY);
+
+        // Same whisker check every other steering primitive in this goal (flyToward, holdAbout)
+        // goes through — AirTerrainSensor treats a nearby allied airframe as an obstacle exactly
+        // like a wall. Steering the carrot point directly, as this used to, bypassed it entirely:
+        // an arc has no notion of another aircraft sharing the same approach, so two planes each
+        // flying their own perfectly-solved Dubins entry could still fly straight into each other.
+        // The deviation check above is what turns an avoidance detour back into a fresh, valid arc.
+        Vec3 clear = this.terrain.clearBearing(this.sensor, desiredBearing, this.kinematics.speed());
+        if (clear == null) {
+            avoidBlocked(desiredBearing, transitY);
+        } else {
+            this.control.steerYaw(clear);
+            this.control.holdAltitude(heldAltitude(transitY));
+        }
 
         long now = this.unit.level().getGameTime();
         if (now - this.lastDubinsDebugSend >= DUBINS_DEBUG_HEARTBEAT_TICKS) {
@@ -2066,7 +2079,7 @@ public class DrivePlaneGoal extends Goal {
         this.vehicle.setDeltaMovement(axis.x * speed, 0.0, axis.z * speed);
         this.vehicle.setOnGround(false);
         this.vehicle.hurtMarked = true; // sync the new motion; the jump itself forces a teleport packet
-        this.vehicle.setGearUp(false);
+        this.control.gear(false);
         this.vehicle.getPersistentData().remove(TAG_TOUCHED_DOWN);
         this.kinematics.reset();
     }
@@ -2089,7 +2102,7 @@ public class DrivePlaneGoal extends Goal {
             clearLanding(pilot);
             return;
         }
-        this.vehicle.setGearUp(false);
+        this.control.gear(false);
 
         double padX = pad.getX() + 0.5;
         double padZ = pad.getZ() + 0.5;

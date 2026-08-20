@@ -37,7 +37,7 @@ import com.neoalive.tacz_sewv.network.PacketAirportAction;
  */
 public class AirportScreen extends Screen {
 
-    private static final int PANEL_W = 320;
+    private static final int PANEL_W = 400;
     private static final int PAD = 10;
     private static final int ROW_H = 16;
     private static final int ROW_GAP = 4;
@@ -82,6 +82,8 @@ public class AirportScreen extends Screen {
     private int slotPercent;
     private int bufferPercent;
     private int extraPercent;
+    /** Which end of the strip parking starts from, mirrored to/from the runway block entity. */
+    private boolean fromHighEnd;
 
     /**
      * Static, and deliberately not cleared on close: the preview is a survey aid, and its whole use
@@ -104,6 +106,7 @@ public class AirportScreen extends Screen {
     private int slidersY;
     private int diagramY;
     private int legendY;
+    private int noteY;
     private int buttonsY;
     private int statusY;
 
@@ -112,7 +115,8 @@ public class AirportScreen extends Screen {
     public AirportScreen(BlockPos pos, int x1, int z1, int x2, int z2, boolean cleared,
                          AirportClearance.Status status, @Nullable BlockPos blocker,
                          int stripLength, int stripWidth, int capacity,
-                         float slotFactor, float bufferFactor, float extraFactor) {
+                         float slotFactor, float bufferFactor, float extraFactor,
+                         boolean fromHighEnd) {
         super(Component.translatable("gui.tacz_sewv.airport.title"));
         this.pos = pos;
         this.x1 = x1;
@@ -128,6 +132,7 @@ public class AirportScreen extends Screen {
         this.slotPercent = Math.round(slotFactor * 100.0F);
         this.bufferPercent = Math.round(bufferFactor * 100.0F);
         this.extraPercent = Math.round(extraFactor * 100.0F);
+        this.fromHighEnd = fromHighEnd;
     }
 
     // --- Layout -------------------------------------------------------------
@@ -135,7 +140,7 @@ public class AirportScreen extends Screen {
     @Override
     protected void init() {
         int panelH = PAD + 16 + (ROW_H * 2 + ROW_GAP) + 8 + (ROW_H * 3 + ROW_GAP)
-                + 6 + DIAGRAM_H + 14 + BTN_H + 18 + PAD;
+                + 6 + DIAGRAM_H + 14 + 11 + BTN_H + 18 + PAD;
         this.panelLeft = (this.width - PANEL_W) / 2;
         this.panelTop = Math.max(0, (this.height - panelH) / 2);
         this.panelBottom = this.panelTop + panelH;
@@ -146,7 +151,10 @@ public class AirportScreen extends Screen {
         this.slidersY = this.fieldsY + ROW_H * 2 + ROW_GAP + 8;
         this.diagramY = this.slidersY + ROW_H * 3 + ROW_GAP + 6;
         this.legendY = this.diagramY + DIAGRAM_H + 3;
-        this.buttonsY = this.legendY + 14;
+        // Plain-language reminder of what the two preview colours mean, right above the buttons
+        // that turn them on — the diagram legend above it already covers the numbers.
+        this.noteY = this.legendY + 11;
+        this.buttonsY = this.noteY + 11;
         this.statusY = this.buttonsY + BTN_H + 6;
 
         int fieldW = (this.innerW - 6) / 2 - 18;
@@ -198,13 +206,15 @@ public class AirportScreen extends Screen {
         return this.slidersY + index * (ROW_H + 2);
     }
 
+    private static final int BUTTON_COUNT = 4;
+
     private int buttonLeft(int index) {
-        int w = (this.innerW - 8) / 3;
+        int w = (this.innerW - (BUTTON_COUNT - 1) * 4) / BUTTON_COUNT;
         return this.panelLeft + PAD + index * (w + 4);
     }
 
     private int buttonWidth() {
-        return (this.innerW - 8) / 3;
+        return (this.innerW - (BUTTON_COUNT - 1) * 4) / BUTTON_COUNT;
     }
 
     // --- State --------------------------------------------------------------
@@ -227,7 +237,8 @@ public class AirportScreen extends Screen {
                 new BlockPos(this.x2, this.pos.getY(), this.z2),
                 this.pos.getY(),
                 AirportClearance.Rules.forRunway(this.slotPercent / 100.0,
-                        this.bufferPercent / 100.0, this.extraPercent / 100.0));
+                        this.bufferPercent / 100.0, this.extraPercent / 100.0),
+                this.fromHighEnd);
     }
 
     private boolean readBoxes() {
@@ -248,7 +259,8 @@ public class AirportScreen extends Screen {
         if (!readBoxes()) return;
         NetworkHandler.CHANNEL.sendToServer(new PacketAirportAction(
                 this.pos, this.x1, this.z1, this.x2, this.z2, action,
-                this.slotPercent / 100.0F, this.bufferPercent / 100.0F, this.extraPercent / 100.0F));
+                this.slotPercent / 100.0F, this.bufferPercent / 100.0F, this.extraPercent / 100.0F,
+                this.fromHighEnd));
     }
 
     private void syncPreview() {
@@ -277,6 +289,28 @@ public class AirportScreen extends Screen {
                 new AABB(minX, airY, minZ, maxX + 1, airY + 1, maxZ + 1),
                 this.blocker,
                 r, g, b);
+        AirportPreview.setSlotStart(slotStartBox(minX, maxX, minZ, maxZ, airY));
+    }
+
+    /**
+     * The parking-slot region of the strip, trimmed off the takeoff/landing run at the far end —
+     * same box the diagram already draws flat, in the world. Only meaningful once the local plan
+     * has real slots to measure; before that (or once the shape is invalid) there is nothing to show.
+     */
+    @Nullable
+    private AABB slotStartBox(int minX, int maxX, int minZ, int maxZ, int airY) {
+        AirportClearance.Result p = this.plan;
+        if (p == null || p.status() != AirportClearance.Status.OK || p.slots() == null) return null;
+        double takeoff = p.slots().takeoffBuffer();
+        boolean longIsX = (maxX - minX) >= (maxZ - minZ);
+        if (longIsX) {
+            return this.fromHighEnd
+                    ? new AABB(minX + takeoff, airY, minZ, maxX + 1, airY + 1, maxZ + 1)
+                    : new AABB(minX, airY, minZ, maxX + 1 - takeoff, airY + 1, maxZ + 1);
+        }
+        return this.fromHighEnd
+                ? new AABB(minX, airY, minZ + takeoff, maxX + 1, airY + 1, maxZ + 1)
+                : new AABB(minX, airY, minZ, maxX + 1, airY + 1, maxZ + 1 - takeoff);
     }
 
     // --- Input --------------------------------------------------------------
@@ -295,16 +329,22 @@ public class AirportScreen extends Screen {
                 }
             }
             if (mouseY >= this.buttonsY && mouseY < this.buttonsY + BTN_H) {
-                for (int i = 0; i < 3; i++) {
+                for (int i = 0; i < BUTTON_COUNT; i++) {
                     if (mouseX < buttonLeft(i) || mouseX >= buttonLeft(i) + buttonWidth()) continue;
-                    if (i == 2 && !this.cleared) return true; // inert until the strip is cleared
+                    if (i == 3 && !this.cleared) return true; // inert until the strip is cleared
                     click();
                     switch (i) {
                         case 0 -> {
                             preview = !preview;
                             syncPreview();
                         }
-                        case 1 -> send(PacketAirportAction.ACTION_CHECK);
+                        case 1 -> {
+                            this.fromHighEnd = !this.fromHighEnd;
+                            invalidate();
+                            refreshPlan();
+                            syncPreview();
+                        }
+                        case 2 -> send(PacketAirportAction.ACTION_CHECK);
                         default -> send(PacketAirportAction.ACTION_DEPLOY);
                     }
                     return true;
@@ -371,6 +411,7 @@ public class AirportScreen extends Screen {
         renderFields(g);
         renderSliders(g, mouseX, mouseY);
         renderDiagram(g);
+        renderColorNote(g);
         renderButtons(g, mouseX, mouseY);
 
         super.render(g, mouseX, mouseY, partialTick);
@@ -486,15 +527,25 @@ public class AirportScreen extends Screen {
         g.drawString(this.font, legend, left, this.legendY, COL_MUTED, false);
     }
 
+    /**
+     * Plain-language reminder of what the two preview colours mean, for whoever opens Preview
+     * without having read the diagram legend above it first.
+     */
+    private void renderColorNote(GuiGraphics g) {
+        String note = I18n.get("gui.tacz_sewv.airport.preview.note");
+        g.drawString(this.font, note, this.panelLeft + PAD, this.noteY, COL_MUTED, false);
+    }
+
     private void renderButtons(GuiGraphics g, int mouseX, int mouseY) {
         String[] labels = {
                 I18n.get(preview ? "gui.tacz_sewv.airport.preview.on" : "gui.tacz_sewv.airport.preview.off"),
+                I18n.get("gui.tacz_sewv.airport.flip_start"),
                 I18n.get("gui.tacz_sewv.airport.check"),
                 I18n.get("gui.tacz_sewv.airport.deploy")};
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < BUTTON_COUNT; i++) {
             int x = buttonLeft(i);
             int w = buttonWidth();
-            boolean enabled = i != 2 || this.cleared;
+            boolean enabled = i != 3 || this.cleared;
             boolean hover = enabled && mouseX >= x && mouseX < x + w
                     && mouseY >= this.buttonsY && mouseY < this.buttonsY + BTN_H;
             g.fill(x, this.buttonsY, x + w, this.buttonsY + BTN_H, hover ? COL_HOVER : COL_SURFACE);

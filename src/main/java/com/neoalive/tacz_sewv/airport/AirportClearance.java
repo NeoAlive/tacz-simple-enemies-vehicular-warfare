@@ -148,7 +148,22 @@ public final class AirportClearance {
      */
     public static Result check(Level level, BlockPos runwayBlock, BlockPos corner1,
                                BlockPos corner2, Rules rules) {
-        Result geo = evaluate(corner1, corner2, runwayBlock.getY(), rules);
+        return check(level, runwayBlock, corner1, corner2, rules, false);
+    }
+
+    /**
+     * As above, with the owner's own preference for which end the strip is flown (and parked, and
+     * numbered — {@link RunwaySlots} always starts slot 0 at the threshold) from.
+     *
+     * <p>The preference still yields to an obstructed approach on that end — the corridor test
+     * above this one is a direction-picker, not a veto, and that has to stay true even when the
+     * direction was chosen on purpose: a strip the owner set up facing a hillside is still landable
+     * from the open end, and silently un-clearing it because their pick was the blocked one would
+     * be a worse outcome than quietly flying it the other way.
+     */
+    public static Result check(Level level, BlockPos runwayBlock, BlockPos corner1,
+                               BlockPos corner2, Rules rules, boolean preferHighEnd) {
+        Result geo = evaluate(corner1, corner2, runwayBlock.getY(), rules, preferHighEnd);
         if (geo.status() != Status.OK) return geo;
         BlockPos blocker = footprintClear(level, corner1, corner2, runwayBlock.getY() + 1);
         if (blocker != null) {
@@ -156,7 +171,7 @@ public final class AirportClearance {
         }
         if (approachClear(level, geo)) return geo;
 
-        Result reversed = evaluate(corner1, corner2, runwayBlock.getY(), rules, true);
+        Result reversed = evaluate(corner1, corner2, runwayBlock.getY(), rules, !preferHighEnd);
         return approachClear(level, reversed) ? reversed : geo;
     }
 

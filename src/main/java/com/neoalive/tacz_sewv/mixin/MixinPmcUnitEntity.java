@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.DiplomacyEnemyTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
@@ -35,6 +36,7 @@ import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MoveToPositionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlatoonCohesionGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.PlayerReviveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcCombatDebugGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
@@ -235,6 +237,15 @@ public abstract class MixinPmcUnitEntity
         // gives an inventory to — RU/US have no ITEM_HANDLER to hold one. Priority 2 keeps
         // first aid below anything crew-served: it only runs out of contact anyway.
         ((Mob) self).goalSelector.addGoal(2, new MedicGoal(self));
+        // Soft-compat: PlayerReviveMod. Any friendly PMC — no medical kit required, unlike
+        // MedicGoal — revives a downed player automatically; see PlayerReviveCompat/PlayerReviveGoal.
+        // Gated at goal-add time rather than inside canUse() so the goal simply doesn't exist
+        // without the mod present. Priority 1, same band as EscortGoal: a downed player is a
+        // hard timer, so unlike MedicGoal this one preempts ordinary combat (prio 3) rather than
+        // waiting for it to end — see the class doc.
+        if (PlayerReviveCompat.isLoaded()) {
+            ((Mob) self).goalSelector.addGoal(1, new PlayerReviveGoal(self));
+        }
         // The engineer half of the same idea: dormant on an ordinary PMC and live the moment a
         // player hands one a repair tool (RepairGoal gates itself on SupportRole). Same priority as
         // first aid — both are things a unit does when it is not otherwise busy — and it stands

@@ -541,6 +541,31 @@ public final class VehicleTargeting {
     }
 
     /**
+     * Whether {@code player} is a player {@code unit} should help — its own owner, or, when OpenPAC
+     * diplomacy is consulted, anyone not flagged {@code ENEMY}. Ownerless PMC crew (FRIENDLY_DEFAULT —
+     * village garrisons, berezka structures) default friendly to everyone, same as {@link #isSplashProtected}
+     * already treats them.
+     *
+     * <p>{@link #isNonHostile} is the wrong tool for a PMC asking this: its {@link #friendlyFlagShields}
+     * branch only ever answers for an RU/US shooter (built for the RU/US-vs-Player/PMC friendly-toggle
+     * case, the only one that existed before PMC auto-revive), so a {@code PmcUnitEntity} target-checking
+     * a {@code Player} always fell through to {@code false} there — nothing needed that question until
+     * {@code PlayerReviveGoal}. RU/US crews fall back to {@link #isNonHostile}, which already covers the
+     * Player case for them via that same toggle.
+     */
+    public static boolean isFriendlyPlayer(AbstractUnit unit, Player player) {
+        if (player.isCreative() || player.isSpectator()) return true;
+        if (unit instanceof PmcUnitEntity pmc) {
+            UUID owner = pmc.getOwnerUUID();
+            if (owner == null) return true;
+            if (owner.equals(player.getUUID())) return true;
+            DiplomacyEval dipl = diplomacyEval(pmc, player);
+            return dipl.consulted && dipl.relation != DiplomacyData.Relation.ENEMY;
+        }
+        return isNonHostile(unit, player);
+    }
+
+    /**
      * Whether SEWV may <b>assign</b> {@code target} to {@code unit} (scan lock, broadcast,
      * fire-mission hand-off, escort inherit). Negation of {@link #isNonHostile} — same SEM
      * faction-friendly rules as on-foot (RU/US↔Player/PMC both ways; PMC↔RU/US when that

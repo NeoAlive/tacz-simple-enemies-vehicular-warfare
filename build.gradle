@@ -334,6 +334,10 @@ mixin {
     // Separate config + KomodoMixinPlugin gate — Komodo is optional and targeted by string name
     // (no compile-time Komodo dependency needed at all, unlike Xaero).
     config "tacz_sewv.komodo.mixins.json"
+    // Separate config + PlayerReviveMixinPlugin gate — PlayerReviveMod is optional (off the run
+    // classpath unless -PwithPlayerRevive) and compileOnly like Xaero, so the mixin targets its
+    // class directly.
+    config "tacz_sewv.playerrevive.mixins.json"
 }
 
 repositories {
@@ -403,6 +407,21 @@ dependencies {
     compileOnly fg.deobf("blank:komodo:1.0")
     if (!project.hasProperty('noKomodo')) {
         runtimeOnly fg.deobf("blank:komodo:1.0")
+    }
+    // Soft: compile against PlayerReviveMod (team.creative.playerrevive). libs/playerrevive.jar is
+    // CreativeMD's own Forge 1.20.1 release jar, same flatDir pattern as the other libs/*.jar deps.
+    // No mixin needed — PlayerReviveServer.revive/isBleeding are plain static methods taking only
+    // vanilla Player, called directly from PlayerReviveCompat.
+    // Same "off by default, opt in for local testing" shape as Extermination/Configured below: the
+    // jar is off the run classpath unless requested, so PlayerReviveCompat.isLoaded() is false and
+    // PlayerReviveGoal is never added by default. PlayerReviveMod itself hard-requires CreativeCore
+    // (libs/creativecore.jar) to load at all, so that comes along under the same flag rather than
+    // being a second toggle nobody would remember to pair up.
+    //   ./gradlew runClient -PwithPlayerRevive
+    compileOnly fg.deobf("blank:playerrevive:1.0")
+    if (project.hasProperty('withPlayerRevive')) {
+        runtimeOnly fg.deobf("blank:playerrevive:1.0")
+        runtimeOnly fg.deobf("blank:creativecore:1.0")
     }
     // Soft: compile against Enhanced Falling Trees (MC 1.20/Forge 46, github.com/addavriance/
     // EnhancedFallingTrees). libs/efallingtrees.jar is its Forge release jar, same flatDir

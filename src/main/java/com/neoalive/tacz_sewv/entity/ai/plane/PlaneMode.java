@@ -36,6 +36,12 @@ public enum PlaneMode {
     LAND_FINAL,
     /** Down on a cleared strip, backing up the runway into an assigned parking slot. */
     LAND_TAXI,
+    /**
+     * A field/forced arrival with no runway to align to: point at the chosen spot, dive, take
+     * whatever is under it. Deliberately not a phase of {@code LAND_PATTERN}/{@code LAND_FINAL} —
+     * those exist to arrive clean, and an emergency arrival explicitly does not try to.
+     */
+    EMERGENCY_LAND,
     /** Down and shut off. Sticky until a new takeoff order. */
     LANDED;
 
@@ -47,11 +53,12 @@ public enum PlaneMode {
     /** Modes that own the whole tick and may not be interrupted by combat or orders. */
     public boolean isCommitted() {
         return this == TAKEOFF || this == LAND_PATTERN || this == LAND_FINAL
-                || this == LAND_TAXI || this == LANDED || this == GROUNDED;
+                || this == LAND_TAXI || this == EMERGENCY_LAND || this == LANDED || this == GROUNDED;
     }
 
     /** The landing set, for the "am I on an approach" tests that must cover every half. */
     public boolean isLanding() {
-        return this == LAND_PATTERN || this == LAND_FINAL || this == LAND_TAXI;
+        return this == LAND_PATTERN || this == LAND_FINAL || this == LAND_TAXI
+                || this == EMERGENCY_LAND;
     }
 }

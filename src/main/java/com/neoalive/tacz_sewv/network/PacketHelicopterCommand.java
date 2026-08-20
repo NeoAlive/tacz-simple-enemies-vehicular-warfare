@@ -14,7 +14,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -203,7 +202,7 @@ public class PacketHelicopterCommand {
     @Nullable
     private static BlockPos emergencyPad(ServerLevel level, VehicleEntity v, boolean plane) {
         if (plane) {
-            return DrivePlaneGoal.findFieldPad(v, Vec3.directionFromRotation(0.0F, v.getYRot()));
+            return DrivePlaneGoal.findFieldPad(v);
         }
         int bx = v.getBlockX();
         int bz = v.getBlockZ();

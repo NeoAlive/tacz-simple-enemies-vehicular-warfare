@@ -608,6 +608,7 @@ public class DrivePlaneGoal extends Goal {
             case LAND_PATTERN -> landPattern(pilot);
             case LAND_FINAL -> landFinal(pilot);
             case LAND_TAXI -> landTaxi(pilot);
+            case EMERGENCY_LAND -> emergencyLand(pilot);
             case RTB -> returnToAnchor();
             case INGRESS -> {
                 if (target != null) ingress(target);
@@ -659,6 +660,18 @@ public class DrivePlaneGoal extends Goal {
                 // there is no version of "back to the pattern" available to it.
                 if (this.mode == PlaneMode.LAND_FINAL) return PlaneMode.LAND_FINAL;
                 if (this.mode == PlaneMode.LAND_TAXI) return PlaneMode.LAND_TAXI;
+                if (this.mode == PlaneMode.EMERGENCY_LAND) return PlaneMode.EMERGENCY_LAND;
+                // Forced and unlocked is exactly a field/emergency arrival: setForcedLand's own
+                // two overloads are the only two ways TAG_FORCED_LAND is ever set, and the locked
+                // one is airport-only (see its own doc comment) — so this reads as "no runway to
+                // align to" precisely, never as an ordinary landing that merely hasn't picked an
+                // axis yet. There is no pattern leg to fly for a spot with no approach axis, so
+                // this skips LAND_PATTERN entirely rather than feeding it an axis it would have to
+                // invent.
+                if (forcedLand()
+                        && !this.vehicle.getPersistentData().getBoolean(TAG_APPROACH_LOCKED)) {
+                    return PlaneMode.EMERGENCY_LAND;
+                }
                 return PlaneMode.LAND_PATTERN;
             }
         }
@@ -879,11 +892,14 @@ public class DrivePlaneGoal extends Goal {
         if (!to.isLanding() && from.isLanding()) {
             this.terrain.clear();
         }
-        if (to == PlaneMode.LAND_FINAL) {
+        if (to == PlaneMode.LAND_FINAL || to == PlaneMode.EMERGENCY_LAND) {
             // Committed: the whisker and its climb floor are off from here down. Flying at the
             // ground IS the manoeuvre, so an obstacle cone would abort every arrival, and a floor
             // raised by something met en route would still be holding the aircraft up over its own
             // runway — it decays at 0.15/tick, so a single avoidance outlives a whole approach.
+            // EMERGENCY_LAND never actually reads either of these (it consults no terrain sensor
+            // and no altitude-hold floor at all — that is the whole point of it), but clearing them
+            // on entry means nothing stale is left over for whatever mode comes after it lands.
             this.avoidFloorY = Double.NaN;
             this.terrain.clear();
         }
@@ -2407,23 +2423,23 @@ public class DrivePlaneGoal extends Goal {
 
     // --- Emergency landing ---------------------------------------------------------------------
 
-    /**
-     * How far ahead of the aircraft the field-pad search is centred.
-     *
-     * <p>Comfortably <b>beyond</b> {@link #FINAL_LEG_LENGTH} plus the search radius, which is the
-     * whole point of the number: a pad closer than the final leg satisfies {@code established}
-     * on the first tick, so the aircraft would skip the pattern leg — and the pattern leg is where
-     * a field arrival sheds its cruise altitude, since it has no alignment snap to be placed on the
-     * glideslope by. Established at height, it dives at the pad, overshoots and goes around, which
-     * is the shape of an emergency landing that never finishes.
-     */
-    private static final double FIELD_PAD_LOOKAHEAD = 240.0;
-    private static final int FIELD_PAD_RADIUS = 96;
-    private static final int FIELD_PAD_LOCAL_RADIUS = 64;
+    private static final int FIELD_PAD_RADIUS = 128;
     private static final int FIELD_PAD_STEP = 8;
-    private static final double FIELD_PAD_ROLLOUT = 32.0;
-    /** Beyond this much height change across the roll-out it is a crash site, not a field. */
-    private static final int FIELD_PAD_MAX_ROUGHNESS = 8;
+    /** Dive attitude for an emergency descent — steep and (outside the flare window) constant, not
+     *  a proportional hold: see {@link #emergencyLand} for why this deliberately does not reuse
+     *  {@code holdAltitude}. Shallower than {@link #MAX_DIVE_PITCH_DEG} (an attack dive, which ends
+     *  in a break, not a touchdown) — this still has to arrive at a survivable vertical speed. */
+    private static final float EMERGENCY_DIVE_PITCH_DEG = 30.0F;
+    /** Nose-up attitude eased into over the last {@link #EMERGENCY_FLARE_AGL} blocks, bleeding the
+     *  dive's vertical speed before contact — same shape as {@link #LAND_FLARE_PITCH_DEG}, just
+     *  milder: this is still a rough, gear-down belly-in arrival, not a clean one. */
+    private static final float EMERGENCY_FLARE_PITCH_DEG = -6.0F;
+    /** Height (blocks) above the ground directly below at which the dive starts easing into the
+     *  flare. {@code kinematics.agl()} — straight down, updated every tick — is the only altitude
+     *  awareness this mode uses; there is deliberately no forward-looking terrain scan (see
+     *  {@link #emergencyLand}), so the ease-in can only be judged off current height, not a
+     *  distance-to-touchdown estimate. */
+    private static final double EMERGENCY_FLARE_AGL = 20.0;
 
     private void maybeEmergencyLand(@Nullable IHelicopterPilot pilot, float maxHealth, long now) {
         if (pilot == null || this.unit instanceof PmcUnitEntity) return;
@@ -2450,29 +2466,16 @@ public class DrivePlaneGoal extends Goal {
 
     @Nullable
     private BlockPos pickEmergencyPad() {
-        return findFieldPad(this.vehicle, this.kinematics.forwardFlat());
+        return findFieldPad(this.vehicle);
     }
 
     /**
-     * The best piece of ground within gliding reach to put an aircraft down on, with no airport in
-     * it. Answers the flattest candidate it can find rather than the first perfect one, and it is a
-     * best effort by design: an emergency landing is an <em>attempt</em>, and an aircraft that is
-     * coming down anyway is better served by the least bad field than by a refusal.
-     *
-     * <p>Two things were wrong with the version this replaces, and together they made the order do
-     * nothing at all over most terrain. It searched a <b>48-block</b> spiral centred on the
-     * aircraft — which for something at attack altitude doing a block a tick means the ground
-     * directly beneath it, a patch too small to contain a strip and in the wrong place by the time
-     * the aircraft could fly a circuit back to it. And it demanded a <b>perfect</b> pad: 32 blocks
-     * of rollout within {@link #RUNWAY_MAX_STEP} of the touchdown height, first hit wins, null
-     * otherwise. Outside plains and desert nothing passes, so the order was refused with NO_PAD and
-     * the player saw an emergency landing that simply never happened.
-     *
-     * <p>Now the search is centred {@link #FIELD_PAD_LOOKAHEAD} blocks <b>ahead</b> of the aircraft
-     * along its own track. That is where an aeroplane can actually get to, and it also fixes the
-     * approach for free: the bearing from the aircraft to the pad is roughly its current heading,
-     * so {@code approachAxis} picks straight-in and the arrival is a descent onto ground the
-     * aircraft is already pointed at instead of an outbound leg and a turn back.
+     * The nearest column worth putting an aircraft down on, with no airport in it and no attempt at
+     * a clean arrival. An emergency landing is a rough one by design — see {@link #emergencyLand} —
+     * so this asks for exactly one thing: solid ground over a fluid, nothing about flatness or
+     * roll-out room. The spiral runs outward from the aircraft's own position, so the first solid
+     * column found is also the nearest one; a fluid column is remembered only as a last resort, so
+     * an aircraft over open ocean still gets an answer rather than none at all.
      *
      * <p>Columns in unloaded chunks are skipped rather than read. {@code getHeight} would generate
      * them, and a search this wide around an aircraft far from any player would be a worldgen
@@ -2482,39 +2485,15 @@ public class DrivePlaneGoal extends Goal {
      * before any goal has run — {@link com.neoalive.tacz_sewv.network.PacketHelicopterCommand} has
      * to write a pad down at the moment the order arrives, and the aircraft it is writing it for may
      * well be in the middle of an attack run. It is the same search the damaged-airframe path takes,
-     * deliberately: "less strict than an airport" is one standard, not two.
-     *
-     * @param fallbackForward bearing to search and score along when the aircraft has no horizontal
-     *                        motion of its own to read one off.
+     * deliberately: one standard for both callers.
      */
     @Nullable
-    public static BlockPos findFieldPad(VehicleEntity vehicle, Vec3 fallbackForward) {
+    public static BlockPos findFieldPad(VehicleEntity vehicle) {
         Level level = vehicle.level();
-        Vec3 forward = fallbackForward != null && fallbackForward.lengthSqr() > 1.0E-6
-                ? fallbackForward.normalize()
-                : Vec3.directionFromRotation(0.0F, vehicle.getYRot());
-
-        BlockPos ahead = scanFieldPad(level, forward,
-                vehicle.getX() + forward.x * FIELD_PAD_LOOKAHEAD,
-                vehicle.getZ() + forward.z * FIELD_PAD_LOOKAHEAD,
-                FIELD_PAD_RADIUS);
-        if (ahead != null) return ahead;
-        // Nothing ahead — usually because the aircraft is flying into terrain nobody has loaded,
-        // since the forward search deliberately will not generate chunks to look at. Fall back to
-        // the ground the aircraft is over, which its own chunk ticket guarantees is loaded. That
-        // pad is behind or beneath it, so the arrival is a circuit rather than a straight-in, which
-        // is worse to watch and still a landing.
-        return scanFieldPad(level, forward, vehicle.getX(), vehicle.getZ(), FIELD_PAD_LOCAL_RADIUS);
-    }
-
-    @Nullable
-    private static BlockPos scanFieldPad(Level level, Vec3 forward, double centreX, double centreZ,
-                                         int radius) {
-        int cx = Mth.floor(centreX);
-        int cz = Mth.floor(centreZ);
-        BlockPos best = null;
-        int bestRoughness = Integer.MAX_VALUE;
-        for (int r = 0; r <= radius; r += FIELD_PAD_STEP) {
+        int cx = vehicle.getBlockX();
+        int cz = vehicle.getBlockZ();
+        BlockPos fluidFallback = null;
+        for (int r = 0; r <= FIELD_PAD_RADIUS; r += FIELD_PAD_STEP) {
             for (int dx = -r; dx <= r; dx += FIELD_PAD_STEP) {
                 for (int dz = -r; dz <= r; dz += FIELD_PAD_STEP) {
                     if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r) continue;
@@ -2524,45 +2503,72 @@ public class DrivePlaneGoal extends Goal {
                     int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
                     if (y <= level.getMinBuildHeight()) continue;
                     BlockPos pad = new BlockPos(x, y, z);
-                    if (!level.getFluidState(pad).isEmpty()) continue;
-
-                    int roughness = rolloutRoughness(level, pad, forward);
-                    // Flat enough to be a strip: take it and stop looking. The spiral runs outward,
-                    // so this is also the nearest such pad. Anything rougher is remembered only in
-                    // case nothing better turns up.
-                    if (roughness <= RUNWAY_MAX_STEP) return pad;
-                    if (roughness < bestRoughness) {
-                        bestRoughness = roughness;
-                        best = pad;
-                    }
+                    if (level.getFluidState(pad).isEmpty()) return pad;
+                    if (fluidFallback == null) fluidFallback = pad;
                 }
             }
         }
-        // A survivable arrival, not a good one. Past this the ground is broken enough that putting
-        // down on it is not a landing, so the order is refused and says so.
-        return bestRoughness <= FIELD_PAD_MAX_ROUGHNESS ? best : null;
+        return fluidFallback;
     }
 
     /**
-     * How broken the roll-out beyond a touchdown point is: the largest height change from the pad
-     * over the ground the aircraft will run across after it arrives. Zero is a table top.
+     * Point at the chosen spot, dive, take whatever is under it. No axis, no glideslope, no
+     * whisker/corridor terrain check — every one of those exists to arrive clean, and an emergency
+     * arrival is explicitly not trying to. It steers straight at the pad's horizontal position and
+     * holds a steep nose-down attitude for most of the descent; the only thing that ends the dive is
+     * touching down. This is also why it does not go through {@code holdAltitude}: that is a
+     * proportional controller converging gently on a computed glideslope, which is exactly the
+     * "too slow, still detours around obstacles" shape this mode exists to not be.
      *
-     * <p>Measured along the aircraft's track rather than the bearing to the pad. Those were the
-     * same thing when the pad was picked from directly underneath and are not now, and the track
-     * is the correct one either way — a strip that is only flat crosswind is a strip the aircraft
-     * cannot roll out on.
+     * <p>It does still flare: held all the way to the ground, the dive attitude arrives at a vertical
+     * speed the airframe cannot absorb, which is its own kind of damage this mode is not supposed to
+     * cause. {@link #EMERGENCY_FLARE_AGL} eases the pitch toward a mild nose-up as the ground gets
+     * close, off {@code kinematics.agl()} alone — no distance-to-pad math, since there is no axis to
+     * measure it along. Gear stays down throughout: this engine treats a gear-up ground contact as a
+     * strike (damage and a bounce), not a landing, so retracting it here would make an already-rough
+     * arrival strictly worse, not gentler.
      */
-    private static int rolloutRoughness(Level level, BlockPos pad, Vec3 approach) {
-        int base = pad.getY();
-        int worst = 0;
-        for (double d = 4.0; d <= FIELD_PAD_ROLLOUT; d += 4.0) {
-            int px = Mth.floor(pad.getX() + 0.5 + approach.x * d);
-            int pz = Mth.floor(pad.getZ() + 0.5 + approach.z * d);
-            if (!level.hasChunkAt(px, pz)) return Integer.MAX_VALUE;
-            int surf = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, px, pz);
-            worst = Math.max(worst, Math.abs(surf - base));
+    private void emergencyLand(@Nullable IHelicopterPilot pilot) {
+        BlockPos pad = resolveLandPad(pilot);
+        if (pad == null) {
+            clearLanding(pilot);
+            return;
         }
-        return worst;
+        this.control.gear(false);
+
+        CompoundTag tag = this.vehicle.getPersistentData();
+        if (this.vehicle.onGround() || tag.getBoolean(TAG_TOUCHED_DOWN)) {
+            tag.putBoolean(TAG_TOUCHED_DOWN, true);
+            // groundBrake(), not idleAndBrake(): a field touchdown has no parking slot to back
+            // into, and idleAndBrake's held back-input is what drives an aircraft into reverse
+            // once it's on the ground (see PlaneController.idleAndBrake's doc comment).
+            this.control.groundBrake();
+            this.control.holdHeading();
+            this.control.commandPitch(0.0F);
+            if (this.kinematics.speed() <= ROLLOUT_STOP_SPEED) {
+                settleLanded(pilot);
+            }
+            return;
+        }
+
+        double padX = pad.getX() + 0.5;
+        double padZ = pad.getZ() + 0.5;
+        double dx = padX - this.vehicle.getX();
+        double dz = padZ - this.vehicle.getZ();
+        double dist = Math.sqrt(dx * dx + dz * dz);
+        Vec3 dir = dist > 1.0E-4
+                ? new Vec3(dx / dist, 0, dz / dist)
+                : this.kinematics.forwardFlat();
+
+        double agl = this.kinematics.agl();
+        float pitch = agl >= EMERGENCY_FLARE_AGL
+                ? EMERGENCY_DIVE_PITCH_DEG
+                : (float) Mth.lerp(Mth.clamp(agl / EMERGENCY_FLARE_AGL, 0.0, 1.0),
+                        EMERGENCY_FLARE_PITCH_DEG, EMERGENCY_DIVE_PITCH_DEG);
+
+        this.control.steerYaw(dir);
+        this.control.idleAndBrake();
+        this.control.commandPitch(pitch);
     }
 
     // --- Ally lookups ---------------------------------------------------------------------------

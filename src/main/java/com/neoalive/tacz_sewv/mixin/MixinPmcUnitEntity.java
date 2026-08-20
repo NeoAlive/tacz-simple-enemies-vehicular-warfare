@@ -24,12 +24,14 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMedicTreat;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.DiplomacyEnemyTargetGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.DownedGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.FollowCommanderGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
@@ -38,6 +40,7 @@ import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlatoonCohesionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlayerReviveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcCombatDebugGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.PmcReviveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.SweepInfantryGoal;
@@ -56,10 +59,12 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity
         implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember,
-        IVehiclePatrol, IEscort, ISweepInfantry, ICaptureOrder, IMedicTreat, IEntrenched {
+        IVehiclePatrol, IEscort, ISweepInfantry, ICaptureOrder, IMedicTreat, IEntrenched, IPmcDowned {
 
     @Unique
     private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING;
+    @Unique
+    private static final EntityDataAccessor<Boolean> tacz_sewv$DOWNED;
 
     static {
         // Parent AbstractUnit extensions (MANNING_MORTAR) must already own their ids before
@@ -68,6 +73,7 @@ public abstract class MixinPmcUnitEntity
             throw new ExceptionInInitializerError("UnitHolster.MANNING_MORTAR");
         }
         tacz_sewv$TREATING = SynchedEntityData.defineId(PmcUnitEntity.class, EntityDataSerializers.BOOLEAN);
+        tacz_sewv$DOWNED = SynchedEntityData.defineId(PmcUnitEntity.class, EntityDataSerializers.BOOLEAN);
     }
 
     @Unique
@@ -169,9 +175,20 @@ public abstract class MixinPmcUnitEntity
         ((Entity) (Object) this).getEntityData().set(tacz_sewv$TREATING, treating);
     }
 
+    @Override
+    public boolean sewv$isDownedSynced() {
+        return ((Entity) (Object) this).getEntityData().get(tacz_sewv$DOWNED);
+    }
+
+    @Override
+    public void sewv$setDownedSynced(boolean downed) {
+        ((Entity) (Object) this).getEntityData().set(tacz_sewv$DOWNED, downed);
+    }
+
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void tacz_sewv$defineTreating(CallbackInfo ci) {
         ((Entity) (Object) this).getEntityData().define(tacz_sewv$TREATING, false);
+        ((Entity) (Object) this).getEntityData().define(tacz_sewv$DOWNED, false);
     }
 
     @Inject(method = "setTarget", at = @At("HEAD"))
@@ -230,6 +247,11 @@ public abstract class MixinPmcUnitEntity
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
     private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
         PmcUnitEntity self = (PmcUnitEntity) (Object) this;
+        // This mod's own downed mechanic (PMC only — RU/US just die), independent of
+        // PlayerReviveMod. Priority 0: must outrank every other goal, combat included, so a
+        // downed unit is fully frozen rather than still trying to fight from the ground. See
+        // PmcDownedSupport (converts a killing blow into "downed") and the class doc.
+        ((Mob) self).goalSelector.addGoal(0, new DownedGoal(self));
         // Claims no flags, so its priority is nominal — it only relays a contact over the
         // radio and never competes with what the unit is doing.
         ((Mob) self).goalSelector.addGoal(1, new RadioObserverGoal(self));
@@ -246,6 +268,11 @@ public abstract class MixinPmcUnitEntity
         if (PlayerReviveCompat.isLoaded()) {
             ((Mob) self).goalSelector.addGoal(1, new PlayerReviveGoal(self));
         }
+        // This mod's own downed mechanic, the PMC-to-PMC half: only a medic (SupportRole.MEDIC,
+        // stricter than MedicGoal's own "has a spare kit somewhere") revives a downed squadmate.
+        // No PlayerReviveCompat gate needed — unlike PlayerReviveGoal this never touches
+        // PlayerReviveMod at all. Same priority-1 "overrides combat" reasoning as PlayerReviveGoal.
+        ((Mob) self).goalSelector.addGoal(1, new PmcReviveGoal(self));
         // The engineer half of the same idea: dormant on an ordinary PMC and live the moment a
         // player hands one a repair tool (RepairGoal gates itself on SupportRole). Same priority as
         // first aid — both are things a unit does when it is not otherwise busy — and it stands

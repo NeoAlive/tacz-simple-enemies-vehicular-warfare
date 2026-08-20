@@ -12,6 +12,9 @@ import net.nekoyuni.SimpleEnemyMod.entity.client.util.IArmorBoneProvider;
 import net.nekoyuni.SimpleEnemyMod.entity.client.util.UnitModelDefinitions;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.bridge.IPmcDowned;
+import com.neoalive.tacz_sewv.client.DownedUnitPose;
+
 /**
  * A fresh top-level model, not a {@code PmcUnitModel} subclass — that renderer's {@code model}
  * field is {@code protected final}, so a subclass cannot swap model types. {@code setupAnim} below
@@ -19,6 +22,14 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
  * completely unwired from any custom pose and pulls from the same idle/walk/hurt/death clips and
  * procedural layers (head tracking, weapon-hold arm pose) every regular PMC uses. Only the skin,
  * beret overlay and seat restriction (handled elsewhere) make the Commander visually distinct.
+ *
+ * <p>A Commander is still a {@code PmcUnitEntity} underneath (promotion is a flag, not a different
+ * entity class), so it can still be downed ({@link IPmcDowned}) — but it renders through THIS class,
+ * not {@code PmcUnitModel}, so {@code mixin.client.MixinPmcDownedPose} (which only targets
+ * {@code PmcUnitModel}, a third-party SEM class) never reaches it. Since this class is our own, the
+ * downed-pose guard is written directly at the top of {@link #setupAnim} instead of via a mixin —
+ * same shape (reset every part, apply the clip, return before any of SEM's own animation logic
+ * runs) as the mixin uses for the non-Commander case.
  */
 public class PmcCommanderModel<T extends Entity> extends HierarchicalModel<T> implements IArmorBoneProvider {
 
@@ -55,6 +66,11 @@ public class PmcCommanderModel<T extends Entity> extends HierarchicalModel<T> im
     @Override
     public void setupAnim(T entity, float limbSwing, float limbSwingAmount, float ageInTicks, float netHeadYaw, float headPitch) {
         this.root().getAllParts().forEach(ModelPart::resetPose);
+
+        if (entity instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) {
+            DownedUnitPose.applyToUnit(this.fakeRoot, ageInTicks);
+            return;
+        }
 
         if (!(entity instanceof AbstractUnit unitEntity)) {
             return;

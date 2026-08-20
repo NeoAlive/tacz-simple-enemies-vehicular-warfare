@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.goal;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.UUID;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
@@ -15,6 +16,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -31,6 +33,8 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.plane.Dubins;
+import com.neoalive.tacz_sewv.entity.ai.plane.DubinsPath;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneController;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneKinematics;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneLeash;
@@ -41,7 +45,11 @@ import com.neoalive.tacz_sewv.entity.ai.plane.PlaneWeapons;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketClearPlaneLandingDebug;
+import com.neoalive.tacz_sewv.network.PacketPlaneLandingDebug;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
@@ -370,6 +378,11 @@ public class DrivePlaneGoal extends Goal {
     private static final double APPROACH_HEADING_TOLERANCE_DEG = 40.0;
     /** Pure-pursuit lookahead down the axis — short enough to converge, long enough not to weave. */
     private static final double APPROACH_LOOKAHEAD = 40.0;
+    /** Pure-pursuit lookahead along a cached Dubins entry arc — tighter than the final's, since the
+     * arc itself (not a carrot far down it) is already the thing keeping the aircraft on line. */
+    private static final double DUBINS_LOOKAHEAD = 24.0;
+    /** sewvPlaneCombatDebug wireframe resend cadence while an entry arc is active (~1s). */
+    private static final long DUBINS_DEBUG_HEARTBEAT_TICKS = 20L;
     /** Flown past the pad by this much on final: go around. */
     private static final double APPROACH_OVERSHOOT_MARGIN = 12.0;
     /** Approach axis candidates, tried in order from "straight in from where we are". */
@@ -413,6 +426,15 @@ public class DrivePlaneGoal extends Goal {
     // every turn, which is the same chase the landing pattern avoids by remembering its axis.
     private double runInDirX = Double.NaN;
     private double runInDirZ = Double.NaN;
+
+    // Cached Dubins entry arc onto the airport alignment line (null = none in progress). Advanced
+    // by arc-length per tick rather than recomputed, per dubinsEntryTick; dubinsTargetEntry/Axis
+    // record what it was built for, so a reassigned runway is detected and forces a fresh one.
+    private DubinsPath dubinsPath;
+    private double dubinsProgress;
+    private Vec3 dubinsTargetEntry;
+    private Vec3 dubinsTargetAxis;
+    private long lastDubinsDebugSend = Long.MIN_VALUE;
 
     // Locked straight-line heading of the current attack run (NaN = none).
     private double runDirX = Double.NaN;
@@ -501,6 +523,7 @@ public class DrivePlaneGoal extends Goal {
             AirframeSupport.clearDecoy(this.vehicle);
             this.chunkTicket.release(this.vehicle);
         }
+        clearDubinsPath(); // must run before vehicle goes null: it addresses the clear packet by it
         this.vehicle = null;
         this.control = null;
         if (this.weapons != null) this.weapons.reset();
@@ -1760,6 +1783,7 @@ public class DrivePlaneGoal extends Goal {
             pilot.sewv$setHeliLandPos(null);
         }
         clearForcedLand(this.vehicle);
+        clearDubinsPath();
     }
 
     private void settleLanded(@Nullable IHelicopterPilot pilot) {
@@ -1853,6 +1877,18 @@ public class DrivePlaneGoal extends Goal {
         Vec3 entry = PlaneNav.approachFix(padX, padZ, axis, legLength);
         double entryY = glideslopeY(pad, legLength);
 
+        // The runway (or the axis chosen for it) can change under a cached arc — a reassigned
+        // strip, a re-picked corridor after a go-around. Drop the cache so it is rebuilt below.
+        if (this.dubinsPath != null && (this.dubinsTargetEntry.distanceTo(entry) > 1.0
+                || this.dubinsTargetAxis.distanceTo(axis) > 1.0E-3)) {
+            clearDubinsPath();
+        }
+
+        if (this.dubinsPath != null) {
+            dubinsEntryTick(pilot, pad, axis, entry, entryY);
+            return;
+        }
+
         double ex = entry.x - this.vehicle.getX();
         double ez = entry.z - this.vehicle.getZ();
         double toEntry = Math.sqrt(ex * ex + ez * ez);
@@ -1867,6 +1903,31 @@ public class DrivePlaneGoal extends Goal {
             return;
         }
 
+        double headingErr = PlaneNav.headingErrorDeg(this.kinematics.forwardFlat(), axis);
+        if (Math.abs(headingErr) > SewvConfig.DUBINS_ALIGN_TOLERANCE_DEG.get()) {
+            double r = this.kinematics.turnRadius();
+            DubinsPath path = Dubins.computePath(this.vehicle.position(),
+                    this.kinematics.forwardFlat(), entry, axis, r);
+            if (path.totalLength() <= toEntry * SewvConfig.DUBINS_FALLBACK_MULTIPLIER.get()) {
+                this.dubinsPath = path;
+                this.dubinsProgress = 0.0;
+                this.dubinsTargetEntry = entry;
+                this.dubinsTargetAxis = axis;
+                SewvDiag.plane("dubins entry start: hdgErr={} r={} length={} toEntry={}",
+                        String.format("%.0f", headingErr), String.format("%.0f", r),
+                        String.format("%.0f", path.totalLength()), String.format("%.0f", toEntry));
+                sendDubinsDebug(pad, entry, entryY, axis);
+                this.lastDubinsDebugSend = this.unit.level().getGameTime();
+                dubinsEntryTick(pilot, pad, axis, entry, entryY);
+                return;
+            }
+            // Degenerate geometry (radius too wide for how close the aircraft already is): fall
+            // through to the ordinary straight run-in below, same as an aligned approach.
+            SewvDiag.planeThrottled(this.unit.level().getGameTime(),
+                    "dubins entry skipped (degenerate): length={} toEntry={}",
+                    String.format("%.0f", path.totalLength()), String.format("%.0f", toEntry));
+        }
+
         double transitY = Math.max(entryY,
                 AirframeSupport.highestGroundToward(this.vehicle, entry.x, entry.z, TERRAIN_LOOKAHEAD)
                         + SewvConfig.PLANE_LAND_TRANSIT_AGL.get());
@@ -1874,6 +1935,94 @@ public class DrivePlaneGoal extends Goal {
         SewvDiag.planeThrottled(this.unit.level().getGameTime(),
                 "alignment run-in toEntry={} transitY={}",
                 String.format("%.0f", toEntry), String.format("%.0f", transitY));
+    }
+
+    /**
+     * Per-tick advance along a cached Dubins entry arc: the whole path was already solved at
+     * hand-off, so this only steers a short lookahead point down it and checks for drift — it never
+     * re-derives the geometry.
+     */
+    private void dubinsEntryTick(@Nullable IHelicopterPilot pilot, BlockPos pad, Vec3 axis,
+                                 Vec3 entry, double entryY) {
+        this.dubinsProgress = Math.min(this.dubinsProgress + this.kinematics.speed(),
+                this.dubinsPath.totalLength());
+
+        if (this.dubinsProgress >= this.dubinsPath.totalLength()) {
+            // Continuity-matched by construction: the arc was solved to end at `entry` heading
+            // `axis`, the exact pose landFinal already expects after a snap — so no snap is needed.
+            clearDubinsPath();
+            this.mode = PlaneMode.LAND_FINAL;
+            SewvDiag.plane("dubins entry complete: entry={} {} {}",
+                    String.format("%.0f", entry.x), String.format("%.0f", entryY),
+                    String.format("%.0f", entry.z));
+            landFinal(pilot);
+            return;
+        }
+
+        double deviation = this.dubinsPath.deviation(this.vehicle.position());
+        if (deviation > SewvConfig.DUBINS_DEVIATION_THRESHOLD.get()) {
+            SewvDiag.plane("dubins entry deviation={} exceeds threshold, recomputing",
+                    String.format("%.1f", deviation));
+            clearDubinsPath();
+            alignmentTick(pilot, pad, axis);
+            return;
+        }
+
+        Vec3 carrot = this.dubinsPath.pointAt(
+                Math.min(this.dubinsProgress + DUBINS_LOOKAHEAD, this.dubinsPath.totalLength()));
+        this.control.steerYaw(new Vec3(carrot.x - this.vehicle.getX(), 0,
+                carrot.z - this.vehicle.getZ()));
+
+        double transitY = Math.max(entryY,
+                AirframeSupport.highestGroundToward(this.vehicle, entry.x, entry.z, TERRAIN_LOOKAHEAD)
+                        + SewvConfig.PLANE_LAND_TRANSIT_AGL.get());
+        this.control.holdAltitude(transitY);
+
+        long now = this.unit.level().getGameTime();
+        if (now - this.lastDubinsDebugSend >= DUBINS_DEBUG_HEARTBEAT_TICKS) {
+            sendDubinsDebug(pad, entry, entryY, axis);
+            this.lastDubinsDebugSend = now;
+        }
+        SewvDiag.planeThrottled(now,
+                "dubins entry progress={}/{} deviation={} transitY={}",
+                String.format("%.0f", this.dubinsProgress),
+                String.format("%.0f", this.dubinsPath.totalLength()),
+                String.format("%.1f", deviation), String.format("%.0f", transitY));
+    }
+
+    private void clearDubinsPath() {
+        if (this.dubinsPath != null) {
+            sendClearDubinsDebug();
+        }
+        this.dubinsPath = null;
+        this.dubinsProgress = 0.0;
+        this.dubinsTargetEntry = null;
+        this.dubinsTargetAxis = null;
+    }
+
+    /**
+     * {@code sewvPlaneCombatDebug} wireframe sync: sent once when the arc is (re)computed and on a
+     * throttled heartbeat while it is being flown, mirroring {@code SewvDiag.planeHeartbeat}'s
+     * cadence. Never sent unless the gamerule is on, so an ordinary session pays nothing for this.
+     */
+    private void sendDubinsDebug(BlockPos pad, Vec3 entry, double entryY, Vec3 axis) {
+        if (this.vehicle == null || !(this.vehicle.level() instanceof ServerLevel)) return;
+        if (!ModGameRules.server(ModGameRules.PLANE_COMBAT_DEBUG)) return;
+        Vec3 padPos = new Vec3(pad.getX() + 0.5, entryY, pad.getZ() + 0.5);
+        List<DubinsPath.Segment> segments = this.dubinsPath == null ? List.of()
+                : this.dubinsPath.segments();
+        NetworkHandler.CHANNEL.send(
+                PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> this.vehicle),
+                new PacketPlaneLandingDebug(this.vehicle.getId(), entryY, entry, padPos, entry, axis,
+                        segments));
+    }
+
+    private void sendClearDubinsDebug() {
+        if (this.vehicle == null || !(this.vehicle.level() instanceof ServerLevel)) return;
+        if (!ModGameRules.server(ModGameRules.PLANE_COMBAT_DEBUG)) return;
+        NetworkHandler.CHANNEL.send(
+                PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> this.vehicle),
+                new PacketClearPlaneLandingDebug(this.vehicle.getId()));
     }
 
     /**
@@ -1947,6 +2096,7 @@ public class DrivePlaneGoal extends Goal {
             if (!tag.getBoolean(TAG_APPROACH_LOCKED)) {
                 tag.remove(TAG_APPROACH_YAW);
             }
+            clearDubinsPath();
             landPattern(pilot);
             return;
         }

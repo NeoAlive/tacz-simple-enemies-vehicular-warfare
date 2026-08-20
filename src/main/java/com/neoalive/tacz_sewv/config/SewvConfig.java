@@ -195,6 +195,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue AIRPORT_LANDING_SEARCH_RADIUS;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_ALIGNMENT_DISTANCE;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_ALIGNMENT_SNAP_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue DUBINS_ALIGN_TOLERANCE_DEG;
+    public static final ForgeConfigSpec.DoubleValue DUBINS_FALLBACK_MULTIPLIER;
+    public static final ForgeConfigSpec.DoubleValue DUBINS_DEVIATION_THRESHOLD;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_SLOT_SIZE_FACTOR;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_SLOT_BUFFER_FACTOR;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_EXTRA_TAKEOFF_FACTOR;
@@ -774,6 +777,22 @@ public final class SewvConfig {
                         "How close (blocks) an aircraft must get to the start of that alignment line before",
                         "it is placed onto it, pointed at the strip, and committed to the approach.")
                 .defineInRange("airportAlignmentSnapRadius", 48.0, 8.0, 256.0);
+        DUBINS_ALIGN_TOLERANCE_DEG = builder.comment(
+                        "Heading error (degrees) off the alignment line's own axis within which an aircraft",
+                        "is treated as already lined up and just flies straight in. Past this it flies a",
+                        "turn (a Dubins arc, sized off the hull's own measured turn radius) onto the line",
+                        "instead of arriving on the wrong heading and being placed straight.")
+                .defineInRange("dubinsAlignToleranceDeg", 15.0, 5.0, 45.0);
+        DUBINS_FALLBACK_MULTIPLIER = builder.comment(
+                        "If the computed turn-in arc would be longer than this many times the straight-line",
+                        "distance to the alignment line, the geometry is treated as degenerate (radius too",
+                        "wide for how close the aircraft already is) and the turn is skipped in favour of the",
+                        "ordinary straight run-in.")
+                .defineInRange("dubinsFallbackMultiplier", 2.5, 1.5, 4.0);
+        DUBINS_DEVIATION_THRESHOLD = builder.comment(
+                        "How far (blocks) an aircraft may drift off its computed turn-in arc — from a nearby",
+                        "explosion, for instance — before the arc is recomputed from where it actually is.")
+                .defineInRange("dubinsDeviationThreshold", 16.0, 4.0, 64.0);
         // The three below are STARTING VALUES for a newly placed runway block, not live settings.
         // Segmentation belongs to a runway — a forward strip packing in light aircraft wants
         // nothing like a bomber base's spacing — so each one keeps its own, edited by the sliders

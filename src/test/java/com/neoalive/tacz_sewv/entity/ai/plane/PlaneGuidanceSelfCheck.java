@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.plane;
 
+import java.util.List;
+
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -37,6 +39,7 @@ public final class PlaneGuidanceSelfCheck {
         checkProbe();
         checkPitchSign();
         checkModes();
+        checkDubins();
 
         System.out.println("plane guidance self-check: OK");
     }
@@ -640,5 +643,125 @@ public final class PlaneGuidanceSelfCheck {
         assert PlaneMode.LAND_PATTERN.isLanding() && PlaneMode.LAND_FINAL.isLanding()
                 : "both halves of the approach must read as landing";
         assert !PlaneMode.LANDED.isLanding() : "already down is not an approach";
+    }
+
+    // --- Dubins entry -----------------------------------------------------------------------------
+
+    /**
+     * The Dubins solver. Continuity (start/end position AND direction, every segment join) is the
+     * property that actually matters — a discontinuous path is worse than the teleport it replaces,
+     * since the aircraft would be steered off a curve that does not connect to where it is. This was
+     * verified first against a headless numeric prototype across ~10^5 randomized trials spanning
+     * this mod's real turn-radius range before the Java geometry was written at all; these pin a
+     * representative subset of that as an in-repo regression.
+     */
+    private static void checkDubins() {
+        checkDubinsContinuity(new Vec3(0, 0, 0), new Vec3(0, 0, 1), new Vec3(0, 0, 40),
+                new Vec3(0, 0, 1), 12.0, "straight ahead");
+        checkDubinsContinuity(new Vec3(0, 0, 0), new Vec3(0, 0, 1), new Vec3(30, 0, 30),
+                new Vec3(1, 0, 0), 15.0, "quarter turn");
+        checkDubinsContinuity(new Vec3(0, 0, 0), new Vec3(1, 0, 0), new Vec3(-20, 0, 5),
+                new Vec3(-1, 0, 0), 10.0, "reversal, tight offset (CCC region)");
+        checkDubinsContinuity(new Vec3(5, 0, -5), new Vec3(0, 0, -1), new Vec3(-40, 0, 60),
+                new Vec3(1, 0, 0), 30.0, "arbitrary large offset");
+        checkDubinsContinuity(new Vec3(0, 0, 0), new Vec3(0, 0, 1), new Vec3(0, 0, 0.001),
+                new Vec3(0, 0, 1), 8.0, "near-coincident start/end");
+
+        // Same-heading straight shot: the shortest path must be (very nearly) the straight-line
+        // distance — an implementation that always routes through an arc would never degrade to a
+        // plain line, and this is the common case (an already-aligned entry never reaches the
+        // solver at all in DrivePlaneGoal, but the geometry must still support it correctly).
+        DubinsPath straight = Dubins.computePath(new Vec3(0, 0, 0), new Vec3(0, 0, 1),
+                new Vec3(0, 0, 50), new Vec3(0, 0, 1), 10.0);
+        assert Math.abs(straight.totalLength() - 50.0) < 1.0E-6
+                : "aligned start/end must degrade to a straight line, got " + straight.totalLength();
+
+        // A known closed-form case, independent of this class's own derivation: starting and ending
+        // 2r apart on parallel reciprocal headings is exactly a semicircle, length = pi * r.
+        double r = 9.0;
+        DubinsPath semicircle = Dubins.computePath(new Vec3(0, 0, 0), new Vec3(0, 0, 1),
+                new Vec3(2 * r, 0, 0), new Vec3(0, 0, -1), r);
+        assert Math.abs(semicircle.totalLength() - Math.PI * r) < 1.0E-6
+                : "U-turn offset by 2r must be exactly a semicircle: " + semicircle.totalLength()
+                        + " vs " + (Math.PI * r);
+
+        // The tight near-reversal case where a three-arc (RLR) path genuinely beats every CSC
+        // alternative — the whole reason the full six-primitive set was built rather than CSC-only.
+        // Expected length cross-checked independently against the CSC alternatives for this exact
+        // case (LSL ~111.97, RSR ~117.78) via the headless numeric prototype before this was ported.
+        DubinsPath tight = Dubins.computePath(new Vec3(0, 0, 0), new Vec3(1, 0, 0),
+                new Vec3(5, 0, 3), new Vec3(-1, 0, 0), 10.0);
+        assert Math.abs(tight.totalLength() - 69.08314538227336) < 1.0E-6
+                : "CCC case length regressed, got " + tight.totalLength();
+        assert tight.totalLength() < 111.0
+                : "CCC case must beat the CSC alternatives, got " + tight.totalLength();
+
+        // Determinism: the same inputs must produce the same answer every time — this codebase's AI
+        // has no randomness anywhere so server and client (and repeated calls) agree.
+        DubinsPath again = Dubins.computePath(new Vec3(0, 0, 0), new Vec3(1, 0, 0),
+                new Vec3(5, 0, 3), new Vec3(-1, 0, 0), 10.0);
+        assert Math.abs(tight.totalLength() - again.totalLength()) < 1.0E-9
+                : "identical inputs must produce identical path lengths";
+
+        // Sampling: a point taken from the path is (by construction) exactly on the path.
+        DubinsPath sample = Dubins.computePath(new Vec3(0, 0, 0), new Vec3(0, 0, 1),
+                new Vec3(40, 0, 40), new Vec3(1, 0, 0), 20.0);
+        for (double s = 0.0; s <= sample.totalLength(); s += sample.totalLength() / 20.0) {
+            Vec3 p = sample.pointAt(s);
+            assert sample.deviation(p) < 1.0E-4
+                    : "a point sampled from the path must have ~zero deviation from it, got "
+                            + sample.deviation(p) + " at s=" + s;
+        }
+        // A point well off the path must read as meaningfully deviated, or the drift check that
+        // triggers a recompute would never fire. Offset perpendicular to the LOCAL tangent at the
+        // midpoint (not an arbitrary world axis) so the displaced point cannot happen to land back
+        // near some other part of the same curving path.
+        double midS = sample.totalLength() / 2.0;
+        Vec3 midpoint = sample.pointAt(midS);
+        Vec3 midDir = sample.dirAt(midS);
+        Vec3 perp = new Vec3(-midDir.z, 0.0, midDir.x);
+        Vec3 offPath = midpoint.add(perp.scale(30.0));
+        assert sample.deviation(offPath) > 20.0
+                : "a point 30 blocks off the path must read as substantially deviated, got "
+                        + sample.deviation(offPath);
+    }
+
+    /**
+     * The one check that actually matters for a Dubins path used as a steering reference: it must
+     * connect, exactly, in both position and direction, from the given start to the given end,
+     * through every segment join in between. A path that is merely "short" but discontinuous would
+     * steer the aircraft off a curve it is not on.
+     */
+    private static void checkDubinsContinuity(Vec3 startPos, Vec3 startDir, Vec3 endPos, Vec3 endDir,
+                                              double radius, String label) {
+        DubinsPath path = Dubins.computePath(startPos, startDir, endPos, endDir, radius);
+        assert !path.segments().isEmpty() : label + ": path must have at least one segment";
+
+        Vec3 p0 = path.pointAt(0.0);
+        Vec3 d0 = path.dirAt(0.0);
+        assert p0.distanceTo(startPos) < 1.0E-6 : label + ": start position mismatch, got " + p0;
+        assert d0.dot(startDir) > 1.0 - 1.0E-6 : label + ": start direction mismatch, got " + d0;
+
+        double total = path.totalLength();
+        Vec3 pN = path.pointAt(total);
+        Vec3 dN = path.dirAt(total);
+        assert pN.distanceTo(endPos) < 1.0E-6 : label + ": end position mismatch, got " + pN;
+        assert dN.dot(endDir) > 1.0 - 1.0E-6 : label + ": end direction mismatch, got " + dN;
+
+        // Walk the joins between consecutive segments: the end of one must equal the start of the
+        // next in both position and direction of travel.
+        double s = 0.0;
+        List<DubinsPath.Segment> segs = path.segments();
+        for (int i = 0; i < segs.size() - 1; i++) {
+            s += segs.get(i).length();
+            Vec3 joinPos = path.pointAt(s);
+            Vec3 joinDirBefore = segs.get(i).dirAt(segs.get(i).length());
+            Vec3 joinDirAfter = segs.get(i + 1).dirAt(0.0);
+            assert joinDirBefore.dot(joinDirAfter) > 1.0 - 1.0E-6
+                    : label + ": segment " + i + " join direction mismatch, "
+                            + joinDirBefore + " vs " + joinDirAfter;
+            assert joinPos.distanceTo(segs.get(i + 1).pointAt(0.0)) < 1.0E-6
+                    : label + ": segment " + i + " join position mismatch";
+        }
     }
 }

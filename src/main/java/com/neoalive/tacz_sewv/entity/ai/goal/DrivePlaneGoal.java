@@ -383,6 +383,15 @@ public class DrivePlaneGoal extends Goal {
     private static final double DUBINS_LOOKAHEAD = 24.0;
     /** sewvPlaneCombatDebug wireframe resend cadence while an entry arc is active (~1s). */
     private static final long DUBINS_DEBUG_HEARTBEAT_TICKS = 20L;
+    /**
+     * Ceiling on how many times an entry arc may be recomputed for the same approach before giving
+     * up on Dubins for it and falling back to the guaranteed-terminating straight run-in/snap. A
+     * plane that cannot actually hold the radius a recompute just asked for (measured agility
+     * momentarily overstated, or simply out-turned by drift/wind/avoidance) would otherwise recompute
+     * an ever-tighter, ever less flyable arc forever — the same "AI orbiting a problem it cannot
+     * resolve" failure the ground AI's {@code StalemateBreaker} exists to cut off.
+     */
+    private static final int MAX_DUBINS_RECOMPUTES = 3;
     /** Flown past the pad by this much on final: go around. */
     private static final double APPROACH_OVERSHOOT_MARGIN = 12.0;
     /** Approach axis candidates, tried in order from "straight in from where we are". */
@@ -435,6 +444,7 @@ public class DrivePlaneGoal extends Goal {
     private Vec3 dubinsTargetEntry;
     private Vec3 dubinsTargetAxis;
     private long lastDubinsDebugSend = Long.MIN_VALUE;
+    private int dubinsRecomputeCount;
 
     // Locked straight-line heading of the current attack run (NaN = none).
     private double runDirX = Double.NaN;
@@ -524,6 +534,7 @@ public class DrivePlaneGoal extends Goal {
             this.chunkTicket.release(this.vehicle);
         }
         clearDubinsPath(); // must run before vehicle goes null: it addresses the clear packet by it
+        this.dubinsRecomputeCount = 0;
         this.vehicle = null;
         this.control = null;
         if (this.weapons != null) this.weapons.reset();
@@ -1878,10 +1889,12 @@ public class DrivePlaneGoal extends Goal {
         double entryY = glideslopeY(pad, legLength);
 
         // The runway (or the axis chosen for it) can change under a cached arc — a reassigned
-        // strip, a re-picked corridor after a go-around. Drop the cache so it is rebuilt below.
+        // strip, a re-picked corridor after a go-around. Drop the cache so it is rebuilt below, and
+        // treat it as a genuinely new approach for the recompute cap.
         if (this.dubinsPath != null && (this.dubinsTargetEntry.distanceTo(entry) > 1.0
                 || this.dubinsTargetAxis.distanceTo(axis) > 1.0E-3)) {
             clearDubinsPath();
+            this.dubinsRecomputeCount = 0;
         }
 
         if (this.dubinsPath != null) {
@@ -1904,7 +1917,8 @@ public class DrivePlaneGoal extends Goal {
         }
 
         double headingErr = PlaneNav.headingErrorDeg(this.kinematics.forwardFlat(), axis);
-        if (Math.abs(headingErr) > SewvConfig.DUBINS_ALIGN_TOLERANCE_DEG.get()) {
+        if (Math.abs(headingErr) > SewvConfig.DUBINS_ALIGN_TOLERANCE_DEG.get()
+                && this.dubinsRecomputeCount < MAX_DUBINS_RECOMPUTES) {
             double r = this.kinematics.turnRadius();
             DubinsPath path = Dubins.computePath(this.vehicle.position(),
                     this.kinematics.forwardFlat(), entry, axis, r);
@@ -1913,9 +1927,11 @@ public class DrivePlaneGoal extends Goal {
                 this.dubinsProgress = 0.0;
                 this.dubinsTargetEntry = entry;
                 this.dubinsTargetAxis = axis;
-                SewvDiag.plane("dubins entry start: hdgErr={} r={} length={} toEntry={}",
+                this.dubinsRecomputeCount++;
+                SewvDiag.plane("dubins entry start: hdgErr={} r={} length={} toEntry={} attempt={}",
                         String.format("%.0f", headingErr), String.format("%.0f", r),
-                        String.format("%.0f", path.totalLength()), String.format("%.0f", toEntry));
+                        String.format("%.0f", path.totalLength()), String.format("%.0f", toEntry),
+                        this.dubinsRecomputeCount);
                 sendDubinsDebug(pad, entry, entryY, axis);
                 this.lastDubinsDebugSend = this.unit.level().getGameTime();
                 dubinsEntryTick(pilot, pad, axis, entry, entryY);
@@ -1944,6 +1960,16 @@ public class DrivePlaneGoal extends Goal {
      */
     private void dubinsEntryTick(@Nullable IHelicopterPilot pilot, BlockPos pad, Vec3 axis,
                                  Vec3 entry, double entryY) {
+        // Every branch here must issue a full set of inputs, same as every other dispatch in this
+        // goal — a silent tick is a control release at flying speed, not a "keep doing what you were
+        // doing". This also keeps the FLOWN speed close to whatever kinematics.turnRadius() measured
+        // when the arc was solved: full throttle is what every other landing transit leg
+        // (flyToward, called by the straight run-in and the degenerate fallback) already holds, so
+        // a plane already at cruise speed when it entered this branch stays there rather than
+        // bleeding off — a shrinking speed shrinks the *achievable* radius on every deviation
+        // recompute below, which is what a stuck, endlessly-circling approach looks like.
+        this.control.throttleUp();
+
         this.dubinsProgress = Math.min(this.dubinsProgress + this.kinematics.speed(),
                 this.dubinsPath.totalLength());
 
@@ -1951,6 +1977,7 @@ public class DrivePlaneGoal extends Goal {
             // Continuity-matched by construction: the arc was solved to end at `entry` heading
             // `axis`, the exact pose landFinal already expects after a snap — so no snap is needed.
             clearDubinsPath();
+            this.dubinsRecomputeCount = 0; // this attempt succeeded; a future approach starts fresh
             this.mode = PlaneMode.LAND_FINAL;
             SewvDiag.plane("dubins entry complete: entry={} {} {}",
                     String.format("%.0f", entry.x), String.format("%.0f", entryY),
@@ -2097,6 +2124,7 @@ public class DrivePlaneGoal extends Goal {
                 tag.remove(TAG_APPROACH_YAW);
             }
             clearDubinsPath();
+            this.dubinsRecomputeCount = 0; // a go-around is a fresh circuit
             landPattern(pilot);
             return;
         }

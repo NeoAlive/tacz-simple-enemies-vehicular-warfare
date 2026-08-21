@@ -161,8 +161,11 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     // it; the path-preference cost lives in findAcceptedNode, same split as
                     // fording above. Gated on available() first so an absent Enhanced Falling
                     // Trees never pays for the extra state read and a solid log stays BLOCKED
-                    // exactly as before this compat existed.
-                    if (blockpathtypes == BlockPathTypes.BLOCKED && EnhancedFallingTreesCompat.available()) {
+                    // exactly as before this compat existed. Also gated on the config toggle so
+                    // disabling tree felling actually removes the pathfinding cost, not just the
+                    // felling action — see the same gate in findAcceptedNode below.
+                    if (blockpathtypes == BlockPathTypes.BLOCKED && EnhancedFallingTreesCompat.available()
+                            && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()) {
                         BlockState cellState = level.getBlockState(this.probe.set(i + x, j + y, k + z));
                         if (EnhancedFallingTreesFeller.isFellable(level, this.probe, cellState)
                                 || EnhancedFallingTreesFeller.isFoliage(cellState)) {
@@ -246,8 +249,11 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
 
         // Unconditional rescan — by this point the classification pass above has already
         // remapped every fellable tree cell to WALKABLE, so gating this on "still BLOCKED" the
-        // way the classification pass does would silently never fire.
-        if (EnhancedFallingTreesCompat.available()
+        // way the classification pass does would silently never fire. Still gated on the config
+        // toggle: with felling disabled, the classification pass above never remapped anything to
+        // WALKABLE in the first place, so this rescan would find nothing anyway — checking the
+        // flag here too skips the (otherwise pointless) footprint walk instead of paying for it.
+        if (EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()
                 && footprintHasFellableTree(this.level, node.x, node.y, node.z)) {
             node.costMalus += SewvConfig.VEHICLE_TREE_PATH_MALUS.get();
         }

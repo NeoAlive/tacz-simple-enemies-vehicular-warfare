@@ -434,7 +434,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
             var shape = state.getCollisionShape(level, pos);
             if (!shape.isEmpty()) {
                 col.floorY = y + shape.max(Direction.Axis.Y);
-                if (EnhancedFallingTreesCompat.available()
+                if (EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()
                         && (EnhancedFallingTreesFeller.isFellable(level, pos, state)
                                 || EnhancedFallingTreesFeller.isFoliage(state))) {
                     col.tree = true;

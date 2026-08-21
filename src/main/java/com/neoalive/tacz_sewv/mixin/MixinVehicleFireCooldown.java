@@ -39,10 +39,18 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         return this.tacz_sewv$lastAiShotTick;
     }
 
-    // Per-tick cache for the line-of-fire verdict: SBW's AI fire loop consults
-    // canShoot twice per seat per fire attempt, and the verdict (2 block clips +
-    // a smoke entity query) can't change within the same tick. Keyed on the
-    // shooter too — different seats track different targets.
+    // Cache for the line-of-fire verdict, valid for a small rolling window rather than just the
+    // current tick: SBW's AI fire loop consults canShoot at least twice per seat per fire
+    // attempt, and for a fast automatic weapon (see tacz_sewv$effectiveCooldown) the AI cooldown
+    // gate above stops blocking the call after 1 tick, which would otherwise re-run the full
+    // verdict (occupancy check, allied-vehicle check, 2 block clips, a smoke entity query) every
+    // single tick for as long as the weapon keeps firing. Terrain/smoke occlusion does not change
+    // meaningfully within a few ticks, so LOS_CACHE_WINDOW_TICKS trades a small amount of staleness
+    // (a target that fully breaks LOS mid-burst can draw up to that many extra ticks of fire) for
+    // a large cut in raycast frequency on high-RPM weapons. Keyed on the shooter too — different
+    // seats track different targets.
+    @Unique
+    private static final int LOS_CACHE_WINDOW_TICKS = 3;
     @Unique
     private long tacz_sewv$lineCacheTick = Long.MIN_VALUE;
     @Unique
@@ -89,7 +97,9 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         LivingEntity target = unit.getTarget();
         if (target == null) return;
 
-        if (now != this.tacz_sewv$lineCacheTick || living.getId() != this.tacz_sewv$lineCacheShooterId) {
+        boolean lineCacheExpired = this.tacz_sewv$lineCacheTick == Long.MIN_VALUE
+                || now - this.tacz_sewv$lineCacheTick >= LOS_CACHE_WINDOW_TICKS;
+        if (lineCacheExpired || living.getId() != this.tacz_sewv$lineCacheShooterId) {
             this.tacz_sewv$lineCacheTick = now;
             this.tacz_sewv$lineCacheShooterId = living.getId();
             this.tacz_sewv$lineCacheBlocked = tacz_sewv$lineOfFireBlocked(self, living, target);

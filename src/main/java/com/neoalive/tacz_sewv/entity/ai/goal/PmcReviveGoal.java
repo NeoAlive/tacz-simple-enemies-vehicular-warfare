@@ -16,6 +16,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
+import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.network.PacketReviveProgress;
@@ -77,6 +78,11 @@ public class PmcReviveGoal extends Goal {
         // A downed medic obviously cannot revive anyone.
         if (this.unit instanceof IPmcDowned self && self.sewv$isDowned()) return false;
         if (SupportRole.of(this.unit) != SupportRole.MEDIC) return false;
+        // A medic committed to a mortar stays committed — see PlayerReviveGoal for why this
+        // guard exists: without it, ManMortarGoal's own beingOverrun window (the one point it
+        // yields MOVE+LOOK while still holding the claim) is enough for this equal-priority
+        // goal to win the tie and carry the medic off the tube for a whole revive channel.
+        if (MortarSupport.hasMortarClaim(this.unit)) return false;
 
         this.patient = findDownedAlly();
         if (this.patient == null) {

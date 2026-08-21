@@ -24,6 +24,13 @@ config="tacz_sewv.xaero.mixins.json"
 [[mixins]]
 config="tacz_sewv.komodo.mixins.json"
 
+# PlayerReviveMod compat. Separate config ("required": false) + PlayerReviveMixinPlugin
+# (LoadingModList gate on mod id playerrevive) so an absent PlayerReviveMod never queues
+# MixinReviveEventServer. Compiled against libs/playerrevive.jar (compileOnly), same as
+# Xaero/Komodo above.
+[[mixins]]
+config="tacz_sewv.playerrevive.mixins.json"
+
 [[dependencies.tacz_sewv]] #optional
     modId="forge" #mandatory
     mandatory=true #mandatory
@@ -139,6 +146,16 @@ config="tacz_sewv.komodo.mixins.json"
     mandatory=false
     versionRange="[0,)"
     ordering="NONE"
+    side="BOTH"
+
+# Soft compat: PlayerReviveMod. Optional — a friendly PMC auto-revives a downed player, and this
+# mod's own PMC-downed system (see PmcDownedSupport) bundles under the same presence gate. Absent
+# installs skip PlayerReviveGoal/DownedGoal/PmcReviveGoal entirely; PMCs just die like RU/US.
+[[dependencies.tacz_sewv]]
+    modId="playerrevive"
+    mandatory=false
+    versionRange="[2.0.31,)"
+    ordering="AFTER"
     side="BOTH"
 
 # Soft compat: Configured (in-game ForgeConfigSpec GUI). Optional — no SEWV Java references;

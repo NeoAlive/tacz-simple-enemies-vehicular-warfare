@@ -14,6 +14,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
+import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.network.PacketReviveProgress;
 
 /**
@@ -90,6 +91,12 @@ public class PlayerReviveGoal extends Goal {
         // A crew member is busy working the vehicle. Unlike MedicGoal, holding a target does NOT
         // bail here — see the class doc for why a downed player overrides ordinary combat.
         if (this.unit.isPassenger()) return false;
+        // A unit committed to a mortar stays committed — same precedence PacketBoardVehicle/
+        // PacketEscort already give mortar duty over a reassignment order. Without this, the
+        // brief window where ManMortarGoal itself yields MOVE+LOOK (beingOverrun) is enough for
+        // this equal-priority goal to win the tie and walk the crew off the tube for the whole
+        // revive channel, well past when the overrun that opened the window has cleared.
+        if (MortarSupport.hasMortarClaim(this.unit)) return false;
 
         this.patient = findDownedPlayer();
         if (this.patient == null) {

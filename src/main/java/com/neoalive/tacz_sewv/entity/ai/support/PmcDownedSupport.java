@@ -16,6 +16,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
+import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.network.PacketReviveProgress;
@@ -25,10 +26,13 @@ import com.neoalive.tacz_sewv.network.PacketReviveProgress;
  * investment (recruited, equipped, ordered) enough to be worth a second chance, and only PMC
  * implements {@link IPmcDowned}.
  *
- * <p>This is entirely this mod's own state, independent of the PlayerReviveMod soft-compat used for
- * downed <em>players</em> ({@code PlayerReviveCompat}) — that mod's capability only ever attaches to
- * {@code Player} entities, so it has nothing to say about an NPC. Works with or without
- * PlayerReviveMod installed.
+ * <p>This is entirely this mod's own state — it never touches the PlayerReviveMod soft-compat used
+ * for downed <em>players</em> ({@code PlayerReviveCompat}), whose capability only ever attaches to
+ * {@code Player} entities and so has nothing to say about an NPC. It is nonetheless gated on that
+ * mod's presence ({@link #onDeath}), same as {@code DownedGoal}/{@code PmcReviveGoal}'s goal-add
+ * gate in {@code MixinPmcUnitEntity}: PlayerReviveMod is an optional dependency, and a downed-PMC
+ * system is bundled under that same optionality rather than behaving differently from the
+ * downed-player half depending on an unrelated mod's presence.
  *
  * <p>Two ways back up: a player holding attack while looking at a downed PMC
  * ({@link #handleHoldRevive}, fed by {@code PacketHoldRevive}/{@code ReviveHoldInput}), or another
@@ -82,6 +86,9 @@ public final class PmcDownedSupport {
         if (!(event.getEntity() instanceof PmcUnitEntity pmc)) return;
         if (!(pmc instanceof IPmcDowned downed)) return;
         if (!SewvConfig.PMC_DOWNED_ENABLED.get()) return;
+        // Optional dependency: see the class doc for why this bundles under PlayerReviveMod's
+        // presence even though it never calls into that mod's own API.
+        if (!PlayerReviveCompat.isLoaded()) return;
         // Already downed once: this hit is what finishes them for real — let the death proceed.
         if (downed.sewv$isDowned()) return;
 

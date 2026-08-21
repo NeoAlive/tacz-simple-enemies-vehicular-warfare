@@ -134,6 +134,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_MIN_HEALTH_FRACTION;
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_STEALS_PLAYER_VEHICLES;
+    public static final ForgeConfigSpec.BooleanValue AUTO_MAN_MORTAR_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue AUTO_MAN_MORTAR_SCAN_RADIUS;
     public static final ForgeConfigSpec.BooleanValue AUTO_ENTRENCH_ENABLED;
     public static final ForgeConfigSpec.DoubleValue AUTO_ENTRENCH_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
@@ -495,7 +497,9 @@ public final class SewvConfig {
                 .define("pmcReviveForceSingleplayer", true);
         PMC_DOWNED_ENABLED = builder.comment(
                 "PMC units go down instead of dying and can be revived (by a player interacting with "
-                        + "them, or by a medic PMC) instead of dying outright. RU/US always just die.")
+                        + "them, or by a medic PMC) instead of dying outright. RU/US always just die. "
+                        + "Requires PlayerReviveMod (bundled with the downed-player feature, even though "
+                        + "it never uses that mod's own API).")
                 .define("pmcDownedEnabled", true);
         PMC_DOWNED_HEALTH = builder.comment("Health a PMC is left with the moment it goes down.")
                 .defineInRange("pmcDownedHealth", 4.0, 1.0, 20.0);
@@ -552,6 +556,10 @@ public final class SewvConfig {
                 .defineInRange("autoBoardMinHealthFraction", 0.25, 0.0, 1.0);
         AUTO_BOARD_STEALS_PLAYER_VEHICLES = builder.comment("If on, RU/US may take vehicles you have driven before. Off by default.")
                 .define("autoBoardStealsPlayerVehicles", false);
+        AUTO_MAN_MORTAR_ENABLED = builder.comment("Idle RU/US soldiers may crew an empty, unclaimed mortar (same feature as autoBoardEnabled, for mortars).")
+                .define("autoManMortarEnabled", true);
+        AUTO_MAN_MORTAR_SCAN_RADIUS = builder.comment("How far (blocks) they look for empty mortars.")
+                .defineInRange("autoManMortarScanRadius", 32.0, 4.0, 128.0);
         AUTO_ENTRENCH_ENABLED = builder.comment(
                         "Idle RU/US soldiers may claim nearby trench networks, emplacements, or free sandbags.")
                 .define("autoEntrenchEnabled", true);

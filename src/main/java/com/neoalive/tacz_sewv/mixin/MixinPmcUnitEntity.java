@@ -247,11 +247,17 @@ public abstract class MixinPmcUnitEntity
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)
     private void tacz_sewv$addVehicleGoals(CallbackInfo ci) {
         PmcUnitEntity self = (PmcUnitEntity) (Object) this;
-        // This mod's own downed mechanic (PMC only — RU/US just die), independent of
-        // PlayerReviveMod. Priority 0: must outrank every other goal, combat included, so a
-        // downed unit is fully frozen rather than still trying to fight from the ground. See
-        // PmcDownedSupport (converts a killing blow into "downed") and the class doc.
-        ((Mob) self).goalSelector.addGoal(0, new DownedGoal(self));
+        // This mod's own downed mechanic (PMC only — RU/US just die). It never touches
+        // PlayerReviveMod's own API/state — that mod's capability only ever attaches to Player —
+        // but it is gated on the mod's presence anyway, same as PlayerReviveGoal below: bundled as
+        // one optional feature set rather than a downed-PMC system that behaves differently
+        // depending on an unrelated mod's presence. Priority 0: must outrank every other goal,
+        // combat included, so a downed unit is fully frozen rather than still trying to fight
+        // from the ground. See PmcDownedSupport (converts a killing blow into "downed") and the
+        // class doc.
+        if (PlayerReviveCompat.isLoaded()) {
+            ((Mob) self).goalSelector.addGoal(0, new DownedGoal(self));
+        }
         // Claims no flags, so its priority is nominal — it only relays a contact over the
         // radio and never competes with what the unit is doing.
         ((Mob) self).goalSelector.addGoal(1, new RadioObserverGoal(self));
@@ -270,9 +276,12 @@ public abstract class MixinPmcUnitEntity
         }
         // This mod's own downed mechanic, the PMC-to-PMC half: only a medic (SupportRole.MEDIC,
         // stricter than MedicGoal's own "has a spare kit somewhere") revives a downed squadmate.
-        // No PlayerReviveCompat gate needed — unlike PlayerReviveGoal this never touches
-        // PlayerReviveMod at all. Same priority-1 "overrides combat" reasoning as PlayerReviveGoal.
-        ((Mob) self).goalSelector.addGoal(1, new PmcReviveGoal(self));
+        // Gated on the same isLoaded() as DownedGoal above, for the same bundling reason — a
+        // downed squadmate is pointless to revive if nothing can ever go down in the first place.
+        // Same priority-1 "overrides combat" reasoning as PlayerReviveGoal.
+        if (PlayerReviveCompat.isLoaded()) {
+            ((Mob) self).goalSelector.addGoal(1, new PmcReviveGoal(self));
+        }
         // The engineer half of the same idea: dormant on an ordinary PMC and live the moment a
         // player hands one a repair tool (RepairGoal gates itself on SupportRole). Same priority as
         // first aid — both are things a unit does when it is not otherwise busy — and it stands

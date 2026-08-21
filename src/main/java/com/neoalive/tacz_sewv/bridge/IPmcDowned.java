@@ -4,11 +4,13 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 
 /**
- * Downed (bleeding out, not dead) state for a PMC unit — this mod's own mechanic, independent of
- * PlayerReviveMod. That mod's {@code IBleeding} capability is attached only to {@code Player}
- * entities ({@code AttachCapabilitiesEvent<Entity>} gates on {@code instanceof Player}), so an NPC
- * can never hold it. Only {@code PmcUnitEntity} implements this ({@code MixinPmcUnitEntity}) — RU/US
- * never go down, they simply die.
+ * Downed (bleeding out, not dead) state for a PMC unit — this mod's own mechanic, and it never
+ * touches PlayerReviveMod's own API. That mod's {@code IBleeding} capability is attached only to
+ * {@code Player} entities ({@code AttachCapabilitiesEvent<Entity>} gates on {@code instanceof
+ * Player}), so an NPC can never hold it. It is nonetheless gated on PlayerReviveMod's presence
+ * ({@code PmcDownedSupport#onDeath}, {@code MixinPmcUnitEntity}'s goal-add gate) — see
+ * {@code PmcDownedSupport}'s class doc for why. Only {@code PmcUnitEntity} implements this
+ * ({@code MixinPmcUnitEntity}) — RU/US never go down, they simply die.
  *
  * <p>Persistent rather than a transient mixin field, same reasoning as {@link IHelicopterPilot}'s
  * flight command: a downed PMC must still be downed after a chunk reload, not silently revert to

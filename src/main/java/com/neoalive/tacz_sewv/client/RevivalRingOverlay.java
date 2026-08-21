@@ -42,6 +42,9 @@ public final class RevivalRingOverlay {
 
     private static final float OUTER_RADIUS = 0.07F;
     private static final float INNER_RADIUS = 0.052F;
+    /** Fraction of screen height for the ring's vertical center — below the crosshair (0.5) so it
+     * clears PlayerReviveMod's own downed-player GUI, which sits centered higher up the screen. */
+    private static final float CENTER_Y_FRACTION = 0.82F;
     private static final float[] TRACK_RGB = {0.0F, 0.0F, 0.0F};
     private static final float TRACK_ALPHA = 0.4F;
     private static final float[] FILL_RGB = {1.0F, 1.0F, 1.0F};
@@ -84,7 +87,7 @@ public final class RevivalRingOverlay {
 
         GuiGraphics g = event.getGuiGraphics();
         float centerX = mc.getWindow().getGuiScaledWidth() / 2.0F;
-        float centerY = mc.getWindow().getGuiScaledHeight() / 2.0F;
+        float centerY = mc.getWindow().getGuiScaledHeight() * CENTER_Y_FRACTION;
         RenderHelper.renderCircularRing(g, centerX, centerY, OUTER_RADIUS, INNER_RADIUS,
                 track, fill, progress, true);
     }

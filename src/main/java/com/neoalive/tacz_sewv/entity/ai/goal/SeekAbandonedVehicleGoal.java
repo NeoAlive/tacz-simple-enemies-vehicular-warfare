@@ -13,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -92,6 +93,14 @@ public class SeekAbandonedVehicleGoal extends Goal {
         // Never break off a fight to go looking for a ride. This is also what keeps the goal
         // from competing with SEM's combat goals — an engaged unit simply never scans.
         if (this.unit.getTarget() != null) return false;
+        // A mortar claim already stands — let ManMortarGoal work it before this goal hands the
+        // unit a second, flag-conflicting order. See SeekAbandonedMortarGoal's class doc: both
+        // ManMortarGoal and BoardVehicleGoal sit at priority 1 holding MOVE, so without this a
+        // mortar crew's board order would simply never get its turn at the flag.
+        if (this.unit instanceof IMortarCrew mortarCrew
+                && mortarCrew.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
+            return false;
+        }
         // An order already stands; let BoardVehicleGoal finish (or time out) before re-scanning.
         return !((IVehicleBoarder) this.unit).tacz_sewv$isBoarding();
     }

@@ -1,31 +1,24 @@
 {
 	"format_version": "1.8.0",
 	"animations": {
-		"animation.captured": {
+		"captured": {
 			"loop": true,
-			"animation_length": 1.25,
 			"bones": {
 				"fakeRoot": {
-					"position": [0, -7, 0]
-				},
-				"head": {
-					"rotation": [23.4326, 1.4504, "5.6659+math.sin(query.anim_time * 1000) * 0.2"]
-				},
-				"body": {
-					"rotation": [0, -10, 0]
+					"position": [0, -8, 0]
 				},
 				"rightArm": {
-					"rotation": [115.2563, 19.2612, "-32.3301+math.sin(query.anim_time * 1000) * 0.2"]
+					"rotation": [28.7324, 16.6657, -25.3112]
 				},
 				"leftArm": {
-					"rotation": [126.8079, -45.5763, "7.6448+math.sin(query.anim_time * 1000) * 0.2"]
+					"rotation": [25.2577, -11.2532, 22.4707]
 				},
 				"rightLeg": {
-					"rotation": [67.5, -12.5, 0.0005],
+					"rotation": [90, -17.5, 0],
 					"position": [0, -2, -3]
 				},
 				"leftLeg": {
-					"rotation": [107.5203, 15.0069, -0.3325],
+					"rotation": [90, 20, 0],
 					"position": [0, -2, -3]
 				}
 			}

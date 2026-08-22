@@ -31,6 +31,15 @@ public final class NpcArmor {
     private NpcArmor() {
     }
 
+    /**
+     * Mark a unit as already handled so {@link #issue} never dresses it — for a unit that must stay
+     * bare on purpose (the rookie PMC a captured medic converts into), not an optimization. Must be
+     * called before the unit joins the level, since {@code issue} runs off {@code EntityJoinLevelEvent}.
+     */
+    public static void suppress(AbstractUnit unit) {
+        unit.getPersistentData().putBoolean(ISSUED, true);
+    }
+
     public static void issue(AbstractUnit unit) {
         if (!SewvConfig.NPC_ARMOR_ENABLED.get()) return;
         // The Commander's own skin/beret is its uniform — a chest rig drawn over it would make it

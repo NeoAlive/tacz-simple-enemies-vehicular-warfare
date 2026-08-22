@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.NpcArmor;
 import com.neoalive.tacz_sewv.crew.NpcNvg;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.SemRecruitCost;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
@@ -148,6 +149,8 @@ public class TaczSewv {
         // equally unsafe to touch from an AI tick before it has been baked.
         Doctrine.refreshPresets();
         WorldTargetPriority.refreshCatalog();
+        // SEM's recruit economy (used by medic capture feature).
+        SemRecruitCost.refresh();
     }
 
     // Every unit reaches the world through here, whichever door it came in by, which is what makes

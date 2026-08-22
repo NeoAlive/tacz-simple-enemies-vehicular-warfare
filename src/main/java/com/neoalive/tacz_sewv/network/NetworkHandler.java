@@ -92,7 +92,8 @@ public class NetworkHandler {
     // 59: PacketPlaneLandingDebug + PacketClearPlaneLandingDebug (sewvPlaneCombatDebug Dubins wireframe).
     // 60: PacketReviveProgress (S->C revival ring, PlayerReviveGoal/PmcReviveGoal/PmcDownedSupport).
     // 61: PacketHoldRevive (C->S hold-left-click-to-revive a downed PMC).
-    private static final String PROTOCOL_VERSION = "62";
+    // 62: PacketCaptureMedic (TDT "Capture Medic" order).
+    private static final String PROTOCOL_VERSION = "63";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -431,6 +432,15 @@ public class NetworkHandler {
                 PacketHoldRevive::encode,
                 PacketHoldRevive::new,
                 PacketHoldRevive::handle
+        );
+
+        // C->S, TDT "Capture Medic" (PmcCaptureMedicGoal / ICaptureMedic).
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketCaptureMedic.class,
+                PacketCaptureMedic::encode,
+                PacketCaptureMedic::new,
+                PacketCaptureMedic::handle
         );
     }
 }

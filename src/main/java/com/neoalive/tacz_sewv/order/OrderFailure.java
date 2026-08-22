@@ -60,6 +60,7 @@ public enum OrderFailure {
     WRONG_DIMENSION,
     NO_TRENCH,
     NO_GUARD_POST,
+    NO_MEDIC_IN_RANGE,
     MORTAR_TAKEN,
     MORTAR_GONE,
     VEHICLE_FULL,

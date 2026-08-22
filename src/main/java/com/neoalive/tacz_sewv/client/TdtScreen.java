@@ -242,6 +242,8 @@ public class TdtScreen extends Screen {
         add(Category.CREW, "gui.tacz_sewv.tdt.escort", "gui.tacz_sewv.tdt.escort.tip", true, ClientEvents::armEscort);
         add(Category.CREW, "gui.tacz_sewv.tdt.set_guard", "gui.tacz_sewv.tdt.set_guard.tip", true, ClientEvents::armGuardPosition);
         add(Category.CREW, "gui.tacz_sewv.tdt.reach_guard", "gui.tacz_sewv.tdt.reach_guard.tip", true, this::orderReachGuard);
+        add(Category.CREW, "gui.tacz_sewv.tdt.capture_medic", "gui.tacz_sewv.tdt.capture_medic.tip", true,
+                BoardKeybind::orderCaptureMedic);
 
         add(Category.AREA, "gui.tacz_sewv.tdt.patrol", "gui.tacz_sewv.tdt.patrol.tip", false,
                 () -> orderAreaTask(patrolRadius, IVehiclePatrol.MODE_PATROL), StepperKind.PATROL);

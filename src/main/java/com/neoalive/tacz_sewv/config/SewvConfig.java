@@ -111,6 +111,14 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PMC_DOWNED_HEALTH;
     public static final ForgeConfigSpec.IntValue PMC_DOWNED_BLEED_TICKS;
     public static final ForgeConfigSpec.DoubleValue PMC_DOWNED_REVIVE_HEALTH;
+    public static final ForgeConfigSpec.BooleanValue MEDIC_CAPTURE_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue MEDIC_CAPTURED_HEALTH;
+    public static final ForgeConfigSpec.IntValue MEDIC_CAPTURE_DURATION_TICKS;
+    public static final ForgeConfigSpec.DoubleValue MEDIC_FLEE_DETECTION_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue MEDIC_FLEE_MIN_DISTANCE;
+    public static final ForgeConfigSpec.DoubleValue MEDIC_FLEE_MAX_DISTANCE;
+    public static final ForgeConfigSpec.BooleanValue MEDIC_CAPTURE_DEBUG_LOGGING;
+    public static final ForgeConfigSpec.DoubleValue PMC_CAPTURE_MEDIC_RADIUS;
     public static final ForgeConfigSpec.BooleanValue HEALTH_MOBILITY_ENABLED;
     public static final ForgeConfigSpec.DoubleValue HEALTH_MOBILITY_FLOOR;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SPAWN_CHANCE;
@@ -507,6 +515,25 @@ public final class SewvConfig {
                 .defineInRange("pmcDownedBleedTicks", 1200, 100, 6000);
         PMC_DOWNED_REVIVE_HEALTH = builder.comment("Health a PMC is restored to when successfully revived.")
                 .defineInRange("pmcDownedReviveHealth", 6.0, 1.0, 40.0);
+        MEDIC_CAPTURE_ENABLED = builder.comment("RU/US medics may be captured (defeated) and converted to PMC units for a cost.")
+                .define("medicCaptureEnabled", true);
+        MEDIC_CAPTURED_HEALTH = builder.comment("Health an RU/US medic is left with the moment it is captured.")
+                .defineInRange("medicCapturedHealth", 4.0, 1.0, 20.0);
+        MEDIC_CAPTURE_DURATION_TICKS = builder.comment("Ticks a captured medic has before escaping. 2400 = 2 minutes.")
+                .defineInRange("medicCaptureDurationTicks", 2400, 100, 12000);
+        MEDIC_FLEE_DETECTION_RADIUS = builder.comment("How far (blocks) medics look for a nearby hostile before fleeing.")
+                .defineInRange("medicFleeDetectionRadius", 16.0, 4.0, 64.0);
+        MEDIC_FLEE_MIN_DISTANCE = builder.comment("Minimum distance (blocks) a fleeing medic tries to reach from the threat.")
+                .defineInRange("medicFleeMinDistance", 8.0, 2.0, 32.0);
+        MEDIC_FLEE_MAX_DISTANCE = builder.comment("Maximum distance (blocks) sampled for a fleeing medic's escape point.")
+                .defineInRange("medicFleeMaxDistance", 16.0, 4.0, 64.0);
+        MEDIC_CAPTURE_DEBUG_LOGGING = builder.comment(
+                        "Log medic capture trigger/expiry and PMC chase-medic dispatch to console. Off by default.")
+                .define("medicCaptureDebugLogging", false);
+        PMC_CAPTURE_MEDIC_RADIUS = builder.comment(
+                        "How far (blocks) a PMC ordered to Capture Medic looks for a medic — captured",
+                        "or still running — to subdue and convert.")
+                .defineInRange("pmcCaptureMedicRadius", 48.0, 8.0, 128.0);
         HEALTH_MOBILITY_ENABLED = builder.comment("Damaged AI vehicles move more slowly.")
                 .define("healthMobilityEnabled", true);
         HEALTH_MOBILITY_FLOOR = builder.comment("Slowest a wrecked hull still moves (0.4 = 40% of normal speed).")

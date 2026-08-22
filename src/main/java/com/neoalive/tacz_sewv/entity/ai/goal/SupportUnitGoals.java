@@ -29,7 +29,12 @@ public final class SupportUnitGoals {
     public static void medic(AbstractUnit unit, GoalSelector goals, GoalSelector targets) {
         reset(unit, goals, targets);
         goals.addGoal(0, new FloatGoal(unit));
-        goals.addGoal(1, new MedicGoal(unit));
+        // Priority -1, strictly beating FloatGoal (0) for the shared JUMP flag — same fix as
+        // DroneControlLockGoal. Two goals at the SAME priority cannot preempt one another for a
+        // flag, so a captured-in-water medic would otherwise never freeze until FloatGoal let go.
+        goals.addGoal(-1, new MedicCapturedGoal(unit));
+        goals.addGoal(1, new MedicFleeGoal(unit));
+        goals.addGoal(2, new MedicGoal(unit));
         idle(unit, goals);
     }
 

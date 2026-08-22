@@ -29,10 +29,10 @@ public class MedicCapturedGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (!(this.unit instanceof IMedicCaptured captured)) {
+        if (!(this.unit instanceof IMedicCaptured captured) || !SewvConfig.MEDIC_CAPTURE_ENABLED.get()) {
             return false;
         }
-        return captured.sewv$isCaptured() && SewvConfig.MEDIC_CAPTURE_ENABLED.get();
+        return captured.sewv$isCaptured();
     }
 
     @Override

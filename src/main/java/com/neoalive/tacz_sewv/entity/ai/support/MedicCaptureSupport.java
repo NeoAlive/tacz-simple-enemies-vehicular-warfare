@@ -66,6 +66,10 @@ public class MedicCaptureSupport {
         captured.sewv$setCapturedSynced(true);
         medic.setHealth((float) Math.max(1.0, SewvConfig.MEDIC_CAPTURED_HEALTH.get()));
         medic.setTarget(null);
+        // Unconditional: a capture is a rare, player-facing event, and "did it even trigger" must
+        // not depend on the debug toggle.
+        LOGGER.info("[sewv medic-capture] {} captured ({} ticks until escape)",
+                medic.getName().getString(), SewvConfig.MEDIC_CAPTURE_DURATION_TICKS.get());
         debugLog("capture: {} captured, health={}, deadline in {} ticks", medic,
                 medic.getHealth(), SewvConfig.MEDIC_CAPTURE_DURATION_TICKS.get());
     }

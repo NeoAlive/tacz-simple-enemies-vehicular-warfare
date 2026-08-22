@@ -36,7 +36,8 @@ public abstract class MixinRuUsCapturedPose {
     @Inject(method = "setupAnim", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$capturedPose(Entity entity, float limbSwing, float limbSwingAmount,
                                         float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo ci) {
-        if (!(entity instanceof IMedicCaptured captured) || !captured.sewv$isCapturedSynced()) return;
+        if (!(entity instanceof IMedicCaptured captured)) return;
+        if (!captured.sewv$isCapturedSynced()) return;
         ModelPart root = ((HierarchicalModel<?>) (Object) this).root();
         root.getAllParts().forEach(ModelPart::resetPose);
         CapturedUnitPose.applyToUnit(root, ageInTicks);

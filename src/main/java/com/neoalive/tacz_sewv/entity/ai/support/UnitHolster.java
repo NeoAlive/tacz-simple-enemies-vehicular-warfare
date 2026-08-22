@@ -21,6 +21,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
@@ -52,7 +53,9 @@ public final class UnitHolster {
      * mortar tube, administering aid ({@code IMedicTreat.isTreating} — MedicGoal's ally healing and
      * PlayerReviveGoal/PmcReviveGoal's revive channel all set it: a unit working on someone should
      * not be seen with a rifle up), or downed ({@code IPmcDowned.isDownedSynced} — a unit lying
-     * prone is not holding anything up either). Commander / Climb seats keep the rifle visible.
+     * prone is not holding anything up either), or captured ({@code IMedicCaptured.isCapturedSynced}
+     * — same incapacitated logic as downed, and the pose that replaces SEM's animation is the
+     * shared downed clip). Commander / Climb seats keep the rifle visible.
      * Approach / path failure / overrun / dead tube clear the mortar flag so the rifle shows again.
      */
     public static boolean hideHeldItems(LivingEntity entity) {
@@ -63,6 +66,7 @@ public final class UnitHolster {
         if (!(entity instanceof AbstractUnit unit)) return false;
         if (MedicControl.isTreating(unit)) return true;
         if (unit instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) return true;
+        if (unit instanceof IMedicCaptured captured && captured.sewv$isCapturedSynced()) return true;
         return entity.getEntityData().get(MANNING_MORTAR);
     }
 
@@ -79,17 +83,18 @@ public final class UnitHolster {
      * TACZ gun to draw on the body, or {@link ItemStack#EMPTY}. Never the stack already drawn
      * in MAIN as a held weapon (avoids double-draw while fighting).
      *
-     * <p>Downed is checked before {@link #hideHeldItems} rather than falling through to its
-     * generic "not in hand" branch below: that branch's whole point is drawing the gun
+     * <p>Downed and captured are checked before {@link #hideHeldItems} rather than falling
+     * through to its generic "not in hand" branch below: that branch's whole point is drawing the gun
      * <b>body-holstered</b> instead of in-hand (mortar/TOW crew, a medic mid-treat) — a fixed
      * attachment point built for a standing rig, which a downed unit's collapsed pose has no
-     * sensible relationship to (misaligned/floating). A downed unit gets no gun drawn at all,
+     * sensible relationship to (misaligned/floating). A downed or captured unit gets no gun drawn at all,
      * in-hand or holstered, same as {@link com.neoalive.tacz_sewv.client.SmallArmsLayer}'s SBW
      * equivalent already does with a plain early return.
      */
     public static ItemStack holsteredGun(LivingEntity entity) {
         if (entity.isDeadOrDying()) return ItemStack.EMPTY;
         if (entity instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) return ItemStack.EMPTY;
+        if (entity instanceof IMedicCaptured captured && captured.sewv$isCapturedSynced()) return ItemStack.EMPTY;
 
         ItemStack main = entity.getMainHandItem();
         ItemStack off = entity.getOffhandItem();

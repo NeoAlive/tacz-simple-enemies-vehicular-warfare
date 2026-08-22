@@ -266,6 +266,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue INVASION_POD_AVOID_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HEAT_RAY_SPEED;
 
+    public static final ForgeConfigSpec.BooleanValue TACZ_BALLISTIC_TRANSLATION_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue TACZ_BALLISTIC_GLOBAL_SCALE;
+
     // Optional Enhanced Falling Trees support: ground vehicles fell trees on contact.
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TREE_FELLING_ENABLED;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TREE_FELL_DAMAGE;
@@ -1015,6 +1018,18 @@ public final class SewvConfig {
         HEAT_RAY_SPEED = builder.comment(
                         "Speed of Extermination heat-ray shots. The original mod uses 3.5; default 10.5 is triple that.")
                 .defineInRange("heatRaySpeed", 10.5, 3.5, 40.0);
+        builder.pop();
+
+        builder.push("tacz_ballistics");
+        TACZ_BALLISTIC_TRANSLATION_ENABLED = builder.comment(
+                        "TaCZ bullet damage against SuperbWarfare vehicles is rescaled to match an",
+                        "equivalent SBW weapon before the hull's own armor tables apply, instead of TaCZ's",
+                        "raw (much smaller) numbers. Off restores TaCZ's native damage against vehicles.")
+                .define("tacZBallisticTranslationEnabled", true);
+        TACZ_BALLISTIC_GLOBAL_SCALE = builder.comment(
+                        "Extra multiplier applied on top of the per-category translation factor.",
+                        "1.0 = translation table numbers as shipped/configured.")
+                .defineInRange("tacZBallisticGlobalScale", 1.0, 0.0, 10.0);
         builder.pop();
 
         builder.push("tree_felling");

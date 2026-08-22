@@ -75,7 +75,6 @@ public class ClientModEvents {
     public static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(new SandbagSeatPose.Loader());
         event.registerReloadListener(new DownedUnitPose.Loader());
-        event.registerReloadListener(new CapturedUnitPose.Loader());
         event.registerReloadListener((ResourceManagerReloadListener) resources -> {
             VehicleSkinRegistry.reload(resources);
             CrewSkinRegistry.reload(resources);

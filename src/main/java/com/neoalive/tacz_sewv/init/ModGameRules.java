@@ -67,6 +67,9 @@ public final class ModGameRules {
             GameRules.register("sewvPlaneCombatDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
     public static final GameRules.Key<GameRules.BooleanValue> MORTAR_DEBUG_LOGGING =
             GameRules.register("sewvMortarDebugLogging", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+    /** Prints {@code gunId -> category, factor, half, in->out} for every translated TaCZ hit. */
+    public static final GameRules.Key<GameRules.BooleanValue> BALLISTIC_TRANSLATION_DEBUG =
+            GameRules.register("sewvBallisticTranslationDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
     /** Default ON — silent until an order actually fails; see the old orderFailureDebug comment. */
     public static final GameRules.Key<GameRules.BooleanValue> ORDER_FAILURE_DEBUG =
             GameRules.register("sewvOrderFailureDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(true));

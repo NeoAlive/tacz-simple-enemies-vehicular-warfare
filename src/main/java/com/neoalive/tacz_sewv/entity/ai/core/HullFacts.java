@@ -3,7 +3,9 @@ package com.neoalive.tacz_sewv.entity.ai.core;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
@@ -51,6 +53,13 @@ public final class HullFacts {
     private boolean artillery;
     private Set<Integer> crewSeats = Set.of(0);
     private Set<Integer> climbSeats = Set.of();
+
+    // Keyed on entity identity, not per-instance: callers with no attached HullFacts (the ballistic
+    // translation redirect, which fires on a bullet hit rather than a crew AI tick) still want the
+    // cache. EngineType cannot change during a hull's lifetime (see computeShip below), so unlike
+    // VehicleWeapons' per-tick GunMapCache this never needs invalidating - only server-thread callers
+    // ever reach it (ballistic translation gates client-side out first), so a plain WeakHashMap is safe.
+    private static final Map<VehicleEntity, EngineType> ENGINE_TYPE_CACHE = new WeakHashMap<>();
 
     public void attach(VehicleEntity v) {
         if (this.vehicle == v) return;
@@ -381,6 +390,30 @@ public final class HullFacts {
     /** Rotary-wing test for callers with no attached {@link HullFacts} (AA target preference). */
     public static boolean isHelicopterHull(VehicleEntity v) {
         return computeHelicopter(v);
+    }
+
+    /**
+     * Cached raw {@code EngineType} for callers with no attached {@link HullFacts} and no interest
+     * in the derived helicopter/plane/ship/groundMobile booleans above - currently just the
+     * ballistic translation redirect, which needs the hull CLASS (WHEEL/TRACK/SHIP/...) to key an
+     * optional per-category datapack override, not any one of those booleans.
+     *
+     * <p>Reads {@code computed()} (static datapack data), same as every other engine-type read in
+     * this class - never {@code getEngineInfo()}, which is null until the hull's first
+     * {@code travel()}.
+     */
+    public static EngineType engineType(VehicleEntity v) {
+        synchronized (ENGINE_TYPE_CACHE) {
+            return ENGINE_TYPE_CACHE.computeIfAbsent(v, HullFacts::computeEngineType);
+        }
+    }
+
+    private static EngineType computeEngineType(VehicleEntity v) {
+        try {
+            return v.computed().getEngineType();
+        } catch (Throwable ignored) {
+            return EngineType.EMPTY;
+        }
     }
 
     private static boolean computeShip(VehicleEntity v) {

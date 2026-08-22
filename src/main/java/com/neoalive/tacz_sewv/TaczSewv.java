@@ -130,6 +130,8 @@ public class TaczSewv {
     @SubscribeEvent
     public void onAddReloadListener(AddReloadListenerEvent event) {
         event.addListener(new UtilityWeights.Loader());
+        // See com.neoalive.tacz_sewv.ballistics.TranslationTable.
+        event.addListener(new com.neoalive.tacz_sewv.ballistics.TranslationTable.Loader());
     }
 
     /**

@@ -595,6 +595,46 @@ public final class VehicleTargeting {
         return !WorldTargetPriority.get(unit.level()).isExcluded(faction, e.getType().getCategory().getName());
     }
 
+    /**
+     * Whether {@code unit} may proactively acquire {@code e} as a target — the shared gate for
+     * every priority-1 auto-target goal ({@link CrewTargetPriorityGoal},
+     * {@link com.neoalive.tacz_sewv.entity.ai.goal.SoftEnemyTargetPriorityGoal}). Mirrors
+     * {@link VehicleTargetScanGoal}'s faction doctrine, which is SEM's own: PMC crews fight
+     * RU/US and hostile mobs but never players or other PMC; RU/US fight players, the opposing
+     * faction and hostile mobs. Extracted here (was inline in {@code CrewTargetPriorityGoal})
+     * so a second priority-1 targeting goal doesn't have to reduplicate the diplomacy/PMC
+     * special-casing and risk drifting from it.
+     */
+    public static boolean isValidHostileTarget(AbstractUnit unit, LivingEntity e) {
+        if (e == unit || !e.isAlive() || !e.isAttackable()) return false;
+        if (isNonHostile(unit, e)) return false;
+        if (unit.getVehicle() != null && e.getVehicle() == unit.getVehicle()) {
+            return false; // riding our own hull — crewmate, or a hugger the tube can't reach
+        }
+
+        if (unit instanceof PmcUnitEntity) {
+            if (e instanceof PmcUnitEntity) {
+                if (isDiplomacyEnemy(unit, e)) {
+                    SewvDiag.scan(
+                            "VehicleTargeting.isValidHostileTarget ALLOW diplomacyEnemy Pmc "
+                                    + "unit={}#{} cand={}#{}",
+                            unit.getClass().getSimpleName(), unit.getId(),
+                            e.getClass().getSimpleName(), e.getId());
+                    return categoryAllowed(unit, e);
+                }
+                SewvDiag.scan(
+                        "VehicleTargeting.isValidHostileTarget REJECT hardPmcExclusion "
+                                + "unit={}#{} cand={}#{} isNonHostile=false → DROP (ALLY/NEUTRAL/unresolved)",
+                        unit.getClass().getSimpleName(), unit.getId(),
+                        e.getClass().getSimpleName(), e.getId());
+                return false;
+            }
+            return categoryAllowed(unit, e);
+        }
+        if (e instanceof Player p) return !p.isCreative() && !p.isSpectator();
+        return categoryAllowed(unit, e);
+    }
+
     @Nullable
     private static TankFaction factionOf(AbstractUnit unit) {
         if (unit instanceof RUunitEntity) return TankFaction.RU;

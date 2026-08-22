@@ -83,5 +83,9 @@ public final class VehicleAiGoals {
         // priority steal a held flag — so nothing at 2 can take a crew off a zombie. See
         // the class doc. Still loses to a priority-0 radio fire mission.
         unit.targetSelector.addGoal(1, new CrewTargetPriorityGoal(unit));
+        // Same priority-1 override, for the same reason, softcompat scope: nudges a unit onto
+        // a Spore / Phayriosis Two mob over a same-priority vanilla Monster catch-all. No-ops
+        // (never even scans) with neither mod installed — see SoftEnemyTargeting.anyPresent().
+        unit.targetSelector.addGoal(1, new SoftEnemyTargetPriorityGoal(unit));
     }
 }

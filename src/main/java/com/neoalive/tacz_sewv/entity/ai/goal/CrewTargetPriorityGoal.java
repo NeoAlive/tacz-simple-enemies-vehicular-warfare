@@ -7,13 +7,10 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
@@ -194,33 +191,7 @@ public class CrewTargetPriorityGoal extends Goal {
      * deliberately — a crew must not prefer a target its own scan would refuse.
      */
     private boolean isValidTarget(LivingEntity e) {
-        if (e == this.unit || !e.isAlive() || !e.isAttackable()) return false;
-        if (VehicleTargeting.isNonHostile(this.unit, e)) return false;
-        if (this.unit.getVehicle() != null && e.getVehicle() == this.unit.getVehicle()) {
-            return false; // riding our own hull — crewmate, or a hugger the tube can't reach
-        }
-
-        if (this.unit instanceof PmcUnitEntity) {
-            if (e instanceof PmcUnitEntity) {
-                if (VehicleTargeting.isDiplomacyEnemy(this.unit, e)) {
-                    SewvDiag.scan(
-                            "CrewTargetPriorityGoal.isValidTarget ALLOW diplomacyEnemy Pmc "
-                                    + "unit={}#{} cand={}#{}",
-                            this.unit.getClass().getSimpleName(), this.unit.getId(),
-                            e.getClass().getSimpleName(), e.getId());
-                    return VehicleTargeting.categoryAllowed(this.unit, e);
-                }
-                SewvDiag.scan(
-                        "CrewTargetPriorityGoal.isValidTarget REJECT hardPmcExclusion "
-                                + "unit={}#{} cand={}#{} isNonHostile=false → DROP (ALLY/NEUTRAL/unresolved)",
-                        this.unit.getClass().getSimpleName(), this.unit.getId(),
-                        e.getClass().getSimpleName(), e.getId());
-                return false;
-            }
-            return VehicleTargeting.categoryAllowed(this.unit, e);
-        }
-        if (e instanceof Player p) return !p.isCreative() && !p.isSpectator();
-        return VehicleTargeting.categoryAllowed(this.unit, e);
+        return VehicleTargeting.isValidHostileTarget(this.unit, e);
     }
 
     /**

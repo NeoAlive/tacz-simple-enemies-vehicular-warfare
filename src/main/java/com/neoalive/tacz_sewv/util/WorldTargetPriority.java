@@ -17,6 +17,7 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 
+import com.neoalive.tacz_sewv.compat.SporeCompat;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
@@ -56,9 +57,23 @@ public class WorldTargetPriority extends SavedData {
     public static Set<String> builtInExcluded() {
         Set<String> out = new LinkedHashSet<>();
         for (String name : catalog()) {
-            if (!ALLOWED_DEFAULT.equals(name)) out.add(name);
+            if (isDefaultAllowed(name)) continue;
+            out.add(name);
         }
         return out;
+    }
+
+    /**
+     * {@code monster}, plus (when Spore is installed) its own {@code infected}/{@code organoid}/
+     * {@code experiments} categories — see {@link SporeCompat#defaultAllowsCategory}. Without
+     * this, a fresh per-faction list would exclude those on the same "everything but monster"
+     * default as any other unknown category, and every SEWV unit would refuse to engage Spore's
+     * mobs at all until an admin manually opted them in via {@code /sewv targetPriority}, which
+     * would leave {@link com.neoalive.tacz_sewv.entity.ai.goal.SoftEnemyTargetPriorityGoal}'s
+     * tier priority with nothing it could ever legally pick.
+     */
+    private static boolean isDefaultAllowed(String name) {
+        return ALLOWED_DEFAULT.equals(name) || SporeCompat.defaultAllowsCategory(name);
     }
 
     public static WorldTargetPriority load(CompoundTag nbt) {

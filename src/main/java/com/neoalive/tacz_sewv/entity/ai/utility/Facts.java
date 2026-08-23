@@ -360,10 +360,10 @@ public final class Facts {
 
     private static boolean safeDecoyReady(VehicleEntity hull) {
         try {
-            // getDecoyReady() is the synced ready flag and the only reliable signal. Deliberately
-            // NOT decoyReloadCoolDown, which is re-armed to 500 the instant the launcher comes
-            // back up and so is not "ticks until ready" at all.
-            return hull.getDecoyReady();
+            // 0.8.9.1 dropped getDecoyReady(); a loaded launcher is decoyCount > 0. Deliberately
+            // NOT decoyReloadCoolDown, which is re-armed to getDecoyReloadTime() the instant the
+            // last decoy fires and so is not "ticks until ready" at all.
+            return hull.getDecoyCount() > 0;
         } catch (Throwable ignored) {
             return false;
         }

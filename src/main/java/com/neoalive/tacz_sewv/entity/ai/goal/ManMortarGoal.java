@@ -344,7 +344,7 @@ public class ManMortarGoal extends Goal {
         // setChanged(), which auto-fires a non-INTELLIGENT mortar with a null shooter and
         // loses kill attribution. Firing it ourselves credits the unit.
         this.mortar.getItems().set(MortarSupport.TUBE_SLOT, shell.copyWithCount(1));
-        this.mortar.vehicleShoot(this.unit, MortarSupport.WEAPON);
+        this.mortar.vehicleShoot(this.unit, MortarSupport.WEAPON, null);
         this.unit.swing(InteractionHand.MAIN_HAND);
 
         // vehicleShoot is void and bails silently on several conditions, so confirm it
@@ -365,7 +365,7 @@ public class ManMortarGoal extends Goal {
      * a blind shot at the target's position when the save occurred.
      */
     private void fireRecoveredShell() {
-        this.mortar.vehicleShoot(this.unit, MortarSupport.WEAPON);
+        this.mortar.vehicleShoot(this.unit, MortarSupport.WEAPON, null);
         this.unit.swing(InteractionHand.MAIN_HAND);
 
         boolean accepted = this.mortar.getEntityData().get(MortarEntity.FIRE_TIME) != 0;

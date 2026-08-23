@@ -1,6 +1,6 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
-import com.github.mcmodderanchor.simplebedrockmodel.v1.client.renderer.GeoArmorRenderer;
+import com.github.mcmodderanchor.simplebedrockmodel.v2.client.renderer.GeoArmorRendererV2;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
@@ -14,11 +14,13 @@ import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 
 /**
- * Swap in a filesystem wearer-faction armor skin after simplebedrockmodel's getTexture.
- * Paint follows the unit, not the item — an RU unit wearing a US IOTV resolves
- * {@code ru_chest_iotv_*} if present.
+ * Swap in a filesystem wearer-faction armor skin after SBM v2's {@code getTexture}.
+ *
+ * <p>0.8.9.1 moved SBW armor onto {@link GeoArmorRendererV2}; the v1 {@code GeoArmorRenderer}
+ * hook no longer runs. Paint still follows the unit, not the item — an RU unit wearing a US
+ * IOTV resolves {@code ru_chest_iotv_*} if present.
  */
-@Mixin(value = GeoArmorRenderer.class, remap = false)
+@Mixin(value = GeoArmorRendererV2.class, remap = false)
 public abstract class MixinGeoArmorRenderer {
 
     @Shadow

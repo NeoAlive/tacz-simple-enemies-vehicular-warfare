@@ -58,9 +58,9 @@ public final class VehicleGunfireTranslation {
 
     /**
      * Called from {@code MixinVehicleDamageRedirect} in place of one
-     * {@code modifier.compute(source, amount)}. Returns {@code null} whenever this hit isn't a TaCZ
+     * {@code modifier.compute(entity, source, amount)}. Returns {@code null} whenever this hit isn't a TaCZ
      * bullet's damage, the feature is off, or the gun can't be resolved - the caller must then run
-     * its own default {@code compute(source, amount)}, leaving TaCZ's existing behaviour exactly as
+     * its own default {@code compute(entity, source, amount)}, leaving TaCZ's existing behaviour exactly as
      * it was. Returns the already-computed hull damage otherwise.
      */
     public static Float tryTranslate(VehicleEntity hull, DamageModifier modifier, DamageSource source, float amount) {
@@ -95,7 +95,7 @@ public final class VehicleGunfireTranslation {
                 float scaled = (float) (amount * factor);
                 DamageSource synthetic = ModDamageTypes.causeCustomExplosionDamage(
                         hull.level().registryAccess(), bullet, attacker);
-                float result = modifier.compute(synthetic, scaled);
+                float result = modifier.compute(hull, synthetic, scaled);
                 debugLog(gunId, category, factor, "AoE", amount, scaled, result);
                 return result;
             }
@@ -113,7 +113,7 @@ public final class VehicleGunfireTranslation {
                             ? ModDamageTypes.causeGunFireAbsoluteDamage(hull.level().registryAccess(), bullet, attacker)
                             : ModDamageTypes.causeGunFireDamage(hull.level().registryAccess(), bullet, attacker);
 
-            float result = modifier.compute(synthetic, scaled);
+            float result = modifier.compute(hull, synthetic, scaled);
             debugLog(gunId, category, factor, armorIgnoreHalf ? "AP" : "normal", amount, scaled, result);
             return result;
         } catch (Exception e) {

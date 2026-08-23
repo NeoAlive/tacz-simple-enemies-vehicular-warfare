@@ -1,11 +1,10 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
+import com.atsuishio.superbwarfare.client.overlay.OverlayTraceHandler;
 import com.atsuishio.superbwarfare.client.overlay.VehicleTeamOverlay;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
@@ -42,15 +41,17 @@ import com.neoalive.tacz_sewv.map.VehicleMarker;
 @Mixin(value = VehicleTeamOverlay.class, remap = false)
 public abstract class MixinVehicleTeamOverlay {
 
-    /**
-     * The vehicle under the crosshair, resolved once per client tick by the overlay's own
-     * raycast in {@code onVehicleTeamOverlayClientTick}. Shadowed rather than re-traced.
-     */
-    @Shadow
-    private static Entity lookingEntity;
-
     @Unique
     private static final int TACZ_SEWV$BAR_BACKGROUND = 0x80000000;
+
+    /**
+     * The vehicle under the crosshair. 0.8.9.1 moved the per-tick trace out of this object's own
+     * static field into {@link OverlayTraceHandler#cameraEntity} (a Kotlin {@code @JvmField}, so a
+     * plain static read — no shadow needed, and none possible: the field no longer exists here).
+     */
+    private static VehicleEntity tacz_sewv$lookingVehicle() {
+        return OverlayTraceHandler.cameraEntity instanceof VehicleEntity v ? v : null;
+    }
 
     @ModifyArg(
             method = "render(Lcom/atsuishio/superbwarfare/client/overlay/RenderContext;)V",
@@ -62,7 +63,8 @@ public abstract class MixinVehicleTeamOverlay {
         if (!ClientConfig.HELI_SHOW_RUN_PHASE.get() && !ClientGameRules.get(ModGameRules.HELI_COMBAT_DEBUG)) {
             return text;
         }
-        if (!(lookingEntity instanceof VehicleEntity vehicle)) return text;
+        VehicleEntity vehicle = tacz_sewv$lookingVehicle();
+        if (vehicle == null) return text;
         DriveHelicopterGoal.RunPhase phase = HeliRunPhaseClient.get(vehicle.getId());
         if (phase == null || phase == DriveHelicopterGoal.RunPhase.IDLE) return text;
         return text.copy().append(Component.literal(" [" + phase.name() + "]"));
@@ -94,7 +96,8 @@ public abstract class MixinVehicleTeamOverlay {
     private static Integer tacz_sewv$factionColor() {
         if (!ClientConfig.FACTION_COLORS_ENABLED.get()) return null;
 
-        if (!(lookingEntity instanceof VehicleEntity vehicle)) return null;
+        VehicleEntity vehicle = tacz_sewv$lookingVehicle();
+        if (vehicle == null) return null;
 
         // Invasion match: HUD A/B palette overrides SEM faction colours.
         Integer invasion = InvasionHudClient.overlayColor(vehicle);

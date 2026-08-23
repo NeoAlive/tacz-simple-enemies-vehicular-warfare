@@ -629,7 +629,7 @@ public final class PlaneWeapons {
         }
 
         try {
-            this.vehicle.vehicleShoot(this.unit, this.selected.name());
+            this.vehicle.vehicleShoot(this.unit, this.selected.name(), null);
         } catch (Exception e) {
             return false;
         }
@@ -679,7 +679,7 @@ public final class PlaneWeapons {
         }
 
         try {
-            this.vehicle.vehicleShoot(this.unit, this.selected.name());
+            this.vehicle.vehicleShoot(this.unit, this.selected.name(), null);
         } catch (Exception e) {
             return false;
         }

@@ -75,6 +75,8 @@ public class ClientModEvents {
     public static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(new SandbagSeatPose.Loader());
         event.registerReloadListener(new DownedUnitPose.Loader());
+        // SBM bakes of this mod's bedrock models; also clears the per-BE runway mast instances.
+        event.registerReloadListener((ResourceManagerReloadListener) resources -> RunwayBlockClient.rebake(resources));
         event.registerReloadListener((ResourceManagerReloadListener) resources -> {
             VehicleSkinRegistry.reload(resources);
             CrewSkinRegistry.reload(resources);

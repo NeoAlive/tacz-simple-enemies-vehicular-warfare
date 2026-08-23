@@ -48,7 +48,7 @@ config="tacz_sewv.playerrevive.mixins.json"
 [[dependencies.tacz_sewv]]
     modId="superbwarfare"
     mandatory=true
-    versionRange="[0.8.9,)"
+    versionRange="[0.8.9.1,)"
     ordering="AFTER"
     side="BOTH"
 

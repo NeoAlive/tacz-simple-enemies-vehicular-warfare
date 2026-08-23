@@ -78,7 +78,7 @@ public class ManArtilleryGoal extends Goal {
 
         try {
             if (!hull.canShoot(shooter)) return;
-            hull.vehicleShoot(shooter, WEAPON);
+            hull.vehicleShoot(shooter, WEAPON, launch);
             this.nextShotTime = now + SHOT_COOLDOWN_TICKS;
         } catch (Throwable ignored) {
             // Gun/ammo path unavailable — wait and retry.

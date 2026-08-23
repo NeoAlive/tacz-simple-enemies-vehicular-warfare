@@ -381,6 +381,10 @@ repositories {
             includeGroup "com.github.mcmodderanchor"
         }
     }
+    // MAE (Mayday Animation Engine) — compile-only companion of SBM 2.5.1; SBM jarjars it at runtime.
+    maven {
+        url = "https://maven.sighs.cc/repository/maven-public/"
+    }
 }
 
 dependencies {
@@ -401,8 +405,20 @@ dependencies {
         runtimeOnly fg.deobf("blank:openpac:1.0")
     }
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-    // Compile-only: SBW jarjars this; needed so MixinGeoArmorRenderer can target GeoArmorRenderer.
-    compileOnly fg.deobf("com.github.mcmodderanchor:simplebedrockmodel:2.3.3-forge-mc1.20.1")
+    // Compile-only: SBW 0.8.9.1 jarjars this (and requires [2.5.1,) in its mods.toml); needed so
+    // MixinGeoArmorRenderer can target GeoArmorRenderer and the runway renderer can use SBM models.
+    // Absent-path verification: ./gradlew runClient -PnoSbm  (skips runtimeOnly).
+    compileOnly fg.deobf("com.github.mcmodderanchor:simplebedrockmodel:2.5.1-forge-mc1.20.1")
+    if (!project.hasProperty('noSbm')) {
+        runtimeOnly fg.deobf("com.github.mcmodderanchor:simplebedrockmodel:2.5.1-forge-mc1.20.1")
+    }
+    // MAE types (Skeleton/Pose) are on SBM's public surface; SBM jarjars MAE at runtime, so this
+    // is compileOnly only (same shape SBW itself uses).
+    compileOnly("com.maydaymemory:mae:1.1.2") {
+        exclude group: "com.google.code.findbugs", module: "jsr305"
+        exclude group: "it.unimi.dsi", module: "fastutil"
+        exclude group: "org.joml", module: "joml"
+    }
     // Soft: compile against Xaero's World Map; keep it off installs that omit it.
     // Absent-path verification: ./gradlew runClient -PnoXaero  (skips runtimeOnly;
     // XaeroMixinPlugin then refuses MixinGuiMap* so no "target was not found" warning).

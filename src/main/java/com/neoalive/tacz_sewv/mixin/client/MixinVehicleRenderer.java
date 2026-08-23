@@ -1,37 +1,85 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
-import com.atsuishio.superbwarfare.client.renderer.entity.VehicleRenderer;
+import com.atsuishio.superbwarfare.client.renderer.entity.GeoVehicleRenderer;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.resources.ResourceLocation;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinClient;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 
 /**
- * Swap in a filesystem faction skin after SBW's getTextureLocation finishes.
+ * Swap in a filesystem faction skin on SBW's SBM vehicle path ({@link GeoVehicleRenderer}).
  *
- * <p>Must be RETURN, not a mid-method rewrite of {@code res}: SBW's wreck/thermal brighteners
- * read via {@code ResourceManager.getResource(...).orElseThrow()}, and our skins are
- * TextureManager-only DynamicTextures — feeding them in earlier spam-crashes every frame on
- * wrecks (caught + printStackTrace, still lethal to the log).
+ * <p>0.8.9.1 retired the GeckoLib {@code VehicleRenderer}: hulls render through
+ * {@code entry.texture} inside {@code render}, with a late {@code getTextureLocation} only for
+ * a secondary pass. Both sites are covered. Sewv's sticky paint wins over SBW's native
+ * {@code skinId} datapack skins when a faction PNG exists — we do not write {@code skinId}.
+ *
+ * <p>Wreck darkening multiplies the DynamicTexture locally: SBW's brightener reads via
+ * {@code ResourceManager} and would crash on TextureManager-only skins.
  */
-@Mixin(value = VehicleRenderer.class, remap = false)
+@Mixin(value = GeoVehicleRenderer.class, remap = false)
 public abstract class MixinVehicleRenderer {
 
-    @Inject(method = "getTextureLocation", at = @At("RETURN"), cancellable = true)
-    private void tacz_sewv$factionSkin(VehicleEntity animatable, CallbackInfoReturnable<ResourceLocation> cir) {
-        ResourceLocation skin = VehicleSkinClient.textureFor(animatable);
-        if (skin == null) return;
+    @ModifyArg(
+            method = "render",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/renderer/RenderType;entityTranslucent(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/client/renderer/RenderType;",
+                    ordinal = 0,
+                    remap = true
+            ),
+            index = 0,
+            remap = false
+    )
+    private ResourceLocation tacz_sewv$factionSkinTranslucent(ResourceLocation texture,
+            VehicleEntity entity, float yaw, float partialTick, PoseStack poseStack,
+            MultiBufferSource buffer, int packedLight) {
+        return resolve(texture, entity);
+    }
 
-        // Wreck darkening without ResourceManager: multiply DynamicTexture pixels locally.
-        if (animatable.isWreck()) {
-            cir.setReturnValue(VehicleSkinRegistry.darkened(skin, 0.3F));
-        } else {
+    @ModifyArg(
+            method = "render",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lcom/github/mcmodderanchor/simplebedrockmodel/v1/client/renderer/BedrockModelRenderTypes;polyMeshCutout(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/client/renderer/RenderType;",
+                    ordinal = 0,
+                    remap = false
+            ),
+            index = 0,
+            remap = false
+    )
+    private ResourceLocation tacz_sewv$factionSkinCutout(ResourceLocation texture,
+            VehicleEntity entity, float yaw, float partialTick, PoseStack poseStack,
+            MultiBufferSource buffer, int packedLight) {
+        return resolve(texture, entity);
+    }
+
+    @Inject(method = "getTextureLocation", at = @At("RETURN"), cancellable = true, remap = false)
+    private void tacz_sewv$factionSkinLocation(VehicleEntity animatable,
+            CallbackInfoReturnable<ResourceLocation> cir) {
+        ResourceLocation skin = resolve(null, animatable);
+        if (skin != null) {
             cir.setReturnValue(skin);
         }
+    }
+
+    /** {@code fallback} kept when no sticky paint; {@code null} means "no skin → leave alone". */
+    private static ResourceLocation resolve(ResourceLocation fallback, VehicleEntity entity) {
+        ResourceLocation skin = VehicleSkinClient.textureFor(entity);
+        if (skin == null) {
+            return fallback;
+        }
+        if (entity.isWreck()) {
+            return VehicleSkinRegistry.darkened(skin, 0.3F);
+        }
+        return skin;
     }
 }

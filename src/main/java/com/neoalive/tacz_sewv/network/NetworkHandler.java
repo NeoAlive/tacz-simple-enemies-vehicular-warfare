@@ -93,7 +93,7 @@ public class NetworkHandler {
     // 60: PacketReviveProgress (S->C revival ring, PlayerReviveGoal/PmcReviveGoal/PmcDownedSupport).
     // 61: PacketHoldRevive (C->S hold-left-click-to-revive a downed PMC).
     // 62: PacketCaptureMedic (TDT "Capture Medic" order).
-    private static final String PROTOCOL_VERSION = "65";
+    private static final String PROTOCOL_VERSION = "66";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

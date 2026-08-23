@@ -42,6 +42,7 @@ public final class VehicleAiGoals {
         // lean out and shoot instead of working the tube. Gates on holding a claim, so it
         // costs a null check on every unit that has none.
         unit.goalSelector.addGoal(1, new ManMortarGoal(unit));
+        unit.goalSelector.addGoal(1, new ManType63Goal(unit));
         // FCP wheeled mortar vehicles (Hilux / Stryker): gunner seat reloads, lays, fires.
         // Soft-gated; no-op without those entity types. Flagless — boarding is ordinary.
         unit.goalSelector.addGoal(1, new ManVehicleMortarGoal(unit));

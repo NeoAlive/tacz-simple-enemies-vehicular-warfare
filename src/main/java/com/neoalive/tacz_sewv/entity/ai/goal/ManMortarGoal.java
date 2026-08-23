@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 import java.util.EnumSet;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
@@ -124,6 +125,9 @@ public class ManMortarGoal extends Goal {
 
         Entity entity = this.unit.level().getEntity(mortarId);
         if (entity == null) return false; // unresolvable right now — keep the claim pending
+
+        // Type-63 shares IMortarCrew; ManType63Goal owns that claim — do not release it here.
+        if (entity instanceof Type63Entity) return false;
 
         // Resolved but unusable: drop the claim, or the unit holds a dead id forever.
         if (!(entity instanceof MortarEntity m) || !m.isAlive()) {

@@ -47,6 +47,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue SHELLING_DURATION_MAX_TICKS;
     public static final ForgeConfigSpec.ConfigValue<String> HIGH_CHANCE_MORTAR_SHELL;
     public static final ForgeConfigSpec.ConfigValue<String> LOW_CHANCE_MORTAR_SHELL;
+    public static final ForgeConfigSpec.ConfigValue<String> HIGH_CHANCE_TYPE63_ROCKET;
+    public static final ForgeConfigSpec.ConfigValue<String> LOW_CHANCE_TYPE63_ROCKET;
     public static final ForgeConfigSpec.BooleanValue DERELICT_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue DERELICT_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue DERELICT_FAILURE_MULTIPLIER;
@@ -224,6 +226,7 @@ public final class SewvConfig {
 
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
     public static final ForgeConfigSpec.IntValue MORTAR_FIRE_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.IntValue TYPE63_FIRE_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue MORTAR_DISPERSION_RADIUS;
     public static final ForgeConfigSpec.DoubleValue FRIENDLY_FIRE_MORTAR_RADIUS;
     public static final ForgeConfigSpec.BooleanValue MORTAR_REQUIRES_AMMO;
@@ -351,6 +354,10 @@ public final class SewvConfig {
                 .define("highChanceMortarShell", "superbwarfare:mortar_shell", SewvConfig::isValidResourceId);
         LOW_CHANCE_MORTAR_SHELL = builder.comment("Less common mortar shell type for spawned crews (item id).")
                 .define("lowChanceMortarShell", "superbwarfare:mortar_shell_wp", SewvConfig::isValidResourceId);
+        HIGH_CHANCE_TYPE63_ROCKET = builder.comment("Usual Type-63 rocket for spawned crews (item id).")
+                .define("highChanceType63Rocket", "superbwarfare:medium_rocket_he", SewvConfig::isValidResourceId);
+        LOW_CHANCE_TYPE63_ROCKET = builder.comment("Less common Type-63 rocket for spawned crews (item id).")
+                .define("lowChanceType63Rocket", "superbwarfare:medium_rocket_ap", SewvConfig::isValidResourceId);
         DERELICT_EVENTS_ENABLED = builder.comment("Allow wrecked vehicles with a few survivors nearby.").define("derelictEventsEnabled", true);
         DERELICT_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for a derelict.")
                 .defineInRange("derelictBaseChance", 0.05, 0.0, 1.0);
@@ -892,6 +899,9 @@ public final class SewvConfig {
                 .defineInRange("mortarUseDistance", 2.0, 1.0, 6.0);
         MORTAR_FIRE_COOLDOWN_TICKS = builder.comment("Minimum wait between mortar shots, in game ticks (20 = 1 second).")
                 .defineInRange("mortarFireCooldownTicks", 60, 1, 1200);
+        TYPE63_FIRE_COOLDOWN_TICKS = builder.comment(
+                        "Minimum wait between Type-63 rocket shots, in game ticks (SBW uses 10).")
+                .defineInRange("type63FireCooldownTicks", 10, 1, 1200);
         MORTAR_DISPERSION_RADIUS = builder.comment("How far (blocks) mortar shots may land off the aim point.")
                 .defineInRange("mortarDispersionRadius", 3, 0, 16);
         FRIENDLY_FIRE_MORTAR_RADIUS = builder.comment(

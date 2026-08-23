@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -41,7 +42,7 @@ public final class CrewSeatPromotion {
         if (event.getLevel().isClientSide()) return;
         if (event.isMounting()) return;
         if (!(event.getEntityBeingMounted() instanceof VehicleEntity hull)) return;
-        if (hull instanceof MortarEntity) return;
+        if (hull instanceof MortarEntity || hull instanceof Type63Entity) return;
         if (!(event.getEntityMounting() instanceof Player player)) return;
         if (hull.level().getServer() == null) return;
         // Defer one tick so the player is already off orderedPassengers.

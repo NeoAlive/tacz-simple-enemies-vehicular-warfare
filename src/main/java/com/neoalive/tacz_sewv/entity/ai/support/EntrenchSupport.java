@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.TowEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -129,6 +130,13 @@ public final class EntrenchSupport {
                     continue;
                 }
                 MortarSupport.claim(crew, mortar);
+                ((IEntrenched) crew).sewv$setEntrenched(network.seed(), empPos, empPos);
+            } else if (weapon instanceof Type63Entity type63) {
+                if (Type63Support.isClaimed(type63, crew)) {
+                    remaining.add(0, crew);
+                    continue;
+                }
+                Type63Support.claim(crew, type63);
                 ((IEntrenched) crew).sewv$setEntrenched(network.seed(), empPos, empPos);
             } else if (weapon instanceof TowEntity || isFixedMount(weapon)) {
                 if (!weapon.getPassengers().isEmpty()) {
@@ -398,6 +406,10 @@ public final class EntrenchSupport {
         if (weapon == null || !weapon.isAlive() || weapon.isWreck()) return false;
         if (weapon instanceof MortarEntity mortar) {
             AbstractUnit crew = MortarSupport.crewOf(mortar, null);
+            return crew == null || crew == unit;
+        }
+        if (weapon instanceof Type63Entity type63) {
+            AbstractUnit crew = Type63Support.crewOf(type63, null);
             return crew == null || crew == unit;
         }
         if (!weapon.getPassengers().isEmpty()) {

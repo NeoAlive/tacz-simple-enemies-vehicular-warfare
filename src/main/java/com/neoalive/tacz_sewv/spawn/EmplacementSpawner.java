@@ -6,9 +6,11 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.TowEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModEntities;
 import com.atsuishio.superbwarfare.init.ModItems;
+import com.atsuishio.superbwarfare.item.projectile.MediumRocketItem;
 import com.atsuishio.superbwarfare.item.projectile.MortarShellItem;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
@@ -31,6 +33,7 @@ import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
@@ -63,7 +66,7 @@ public final class EmplacementSpawner {
 
     private EmplacementSpawner() {}
 
-    public enum Emplacement { MORTAR, TOW }
+    public enum Emplacement { MORTAR, TOW, TYPE_63 }
 
     /**
      * Spawns {@code type} at {@code pos} with one crew of {@code faction} already working it
@@ -82,6 +85,8 @@ public final class EmplacementSpawner {
         EntityType<? extends VehicleEntity> entityType;
         if (type == Emplacement.MORTAR) {
             entityType = ModEntities.MORTAR.get();
+        } else if (type == Emplacement.TYPE_63) {
+            entityType = ModEntities.TYPE_63.get();
         } else {
             entityType = pickTowType(level, faction);
             if (entityType == null) return null;
@@ -96,15 +101,16 @@ public final class EmplacementSpawner {
         level.addFreshEntity(weapon);
 
         AbstractUnit crew = TankSpawner.createCrewUnit(level, faction, ownerId);
-        BlockPos crewPos = type == Emplacement.MORTAR ? pos.offset(CREW_OFFSET, 0, 0) : pos;
+        BlockPos crewPos = type == Emplacement.MORTAR || type == Emplacement.TYPE_63
+                ? pos.offset(CREW_OFFSET, 0, 0) : pos;
         crew.setPos(crewPos.getX() + 0.5, crewPos.getY(), crewPos.getZ() + 0.5);
         crew.finalizeSpawn(level, level.getCurrentDifficultyAt(crewPos), MobSpawnType.EVENT, null, null);
         level.addFreshEntity(crew);
 
         if (type == Emplacement.MORTAR) {
-            // Cannot fail: a mortar has no seat to refuse the crew, which is the whole reason
-            // the claim exists instead of a mount.
             crewMortar(level, (MortarEntity) weapon, crew, fireMission);
+        } else if (type == Emplacement.TYPE_63) {
+            crewType63(level, (Type63Entity) weapon, crew, fireMission);
         } else if (!crew.startRiding(weapon)) {
             // The seat refused the rider — don't leave a crewless launcher standing next to a
             // launcher-less crew.
@@ -141,6 +147,13 @@ public final class EmplacementSpawner {
             if (probe != null) probe.discard();
         }
         return ModEntities.TOW.get();
+    }
+
+    private static void crewType63(ServerLevel level, Type63Entity launcher, AbstractUnit crew,
+                                   @Nullable FireMission fireMission) {
+        Type63Support.claim(crew, launcher);
+        ((IMortarCrew) crew).sewv$setFireMission(fireMission);
+        holdChunk(level, crew);
     }
 
     private static void crewMortar(ServerLevel level, MortarEntity mortar, AbstractUnit crew,
@@ -184,6 +197,12 @@ public final class EmplacementSpawner {
             }
             return ModItems.MEDIUM_ANTI_GROUND_MISSILE.get();
         }
+        if (type == Emplacement.TYPE_63) {
+            String id = random.nextDouble() < LOW_CHANCE_SHELL
+                    ? SewvConfig.LOW_CHANCE_TYPE63_ROCKET.get()
+                    : SewvConfig.HIGH_CHANCE_TYPE63_ROCKET.get();
+            return resolveRocket(id);
+        }
 
         // Rolled once, per crew, so a battery's tubes can differ from each other but a given
         // tube shoots one thing throughout rather than alternating at random.
@@ -211,6 +230,17 @@ public final class EmplacementSpawner {
         LOGGER.warn("[tacz_sewv] '{}' is not a usable mortar shell — falling back to {}",
                 id, ModItems.MORTAR_SHELL.getId());
         return ModItems.MORTAR_SHELL.get();
+    }
+
+    private static Item resolveRocket(String id) {
+        ResourceLocation key = ResourceLocation.tryParse(id);
+        if (key != null && ForgeRegistries.ITEMS.containsKey(key)) {
+            Item item = ForgeRegistries.ITEMS.getValue(key);
+            if (item instanceof MediumRocketItem) return item;
+        }
+        LOGGER.warn("[tacz_sewv] '{}' is not a usable medium rocket — falling back to {}",
+                id, ModItems.MEDIUM_ROCKET_HE.getId());
+        return ModItems.MEDIUM_ROCKET_HE.get();
     }
 
     /**

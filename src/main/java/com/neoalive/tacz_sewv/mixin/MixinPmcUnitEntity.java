@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import java.util.UUID;
+
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -30,6 +32,7 @@ import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
+import com.neoalive.tacz_sewv.crew.NpcIdentity;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.DiplomacyEnemyTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.DownedGoal;
@@ -261,6 +264,26 @@ public abstract class MixinPmcUnitEntity
     private void tacz_sewv$dropFormationAxisOnReorder(int index, CallbackInfo ci) {
         if (!((Entity) (Object) this).isAddedToWorld()) return;
         this.sewv$setFormationDirection(null);
+    }
+
+    /**
+     * NpcIdentity.issue is a no-op for an ownerless unit (a Berezka structure crew, an ambient
+     * event rifleman) — there is no owner yet to draw a name-pool preference from. SEM's own
+     * recruit-by-click (PmcUnitEntity#mobInteract) is what first hands one out, through this exact
+     * setter, so that is the moment the unit's identity actually gets rolled.
+     *
+     * <p>The isAddedToWorld guard is load-bearing for the same reason it is on
+     * setFormationIndex above: readAdditionalSaveData restores a saved owner through this same
+     * setter before the entity is added to the world (an unrelated unit gaining a NEW owner can
+     * only ever happen live), so without the guard every reload would re-roll an already-cached
+     * name.
+     */
+    @Inject(method = "setOwner", at = @At("TAIL"), remap = false)
+    private void tacz_sewv$reissueIdentityOnRecruit(UUID uuid, CallbackInfo ci) {
+        Entity self = (Entity) (Object) this;
+        if (uuid != null && self.isAddedToWorld() && !self.level().isClientSide) {
+            NpcIdentity.reissue((PmcUnitEntity) self);
+        }
     }
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)

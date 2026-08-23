@@ -93,7 +93,8 @@ public class NetworkHandler {
     // 60: PacketReviveProgress (S->C revival ring, PlayerReviveGoal/PmcReviveGoal/PmcDownedSupport).
     // 61: PacketHoldRevive (C->S hold-left-click-to-revive a downed PMC).
     // 62: PacketCaptureMedic (TDT "Capture Medic" order).
-    private static final String PROTOCOL_VERSION = "66";
+    // 67: PacketSetNameCategory (TDT "Identity" category, "Full Names" preference).
+    private static final String PROTOCOL_VERSION = "67";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -434,6 +435,15 @@ public class NetworkHandler {
                 PacketCaptureMedic::encode,
                 PacketCaptureMedic::new,
                 PacketCaptureMedic::handle
+        );
+
+        // C->S, TDT "Identity" category "Full Names" control (NamePreference / NpcIdentity).
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSetNameCategory.class,
+                PacketSetNameCategory::encode,
+                PacketSetNameCategory::new,
+                PacketSetNameCategory::handle
         );
     }
 }

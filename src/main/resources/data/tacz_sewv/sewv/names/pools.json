@@ -1,0 +1,162 @@
+{
+  "CHINESE": {
+    "NAME": [
+      "Wei", "Jun", "Feng", "Hao", "Lei", "Qiang", "Yong", "Ming",
+      "Jian", "Bo", "Peng", "Tao", "Gang", "Bin", "Chao", "Kai",
+      "Long", "Chen", "Yi", "Xin", "Dong", "Han", "Kang", "Rui",
+      "Zhi", "Yu", "Zhen", "Hui", "Cheng", "Xiang", "Bao", "Sheng",
+      "Guo", "Fu", "Jie", "Xun", "Zhong", "Da", "Nan", "Shuo"
+    ],
+    "SURNAME": [
+      "Li", "Wang", "Zhang", "Liu", "Chen", "Yang", "Zhao", "Huang",
+      "Wu", "Zhou", "Xu", "Sun", "Ma", "Zhu", "Hu", "Guo",
+      "He", "Gao", "Lin", "Luo", "Zheng", "Liang", "Song", "Xie",
+      "Tang", "Han", "Cao", "Deng", "Xiao", "Feng", "Cheng", "Yuan",
+      "Dong", "Su", "Ye", "Lu", "Jiang", "Kong", "Shen", "Yu"
+    ]
+  },
+  "ENGLISH": {
+    "NAME": [
+      "James", "John", "Robert", "Michael", "William", "David", "Richard", "Thomas",
+      "Charles", "Daniel", "Matthew", "Christopher", "Andrew", "Joseph", "George", "Edward",
+      "Henry", "Samuel", "Benjamin", "Jack", "Oliver", "Harry", "Alexander", "Nathan",
+      "Ryan", "Ethan", "Owen", "Connor", "Liam", "Noah", "Lucas", "Isaac",
+      "Adam", "Peter", "Simon", "Paul", "Mark", "Steven", "Kevin", "Gary"
+    ],
+    "SURNAME": [
+      "Smith", "Brown", "Johnson", "Williams", "Jones", "Miller", "Davis", "Wilson",
+      "Taylor", "Anderson", "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson",
+      "Moore", "Young", "Allen", "King", "Wright", "Scott", "Green", "Baker",
+      "Adams", "Nelson", "Carter", "Mitchell", "Roberts", "Turner", "Phillips", "Campbell",
+      "Parker", "Evans", "Edwards", "Collins", "Stewart", "Morris", "Murphy", "Cook"
+    ]
+  },
+  "GERMAN": {
+    "NAME": [
+      "Hans", "Klaus", "Wolfgang", "Dieter", "Jurgen", "Werner", "Helmut", "Gerhard",
+      "Manfred", "Horst", "Uwe", "Rolf", "Heinz", "Karl", "Gunther", "Fritz",
+      "Stefan", "Michael", "Andreas", "Thomas", "Frank", "Bernd", "Rainer", "Peter",
+      "Matthias", "Christian", "Markus", "Sebastian", "Lukas", "Felix", "Jonas", "Maximilian",
+      "Tobias", "Alexander", "Florian", "Daniel", "Benjamin", "Erik", "Jorg", "Volker"
+    ],
+    "SURNAME": [
+      "Muller", "Schmidt", "Meyer", "Schneider", "Fischer", "Weber", "Becker", "Wagner",
+      "Schafer", "Schulz", "Hoffmann", "Bauer", "Koch", "Klein", "Schroder", "Schwarz",
+      "Wolf", "Neumann", "Braun", "Zimmermann", "Huber", "Hartmann", "Weiss", "Richter",
+      "Lange", "Krause", "Kruger", "Werner", "Peters", "Fuchs", "Walter", "Konig",
+      "Kohler", "Kaiser", "Jung", "Keller", "Hermann", "Roth", "Grun", "Gross"
+    ]
+  },
+  "ITALIAN": {
+    "NAME": [
+      "Marco", "Giovanni", "Luca", "Alessandro", "Matteo", "Francesco", "Andrea", "Stefano",
+      "Antonio", "Giuseppe", "Roberto", "Paolo", "Davide", "Simone", "Fabio", "Riccardo",
+      "Massimo", "Claudio", "Enzo", "Salvatore", "Pietro", "Angelo", "Vincenzo", "Gennaro",
+      "Carlo", "Luigi", "Mario", "Franco", "Sergio", "Renato", "Bruno", "Dario",
+      "Emilio", "Nicola", "Alberto", "Domenico", "Gianluca", "Cristiano", "Federico", "Lorenzo"
+    ],
+    "SURNAME": [
+      "Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Colombo", "Romano", "Ricci",
+      "Gallo", "Greco", "Bruno", "Marino", "Conti", "De Luca", "Costa", "Fontana",
+      "Mancini", "Barbieri", "Villa", "Rinaldi", "Moretti", "Ferrara", "Longo", "Martini",
+      "Leone", "Serra", "Coppola", "Santoro", "Vitale", "Caruso", "Negri", "Pellegrini",
+      "Parisi", "Sala", "Testa", "Grasso", "D'Amico", "Bianco", "Farina", "Riva"
+    ]
+  },
+  "FRENCH": {
+    "NAME": [
+      "Jean", "Pierre", "Michel", "Andre", "Philippe", "Alain", "Bernard", "Claude",
+      "Daniel", "Jacques", "Francois", "Louis", "Henri", "Marcel", "Rene", "Robert",
+      "Antoine", "Nicolas", "Julien", "Thomas", "Sebastien", "Olivier", "Christophe", "Laurent",
+      "Guillaume", "Vincent", "David", "Mathieu", "Maxime", "Romain", "Adrien", "Baptiste",
+      "Fabien", "Gerard", "Yves", "Pascal", "Bertrand", "Etienne", "Hugo", "Theo"
+    ],
+    "SURNAME": [
+      "Martin", "Bernard", "Thomas", "Petit", "Robert", "Richard", "Dubois", "Durand",
+      "Moreau", "Laurent", "Simon", "Michel", "Lefebvre", "Leroy", "David", "Roux",
+      "Morel", "Bertrand", "Fournier", "Girard", "Fontaine", "Lambert", "Dupont", "Bonnet",
+      "Rousseau", "Vincent", "Lefevre", "Faure", "Mercier", "Guerin", "Boyer", "Blanc",
+      "Garnier", "Chevalier", "Francois", "Legrand", "Gauthier", "Perrin", "Robin", "Clement"
+    ]
+  },
+  "SPANISH": {
+    "NAME": [
+      "Jose", "Antonio", "Manuel", "Francisco", "Juan", "David", "Javier", "Daniel",
+      "Carlos", "Miguel", "Rafael", "Pedro", "Angel", "Alejandro", "Fernando", "Sergio",
+      "Pablo", "Jorge", "Alberto", "Luis", "Alvaro", "Adrian", "Enrique", "Ivan",
+      "Diego", "Ruben", "Oscar", "Victor", "Ramon", "Raul", "Gonzalo", "Emilio",
+      "Ricardo", "Eduardo", "Mario", "Hector", "Marcos", "Guillermo", "Cesar", "Joaquin"
+    ],
+    "SURNAME": [
+      "Garcia", "Rodriguez", "Gonzalez", "Fernandez", "Lopez", "Martinez", "Sanchez", "Perez",
+      "Gomez", "Martin", "Jimenez", "Ruiz", "Hernandez", "Diaz", "Moreno", "Alvarez",
+      "Munoz", "Romero", "Alonso", "Gutierrez", "Navarro", "Torres", "Dominguez", "Vazquez",
+      "Ramos", "Gil", "Ramirez", "Serrano", "Blanco", "Suarez", "Molina", "Morales",
+      "Ortega", "Delgado", "Castro", "Ortiz", "Rubio", "Marin", "Sanz", "Nunez"
+    ]
+  },
+  "JAPANESE": {
+    "NAME": [
+      "Hiroshi", "Takashi", "Kenji", "Satoshi", "Yuki", "Takeshi", "Akira", "Daiki",
+      "Kenta", "Shota", "Ryota", "Yuto", "Haruto", "Sota", "Kazuki", "Takumi",
+      "Hayato", "Ren", "Sho", "Naoki", "Kazuya", "Masashi", "Tsuyoshi", "Susumu",
+      "Katsuo", "Ichiro", "Jiro", "Saburo", "Noboru", "Isamu", "Makoto", "Osamu",
+      "Yasuo", "Kenichi", "Shinji", "Daisuke", "Kohei", "Ryo", "Taro", "Riku"
+    ],
+    "SURNAME": [
+      "Sato", "Suzuki", "Takahashi", "Tanaka", "Watanabe", "Ito", "Nakamura", "Kobayashi",
+      "Yamamoto", "Kato", "Yoshida", "Yamada", "Sasaki", "Yamaguchi", "Matsumoto", "Inoue",
+      "Kimura", "Hayashi", "Shimizu", "Yamazaki", "Mori", "Abe", "Ikeda", "Hashimoto",
+      "Yamashita", "Ishikawa", "Nakajima", "Maeda", "Fujita", "Ogawa", "Goto", "Okada",
+      "Hasegawa", "Murakami", "Kondo", "Ishii", "Saito", "Sakamoto", "Endo", "Aoki"
+    ]
+  },
+  "TURKISH": {
+    "NAME": [
+      "Mehmet", "Mustafa", "Ahmet", "Ali", "Huseyin", "Hasan", "Ibrahim", "Osman",
+      "Yusuf", "Murat", "Ismail", "Omer", "Halil", "Ramazan", "Suleyman", "Ismet",
+      "Emre", "Baris", "Cem", "Burak", "Kaan", "Erhan", "Tolga", "Serkan",
+      "Kemal", "Orhan", "Selim", "Ferhat", "Tarik", "Onur", "Fatih", "Ozan",
+      "Volkan", "Ugur", "Erdem", "Deniz", "Kadir", "Bulent", "Necati", "Sinan"
+    ],
+    "SURNAME": [
+      "Yilmaz", "Kaya", "Demir", "Celik", "Sahin", "Yildiz", "Yildirim", "Ozturk",
+      "Aydin", "Ozdemir", "Arslan", "Dogan", "Kilic", "Aslan", "Cetin", "Simsek",
+      "Yavuz", "Ulusoy", "Akbas", "Koc", "Kara", "Uzun", "Ozkan", "Kurt",
+      "Bulut", "Aksoy", "Turan", "Guler", "Erdogan", "Polat", "Tas", "Bozkurt",
+      "Ersoy", "Akin", "Coskun", "Tekin", "Ozer", "Sonmez", "Kaplan", "Gunes"
+    ]
+  },
+  "ARABIC": {
+    "NAME": [
+      "Mohammed", "Ahmed", "Ali", "Hassan", "Hussein", "Omar", "Khalid", "Yousef",
+      "Ibrahim", "Mahmoud", "Mustafa", "Tariq", "Karim", "Rashid", "Faisal", "Adel",
+      "Samir", "Jamal", "Nabil", "Waleed", "Fahad", "Bilal", "Zaid", "Amir",
+      "Saleh", "Anwar", "Marwan", "Ziad", "Hamza", "Ismail", "Malik", "Rami",
+      "Sami", "Talal", "Fares", "Nasser", "Adnan", "Yasser", "Basil", "Kareem"
+    ],
+    "SURNAME": [
+      "Al-Ahmad", "Al-Ali", "Mansour", "Haddad", "Khalil", "Nasser", "Saleh", "Rashid",
+      "Fares", "Salem", "Aziz", "Karam", "Hamdan", "Youssef", "Saad", "Qasim",
+      "Sultan", "Zahran", "Farouk", "Aboud", "Barakat", "Najjar", "Sayegh", "Antar",
+      "Darwish", "Hijazi", "Kassab", "Mahmoud", "Nasrallah", "Obeid", "Qureshi", "Rahim",
+      "Shami", "Tahir", "Wahab", "Yassin", "Zaidan", "Ghanem", "Halabi", "Jarrah"
+    ]
+  },
+  "RUSSIAN": {
+    "NAME": [
+      "Ivan", "Dmitri", "Sergei", "Aleksandr", "Mikhail", "Nikolai", "Pavel", "Viktor",
+      "Andrei", "Yuri", "Vladimir", "Oleg", "Boris", "Igor", "Konstantin", "Anton",
+      "Denis", "Stepan", "Roman", "Artem", "Maxim", "Leonid", "Gennady", "Grigori",
+      "Ilya", "Timur", "Vadim", "Ruslan", "Arkady", "Fyodor", "Stanislav", "Yevgeni",
+      "Kirill", "Semyon", "Vasily", "Aleksei", "Georgi", "Valeri", "Nikita", "Rostislav"
+    ],
+    "SURNAME": [
+      "Petrov", "Ivanov", "Sokolov", "Kuznetsov", "Volkov", "Popov", "Fedorov", "Morozov",
+      "Smirnov", "Vasiliev", "Novikov", "Mikhailov", "Kozlov", "Stepanov", "Orlov", "Sobolev",
+      "Belov", "Egorov", "Pavlov", "Kozlovsky", "Frolov", "Zaitsev", "Bykov", "Loginov",
+      "Kudryavtsev", "Zhukov", "Nikitin", "Semyonov", "Voronin", "Makarov", "Andreev", "Melnikov",
+      "Shestakov", "Bogdanov", "Osipov", "Sidorov", "Gerasimov", "Antonov", "Baranov", "Chernov"
+    ]
+  }
+}

@@ -73,6 +73,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_ARMOR;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_ARMOR;
 
+    public static final ForgeConfigSpec.BooleanValue NAME_ASSIGNMENT_ENABLED;
+    public static final ForgeConfigSpec.ConfigValue<String> DEFAULT_NAME_CATEGORY;
+
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> NVG_ELIGIBLE_ITEMS;
     public static final ForgeConfigSpec.DoubleValue NVG_SPAWN_CHANCE;
     public static final ForgeConfigSpec.DoubleValue DARK_ACCURACY_FRACTION;
@@ -417,6 +420,19 @@ public final class SewvConfig {
                 .defineList("usArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
         PMC_ARMOR = builder.comment("Armor pieces for PMC units (item ids).")
                 .defineList("pmcArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
+        builder.pop();
+
+        builder.push("identity");
+        NAME_ASSIGNMENT_ENABLED = builder.comment(
+                        "Roll a Name+Surname for every spawned PMC unit, cached on the unit once assigned.",
+                        "Name pool categories are datapack-configurable at data/<namespace>/sewv/names/*.json.")
+                .define("nameAssignmentEnabled", true);
+        DEFAULT_NAME_CATEGORY = builder.comment(
+                        "Server-wide fallback name pool category (see the names datapack for the category list),",
+                        "used whenever no per-player preference applies - an ownerless spawn, an offline owner, or",
+                        "a player who never set one via the TDT's Identity/\"Full Names\" control. \"RANDOM\" draws",
+                        "the name and surname independently from every category's pooled union.")
+                .define("defaultNameCategory", "RANDOM");
         builder.pop();
 
         builder.push("nvg");

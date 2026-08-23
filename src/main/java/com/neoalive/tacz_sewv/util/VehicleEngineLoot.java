@@ -87,17 +87,9 @@ public final class VehicleEngineLoot {
         hull.getPersistentData().putBoolean(TAG_APPLIED, true);
     }
 
-    /** Fisher–Yates shuffle so loot/ammo are not packed into the first slots. */
+    /** Shuffle so loot/ammo are not packed into the first slots. */
     private static void scrambleInventory(VehicleEntity hull, RandomSource random) {
-        List<ItemStack> items = hull.getItems();
-        int n = items.size();
-        if (n < 2) return;
-        for (int i = n - 1; i > 0; i--) {
-            int j = random.nextInt(i + 1);
-            ItemStack a = items.get(i);
-            items.set(i, items.get(j));
-            items.set(j, a);
-        }
+        RandomUtil.shuffle(hull.getItems(), random);
     }
 
     private static void insertEngineLoot(VehicleEntity hull, ServerLevel level) {

@@ -6,19 +6,22 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 
 /**
- * Swap in a filesystem wearer-faction armor skin after SBM v2's {@code getTexture}.
+ * Swap in a filesystem wearer-faction armor skin on SBM v2.
  *
- * <p>0.8.9.1 moved SBW armor onto {@link GeoArmorRendererV2}; the v1 {@code GeoArmorRenderer}
- * hook no longer runs. Paint still follows the unit, not the item — an RU unit wearing a US
- * IOTV resolves {@code ru_chest_iotv_*} if present.
+ * <p>{@code renderArmorToBuffer} reads the private {@code texture} field and never calls
+ * {@link #getTexture()}, so a RETURN inject on {@code getTexture} alone was a no-op for the
+ * unit layer. The live path is the {@code getRenderType} argument; {@code getTexture} is kept
+ * for the first-person arm path which does call it.
  */
 @Mixin(value = GeoArmorRendererV2.class, remap = false)
 public abstract class MixinGeoArmorRenderer {
@@ -29,18 +32,38 @@ public abstract class MixinGeoArmorRenderer {
     @Shadow
     protected ItemStack itemStack;
 
+    @ModifyArg(
+            method = "renderArmorToBuffer",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lcom/github/mcmodderanchor/simplebedrockmodel/v2/client/renderer/GeoArmorRendererV2;getRenderType(Lnet/minecraft/resources/ResourceLocation;)Lnet/minecraft/client/renderer/RenderType;"
+            ),
+            index = 0
+    )
+    private ResourceLocation tacz_sewv$armorSkinBuffer(ResourceLocation texture) {
+        return resolve(texture);
+    }
+
     @Inject(method = "getTexture", at = @At("RETURN"), cancellable = true)
-    private void tacz_sewv$armorSkin(CallbackInfoReturnable<ResourceLocation> cir) {
-        LivingEntity wearer = this.livingEntity;
-        ItemStack stack = this.itemStack;
-        if (wearer == null || stack == null || stack.isEmpty()) return;
-
-        CrewFacts.Faction faction = CrewFacts.factionOfCrew(wearer);
-        if (faction == null) return;
-
-        ResourceLocation skin = CrewSkinRegistry.textureFor(wearer, stack, faction);
+    private void tacz_sewv$armorSkinGetter(CallbackInfoReturnable<ResourceLocation> cir) {
+        ResourceLocation skin = resolve(null);
         if (skin != null) {
             cir.setReturnValue(skin);
         }
+    }
+
+    @Unique
+    private ResourceLocation resolve(ResourceLocation fallback) {
+        LivingEntity wearer = this.livingEntity;
+        ItemStack stack = this.itemStack;
+        if (wearer == null || stack == null || stack.isEmpty()) {
+            return fallback;
+        }
+        CrewFacts.Faction faction = CrewFacts.factionOfCrew(wearer);
+        if (faction == null) {
+            return fallback;
+        }
+        ResourceLocation skin = CrewSkinRegistry.textureFor(wearer, stack, faction);
+        return skin != null ? skin : fallback;
     }
 }

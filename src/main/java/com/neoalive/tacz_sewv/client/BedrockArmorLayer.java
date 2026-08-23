@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.client;
 
+import com.github.mcmodderanchor.simplebedrockmodel.v1.client.renderer.ICustomArmorRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.EntityModel;
@@ -113,11 +114,18 @@ public class BedrockArmorLayer<T extends LivingEntity, M extends EntityModel<T>>
             poseStack.pushPose();
             fakeRoot.translateAndRotate(poseStack);
             unit.translateAndRotate(poseStack);
-            // The bedrock renderer builds its own vertex consumer from its own texture and
-            // ignores the one passed in; this is only here so an override never sees null.
-            armor.renderToBuffer(poseStack,
-                    buffer.getBuffer(RenderType.armorCutoutNoCull(this.getTextureLocation(entity))),
-                    packedLight, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
+            // SBM v2's renderToBuffer paints with the VertexConsumer's texture — which would be
+            // the unit body skin if we built it from getTextureLocation. ICustomArmorRenderer
+            // builds its own buffer from the armor texture (and MixinGeoArmorRenderer can swap
+            // that for a faction PNG).
+            if (armor instanceof ICustomArmorRenderer custom) {
+                custom.renderArmorToBuffer(poseStack, buffer, packedLight, OverlayTexture.NO_OVERLAY,
+                        1.0F, 1.0F, 1.0F, 1.0F);
+            } else {
+                armor.renderToBuffer(poseStack,
+                        buffer.getBuffer(RenderType.armorCutoutNoCull(this.getTextureLocation(entity))),
+                        packedLight, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
+            }
             poseStack.popPose();
         }
     }

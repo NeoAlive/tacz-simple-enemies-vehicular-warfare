@@ -6,9 +6,11 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.resources.ResourceLocation;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinClient;
@@ -24,9 +26,26 @@ import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
  *
  * <p>Wreck darkening multiplies the DynamicTexture locally: SBW's brightener reads via
  * {@code ResourceManager} and would crash on TextureManager-only skins.
+ *
+ * <p>{@code @ModifyArg} can only see the invoke's own args, so the hull is stashed for the
+ * duration of {@code render} rather than listed on the arg handlers.
  */
 @Mixin(value = GeoVehicleRenderer.class, remap = false)
 public abstract class MixinVehicleRenderer {
+
+    @Unique
+    private static final ThreadLocal<VehicleEntity> tacz_sewv$rendering = new ThreadLocal<>();
+
+    @Inject(method = "render", at = @At("HEAD"), remap = false)
+    private void tacz_sewv$captureHull(VehicleEntity entity, float yaw, float partialTick,
+            PoseStack poseStack, MultiBufferSource buffer, int packedLight, CallbackInfo ci) {
+        tacz_sewv$rendering.set(entity);
+    }
+
+    @Inject(method = "render", at = @At("RETURN"), remap = false)
+    private void tacz_sewv$clearHull(CallbackInfo ci) {
+        tacz_sewv$rendering.remove();
+    }
 
     @ModifyArg(
             method = "render",
@@ -39,10 +58,8 @@ public abstract class MixinVehicleRenderer {
             index = 0,
             remap = false
     )
-    private ResourceLocation tacz_sewv$factionSkinTranslucent(ResourceLocation texture,
-            VehicleEntity entity, float yaw, float partialTick, PoseStack poseStack,
-            MultiBufferSource buffer, int packedLight) {
-        return resolve(texture, entity);
+    private ResourceLocation tacz_sewv$factionSkinTranslucent(ResourceLocation texture) {
+        return resolve(texture, tacz_sewv$rendering.get());
     }
 
     @ModifyArg(
@@ -56,10 +73,8 @@ public abstract class MixinVehicleRenderer {
             index = 0,
             remap = false
     )
-    private ResourceLocation tacz_sewv$factionSkinCutout(ResourceLocation texture,
-            VehicleEntity entity, float yaw, float partialTick, PoseStack poseStack,
-            MultiBufferSource buffer, int packedLight) {
-        return resolve(texture, entity);
+    private ResourceLocation tacz_sewv$factionSkinCutout(ResourceLocation texture) {
+        return resolve(texture, tacz_sewv$rendering.get());
     }
 
     @Inject(method = "getTextureLocation", at = @At("RETURN"), cancellable = true, remap = false)
@@ -72,7 +87,11 @@ public abstract class MixinVehicleRenderer {
     }
 
     /** {@code fallback} kept when no sticky paint; {@code null} means "no skin → leave alone". */
+    @Unique
     private static ResourceLocation resolve(ResourceLocation fallback, VehicleEntity entity) {
+        if (entity == null) {
+            return fallback;
+        }
         ResourceLocation skin = VehicleSkinClient.textureFor(entity);
         if (skin == null) {
             return fallback;

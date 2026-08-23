@@ -36,6 +36,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.crew.NamePools;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
@@ -45,6 +46,7 @@ import com.neoalive.tacz_sewv.network.PacketExitPlatoon;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketReachGuard;
+import com.neoalive.tacz_sewv.network.PacketSetNameCategory;
 import com.neoalive.tacz_sewv.network.PacketToggleAutoOrders;
 import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
 
@@ -63,10 +65,11 @@ public class TdtScreen extends Screen {
         }
     }
 
-    // Docked left ~38% of screen; clamped so a 2-col grid stays readable.
-    private static final float PANEL_WIDTH_FRAC = 0.38f;
+    // Docked left ~40% of screen; clamped so a 2-col grid stays readable. Widened slightly (was
+    // 0.38f/400) to fit the Identity category's "Full Names" cycle row (category name + arrows).
+    private static final float PANEL_WIDTH_FRAC = 0.40f;
     private static final int PANEL_W_MIN = 260;
-    private static final int PANEL_W_MAX = 400;
+    private static final int PANEL_W_MAX = 440;
     private static final int PAD = 10;
     private static final int TAB_H = 18;
     private static final int TAB_GAP = 10;
@@ -111,12 +114,15 @@ public class TdtScreen extends Screen {
     private static final int STRIPE_AIR = 0x4DB57ED1;
     private static final int STRIPE_FORM = 0x4DD98F6B;
     private static final int STRIPE_PLATOON = 0x4DD9C96B;
+    private static final int STRIPE_IDENTITY = 0x4D6BD9A1;
 
     enum Category {
-        ALL, ORDERS, CREW, AREA, AIR, FORM, PLATOON
+        ALL, ORDERS, CREW, AREA, AIR, FORM, PLATOON, IDENTITY
     }
 
     private enum StepperKind { PATROL, SEARCH, ALTITUDE, LINE }
+
+    private enum CycleKind { NAME_CATEGORY }
 
     @Nullable
     private final Entity boardTarget;
@@ -128,6 +134,7 @@ public class TdtScreen extends Screen {
     private static int searchRadius = DEFAULT_RADIUS;
     private static int heliAltitude = IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
     private static int lineRowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
+    private static String selectedNameCategory = NamePools.RANDOM;
 
     public static int patrolRadius() {
         return patrolRadius;
@@ -174,7 +181,8 @@ public class TdtScreen extends Screen {
     private String pendingTip;
 
     private record OrderEntry(Category cat, String labelKey, @Nullable String tipKey,
-                              boolean closes, Runnable action, @Nullable StepperKind stepper) {}
+                              boolean closes, Runnable action, @Nullable StepperKind stepper,
+                              @Nullable CycleKind cycle) {}
 
     /** Content-space rect for one order (grid cell or full-width stepper row). */
     private record Cell(OrderEntry entry, int x, int y, int w, int h) {}
@@ -281,15 +289,42 @@ public class TdtScreen extends Screen {
                 true, this::orderExitPlatoon);
         add(Category.PLATOON, "gui.tacz_sewv.tdt.toggle_auto_orders", "gui.tacz_sewv.tdt.toggle_auto_orders.tip",
                 true, this::orderToggleAutoOrders);
+
+        add(Category.IDENTITY, "gui.tacz_sewv.tdt.full_names", "gui.tacz_sewv.tdt.full_names.tip",
+                false, this::applyNameCategory, CycleKind.NAME_CATEGORY);
+    }
+
+    /** Cycle values for {@link CycleKind#NAME_CATEGORY}: every configured category, plus RANDOM. */
+    private static List<String> nameCategoryOptions() {
+        List<String> options = new ArrayList<>(NamePools.active().categoryKeys());
+        options.add(NamePools.RANDOM);
+        return options;
+    }
+
+    private void applyNameCategory() {
+        NetworkHandler.CHANNEL.sendToServer(new PacketSetNameCategory(selectedNameCategory));
+    }
+
+    private static void stepNameCategory(int dir) {
+        List<String> options = nameCategoryOptions();
+        int idx = options.indexOf(selectedNameCategory);
+        if (idx < 0) idx = options.indexOf(NamePools.RANDOM);
+        idx = Math.floorMod(idx + dir, options.size());
+        selectedNameCategory = options.get(idx);
     }
 
     private void add(Category cat, String label, @Nullable String tip, boolean closes, Runnable action) {
-        add(cat, label, tip, closes, action, null);
+        add(cat, label, tip, closes, action, (StepperKind) null);
     }
 
     private void add(Category cat, String label, @Nullable String tip, boolean closes,
                      Runnable action, @Nullable StepperKind stepper) {
-        this.catalog.add(new OrderEntry(cat, label, tip, closes, action, stepper));
+        this.catalog.add(new OrderEntry(cat, label, tip, closes, action, stepper, null));
+    }
+
+    private void add(Category cat, String label, @Nullable String tip, boolean closes,
+                     Runnable action, CycleKind cycle) {
+        this.catalog.add(new OrderEntry(cat, label, tip, closes, action, null, cycle));
     }
 
     private void rebuildCells() {
@@ -302,7 +337,8 @@ public class TdtScreen extends Screen {
         int cellW = (innerW - CELL_GAP * (GRID_COLS - 1)) / GRID_COLS;
 
         Category[] order = allView
-                ? new Category[]{Category.ORDERS, Category.CREW, Category.AREA, Category.AIR, Category.FORM, Category.PLATOON}
+                ? new Category[]{Category.ORDERS, Category.CREW, Category.AREA, Category.AIR, Category.FORM,
+                    Category.PLATOON, Category.IDENTITY}
                 : new Category[]{this.category};
 
         for (Category cat : order) {
@@ -320,7 +356,7 @@ public class TdtScreen extends Screen {
 
             int col = 0;
             for (OrderEntry e : group) {
-                if (e.stepper != null) {
+                if (e.stepper != null || e.cycle != null) {
                     if (col != 0) {
                         y += CELL_H + CELL_GAP;
                         col = 0;
@@ -360,6 +396,7 @@ public class TdtScreen extends Screen {
             case AIR -> STRIPE_AIR;
             case FORM -> STRIPE_FORM;
             case PLATOON -> STRIPE_PLATOON;
+            case IDENTITY -> STRIPE_IDENTITY;
             default -> COL_STRIPE;
         };
     }
@@ -528,8 +565,9 @@ public class TdtScreen extends Screen {
         int y = PAD + 14;
         if (my < y || my > y + TAB_H) return false;
         int x = this.panelLeft + PAD;
+        boolean useShort = tabsOverflow();
         for (Category c : Category.values()) {
-            String label = I18n.get("gui.tacz_sewv.tdt.cat." + c.name().toLowerCase());
+            String label = tabLabel(c, useShort);
             int tw = this.font.width(label);
             if (mx >= x && mx < x + tw && my >= y && my < y + TAB_H) {
                 this.category = c;
@@ -540,6 +578,21 @@ public class TdtScreen extends Screen {
             x += tw + TAB_GAP;
         }
         return false;
+    }
+
+    private static String tabLabel(Category c, boolean useShort) {
+        return I18n.get("gui.tacz_sewv.tdt.cat." + c.name().toLowerCase() + (useShort ? ".short" : ""));
+    }
+
+    /** The tab row has no wrapping — once the category count outgrows the panel at full labels,
+     * fall back to the (already-shipped, previously unused) ".short" abbreviations instead of
+     * letting text spill past the panel edge into the world view. */
+    private boolean tabsOverflow() {
+        int total = 0;
+        for (Category c : Category.values()) {
+            total += this.font.width(tabLabel(c, false)) + TAB_GAP;
+        }
+        return total > this.panelW - PAD * 2;
     }
 
     private boolean clickScrollbar(double mx, double my) {
@@ -580,6 +633,28 @@ public class TdtScreen extends Screen {
                     return true;
                 }
                 // Label / left side fires the order
+                cell.entry().action.run();
+                if (cell.entry().closes) onClose();
+                return true;
+            }
+
+            if (cell.entry().cycle != null) {
+                int relX = contentX - cell.x();
+                int nextLeft = cell.w() - STEP_BTN;
+                int prevLeft = nextLeft - 4 - this.font.width(selectedNameCategory) - 4 - STEP_BTN;
+                // Every zone applies immediately — this sets a sticky preference, not a fire-once
+                // order like the other stepper rows, so there is no separate "confirm" step to miss.
+                if (relX >= nextLeft) {
+                    stepNameCategory(1);
+                    cell.entry().action.run();
+                    return true;
+                }
+                if (relX >= prevLeft && relX < prevLeft + STEP_BTN) {
+                    stepNameCategory(-1);
+                    cell.entry().action.run();
+                    return true;
+                }
+                // Label / left side re-sends the current selection (harmless if unchanged)
                 cell.entry().action.run();
                 if (cell.entry().closes) onClose();
                 return true;
@@ -813,7 +888,7 @@ public class TdtScreen extends Screen {
         renderList(g, mouseX, mouseY);
         renderRibbon(g);
         if (this.floatKind != null || this.floatPlatoonColor != null) {
-            renderFloat(g);
+            renderFloat(g, mouseX, mouseY);
         }
 
         if (this.pendingTip != null) {
@@ -824,8 +899,9 @@ public class TdtScreen extends Screen {
     private void renderTabs(GuiGraphics g) {
         int y = PAD + 14;
         int x = this.panelLeft + PAD;
+        boolean useShort = tabsOverflow();
         for (Category c : Category.values()) {
-            String label = I18n.get("gui.tacz_sewv.tdt.cat." + c.name().toLowerCase());
+            String label = tabLabel(c, useShort);
             int tw = this.font.width(label);
             boolean active = c == this.category;
             int color = active ? COL_ACCENT : COL_MUTED;
@@ -894,6 +970,18 @@ public class TdtScreen extends Screen {
                 g.drawCenteredString(this.font, value, minusLeft + STEP_BTN + 4 + valueW / 2,
                         sy + (CELL_H - 8) / 2, valueColor);
                 drawStepBtn(g, plusLeft, sy + 2, "+", hover);
+            } else if (cell.entry().cycle != null) {
+                String value = selectedNameCategory;
+                int nextLeft = sx + cell.w() - STEP_BTN;
+                int valueW = this.font.width(value);
+                int prevLeft = nextLeft - 4 - valueW - 4 - STEP_BTN;
+
+                g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
+
+                drawStepBtn(g, prevLeft, sy + 2, "<", hover);
+                g.drawCenteredString(this.font, value, prevLeft + STEP_BTN + 4 + valueW / 2,
+                        sy + (CELL_H - 8) / 2, COL_MUTED);
+                drawStepBtn(g, nextLeft, sy + 2, ">", hover);
             } else {
                 g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
             }
@@ -1013,7 +1101,7 @@ public class TdtScreen extends Screen {
                 this.panelLeft + this.panelW / 2, this.ribbonTop + RIBBON_H - 12, COL_MUTED);
     }
 
-    private void renderFloat(GuiGraphics g) {
+    private void renderFloat(GuiGraphics g, int mouseX, int mouseY) {
         List<TdtSelection.Entry> units = currentFloatUnits();
         if (units.isEmpty()) return;
 
@@ -1030,13 +1118,15 @@ public class TdtScreen extends Screen {
         g.fill(fx, fy, fx + fw, fy + fh, a | (COL_BASE & 0xFFFFFF));
         g.fill(fx, fy, fx + fw, fy + 1, COL_ACCENT);
 
-        g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.float_select_all"),
-                fx + fw / 2, fy + pad + 2, COL_ACCENT);
-
+        // Icons first, tracking whichever one the cursor is over — the header line above them
+        // then shows that unit's name instead of the default "Select All" prompt.
         int ix = fx + pad;
         int iy = fy + pad + 16;
+        String hoveredName = null;
         for (TdtSelection.Entry unit : units) {
             boolean sel = TdtSelection.isSelected(unit.id());
+            boolean hover = mouseX >= ix && mouseX < ix + FLOAT_ICON && mouseY >= iy && mouseY < iy + FLOAT_ICON;
+            if (hover && !unit.name().isEmpty()) hoveredName = unit.name();
             if (sel) {
                 g.fill(ix - 1, iy - 1, ix + FLOAT_ICON + 1, iy + FLOAT_ICON + 1, COL_ACCENT);
             }
@@ -1056,6 +1146,16 @@ public class TdtScreen extends Screen {
                 iy += FLOAT_ICON + 4;
             }
         }
+
+        String header = hoveredName != null ? hoveredName : I18n.get("gui.tacz_sewv.tdt.float_select_all");
+        int headerColor = hoveredName != null ? COL_TEXT : COL_ACCENT;
+        int headerW = this.font.width(header);
+        // A full name can run wider than the flyout at small unit counts - clip rather than
+        // overflow the box the way the unpatched tab bar did.
+        if (headerW > fw - pad * 2) {
+            header = this.font.plainSubstrByWidth(header, fw - pad * 2 - this.font.width("…")) + "…";
+        }
+        g.drawCenteredString(this.font, header, fx + fw / 2, fy + pad + 2, headerColor);
     }
 
     /** The commander star tints with its platoon's colour when it has one; gold otherwise. */

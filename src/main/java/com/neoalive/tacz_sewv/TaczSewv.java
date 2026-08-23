@@ -16,6 +16,7 @@ import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager;
 import org.slf4j.Logger;
 
@@ -27,6 +28,7 @@ import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.NpcArmor;
+import com.neoalive.tacz_sewv.crew.NpcIdentity;
 import com.neoalive.tacz_sewv.crew.NpcNvg;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.SemRecruitCost;
@@ -132,6 +134,8 @@ public class TaczSewv {
         event.addListener(new UtilityWeights.Loader());
         // See com.neoalive.tacz_sewv.ballistics.TranslationTable.
         event.addListener(new com.neoalive.tacz_sewv.ballistics.TranslationTable.Loader());
+        // See com.neoalive.tacz_sewv.crew.NamePools.
+        event.addListener(new com.neoalive.tacz_sewv.crew.NamePools.Loader());
     }
 
     /**
@@ -163,6 +167,7 @@ public class TaczSewv {
         if (event.getEntity() instanceof AbstractUnit unit) {
             NpcArmor.issue(unit);
             NpcNvg.issue(unit);
+            if (unit instanceof PmcUnitEntity pmc) NpcIdentity.issue(pmc);
             // Prefer trench floors (TrenchPathTypes.TRENCH malus 0) over open ground.
             unit.setPathfindingMalus(BlockPathTypes.WALKABLE, TrenchPathTypes.OPEN_GROUND_MALUS);
             // Every spawn path surfaces a unit here, so this is also the one place a squad can pick up

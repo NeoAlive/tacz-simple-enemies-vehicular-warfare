@@ -35,8 +35,16 @@ public final class TdtSelection {
 
     public static final double SCAN_RADIUS = 512.0;
 
-    /** {@code vehicleId} is -1 when dismounted — what {@link #distinctCount} dedupes a crew by. */
-    public record Entry(int id, VehicleMarker.Kind kind, boolean isCommander, int platoonColorRgb, int vehicleId) {}
+    /**
+     * {@code vehicleId} is -1 when dismounted — what {@link #distinctCount} dedupes a crew by.
+     * {@code name} is the unit's rolled identity ({@link com.neoalive.tacz_sewv.crew.NpcIdentity}),
+     * read off its synced custom name rather than persistent data — persistent NBT never leaves
+     * the server, but a custom name is ordinary synced entity data. Empty if unassigned (name
+     * assignment disabled, or — for the ambient/ownerless case, which can't reach this scan at all
+     * since every entry here already passed {@code isOwnedBy(player)} — never applicable here).
+     */
+    public record Entry(int id, VehicleMarker.Kind kind, boolean isCommander, int platoonColorRgb,
+                        int vehicleId, String name) {}
 
     private static final LinkedHashSet<Integer> SELECTED = new LinkedHashSet<>();
     private static List<Entry> scanned = List.of();
@@ -223,7 +231,9 @@ public final class TdtSelection {
                 }
             }
             int platoonColor = marker != null ? marker.platoonColorRgb() : 0;
-            out.add(new Entry(pmc.getId(), kindOf(pmc), pmc instanceof PmcCommanderEntity, platoonColor, vehicleId));
+            String name = pmc.getCustomName() != null ? pmc.getCustomName().getString() : "";
+            out.add(new Entry(pmc.getId(), kindOf(pmc), pmc instanceof PmcCommanderEntity, platoonColor,
+                    vehicleId, name));
         }
         out.sort((a, b) -> Integer.compare(a.id(), b.id()));
         return List.copyOf(out);

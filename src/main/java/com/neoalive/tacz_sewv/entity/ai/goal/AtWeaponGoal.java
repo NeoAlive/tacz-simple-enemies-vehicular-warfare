@@ -11,6 +11,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 
 /**
  * Works a SuperbWarfare launcher for a unit on foot — the firing half of what
@@ -70,6 +71,10 @@ public class AtWeaponGoal extends Goal {
 
         LivingEntity target = this.unit.getTarget();
         if (target == null || !target.isAlive()) return false;
+        // Defense in depth beside the setTarget veto: a target that reached the unit by a route
+        // this mod does not own (a SEM build whose setTarget this mixin misses, say) must still
+        // never be fired at with a rocket. Same doctrine, second gate.
+        if (SmallArmsSupport.refusesTarget(this.unit, target)) return false;
 
         GunData gun = gun();
         // Out of rockets AND out of magazine: the goal stops rather than idling on a dead tube,

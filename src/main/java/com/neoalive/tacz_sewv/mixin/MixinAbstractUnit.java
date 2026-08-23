@@ -13,6 +13,7 @@ import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 import com.neoalive.tacz_sewv.order.OrderFailure;
@@ -105,9 +106,20 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
             ci.cancel();
             return;
         }
-        // ...and a unit whose own hands say it is not here to fight refuses the target outright.
-        if (supportRefuse) {
+        // An anti-tank launcher only ever points at armour: a crewed hull whose engine type is
+        // declared. Vetoing here keeps SEM's own scans, retaliation and player orders from ever
+        // handing a gunner an infantry target its tube cannot answer — see SmallArmsSupport.
+        if (SmallArmsSupport.refusesTarget(self, target)) {
             SewvDiag.setTarget(
+                    "MixinAbstractUnit BLOCK atLauncherNonVehicle self={}#{} target={}#{}",
+                    self.getClass().getSimpleName(), self.getId(),
+                    target.getClass().getSimpleName(), target.getId());
+            OrderReport.veto(self, OrderFailure.TARGET_EXCLUDED);
+            ci.cancel();
+            return;
+        }
+        // ...and a unit whose own hands say it is not here to fight refuses the target outright.
+        if (supportRefuse) {            SewvDiag.setTarget(
                     "MixinAbstractUnit BLOCK supportRoleRefuse self={}#{} target={}#{}",
                     self.getClass().getSimpleName(), self.getId(),
                     target.getClass().getSimpleName(), target.getId());

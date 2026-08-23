@@ -61,6 +61,11 @@ public final class TankSpawner {
             return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.TOW);
         }
 
+        /** Indirect-fire emplacements (tube mortar, Type-63 MLRS, …). */
+        public List<? extends String> mortarPool(ServerLevel level) {
+            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.MORTAR);
+        }
+
         /** Ground armour / IFV pool for this world (COMMON config is the seed only). */
         public List<? extends String> vehiclePool(ServerLevel level) {
             return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.GROUND);

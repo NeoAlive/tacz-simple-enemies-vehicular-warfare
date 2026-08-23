@@ -44,12 +44,15 @@ public class WorldVehiclePools extends SavedData {
     /** Fixed AT launchers; kornet/ags resolve only when VVP is loaded. */
     private static final List<String> DEFAULT_TOW = List.of(
             "superbwarfare:tow", "vvp:kornet", "vvp:ags_30");
+    /** Indirect-fire emplacements (tube mortar and MLRS). */
+    private static final List<String> DEFAULT_MORTAR = List.of(
+            "superbwarfare:mortar", "superbwarfare:type_63");
 
     private static Map<TankFaction, Map<Category, List<String>>> legacyPools;
     private static boolean legacyPoolsLoaded;
 
     public enum Category {
-        GROUND, SHIP, PLANE, HELI, TOW
+        GROUND, SHIP, PLANE, HELI, TOW, MORTAR
     }
 
     private final Map<TankFaction, Map<Category, List<String>>> pools = new EnumMap<>(TankFaction.class);
@@ -227,6 +230,7 @@ public class WorldVehiclePools extends SavedData {
                 case PMC -> DEFAULT_PMC_PLANES;
             };
             case TOW -> DEFAULT_TOW;
+            case MORTAR -> DEFAULT_MORTAR;
         };
     }
 

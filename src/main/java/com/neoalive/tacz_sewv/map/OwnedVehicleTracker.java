@@ -239,12 +239,8 @@ public final class OwnedVehicleTracker {
             // A mortar IS a VehicleEntity but has no seats, so it never has a crew to read a faction
             // off — that is the whole reason it needs its own branch rather than falling through the
             // passenger test as "empty". Same shape for recon drones (seatless, owned by NBT tag).
-            if (hull instanceof MortarEntity mortar) {
-                collectMortar(level, mortar, candidates);
-                continue;
-            }
-            if (hull instanceof Type63Entity type63) {
-                collectType63(level, type63, candidates);
+            if (hull instanceof MortarEntity || hull instanceof Type63Entity) {
+                collectIndirectEmplacement(level, hull, candidates);
                 continue;
             }
             if (hull instanceof DroneEntity drone) {
@@ -272,18 +268,23 @@ public final class OwnedVehicleTracker {
     }
 
     /**
-     * A mortar is marked from its <b>crew</b>, which stands beside it: the tube has no owner field
-     * and no seats, so the claim on the unit ({@code IMortarCrew}) is the only record that this
-     * mortar is anybody's. Position still comes from the tube — that is the thing on the map — but
-     * faction, owner and the entity an order would name all come from the crewman.
+     * Seatless indirect emplacements (tube mortar, Type-63 MLRS) are marked from their
+     * <b>crew</b>, which stands beside them: the hull has no owner field and no seats, so the
+     * claim on the unit ({@code IMortarCrew}) is the only record that this tube is anybody's.
+     * Position still comes from the hull — that is the thing on the map — but faction, owner
+     * and the entity an order would name all come from the crewman.
      *
-     * <p>An unclaimed mortar is nobody's and is not shown, which also keeps a dropped tube out of
+     * <p>An unclaimed tube is nobody's and is not shown, which also keeps a dropped tube out of
      * the enemy sighting picture.
      */
-    // ponytail: MortarSupport.crewOf scans nearby units per mortar. Mortars are rare enough that
-    // once a second costs nothing; if that stops being true, keep the claim on the tube instead.
-    private static void collectMortar(ServerLevel level, MortarEntity mortar, List<Candidate> candidates) {
-        AbstractUnit crew = MortarSupport.crewOf(mortar, null);
+    // ponytail: MortarSupport.crewOf / Type63Support.crewOf scan nearby units per hull. Rare
+    // enough that once a second costs nothing; if that stops being true, keep the claim on the
+    // hull instead.
+    private static void collectIndirectEmplacement(ServerLevel level, VehicleEntity weapon,
+                                                   List<Candidate> candidates) {
+        AbstractUnit crew = weapon instanceof MortarEntity mortar
+                ? MortarSupport.crewOf(mortar, null)
+                : weapon instanceof Type63Entity type63 ? Type63Support.crewOf(type63, null) : null;
         if (crew == null) return;
 
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(crew);
@@ -294,28 +295,9 @@ public final class OwnedVehicleTracker {
                 VehicleMarker.Kind.EMPLACEMENT, faction,
                 pmcOwner, ownerTeamOf(crew), invasionTeamOf(crew), InvasionHostility.enemiesOf(crew),
                 VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
-                crew.getId(), mortar.getId(),
-                mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension(),
-                healthFrac(mortar), energyFrac(mortar),
-                FactionColors.wireTint(level.getServer(), pmcOwner),
-                false, platoonColorOf(level, crew.getId()), crew instanceof PmcCommanderEntity));
-    }
-
-    private static void collectType63(ServerLevel level, Type63Entity launcher, List<Candidate> candidates) {
-        AbstractUnit crew = Type63Support.crewOf(launcher, null);
-        if (crew == null) return;
-
-        CrewFacts.Faction faction = CrewFacts.factionOfCrew(crew);
-        if (faction == null) return;
-
-        UUID pmcOwner = crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
-        candidates.add(new Candidate(
-                VehicleMarker.Kind.EMPLACEMENT, faction,
-                pmcOwner, ownerTeamOf(crew), invasionTeamOf(crew), InvasionHostility.enemiesOf(crew),
-                VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
-                crew.getId(), launcher.getId(),
-                launcher.getX(), launcher.getY(), launcher.getZ(), launcher.getYRot(), level.dimension(),
-                healthFrac(launcher), energyFrac(launcher),
+                crew.getId(), weapon.getId(),
+                weapon.getX(), weapon.getY(), weapon.getZ(), weapon.getYRot(), level.dimension(),
+                healthFrac(weapon), energyFrac(weapon),
                 FactionColors.wireTint(level.getServer(), pmcOwner),
                 false, platoonColorOf(level, crew.getId()), crew instanceof PmcCommanderEntity));
     }

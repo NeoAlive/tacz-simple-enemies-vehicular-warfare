@@ -713,9 +713,8 @@ public class SewvCommand {
                         TankSpawner::spawnPlaneWithCrew, true, true))
                 .then(vehicleSpawn("heli", faction, TankFaction::heliPool,
                         TankSpawner::spawnHeliWithCrew, true, false))
-                .then(emplacementSpawn("mortar", faction, Emplacement.MORTAR))
-                .then(emplacementSpawn("type63", faction, Emplacement.TYPE_63))
-                .then(emplacementSpawn("tow", faction, Emplacement.TOW));
+                .then(emplacementSpawn("mortar", faction, Emplacement.MORTAR, TankFaction::mortarPool))
+                .then(emplacementSpawn("tow", faction, Emplacement.TOW, TankFaction::towPool));
         if (faction == TankFaction.PMC) {
             node.then(commanderSpawn("commander"));
         } else {
@@ -783,10 +782,11 @@ public class SewvCommand {
         return 1;
     }
 
-    // Emplacements take no vehicle id (there is exactly one mortar and one TOW), so the
-    // only optional argument is the position:
-    //   /sewv spawn ru mortar               at the source, ground-snapped
-    //   /sewv spawn ru mortar <x y z>       at the coordinates (given Y)
+    // Same optional-arg shape as vehicleSpawn: pool id and/or position.
+    //   /sewv spawn ru mortar                              random from mortar pool
+    //   /sewv spawn ru mortar superbwarfare:type_63        that id at the source
+    //   /sewv spawn ru mortar <x y z>                      random at coordinates
+    //   /sewv spawn ru mortar <x y z> superbwarfare:tow    (tow pool likewise)
     // A mortar spawned this way has no fire mission — it shoots what its crew can see, the
     // same as one a player ordered a unit onto. The mortar_shelling event is what hands out
     // standing missions.
@@ -794,17 +794,35 @@ public class SewvCommand {
     // no inventory to hold a stack in); a PMC crew gets its inventory filled with real stacks
     // it can run out of and the owner can top up (sneak+right-click).
     private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> emplacementSpawn(
-            String literal, TankFaction faction, Emplacement type) {
+            String literal, TankFaction faction, Emplacement type,
+            BiFunction<TankFaction, ServerLevel, List<? extends String>> pool) {
         return Commands.literal(literal)
-                .executes(ctx -> spawnEmplacement(ctx.getSource(), faction, type, null))
+                .executes(ctx -> spawnEmplacement(ctx.getSource(), faction, type, pool, null, null))
                 .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                        .executes(ctx -> spawnEmplacement(ctx.getSource(), faction, type,
-                                BlockPosArgument.getLoadedBlockPos(ctx, "pos"))));
+                        .executes(ctx -> spawnEmplacement(ctx.getSource(), faction, type, pool, null,
+                                BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
+                        .then(Commands.argument("vehicle", StringArgumentType.greedyString())
+                                .suggests((c, b) -> suggestPool(c.getSource(), pool, faction, b))
+                                .executes(ctx -> spawnEmplacement(ctx.getSource(), faction, type, pool,
+                                        StringArgumentType.getString(ctx, "vehicle"),
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.argument("vehicle", StringArgumentType.greedyString())
+                        .suggests((c, b) -> suggestPool(c.getSource(), pool, faction, b))
+                        .executes(ctx -> spawnEmplacement(ctx.getSource(), faction, type, pool,
+                                StringArgumentType.getString(ctx, "vehicle"), null)));
     }
 
     private static int spawnEmplacement(CommandSourceStack source, TankFaction faction,
-                                        Emplacement type, @Nullable BlockPos explicitPos) {
+                                        Emplacement type,
+                                        BiFunction<TankFaction, ServerLevel, List<? extends String>> pool,
+                                        @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
         ServerLevel level = source.getLevel();
+
+        if (vehicleId != null && !pool.apply(faction, level).contains(vehicleId)) {
+            source.sendFailure(Component.translatable(
+                    "command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
+            return 0;
+        }
 
         UUID ownerId = faction == TankFaction.PMC && source.getEntity() instanceof ServerPlayer player
                 ? player.getUUID() : null;
@@ -814,7 +832,7 @@ public class SewvCommand {
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
 
         VehicleEntity weapon = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
-                () -> EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null));
+                () -> EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null, vehicleId));
         if (weapon == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.emplacement_fail"));
             return 0;

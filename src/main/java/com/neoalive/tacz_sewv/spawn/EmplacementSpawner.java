@@ -1,6 +1,9 @@
 package com.neoalive.tacz_sewv.spawn;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
@@ -66,7 +69,7 @@ public final class EmplacementSpawner {
 
     private EmplacementSpawner() {}
 
-    public enum Emplacement { MORTAR, TOW, TYPE_63 }
+    public enum Emplacement { MORTAR, TOW }
 
     /**
      * Spawns {@code type} at {@code pos} with one crew of {@code faction} already working it
@@ -80,17 +83,24 @@ public final class EmplacementSpawner {
     public static VehicleEntity spawn(ServerLevel level, BlockPos requestedPos, Emplacement type,
                                       TankSpawner.TankFaction faction, @Nullable UUID ownerId,
                                       @Nullable FireMission fireMission) {
+        return spawn(level, requestedPos, type, faction, ownerId, fireMission, null);
+    }
+
+    /**
+     * Same as {@link #spawn(ServerLevel, BlockPos, Emplacement, TankSpawner.TankFaction, UUID, FireMission)}
+     * with an optional pool id. When {@code vehicleId} is null a random entry from the faction's
+     * mortar/tow pool is used; when set it must be in that pool.
+     */
+    @Nullable
+    public static VehicleEntity spawn(ServerLevel level, BlockPos requestedPos, Emplacement type,
+                                      TankSpawner.TankFaction faction, @Nullable UUID ownerId,
+                                      @Nullable FireMission fireMission, @Nullable String vehicleId) {
         if (!TankSpawner.spawnsEnabled(level, faction)) return null;
 
-        EntityType<? extends VehicleEntity> entityType;
-        if (type == Emplacement.MORTAR) {
-            entityType = ModEntities.MORTAR.get();
-        } else if (type == Emplacement.TYPE_63) {
-            entityType = ModEntities.TYPE_63.get();
-        } else {
-            entityType = pickTowType(level, faction);
-            if (entityType == null) return null;
-        }
+        EntityType<? extends VehicleEntity> entityType = type == Emplacement.MORTAR
+                ? pickMortarType(level, faction, vehicleId)
+                : pickTowType(level, faction, vehicleId);
+        if (entityType == null) return null;
 
         BlockPos pos = TankSpawner.findClearSpawn(level, requestedPos, entityType);
         if (pos == null) return null;
@@ -101,16 +111,16 @@ public final class EmplacementSpawner {
         level.addFreshEntity(weapon);
 
         AbstractUnit crew = TankSpawner.createCrewUnit(level, faction, ownerId);
-        BlockPos crewPos = type == Emplacement.MORTAR || type == Emplacement.TYPE_63
-                ? pos.offset(CREW_OFFSET, 0, 0) : pos;
+        boolean besideTube = weapon instanceof MortarEntity || weapon instanceof Type63Entity;
+        BlockPos crewPos = besideTube ? pos.offset(CREW_OFFSET, 0, 0) : pos;
         crew.setPos(crewPos.getX() + 0.5, crewPos.getY(), crewPos.getZ() + 0.5);
         crew.finalizeSpawn(level, level.getCurrentDifficultyAt(crewPos), MobSpawnType.EVENT, null, null);
         level.addFreshEntity(crew);
 
-        if (type == Emplacement.MORTAR) {
-            crewMortar(level, (MortarEntity) weapon, crew, fireMission);
-        } else if (type == Emplacement.TYPE_63) {
-            crewType63(level, (Type63Entity) weapon, crew, fireMission);
+        if (weapon instanceof MortarEntity mortar) {
+            crewMortar(level, mortar, crew, fireMission);
+        } else if (weapon instanceof Type63Entity type63) {
+            crewType63(level, type63, crew, fireMission);
         } else if (!crew.startRiding(weapon)) {
             // The seat refused the rider — don't leave a crewless launcher standing next to a
             // launcher-less crew.
@@ -122,31 +132,79 @@ public final class EmplacementSpawner {
             TankSpawner.stockCombatAmmo(weapon, faction);
         }
 
-        supply(crew, faction, type, level.random, weapon);
+        supply(crew, faction, weapon, level.random);
         return weapon;
     }
 
     /**
-     * Pick a Fixed AT / grenade emplacement from the faction TOW pool, falling back to
-     * {@code superbwarfare:tow} when the pool is empty or every id is missing.
+     * Pick an indirect-fire emplacement from the faction mortar pool (tube or MLRS). Falls back
+     * to {@code superbwarfare:mortar} when the pool is empty or every id is missing; returns
+     * null when a specific {@code vehicleId} is not in the pool or does not resolve.
      */
     @SuppressWarnings("unchecked")
+    @Nullable
+    private static EntityType<? extends VehicleEntity> pickMortarType(ServerLevel level,
+                                                                        TankSpawner.TankFaction faction,
+                                                                        @Nullable String vehicleId) {
+        EntityType<?> picked = pickFromPool(faction.mortarPool(level), vehicleId, level.random, level,
+                e -> e instanceof MortarEntity || e instanceof Type63Entity);
+        if (picked != null) return (EntityType<? extends VehicleEntity>) picked;
+        return vehicleId == null ? ModEntities.MORTAR.get() : null;
+    }
+
+    /**
+     * Pick a Fixed AT / grenade emplacement from the faction TOW pool. Falls back to
+     * {@code superbwarfare:tow} when the pool is empty; returns null when a specific id is not
+     * in the pool or does not resolve to a vehicle.
+     */
+    @SuppressWarnings("unchecked")
+    @Nullable
     private static EntityType<? extends VehicleEntity> pickTowType(ServerLevel level,
-                                                                   TankSpawner.TankFaction faction) {
-        for (String id : faction.towPool(level)) {
+                                                                   TankSpawner.TankFaction faction,
+                                                                   @Nullable String vehicleId) {
+        EntityType<?> picked = pickFromPool(faction.towPool(level), vehicleId, level.random, level,
+                e -> e instanceof VehicleEntity);
+        if (picked != null) return (EntityType<? extends VehicleEntity>) picked;
+        return vehicleId == null ? ModEntities.TOW.get() : null;
+    }
+
+    /**
+     * Resolve a pool entry the same way tanks do: honor a requested id that is in the pool, else
+     * pick at random among entries that pass {@code accept} when probed.
+     */
+    @Nullable
+    private static EntityType<?> pickFromPool(List<? extends String> pool, @Nullable String vehicleId,
+                                              RandomSource random, ServerLevel level,
+                                              Predicate<Entity> accept) {
+        if (vehicleId != null) {
+            if (!pool.contains(vehicleId)) return null;
+            ResourceLocation rl = ResourceLocation.tryParse(vehicleId);
+            if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) return null;
+            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            if (type == null) return null;
+            Entity probe = type.create(level);
+            if (probe == null || !accept.test(probe)) {
+                if (probe != null) probe.discard();
+                return null;
+            }
+            probe.discard();
+            return type;
+        }
+
+        List<EntityType<?>> candidates = new ArrayList<>();
+        for (String id : pool) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
             if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
             EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
             if (type == null) continue;
-            // Create once to confirm VehicleEntity — discarded immediately.
             Entity probe = type.create(level);
-            if (probe instanceof VehicleEntity) {
-                probe.discard();
-                return (EntityType<? extends VehicleEntity>) type;
+            if (probe != null && accept.test(probe)) {
+                candidates.add(type);
             }
             if (probe != null) probe.discard();
         }
-        return ModEntities.TOW.get();
+        if (candidates.isEmpty()) return null;
+        return candidates.get(random.nextInt(candidates.size()));
     }
 
     private static void crewType63(ServerLevel level, Type63Entity launcher, AbstractUnit crew,
@@ -177,8 +235,8 @@ public final class EmplacementSpawner {
      * resupplied is doctrine and doctrine should be readable where the crew is made.
      */
     private static void supply(AbstractUnit crew, TankSpawner.TankFaction faction,
-                               Emplacement type, RandomSource random, VehicleEntity weapon) {
-        Item ammo = ammoFor(type, random, weapon);
+                               VehicleEntity weapon, RandomSource random) {
+        Item ammo = ammoFor(weapon, random);
         if (faction == TankSpawner.TankFaction.PMC) {
             fillInventory(crew, ammo);
         } else if (crew instanceof IIssuedAmmo issued) {
@@ -187,8 +245,22 @@ public final class EmplacementSpawner {
     }
 
     /** What a crew of this weapon shoots. */
-    private static Item ammoFor(Emplacement type, RandomSource random, VehicleEntity weapon) {
-        if (type == Emplacement.TOW) {
+    private static Item ammoFor(VehicleEntity weapon, RandomSource random) {
+        if (weapon instanceof Type63Entity) {
+            String id = random.nextDouble() < LOW_CHANCE_SHELL
+                    ? SewvConfig.LOW_CHANCE_TYPE63_ROCKET.get()
+                    : SewvConfig.HIGH_CHANCE_TYPE63_ROCKET.get();
+            return resolveRocket(id);
+        }
+        if (weapon instanceof MortarEntity) {
+            // Rolled once, per crew, so a battery's tubes can differ from each other but a given
+            // tube shoots one thing throughout rather than alternating at random.
+            String id = random.nextDouble() < LOW_CHANCE_SHELL
+                    ? SewvConfig.LOW_CHANCE_MORTAR_SHELL.get()
+                    : SewvConfig.HIGH_CHANCE_MORTAR_SHELL.get();
+            return resolveShell(id);
+        }
+        if (weapon instanceof TowEntity) {
             // VVP AGS uses 30mm grenades; Kornet / SBW TOW use AT missiles.
             String id = ForgeRegistries.ENTITY_TYPES.getKey(weapon.getType()).toString();
             if (id.contains("ags")) {
@@ -197,19 +269,7 @@ public final class EmplacementSpawner {
             }
             return ModItems.MEDIUM_ANTI_GROUND_MISSILE.get();
         }
-        if (type == Emplacement.TYPE_63) {
-            String id = random.nextDouble() < LOW_CHANCE_SHELL
-                    ? SewvConfig.LOW_CHANCE_TYPE63_ROCKET.get()
-                    : SewvConfig.HIGH_CHANCE_TYPE63_ROCKET.get();
-            return resolveRocket(id);
-        }
-
-        // Rolled once, per crew, so a battery's tubes can differ from each other but a given
-        // tube shoots one thing throughout rather than alternating at random.
-        String id = random.nextDouble() < LOW_CHANCE_SHELL
-                ? SewvConfig.LOW_CHANCE_MORTAR_SHELL.get()
-                : SewvConfig.HIGH_CHANCE_MORTAR_SHELL.get();
-        return resolveShell(id);
+        return ModItems.MEDIUM_ANTI_GROUND_MISSILE.get();
     }
 
     /**

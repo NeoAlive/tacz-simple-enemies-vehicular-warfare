@@ -1,7 +1,11 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
 import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.item.gun.GunItem;
+import com.atsuishio.superbwarfare.item.gun.special.RepairToolItem;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
@@ -12,7 +16,10 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
+import javax.annotation.Nullable;
+
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
 /**
  * Hands a SuperbWarfare launcher to a dismounting IFV crewman, so the squad an IFV puts on the
@@ -90,6 +97,50 @@ public final class SmallArmsSupport {
 
         data.putBoolean(ISSUED, true);
         return true;
+    }
+
+    /**
+     * Whether this unit must refuse {@code target} <b>because it is holding an anti-tank
+     * launcher</b> — {@code false} for everyone not holding one.
+     *
+     * <p>A launcher is a weapon with exactly one job, and the unit's target ladder should say so:
+     * it may only lock a crewed hull (a {@link VehicleEntity} is never itself the target — the AI
+     * targets the crew riding it), and only one whose datapack declares an engine type. The
+     * engine-type test is what keeps the tube off infantry: an on-foot unit has no hull to answer
+     * it for, so {@code EngineType.EMPTY} means "not a vehicle at all" and the launcher stands
+     * down rather than spending its few issued rounds on a rifleman.
+     *
+     * <p>Applied at {@code setTarget} (see {@code MixinAbstractUnit}) for the same reason
+     * {@link SupportRole#refusesTarget} is — a veto at acquisition covers SEM's own scans,
+     * retaliation and player orders at once, where a check inside the firing goal would leave
+     * every other goal chasing and shooting at infantry with a rifle that cannot scratch them.
+     */
+    public static boolean refusesTarget(AbstractUnit unit, @Nullable LivingEntity target) {
+        if (!holdsLauncher(unit) || target == null) return false;
+
+        if (!(target.getVehicle() instanceof VehicleEntity)) return true;
+        // EMPTY is the "unreadable / no data" fallback in HullFacts.computeEngineType, so treat it
+        // as "cannot confirm this is a vehicle" and stand down rather than fire.
+        return HullFacts.engineType((VehicleEntity) target.getVehicle()) == EngineType.EMPTY;
+    }
+
+    /** An SBW launcher in either hand — the same test AtWeaponGoal fires under. */
+    private static boolean holdsLauncher(AbstractUnit unit) {
+        return isLauncher(unit.getMainHandItem()) || isLauncher(unit.getOffhandItem());
+    }
+
+    private static boolean isLauncher(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        Item item = stack.getItem();
+        // Same exclusion AtWeaponGoal fires under: RepairToolItem extends GunGeoItem extends
+        // GunItem and carries readable gun data, so without this an engineer mid-fight (holster
+        // swap puts the tool in hand) would read as a gunner and shed every infantry target.
+        if (!(item instanceof GunItem) || item instanceof RepairToolItem) return false;
+        try {
+            return GunData.from(stack) != null;
+        } catch (Throwable ignored) {
+            return false; // unreadable gun data must never crash the AI tick
+        }
     }
 
     /**

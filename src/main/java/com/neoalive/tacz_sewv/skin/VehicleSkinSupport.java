@@ -46,10 +46,16 @@ public final class VehicleSkinSupport {
     /** Idempotent: re-applying the same faction keeps the sticky salt (no re-roll). */
     public static void apply(VehicleEntity hull, @Nullable CrewFacts.Faction faction) {
         if (faction == null) return;
-        if (faction == get(hull)) return;
+        if (faction == get(hull)) {
+            // Keep SBW skinId aligned for the spray GUI selection highlight.
+            hull.setSkinId(faction.name().toLowerCase(Locale.ROOT));
+            return;
+        }
         int salt = hull.getRandom().nextInt();
-        hull.getPersistentData().putString(TAG, faction.name().toLowerCase(Locale.ROOT));
+        String id = faction.name().toLowerCase(Locale.ROOT);
+        hull.getPersistentData().putString(TAG, id);
         hull.getPersistentData().putInt(TAG_SALT, salt);
+        hull.setSkinId(id);
         sync(hull, faction, salt);
     }
 
@@ -73,9 +79,12 @@ public final class VehicleSkinSupport {
 
     public static void clear(VehicleEntity hull) {
         CompoundTag data = hull.getPersistentData();
-        if (!data.contains(TAG) && !data.contains(TAG_SALT)) return;
+        boolean hadSticky = data.contains(TAG) || data.contains(TAG_SALT);
+        boolean hadSkinId = hull.getSkinId() != null && !hull.getSkinId().isBlank();
+        if (!hadSticky && !hadSkinId) return;
         data.remove(TAG);
         data.remove(TAG_SALT);
+        hull.setSkinId("");
         sync(hull, null, 0);
     }
 

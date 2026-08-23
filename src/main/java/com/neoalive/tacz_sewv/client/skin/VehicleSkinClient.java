@@ -37,6 +37,12 @@ public final class VehicleSkinClient {
         return applied == null ? null : applied.faction;
     }
 
+    /** Sticky salt, or {@code 0} when none (spray-GUI previews / unset). */
+    public static int salt(int entityId) {
+        Applied applied = APPLIED.get(entityId);
+        return applied == null ? 0 : applied.salt;
+    }
+
     public static void clearAll() {
         APPLIED.clear();
     }
@@ -44,10 +50,24 @@ public final class VehicleSkinClient {
     @Nullable
     public static ResourceLocation textureFor(VehicleEntity vehicle) {
         Applied applied = APPLIED.get(vehicle.getId());
-        if (applied == null) return null;
+        CrewFacts.Faction faction = applied != null ? applied.faction : factionFromSkinId(vehicle);
+        if (faction == null) return null;
         ResourceLocation typeId = ForgeRegistries.ENTITY_TYPES.getKey(vehicle.getType());
         if (typeId == null) return null;
-        return VehicleSkinRegistry.get(typeId.getPath(), applied.faction, applied.salt);
+        int salt = applied != null ? applied.salt : 0;
+        return VehicleSkinRegistry.get(typeId.getPath(), faction, salt);
+    }
+
+    @Nullable
+    private static CrewFacts.Faction factionFromSkinId(VehicleEntity vehicle) {
+        String skinId = vehicle.getSkinId();
+        if (skinId == null || skinId.isBlank()) return null;
+        return switch (skinId.toLowerCase(java.util.Locale.ROOT)) {
+            case "ru" -> CrewFacts.Faction.RU;
+            case "us" -> CrewFacts.Faction.US;
+            case "pmc" -> CrewFacts.Faction.PMC;
+            default -> null;
+        };
     }
 
     private record Applied(CrewFacts.Faction faction, int salt) {

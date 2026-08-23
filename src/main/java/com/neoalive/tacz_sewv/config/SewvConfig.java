@@ -354,9 +354,11 @@ public final class SewvConfig {
                 .define("highChanceMortarShell", "superbwarfare:mortar_shell", SewvConfig::isValidResourceId);
         LOW_CHANCE_MORTAR_SHELL = builder.comment("Less common mortar shell type for spawned crews (item id).")
                 .define("lowChanceMortarShell", "superbwarfare:mortar_shell_wp", SewvConfig::isValidResourceId);
-        HIGH_CHANCE_TYPE63_ROCKET = builder.comment("Usual Type-63 rocket for spawned crews (item id).")
+        HIGH_CHANCE_TYPE63_ROCKET = builder.comment(
+                        "Usual rocket for MLRS emplacements in the mortar pool (e.g. Type-63; item id).")
                 .define("highChanceType63Rocket", "superbwarfare:medium_rocket_he", SewvConfig::isValidResourceId);
-        LOW_CHANCE_TYPE63_ROCKET = builder.comment("Less common Type-63 rocket for spawned crews (item id).")
+        LOW_CHANCE_TYPE63_ROCKET = builder.comment(
+                        "Less common rocket for MLRS emplacements in the mortar pool (item id).")
                 .define("lowChanceType63Rocket", "superbwarfare:medium_rocket_ap", SewvConfig::isValidResourceId);
         DERELICT_EVENTS_ENABLED = builder.comment("Allow wrecked vehicles with a few survivors nearby.").define("derelictEventsEnabled", true);
         DERELICT_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for a derelict.")
@@ -900,7 +902,7 @@ public final class SewvConfig {
         MORTAR_FIRE_COOLDOWN_TICKS = builder.comment("Minimum wait between mortar shots, in game ticks (20 = 1 second).")
                 .defineInRange("mortarFireCooldownTicks", 60, 1, 1200);
         TYPE63_FIRE_COOLDOWN_TICKS = builder.comment(
-                        "Minimum wait between Type-63 rocket shots, in game ticks (SBW uses 10).")
+                        "Minimum wait between MLRS rocket shots (mortar-pool Type-63), in game ticks (SBW uses 10).")
                 .defineInRange("type63FireCooldownTicks", 10, 1, 1200);
         MORTAR_DISPERSION_RADIUS = builder.comment("How far (blocks) mortar shots may land off the aim point.")
                 .defineInRange("mortarDispersionRadius", 3, 0, 16);

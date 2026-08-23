@@ -43,10 +43,8 @@ public class BoardKeybind {
             // standing beside it, which is a different order entirely. Check it first, since
             // the vehicle branch would otherwise swallow it and send units to board something
             // they can never sit in.
-            if (target instanceof MortarEntity mortar) {
-                NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, mortar.getId()));
-            } else if (target instanceof Type63Entity type63) {
-                NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, type63.getId()));
+            if (target instanceof MortarEntity || target instanceof Type63Entity) {
+                NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, target.getId()));
             } else if (target instanceof VehicleEntity vehicle) {
                 NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId(), passengerOnly));
             } else {

@@ -8,7 +8,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -69,10 +68,6 @@ public final class InvasionHostility {
     @Nullable
     public static String teamOf(LivingEntity target) {
         if (target instanceof Player player) {
-            if (player.level() instanceof ServerLevel server) {
-                PlayerTeam team = server.getScoreboard().getPlayersTeam(player.getScoreboardName());
-                return team == null ? null : team.getName();
-            }
             PlayerTeam team = player.level().getScoreboard().getPlayersTeam(player.getScoreboardName());
             return team == null ? null : team.getName();
         }

@@ -17,7 +17,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
-import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -60,7 +59,6 @@ public class PacketEntrench {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof ServerPlayer sp)) return;
-            if (InvasionOrderGate.denyIfActive(sp)) return;
             if (!(sp.level() instanceof ServerLevel level)) return;
 
             List<AbstractUnit> units = new ArrayList<>();

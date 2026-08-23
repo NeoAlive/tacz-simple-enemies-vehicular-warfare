@@ -1,15 +1,12 @@
 package com.neoalive.tacz_sewv.compat;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 import javax.annotation.Nullable;
 
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
 
 /**
  * Softcompat for <b>ashvehicle</b> ammo items. Prefer native stacks over a creative box when
@@ -65,14 +62,6 @@ public final class AshAmmoCompat {
     }
 
     public static List<Item> fallbackAmmo() {
-        if (!present()) return List.of();
-        List<Item> ammo = new ArrayList<>(AMMO_IDS.length);
-        for (String id : AMMO_IDS) {
-            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
-            if (item != null && item != net.minecraft.world.item.Items.AIR && !ammo.contains(item)) {
-                ammo.add(item);
-            }
-        }
-        return ammo;
+        return AmmoCompat.resolve(present(), AMMO_IDS);
     }
 }

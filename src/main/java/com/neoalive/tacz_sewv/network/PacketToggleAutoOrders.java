@@ -12,7 +12,6 @@ import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
-import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -37,7 +36,6 @@ public class PacketToggleAutoOrders {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof ServerPlayer sp)) return;
-            if (InvasionOrderGate.denyIfActive(sp)) return;
 
             int ordered = 0;
             for (int unitId : this.unitIds) {

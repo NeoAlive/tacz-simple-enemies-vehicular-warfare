@@ -1,12 +1,9 @@
 package com.neoalive.tacz_sewv.compat;
 
-import java.util.ArrayList;
 import java.util.List;
 
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
 
 /**
  * Softcompat for <b>MCSP</b> vehicle ammo. SuperbWarfare's creative ammo box does not feed
@@ -49,14 +46,6 @@ public final class McspAmmoCompat {
      * is absent or none of the known ids registered.
      */
     public static List<Item> fallbackAmmo() {
-        if (!present()) return List.of();
-        List<Item> ammo = new ArrayList<>(AMMO_IDS.length);
-        for (String id : AMMO_IDS) {
-            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
-            if (item != null && item != net.minecraft.world.item.Items.AIR && !ammo.contains(item)) {
-                ammo.add(item);
-            }
-        }
-        return ammo;
+        return AmmoCompat.resolve(present(), AMMO_IDS);
     }
 }

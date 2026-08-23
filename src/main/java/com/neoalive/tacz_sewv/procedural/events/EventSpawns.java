@@ -75,11 +75,9 @@ final class EventSpawns {
      */
     @Nullable
     static TankSpawner.TankFaction pickVehicleFaction(ServerLevel level) {
-        boolean ru = TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.RU);
-        boolean us = TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.US);
-        if (ru && us) return level.random.nextBoolean() ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
-        if (ru) return TankSpawner.TankFaction.RU;
-        return us ? TankSpawner.TankFaction.US : null;
+        return coinFlip(level,
+                TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.RU),
+                TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.US));
     }
 
     /**
@@ -107,17 +105,21 @@ final class EventSpawns {
     /** RU or US with a non-empty plane pool — never PMC (overflights must spawn airborne). */
     @Nullable
     static TankSpawner.TankFaction pickPlaneFaction(ServerLevel level) {
-        boolean ru = TankSpawner.hasSpawnablePlane(level, TankSpawner.TankFaction.RU);
-        boolean us = TankSpawner.hasSpawnablePlane(level, TankSpawner.TankFaction.US);
-        if (ru && us) return level.random.nextBoolean() ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
-        if (ru) return TankSpawner.TankFaction.RU;
-        return us ? TankSpawner.TankFaction.US : null;
+        return coinFlip(level,
+                TankSpawner.hasSpawnablePlane(level, TankSpawner.TankFaction.RU),
+                TankSpawner.hasSpawnablePlane(level, TankSpawner.TankFaction.US));
     }
 
     @Nullable
     static TankSpawner.TankFaction pickAmbientFaction(ServerLevel level) {
-        boolean ru = TankSpawner.spawnsEnabled(level, TankSpawner.TankFaction.RU);
-        boolean us = TankSpawner.spawnsEnabled(level, TankSpawner.TankFaction.US);
+        return coinFlip(level,
+                TankSpawner.spawnsEnabled(level, TankSpawner.TankFaction.RU),
+                TankSpawner.spawnsEnabled(level, TankSpawner.TankFaction.US));
+    }
+
+    /** RU if only it is eligible, US if only it is, a fair coin if both, null if neither. */
+    @Nullable
+    private static TankSpawner.TankFaction coinFlip(ServerLevel level, boolean ru, boolean us) {
         if (ru && us) return level.random.nextBoolean() ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
         if (ru) return TankSpawner.TankFaction.RU;
         return us ? TankSpawner.TankFaction.US : null;

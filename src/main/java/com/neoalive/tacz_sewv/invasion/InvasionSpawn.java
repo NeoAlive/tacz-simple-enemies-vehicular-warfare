@@ -401,11 +401,6 @@ public final class InvasionSpawn {
         }
     }
 
-    /** @deprecated prefer {@link #tagHullAndCrew(VehicleEntity, String, BlockPos, boolean, List)} */
-    public static void tagHullAndCrew(VehicleEntity hull, String team, BlockPos basePos, boolean aiFleet) {
-        tagHullAndCrew(hull, team, basePos, aiFleet, List.of());
-    }
-
     private static void tag(Entity entity, String team, BlockPos basePos, boolean aiFleet,
                             List<String> enemyTeams) {
         entity.getPersistentData().putBoolean(InvasionTags.SPAWN, true);

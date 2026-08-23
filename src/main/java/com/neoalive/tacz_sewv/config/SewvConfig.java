@@ -134,7 +134,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue DRONE_DEPLOY_CHECK_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue DRONE_DEPLOY_CHANCE;
     public static final ForgeConfigSpec.DoubleValue DRONE_SCAN_ALTITUDE;
-    public static final ForgeConfigSpec.DoubleValue DRONE_DETECTION_RADIUS;
     public static final ForgeConfigSpec.DoubleValue DRONE_BROADCAST_RADIUS;
     public static final ForgeConfigSpec.IntValue DRONE_SCAN_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue DRONE_LEASH_RADIUS;
@@ -570,8 +569,6 @@ public final class SewvConfig {
                 .defineInRange("droneDeployChance", 0.2, 0.0, 1.0);
         DRONE_SCAN_ALTITUDE = builder.comment("How high (blocks) drones cruise above the ground while searching.")
                 .defineInRange("droneScanAltitude", 20.0, 5.0, 60.0);
-        DRONE_DETECTION_RADIUS = builder.comment("Legacy setting; kamikaze drones use the vehicle target-scan range instead. Kept so old configs do not break.")
-                .defineInRange("droneDetectionRadius", 48.0, 8.0, 128.0);
         DRONE_BROADCAST_RADIUS = builder.comment("How far (blocks) drone-related map/crew lookups reach.")
                 .defineInRange("droneBroadcastRadius", 160.0, 16.0, 384.0);
         DRONE_SCAN_INTERVAL_TICKS = builder.comment("How often (game ticks) a diving drone looks for a new target.")

@@ -7,7 +7,7 @@ import javax.annotation.Nullable;
 /**
  * Pure commander election — no world types.
  *
- * <p>Two non-overlapping cases after the player-designation hook:
+ * <p>Two non-overlapping cases:
  * <ol>
  *   <li>Incumbent still in the member list → keep unless a <b>ready</b> challenger beats
  *       {@code incumbent.fitness + margin}.</li>
@@ -36,25 +36,18 @@ public final class Election {
     }
 
     /**
-     * @param members            current group members (in-group = present in this list)
-     * @param incumbentId        previous commander, or null
-     * @param margin             {@code COMMAND_MARGIN} — challenger must beat incumbent by more than this
-     * @param playerDesignatedId TODO(command-player-designation) hook; null = no override
-     * @param quorum             minimum Facts-ready members required before a <b>first</b> election
+     * @param members     current group members (in-group = present in this list)
+     * @param incumbentId previous commander, or null
+     * @param margin      {@code COMMAND_MARGIN} — challenger must beat incumbent by more than this
+     * @param quorum      minimum Facts-ready members required before a <b>first</b> election
      * @return commander id, or {@code null} if the first election must defer
      */
     @Nullable
     public static Integer electCommander(List<Candidate> members,
                                          @Nullable Integer incumbentId,
                                          double margin,
-                                         @Nullable Integer playerDesignatedId,
                                          int quorum) {
         if (members.isEmpty()) return null;
-
-        // Player designation wins first — alive+in-group only (presence in members).
-        if (playerDesignatedId != null && contains(members, playerDesignatedId)) {
-            return playerDesignatedId;
-        }
 
         Candidate incumbent = incumbentId != null ? find(members, incumbentId) : null;
         if (incumbent != null) {
@@ -94,11 +87,6 @@ public final class Election {
         return best != null ? best.id : null;
     }
 
-    private static boolean contains(List<Candidate> members, int id) {
-        return find(members, id) != null;
-    }
-
-    @Nullable
     private static Candidate find(List<Candidate> members, int id) {
         for (Candidate c : members) {
             if (c.id == id) return c;

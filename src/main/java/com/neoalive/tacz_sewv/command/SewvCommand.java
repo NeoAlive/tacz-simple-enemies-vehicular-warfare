@@ -1,8 +1,10 @@
 package com.neoalive.tacz_sewv.command;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiFunction;
 
 import javax.annotation.Nullable;
 
@@ -703,10 +705,14 @@ public class SewvCommand {
     private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> factionSpawn(
             String literal, TankFaction faction) {
         var node = Commands.literal(literal)
-                .then(tankSpawn("tank", faction))
-                .then(shipSpawn("ship", faction))
-                .then(planeSpawn("plane", faction))
-                .then(heliSpawn("heli", faction))
+                .then(vehicleSpawn("tank", faction, TankFaction::vehiclePool,
+                        TankSpawner::spawnTankWithCrew, true, false))
+                .then(vehicleSpawn("ship", faction, TankFaction::shipPool,
+                        TankSpawner::spawnShipWithCrew, false, true))
+                .then(vehicleSpawn("plane", faction, TankFaction::planePool,
+                        TankSpawner::spawnPlaneWithCrew, true, true))
+                .then(vehicleSpawn("heli", faction, TankFaction::heliPool,
+                        TankSpawner::spawnHeliWithCrew, true, false))
                 .then(emplacementSpawn("mortar", faction, Emplacement.MORTAR))
                 .then(emplacementSpawn("tow", faction, Emplacement.TOW));
         if (faction == TankFaction.PMC) {
@@ -819,7 +825,7 @@ public class SewvCommand {
         return 1;
     }
 
-    // Each tank literal takes an OPTIONAL spawn position and an OPTIONAL vehicle id:
+    // Each vehicle literal takes an OPTIONAL spawn position and an OPTIONAL vehicle id:
     //   /sewv spawn us tank                     random vehicle at the source (ground-snapped)
     //   /sewv spawn us tank <id>                that vehicle at the source
     //   /sewv spawn us tank <x y z>             random vehicle at the coordinates (given Y)
@@ -828,134 +834,63 @@ public class SewvCommand {
     // as coordinates; a namespaced vehicle id can't parse as a BlockPos, so it falls
     // through to the greedy vehicle branch. The id stays a greedy string (a ':' needs
     // no quoting) and tab-completion still suggests the faction's configured pool.
-    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> tankSpawn(String literal, TankFaction faction) {
+    //
+    // One shape for all four hull classes — they differ only in which pool they suggest/
+    // validate against, which spawner they call (all share one signature), whether the
+    // no-explicit-pos fallback snaps to ground (ships don't: findClearWaterSpawn resolves
+    // its own per-column Y while spiralling for water), and whether the success message
+    // reports the requested or the spawned hull's actual position (ship/plane: the
+    // spawner relocates them).
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> vehicleSpawn(
+            String literal, TankFaction faction,
+            BiFunction<TankFaction, ServerLevel, List<? extends String>> pool,
+            SpawnWithCrewFn spawner, boolean snapToGround, boolean reportActualPos) {
         return Commands.literal(literal)
-                .executes(ctx -> spawnTank(ctx.getSource(), faction, null, null))
+                .executes(ctx -> spawnVehicle(ctx.getSource(), faction, pool, spawner,
+                        snapToGround, reportActualPos, null, null))
                 .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                        .executes(ctx -> spawnTank(ctx.getSource(), faction, null,
+                        .executes(ctx -> spawnVehicle(ctx.getSource(), faction, pool, spawner,
+                                snapToGround, reportActualPos, null,
                                 BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
                         .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                                .suggests((c, b) -> suggestPool(c.getSource(), faction, b))
-                                .executes(ctx -> spawnTank(ctx.getSource(), faction,
+                                .suggests((c, b) -> suggestPool(c.getSource(), pool, faction, b))
+                                .executes(ctx -> spawnVehicle(ctx.getSource(), faction, pool,
+                                        spawner, snapToGround, reportActualPos,
                                         StringArgumentType.getString(ctx, "vehicle"),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                        .suggests((c, b) -> suggestPool(c.getSource(), faction, b))
-                        .executes(ctx -> spawnTank(ctx.getSource(), faction,
+                        .suggests((c, b) -> suggestPool(c.getSource(), pool, faction, b))
+                        .executes(ctx -> spawnVehicle(ctx.getSource(), faction, pool, spawner,
+                                snapToGround, reportActualPos,
                                 StringArgumentType.getString(ctx, "vehicle"), null)));
     }
 
-    private static CompletableFuture<Suggestions> suggestPool(CommandSourceStack source, TankFaction faction, SuggestionsBuilder builder) {
+    @FunctionalInterface
+    private interface SpawnWithCrewFn {
+        VehicleEntity spawn(ServerLevel level, BlockPos pos, TankFaction faction,
+                            UUID ownerId, String vehicleId);
+    }
+
+    private static CompletableFuture<Suggestions> suggestPool(CommandSourceStack source,
+                                                              BiFunction<TankFaction, ServerLevel, List<? extends String>> pool,
+                                                              TankFaction faction,
+                                                              SuggestionsBuilder builder) {
         return SharedSuggestionProvider.suggest(
-                faction.vehiclePool(source.getLevel()).stream().map(String::valueOf), builder);
+                pool.apply(faction, source.getLevel()).stream().map(String::valueOf), builder);
     }
 
-    // Mirrors tankSpawn/spawnTank exactly, against the faction's ship pool instead. Ships are a
-    // dedicated pool/spawn path (TankSpawner.spawnShipWithCrew, water-surface positioning) rather
-    // than another entry in the ground/air one, so this isn't just tankSpawn with a different id.
-    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> shipSpawn(String literal, TankFaction faction) {
-        return Commands.literal(literal)
-                .executes(ctx -> spawnShip(ctx.getSource(), faction, null, null))
-                .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                        .executes(ctx -> spawnShip(ctx.getSource(), faction, null,
-                                BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
-                        .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                                .suggests((c, b) -> suggestShipPool(c.getSource(), faction, b))
-                                .executes(ctx -> spawnShip(ctx.getSource(), faction,
-                                        StringArgumentType.getString(ctx, "vehicle"),
-                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
-                .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                        .suggests((c, b) -> suggestShipPool(c.getSource(), faction, b))
-                        .executes(ctx -> spawnShip(ctx.getSource(), faction,
-                                StringArgumentType.getString(ctx, "vehicle"), null)));
-    }
-
-    private static CompletableFuture<Suggestions> suggestShipPool(CommandSourceStack source, TankFaction faction, SuggestionsBuilder builder) {
-        return SharedSuggestionProvider.suggest(
-                faction.shipPool(source.getLevel()).stream().map(String::valueOf), builder);
-    }
-
-    // Mirrors shipSpawn against the faction's plane pool. RU/US go airborne; PMC takes off from ground.
-    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> planeSpawn(String literal, TankFaction faction) {
-        return Commands.literal(literal)
-                .executes(ctx -> spawnPlane(ctx.getSource(), faction, null, null))
-                .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                        .executes(ctx -> spawnPlane(ctx.getSource(), faction, null,
-                                BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
-                        .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                                .suggests((c, b) -> suggestPlanePool(c.getSource(), faction, b))
-                                .executes(ctx -> spawnPlane(ctx.getSource(), faction,
-                                        StringArgumentType.getString(ctx, "vehicle"),
-                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
-                .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                        .suggests((c, b) -> suggestPlanePool(c.getSource(), faction, b))
-                        .executes(ctx -> spawnPlane(ctx.getSource(), faction,
-                                StringArgumentType.getString(ctx, "vehicle"), null)));
-    }
-
-    private static CompletableFuture<Suggestions> suggestPlanePool(CommandSourceStack source, TankFaction faction, SuggestionsBuilder builder) {
-        return SharedSuggestionProvider.suggest(
-                faction.planePool(source.getLevel()).stream().map(String::valueOf), builder);
-    }
-
-    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> heliSpawn(String literal, TankFaction faction) {
-        return Commands.literal(literal)
-                .executes(ctx -> spawnHeli(ctx.getSource(), faction, null, null))
-                .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                        .executes(ctx -> spawnHeli(ctx.getSource(), faction, null,
-                                BlockPosArgument.getLoadedBlockPos(ctx, "pos")))
-                        .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                                .suggests((c, b) -> suggestHeliPool(c.getSource(), faction, b))
-                                .executes(ctx -> spawnHeli(ctx.getSource(), faction,
-                                        StringArgumentType.getString(ctx, "vehicle"),
-                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
-                .then(Commands.argument("vehicle", StringArgumentType.greedyString())
-                        .suggests((c, b) -> suggestHeliPool(c.getSource(), faction, b))
-                        .executes(ctx -> spawnHeli(ctx.getSource(), faction,
-                                StringArgumentType.getString(ctx, "vehicle"), null)));
-    }
-
-    private static CompletableFuture<Suggestions> suggestHeliPool(CommandSourceStack source, TankFaction faction, SuggestionsBuilder builder) {
-        return SharedSuggestionProvider.suggest(
-                faction.heliPool(source.getLevel()).stream().map(String::valueOf), builder);
-    }
-
-    private static int spawnHeli(CommandSourceStack source, TankFaction faction,
-                                 @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
-        ServerLevel level = source.getLevel();
-
-        if (vehicleId != null && !faction.heliPool(level).contains(vehicleId)) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
-            return 0;
-        }
-
-        UUID ownerId = faction == TankFaction.PMC && source.getEntity() instanceof ServerPlayer player
-                ? player.getUUID() : null;
-
-        BlockPos pos = explicitPos != null
-                ? explicitPos
-                : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
-        VehicleEntity heli = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
-                () -> TankSpawner.spawnHeliWithCrew(level, pos, faction, ownerId, vehicleId));
-
-        if (heli == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
-            return 0;
-        }
-        VehicleDrops.markCrewAndHull(heli);
-
-        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.spawn.success", faction.name(), pos.toShortString()), true);
-        return 1;
-    }
-
-    private static int spawnTank(CommandSourceStack source, TankFaction faction,
-                                 @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
+    private static int spawnVehicle(CommandSourceStack source, TankFaction faction,
+                                    BiFunction<TankFaction, ServerLevel, List<? extends String>> pool,
+                                    SpawnWithCrewFn spawner, boolean snapToGround,
+                                    boolean reportActualPos,
+                                    @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
         ServerLevel level = source.getLevel();
 
         // A specific id is only honored if the world pool actually contains it — catch
         // it here so the operator gets a clear reason rather than the generic failure.
-        if (vehicleId != null && !faction.vehiclePool(level).contains(vehicleId)) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
+        if (vehicleId != null && !pool.apply(faction, level).contains(vehicleId)) {
+            source.sendFailure(Component.translatable(
+                    "command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
             return 0;
         }
 
@@ -965,80 +900,25 @@ public class SewvCommand {
                 ? player.getUUID() : null;
 
         // Explicit coordinates are used exactly as given (the operator's Y is respected);
-        // with none, fall back to the source position snapped to the ground surface.
+        // with none, fall back to the source position — snapped to ground unless the hull
+        // resolves its own placement (ship).
         BlockPos pos = explicitPos != null
                 ? explicitPos
-                : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
-        VehicleEntity tank = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
-                () -> TankSpawner.spawnTankWithCrew(level, pos, faction, ownerId, vehicleId));
+                : snapToGround
+                ? TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()))
+                : BlockPos.containing(source.getPosition());
+        VehicleEntity hull = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
+                () -> spawner.spawn(level, pos, faction, ownerId, vehicleId));
 
-        if (tank == null) {
+        if (hull == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
             return 0;
         }
-        VehicleDrops.markCrewAndHull(tank);
+        VehicleDrops.markCrewAndHull(hull);
 
-        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.spawn.success", faction.name(), pos.toShortString()), true);
-        return 1;
-    }
-
-    private static int spawnShip(CommandSourceStack source, TankFaction faction,
-                                  @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
-        ServerLevel level = source.getLevel();
-
-        if (vehicleId != null && !faction.shipPool(level).contains(vehicleId)) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
-            return 0;
-        }
-
-        UUID ownerId = faction == TankFaction.PMC && source.getEntity() instanceof ServerPlayer player
-                ? player.getUUID() : null;
-
-        // Unlike spawnTank, the no-explicit-pos fallback is NOT snapped to ground height —
-        // TankSpawner.findClearWaterSpawn resolves its own per-column Y while spiralling for
-        // water, so the source position's raw X/Z (with its own Y only as a chunk-unloaded
-        // fallback) is all it needs.
-        BlockPos requestedPos = explicitPos != null ? explicitPos : BlockPos.containing(source.getPosition());
-        VehicleEntity ship = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
-                () -> TankSpawner.spawnShipWithCrew(level, requestedPos, faction, ownerId, vehicleId));
-
-        if (ship == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
-            return 0;
-        }
-        VehicleDrops.markCrewAndHull(ship);
-
+        BlockPos reported = reportActualPos ? hull.blockPosition() : pos;
         source.sendSuccess(() -> Component.translatable(
-                "command.tacz_sewv.spawn.success", faction.name(), ship.blockPosition().toShortString()), true);
-        return 1;
-    }
-
-    private static int spawnPlane(CommandSourceStack source, TankFaction faction,
-                                  @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
-        ServerLevel level = source.getLevel();
-
-        if (vehicleId != null && !faction.planePool(level).contains(vehicleId)) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.not_in_pool", vehicleId, faction.name()));
-            return 0;
-        }
-
-        UUID ownerId = faction == TankFaction.PMC && source.getEntity() instanceof ServerPlayer player
-                ? player.getUUID() : null;
-
-        BlockPos requestedPos = explicitPos != null
-                ? explicitPos
-                : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
-        VehicleEntity plane = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
-                () -> TankSpawner.spawnPlaneWithCrew(level, requestedPos, faction, ownerId, vehicleId));
-
-        if (plane == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
-            return 0;
-        }
-        VehicleDrops.markCrewAndHull(plane);
-
-        source.sendSuccess(() -> Component.translatable(
-                "command.tacz_sewv.spawn.success", faction.name(), plane.blockPosition().toShortString()), true);
+                "command.tacz_sewv.spawn.success", faction.name(), reported.toShortString()), true);
         return 1;
     }
 }

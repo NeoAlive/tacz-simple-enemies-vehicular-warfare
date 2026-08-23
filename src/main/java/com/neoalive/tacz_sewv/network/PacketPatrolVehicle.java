@@ -22,7 +22,6 @@ import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
-import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -102,7 +101,6 @@ public class PacketPatrolVehicle {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
-            if (InvasionOrderGate.denyIfActive(sp)) return;
 
             if (this.mode == MODE_DISMISS) {
                 dismiss(player);

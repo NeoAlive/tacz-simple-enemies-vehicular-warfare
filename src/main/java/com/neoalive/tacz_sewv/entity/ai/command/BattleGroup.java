@@ -1,7 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
 import java.util.Arrays;
-import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -18,13 +17,6 @@ public final class BattleGroup {
 
     /** Network id of the elected commander, or {@link Integer#MIN_VALUE} if none yet. */
     private int commanderId = Integer.MIN_VALUE;
-
-    /**
-     * TODO(command-player-designation): TDT / Xaero menu writes the designated unit's UUID here.
-     * When set and that unit is alive and in-group, election uses it as commander.
-     */
-    @Nullable
-    private UUID playerDesignatedCommander;
 
     /** Reused across command-cadence rebuilds — never allocated fresh per scan. */
     private final InfluenceMap influenceMap = new InfluenceMap();
@@ -164,20 +156,6 @@ public final class BattleGroup {
 
     void setCommanderId(int commanderId) {
         this.commanderId = commanderId;
-    }
-
-    void clearCommander() {
-        this.commanderId = Integer.MIN_VALUE;
-    }
-
-    @Nullable
-    public UUID playerDesignatedCommander() {
-        return this.playerDesignatedCommander;
-    }
-
-    /** TODO(command-player-designation) */
-    public void setPlayerDesignatedCommander(@Nullable UUID uuid) {
-        this.playerDesignatedCommander = uuid;
     }
 
     void apply(AssignedGroup assigned) {

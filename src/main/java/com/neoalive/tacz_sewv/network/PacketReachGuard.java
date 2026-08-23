@@ -47,7 +47,6 @@ public class PacketReachGuard {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof ServerPlayer sp)) return;
-            if (com.neoalive.tacz_sewv.invasion.InvasionOrderGate.denyIfActive(sp)) return;
 
             int ordered = 0;
             for (int unitId : this.unitIds) {

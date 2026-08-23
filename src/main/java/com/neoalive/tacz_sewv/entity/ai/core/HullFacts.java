@@ -206,6 +206,38 @@ public final class HullFacts {
         }
     }
 
+    /** What a seat index IS, per the hull's own seat data — callers layer policy on top. */
+    public enum SeatKind {
+        /** Seat 0 — SuperbWarfare's driver is simply the first passenger, data or no data. */
+        DRIVER,
+        /** A seat with one or more weapons bound to it (a gunner / firing-port station). */
+        WEAPONED,
+        /** A {@code Pose == "Climb"} tank-rider handhold. */
+        CLIMB,
+        /** Readable, unarmed, not Climb — a passenger compartment seat. */
+        PLAIN,
+        /** Unreadable hull data or a seat index past the data's end. */
+        UNKNOWN
+    }
+
+    /**
+     * Direct (uncached) seat classification for one-off reads — the per-hull cached path is
+     * {@link #crewSeats}/{@link #climbSeats}. {@code CommanderSeating} and
+     * {@code CrewSeatPromotion} layer their opposite Climb policies over this shared kernel.
+     */
+    public static SeatKind seatKind(VehicleEntity v, int seat) {
+        if (seat == 0) return SeatKind.DRIVER;
+        try {
+            SeatInfo info = v.getSeat(seat);
+            if (info == null) return SeatKind.UNKNOWN;
+            if ("Climb".equals(info.pose)) return SeatKind.CLIMB;
+            List<String> weapons = info.weapons();
+            return weapons != null && !weapons.isEmpty() ? SeatKind.WEAPONED : SeatKind.PLAIN;
+        } catch (Exception ignored) {
+            return SeatKind.UNKNOWN;
+        }
+    }
+
     /**
      * True when {@code v} has at least one unoccupied seat and EVERY unoccupied seat is a
      * {@link #climbSeats} seat — the signal {@code SeekAbandonedVehicleGoal} uses to let a

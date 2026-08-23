@@ -26,8 +26,6 @@ public final class ElectionSelfCheck {
         incumbentKeptInsideMargin();
         challengerBeatsMarginTakesOver();
         tieBreaksOnMinId();
-        playerDesignationOverrides();
-        deadDesignationFallsThrough();
         commanderWeightsScore();
         battleFieldCentroidMatchesStage2MeanForElection();
 
@@ -44,7 +42,7 @@ public final class ElectionSelfCheck {
                 new Election.Candidate(2, false, 0.0),
                 new Election.Candidate(3, false, 99.0) // high fitness but NOT ready
         );
-        Integer deferred = Election.electCommander(blank, null, MARGIN, null, QUORUM);
+        Integer deferred = Election.electCommander(blank, null, MARGIN, QUORUM);
         assertNull(deferred, "unready members must defer first election (not min(id)=1)");
 
         // Only one ready, quorum=2 → still defer.
@@ -52,7 +50,7 @@ public final class ElectionSelfCheck {
                 new Election.Candidate(1, true, 0.1),
                 new Election.Candidate(2, false, 0.0)
         );
-        assertNull(Election.electCommander(oneReady, null, MARGIN, null, QUORUM),
+        assertNull(Election.electCommander(oneReady, null, MARGIN, QUORUM),
                 "below ready-quorum must defer");
 
         // Quorum met with ready members → elect among ready only (id 5, not unready id 1).
@@ -61,7 +59,7 @@ public final class ElectionSelfCheck {
                 new Election.Candidate(5, true, 0.5),
                 new Election.Candidate(8, true, 0.4)
         );
-        assertEq(5, Election.electCommander(quorumMet, null, MARGIN, null, QUORUM),
+        assertEq(5, Election.electCommander(quorumMet, null, MARGIN, QUORUM),
                 "elect among ready only once quorum met");
     }
 
@@ -71,7 +69,7 @@ public final class ElectionSelfCheck {
                 new Election.Candidate(20, true, 0.9),
                 new Election.Candidate(30, true, 0.5)
         );
-        assertEq(20, Election.electCommander(members, null, MARGIN, null, 1),
+        assertEq(20, Election.electCommander(members, null, MARGIN, 1),
                 "no incumbent → highest fitness");
     }
 
@@ -80,14 +78,14 @@ public final class ElectionSelfCheck {
                 new Election.Candidate(1, true, 0.50),
                 new Election.Candidate(2, true, 0.50 + MARGIN) // equal to margin boundary: NOT strictly greater
         );
-        assertEq(1, Election.electCommander(members, 1, MARGIN, null, 1),
+        assertEq(1, Election.electCommander(members, 1, MARGIN, 1),
                 "challenger at exactly margin must not unseat");
 
         List<Election.Candidate> below = List.of(
                 new Election.Candidate(1, true, 0.50),
                 new Election.Candidate(2, true, 0.50 + MARGIN - 0.001)
         );
-        assertEq(1, Election.electCommander(below, 1, MARGIN, null, 1),
+        assertEq(1, Election.electCommander(below, 1, MARGIN, 1),
                 "challenger inside margin → incumbent kept");
     }
 
@@ -96,7 +94,7 @@ public final class ElectionSelfCheck {
                 new Election.Candidate(1, true, 0.50),
                 new Election.Candidate(2, true, 0.50 + MARGIN + 0.01)
         );
-        assertEq(2, Election.electCommander(members, 1, MARGIN, null, 1),
+        assertEq(2, Election.electCommander(members, 1, MARGIN, 1),
                 "challenger beyond margin takes over");
     }
 
@@ -106,36 +104,10 @@ public final class ElectionSelfCheck {
                 new Election.Candidate(10, true, 0.7),
                 new Election.Candidate(20, true, 0.7)
         );
-        Integer a = Election.electCommander(members, null, MARGIN, null, 1);
-        Integer b = Election.electCommander(members, null, MARGIN, null, 1);
+        Integer a = Election.electCommander(members, null, MARGIN, 1);
+        Integer b = Election.electCommander(members, null, MARGIN, 1);
         assertEq(10, a, "exact fitness tie → min(id)");
         assertEq(a, b, "tiebreak is deterministic across calls");
-    }
-
-    private static void playerDesignationOverrides() {
-        List<Election.Candidate> members = List.of(
-                new Election.Candidate(1, true, 0.9),
-                new Election.Candidate(2, true, 0.1)
-        );
-        assertEq(2, Election.electCommander(members, null, MARGIN, 2, 1),
-                "player-designated beats higher-fitness auto");
-        // Designated need not be Facts-ready for the hook.
-        List<Election.Candidate> unreadyDesignee = List.of(
-                new Election.Candidate(1, true, 0.9),
-                new Election.Candidate(2, false, 0.0)
-        );
-        assertEq(2, Election.electCommander(unreadyDesignee, null, MARGIN, 2, QUORUM),
-                "player-designated in-group wins even if unready");
-    }
-
-    private static void deadDesignationFallsThrough() {
-        List<Election.Candidate> members = List.of(
-                new Election.Candidate(1, true, 0.4),
-                new Election.Candidate(2, true, 0.8)
-        );
-        // Designated id 99 not in group → auto elects 2.
-        assertEq(2, Election.electCommander(members, null, MARGIN, 99, 1),
-                "dead/out-of-group designation falls through to auto");
     }
 
     private static void commanderWeightsScore() {
@@ -186,14 +158,14 @@ public final class ElectionSelfCheck {
                 new Election.Candidate(1, true, f1),
                 new Election.Candidate(3, true, f3)
         );
-        Integer viaBf = Election.electCommander(members, null, MARGIN, null, 1);
+        Integer viaBf = Election.electCommander(members, null, MARGIN, 1);
 
         double f1s2 = CommanderFitness.score(1.0, 1.0, c1Mean, 1.0, w);
         double f3s2 = CommanderFitness.score(1.0, 1.0, c3Mean, 1.0, w);
         Integer viaMean = Election.electCommander(List.of(
                 new Election.Candidate(1, true, f1s2),
                 new Election.Candidate(3, true, f3s2)
-        ), null, MARGIN, null, 1);
+        ), null, MARGIN, 1);
 
         assertEq(viaMean, viaBf, "election identical for Stage-2 mean vs BF-sourced centroid");
         assertEq(3, viaBf, "centroid member wins when health/ammo/allies tied");

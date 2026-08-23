@@ -140,7 +140,7 @@ public final class AirportClearanceSelfCheck {
                 SLOT_FACTOR, BUFFER_FACTOR, EXTRA_FACTOR);
         assert slots.capacity() > 1 : slots.capacity();
         assert slots.slots().size() == slots.capacity();
-        assert slots.takeoffBuffer() >= slots.baseTakeoffBuffer();
+        assert slots.takeoffBuffer() >= RunwaySlots.baseTakeoffBuffer(slots.length());
         assert Math.abs(slots.usableLength() + slots.takeoffBuffer() - slots.length()) < 1.0e-6;
 
         List<RunwaySlots.Slot> list = slots.slots();

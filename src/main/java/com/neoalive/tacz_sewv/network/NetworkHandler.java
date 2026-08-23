@@ -68,7 +68,7 @@ public class NetworkHandler {
     // 35: team_base endInvasionOnCapture on open+save packets.
     // 36: GUARD_POSITION / REACH_GUARD packets; VehicleMarker.hasGuard.
     // 37: vehicle faction skin sticky tag sync + reloadSkins.
-    // 38: C→S PacketSetVehicleSkin (sneak-right-click repair tool cycle).
+    // 38: (removed) C→S repair-tool skin cycle — spray GUI + engineer repair only.
     // 39: Category.HELI in vehicle pool editor packets.
     // 40: misc cue/armor editor open + update packets.
     // 41: PacketVehicleSkin carries sticky RNG salt for numbered skin pools.
@@ -93,7 +93,7 @@ public class NetworkHandler {
     // 60: PacketReviveProgress (S->C revival ring, PlayerReviveGoal/PmcReviveGoal/PmcDownedSupport).
     // 61: PacketHoldRevive (C->S hold-left-click-to-revive a downed PMC).
     // 62: PacketCaptureMedic (TDT "Capture Medic" order).
-    private static final String PROTOCOL_VERSION = "63";
+    private static final String PROTOCOL_VERSION = "65";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -296,13 +296,6 @@ public class NetworkHandler {
                 PacketReloadVehicleSkins::encode,
                 PacketReloadVehicleSkins::new,
                 PacketReloadVehicleSkins::handle
-        );
-        CHANNEL.registerMessage(
-                nextId(),
-                PacketSetVehicleSkin.class,
-                PacketSetVehicleSkin::encode,
-                PacketSetVehicleSkin::new,
-                PacketSetVehicleSkin::handle
         );
         CHANNEL.registerMessage(
                 nextId(),

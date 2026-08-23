@@ -300,7 +300,7 @@ public final class CrewSkinRegistry {
         String name = file.getFileName().toString();
         Parsed parsed = parseFilename(name);
         if (parsed == null) {
-            LOGGER.info("{} skipped invalid file: {}", LOG_PREFIX, name);
+            LOGGER.debug("{} skipped invalid file: {}", LOG_PREFIX, name);
             return;
         }
 
@@ -324,7 +324,7 @@ public final class CrewSkinRegistry {
                 LOGGER.info("{} duplicate camo/variant skin, overwrote: {}", LOG_PREFIX, name);
             }
         } catch (Exception e) {
-            LOGGER.info("{} skipped invalid file: {} ({})", LOG_PREFIX, name, e.toString());
+            LOGGER.debug("{} skipped invalid file: {} ({})", LOG_PREFIX, name, e.toString());
         }
     }
 

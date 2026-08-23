@@ -118,6 +118,21 @@ public final class VehicleSkinRegistry {
         return entry.plain;
     }
 
+    /**
+     * Exact catalog pick: {@code variant < 0} is the plain file; otherwise the numbered key
+     * from the filename ({@code path_faction_N.png} → {@code N}).
+     */
+    @Nullable
+    public static ResourceLocation getExact(String vehiclePath, CrewFacts.Faction faction, int variant) {
+        if (vehiclePath == null || faction == null) return null;
+        Entry entry = ENTRIES.get(key(vehiclePath, faction));
+        if (entry == null) return null;
+        if (variant < 0) {
+            return entry.plain != null ? entry.plain : (!entry.variants.isEmpty() ? entry.variants.get(0) : null);
+        }
+        return entry.numbered.get(variant);
+    }
+
     /** Factions that have a loaded PNG (plain or any numbered) for this hull registry path. */
     public static List<CrewFacts.Faction> factionsFor(String vehiclePath) {
         List<CrewFacts.Faction> out = new ArrayList<>(3);
@@ -131,8 +146,74 @@ public final class VehicleSkinRegistry {
         return out;
     }
 
+    /**
+     * Every selectable skin for the spray GUI — one row per plain file or per numbered pool
+     * member, not one row per faction.
+     */
+    public static List<CatalogEntry> catalogFor(String vehiclePath) {
+        List<CatalogEntry> out = new ArrayList<>();
+        if (vehiclePath == null) return out;
+        for (CrewFacts.Faction faction : CrewFacts.Faction.values()) {
+            Entry entry = ENTRIES.get(key(vehiclePath, faction));
+            if (entry == null || !entry.hasAny()) continue;
+            String factionKey = faction.name().toLowerCase(Locale.ROOT);
+            if (!entry.numbered.isEmpty()) {
+                for (var e : entry.numbered.entrySet()) {
+                    int n = e.getKey();
+                    out.add(new CatalogEntry(
+                            factionKey + "_" + n,
+                            faction,
+                            n,
+                            e.getValue(),
+                            faction.name() + " #" + n));
+                }
+            } else if (entry.plain != null) {
+                out.add(new CatalogEntry(factionKey, faction, -1, entry.plain, faction.name()));
+            }
+        }
+        return out;
+    }
+
+    /** {@code ru} / {@code us} / {@code pmc}, or {@code ru_0} for a numbered pool member. */
+    @Nullable
+    public static CatalogId parseSkinId(@Nullable String skinId) {
+        if (skinId == null || skinId.isBlank()) return null;
+        String raw = skinId.toLowerCase(Locale.ROOT);
+        int under = raw.lastIndexOf('_');
+        if (under > 0 && under < raw.length() - 1 && isAllDigits(raw.substring(under + 1))) {
+            String factionKey = raw.substring(0, under);
+            CrewFacts.Faction faction = factionKey(factionKey);
+            if (faction == null) return null;
+            try {
+                return new CatalogId(faction, Integer.parseInt(raw.substring(under + 1)));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        CrewFacts.Faction faction = factionKey(raw);
+        return faction == null ? null : new CatalogId(faction, -1);
+    }
+
+    @Nullable
+    private static CrewFacts.Faction factionKey(String key) {
+        return switch (key) {
+            case "ru" -> CrewFacts.Faction.RU;
+            case "us" -> CrewFacts.Faction.US;
+            case "pmc" -> CrewFacts.Faction.PMC;
+            default -> null;
+        };
+    }
+
     public static int size() {
         return REGISTERED.size();
+    }
+
+    /** One spray-GUI / sticky-paint selectable. {@code variant < 0} means the plain file. */
+    public record CatalogEntry(String id, CrewFacts.Faction faction, int variant,
+            ResourceLocation texture, String displayName) {
+    }
+
+    public record CatalogId(CrewFacts.Faction faction, int variant) {
     }
 
     /**
@@ -188,7 +269,7 @@ public final class VehicleSkinRegistry {
         String name = file.getFileName().toString();
         Parsed parsed = parseFilename(name);
         if (parsed == null) {
-            LOGGER.info("{} skipped invalid file: {}", LOG_PREFIX, name);
+            LOGGER.debug("{} skipped invalid file: {}", LOG_PREFIX, name);
             return;
         }
 
@@ -213,7 +294,7 @@ public final class VehicleSkinRegistry {
                 entry.rebuildVariants();
             }
         } catch (Exception e) {
-            LOGGER.info("{} skipped invalid file: {} ({})", LOG_PREFIX, name, e.toString());
+            LOGGER.debug("{} skipped invalid file: {} ({})", LOG_PREFIX, name, e.toString());
         }
     }
 

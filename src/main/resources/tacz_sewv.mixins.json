@@ -57,7 +57,9 @@
     "client.MixinVehicleRappelWires",
     "client.MixinVehicleRenderer",
     "client.MixinVehicleSkinCatalog",
-    "client.MixinGeoArmorRenderer"
+    "client.MixinGeoArmorRenderer",
+    "client.MixinTextureBrightnessHandler",
+    "client.MixinSmartTextureBrightener"
   ],
   "server": [],
   "injectors": {

@@ -20,8 +20,9 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner;
  * {@code sewv:vehicle_skin_salt}). Server never opens PNGs — clients resolve the texture (and any
  * numbered RNG pool) from {@link com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry}.
  *
- * <p>The salt is rolled once on apply and stays sticky so every client picks the same pool member
- * via {@code salt % poolSize}. Plain {@code path_faction.png} files ignore it.
+ * <p>Spray-GUI ids are {@code ru}/{@code us}/{@code pmc} for a plain file, or {@code ru_0} for a
+ * numbered pool member. The synched SBW {@code skinId} carries that string for the GUI highlight;
+ * salt holds either a spawn RNG value or the explicit variant index.
  */
 public final class VehicleSkinSupport {
 
@@ -35,7 +36,7 @@ public final class VehicleSkinSupport {
     public static CrewFacts.Faction get(VehicleEntity hull) {
         CompoundTag data = hull.getPersistentData();
         if (!data.contains(TAG)) return null;
-        return parse(data.getString(TAG));
+        return parseFaction(data.getString(TAG));
     }
 
     public static int getSalt(VehicleEntity hull) {
@@ -46,17 +47,35 @@ public final class VehicleSkinSupport {
     /** Idempotent: re-applying the same faction keeps the sticky salt (no re-roll). */
     public static void apply(VehicleEntity hull, @Nullable CrewFacts.Faction faction) {
         if (faction == null) return;
+        String id = faction.name().toLowerCase(Locale.ROOT);
         if (faction == get(hull)) {
-            // Keep SBW skinId aligned for the spray GUI selection highlight.
-            hull.setSkinId(faction.name().toLowerCase(Locale.ROOT));
+            hull.setSkinId(id);
             return;
         }
         int salt = hull.getRandom().nextInt();
-        String id = faction.name().toLowerCase(Locale.ROOT);
         hull.getPersistentData().putString(TAG, id);
         hull.getPersistentData().putInt(TAG_SALT, salt);
         hull.setSkinId(id);
         sync(hull, faction, salt);
+    }
+
+    /** Spray-GUI / repair-tool pick: full catalog id ({@code ru}, {@code ru_0}, …). */
+    public static void setFromSkinId(VehicleEntity hull, @Nullable String skinId) {
+        if (skinId == null || skinId.isBlank()) {
+            clear(hull);
+            return;
+        }
+        Parsed parsed = parseSkinId(skinId);
+        if (parsed == null) {
+            clear(hull);
+            return;
+        }
+        int salt = parsed.variant >= 0 ? parsed.variant : hull.getRandom().nextInt();
+        String factionKey = parsed.faction.name().toLowerCase(Locale.ROOT);
+        hull.getPersistentData().putString(TAG, factionKey);
+        hull.getPersistentData().putInt(TAG_SALT, salt);
+        hull.setSkinId(skinId.toLowerCase(Locale.ROOT));
+        sync(hull, parsed.faction, salt);
     }
 
     /** Command/event crewed spawns — always paint the hull in the spawning faction's colours. */
@@ -102,7 +121,7 @@ public final class VehicleSkinSupport {
     }
 
     @Nullable
-    private static CrewFacts.Faction parse(String raw) {
+    private static CrewFacts.Faction parseFaction(String raw) {
         if (raw == null || raw.isEmpty()) return null;
         return switch (raw.toLowerCase(Locale.ROOT)) {
             case "ru" -> CrewFacts.Faction.RU;
@@ -110,5 +129,37 @@ public final class VehicleSkinSupport {
             case "pmc" -> CrewFacts.Faction.PMC;
             default -> null;
         };
+    }
+
+    /** Server-side mirror of {@code VehicleSkinRegistry.parseSkinId} (no client classpath). */
+    @Nullable
+    private static Parsed parseSkinId(String skinId) {
+        String raw = skinId.toLowerCase(Locale.ROOT);
+        int under = raw.lastIndexOf('_');
+        if (under > 0 && under < raw.length() - 1) {
+            String tail = raw.substring(under + 1);
+            if (isAllDigits(tail)) {
+                CrewFacts.Faction faction = parseFaction(raw.substring(0, under));
+                if (faction == null) return null;
+                try {
+                    return new Parsed(faction, Integer.parseInt(tail));
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+        }
+        CrewFacts.Faction faction = parseFaction(raw);
+        return faction == null ? null : new Parsed(faction, -1);
+    }
+
+    private static boolean isAllDigits(String s) {
+        if (s.isEmpty()) return false;
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) return false;
+        }
+        return true;
+    }
+
+    private record Parsed(CrewFacts.Faction faction, int variant) {
     }
 }

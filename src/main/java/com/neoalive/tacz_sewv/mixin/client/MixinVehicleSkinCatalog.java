@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.mixin.client;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import javax.annotation.Nullable;
 
@@ -21,14 +20,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinClient;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
+import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry.CatalogEntry;
+import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry.CatalogId;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 
 /**
- * Replace SBW's datapack vehicle-skin catalog with sewv's filesystem faction skins.
+ * Replace SBW's datapack vehicle-skin catalog with sewv filesystem skins.
  *
- * <p>The spray GUI and {@code GeoVehicleRenderer}'s native skin apply both read through
- * {@link VehicleSkin.Companion}; feeding them sewv entries (and only sewv entries) removes the
- * truck-green style datapack skins without writing a parallel GUI.
+ * <p>Each plain file and each numbered RNG pool member is its own {@link SkinInfo} row
+ * ({@code ru}, {@code ru_0}, {@code ru_1}, …) so the spray GUI can pick a specific camo.
  */
 @Mixin(value = VehicleSkin.Companion.class, remap = false)
 public abstract class MixinVehicleSkinCatalog {
@@ -51,18 +51,15 @@ public abstract class MixinVehicleSkinCatalog {
         if (typeId == null) {
             return new VehicleSkinData(List.of());
         }
-        String path = typeId.getPath();
-        List<SkinInfo> skins = new ArrayList<>(3);
-        for (CrewFacts.Faction faction : VehicleSkinRegistry.factionsFor(path)) {
-            ResourceLocation texture = VehicleSkinRegistry.get(path, faction, 0);
-            if (texture == null) continue;
-            String id = faction.name().toLowerCase(Locale.ROOT);
+        List<SkinInfo> skins = new ArrayList<>();
+        int priority = 1;
+        for (CatalogEntry entry : VehicleSkinRegistry.catalogFor(typeId.getPath())) {
             skins.add(new SkinInfo(
-                    id,
-                    faction.name(),
+                    entry.id(),
+                    entry.displayName(),
                     "Sewv faction paint",
-                    texture.toString(),
-                    faction.ordinal() + 1));
+                    entry.texture().toString(),
+                    priority++));
         }
         return new VehicleSkinData(skins);
     }
@@ -70,40 +67,48 @@ public abstract class MixinVehicleSkinCatalog {
     @Unique
     @Nullable
     private static SkinInfo resolve(VehicleEntity entity) {
-        CrewFacts.Faction faction = factionOf(entity);
-        if (faction == null) {
-            return null;
-        }
         ResourceLocation typeId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
         if (typeId == null) {
             return null;
         }
+        String path = typeId.getPath();
+
+        CatalogId fromId = VehicleSkinRegistry.parseSkinId(entity.getSkinId());
+        if (fromId != null) {
+            ResourceLocation texture = VehicleSkinRegistry.getExact(path, fromId.faction(), fromId.variant());
+            if (texture == null && fromId.variant() < 0) {
+                texture = VehicleSkinRegistry.get(path, fromId.faction(), VehicleSkinClient.salt(entity.getId()));
+            }
+            if (texture != null) {
+                String id = entity.getSkinId() != null && !entity.getSkinId().isBlank()
+                        ? entity.getSkinId().toLowerCase(java.util.Locale.ROOT)
+                        : (fromId.variant() < 0
+                                ? fromId.faction().name().toLowerCase(java.util.Locale.ROOT)
+                                : fromId.faction().name().toLowerCase(java.util.Locale.ROOT)
+                                        + "_" + fromId.variant());
+                return new SkinInfo(id, fromId.faction().name(), "Sewv faction paint",
+                        texture.toString(), fromId.faction().ordinal() + 1);
+            }
+        }
+
+        CrewFacts.Faction sticky = VehicleSkinClient.get(entity.getId());
+        if (sticky == null) {
+            return null;
+        }
         int salt = VehicleSkinClient.salt(entity.getId());
-        ResourceLocation texture = VehicleSkinRegistry.get(typeId.getPath(), faction, salt);
+        ResourceLocation texture = VehicleSkinRegistry.get(path, sticky, salt);
         if (texture == null) {
             return null;
         }
-        String id = faction.name().toLowerCase(Locale.ROOT);
-        return new SkinInfo(id, faction.name(), "Sewv faction paint", texture.toString(),
-                faction.ordinal() + 1);
-    }
-
-    @Unique
-    @Nullable
-    private static CrewFacts.Faction factionOf(VehicleEntity entity) {
-        CrewFacts.Faction sticky = VehicleSkinClient.get(entity.getId());
-        if (sticky != null) {
-            return sticky;
+        // Prefer a catalog id that matches the resolved pool member so the spray highlight sticks.
+        String id = sticky.name().toLowerCase(java.util.Locale.ROOT);
+        for (CatalogEntry entry : VehicleSkinRegistry.catalogFor(path)) {
+            if (entry.faction() == sticky && entry.texture().equals(texture)) {
+                id = entry.id();
+                break;
+            }
         }
-        String skinId = entity.getSkinId();
-        if (skinId == null || skinId.isBlank()) {
-            return null;
-        }
-        return switch (skinId.toLowerCase(Locale.ROOT)) {
-            case "ru" -> CrewFacts.Faction.RU;
-            case "us" -> CrewFacts.Faction.US;
-            case "pmc" -> CrewFacts.Faction.PMC;
-            default -> null;
-        };
+        return new SkinInfo(id, sticky.name(), "Sewv faction paint", texture.toString(),
+                sticky.ordinal() + 1);
     }
 }

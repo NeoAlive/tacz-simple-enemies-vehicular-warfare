@@ -49,25 +49,25 @@ public final class VehicleSkinClient {
 
     @Nullable
     public static ResourceLocation textureFor(VehicleEntity vehicle) {
-        Applied applied = APPLIED.get(vehicle.getId());
-        CrewFacts.Faction faction = applied != null ? applied.faction : factionFromSkinId(vehicle);
-        if (faction == null) return null;
         ResourceLocation typeId = ForgeRegistries.ENTITY_TYPES.getKey(vehicle.getType());
         if (typeId == null) return null;
-        int salt = applied != null ? applied.salt : 0;
-        return VehicleSkinRegistry.get(typeId.getPath(), faction, salt);
-    }
+        String path = typeId.getPath();
 
-    @Nullable
-    private static CrewFacts.Faction factionFromSkinId(VehicleEntity vehicle) {
-        String skinId = vehicle.getSkinId();
-        if (skinId == null || skinId.isBlank()) return null;
-        return switch (skinId.toLowerCase(java.util.Locale.ROOT)) {
-            case "ru" -> CrewFacts.Faction.RU;
-            case "us" -> CrewFacts.Faction.US;
-            case "pmc" -> CrewFacts.Faction.PMC;
-            default -> null;
-        };
+        // Spray-GUI / repair-tool picks use exact catalog ids (ru_0); salt % pool is only for
+        // spawn sticky paint where skinId is the bare faction key.
+        VehicleSkinRegistry.CatalogId catalog = VehicleSkinRegistry.parseSkinId(vehicle.getSkinId());
+        if (catalog != null && catalog.variant() >= 0) {
+            ResourceLocation exact = VehicleSkinRegistry.getExact(path, catalog.faction(), catalog.variant());
+            if (exact != null) return exact;
+        }
+
+        Applied applied = APPLIED.get(vehicle.getId());
+        CrewFacts.Faction faction = applied != null
+                ? applied.faction
+                : (catalog != null ? catalog.faction() : null);
+        if (faction == null) return null;
+        int salt = applied != null ? applied.salt : 0;
+        return VehicleSkinRegistry.get(path, faction, salt);
     }
 
     private record Applied(CrewFacts.Faction faction, int salt) {

@@ -6,6 +6,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -44,6 +45,8 @@ public class BoardKeybind {
             // they can never sit in.
             if (target instanceof MortarEntity mortar) {
                 NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, mortar.getId()));
+            } else if (target instanceof Type63Entity type63) {
+                NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, type63.getId()));
             } else if (target instanceof VehicleEntity vehicle) {
                 NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId(), passengerOnly));
             } else {

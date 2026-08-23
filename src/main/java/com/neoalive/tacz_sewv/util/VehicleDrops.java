@@ -4,6 +4,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.world.entity.Entity;
@@ -16,6 +17,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 
 /**
  * Regulates SBW hull-container spills and (when tagged) SEM unit death loot via
@@ -49,6 +51,10 @@ public final class VehicleDrops {
         }
         if (hull instanceof MortarEntity mortar) {
             AbstractUnit crew = MortarSupport.crewOf(mortar, null);
+            if (crew != null) markGated(crew);
+        }
+        if (hull instanceof Type63Entity type63) {
+            AbstractUnit crew = Type63Support.crewOf(type63, null);
             if (crew != null) markGated(crew);
         }
     }

@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.data.vehicle.VehicleData;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -41,7 +42,9 @@ public final class CommandEligibility {
      */
     @Nullable
     public static AbstractUnit eligibleDriver(Entity entity) {
-        if (!(entity instanceof VehicleEntity hull) || hull instanceof MortarEntity) return null;
+        if (!(entity instanceof VehicleEntity hull)
+                || hull instanceof MortarEntity
+                || hull instanceof Type63Entity) return null;
         if (!isGroundUtilityEngine(engineType(hull))) return null;
         return seatZeroDriver(hull);
     }

@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.mixin;
 import java.util.UUID;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
@@ -178,7 +179,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         // throttling here as well would silently tie a mortar's rate of fire to a tank
         // setting. The line-of-fire gate on canShoot never applied to them anyway —
         // they're indirect fire, and this overload doesn't consult canShoot.
-        if ((Object) this instanceof MortarEntity) return;
+        if ((Object) this instanceof MortarEntity || (Object) this instanceof Type63Entity) return;
 
         if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
             ci.cancel();

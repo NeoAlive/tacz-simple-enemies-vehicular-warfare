@@ -5,6 +5,7 @@ import java.util.EnumSet;
 import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -124,7 +125,7 @@ public class SeekAbandonedVehicleGoal extends Goal {
         // A mortar is a VehicleEntity with NO seats — nothing can mount it, and a crew works it
         // standing beside it (ManMortarGoal). Boarding one is not a thing that can happen, so
         // filter it here rather than letting BoardVehicleGoal walk over and fail.
-        if (hull instanceof MortarEntity) return false;
+        if (hull instanceof MortarEntity || hull instanceof Type63Entity) return false;
         if (hull.getMaxPassengers() <= 0) return false;
         // Addon hulls that only a Player may ride. Same class of problem as the mortar above —
         // an order that can never complete — but invisible from the seat data, so it is by id.

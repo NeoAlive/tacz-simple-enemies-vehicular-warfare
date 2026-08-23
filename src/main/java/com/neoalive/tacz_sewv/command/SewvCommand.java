@@ -714,6 +714,7 @@ public class SewvCommand {
                 .then(vehicleSpawn("heli", faction, TankFaction::heliPool,
                         TankSpawner::spawnHeliWithCrew, true, false))
                 .then(emplacementSpawn("mortar", faction, Emplacement.MORTAR))
+                .then(emplacementSpawn("type63", faction, Emplacement.TYPE_63))
                 .then(emplacementSpawn("tow", faction, Emplacement.TOW));
         if (faction == TankFaction.PMC) {
             node.then(commanderSpawn("commander"));

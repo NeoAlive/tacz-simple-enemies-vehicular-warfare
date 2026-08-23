@@ -1,6 +1,6 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
-import com.atsuishio.superbwarfare.client.renderer.entity.VehicleRenderer;
+import com.atsuishio.superbwarfare.client.renderer.entity.GeoVehicleRenderer;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -20,7 +20,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 
 /**
  * Rappel ropes: thin lit ribbons on the hull's local X± faces, drawn inside
- * {@link VehicleRenderer}'s pushed/axis-rotated pose so they bank with the airframe.
+ * {@link GeoVehicleRenderer}'s pushed/axis-rotated pose so they bank with the airframe.
  * Length is {@code min(distance to ground, }{@link #TACZ_SEWV$RAPPEL_WIRE_MAX_LENGTH}{@code)} —
  * short drops reach terrain; tall drops (cliffs/valleys) cap instead of a huge streamer.
  * Gated solely on {@link HeliRunPhaseClient#isRappelling(int)}.
@@ -29,7 +29,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
  * rope takes the vehicle's {@code packedLight} and darkens in shadow instead of glowing
  * fullbright like {@link RenderType#lines()}.
  */
-@Mixin(value = VehicleRenderer.class, remap = false)
+@Mixin(value = GeoVehicleRenderer.class, remap = false)
 public abstract class MixinVehicleRappelWires {
 
     @Unique
@@ -52,8 +52,9 @@ public abstract class MixinVehicleRappelWires {
             method = "render",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/atsuishio/superbwarfare/client/renderer/entity/VehicleRenderer;renderCustomPart(Lcom/atsuishio/superbwarfare/entity/vehicle/base/VehicleEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
-                    shift = At.Shift.AFTER))
+                    target = "Lcom/atsuishio/superbwarfare/client/renderer/entity/GeoVehicleRenderer;renderCustomPart(Lcom/atsuishio/superbwarfare/entity/vehicle/base/VehicleEntity;Lcom/atsuishio/superbwarfare/client/model/entity/VehicleModelInstance;Lcom/mojang/blaze3d/vertex/PoseStack;FFLnet/minecraft/client/renderer/MultiBufferSource;I)V",
+                    shift = At.Shift.AFTER),
+            remap = false)
     private void tacz_sewv$drawRappelWires(
             VehicleEntity entity,
             float entityYaw,

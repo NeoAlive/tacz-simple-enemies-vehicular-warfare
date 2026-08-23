@@ -8,6 +8,7 @@ import java.util.Set;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.TurretWreckEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleMotionUtils;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
@@ -168,7 +169,9 @@ public final class VehiclePathObstacles {
     private static boolean include(VehicleEntity hull) {
         if (!hull.isAlive()) return false;
         // Seatless recon / mortar footprints are noise next to where infantry must stand.
-        if (hull instanceof DroneEntity || hull instanceof MortarEntity) return false;
+        if (hull instanceof DroneEntity || hull instanceof MortarEntity || hull instanceof Type63Entity) {
+            return false;
+        }
         return true;
     }
 

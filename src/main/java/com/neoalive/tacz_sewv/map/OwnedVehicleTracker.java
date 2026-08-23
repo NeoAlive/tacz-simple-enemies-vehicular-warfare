@@ -11,6 +11,7 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -47,6 +48,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
+import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
@@ -241,6 +243,10 @@ public final class OwnedVehicleTracker {
                 collectMortar(level, mortar, candidates);
                 continue;
             }
+            if (hull instanceof Type63Entity type63) {
+                collectType63(level, type63, candidates);
+                continue;
+            }
             if (hull instanceof DroneEntity drone) {
                 collectDrone(level, drone, candidates);
                 continue;
@@ -291,6 +297,25 @@ public final class OwnedVehicleTracker {
                 crew.getId(), mortar.getId(),
                 mortar.getX(), mortar.getY(), mortar.getZ(), mortar.getYRot(), level.dimension(),
                 healthFrac(mortar), energyFrac(mortar),
+                FactionColors.wireTint(level.getServer(), pmcOwner),
+                false, platoonColorOf(level, crew.getId()), crew instanceof PmcCommanderEntity));
+    }
+
+    private static void collectType63(ServerLevel level, Type63Entity launcher, List<Candidate> candidates) {
+        AbstractUnit crew = Type63Support.crewOf(launcher, null);
+        if (crew == null) return;
+
+        CrewFacts.Faction faction = CrewFacts.factionOfCrew(crew);
+        if (faction == null) return;
+
+        UUID pmcOwner = crew instanceof PmcUnitEntity pmc ? pmc.getOwnerUUID() : null;
+        candidates.add(new Candidate(
+                VehicleMarker.Kind.EMPLACEMENT, faction,
+                pmcOwner, ownerTeamOf(crew), invasionTeamOf(crew), InvasionHostility.enemiesOf(crew),
+                VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
+                crew.getId(), launcher.getId(),
+                launcher.getX(), launcher.getY(), launcher.getZ(), launcher.getYRot(), level.dimension(),
+                healthFrac(launcher), energyFrac(launcher),
                 FactionColors.wireTint(level.getServer(), pmcOwner),
                 false, platoonColorOf(level, crew.getId()), crew instanceof PmcCommanderEntity));
     }

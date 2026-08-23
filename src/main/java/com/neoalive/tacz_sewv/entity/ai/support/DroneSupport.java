@@ -152,7 +152,7 @@ public final class DroneSupport {
         if (data == null) return;
 
         ItemStack shell = new ItemStack(ModItems.MORTAR_SHELL.get());
-        drone.currentItem = shell.copyWithCount(1);
+        drone.setCurrentItem(shell.copyWithCount(1));
         drone.getEntityData().set(DroneEntity.DISPLAY_ENTITY, data.displayEntity());
         drone.setAmmo(1);
         drone.getEntityData().set(DroneEntity.IS_KAMIKAZE, data.isKamikaze);

@@ -55,7 +55,7 @@ import com.neoalive.tacz_sewv.util.WorldTargetPriority;
 @Mod(TaczSewv.MODID)
 public class TaczSewv {
     public static final String MODID = "tacz_sewv";
-    private static final Logger LOGGER = LogUtils.getLogger();
+    public static final Logger LOGGER = LogUtils.getLogger();
 
     public TaczSewv() {
         // Before any Mob.<init>: custom BlockPathTypes must already exist or pathfindingMalus[]

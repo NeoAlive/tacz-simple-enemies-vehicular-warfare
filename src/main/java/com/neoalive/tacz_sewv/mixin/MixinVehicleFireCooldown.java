@@ -148,14 +148,16 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
 
     // vehicleShoot has TWO independent overloads and the AI paths split between
     // them: baseTick's AI-crew loop fires the (LivingEntity, UUID, Vec3) one,
-    // while mortars/artillery/auto-aim turrets fire the (LivingEntity, String)
+    // while mortars/artillery/auto-aim turrets fire the (LivingEntity, String, Vec3)
     // one. Both are hooked — as a backstop gate for any caller that skipped
     // canShoot, and to stamp the cooldown the canShoot gate above enforces.
+    // 0.8.9.1 added a targetPos parameter to both; the UUID overload's descriptor
+    // is unchanged, only this named-weapon one needed retargeting.
     @Inject(
-            method = "vehicleShoot(Lnet/minecraft/world/entity/LivingEntity;Ljava/lang/String;)V",
+            method = "vehicleShoot(Lnet/minecraft/world/entity/LivingEntity;Ljava/lang/String;Lnet/minecraft/world/phys/Vec3;)V",
             at = @At("HEAD"), cancellable = true, remap = false)
     private void tacz_sewv$throttleNamedFire(
-            LivingEntity living, String weaponName, CallbackInfo ci) {
+            LivingEntity living, String weaponName, Vec3 targetPos, CallbackInfo ci) {
         tacz_sewv$gateAndStampAiShot(living, ci);
     }
 

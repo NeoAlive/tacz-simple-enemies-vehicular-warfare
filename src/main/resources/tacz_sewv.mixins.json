@@ -17,7 +17,6 @@
     "MixinDynamicEventManager",
     "MixinVillageGarrisonHandler",
     "MixinVehicleFireCooldown",
-    "MixinVehicleGunDataCache",
     "MixinVehicleTurretMobility",
     "MixinVehicleEngineMobility",
     "MixinAiAimSpread",

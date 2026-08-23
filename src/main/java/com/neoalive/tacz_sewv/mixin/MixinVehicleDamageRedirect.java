@@ -32,22 +32,25 @@ import com.neoalive.tacz_sewv.util.vehiclemelee.VehicleFacts;
 @Mixin(VehicleEntity.class)
 public abstract class MixinVehicleDamageRedirect {
 
+    // 0.8.9.1 passes the hurt hull as compute()'s first argument, so the redirect handler now
+    // receives it directly instead of casting through the mixin-local `this`.
     @Redirect(
             method = "hurt",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/atsuishio/superbwarfare/entity/vehicle/damage/DamageModifier;compute(Lnet/minecraft/world/damagesource/DamageSource;F)F",
+                    target = "Lcom/atsuishio/superbwarfare/entity/vehicle/damage/DamageModifier;compute(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;F)F",
                     remap = false
             ),
             remap = true
     )
-    private float tacz_sewv$redirectDamageCompute(DamageModifier modifier, DamageSource source, float amount) {
+    private float tacz_sewv$redirectDamageCompute(DamageModifier modifier, net.minecraft.world.entity.Entity hurtEntity,
+                                                  DamageSource source, float amount) {
         VehicleEntity hull = (VehicleEntity) (Object) this;
 
         Float translated = VehicleGunfireTranslation.tryTranslate(hull, modifier, source, amount);
         if (translated != null) return translated;
 
-        float computed = modifier.compute(source, amount);
+        float computed = modifier.compute(hurtEntity, source, amount);
         if (hull.level().isClientSide()) return computed;
         if (!hull.level().getGameRules().getBoolean(ModGameRules.CAN_MOBS_DAMAGE_VEHICLES)) {
             return computed;

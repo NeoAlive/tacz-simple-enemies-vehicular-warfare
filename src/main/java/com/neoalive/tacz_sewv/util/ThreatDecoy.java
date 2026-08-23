@@ -39,7 +39,7 @@ public final class ThreatDecoy {
 
     /** @return true if a volley was armed (ready launcher) */
     public static boolean pop(VehicleEntity hull) {
-        if (hull.level().isClientSide || !hull.hasDecoy() || !hull.getDecoyReady()) {
+        if (hull.level().isClientSide || !hull.hasDecoy() || hull.getDecoyCount() <= 0) {
             return false;
         }
         hull.setDecoyInputDown(true);

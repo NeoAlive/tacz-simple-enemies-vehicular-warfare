@@ -11,14 +11,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import software.bernie.geckolib.animatable.GeoBlockEntity;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import com.neoalive.tacz_sewv.airport.AirportClearance;
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
@@ -29,11 +21,12 @@ import com.neoalive.tacz_sewv.init.ModBlockEntities;
 /**
  * Player-defined PMC strip: two corners, a cleared flag, and the cached (touchdown, heading)
  * that {@link com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal} already knows how to fly.
+ *
+ * <p>Rendering is client-only ({@link com.neoalive.tacz_sewv.client.RunwayBlockClient}); this
+ * class carries no model state, so it stays loadable on a dedicated server.
  */
-public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
+public class RunwayBlockEntity extends BlockEntity {
 
-    private static final RawAnimation SPIN =
-            RawAnimation.begin().thenLoop("animation.runway_block.spin");
     /**
      * The mast tops out 2.6 blocks up, and the dish sweeps a 9.7px radius around a pivot that is
      * not the block centre, so it reaches to x=1.45 / z=-0.45 as it turns. A default 1×1×1 box
@@ -76,7 +69,6 @@ public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
      * apart — and it must, because the client never sees {@link RunwayBlock#onRemove}.
      */
     private boolean chunkUnloaded;
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     public RunwayBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.RUNWAY.get(), pos, state);
@@ -199,23 +191,6 @@ public class RunwayBlockEntity extends BlockEntity implements GeoBlockEntity {
     @Override
     public AABB getRenderBoundingBox() {
         return RENDER_EXTENT.move(worldPosition);
-    }
-
-    @Override
-    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "spin", 0, this::spinPredicate));
-    }
-
-    private PlayState spinPredicate(AnimationState<RunwayBlockEntity> state) {
-        // Evaluated from the BER, so a culled dish does not tick the spin — and an uncleared
-        // strip never starts it in the first place.
-        if (!hasCachedAirport()) return PlayState.STOP;
-        return state.setAndContinue(SPIN);
-    }
-
-    @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return this.cache;
     }
 
     @Override

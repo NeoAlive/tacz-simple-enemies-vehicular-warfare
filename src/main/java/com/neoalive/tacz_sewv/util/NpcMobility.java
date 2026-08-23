@@ -10,9 +10,6 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 /**
  * Combined NPC drive/turret mobility: health penalty × addon speed cap. Player-driven and
  * empty hulls always return 1.0. Shared by the engine and turret mobility mixins.
- *
- * <p>{@link HealthMobility} remains as a thin alias for callers that only need the health
- * axis; new code should call this.
  */
 public final class NpcMobility {
 

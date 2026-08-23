@@ -3,14 +3,7 @@ package com.neoalive.tacz_sewv.procedural.events;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.MobSpawnType;
-import net.minecraft.world.level.levelgen.Heightmap;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.roles.utils.UnitRole;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
-import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
 import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
 import com.neoalive.tacz_sewv.bridge.FireMission;
@@ -132,7 +125,7 @@ public final class MortarShellingEvent extends DynamicEvent {
         if (placed == 0) return false;
 
         for (int i = 0; i < SewvConfig.SHELLING_GUARDS.get(); i++) {
-            spawnGuard(level, centerPos, faction);
+            EventSpawns.infantry(level, centerPos, faction, GUARD_SPREAD);
         }
         return true;
     }
@@ -145,19 +138,5 @@ public final class MortarShellingEvent extends DynamicEvent {
         // an event tick; nextInt needs a positive span.
         if (max <= min) return min;
         return min + level.random.nextInt(max - min + 1);
-    }
-
-    private static void spawnGuard(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction) {
-        AbstractUnit unit = faction == TankSpawner.TankFaction.RU
-                ? new RUunitEntity(ModEntities.RUUNIT.get(), level)
-                : new USunitEntity(ModEntities.USUNIT.get(), level);
-        unit.setRole(UnitRole.DEFAULT);
-
-        int x = anchor.getX() + level.random.nextInt(GUARD_SPREAD * 2 + 1) - GUARD_SPREAD;
-        int z = anchor.getZ() + level.random.nextInt(GUARD_SPREAD * 2 + 1) - GUARD_SPREAD;
-        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        unit.setPos(x + 0.5, y, z + 0.5);
-        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(unit.blockPosition()), MobSpawnType.EVENT, null, null);
-        level.addFreshEntity(unit);
     }
 }

@@ -23,7 +23,6 @@ import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
-import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -53,10 +52,6 @@ public abstract class MixinPacketIssueOrder {
     private static void tacz_sewv$orderVoice(Supplier<NetworkEvent.Context> ctx, PacketIssueOrder packet, CallbackInfo ci) {
         ServerPlayer sender = ctx.get().getSender();
         if (sender == null) return;
-        if (InvasionOrderGate.denyIfActive(sender)) {
-            ci.cancel();
-            return;
-        }
         Entity ordered = sender.level().getEntity(((AccessorPacketIssueOrder) packet).tacz_sewv$entityId());
         // SEM drops an order it does not like and sends no reply, so these two are the whole reason
         // the client-side "order sent" ack had to go: it was printed before either was checked.

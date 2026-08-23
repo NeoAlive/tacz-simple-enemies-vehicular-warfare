@@ -565,16 +565,7 @@ public final class TankSpawner {
         String id = entityId(tank);
         if (AshAmmoCompat.isMissileSystemHull(id)) return;
 
-        List<Item> ammo = resolveAmmo(tank);
-        if (ammo.isEmpty() && McspAmmoCompat.isMcspHull(id)) {
-            ammo = McspAmmoCompat.fallbackAmmo();
-        }
-        if (ammo.isEmpty() && AshAmmoCompat.isAshHull(id)) {
-            ammo = AshAmmoCompat.fallbackAmmo();
-        }
-        if (ammo.isEmpty() && VvpAmmoCompat.isVvpHull(id)) {
-            ammo = VvpAmmoCompat.fallbackAmmo();
-        }
+        List<Item> ammo = resolveWithFallback(tank, id);
         if (ammo.isEmpty()) return;
 
         tank.setItem(0, new ItemStack(ammo.get(0), count));
@@ -651,16 +642,7 @@ public final class TankSpawner {
             return;
         }
 
-        List<Item> ammo = resolveAmmo(tank);
-        if (ammo.isEmpty() && McspAmmoCompat.isMcspHull(id)) {
-            ammo = McspAmmoCompat.fallbackAmmo();
-        }
-        if (ammo.isEmpty() && AshAmmoCompat.isAshHull(id)) {
-            ammo = AshAmmoCompat.fallbackAmmo();
-        }
-        if (ammo.isEmpty() && VvpAmmoCompat.isVvpHull(id)) {
-            ammo = VvpAmmoCompat.fallbackAmmo();
-        }
+        List<Item> ammo = resolveWithFallback(tank, id);
         if (ammo.isEmpty()) {
             if (!addonNative && SewvConfig.CREATIVE_AMMO_FALLBACK.get()) {
                 tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
@@ -672,6 +654,26 @@ public final class TankSpawner {
             Item item = ammo.get(slot % ammo.size());
             tank.setItem(slot, new ItemStack(item, item.getMaxStackSize()));
         }
+    }
+
+    /**
+     * The ammo <em>resolution</em> chain shared by {@link #stockAmmo} and
+     * {@link #stockTokenAmmo}: what the hull's own weapons eat first, then the addon
+     * softcompat fallbacks (MCSP / ASH / VVP) for packs that ignore SBW's container ammo.
+     * The slot-filling and creative-box policy around it differ per caller.
+     */
+    private static List<Item> resolveWithFallback(VehicleEntity tank, String id) {
+        List<Item> ammo = resolveAmmo(tank);
+        if (ammo.isEmpty() && McspAmmoCompat.isMcspHull(id)) {
+            ammo = McspAmmoCompat.fallbackAmmo();
+        }
+        if (ammo.isEmpty() && AshAmmoCompat.isAshHull(id)) {
+            ammo = AshAmmoCompat.fallbackAmmo();
+        }
+        if (ammo.isEmpty() && VvpAmmoCompat.isVvpHull(id)) {
+            ammo = VvpAmmoCompat.fallbackAmmo();
+        }
+        return ammo;
     }
 
     @Nullable

@@ -34,7 +34,7 @@ public final class BulletFacts {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Map<ResourceLocation, BulletFacts> CACHE = new ConcurrentHashMap<>();
     // Sentinel for "resolved to nothing", so a gunId that keeps missing isn't re-looked-up every hit.
-    private static final BulletFacts MISSING = new BulletFacts("", 0F, 0F, 0F, 1, 300, 1, false);
+    private static final BulletFacts MISSING = new BulletFacts("", 0F, 0F, 0F, 300, 1, false);
 
     /** Lowercased {@code gunId + ammoId + datapack "type"} string — cue-tier matching only. */
     public final String nameHint;
@@ -43,19 +43,17 @@ public final class BulletFacts {
     /** 0..1 fraction of {@link #damage} that ignores armor (TaCZ {@code bullet.extra_damage.armor_ignore}). */
     public final float armorIgnore;
     public final float speed;
-    public final int pierce;
     public final int rpm;
     /** Pellets per shot ({@code bullet.bullet_amount}) — a shotgun fires several at once. */
     public final int pellets;
     public final boolean explosive;
 
     private BulletFacts(String nameHint, float damage, float armorIgnore, float speed,
-                        int pierce, int rpm, int pellets, boolean explosive) {
+                        int rpm, int pellets, boolean explosive) {
         this.nameHint = nameHint;
         this.damage = damage;
         this.armorIgnore = armorIgnore;
         this.speed = speed;
-        this.pierce = pierce;
         this.rpm = rpm;
         this.pellets = pellets;
         this.explosive = explosive;
@@ -104,7 +102,7 @@ public final class BulletFacts {
                     .toLowerCase(Locale.ROOT);
 
             return new BulletFacts(nameHint, damage, armorIgnore, bullet.getSpeed(),
-                    Math.max(1, bullet.getPierce()), Math.max(1, gunData.getRoundsPerMinute()),
+                    Math.max(1, gunData.getRoundsPerMinute()),
                     Math.max(1, bullet.getBulletAmount()), explosive);
         } catch (Exception e) {
             WarnOnce.warn(LOGGER, "sewv-ballistics-error-" + gunId,

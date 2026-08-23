@@ -16,7 +16,6 @@ import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
-import com.neoalive.tacz_sewv.invasion.InvasionOrderGate;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -46,7 +45,6 @@ public class PacketCaptureMedic {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof ServerPlayer sp)) return;
-            if (InvasionOrderGate.denyIfActive(sp)) return;
             if (!SewvConfig.MEDIC_CAPTURE_ENABLED.get()) return;
 
             double radius = SewvConfig.PMC_CAPTURE_MEDIC_RADIUS.get();

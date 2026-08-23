@@ -155,14 +155,6 @@ public final class InvasionSession {
         return max;
     }
 
-    /** @deprecated use {@link #start(ServerLevel)} */
-    @Deprecated
-    public static InvasionSpawn.Result activate(ServerLevel level) {
-        StartResult result = start(level);
-        if (result instanceof StartResult.Ok ok) return ok.spawn();
-        return new InvasionSpawn.Result(0, 0, 0, 0);
-    }
-
     public static void deactivate(ServerLevel level) {
         InvasionSession session = of(level);
         boolean wasActive = session.active || InvasionLayout.get(level).isSessionActive();

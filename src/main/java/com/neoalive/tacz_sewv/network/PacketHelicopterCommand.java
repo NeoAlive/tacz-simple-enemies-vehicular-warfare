@@ -80,7 +80,6 @@ public class PacketHelicopterCommand {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
-            if (com.neoalive.tacz_sewv.invasion.InvasionOrderGate.denyIfActive(sp)) return;
 
             boolean emergency = this.command == IHelicopterPilot.HELI_CMD_EMERGENCY_LAND;
             boolean landing = emergency || this.command == IHelicopterPilot.HELI_CMD_LANDING;

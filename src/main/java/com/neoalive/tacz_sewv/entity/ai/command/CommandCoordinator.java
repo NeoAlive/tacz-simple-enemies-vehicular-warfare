@@ -8,7 +8,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -524,10 +523,7 @@ public final class CommandCoordinator {
     private static void electOne(ServerLevel level, BattleGroup group, double margin, int quorum,
                                  double maxRadius, UtilityWeights weights) {
         List<Election.Candidate> members = new ArrayList<>();
-        Integer designatedNetId = resolveDesignation(level, group);
-        if (designatedNetId == null) {
-            designatedNetId = resolveCommanderEntity(level, group);
-        }
+        Integer designatedNetId = resolveCommanderEntity(level, group);
 
         for (int memberId : group.memberIds()) {
             var entity = level.getEntity(memberId);
@@ -548,14 +544,14 @@ public final class CommandCoordinator {
         }
 
         Integer incumbent = group.hasCommander() ? group.commanderId() : null;
-        Integer elected = Election.electCommander(members, incumbent, margin, designatedNetId, quorum);
+        Integer elected = Election.electCommander(members, incumbent, margin, quorum);
         if (elected == null) {
             LOGGER.debug("[sewv-command] election deferred: no ready Facts group={}", group.groupId());
             return;
         }
         if (!group.hasCommander() || group.commanderId() != elected) {
             int old = group.hasCommander() ? group.commanderId() : -1;
-            String reason = designatedNetId != null && designatedNetId.equals(elected) ? "player"
+            String reason = designatedNetId != null && designatedNetId.equals(elected) ? "commander"
                     : (incumbent == null ? "no-incumbent"
                     : (incumbent == elected ? "kept" : "beaten"));
             double oldFit = fitnessOf(members, incumbent);
@@ -575,23 +571,8 @@ public final class CommandCoordinator {
     }
 
     /**
-     * TODO(command-player-designation): resolve the stub UUID to a live in-group network id.
-     */
-    @Nullable
-    private static Integer resolveDesignation(ServerLevel level, BattleGroup group) {
-        UUID designated = group.playerDesignatedCommander();
-        if (designated == null) return null;
-        for (int memberId : group.memberIds()) {
-            var e = level.getEntity(memberId);
-            if (e != null && designated.equals(e.getUUID())) return memberId;
-        }
-        return null; // dead or left group — fall through to auto
-    }
-
-    /**
-     * A live, Facts-ready {@link PmcCommanderEntity} in the group wins election outright, the same
-     * seam a player designation would use — "automatically elected leader... as long as eligible
-     * for doctrine operations". Checked ahead of ordinary fitness scoring; an unready Commander
+     * A live, Facts-ready {@link PmcCommanderEntity} in the group wins election outright.
+     * Checked ahead of ordinary fitness scoring; an unready Commander
      * simply defers to the next scan rather than forcing an election.
      */
     @Nullable

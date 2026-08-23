@@ -134,11 +134,6 @@ public final class ExterminationCompat {
         return level.getGameRules().getBoolean(ModGameRules.INVASION_OVERRIDES);
     }
 
-    /** @deprecated use {@link #isShieldedPod} */
-    public static boolean isTripod(@Nullable Entity entity) {
-        return isShieldedPod(entity);
-    }
-
     public static boolean isRanged(DamageSource source) {
         if (source.is(DamageTypeTags.IS_PROJECTILE)) return true;
         Entity direct = source.getDirectEntity();

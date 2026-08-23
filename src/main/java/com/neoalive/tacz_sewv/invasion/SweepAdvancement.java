@@ -308,42 +308,37 @@ public final class SweepAdvancement {
      * territorial contestants.
      */
     private static boolean defensiveHasEnemy(Operation op, ServerLevel level, ServerPlayer player) {
+        return scanContestants(op, level, player, true);
+    }
+
+    /** Same Section D filter as {@link #defensiveHasEnemy}, silent — for overlay RED. */
+    private static boolean hasContestant(Operation op, ServerLevel level, ServerPlayer player) {
+        return scanContestants(op, level, player, false);
+    }
+
+    private static boolean scanContestants(Operation op, ServerLevel level, ServerPlayer player,
+                                           boolean log) {
         PmcUnitEntity probe = firstAssignee(op, level);
         if (probe == null) return false;
         AABB box = chunkRectBox(level, op.rect);
 
         for (AbstractUnit unit : level.getEntitiesOfClass(AbstractUnit.class, box, LivingEntity::isAlive)) {
             if (!isHostileContestant(probe, player, unit)) continue;
-            SewvDiag.sweep("defensiveHit contestant={} id={} (AbstractUnit)",
-                    unit.getType().getDescriptionId(), unit.getId());
+            if (log) {
+                SewvDiag.sweep("defensiveHit contestant={} id={} (AbstractUnit)",
+                        unit.getType().getDescriptionId(), unit.getId());
+            }
             return true;
         }
         for (VehicleEntity hull : level.getEntitiesOfClass(VehicleEntity.class, box, h -> true)) {
             for (var passenger : hull.getPassengers()) {
                 if (!(passenger instanceof AbstractUnit unit) || !unit.isAlive()) continue;
                 if (!isHostileContestant(probe, player, unit)) continue;
-                SewvDiag.sweep("defensiveHit contestant={} id={} hull={} (VehicleEntity crew)",
-                        unit.getType().getDescriptionId(), unit.getId(), hull.getId());
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Same Section D filter as {@link #defensiveHasEnemy}, silent — for overlay RED. */
-    private static boolean hasContestant(Operation op, ServerLevel level, ServerPlayer player) {
-        PmcUnitEntity probe = firstAssignee(op, level);
-        if (probe == null) return false;
-        AABB box = chunkRectBox(level, op.rect);
-        for (AbstractUnit unit : level.getEntitiesOfClass(AbstractUnit.class, box, LivingEntity::isAlive)) {
-            if (isHostileContestant(probe, player, unit)) return true;
-        }
-        for (VehicleEntity hull : level.getEntitiesOfClass(VehicleEntity.class, box, h -> true)) {
-            for (var passenger : hull.getPassengers()) {
-                if (passenger instanceof AbstractUnit unit && unit.isAlive()
-                        && isHostileContestant(probe, player, unit)) {
-                    return true;
+                if (log) {
+                    SewvDiag.sweep("defensiveHit contestant={} id={} hull={} (VehicleEntity crew)",
+                            unit.getType().getDescriptionId(), unit.getId(), hull.getId());
                 }
+                return true;
             }
         }
         return false;

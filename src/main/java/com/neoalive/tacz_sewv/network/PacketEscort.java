@@ -46,7 +46,6 @@ public class PacketEscort {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
-            if (com.neoalive.tacz_sewv.invasion.InvasionOrderGate.denyIfActive(sp)) return;
 
             Entity vip = player.level().getEntity(this.targetEntityId);
             if (vip == null || !vip.isAlive()) {

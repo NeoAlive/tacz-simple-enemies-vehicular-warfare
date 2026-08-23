@@ -1,13 +1,12 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 
 /**
@@ -56,15 +55,9 @@ public final class CommanderSeating {
     }
 
     private static boolean isRestricted(VehicleEntity v, int seat) {
-        if (seat == 0) return true; // SuperbWarfare's driver is simply the first passenger
-        try {
-            SeatInfo info = v.getSeat(seat);
-            if (info == null) return false;
-            if ("Climb".equals(info.pose)) return true;
-            List<String> weapons = info.weapons();
-            return weapons != null && !weapons.isEmpty();
-        } catch (Exception ignored) {
-            return false;
-        }
+        // Driver, gunner and Climb ("ledge") seats are all barred for a Commander when any
+        // PLAIN seat exists — see the truth table in HullFacts.seatKind.
+        HullFacts.SeatKind kind = HullFacts.seatKind(v, seat);
+        return kind != HullFacts.SeatKind.PLAIN && kind != HullFacts.SeatKind.UNKNOWN;
     }
 }

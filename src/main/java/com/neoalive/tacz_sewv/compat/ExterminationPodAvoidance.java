@@ -41,19 +41,14 @@ public final class ExterminationPodAvoidance {
         if (!active(level)) return dest;
 
         double radius = SewvConfig.INVASION_POD_AVOID_RADIUS.get();
+        Vec3 probe = Vec3.atCenterOf(dest);
         LivingEntity pod = nearestPod(level, vehicle.position(), radius);
         if (pod == null) {
-            pod = nearestPod(level, Vec3.atCenterOf(dest), radius);
+            pod = nearestPod(level, probe, radius);
             if (pod == null) return dest;
         }
 
-        Vec3 away = vehicle.position().subtract(pod.position());
-        if (away.horizontalDistanceSqr() < 1.0e-4) {
-            away = new Vec3(1.0, 0.0, 0.0);
-        } else {
-            away = new Vec3(away.x, 0.0, away.z).normalize();
-        }
-        Vec3 rim = pod.position().add(away.scale(radius));
+        Vec3 rim = rimPoint(vehicle, pod, radius);
         return BlockPos.containing(rim.x, dest.getY(), rim.z);
     }
 
@@ -74,14 +69,19 @@ public final class ExterminationPodAvoidance {
             if (pod == null) return new Vec3(steerX, 0.0, steerZ);
         }
 
+        Vec3 rim = rimPoint(vehicle, pod, radius);
+        return new Vec3(rim.x, 0.0, rim.z);
+    }
+
+    /** The point {@code radius} blocks from the pod, directly away from the hull. */
+    private static Vec3 rimPoint(VehicleEntity vehicle, LivingEntity pod, double radius) {
         Vec3 away = vehicle.position().subtract(pod.position());
         if (away.horizontalDistanceSqr() < 1.0e-4) {
             away = new Vec3(1.0, 0.0, 0.0);
         } else {
             away = new Vec3(away.x, 0.0, away.z).normalize();
         }
-        Vec3 rim = pod.position().add(away.scale(radius));
-        return new Vec3(rim.x, 0.0, rim.z);
+        return pod.position().add(away.scale(radius));
     }
 
     @Nullable

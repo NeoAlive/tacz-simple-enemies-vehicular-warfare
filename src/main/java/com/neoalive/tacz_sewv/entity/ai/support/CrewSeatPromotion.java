@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
@@ -17,6 +16,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 
 /**
@@ -112,15 +112,9 @@ public final class CrewSeatPromotion {
     }
 
     private static boolean isCrewStation(VehicleEntity v, int seat) {
-        if (seat == 0) return true;
-        try {
-            SeatInfo info = v.getSeat(seat);
-            if (info == null) return false;
-            if ("Climb".equals(info.pose)) return false;
-            List<String> weapons = info.weapons();
-            return weapons != null && !weapons.isEmpty();
-        } catch (Exception ignored) {
-            return false;
-        }
+        // Driver or a weaponed station; a Climb handhold is not a destination. UNKNOWN (seat
+        // past the data's end) stays unpromotable, matching the old null-info read.
+        HullFacts.SeatKind kind = HullFacts.seatKind(v, seat);
+        return kind == HullFacts.SeatKind.DRIVER || kind == HullFacts.SeatKind.WEAPONED;
     }
 }

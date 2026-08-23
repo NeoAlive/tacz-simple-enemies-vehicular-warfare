@@ -66,8 +66,6 @@ public final class RunwaySlots {
     private final double extraFactor;
     private final int slotLength;
     private final int bufferLength;
-    private final double baseTakeoffBuffer;
-    private final double extraTakeoffBuffer;
     private final double takeoffBuffer;
     private final double usableLength;
     private final BlockPos touchdown;
@@ -76,9 +74,8 @@ public final class RunwaySlots {
 
     private RunwaySlots(BlockPos threshold, float headingDeg, int length, int width,
                         double slotFactor, double bufferFactor, double extraFactor,
-                        int slotLength, int bufferLength, double baseTakeoffBuffer,
-                        double extraTakeoffBuffer, double takeoffBuffer, double usableLength,
-                        BlockPos touchdown, AABB area, List<Slot> slots) {
+                        int slotLength, int bufferLength, double takeoffBuffer,
+                        double usableLength, BlockPos touchdown, AABB area, List<Slot> slots) {
         this.threshold = threshold;
         this.headingDeg = headingDeg;
         this.length = length;
@@ -88,8 +85,6 @@ public final class RunwaySlots {
         this.extraFactor = extraFactor;
         this.slotLength = slotLength;
         this.bufferLength = bufferLength;
-        this.baseTakeoffBuffer = baseTakeoffBuffer;
-        this.extraTakeoffBuffer = extraTakeoffBuffer;
         this.takeoffBuffer = takeoffBuffer;
         this.usableLength = usableLength;
         this.touchdown = touchdown;
@@ -141,7 +136,7 @@ public final class RunwaySlots {
         }
         return new RunwaySlots(threshold, headingDeg, length, width,
                 slotFactor, bufferFactor, extraFactor, slotLength, bufferLength,
-                base, extra, takeoff, usable, touchdown,
+                takeoff, usable, touchdown,
                 box(threshold, dir, 0.0, length, width), slots);
     }
 
@@ -191,8 +186,6 @@ public final class RunwaySlots {
     public double extraFactor() { return this.extraFactor; }
     public int slotLength() { return this.slotLength; }
     public int bufferLength() { return this.bufferLength; }
-    public double baseTakeoffBuffer() { return this.baseTakeoffBuffer; }
-    public double extraTakeoffBuffer() { return this.extraTakeoffBuffer; }
     public double takeoffBuffer() { return this.takeoffBuffer; }
     public double usableLength() { return this.usableLength; }
     public int capacity() { return this.slots.size(); }

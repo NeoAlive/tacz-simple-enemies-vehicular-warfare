@@ -147,15 +147,15 @@ public final class VehicleWeapons {
     private static final float ARMORED_HEALTH = 400.0F; // hull at/above this is a hard target
     private static final float SOFT_HEALTH = 100.0F;    // mob below this is an MG target
 
-    // Cannon ammo preference lists, in order, matched as a SUFFIX of the AmmoConsumer's ammo
-    // item id (superbwarfare:large_shell_ap / small_shell_he / large_shell_gs — the naming is
-    // consistent across every stock hull, and the per-ammo Override blocks are NOT: the
-    // grapeshot entry sets no ShellType at all, and the small-shell hulls set none anywhere).
-    // Later entries are fallbacks for hulls that carry no such round — the howitzers
-    // (mk_42/plz_05/bl_132/mle_1934) stock AP/HE/CM/WP and have no grapeshot to load.
-    private static final String[] AMMO_ANTI_ARMOR = {"_ap", "_he"};
-    private static final String[] AMMO_ANTI_LIGHT = {"_he", "_ap"};
-    private static final String[] AMMO_ANTI_INFANTRY = {"_gs", "_he", "_ap"};
+    // Cannon ammo preference lists, in order. Each entry is a shell-type token matched
+    // against the AmmoConsumer's ammo id by ammoMatchesPreference (below) — NOT a plain
+    // suffix test: SBW stock names its shells suffix-style (superbwarfare:large_shell_ap)
+    // while VVP names them prefix-style (vvp:ap_shell), and a suffix-only read classified
+    // every VVP cannon as dry at selection time, so doctrine skipped the cannon and the
+    // seat locked onto the coax MG forever.
+    private static final String[] AMMO_ANTI_ARMOR = {"ap", "he"};
+    private static final String[] AMMO_ANTI_LIGHT = {"he", "ap"};
+    private static final String[] AMMO_ANTI_INFANTRY = {"gs", "he", "ap"};
 
     // One selection candidate: a role to try, and (for a multi-shell weapon) the shell preference
     // to load if it's picked. null preferences means "single-ammo weapon — whatever it has".
@@ -572,11 +572,34 @@ public final class VehicleWeapons {
     }
 
     /**
+     * True when {@code ammoId} names a shell of the preference token's type. The token
+     * ("ap"/"he"/"gs") must appear bounded by non-alphanumeric characters — path separators
+     * and underscores both count as boundaries — so {@code vvp:ap_shell} (prefix style)
+     * and {@code large_shell_ap} (suffix style) both match "ap", while
+     * {@code superbwarfare:small_shell} (no type token) and {@code heap_round}
+     * ("he" glued inside a longer word) do not.
+     *
+     * <p>Package-visible for the classify self-check (this is pure string matching).
+     */
+    public static boolean ammoMatchesPreference(String ammoId, String token) {
+        if (ammoId == null || ammoId.isEmpty() || token == null || token.isEmpty()) return false;
+        int at = 0;
+        while ((at = ammoId.indexOf(token, at)) >= 0) {
+            boolean leftOk = at == 0 || !Character.isLetterOrDigit(ammoId.charAt(at - 1));
+            int end = at + token.length();
+            boolean rightOk = end == ammoId.length() || !Character.isLetterOrDigit(ammoId.charAt(end));
+            if (leftOk && rightOk) return true;
+            at = end;
+        }
+        return false;
+    }
+
+    /**
      * True when {@code weaponIndex} has at least one round it could fire right now — read-only,
      * never switches the chambered shell. {@code preferences} null means a single-ammo-type
      * weapon (an MG): usable if any of its consumers (normally exactly one) is non-empty.
      * Otherwise usable if any consumer matching a preference is non-empty, mirroring the same
-     * suffix match {@link #selectCannonAmmo} commits with.
+     * match {@link #selectCannonAmmo} commits with ({@link #ammoMatchesPreference}).
      *
      * <p>Drives the cross-role fallback in {@link #selectWeaponForTarget}: doctrine's first
      * choice is skipped in favor of the next candidate on the table when this reads false,
@@ -600,7 +623,8 @@ public final class VehicleWeapons {
             }
             for (String want : preferences) {
                 for (AmmoConsumer c : consumers) {
-                    if (c != null && lower(c.getAmmo()).endsWith(want) && c.count(gun, source) > 0) return true;
+                    if (c != null && ammoMatchesPreference(lower(c.getAmmo()), want)
+                            && c.count(gun, source) > 0) return true;
                 }
             }
             return false;
@@ -638,7 +662,7 @@ public final class VehicleWeapons {
             for (String want : preferences) {
                 for (int i = 0; i < consumers.size(); i++) {
                     AmmoConsumer c = consumers.get(i);
-                    if (c == null || !lower(c.getAmmo()).endsWith(want)) continue;
+                    if (c == null || !ammoMatchesPreference(lower(c.getAmmo()), want)) continue;
                     if (i == gun.selectedAmmoType.get()) return; // already chambered
                     if (c.count(gun, source) <= 0) break;        // out of it — try next preference
                     int index = i;

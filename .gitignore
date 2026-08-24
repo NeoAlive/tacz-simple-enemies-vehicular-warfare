@@ -12,6 +12,7 @@ CLAUDE.md
 *.ipr
 *.iws
 scratchpad_sem/
+.claude
 
 # Eclipse
 .classpath

@@ -20,6 +20,7 @@ public final class VehicleWeaponsClassifySelfCheck {
         corpusAnchors();
         deadHeatPrefersSpecial();
         mgWordBoundary();
+        ammoPreferenceTokens();
 
         System.out.println("vehicle weapons classify self-check: OK");
     }
@@ -99,6 +100,28 @@ public final class VehicleWeaponsClassifySelfCheck {
                 classify("seat mg left", "", "", "", null), "mg word");
         assertRole(VehicleWeapons.UNCLASSIFIED,
                 classify("armguard", "", "", "", null), "mg inside armguard");
+    }
+
+    /** Shell-type preference tokens must accept both SBW suffix and VVP prefix ids. */
+    private static void ammoPreferenceTokens() {
+        assert VehicleWeapons.ammoMatchesPreference("superbwarfare:large_shell_ap", "ap")
+                : "SBW suffix ap";
+        assert VehicleWeapons.ammoMatchesPreference("superbwarfare:small_shell_he", "he")
+                : "SBW suffix he";
+        assert VehicleWeapons.ammoMatchesPreference("superbwarfare:large_shell_gs", "gs")
+                : "SBW suffix gs";
+        assert VehicleWeapons.ammoMatchesPreference("vvp:ap_shell", "ap")
+                : "VVP prefix ap";
+        assert VehicleWeapons.ammoMatchesPreference("vvp:he_shell", "he")
+                : "VVP prefix he";
+        assert !VehicleWeapons.ammoMatchesPreference("vvp:ap_shell", "he")
+                : "VVP ap must not match he";
+        assert !VehicleWeapons.ammoMatchesPreference("superbwarfare:small_shell", "ap")
+                : "shell alone is not ap";
+        assert !VehicleWeapons.ammoMatchesPreference("heap_round", "he")
+                : "he inside heap";
+        assert !VehicleWeapons.ammoMatchesPreference("map_shell", "ap")
+                : "ap inside map";
     }
 
     private static int classify(String name, String shell, String projectile, String ammoId, Ammo ammo) {

@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Mob;
@@ -164,11 +165,20 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     // exactly as before this compat existed. Also gated on the config toggle so
                     // disabling tree felling actually removes the pathfinding cost, not just the
                     // felling action — see the same gate in findAcceptedNode below.
+                    //
+                    // Uses the vanilla #minecraft:logs TAG here, not EnhancedFallingTreesFeller.
+                    // isFellable() — that call is a linear scan over EFT's tree registry with no
+                    // caching, and this runs per footprint cell per candidate node, i.e. thousands
+                    // of times per pathfind in a forest. It was over half of total server tick
+                    // time. The tag is an O(1) heuristic ("probably a log"); the exact,
+                    // registry-accurate check still gates the real felling in TreeFellingSupport,
+                    // so a false positive here just costs a path through a trunk that turns out
+                    // not to be felled — recoverable like any other blocked-contact case — and a
+                    // false negative just routes around it like before this compat existed.
                     if (blockpathtypes == BlockPathTypes.BLOCKED && EnhancedFallingTreesCompat.available()
                             && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()) {
                         BlockState cellState = level.getBlockState(this.probe.set(i + x, j + y, k + z));
-                        if (EnhancedFallingTreesFeller.isFellable(level, this.probe, cellState)
-                                || EnhancedFallingTreesFeller.isFoliage(cellState)) {
+                        if (cellState.is(BlockTags.LOGS) || EnhancedFallingTreesFeller.isFoliage(cellState)) {
                             blockpathtypes = BlockPathTypes.WALKABLE;
                         }
                     }
@@ -262,7 +272,12 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
 
     /** Same footprint shape as {@link #footprintWaterDepth}, but 3D (a tree log can sit at any
      * height within the hull's box, not just at foot level) and boolean (a preference cost, not
-     * a depth to scale it by). Never hard-blocks — see the call site. */
+     * a depth to scale it by). Never hard-blocks — see the call site.
+     *
+     * <p>Same {@code #minecraft:logs} tag heuristic as the classification pass above, for the
+     * same reason: this walks the whole footprint again for every accepted node, and the
+     * registry-accurate {@link EnhancedFallingTreesFeller#isFellable} was the dominant cost in
+     * ground-vehicle pathfinding. */
     private boolean footprintHasFellableTree(BlockGetter level, int x, int y, int z) {
         int w = Math.max(1, this.entityWidth);
         int h = Math.max(1, this.entityHeight);
@@ -271,8 +286,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             for (int j = 0; j < h; j++) {
                 for (int k = 0; k < d; k++) {
                     BlockState state = level.getBlockState(this.probe.set(x + i, y + j, z + k));
-                    if (EnhancedFallingTreesFeller.isFellable(level, this.probe, state)
-                            || EnhancedFallingTreesFeller.isFoliage(state)) {
+                    if (state.is(BlockTags.LOGS) || EnhancedFallingTreesFeller.isFoliage(state)) {
                         return true;
                     }
                 }

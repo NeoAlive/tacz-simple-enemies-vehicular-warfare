@@ -387,6 +387,33 @@ repositories {
     }
 }
 
+// Two superbwarfare builds live side by side in the parent Progetti folder (this checkout tracks
+// a "latest" SBW branch and a "stable" one). Default build copies the latest release jar into
+// libs/superbwarfare.jar (flatDir resolves blank:superbwarfare:1.0 to that literal filename,
+// version-blind); -PstableSbw copies the older one instead. No-op if the parent folder doesn't
+// have either (a machine other than this one) — whatever's already in libs/ is used untouched,
+// same as before this existed.
+def sbwSourceDir = file("${projectDir}/..")
+def wantStableSbw = project.hasProperty('stableSbw')
+def latestSbwCandidates = fileTree(sbwSourceDir) { include 'superbwarfare-0.8.9.1-*-all.jar' }.files
+def stableSbwCandidates = fileTree(sbwSourceDir) { include 'superbwarfare-0.8.9-*-all.jar' }.files
+def sbwCandidates = wantStableSbw ? stableSbwCandidates : latestSbwCandidates
+if (sbwCandidates.size() > 1) {
+    throw new GradleException("Multiple superbwarfare candidates in ${sbwSourceDir} for " +
+            "${wantStableSbw ? '-PstableSbw' : 'default (latest)'}: ${sbwCandidates*.name}")
+} else if (sbwCandidates.size() == 1) {
+    def sourceSbwJar = sbwCandidates.first()
+    def targetSbwJar = file('libs/superbwarfare.jar')
+    if (!targetSbwJar.exists() || targetSbwJar.length() != sourceSbwJar.length()) {
+        copy {
+            from sourceSbwJar
+            into 'libs'
+            rename { 'superbwarfare.jar' }
+        }
+    }
+    println "SBW jar: ${sourceSbwJar.name}${wantStableSbw ? ' (-PstableSbw)' : ''}"
+}
+
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     implementation fg.deobf("blank:superbwarfare:1.0")

@@ -2,6 +2,8 @@ package com.neoalive.tacz_sewv.entity.ai.navigation;
 
 import java.util.List;
 
+import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -82,6 +84,21 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     private double[] peerSoft = EMPTY;
     private static final double[] EMPTY = new double[0];
 
+    /** Per-search cache of "does this node's footprint contain a fellable tree cell", keyed by
+     * {@link BlockPos#asLong}. Populated once, in {@link #getBlockPathType(BlockGetter, int, int,
+     * int, Mob)}'s classification pass, which already visits every footprint cell; {@link
+     * #footprintHasFellableTree} then just reads it instead of re-walking the same cells a
+     * second time. Byte-valued (0/1) with -1 as "no entry" so a miss is a real sentinel, not a
+     * boxed null — vanilla always classifies a node before accepting it, so a miss should only
+     * happen on the rare early-return paths in that classification loop. */
+    private final Long2ByteOpenHashMap footprintTreeCache = newFootprintTreeCache();
+
+    private static Long2ByteOpenHashMap newFootprintTreeCache() {
+        Long2ByteOpenHashMap cache = new Long2ByteOpenHashMap();
+        cache.defaultReturnValue((byte) -1);
+        return cache;
+    }
+
     // ponytail: vanilla neighbor expansion still reads step/jump/fall off this.mob (the
     // crewman). Hull maxUpStep is applied as extra cost / reject in findAcceptedNode.
     @Override
@@ -94,6 +111,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         this.peerX = EMPTY;
         this.peerZ = EMPTY;
         this.peerSoft = EMPTY;
+        this.footprintTreeCache.clear();
         if (mob.getVehicle() instanceof VehicleEntity vehicle) {
             this.inWater = vehicle.isInWater();
             this.amphibious = GroundMobility.isAmphibious(vehicle);
@@ -146,6 +164,11 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             return BlockPathTypes.BLOCKED;
         }
 
+        // Read once per call, not once per cell — three config/registry lookups repeated over a
+        // 100+ cell footprint would itself be needless waste.
+        boolean treeFellingActive = EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get();
+        boolean footprintHasTree = false;
+
         BlockPathTypes center = BlockPathTypes.BLOCKED;
         BlockPathTypes worst = BlockPathTypes.BLOCKED;
         float worstMalus = mob.getPathfindingMalus(BlockPathTypes.BLOCKED);
@@ -175,11 +198,18 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     // so a false positive here just costs a path through a trunk that turns out
                     // not to be felled — recoverable like any other blocked-contact case — and a
                     // false negative just routes around it like before this compat existed.
-                    if (blockpathtypes == BlockPathTypes.BLOCKED && EnhancedFallingTreesCompat.available()
-                            && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()) {
+                    //
+                    // Checked unconditionally (not gated on BLOCKED) so this single pass also
+                    // answers footprintHasFellableTree's question for the whole footprint — that
+                    // used to be a second, separate walk over these same cells in
+                    // findAcceptedNode; the result is cached below instead.
+                    if (treeFellingActive) {
                         BlockState cellState = level.getBlockState(this.probe.set(i + x, j + y, k + z));
                         if (cellState.is(BlockTags.LOGS) || EnhancedFallingTreesFeller.isFoliage(cellState)) {
-                            blockpathtypes = BlockPathTypes.WALKABLE;
+                            footprintHasTree = true;
+                            if (blockpathtypes == BlockPathTypes.BLOCKED) {
+                                blockpathtypes = BlockPathTypes.WALKABLE;
+                            }
                         }
                     }
                     blockpathtypes = this.evaluateBlockPathType(level, mobPos, blockpathtypes);
@@ -199,6 +229,9 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     }
                 }
             }
+        }
+        if (treeFellingActive) {
+            this.footprintTreeCache.put(BlockPos.asLong(x, y, z), (byte) (footprintHasTree ? 1 : 0));
         }
         return center == BlockPathTypes.OPEN && worstMalus == 0.0F && this.entityWidth <= 1 ? BlockPathTypes.OPEN : worst;
     }
@@ -270,15 +303,22 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         return node;
     }
 
+    /** Reads {@link #footprintTreeCache}, filled in by {@link #getBlockPathType(BlockGetter,
+     * int, int, int, Mob)}'s classification pass for this exact node — same footprint, same
+     * {@code #minecraft:logs}/foliage test, so nothing here needs re-walking in the common case.
+     * Vanilla always classifies a node before {@code findAcceptedNode} can accept it, so a cache
+     * miss should only happen on that classification loop's rare early-return paths; falling
+     * back to a direct scan there means correctness never depends on that ordering holding. */
+    private boolean footprintHasFellableTree(BlockGetter level, int x, int y, int z) {
+        byte cached = this.footprintTreeCache.get(BlockPos.asLong(x, y, z));
+        if (cached != this.footprintTreeCache.defaultReturnValue()) return cached != 0;
+        return scanFootprintForFellableTree(level, x, y, z);
+    }
+
     /** Same footprint shape as {@link #footprintWaterDepth}, but 3D (a tree log can sit at any
      * height within the hull's box, not just at foot level) and boolean (a preference cost, not
-     * a depth to scale it by). Never hard-blocks — see the call site.
-     *
-     * <p>Same {@code #minecraft:logs} tag heuristic as the classification pass above, for the
-     * same reason: this walks the whole footprint again for every accepted node, and the
-     * registry-accurate {@link EnhancedFallingTreesFeller#isFellable} was the dominant cost in
-     * ground-vehicle pathfinding. */
-    private boolean footprintHasFellableTree(BlockGetter level, int x, int y, int z) {
+     * a depth to scale it by). Only reached as a fallback — see {@link #footprintHasFellableTree}. */
+    private boolean scanFootprintForFellableTree(BlockGetter level, int x, int y, int z) {
         int w = Math.max(1, this.entityWidth);
         int h = Math.max(1, this.entityHeight);
         int d = Math.max(1, this.entityDepth);

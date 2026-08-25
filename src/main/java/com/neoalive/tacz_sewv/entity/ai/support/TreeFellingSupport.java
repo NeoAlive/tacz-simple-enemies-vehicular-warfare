@@ -10,6 +10,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.tools.OBB;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -70,11 +71,17 @@ public final class TreeFellingSupport {
         int maxY = Mth.floor(scanBox.maxY);
         int maxZ = Mth.floor(scanBox.maxZ);
 
+        // Cheapest check first: the OBB union AABB usually overestimates an angled hull's real
+        // footprint, so most positions in it never touch anything. touchesHull (plain geometry)
+        // and the #minecraft:logs tag (a bitset test — see the same heuristic and its rationale
+        // in GroundVehicleNodeEvaluator) both filter for free; isFellable's registry scan runs
+        // last, only against the handful of candidates that already passed both.
         List<BlockPos> touchedNow = new ArrayList<>();
         for (BlockPos pos : BlockPos.betweenClosed(minX, minY, minZ, maxX, maxY, maxZ)) {
-            BlockState state = level.getBlockState(pos);
-            if (!EnhancedFallingTreesFeller.isFellable(level, pos, state)) continue;
             if (!touchesHull(obbs, vehicle, pos)) continue;
+            BlockState state = level.getBlockState(pos);
+            if (!state.is(BlockTags.LOGS)) continue;
+            if (!EnhancedFallingTreesFeller.isFellable(level, pos, state)) continue;
             touchedNow.add(pos.immutable());
         }
 

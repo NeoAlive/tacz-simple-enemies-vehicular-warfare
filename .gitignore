@@ -4,6 +4,7 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 CLAUDE.md
 .cursor
+.claude
 
 # IDE
 .idea/

@@ -47,3 +47,5 @@ libmods/
 
 # Average-modpack jars for ./gradlew runModded (synced from Prism via syncModpack)
 modpack/
+
+wiki/

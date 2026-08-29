@@ -73,7 +73,8 @@ public enum Signal {
     /** We remember where an enemy was, recently enough to be worth going to look. */
     LOST_CONTACT("lostContact"),
     /**
-     * Something hostile was coarsely spotted beyond the inner engage ring.
+     * Something hostile was coarsely spotted beyond the inner engage ring, or seen only through
+     * foliage inside it ({@link com.neoalive.tacz_sewv.entity.ai.sensor.ContactSight.Kind#UNCERTAIN}).
      *
      * <p>Independent of {@link #LOST_CONTACT}: can be raised while still holding an inner lock.
      * Never means the contact is engageable — only situational awareness for scoring.

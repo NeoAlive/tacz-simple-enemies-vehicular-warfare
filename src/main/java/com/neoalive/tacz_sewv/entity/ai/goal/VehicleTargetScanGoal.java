@@ -23,7 +23,9 @@ import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
+import com.neoalive.tacz_sewv.entity.ai.sensor.ContactSight;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
+import com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowSupport;
 
@@ -210,6 +212,7 @@ public class VehicleTargetScanGoal extends Goal {
         // pitch/bank that flickered the lock would block re-lock for the whole pass.
         boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
                 && !DriveHelicopterGoal.inFiringRun(v);
+        LivingEntity foliageOnly = null;
         for (LivingEntity candidate : candidates) {
             boolean los = !needLos || this.unit.getSensing().hasLineOfSight(candidate);
             if (los) {
@@ -218,9 +221,21 @@ public class VehicleTargetScanGoal extends Goal {
                         candidate.getClass().getSimpleName(), candidate.getId(), needLos);
                 return candidate;
             }
-            SewvDiag.scan("VehicleTargetScanGoal.scanCylinder SKIP_LOS unit={}#{} candidate={}#{}",
-                    this.unit.getClass().getSimpleName(), this.unit.getId(),
-                    candidate.getClass().getSimpleName(), candidate.getId());
+            // Leaves only: presence without a lock → DISTANT_CONTACT via OuterRing, keep looking
+            // for a clear engageable candidate further down the list.
+            if (needLos && ContactSight.between(this.unit, candidate) == ContactSight.Kind.UNCERTAIN) {
+                if (foliageOnly == null) foliageOnly = candidate;
+                SewvDiag.scan("VehicleTargetScanGoal.scanCylinder FOLIAGE unit={}#{} candidate={}#{}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        candidate.getClass().getSimpleName(), candidate.getId());
+            } else {
+                SewvDiag.scan("VehicleTargetScanGoal.scanCylinder SKIP_LOS unit={}#{} candidate={}#{}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        candidate.getClass().getSimpleName(), candidate.getId());
+            }
+        }
+        if (foliageOnly != null) {
+            OuterRingAwareness.offerFoliageContact(v, foliageOnly);
         }
         SewvDiag.scan("VehicleTargetScanGoal.scanCylinder NO_PICK unit={}#{} (empty or all failed LOS)",
                 this.unit.getClass().getSimpleName(), this.unit.getId());

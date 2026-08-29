@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
@@ -27,13 +28,13 @@ import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 
 /**
  * Outer awareness ring for ground crews: banded, coarse heightmap spotting beyond the mounted
- * target-scan cylinder.
+ * target-scan cylinder, plus foliage-obscured contacts offered from the inner scan.
  *
  * <p><b>Never</b> calls {@code setTarget}. Spots feed {@link Facts.Memory#noteSpot} (when idle) and
  * {@link Facts#outerSpotFresh} / {@link Facts#outerSpotStrength} for {@code DISTANT_CONTACT} —
- * engagement stays exclusively with {@link VehicleTargetScanGoal}.
+ * engagement stays exclusively with the mounted target-scan goal.
  *
- * <p>Per-hull state owned by {@link DriveVehicleGoal}. Occlusion results are not cached across
+ * <p>Per-hull state owned by {@code DriveVehicleGoal}. Occlusion results are not cached across
  * polls (the hull moves). Candidate lists are not cached either — re-query on each band poll.
  */
 public final class OuterRingAwareness {
@@ -56,6 +57,12 @@ public final class OuterRingAwareness {
     /** Strength published into Facts by band (near → edge). */
     private static final double[] BAND_STRENGTH = {1.0, 0.75, 0.5, 0.25};
 
+    /**
+     * Foliage-only contacts from the mounted cylinder scan: same DISTANT_CONTACT channel,
+     * near-band strength. Keyed by hull id; consumed on the next {@link #tick}.
+     */
+    private static final ConcurrentHashMap<Integer, FoliageOffer> FOLIAGE_OFFERS = new ConcurrentHashMap<>();
+
     private VehicleEntity hull;
     private final long[] bandDeadline = new long[BANDS];
 
@@ -71,9 +78,20 @@ public final class OuterRingAwareness {
     private long glanceUntil = Long.MIN_VALUE;
 
     public void clear() {
+        if (this.hull != null) FOLIAGE_OFFERS.remove(this.hull.getId());
         this.hull = null;
         Arrays.fill(this.bandDeadline, Long.MIN_VALUE);
         dropSpot();
+    }
+
+    /**
+     * Inner-cylinder contact visible only through leaves — not engageable, but something is
+     * there. Reuses this class's spot / {@code DISTANT_CONTACT} publish path.
+     */
+    public static void offerFoliageContact(VehicleEntity hull, LivingEntity contact) {
+        if (hull == null || contact == null || !contact.isAlive()) return;
+        double dist = Math.sqrt(horizontalDistSq(hull, contact));
+        FOLIAGE_OFFERS.put(hull.getId(), new FoliageOffer(contact.getId(), contact.blockPosition(), dist));
     }
 
     /**
@@ -84,10 +102,12 @@ public final class OuterRingAwareness {
      */
     public void tick(AbstractUnit unit, VehicleEntity vehicle, Facts facts) {
         if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.OUTER_RING_ENABLED.get()) {
+            FOLIAGE_OFFERS.remove(vehicle.getId());
             clearFacts(facts);
             return;
         }
         if (unit.getTarget() != null || facts.underOrders) {
+            FOLIAGE_OFFERS.remove(vehicle.getId());
             clearFacts(facts);
             return;
         }
@@ -105,6 +125,7 @@ public final class OuterRingAwareness {
 
         long now = unit.level().getGameTime();
         prune(unit, vehicle, now);
+        consumeFoliageOffer(unit, vehicle, now);
 
         double inner = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
         double outer = outerRadius(vehicle);
@@ -117,6 +138,24 @@ public final class OuterRingAwareness {
         }
 
         publish(unit, facts, now);
+    }
+
+    /** Adopt a foliage offer when it is closer than the current outer spot (or none held). */
+    private void consumeFoliageOffer(AbstractUnit unit, VehicleEntity vehicle, long now) {
+        FoliageOffer offer = FOLIAGE_OFFERS.remove(vehicle.getId());
+        if (offer == null || unit.getTarget() != null) return;
+        if (this.spotId >= 0 && offer.dist >= this.spotDist) return;
+
+        Entity e = unit.level().getEntity(offer.id);
+        if (!(e instanceof LivingEntity living) || !living.isAlive()) return;
+
+        this.spotId = offer.id;
+        this.spotPos = offer.pos;
+        this.spotSeen = now;
+        this.spotDist = offer.dist;
+        this.spotBand = 0; // near-band strength — inside the engage cylinder, just obscured
+        armGlance(unit, vehicle, living, now);
+        debug("foliage hull=#{} cand=#{} dist={}", vehicle.getId(), offer.id, offer.dist);
     }
 
     /**
@@ -304,7 +343,8 @@ public final class OuterRingAwareness {
     }
 
     /**
-     * Coarse occlusion: sample MOTION_BLOCKING heightmap along the horizontal segment.
+     * Coarse occlusion: sample {@code MOTION_BLOCKING_NO_LEAVES} along the horizontal segment.
+     * Leaves are excluded so a canopy is {@code DISTANT_CONTACT} material, not hard terrain.
      * Unloaded sample chunks → not visible. Fence-post false positives are acceptable.
      */
     public static boolean coarseVisible(Level level, Vec3 from, Vec3 to, int samples) {
@@ -314,7 +354,7 @@ public final class OuterRingAwareness {
             int x = Mth.floor(from.x + (to.x - from.x) * t);
             int z = Mth.floor(from.z + (to.z - from.z) * t);
             if (!level.hasChunk(x >> 4, z >> 4)) return false;
-            int terrainY = level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
+            int terrainY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
             double lineY = from.y + (to.y - from.y) * t;
             if (terrainY > lineY) return false;
         }
@@ -388,4 +428,6 @@ public final class OuterRingAwareness {
         if (!com.neoalive.tacz_sewv.init.ModGameRules.server(com.neoalive.tacz_sewv.init.ModGameRules.OUTER_RING_DEBUG_LOGGING)) return;
         LOG.info("[sewv-outer] " + msg, args);
     }
+
+    private record FoliageOffer(int id, BlockPos pos, double dist) {}
 }

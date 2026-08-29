@@ -94,7 +94,8 @@ public class NetworkHandler {
     // 61: PacketHoldRevive (C->S hold-left-click-to-revive a downed PMC).
     // 62: PacketCaptureMedic (TDT "Capture Medic" order).
     // 67: PacketSetNameCategory (TDT "Identity" category, "Full Names" preference).
-    private static final String PROTOCOL_VERSION = "67";
+    // 68: spawn_probe open/save GUI packets.
+    private static final String PROTOCOL_VERSION = "68";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -444,6 +445,22 @@ public class NetworkHandler {
                 PacketSetNameCategory::encode,
                 PacketSetNameCategory::new,
                 PacketSetNameCategory::handle
+        );
+
+        // S->C / C->S, spawn_probe structure-prep editor.
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenSpawnProbeGui.class,
+                PacketOpenSpawnProbeGui::encode,
+                PacketOpenSpawnProbeGui::new,
+                PacketOpenSpawnProbeGui::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSaveSpawnProbe.class,
+                PacketSaveSpawnProbe::encode,
+                PacketSaveSpawnProbe::new,
+                PacketSaveSpawnProbe::handle
         );
     }
 }

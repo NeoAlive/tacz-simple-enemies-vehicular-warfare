@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
@@ -49,6 +50,7 @@ import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.support.DigFoxholeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SandbagSupport;
+import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionHudTracker;
@@ -120,7 +122,11 @@ public class SewvCommand {
                         .then(Commands.literal("InvasionResetTeamBlockCounter")
                                 .executes(ctx -> debugInvasionResetTeamBlockCounter(ctx.getSource())))
                         .then(Commands.literal("InvasionResetAllPoints")
-                                .executes(ctx -> debugInvasionResetAllPoints(ctx.getSource()))))
+                                .executes(ctx -> debugInvasionResetAllPoints(ctx.getSource())))
+                        .then(Commands.literal("ShowSpawnProbes")
+                                .then(Commands.argument("value", BoolArgumentType.bool())
+                                        .executes(ctx -> debugShowSpawnProbes(ctx.getSource(),
+                                                BoolArgumentType.getBool(ctx, "value"))))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("add")
@@ -518,6 +524,15 @@ public class SewvCommand {
         int n = cleared;
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.debug.InvasionResetAllPoints.ok", n), true);
+        return 1;
+    }
+
+    private static int debugShowSpawnProbes(CommandSourceStack source, boolean value) {
+        ServerLevel level = source.getLevel();
+        level.getGameRules().getRule(ModGameRules.SHOW_SPAWN_PROBES).set(value, source.getServer());
+        source.sendSuccess(() -> Component.translatable(
+                value ? "command.tacz_sewv.debug.ShowSpawnProbes.on"
+                        : "command.tacz_sewv.debug.ShowSpawnProbes.off"), true);
         return 1;
     }
 

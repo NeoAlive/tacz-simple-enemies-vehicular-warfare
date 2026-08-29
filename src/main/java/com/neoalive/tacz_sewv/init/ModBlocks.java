@@ -11,6 +11,7 @@ import com.neoalive.tacz_sewv.block.EmplacementBlock;
 import com.neoalive.tacz_sewv.block.FoxholeBlock;
 import com.neoalive.tacz_sewv.block.RunwayBlock;
 import com.neoalive.tacz_sewv.block.SandbagBlock;
+import com.neoalive.tacz_sewv.block.SpawnProbeBlock;
 import com.neoalive.tacz_sewv.block.TeamBaseBlock;
 import com.neoalive.tacz_sewv.block.TrenchBlock;
 import com.neoalive.tacz_sewv.block.TrenchXCrossBlock;
@@ -47,4 +48,8 @@ public class ModBlocks {
     /** PMC player-defined strip marker. */
     public static final RegistryObject<Block> RUNWAY =
             BLOCKS.register("runway_block", RunwayBlock::new);
+
+    /** Structure-prep vehicle spawn marker (barrier-like, traversable). */
+    public static final RegistryObject<Block> SPAWN_PROBE =
+            BLOCKS.register("spawn_probe", SpawnProbeBlock::new);
 }

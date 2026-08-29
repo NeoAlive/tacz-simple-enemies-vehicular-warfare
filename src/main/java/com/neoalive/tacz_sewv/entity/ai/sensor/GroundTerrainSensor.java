@@ -435,8 +435,10 @@ public final class GroundTerrainSensor extends TerrainSensor {
             if (!shape.isEmpty()) {
                 col.floorY = y + shape.max(Direction.Axis.Y);
                 if (EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()
-                        && (EnhancedFallingTreesFeller.isFellable(level, pos, state)
-                                || EnhancedFallingTreesFeller.isFoliage(state))) {
+                        && EnhancedFallingTreesFeller.isFellable(level, pos, state)) {
+                    // Logs only — leaves must keep normal stepDanger. Soft-treating foliage let
+                    // hulls climb the canopy (leaf collision as stairs) instead of felling the
+                    // trunk; pathing used to remap leaves to WALKABLE for the same reason.
                     col.tree = true;
                 }
                 return col;

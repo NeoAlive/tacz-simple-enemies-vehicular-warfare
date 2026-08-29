@@ -2,9 +2,8 @@ package com.neoalive.tacz_sewv.entity.ai.navigation;
 
 import java.util.List;
 
-import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
-
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;

@@ -81,6 +81,14 @@ public final class ModGameRules {
     public static final GameRules.Key<GameRules.BooleanValue> TRIPOD_SHIELD_WIREFRAME =
             GameRules.register("sewvTripodShieldWireframe", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
 
+    /**
+     * When on, {@code spawn_probe} blocks render their barrier placeholder (same MODEL path as
+     * holding {@code minecraft:barrier}). Toggle with {@code /sewv debug ShowSpawnProbes} or
+     * {@code /gamerule sewvShowSpawnProbes}.
+     */
+    public static final GameRules.Key<GameRules.BooleanValue> SHOW_SPAWN_PROBES =
+            GameRules.register("sewvShowSpawnProbes", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+
     private ModGameRules() {}
 
     /**

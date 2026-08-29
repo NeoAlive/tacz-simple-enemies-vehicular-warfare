@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai.navigation;
 
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -10,7 +11,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.TurretWreckEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleMotionUtils;
+import com.atsuishio.superbwarfare.tools.OBB;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import net.minecraft.core.BlockPos;
@@ -29,16 +30,22 @@ import net.minecraftforge.fml.common.Mod;
 import com.neoalive.tacz_sewv.TaczSewv;
 
 /**
- * Occupancy index of vehicle hitboxes for SEM infantry pathfinding and LOS.
+ * Occupancy index of vehicle <em>hull</em> hitboxes for SEM infantry pathfinding and LOS.
  *
  * <p>SBW OBB hulls return {@code canBeCollidedWith() == false}, so vanilla
  * {@code WalkNodeEvaluator} treats their volume as open air, and SEM / vanilla
  * line-of-sight is {@code Level.clip} (blocks only). This cache rasterizes each
- * loaded hull's combined AABB into packed block cells;
+ * loaded hull's chassis volume into packed block cells;
  * {@link com.neoalive.tacz_sewv.mixin.MixinWalkNodeEvaluator} overlays
  * {@code BLOCKED} on those cells for on-foot {@code AbstractUnit}s, and
  * {@link #occludes} is the same map walked as a ray so infantry stop dumping
  * rounds into a hull that sits between them and their target.
+ *
+ * <p>Only {@link OBB.Part#BODY} / {@link OBB.Part#COLLISION} are stamped — never the
+ * turret or interactive parts. The old combined-AABB path inflated a continuously
+ * mutating cube that included the turret sweep and blocked shots through empty air
+ * under the barrel. Entity {@code getBoundingBox()} is the fallback when a hull
+ * publishes no body OBBs.
  *
  * <p>MCSP / ASH / FCP hulls subclass SBW {@link VehicleEntity}, so one scan covers all of them.
  * {@link TurretWreckEntity} is a separate type (the blown-off turret), indexed from the
@@ -140,13 +147,34 @@ public final class VehiclePathObstacles {
         cache.cells.clear();
         for (VehicleEntity hull : level.getEntities(EntityTypeTest.forClass(VehicleEntity.class), h -> true)) {
             if (!include(hull)) continue;
-            AABB box = VehicleMotionUtils.INSTANCE.calculateCombinedAABBOptimized(hull)
-                    .inflate(INFLATE, 0.0, INFLATE);
-            stamp(cache, box, hull.getId());
+            stampHull(cache, hull);
         }
         for (TurretWreckEntity wreck : level.getEntities(EntityTypeTest.forClass(TurretWreckEntity.class), w -> true)) {
             if (!wreck.isAlive()) continue;
             stamp(cache, wreck.getBoundingBox().inflate(INFLATE, 0.0, INFLATE), wreck.getId());
+        }
+    }
+
+    /**
+     * Chassis only: {@code BODY}/{@code COLLISION} world AABBs. Turret / interactive /
+     * empty parts are skipped so a barrel sweeping overhead does not paint empty air
+     * as solid for infantry LoS and pathing.
+     */
+    private static void stampHull(Cache cache, VehicleEntity hull) {
+        int id = hull.getId();
+        List<OBB> obbs = hull.getOBBs();
+        boolean stamped = false;
+        if (obbs != null) {
+            for (OBB obb : obbs) {
+                OBB.Part part = obb.part;
+                if (part != OBB.Part.BODY && part != OBB.Part.COLLISION) continue;
+                stamp(cache, OBB.getWorldAABB(obb).inflate(INFLATE, 0.0, INFLATE), id);
+                stamped = true;
+            }
+        }
+        if (!stamped) {
+            // No body OBBs published (rare / addon) — entity BB is the chassis, not the turret.
+            stamp(cache, hull.getBoundingBox().inflate(INFLATE, 0.0, INFLATE), id);
         }
     }
 

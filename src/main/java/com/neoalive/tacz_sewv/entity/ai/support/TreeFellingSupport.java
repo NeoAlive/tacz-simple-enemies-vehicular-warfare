@@ -2,8 +2,10 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.atsuishio.superbwarfare.entity.OBBEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
@@ -31,10 +33,12 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
  *
  * <p>"Touches" is decided from SBW's own per-part {@link OBB}s ({@code Part.WHEEL_LEFT}/
  * {@code WHEEL_RIGHT}/{@code TURRET}/{@code BODY}/…, {@link VehicleEntity#getOBBs()} —
- * every {@code VehicleEntity} implements {@link OBBEntity}), not the single coarse
- * {@link VehicleEntity#getBoundingBox()}. Tracks and a turret overhang routinely sit outside that
- * one box, and SBW already keeps these world-space and current every tick (its own hit-detection
- * runs off the same list), so this reuses real data instead of a second, approximate hitbox.
+ * every {@code VehicleEntity} implements {@link OBBEntity}), inflated by one block so a
+ * newer SBW collision resolution cannot climb into the canopy before contact registers.
+ * Tracks and a turret overhang routinely sit outside the entity AABB, and SBW already
+ * keeps these world-space and current every tick (its own hit-detection runs off the same
+ * list), so this reuses real data instead of a second, approximate hitbox. Leaf contact
+ * resolves downward to a trunk before felling starts.
  *
  * <p>A tree does not fall on the first tick of contact — it needs {@link
  * SewvConfig#VEHICLE_TREE_CONTACT_TICKS} of <em>unbroken</em> contact first, so a hull that only
@@ -50,6 +54,16 @@ public final class TreeFellingSupport {
     /** Below this speed a hull cannot be driving into anything new by contact; skip the scan. */
     private static final double MIN_SPEED_SQ = 1.0E-4;
 
+    /**
+     * Extra reach (blocks) around each OBB for tree contact. SBW's newer collision lets a hull
+     * climb into the canopy before the exact OBB grazes the trunk; one block of buffer fells
+     * earlier without inventing a second hitbox system.
+     */
+    private static final double CONTACT_BUFFER = 1.0;
+
+    /** How far below a leaf contact to search for the trunk to fell. */
+    private static final int TRUNK_SEARCH_DEPTH = 8;
+
     private static final String TAG_CONTACTS = "sewv_tree_contacts";
 
     private TreeFellingSupport() {}
@@ -62,7 +76,10 @@ public final class TreeFellingSupport {
 
         Level level = vehicle.level();
         List<OBB> obbs = vehicle.getOBBs();
-        AABB scanBox = obbs.isEmpty() ? vehicle.getBoundingBox() : unionBox(obbs);
+        List<OBB> contactObbs = inflateForContact(obbs);
+        AABB scanBox = contactObbs.isEmpty()
+                ? vehicle.getBoundingBox().inflate(CONTACT_BUFFER)
+                : unionBox(contactObbs);
 
         int minX = Mth.floor(scanBox.minX);
         int minY = Mth.floor(scanBox.minY);
@@ -73,16 +90,16 @@ public final class TreeFellingSupport {
 
         // Cheapest check first: the OBB union AABB usually overestimates an angled hull's real
         // footprint, so most positions in it never touch anything. touchesHull (plain geometry)
-        // and the #minecraft:logs tag (a bitset test — see the same heuristic and its rationale
-        // in GroundVehicleNodeEvaluator) both filter for free; isFellable's registry scan runs
+        // and the #minecraft:logs / leaves tags filter for free; isFellable's registry scan runs
         // last, only against the handful of candidates that already passed both.
-        List<BlockPos> touchedNow = new ArrayList<>();
+        Set<BlockPos> touchedNow = new HashSet<>();
         for (BlockPos pos : BlockPos.betweenClosed(minX, minY, minZ, maxX, maxY, maxZ)) {
-            if (!touchesHull(obbs, vehicle, pos)) continue;
+            if (!touchesHull(contactObbs, vehicle, pos)) continue;
             BlockState state = level.getBlockState(pos);
-            if (!state.is(BlockTags.LOGS)) continue;
-            if (!EnhancedFallingTreesFeller.isFellable(level, pos, state)) continue;
-            touchedNow.add(pos.immutable());
+            BlockPos trunk = resolveTrunk(level, pos, state);
+            if (trunk == null) continue;
+            if (!EnhancedFallingTreesFeller.isFellable(level, trunk, level.getBlockState(trunk))) continue;
+            touchedNow.add(trunk);
         }
 
         long now = level.getGameTime();
@@ -111,13 +128,38 @@ public final class TreeFellingSupport {
         }
     }
 
+    /** Inflate every part by {@link #CONTACT_BUFFER}; empty list stays empty (caller uses entity BB). */
+    private static List<OBB> inflateForContact(List<OBB> obbs) {
+        if (obbs == null || obbs.isEmpty()) return List.of();
+        List<OBB> out = new ArrayList<>(obbs.size());
+        for (OBB obb : obbs) {
+            out.add(obb.inflate(CONTACT_BUFFER));
+        }
+        return out;
+    }
+
+    /**
+     * Log under the contact cell, or the cell itself if it is already a log. Leaf-first contact
+     * (wide canopy) must still name a trunk or felling never starts and the hull climbs foliage.
+     */
+    private static BlockPos resolveTrunk(Level level, BlockPos pos, BlockState state) {
+        if (state.is(BlockTags.LOGS)) return pos.immutable();
+        if (!state.is(BlockTags.LEAVES)) return null;
+        BlockPos.MutableBlockPos cursor = pos.mutable();
+        for (int dy = 1; dy <= TRUNK_SEARCH_DEPTH; dy++) {
+            cursor.set(pos.getX(), pos.getY() - dy, pos.getZ());
+            if (level.getBlockState(cursor).is(BlockTags.LOGS)) return cursor.immutable();
+        }
+        return null;
+    }
+
     /** Exact per-part collision when OBBs are available; falls back to the plain hitbox only for
      * a hull with no OBB data at all (unionBox already covers this — an empty obbs list means
      * scanBox came from getBoundingBox() in the first place). */
     private static boolean touchesHull(List<OBB> obbs, VehicleEntity vehicle, BlockPos pos) {
         AABB blockBox = new AABB(pos);
         if (obbs.isEmpty()) {
-            return vehicle.getBoundingBox().intersects(blockBox);
+            return vehicle.getBoundingBox().inflate(CONTACT_BUFFER).intersects(blockBox);
         }
         for (OBB obb : obbs) {
             if (OBB.isColliding(obb, blockBox)) return true;

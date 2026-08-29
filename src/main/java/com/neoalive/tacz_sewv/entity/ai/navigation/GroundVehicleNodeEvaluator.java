@@ -25,7 +25,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
-import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
@@ -198,13 +197,16 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     // not to be felled — recoverable like any other blocked-contact case — and a
                     // false negative just routes around it like before this compat existed.
                     //
+                    // Leaves are deliberately NOT remapped: soft-walking the canopy is what let
+                    // hulls climb trees through leaf collision. Only the trunk is drive-through.
+                    //
                     // Checked unconditionally (not gated on BLOCKED) so this single pass also
                     // answers footprintHasFellableTree's question for the whole footprint — that
                     // used to be a second, separate walk over these same cells in
                     // findAcceptedNode; the result is cached below instead.
                     if (treeFellingActive) {
                         BlockState cellState = level.getBlockState(this.probe.set(i + x, j + y, k + z));
-                        if (cellState.is(BlockTags.LOGS) || EnhancedFallingTreesFeller.isFoliage(cellState)) {
+                        if (cellState.is(BlockTags.LOGS)) {
                             footprintHasTree = true;
                             if (blockpathtypes == BlockPathTypes.BLOCKED) {
                                 blockpathtypes = BlockPathTypes.WALKABLE;
@@ -304,7 +306,6 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
 
     /** Reads {@link #footprintTreeCache}, filled in by {@link #getBlockPathType(BlockGetter,
      * int, int, int, Mob)}'s classification pass for this exact node — same footprint, same
-     * {@code #minecraft:logs}/foliage test, so nothing here needs re-walking in the common case.
      * Vanilla always classifies a node before {@code findAcceptedNode} can accept it, so a cache
      * miss should only happen on that classification loop's rare early-return paths; falling
      * back to a direct scan there means correctness never depends on that ordering holding. */
@@ -325,7 +326,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             for (int j = 0; j < h; j++) {
                 for (int k = 0; k < d; k++) {
                     BlockState state = level.getBlockState(this.probe.set(x + i, y + j, z + k));
-                    if (state.is(BlockTags.LOGS) || EnhancedFallingTreesFeller.isFoliage(state)) {
+                    if (state.is(BlockTags.LOGS)) {
                         return true;
                     }
                 }

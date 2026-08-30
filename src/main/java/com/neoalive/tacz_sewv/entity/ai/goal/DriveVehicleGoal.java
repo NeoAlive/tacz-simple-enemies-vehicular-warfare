@@ -18,6 +18,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.StalemateBreaker;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleDriver;
@@ -36,6 +37,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Action;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalBrain;
+import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 
 /**
@@ -85,6 +87,8 @@ public class DriveVehicleGoal extends Goal {
     private final StalemateBreaker breaker;
     /** Decides what this crew does about its target. See {@link #fightTick}. */
     private final TacticalBrain brain = new TacticalBrain();
+    /** Individual tactics posture (cover / scoot / ambush). Soft biases only under orders. */
+    private final TacticalPosture posture = new TacticalPosture();
     // Mutual support scanner (idle crew reinforces an allied crew in combat), shared with
     // DriveHelicopterGoal via VehicleTargeting.
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
@@ -102,6 +106,8 @@ public class DriveVehicleGoal extends Goal {
     private int selectedRole = VehicleWeapons.UNCLASSIFIED;
     /** Standoff Schmitt state: 0 hold, 1 closing, -1 opening. See {@link #maintainVehicleStandoff}. */
     private byte standoffPhase;
+    /** Throttle for posture override logs (game time of last line). */
+    private long lastPostureSteerLog = Long.MIN_VALUE;
 
     public DriveVehicleGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -168,6 +174,8 @@ public class DriveVehicleGoal extends Goal {
         this.outerRing.clear();
         this.brain.facts().unbind(this.unit);
         this.brain.clear();
+        this.posture.clear();
+        TacticalPosture.clearUnit(this.unit.getId());
     }
 
     @Override
@@ -181,7 +189,7 @@ public class DriveVehicleGoal extends Goal {
         this.outerRing.tick(this.unit, this.vehicle, this.brain.facts());
         // Re-read the battlefield and, on its own ~1s cadence, re-decide. Cheap on the ticks it
         // does nothing, which is most of them.
-        this.brain.update(this.unit, this.vehicle);
+        this.brain.update(this.unit, this.vehicle, this.posture);
 
         LivingEntity target = this.unit.getTarget();
 
@@ -368,6 +376,38 @@ public class DriveVehicleGoal extends Goal {
         // not be able to bring back the park-forever bug this exists to kill. It is skipped
         // while retreating, where silence is success rather than a stall.
         Action plan = this.brain.plan();
+        long now = this.unit.level().getGameTime();
+        Vec3 scoot = this.posture.scootOverrideDestination(now);
+        if (scoot != null && plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
+            // Fire-and-maneuver: temporary dest override; fan/ORCA still gate the approach.
+            this.driver.setInfantryPace(false);
+            logPostureSteer(now, "scoot", scoot, plan);
+            this.driver.navigateTo(BlockPos.containing(scoot), this.vehicle.distanceToSqr(scoot));
+            return;
+        }
+
+        Vec3 shield = this.posture.infantryShieldPoint();
+        if (shield != null && this.posture.active().contains(TacticalPosture.Tactic.INFANTRY_COVER)
+                && plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
+            this.driver.setInfantryPace(this.posture.throttleInfantryPace());
+            // Soft bias: when HOLD/ATTACK, prefer shield point over pure standoff stop.
+            if (plan == Action.HOLD || plan == Action.ATTACK) {
+                logPostureSteer(now, "infantryShield", shield, plan);
+                this.driver.navigateTo(BlockPos.containing(shield), this.vehicle.distanceToSqr(shield));
+                return;
+            }
+        } else {
+            this.driver.setInfantryPace(false);
+        }
+
+        Vec3 peek = this.posture.peekOffset();
+        if (peek != null && plan == Action.HOLD
+                && this.posture.active().contains(TacticalPosture.Tactic.CORNER_PEEK)) {
+            logPostureSteer(now, "keyhole", peek, plan);
+            this.driver.navigateTo(BlockPos.containing(peek), this.vehicle.distanceToSqr(peek));
+            return;
+        }
+
         if (plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
             BlockPos orbit = this.breaker.update(target, combatPos, ring);
             if (orbit != null) {
@@ -463,6 +503,18 @@ public class DriveVehicleGoal extends Goal {
      * {@link StalemateBreaker}'s own choice so the breaker's orbit and the scored flank never
      * disagree about the direction and walk the hull back and forth over the same ground.
      */
+    private void logPostureSteer(long now, String kind, Vec3 dest, Action plan) {
+        if (!SewvDiag.individualTacticsVerbose()) return;
+        if (now - this.lastPostureSteerLog < 20L) return;
+        this.lastPostureSteerLog = now;
+        SewvDiag.posture(
+                "steer unit={}#{} vehicle={}#{} kind={} plan={} dest={},{},{}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.vehicle.getName().getString(), this.vehicle.getId(),
+                kind, plan,
+                String.format("%.1f", dest.x), String.format("%.1f", dest.y), String.format("%.1f", dest.z));
+    }
+
     private boolean breakerGoesLeft() {
         return (this.unit.getId() & 1) == 0;
     }

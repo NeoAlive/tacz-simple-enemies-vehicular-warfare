@@ -322,6 +322,15 @@ tasks.register('selfCheckOrca', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckCover', JavaExec) {
+    group = 'verification'
+    description = 'Runs the cover visibility / Killzone-table self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.cover.CoverVisibilitySelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckBallistics', JavaExec) {
     group = 'verification'
     description = 'Runs the TaCZ-to-SBW ballistic translation self-check.'
@@ -334,7 +343,7 @@ tasks.register('selfCheckBallistics', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckBallistics'
+    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics'
 }
 
 mixin {

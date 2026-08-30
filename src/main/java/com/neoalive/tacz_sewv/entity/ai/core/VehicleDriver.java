@@ -153,10 +153,17 @@ public final class VehicleDriver {
     // and must not share commitment state.
     private int retreatTurn;
 
+    /** When true, forward throttle is duty-cycled ~half (infantry-cover pace). */
+    private boolean infantryPace;
+
     public VehicleDriver(AbstractUnit unit, HullFacts hull) {
         this.unit = unit;
         this.hull = hull;
         this.sensor = new GroundTerrainSensor(unit);
+    }
+
+    public void setInfantryPace(boolean pace) {
+        this.infantryPace = pace;
     }
 
     public void attach(VehicleEntity v) {
@@ -382,6 +389,7 @@ public final class VehicleDriver {
         this.lastLoggedSteerTarget = null;
         this.lastPathNode = null;
         this.pathRecalcCooldown = 0;
+        this.infantryPace = false;
         this.sensor.clear();
         clearRecovery();
     }
@@ -562,7 +570,9 @@ public final class VehicleDriver {
 
         if (Math.abs(angle) < angleThreshold) {
             if (facingClear) {
-                this.vehicle.setForwardInputDown(true);
+                boolean throttle = !this.infantryPace
+                        || (this.unit.level().getGameTime() & 1L) == 0L;
+                this.vehicle.setForwardInputDown(throttle);
                 this.vehicle.setBackInputDown(false);
                 this.vehicle.setLeftInputDown(false);
                 this.vehicle.setRightInputDown(false);

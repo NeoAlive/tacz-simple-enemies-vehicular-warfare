@@ -85,6 +85,40 @@ public final class TacticalBrain {
         return true;
     }
 
+    /**
+     * Same as {@link #update} but runs {@code posture.evaluate} after confidence is judged so
+     * scoot/ambush can read confidence, then patches posture Signals before decide.
+     */
+    public boolean update(AbstractUnit unit, VehicleEntity hull, TacticalPosture posture) {
+        this.facts.bind(unit);
+        Doctrine doctrine = Doctrine.forCrew(unit);
+        if (!this.facts.refresh(unit, hull)) return false;
+
+        long now = unit.level().getGameTime();
+        UtilityWeights weights = UtilityWeights.active();
+
+        sample(unit, this.facts, now);
+        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights);
+        this.signals[Signal.CONFIDENCE.ordinal()] = Confidence.asSignal(this.facts.confidence);
+
+        posture.evaluate(unit, hull, this.facts, doctrine);
+        patchPostureSignals(this.facts);
+
+        decide(unit, doctrine, weights, now);
+        return true;
+    }
+
+    private void patchPostureSignals(Facts f) {
+        double[] s = this.signals;
+        s[Signal.EXPOSED.ordinal()] = Mth.clamp(f.exposure, 0.0, 1.0);
+        s[Signal.IN_COVER.ordinal()] = Mth.clamp(f.inCover, 0.0, 1.0);
+        s[Signal.KEYHOLE.ordinal()] = Mth.clamp(f.keyholeQuality, 0.0, 1.0);
+        s[Signal.RECENT_SHOT.ordinal()] = Mth.clamp(f.recentShot, 0.0, 1.0);
+        s[Signal.ALLY_INFANTRY_NEAR.ordinal()] = Mth.clamp(f.alliedInfantryNear, 0.0, 1.0);
+        s[Signal.POSTURE_SCOOT.ordinal()] = f.postureScoot ? 1.0 : 0.0;
+        s[Signal.POSTURE_AMBUSH.ordinal()] = f.postureAmbush ? 1.0 : 0.0;
+    }
+
     public Action plan() {
         return this.plan;
     }
@@ -200,6 +234,15 @@ public final class TacticalBrain {
 
         // Command-tier tasking: one projection line — raise the matching TASKED_* or none.
         CrewAssignment.raiseTaskSignals(unit.getId(), s);
+
+        // Individual tactics / cover — Facts fields written by TacticalPosture before sample.
+        s[Signal.EXPOSED.ordinal()] = Mth.clamp(f.exposure, 0.0, 1.0);
+        s[Signal.IN_COVER.ordinal()] = Mth.clamp(f.inCover, 0.0, 1.0);
+        s[Signal.KEYHOLE.ordinal()] = Mth.clamp(f.keyholeQuality, 0.0, 1.0);
+        s[Signal.RECENT_SHOT.ordinal()] = Mth.clamp(f.recentShot, 0.0, 1.0);
+        s[Signal.ALLY_INFANTRY_NEAR.ordinal()] = Mth.clamp(f.alliedInfantryNear, 0.0, 1.0);
+        s[Signal.POSTURE_SCOOT.ordinal()] = f.postureScoot ? 1.0 : 0.0;
+        s[Signal.POSTURE_AMBUSH.ordinal()] = f.postureAmbush ? 1.0 : 0.0;
     }
 
     private void decide(AbstractUnit unit, Doctrine doctrine, UtilityWeights weights, long now) {

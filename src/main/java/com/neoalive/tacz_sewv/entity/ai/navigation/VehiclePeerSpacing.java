@@ -14,8 +14,10 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
  */
 public final class VehiclePeerSpacing {
 
-    /** Prefer this much clear space beyond contact inflate; routes stay feasible inside it. */
-    public static final double SOFT_DISTANCE = 8.0;
+    /** Prefer this much clear space beyond contact inflate; routes stay feasible inside it.
+     * Scaled with {@link VehicleOrca#CLEARANCE_SCALE} so path cost and steer-time ORCA agree
+     * on how much breathing room a peer wants. */
+    public static final double SOFT_DISTANCE = 8.0 * VehicleOrca.CLEARANCE_SCALE;
 
     /** Extra path cost at zero separation; falls off linearly to 0 at {@link #SOFT_DISTANCE}. */
     public static final float PATH_PENALTY = 3.0F;

@@ -89,6 +89,14 @@ public final class ModGameRules {
     public static final GameRules.Key<GameRules.BooleanValue> SHOW_SPAWN_PROBES =
             GameRules.register("sewvShowSpawnProbes", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
 
+    /**
+     * Individual tactics + cover-cache diagnosis ({@code [sewv-diag][posture]} /
+     * {@code [sewv-diag][cover]}). Toggle with {@code /gamerule sewvIndividualTacticsDebug} or
+     * {@code /sewv debug IndividualTactics true|false}.
+     */
+    public static final GameRules.Key<GameRules.BooleanValue> INDIVIDUAL_TACTICS_DEBUG =
+            GameRules.register("sewvIndividualTacticsDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+
     private ModGameRules() {}
 
     /**

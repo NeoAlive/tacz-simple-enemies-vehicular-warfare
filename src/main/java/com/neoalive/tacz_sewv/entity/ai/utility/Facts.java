@@ -229,6 +229,20 @@ public final class Facts {
     /** Game time when {@link #outerGlanceBearing} expires; {@link Long#MIN_VALUE} if none. */
     public long outerGlanceUntil = Long.MIN_VALUE;
 
+    // ---- individual tactics / cover (written by TacticalPosture after refresh) ----
+    /** 0..1 exposure to threat from cover cache; 1 when no threat / fully exposed. */
+    public double exposure = 1.0;
+    /** 0..1 = 1 - exposure when masked. */
+    public double inCover;
+    /** 0..1 keyhole / corner quality. */
+    public double keyholeQuality;
+    /** 0..1 recent AI shot decay. */
+    public double recentShot;
+    /** 0..1 allied infantry nearby density. */
+    public double alliedInfantryNear;
+    public boolean postureScoot;
+    public boolean postureAmbush;
+
     public final Memory memory = new Memory();
 
     /**
@@ -570,6 +584,13 @@ public final class Facts {
         this.outerSpotStrength = 0.0;
         this.outerGlanceBearing = null;
         this.outerGlanceUntil = Long.MIN_VALUE;
+        this.exposure = 1.0;
+        this.inCover = 0.0;
+        this.keyholeQuality = 0.0;
+        this.recentShot = 0.0;
+        this.alliedInfantryNear = 0.0;
+        this.postureScoot = false;
+        this.postureAmbush = false;
         this.memory.clear();
     }
 

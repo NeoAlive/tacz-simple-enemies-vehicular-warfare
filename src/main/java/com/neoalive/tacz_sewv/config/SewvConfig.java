@@ -172,6 +172,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue OUTER_RING_MAX_BLOCKS;
     // outerRingDebugLogging moved to gamerule sewvOuterRingDebugLogging — see ModGameRules.
 
+    public static final ForgeConfigSpec.BooleanValue COVER_CACHE_ENABLED;
+    public static final ForgeConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
+    public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_TACTICS_ENABLED;
+
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_JOIN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_LEAVE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_MAX_DIAMETER;
@@ -662,6 +666,17 @@ public final class SewvConfig {
         OUTER_RING_MAX_BLOCKS = builder.comment(
                         "Max distance (blocks) for that long-range awareness. Also limited by the server's view/simulation distance.")
                 .defineInRange("outerRingMaxBlocks", 192.0, 96.0, 512.0);
+        COVER_CACHE_ENABLED = builder.comment(
+                        "Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).",
+                        "Used by individual tactics for exposure / keyhole / scoot without per-tick raycasts.")
+                .define("coverCacheEnabled", true);
+        COVER_CACHE_BAKE_CELLS_PER_TICK = builder.comment(
+                        "Max 2x2 cover cells rebaked per server tick across all dimensions (budget). 64 cells = one chunk.")
+                .defineInRange("coverCacheBakeCellsPerTick", 64, 8, 256);
+        INDIVIDUAL_TACTICS_ENABLED = builder.comment(
+                        "Per-crew tactical posture (shoot-and-scoot, covering advance, keyhole, ambush, infantry cover).",
+                        "Soft biases only under player/command orders — never freezes a push.")
+                .define("individualTacticsEnabled", true);
         builder.pop();
 
         builder.push("command");

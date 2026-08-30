@@ -119,7 +119,23 @@ public enum Signal {
     /** Commander wants this hull to hold / overwatch. */
     TASKED_HOLD("taskedHold"),
     /** Commander wants this hull pulling back. */
-    TASKED_WITHDRAW("taskedWithdraw");
+    TASKED_WITHDRAW("taskedWithdraw"),
+
+    // ---- individual tactics (cover / posture) ----
+    /** 0..1 exposure to the threat bearing from the shared cover cache. */
+    EXPOSED("exposed"),
+    /** 0..1 inverse of exposure when a threat bearing exists. */
+    IN_COVER("inCover"),
+    /** 0..1 corner/keyhole quality (covered toward threat, open adjacent). */
+    KEYHOLE("keyhole"),
+    /** 1 shortly after an AI shot from this hull, decaying. */
+    RECENT_SHOT("recentShot"),
+    /** 0..1 nearby same-faction on-foot allies (infantry cover). */
+    ALLY_INFANTRY_NEAR("allyInfantryNear"),
+    /** Scoot waypoint is active (fire-and-maneuver). */
+    POSTURE_SCOOT("postureScoot"),
+    /** Ambush posture armed (orders-gated). */
+    POSTURE_AMBUSH("postureAmbush");
 
     /** The key naming this signal in the weights file. */
     public final String key;

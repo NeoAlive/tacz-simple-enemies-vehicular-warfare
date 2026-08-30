@@ -24,6 +24,7 @@ import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
+import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.util.SmokeVision;
 
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
@@ -82,6 +83,12 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         if (!(living instanceof AbstractUnit unit)) return;
 
         if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
+            cir.setReturnValue(false);
+            return;
+        }
+
+        LivingEntity ambushTarget = unit.getTarget();
+        if (ambushTarget != null && TacticalPosture.ambushHoldsFire(unit, ambushTarget)) {
             cir.setReturnValue(false);
             return;
         }

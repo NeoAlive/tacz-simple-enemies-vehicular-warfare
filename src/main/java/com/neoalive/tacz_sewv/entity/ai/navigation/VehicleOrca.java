@@ -27,14 +27,22 @@ public final class VehicleOrca {
     /** Disc is a hair larger than the AABB half-widths so a corner clip still counts. */
     public static final double RADIUS_PAD = 1.1;
 
+    /**
+     * Extra mutual clearance on top of the padded AABB disc. At 2.0, two tanks treat each other
+     * as roughly a hull-width farther out, so ORCA's skirt / imminent veto leave room to turn
+     * instead of brushing at contact. Keep in lockstep with
+     * {@link VehiclePeerSpacing#SOFT_DISTANCE}'s base (that constant is scaled by this too).
+     */
+    public static final double CLEARANCE_SCALE = 2.0;
+
     /** Below this a vector is treated as zero for normalization purposes. */
     private static final double EPS = 1.0E-9;
 
     private VehicleOrca() {}
 
-    /** Combined disc radius for two hulls. */
+    /** Combined disc radius for two hulls, including mutual clearance. */
     public static double radius(double halfA, double halfB) {
-        return (halfA + halfB) * RADIUS_PAD;
+        return (halfA + halfB) * RADIUS_PAD * CLEARANCE_SCALE;
     }
 
     /** One hull to steer around: position, current velocity, half-width, entity id. The id is

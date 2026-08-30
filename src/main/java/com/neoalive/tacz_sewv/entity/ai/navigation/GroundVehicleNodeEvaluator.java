@@ -37,11 +37,9 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
  * <ul>
  * <li><b>Footprint.</b> {@link #prepare} swaps the mob's dimensions for the hull's, so the
  *     whole inherited machinery searches for tank-sized clearance.</li>
- * <li><b>Fording.</b> Water deeper than {@link GroundMobility#FORD_DEPTH} is BLOCKED (lakes
- *     cannot be shortcuts). One-block water is accepted with a smoothstep cost. Dry nodes
- *     next to <em>deep</em> water take a soft margin cost — never a hard block, so a stream
- *     remains crossable. A hull already wet, or an amphibious one, is never blocked by
- *     water so it can path out.</li>
+ * <li><b>Water.</b> Any water at all is BLOCKED for a non-amphibious hull — no fording, no
+ *     already-wet exception. Dry nodes next to water take a soft margin cost, never a hard
+ *     block, so the route still avoids hugging a shoreline it isn't crossing.</li>
  * <li><b>Slope.</b> Accepted nodes whose unfloored rise approaches the hull's
  *     {@code maxUpStep} take a smoothstep cost; over that limit they are rejected.</li>
  * <li><b>Road preference.</b> Nodes whose footing is not in {@code #tacz_sewv:preferred_roads}
@@ -67,7 +65,6 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     public static final TagKey<Block> PREFERRED_ROADS = TagKey.create(
             Registries.BLOCK, new ResourceLocation(TaczSewv.MODID, "preferred_roads"));
 
-    private boolean inWater;
     private boolean amphibious;
     private float maxUpStep = 1.0F;
     private boolean loggedDeepWaterBlockThisSearch;
@@ -102,7 +99,6 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     @Override
     public void prepare(PathNavigationRegion region, Mob mob) {
         super.prepare(region, mob);
-        this.inWater = false;
         this.amphibious = false;
         this.maxUpStep = 1.0F;
         this.loggedDeepWaterBlockThisSearch = false;
@@ -111,7 +107,6 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         this.peerSoft = EMPTY;
         this.footprintTreeCache.clear();
         if (mob.getVehicle() instanceof VehicleEntity vehicle) {
-            this.inWater = vehicle.isInWater();
             this.amphibious = GroundMobility.isAmphibious(vehicle);
             this.maxUpStep = GroundMobility.maxUpStepOf(vehicle);
             this.entityWidth = Mth.floor(vehicle.getBbWidth() + 1.0F);
@@ -121,8 +116,8 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                 latchPeers(vehicle, unit);
             }
             if (SewvDiag.groundPathingVerbose()) {
-                SewvDiag.water("prepare vehicle={}#{} inWater={} amphibious={} maxUpStep={} size={}x{}x{} pos={}",
-                        vehicle.getName().getString(), vehicle.getId(), this.inWater, this.amphibious,
+                SewvDiag.water("prepare vehicle={}#{} amphibious={} maxUpStep={} size={}x{}x{} pos={}",
+                        vehicle.getName().getString(), vehicle.getId(), this.amphibious,
                         this.maxUpStep, this.entityWidth, this.entityHeight, this.entityDepth,
                         vehicle.blockPosition());
             }
@@ -152,12 +147,12 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     @Override
     public BlockPathTypes getBlockPathType(BlockGetter level, int x, int y, int z, Mob mob) {
         int depth = footprintWaterDepth(level, x, y, z);
-        if (GroundMobility.waterBlocked(depth, this.amphibious, this.inWater)) {
+        if (GroundMobility.waterBlocked(depth, this.amphibious)) {
             if (SewvDiag.groundPathingVerbose() && !this.loggedDeepWaterBlockThisSearch) {
                 this.loggedDeepWaterBlockThisSearch = true;
-                SewvDiag.water("deepWater BLOCKED mob={}#{} node={},{},{} depth={} ford={} inWater={} amphibious={}",
+                SewvDiag.water("water BLOCKED mob={}#{} node={},{},{} depth={} amphibious={}",
                         mob.getClass().getSimpleName(), mob.getId(),
-                        x, y, z, depth, GroundMobility.FORD_DEPTH, this.inWater, this.amphibious);
+                        x, y, z, depth, this.amphibious);
             }
             return BlockPathTypes.BLOCKED;
         }
@@ -257,7 +252,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         int maxZ = z + Math.max(1, this.entityDepth) - 1 + margin;
         for (int cx = minX; cx <= maxX; cx++) {
             for (int cz = minZ; cz <= maxZ; cz++) {
-                if (GroundMobility.waterDepth(this.level, this.probe, cx, y, cz) > GroundMobility.FORD_DEPTH) {
+                if (GroundMobility.waterDepth(this.level, this.probe, cx, y, cz) > 0) {
                     return true;
                 }
             }
@@ -284,10 +279,10 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         node.costMalus += slope;
 
         int depth = footprintWaterDepth(this.level, node.x, node.y, node.z);
-        float ford = GroundMobility.fordMalus(depth, this.amphibious, this.inWater);
+        float ford = GroundMobility.fordMalus(depth, this.amphibious);
         if (Float.isInfinite(ford)) return null;
         node.costMalus += ford;
-        if (depth <= 0 && !this.amphibious && !this.inWater && nearDeepWater(node.x, node.y, node.z)) {
+        if (depth <= 0 && !this.amphibious && nearDeepWater(node.x, node.y, node.z)) {
             node.costMalus += GroundMobility.DEEP_MARGIN_PENALTY;
         }
 

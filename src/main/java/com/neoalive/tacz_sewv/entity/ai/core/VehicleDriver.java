@@ -4,16 +4,21 @@ import java.util.Set;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.PathNavigationRegion;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.PathFinder;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import com.neoalive.tacz_sewv.entity.ai.sensor.GroundTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.RepairLockSupport;
@@ -101,6 +106,9 @@ public final class VehicleDriver {
     private static final int HULL_FAN_REVERSE_DURATION = 24;
     private static final double[] HULL_FAN_RETREAT_OFFSETS_DEG = {0.0, 25.0, -25.0};
 
+    // Submerged failsafe: bypasses the sensor/pathfinder entirely, direct steer to nearest land.
+    private static final int SUBMERGED_ESCAPE_RADIUS = 8;
+
     // Same bare angle>0 sign-test bug, third location: driveFaceAndReverse's facing correction
     // has only a symmetric deadband (FACING_DEADBAND_RAD), no directional memory, so a hull that
     // can't cleanly back away (colliding with terrain while reversing) flip-flops its facing
@@ -172,6 +180,7 @@ public final class VehicleDriver {
      */
     public void navigateTo(BlockPos dest, double distanceSq) {
         if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
+        if (checkSubmergedFailsafe()) return;
         dest = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjust(this.vehicle, dest);
         // Bank-lip reverse: face the blocked destination (usually into the water) and reverse off
         // the overhang. Abort if SBW reports wet — that is the existing escape-hatch case, not
@@ -276,6 +285,7 @@ public final class VehicleDriver {
      */
     public void retreatFrom(BlockPos targetPos, double retreatRadius, double distanceSq) {
         if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
+        if (checkSubmergedFailsafe()) return;
         Vec3 toTarget = new Vec3(
                 targetPos.getX() + 0.5 - this.vehicle.getX(),
                 0,
@@ -706,6 +716,107 @@ public final class VehicleDriver {
         this.vehicle.setRightInputDown(!aligned && !left);
         this.vehicle.setForwardInputDown(false);
         this.vehicle.setBackInputDown(true);
+    }
+
+    /**
+     * Last-resort surfacing: if the hull's own hitbox is entirely inside fluid, drop every normal
+     * concern (order, path, recovery state) and drive straight at the nearest dry cell within
+     * {@link #SUBMERGED_ESCAPE_RADIUS} blocks. Returns true when it took over steering this tick.
+     */
+    private boolean checkSubmergedFailsafe() {
+        if (GroundMobility.isAmphibious(this.vehicle) || !isFullySubmerged()) return false;
+        BlockPos escape = nearestDryCell();
+        if (escape == null) {
+            // Nothing dry within reach this tick — hold rather than guess; the loop re-checks
+            // every tick, so as soon as a reachable cell exists (current or drift) this resumes.
+            stop();
+            return true;
+        }
+        SewvDiag.waterEvent(
+                "submerged FAILSAFE unit={}#{} vehicle={}#{} pos={} escape={} — hull hitbox fully in fluid",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.vehicle.getName().getString(), this.vehicle.getId(),
+                this.vehicle.blockPosition(), escape);
+        this.currentPath = null;
+        this.pathRecalcCooldown = 0;
+        clearRecovery();
+        driveDirectAt(escape);
+        return true;
+    }
+
+    /** True iff every block cell the hull's bounding box overlaps is fluid — not a probe sample,
+     * the actual hitbox, so this cannot be fooled by whatever blind spot let the hull get here. */
+    private boolean isFullySubmerged() {
+        AABB box = this.vehicle.getBoundingBox();
+        Level level = this.unit.level();
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        int minX = Mth.floor(box.minX), maxX = Mth.floor(box.maxX);
+        int minY = Mth.floor(box.minY), maxY = Mth.floor(box.maxY);
+        int minZ = Mth.floor(box.minZ), maxZ = Mth.floor(box.maxZ);
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    if (!level.getFluidState(pos.set(x, y, z)).is(FluidTags.WATER)) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** Nearest dry LAND within {@link #SUBMERGED_ESCAPE_RADIUS} blocks — the actual ground
+     * surface of each column, not just any non-fluid cell. A raw "not fluid" scan finds the
+     * solid lakebed a couple of blocks straight down from a fully submerged hull just as
+     * readily as it finds a real bank; that cell is embedded rock, not somewhere to drive, so
+     * the hull just sat there aiming into the ground every tick. Horizontal distance only, since
+     * {@link #driveDirectAt} steers horizontally — a column's own height above/below the hull
+     * doesn't matter here. */
+    private BlockPos nearestDryCell() {
+        Level level = this.unit.level();
+        BlockPos center = this.vehicle.blockPosition();
+        BlockPos best = null;
+        long bestDistSq = Long.MAX_VALUE;
+        int r = SUBMERGED_ESCAPE_RADIUS;
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                int x = center.getX() + dx, z = center.getZ() + dz;
+                BlockPos surface = level.getHeightmapPos(
+                        Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, center.getY(), z));
+                if (Math.abs(surface.getY() - center.getY()) > r) continue;
+                if (level.getFluidState(surface.below()).is(FluidTags.WATER)) continue;
+                long distSq = (long) dx * dx + (long) dz * dz;
+                if (distSq < bestDistSq) {
+                    bestDistSq = distSq;
+                    best = surface;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** Raw point-and-go: no sensor, no fan, no pathfinder — the whole reason this exists is that
+     * every one of those has been caught wrong while the hull was drowning. Same turn/throttle
+     * shape as the tail of {@link #driveGroundVehicle}, just with nothing standing between the
+     * hull and the escape cell. */
+    private void driveDirectAt(BlockPos targetPos) {
+        Vec3 desired = new Vec3(
+                targetPos.getX() + 0.5 - this.vehicle.getX(),
+                0,
+                targetPos.getZ() + 0.5 - this.vehicle.getZ());
+        if (desired.lengthSqr() < 1.0E-8) { stop(); return; }
+        desired = desired.normalize();
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        double angle = VehicleTargeting.signedAngleTo(forward, desired);
+        if (Math.abs(angle) < FACING_DEADBAND_RAD) {
+            this.vehicle.setForwardInputDown(true);
+            this.vehicle.setBackInputDown(false);
+            this.vehicle.setLeftInputDown(false);
+            this.vehicle.setRightInputDown(false);
+        } else {
+            this.vehicle.setLeftInputDown(angle > 0);
+            this.vehicle.setRightInputDown(angle < 0);
+            this.vehicle.setForwardInputDown(!this.hull.isTracked());
+            this.vehicle.setBackInputDown(false);
+        }
     }
 
     private double getRotationStopAngle(double distanceSq) {

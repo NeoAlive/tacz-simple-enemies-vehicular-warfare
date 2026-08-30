@@ -35,19 +35,17 @@ public final class GroundMobilitySelfCheck {
     }
 
     private static void fordGate() {
-        assert !GroundMobility.waterBlocked(1, false, false) : "1-block ford is allowed";
-        assert GroundMobility.waterBlocked(2, false, false) : "2-block water is blocked";
-        assert !GroundMobility.waterBlocked(2, true, false) : "amphibious is never blocked";
-        assert !GroundMobility.waterBlocked(2, false, true) : "already-wet hull can path out";
-        assertClose(0.0F, GroundMobility.fordMalus(0, false, false), "dry ford malus");
-        assertClose(GroundMobility.FORD_PENALTY, GroundMobility.fordMalus(1, false, false), "limit ford malus");
-        assert Float.isInfinite(GroundMobility.fordMalus(2, false, false)) : "over-ford malus is inf";
-        assertClose(GroundMobility.AMPHIBIOUS_WATER_COST, GroundMobility.fordMalus(4, true, false),
+        assert !GroundMobility.waterBlocked(0, false) : "dry is never blocked";
+        assert GroundMobility.waterBlocked(1, false) : "any water at all is blocked";
+        assert GroundMobility.waterBlocked(4, false) : "deep water is blocked";
+        assert !GroundMobility.waterBlocked(4, true) : "amphibious is never blocked";
+        assertClose(0.0F, GroundMobility.fordMalus(0, false), "dry ford malus");
+        assert Float.isInfinite(GroundMobility.fordMalus(1, false)) : "any water malus is inf";
+        assertClose(GroundMobility.AMPHIBIOUS_WATER_COST, GroundMobility.fordMalus(4, true),
                 "amphibious water cost");
-        assertClose(0.0F, GroundMobility.waterDanger(1, true, false), "amphibious water danger");
-        assert GroundMobility.waterDanger(1, false, false) < 1.0F : "fordable water is not a hard wall";
-        assertClose(1.0F, GroundMobility.waterDanger(2, false, false), "deep water danger");
-        assertClose(0.0F, GroundMobility.waterDanger(2, false, true), "wet escape danger");
+        assertClose(0.0F, GroundMobility.waterDanger(0, false), "dry danger");
+        assertClose(1.0F, GroundMobility.waterDanger(1, false), "any water is a hard wall");
+        assertClose(0.0F, GroundMobility.waterDanger(4, true), "amphibious water danger");
     }
 
     private static void slopeGate() {

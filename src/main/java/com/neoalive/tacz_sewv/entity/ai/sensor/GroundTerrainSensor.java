@@ -36,11 +36,24 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
  * each crew's half-plane construction assumes the other takes half the dodge, which is what
  * stops two tanks swapping sides every tick. Infantry on foot stay an AABB. Terrain stays on the
  * maps.
+ *
+ * <p>Any water at all is a hard cap for a non-amphibious hull, unconditionally — no grading, no
+ * already-wet exception. SBW gives a zero-buoyancy hull no way to recover once it loses ground
+ * contact over water (gravity keeps pulling it down, thrust and turn rate are both cut to a
+ * fraction), so steering can never be trusted to out-fight that after the fact — the only
+ * reliable answer is to never let the hull get close enough to leave the ground in the first
+ * place.
  */
 public final class GroundTerrainSensor extends TerrainSensor {
 
     private static final double LOOKAHEAD_DISTANCE = 5.0;
-    private static final int FLUID_PROBE_DEPTH = 8;
+    /** How far down probeColumn's floor-scan looks before giving up. Doubles as the reach of the
+     * water-below-a-drop check folded into that same loop — an 8-block cap missed lakes sitting
+     * 10-12 blocks below a bank (verified live: hulls nosed over the edge with the shallow scan
+     * reporting NO_FLOOR — an ordinary, non-hazardous "crossed a drop" — instead of ever reaching
+     * the water). 32 comfortably covers realistic lake/cliff drops without paying for it on the
+     * common case, since the loop still exits the instant it finds solid ground. */
+    private static final int FLUID_PROBE_DEPTH = 32;
     private static final int N = GroundMobility.SLOT_COUNT;
     /** Preferred speed used when the hull is nearly stopped, so ORCA still sees incoming traffic. */
     private static final double MIN_PREF_SPEED = 0.2;
@@ -119,14 +132,14 @@ public final class GroundTerrainSensor extends TerrainSensor {
     }
 
     /**
-     * Center column is over-ford-depth water while SBW still says dry — the bank-overhang
-     * case. Map blend covers heading flicker; reverse recovery still wants this boolean.
+     * Center column is water while SBW still says dry — the bank-overhang case. Map blend
+     * covers heading flicker; reverse recovery still wants this boolean.
      */
     public boolean isDryBankLipHazard() {
         return this.vehicle != null
                 && !this.amphibious
                 && !this.vehicle.isInWater()
-                && this.cachedCenterWater > GroundMobility.FORD_DEPTH;
+                && this.cachedCenterWater > 0;
     }
 
     public boolean isLastFanHullDominated() {
@@ -254,7 +267,13 @@ public final class GroundTerrainSensor extends TerrainSensor {
     @Override
     public boolean headingClear(Vec3 dir, double distance) {
         ensureCenter();
-        Probe p = probeHeading(dir, distance, false);
+        // Width-validated (beam), not a bare centerline probe: this answers "is it safe to move
+        // the FULL HULL this way" for retreat/reverse and the forward-translate gate alike, and a
+        // centerline-only check let a hull back along a narrow shoreline where the middle line
+        // reads dry while either side of the hull's actual width is over water — verified live,
+        // a boxed-in T-90A picked a "clear" retreat via this check and backed itself down a bank
+        // it would have rejected outright had the retreat probe seen its own width.
+        Probe p = probeHeading(dir, distance, true);
         this.lastStepDelta = p.stepDelta;
         this.lastWaterDepth = p.waterDepth;
         if (p.hard >= GroundMobility.HARD_CAP) {
@@ -313,7 +332,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
                 out.reason = "fluid";
                 return out;
             }
-            float water = GroundMobility.waterDanger(col.waterDepth, this.amphibious, this.vehicle.isInWater());
+            float water = GroundMobility.waterDanger(col.waterDepth, this.amphibious);
             if (water >= GroundMobility.HARD_CAP) {
                 out.hard = 1.0F;
                 out.reason = "fluid";
@@ -425,6 +444,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
                 return col;
             }
         }
+        boolean sawWaterBelow = false;
         for (int y = baseY + this.hullTop; y >= baseY - FLUID_PROBE_DEPTH; y--) {
             var state = level.getBlockState(pos.set(x, y, z));
             if (state.getFluidState().is(FluidTags.LAVA)) {
@@ -446,6 +466,15 @@ public final class GroundTerrainSensor extends TerrainSensor {
             if (this.amphibious && state.getFluidState().is(FluidTags.WATER)) {
                 col.floorY = y + 1.0;
                 return col;
+            }
+            if (!this.amphibious && !sawWaterBelow && state.getFluidState().is(FluidTags.WATER)) {
+                // A ledge can put water several blocks below the vehicle's OWN elevation — past
+                // where the baseY-anchored waterDepth above ever looks (3 blocks down from baseY).
+                // Fluid has no collision, so this floor search would otherwise walk straight
+                // through it looking for the lakebed and never notice. Fold in whatever water this
+                // column's own floor search finds, at the depth it actually sits.
+                sawWaterBelow = true;
+                col.waterDepth = Math.max(col.waterDepth, GroundMobility.waterDepth(level, pos, x, y, z));
             }
         }
         return col;

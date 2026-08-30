@@ -14,22 +14,17 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.util.WarnOnce;
 
 /**
- * Shared ground-mobility numbers: fording, slope cost, context-map pick.
- * Used by {@link GroundVehicleNodeEvaluator} (A* malus) and
+ * Shared ground-mobility numbers: water, slope cost, context-map pick. A non-amphibious hull
+ * never enters water at all — no fording, no depth grading, no already-wet exception. Used by
+ * {@link GroundVehicleNodeEvaluator} (A* malus) and
  * {@link com.neoalive.tacz_sewv.entity.ai.sensor.GroundTerrainSensor} (whisker maps).
  */
 public final class GroundMobility {
 
-    /** Consecutive water cells a non-amphibious hull may enter. Deeper is BLOCKED. */
-    public static final int FORD_DEPTH = 1;
-
-    /** Soft cost reach around over-limit (deep) water; never a hard block. */
+    /** Soft cost reach around water; never a hard block. */
     public static final int DEEP_WATER_MARGIN = 3;
 
-    /** Path malus at the fording limit (smoothstep 1). */
-    public static final float FORD_PENALTY = 6.0F;
-
-    /** Path malus for a dry node sitting next to deep water. */
+    /** Path malus for a dry node sitting next to water. */
     public static final float DEEP_MARGIN_PENALTY = 3.0F;
 
     /** Path malus at maxUpStep (smoothstep from 0.5×). */
@@ -69,15 +64,14 @@ public final class GroundMobility {
         return smoothstep((t - 0.5F) / 0.5F);
     }
 
-    public static boolean waterBlocked(int depth, boolean amphibious, boolean inWater) {
-        return !amphibious && !inWater && depth > FORD_DEPTH;
+    public static boolean waterBlocked(int depth, boolean amphibious) {
+        return !amphibious && depth > 0;
     }
 
-    public static float fordMalus(int depth, boolean amphibious, boolean inWater) {
+    public static float fordMalus(int depth, boolean amphibious) {
         if (depth <= 0) return 0.0F;
         if (amphibious) return AMPHIBIOUS_WATER_COST;
-        if (waterBlocked(depth, false, inWater)) return Float.POSITIVE_INFINITY;
-        return FORD_PENALTY * smoothstep(Math.min(depth, FORD_DEPTH) / (float) FORD_DEPTH);
+        return Float.POSITIVE_INFINITY;
     }
 
     public static float slopeMalus(double rise, float maxUpStep) {
@@ -93,11 +87,8 @@ public final class GroundMobility {
         return Math.min(0.99F, bite((float) (delta / maxUpStep)));
     }
 
-    public static float waterDanger(int depth, boolean amphibious, boolean inWater) {
-        if (depth <= 0 || amphibious) return 0.0F;
-        if (inWater) return 0.0F; // escape hatch — still drive
-        if (depth > FORD_DEPTH) return 1.0F;
-        return Math.min(0.99F, smoothstep(depth / (float) FORD_DEPTH));
+    public static float waterDanger(int depth, boolean amphibious) {
+        return waterBlocked(depth, amphibious) ? 1.0F : 0.0F;
     }
 
     public static float maxUpStepOf(VehicleEntity v) {
@@ -116,10 +107,11 @@ public final class GroundMobility {
         }
     }
 
-    /** Consecutive water cells from {@code y} downward. */
+    /** Consecutive water cells from {@code y} downward, capped at 3 (diagnostic value only —
+     * any depth above 0 is equally blocked). */
     public static int waterDepth(BlockGetter level, BlockPos.MutableBlockPos pos, int x, int y, int z) {
         int depth = 0;
-        for (int dy = 0; dy <= FORD_DEPTH + 2; dy++) {
+        for (int dy = 0; dy <= 3; dy++) {
             if (!level.getFluidState(pos.set(x, y - dy, z)).is(FluidTags.WATER)) break;
             depth++;
         }

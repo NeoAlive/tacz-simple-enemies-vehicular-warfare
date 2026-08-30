@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 
 /**
  * Vanilla's walking pathfinder sized for the hull the crewman is driving, not for the
@@ -271,6 +272,11 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             node.costMalus += OFF_ROAD_PENALTY;
         }
         node.costMalus += peerSpacingMalus(node);
+        if (this.mob != null && this.mob.level() instanceof net.minecraft.server.level.ServerLevel server) {
+            double cx = node.x + this.entityWidth * 0.5;
+            double cz = node.z + this.entityDepth * 0.5;
+            node.costMalus += TacticalPosture.coverPathMalus(this.mob.getId(), cx, cz, server);
+        }
 
         VoxelShape shape = footing.getCollisionShape(this.level, this.probe);
         double top = shape.isEmpty() ? node.y : (node.y - 1) + shape.max(Direction.Axis.Y);

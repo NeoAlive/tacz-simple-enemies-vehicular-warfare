@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehicleOrca;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
+import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 
 /**
  * Terrain sensing for a ground hull: context maps over the same 7-slot fan the old
@@ -220,6 +221,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
             }
         }
         this.interest[facingSlot] = Math.max(this.interest[facingSlot], GroundMobility.FACING_INTEREST);
+        TacticalPosture.applyPublishedFanBias(this.unit.getId(), this.interest);
         if (this.mapsPrimed) {
             GroundMobility.blendMaps(this.prevInterest, this.interest);
             GroundMobility.blendMaps(this.prevHard, this.hardDanger);

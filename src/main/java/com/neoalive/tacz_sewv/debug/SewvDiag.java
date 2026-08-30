@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.util.WarnOnce;
  *       {@code sewvGroundPathingDebug}</li>
  *   <li>{@link #ship} — {@code sewvShipPathingDebug}</li>
  *   <li>{@link #flight} — {@code sewvHeliFlightDebug}</li>
+ *   <li>{@link #posture}/{@link #cover} — {@code sewvIndividualTacticsDebug}</li>
  *   <li>Everything else — {@code sewvDiagDebug}</li>
  * </ul>
  * Callers of the verbose pathing / flight tiers should still guard expensive arg construction with
@@ -47,6 +48,11 @@ public final class SewvDiag {
     /** Non-pathing [sewv-diag] channels. Default off. */
     public static boolean diagEnabled() {
         return ModGameRules.server(ModGameRules.SEWV_DIAG_DEBUG);
+    }
+
+    /** Individual tactics / cover-cache investigation. Default off. */
+    public static boolean individualTacticsVerbose() {
+        return ModGameRules.server(ModGameRules.INDIVIDUAL_TACTICS_DEBUG);
     }
 
     public static void targeting(String msg, Object... args) {
@@ -129,6 +135,24 @@ public final class SewvDiag {
     public static void flight(String msg, Object... args) {
         if (!heliFlightVerbose()) return;
         LOG.info("[sewv-diag][flight] " + msg, args);
+    }
+
+    /**
+     * Per-crew tactical posture (active tactics, scoot/ambush/shield). Guard expensive arg
+     * construction with {@link #individualTacticsVerbose()}.
+     */
+    public static void posture(String msg, Object... args) {
+        if (!individualTacticsVerbose()) return;
+        LOG.info("[sewv-diag][posture] " + msg, args);
+    }
+
+    /**
+     * Cover-cache bake / exposure. Same gate as {@link #posture}. Prefer event-style lines
+     * (chunk baked, scoot committed) over per-tick spam.
+     */
+    public static void cover(String msg, Object... args) {
+        if (!individualTacticsVerbose()) return;
+        LOG.info("[sewv-diag][cover] " + msg, args);
     }
 
     /**

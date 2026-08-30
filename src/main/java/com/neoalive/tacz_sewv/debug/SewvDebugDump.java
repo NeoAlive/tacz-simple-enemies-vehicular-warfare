@@ -157,6 +157,8 @@ public final class SewvDebugDump {
                     .append('\n');
         }
         sb.append("note=Former toml [spawn_gates] / tanksInEvents — toggle with /gamerule, not config.\n");
+        sb.append("sewvIndividualTacticsDebug=")
+                .append(level.getGameRules().getBoolean(ModGameRules.INDIVIDUAL_TACTICS_DEBUG)).append('\n');
         sb.append('\n');
     }
 

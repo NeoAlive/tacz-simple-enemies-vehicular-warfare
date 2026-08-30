@@ -126,6 +126,10 @@ public class SewvCommand {
                         .then(Commands.literal("ShowSpawnProbes")
                                 .then(Commands.argument("value", BoolArgumentType.bool())
                                         .executes(ctx -> debugShowSpawnProbes(ctx.getSource(),
+                                                BoolArgumentType.getBool(ctx, "value")))))
+                        .then(Commands.literal("IndividualTactics")
+                                .then(Commands.argument("value", BoolArgumentType.bool())
+                                        .executes(ctx -> debugIndividualTactics(ctx.getSource(),
                                                 BoolArgumentType.getBool(ctx, "value"))))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
@@ -533,6 +537,15 @@ public class SewvCommand {
         source.sendSuccess(() -> Component.translatable(
                 value ? "command.tacz_sewv.debug.ShowSpawnProbes.on"
                         : "command.tacz_sewv.debug.ShowSpawnProbes.off"), true);
+        return 1;
+    }
+
+    private static int debugIndividualTactics(CommandSourceStack source, boolean value) {
+        ServerLevel level = source.getLevel();
+        level.getGameRules().getRule(ModGameRules.INDIVIDUAL_TACTICS_DEBUG).set(value, source.getServer());
+        source.sendSuccess(() -> Component.translatable(
+                value ? "command.tacz_sewv.debug.IndividualTactics.on"
+                        : "command.tacz_sewv.debug.IndividualTactics.off"), true);
         return 1;
     }
 

@@ -22,8 +22,11 @@ package com.neoalive.tacz_sewv.entity.ai.navigation;
  */
 public final class VehicleOrcaSelfCheck {
 
-    private static final double R = VehicleOrca.radius(2.0, 2.0); // 4.4
+    private static final double R = VehicleOrca.radius(2.0, 2.0); // 8.8 at CLEARANCE_SCALE=2
     private static final double TAU = 30.0;
+    /** Head-on peer distance used when RADIUS_PAD alone was calibrated (10 vs R≈4.4). Scales
+     * with clearance so the same geometry (outside the disc, inside τ) still holds. */
+    private static final double HEAD_ON_Z = 10.0 * VehicleOrca.CLEARANCE_SCALE;
 
     public static void main(String[] args) {
         boolean assertionsOn = false;
@@ -49,7 +52,7 @@ public final class VehicleOrcaSelfCheck {
     }
 
     private static void radiusUnchanged() {
-        assertClose(4.4, VehicleOrca.radius(2.0, 2.0), "combined radius");
+        assertClose(8.8, VehicleOrca.radius(2.0, 2.0), "combined radius");
     }
 
     /** Bodies already touching and still closing under the candidate's implied RVO velocity. */
@@ -71,14 +74,14 @@ public final class VehicleOrcaSelfCheck {
      * hard gate — see the class doc.
      */
     private static void headOnContinuingIsNotPermitted() {
-        VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(0, 10, 0, 0.4, 0, -0.4, R, TAU, 0.0);
+        VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(0, HEAD_ON_Z, 0, 0.4, 0, -0.4, R, TAU, 0.0);
         assert !VehicleOrca.permitted(0, 0.4, 0, 0.4, hp) : "continuing straight into a closing peer must not be permitted";
     }
 
     /** margin(v) is exactly linear in v, so the boundary point vOptA+0.5u sits exactly at
      * margin=0 (permitted, inclusive) by construction — pins down the flip point precisely. */
     private static void headOnBoundaryIsExactlyPermitted() {
-        VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(0, 10, 0, 0.4, 0, -0.4, R, TAU, 0.0);
+        VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(0, HEAD_ON_Z, 0, 0.4, 0, -0.4, R, TAU, 0.0);
         double bx = 0.5 * hp.ux();
         double bz = 0.4 + 0.5 * hp.uz();
         assertClose(0.0, VehicleOrca.margin(bx, bz, 0, 0.4, hp), "boundary margin");
@@ -89,20 +92,21 @@ public final class VehicleOrcaSelfCheck {
     }
 
     private static void headOnEvasiveSideIsPermitted() {
-        VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(0, 10, 0, 0.4, 0, -0.4, R, TAU, 0.0);
+        VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(0, HEAD_ON_Z, 0, 0.4, 0, -0.4, R, TAU, 0.0);
         // u points toward -x here; sidestepping that way is the correct evasive move.
         assert VehicleOrca.permitted(-0.6, 0.4, 0, 0.4, hp) : "sidestepping toward u's side must be permitted";
     }
 
     private static void headOnWrongSideIsNotPermitted() {
-        VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(0, 10, 0, 0.4, 0, -0.4, R, TAU, 0.0);
+        VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(0, HEAD_ON_Z, 0, 0.4, 0, -0.4, R, TAU, 0.0);
         assert !VehicleOrca.permitted(0.6, 0.4, 0, 0.4, hp) : "sidestepping the wrong way must not be permitted";
     }
 
     /** ORCA's reciprocity: A's u for B must be exactly B's u for A, negated (both take
      * complementary, not identical, halves of the avoidance). */
     private static void reciprocityHoldsUnderRoleSwap() {
-        double px = 3, pz = 12, avx = -0.1, avz = 0.4, bvx = 0.2, bvz = -0.35;
+        double scale = VehicleOrca.CLEARANCE_SCALE;
+        double px = 3 * scale, pz = 12 * scale, avx = -0.1, avz = 0.4, bvx = 0.2, bvz = -0.35;
         VehicleOrca.HalfPlane hpA = VehicleOrca.halfPlane(px, pz, avx, avz, bvx, bvz, R, TAU, 0.0);
         VehicleOrca.HalfPlane hpB = VehicleOrca.halfPlane(-px, -pz, bvx, bvz, avx, avz, R, TAU, 0.0);
         assertClose(0.0, hpA.ux() + hpB.ux(), "reciprocal u.x");
@@ -118,8 +122,8 @@ public final class VehicleOrcaSelfCheck {
      */
     private static void sideBiasBreaksExactTieReciprocally() {
         double eps = 1.0E-6;
-        VehicleOrca.HalfPlane left = VehicleOrca.halfPlane(0, 10, 0, 0.4, 0, -0.4, R, TAU, eps);
-        VehicleOrca.HalfPlane right = VehicleOrca.halfPlane(0, 10, 0, 0.4, 0, -0.4, R, TAU, -eps);
+        VehicleOrca.HalfPlane left = VehicleOrca.halfPlane(0, HEAD_ON_Z, 0, 0.4, 0, -0.4, R, TAU, eps);
+        VehicleOrca.HalfPlane right = VehicleOrca.halfPlane(0, HEAD_ON_Z, 0, 0.4, 0, -0.4, R, TAU, -eps);
         assert Math.abs(left.ux()) > 0.1 : "biased tie must produce a real lateral push, got " + left.ux();
         assertClose(left.ux(), -right.ux(), "opposite bias must mirror the x component");
         assertClose(left.uz(), right.uz(), "opposite bias must not change the z component");
@@ -131,9 +135,12 @@ public final class VehicleOrcaSelfCheck {
      * approach. Ground's skirt is what this feeds: a mild graded nudge, not a stop.
      */
     private static void wellSeparatedParallelIsOnlyMildlyRestricted() {
-        VehicleOrca.HalfPlane safe = VehicleOrca.halfPlane(12, 5, 0, 0.4, 0, 0.4, R, TAU, 0.0);
+        // Property of the half-plane geometry itself — use the contact disc (pad only), not the
+        // breathing-room disc, so CLEARANCE_SCALE cannot retune what "mild" means here.
+        double rContact = (2.0 + 2.0) * VehicleOrca.RADIUS_PAD;
+        VehicleOrca.HalfPlane safe = VehicleOrca.halfPlane(12, 5, 0, 0.4, 0, 0.4, rContact, TAU, 0.0);
         double safeMargin = VehicleOrca.margin(0, 0.4, 0, 0.4, safe);
-        VehicleOrca.HalfPlane danger = VehicleOrca.halfPlane(0, 12, 0, 0.4, 0, -0.4, R, TAU, 0.0);
+        VehicleOrca.HalfPlane danger = VehicleOrca.halfPlane(0, 12, 0, 0.4, 0, -0.4, rContact, TAU, 0.0);
         double dangerMargin = VehicleOrca.margin(0, 0.4, 0, 0.4, danger);
         assert safeMargin > -0.1 : "well-separated parallel pair must be only mildly restricted, got " + safeMargin;
         assert dangerMargin < safeMargin : "a real close head-on approach must be more restricted than a safe parallel pair";
@@ -148,25 +155,29 @@ public final class VehicleOrcaSelfCheck {
 
     /**
      * The actual regression this restores: continuing straight at a STATIONARY wreck close enough
-     * that only ~1 real hull's clearance remains (6 blocks against a ~5-block combined tank
-     * radius) must be an imminent hard stop. Confirmed live-tested behavior before this test
-     * existed — a smoke test showed peers/wrecks not being avoided at all under margin-only
-     * hard-blocking; this is the concrete case that was silently passing through.
+     * that only ~1 real hull's clearance remains must be an imminent hard stop. Distance scales
+     * with {@link VehicleOrca#CLEARANCE_SCALE} so the "barely past contact" geometry stays the
+     * same when the disc grows. Confirmed live-tested behavior before this test existed — a smoke
+     * test showed peers/wrecks not being avoided at all under margin-only hard-blocking; this is
+     * the concrete case that was silently passing through.
      */
     private static void imminentFiresForCloseStationaryWreck() {
-        boolean imminent = VehicleOrca.imminent(0, 6, 0, 0.6, 0, 0.6, 0, 0, R, 8.0);
+        double near = 6.0 * VehicleOrca.CLEARANCE_SCALE;
+        boolean imminent = VehicleOrca.imminent(0, near, 0, 0.6, 0, 0.6, 0, 0, R, 8.0);
         assert imminent : "continuing straight at a near-touching stationary wreck must be imminent";
     }
 
     /** Mundane, non-threatening traffic (near-identical heading and speed) must never read as
      * imminent, however close, because the reciprocal relative velocity is ~zero — there is
-     * nothing to converge on. */
+     * nothing to converge on. Peer offset scales with clearance so the pair stays outside the
+     * disc (overlap short-circuits TTC to 0 and would false-fail this). */
     private static void imminentStaysClearForMundaneParallelTraffic() {
         double s = 0.6;
         double selfHead = Math.toRadians(3.0), peerHead = Math.toRadians(-1.0);
         double avx = s * Math.sin(selfHead), avz = s * Math.cos(selfHead);
         double bvx = s * Math.sin(peerHead), bvz = s * Math.cos(peerHead);
-        boolean imminent = VehicleOrca.imminent(-3, 8, avx, avz, avx, avz, bvx, bvz, R, 8.0);
+        double scale = VehicleOrca.CLEARANCE_SCALE;
+        boolean imminent = VehicleOrca.imminent(-3 * scale, 8 * scale, avx, avz, avx, avz, bvx, bvz, R, 8.0);
         assert !imminent : "near-identical parallel headings must not read as imminent";
     }
 

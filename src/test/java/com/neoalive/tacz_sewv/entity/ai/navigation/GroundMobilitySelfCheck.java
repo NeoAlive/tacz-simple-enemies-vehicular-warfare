@@ -14,6 +14,7 @@ public final class GroundMobilitySelfCheck {
         smoothstepEnds();
         fordGate();
         slopeGate();
+        gradePreference();
         stepDangerFenceVsHill();
         strongestWinsNotSum();
         flatMapReachesEverySlot();
@@ -52,6 +53,16 @@ public final class GroundMobilitySelfCheck {
         assertClose(0.0F, GroundMobility.slopeMalus(0.4, 1.0F), "shallow slope free");
         assert Float.isInfinite(GroundMobility.slopeMalus(1.1, 1.0F)) : "over maxUpStep blocked";
         assertClose(0.0F, GroundMobility.slopeMalus(-1.0, 1.0F), "downhill free");
+    }
+
+    private static void gradePreference() {
+        assertClose(0.0F, GroundMobility.gradeMalus(0.0), "flat grade");
+        assertClose(0.0F, GroundMobility.gradeMalus(0.1), "within deadband");
+        assert GroundMobility.gradeMalus(0.4) > 0.0F : "moderate grade costs";
+        assert GroundMobility.gradeMalus(1.0) <= GroundMobility.GRADE_PENALTY + 1.0E-4F : "capped";
+        assert !Float.isInfinite(GroundMobility.gradeMalus(10.0)) : "never infinite";
+        assert GroundMobility.gradeDanger(1.0) < GroundMobility.HARD_CAP : "fan below hard cap";
+        assert GroundMobility.gradeDanger(1.0) <= GroundMobility.GRADE_FAN_MAX + 1.0E-4F : "fan capped";
     }
 
     /** Fence 1.5 > maxUpStep 1 is a wall; a 1-block hill is a step, not occupancy-1. */

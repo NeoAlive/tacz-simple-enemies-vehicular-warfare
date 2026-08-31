@@ -265,6 +265,15 @@ tasks.register('selfCheckOuterRing', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckCues', JavaExec) {
+    group = 'verification'
+    description = 'Runs awareness cue classification, merge, dedupe, and roll self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCuesSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckEngineGates', JavaExec) {
     group = 'verification'
     description = 'Fails if getEngineInfo() instanceof Helicopter gates remain in src/main.'
@@ -352,7 +361,7 @@ tasks.register('selfCheckBallistics', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle'
+    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle'
 }
 
 mixin {

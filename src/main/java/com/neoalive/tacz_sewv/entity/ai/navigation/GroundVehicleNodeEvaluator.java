@@ -43,6 +43,8 @@ import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
  *     block, so the route still avoids hugging a shoreline it isn't crossing.</li>
  * <li><b>Slope.</b> Accepted nodes whose unfloored rise approaches the hull's
  *     {@code maxUpStep} take a smoothstep cost; over that limit they are rejected.</li>
+ * <li><b>Flat preference.</b> Local heightmap grade (tilt SBW would apply) adds a soft
+ *     {@link GroundMobility#gradeMalus} — preference only, never rejected.</li>
  * <li><b>Road preference.</b> Nodes whose footing is not in {@code #tacz_sewv:preferred_roads}
  *     take an {@link #OFF_ROAD_PENALTY} so a parallel dirt path / gravel / cobble wins
  *     without forbidding off-road cuts.</li>
@@ -68,6 +70,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
 
     private boolean amphibious;
     private float maxUpStep = 1.0F;
+    private int gradeHalfSpan = 1;
     private boolean loggedDeepWaterBlockThisSearch;
     private final BlockPos.MutableBlockPos probe = new BlockPos.MutableBlockPos();
 
@@ -102,6 +105,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         super.prepare(region, mob);
         this.amphibious = false;
         this.maxUpStep = 1.0F;
+        this.gradeHalfSpan = 1;
         this.loggedDeepWaterBlockThisSearch = false;
         this.peerX = EMPTY;
         this.peerZ = EMPTY;
@@ -110,6 +114,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         if (mob.getVehicle() instanceof VehicleEntity vehicle) {
             this.amphibious = GroundMobility.isAmphibious(vehicle);
             this.maxUpStep = GroundMobility.maxUpStepOf(vehicle);
+            this.gradeHalfSpan = Math.max(1, Mth.floor(vehicle.getBbWidth() * 0.5F));
             this.entityWidth = Mth.floor(vehicle.getBbWidth() + 1.0F);
             this.entityHeight = Mth.floor(vehicle.getBbHeight() + 1.0F);
             this.entityDepth = Mth.floor(vehicle.getBbWidth() + 1.0F);
@@ -283,6 +288,9 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         float slope = GroundMobility.slopeMalus(top - nodeFloorLevel, this.maxUpStep);
         if (Float.isInfinite(slope)) return null;
         node.costMalus += slope;
+
+        node.costMalus += GroundMobility.gradeMalus(GroundMobility.localGrade(
+                this.mob != null ? this.mob.level() : this.level, node.x, node.z, this.gradeHalfSpan));
 
         int depth = footprintWaterDepth(this.level, node.x, node.y, node.z);
         float ford = GroundMobility.fordMalus(depth, this.amphibious);

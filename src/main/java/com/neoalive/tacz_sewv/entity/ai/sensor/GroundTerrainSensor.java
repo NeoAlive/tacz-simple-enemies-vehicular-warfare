@@ -84,6 +84,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
 
     private boolean amphibious;
     private float maxUpStep = 1.0F;
+    private int gradeHalfSpan = 1;
     private int hullTop = 1;
 
     private long lastBlockedDiagTick = Long.MIN_VALUE;
@@ -122,6 +123,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
     protected void onAttach(VehicleEntity v) {
         this.amphibious = GroundMobility.isAmphibious(v);
         this.maxUpStep = GroundMobility.maxUpStepOf(v);
+        this.gradeHalfSpan = Math.max(1, Mth.floor(v.getBbWidth() * 0.5F));
         this.hullTop = Math.max(1, Mth.ceil(v.getBbHeight()) - 1);
         this.centerCacheTick = Long.MIN_VALUE;
         this.mapsPrimed = false;
@@ -374,6 +376,14 @@ public final class GroundTerrainSensor extends TerrainSensor {
                         out.hard = stepD;
                         out.reason = "step";
                     }
+                }
+            }
+            if (col.floorY != GroundMobility.NO_FLOOR) {
+                float gradeD = GroundMobility.gradeDanger(GroundMobility.localGrade(
+                        level, Mth.floor(sampleX), Mth.floor(sampleZ), this.gradeHalfSpan));
+                if (gradeD > out.hard) {
+                    out.hard = gradeD;
+                    out.reason = "grade";
                 }
             }
             floor = col.floorY;

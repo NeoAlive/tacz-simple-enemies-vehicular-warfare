@@ -7,7 +7,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -29,6 +31,18 @@ public final class GroundMobility {
 
     /** Path malus at maxUpStep (smoothstep from 0.5×). */
     public static final float SLOPE_PENALTY = 4.0F;
+
+    /** Soft path malus for local grade (tilt that SBW terrainCompact would apply). */
+    public static final float GRADE_PENALTY = 2.0F;
+
+    /** Grade ratio below this is treated as flat (no malus). */
+    public static final float GRADE_DEADBAND = 0.15F;
+
+    /** Grade ratio at which {@link #gradeMalus} reaches {@link #GRADE_PENALTY}. */
+    public static final float GRADE_FULL = 0.5F;
+
+    /** Fan danger cap — preference only, never {@link #HARD_CAP}. */
+    public static final float GRADE_FAN_MAX = 0.4F;
 
     /** Amphibious still slightly prefers land when the dry detour is equal. */
     public static final float AMPHIBIOUS_WATER_COST = 0.5F;
@@ -85,6 +99,44 @@ public final class GroundMobility {
         if (delta <= 0.0 || maxUpStep <= 0.0F) return 0.0F;
         if (delta > maxUpStep) return 1.0F;
         return Math.min(0.99F, bite((float) (delta / maxUpStep)));
+    }
+
+    /**
+     * Local height relief over {@code halfSpan} blocks — max cardinal |Δh| / span. Mirrors the
+     * magnitude SBW's terrainCompact plane fit reacts to, without collision sampling.
+     */
+    public static double localGrade(BlockGetter level, int x, int z, int halfSpan) {
+        halfSpan = Math.max(1, halfSpan);
+        int center = motionBlockingY(level, x, z);
+        int worst = 0;
+        worst = Math.max(worst, Math.abs(motionBlockingY(level, x + halfSpan, z) - center));
+        worst = Math.max(worst, Math.abs(motionBlockingY(level, x - halfSpan, z) - center));
+        worst = Math.max(worst, Math.abs(motionBlockingY(level, x, z + halfSpan) - center));
+        worst = Math.max(worst, Math.abs(motionBlockingY(level, x, z - halfSpan) - center));
+        return (double) worst / halfSpan;
+    }
+
+    /** Soft A* malus for local grade — never infinite (climbability stays in {@link #slopeMalus}). */
+    public static float gradeMalus(double grade) {
+        if (grade <= GRADE_DEADBAND) return 0.0F;
+        float span = GRADE_FULL - GRADE_DEADBAND;
+        if (span <= 0.0F) return GRADE_PENALTY;
+        float t = Mth.clamp((float) ((grade - GRADE_DEADBAND) / span), 0.0F, 1.0F);
+        return GRADE_PENALTY * smoothstep(t);
+    }
+
+    /** Fan soft danger twin of {@link #gradeMalus}; capped below {@link #HARD_CAP}. */
+    public static float gradeDanger(double grade) {
+        float malus = gradeMalus(grade);
+        if (malus <= 0.0F) return 0.0F;
+        return Math.min(GRADE_FAN_MAX, malus / GRADE_PENALTY * GRADE_FAN_MAX);
+    }
+
+    private static int motionBlockingY(BlockGetter level, int x, int z) {
+        if (level instanceof Level l) {
+            return l.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        }
+        return 64;
     }
 
     public static float waterDanger(int depth, boolean amphibious) {

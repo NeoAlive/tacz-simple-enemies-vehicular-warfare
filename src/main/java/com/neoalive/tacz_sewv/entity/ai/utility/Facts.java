@@ -232,7 +232,7 @@ public final class Facts {
     public double confidence = Confidence.NEUTRAL;
 
     /**
-     * Outer-ring awareness (never an engageable lock). Written by {@link com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness};
+     * Outer-ring and sound awareness (never an engageable lock). Written by {@link com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues};
      * independent of {@link #enemies} / force-ratio math.
      */
     public boolean outerSpotFresh;
@@ -713,7 +713,7 @@ public final class Facts {
         /**
          * Record an outer-ring (or other non-lock) sighting. Does not set a combat target.
          *
-         * <p>Callers must not overwrite a live engagement: {@link com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness}
+         * <p>Callers must not overwrite a live engagement: {@link com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues}
          * only invokes this when {@code getTarget() == null}.
          */
         public void noteSpot(BlockPos pos, long now) {

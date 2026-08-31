@@ -25,6 +25,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleDriver;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
@@ -95,6 +96,8 @@ public class DriveVehicleGoal extends Goal {
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
     /** Outer awareness ring — spots only, never setTarget. See {@link OuterRingAwareness}. */
     private final OuterRingAwareness outerRing = new OuterRingAwareness();
+    /** Merges outer spots + sound cues into Facts investigate fields. */
+    private final AwarenessCues awareness = new AwarenessCues();
 
     /** Everything about actually making the hull go somewhere. See {@link VehicleDriver}. */
     private final VehicleDriver driver;
@@ -173,6 +176,7 @@ public class DriveVehicleGoal extends Goal {
         this.driver.clear();
         this.breaker.clear();
         this.outerRing.clear();
+        this.awareness.clear();
         this.brain.facts().unbind(this.unit);
         this.brain.clear();
         this.posture.clear();
@@ -187,7 +191,9 @@ public class DriveVehicleGoal extends Goal {
 
         // Spots before re-score so DISTANT_CONTACT sees this tick's outer fields. noteSpot is
         // gated on getTarget()==null; observe (inside update) still owns Memory when locked.
-        this.outerRing.tick(this.unit, this.vehicle, this.brain.facts());
+        Facts facts = this.brain.facts();
+        this.outerRing.tick(this.unit, this.vehicle, this.awareness, facts.underOrders);
+        this.awareness.tick(this.unit, this.vehicle, facts);
         // Re-read the battlefield and, on its own ~1s cadence, re-decide. Cheap on the ticks it
         // does nothing, which is most of them.
         this.brain.update(this.unit, this.vehicle, this.posture);
@@ -730,6 +736,10 @@ public class DriveVehicleGoal extends Goal {
     // RU/US — is shared with DriveHelicopterGoal. See VehicleTargeting.
     private BlockPos getTargetPos() {
         Action plan = idlePlan();
+        if (plan == Action.SEARCH_LAST_KNOWN) {
+            BlockPos seen = this.brain.facts().memory.lastEnemyPos;
+            if (seen != null) return seen;
+        }
         if (plan == Action.IDLE_HOLD) {
             BlockPos p = IdleGroupSupport.holdDestination(this.unit, this.vehicle, this.brain.facts());
             if (p != null) return p;

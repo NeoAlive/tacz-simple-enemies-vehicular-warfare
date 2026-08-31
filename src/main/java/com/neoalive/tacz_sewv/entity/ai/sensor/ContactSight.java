@@ -16,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
  * there but identity is not), or hard-blocked.
  *
  * <p>Vanilla {@code hasLineOfSight} is binary and treats leaves as solid. Foliage-only is the
- * {@code DISTANT_CONTACT} case: feed {@link OuterRingAwareness}, never {@code setTarget}.
+ * {@code DISTANT_CONTACT} case: feed {@link OuterRingAwareness} / {@link AwarenessCues}, never {@code setTarget}.
  */
 public final class ContactSight {
 

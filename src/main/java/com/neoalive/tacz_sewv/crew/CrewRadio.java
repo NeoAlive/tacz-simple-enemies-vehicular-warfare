@@ -10,6 +10,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 
@@ -79,6 +80,9 @@ public final class CrewRadio {
         // 30 m/s. The hull rather than the speaker because it outlives a crewman who bails or dies
         // mid-line, and while seated the two positions are the same.
         hull.level().playSound(null, hull, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
+        if (hull.level() instanceof net.minecraft.server.level.ServerLevel sl) {
+            AwarenessCues.registerCrewVoice(sl, speaker, hull.blockPosition());
+        }
     }
 
     /**
@@ -98,6 +102,9 @@ public final class CrewRadio {
         data.putLong(OVERLAP_KEY, now + OVERLAP_TICKS);
         data.putLong(typeKey, now + line.cooldown);
         speaker.level().playSound(null, speaker, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
+        if (speaker.level() instanceof net.minecraft.server.level.ServerLevel sl) {
+            AwarenessCues.registerCrewVoice(sl, speaker, speaker.blockPosition());
+        }
     }
 
     /**

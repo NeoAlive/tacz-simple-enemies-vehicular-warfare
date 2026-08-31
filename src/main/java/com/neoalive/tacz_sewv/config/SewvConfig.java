@@ -183,6 +183,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue OUTER_RING_ENABLED;
     public static final ForgeConfigSpec.DoubleValue OUTER_RING_MAX_BLOCKS;
+    public static final ForgeConfigSpec.BooleanValue AWARENESS_CUES_ENABLED;
     // outerRingDebugLogging moved to gamerule sewvOuterRingDebugLogging — see ModGameRules.
 
     public static final ForgeConfigSpec.BooleanValue COVER_CACHE_ENABLED;
@@ -711,6 +712,10 @@ public final class SewvConfig {
         OUTER_RING_MAX_BLOCKS = builder.comment(
                         "Max distance (blocks) for that long-range awareness. Also limited by the server's view/simulation distance.")
                 .defineInRange("outerRingMaxBlocks", 192.0, 96.0, 512.0);
+        AWARENESS_CUES_ENABLED = builder.comment(
+                        "Let idle crews investigate sounds (vehicle engines, cannon fire, crew radio).",
+                        "Independent of outerRingEnabled — entity band polling can be off while hearing stays on.")
+                .define("awarenessCuesEnabled", true);
         COVER_CACHE_ENABLED = builder.comment(
                         "Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).",
                         "Used by individual tactics for exposure / keyhole / scoot without per-tick raycasts.")

@@ -24,8 +24,9 @@ public final class ModSounds {
     // On-foot support lines: FIXING (engineer begins a repair), HEALING (medic begins treating),
     // DRONE (RU/US engineer deploys a drone — PMC has no autonomous drone path).
     // Each pool registers its variants as individual events so the code can pick a specific,
-    // non-repeating clip; sounds.json maps each to one .ogg under sounds/<faction>/. RU/US ORDERS are
-    // absent (autonomous units get no player orders); PMC IFV / PMC DRONE are absent.
+    // non-repeating clip; sounds.json maps each to one .ogg under sounds/<faction>/. RU/US ORDERS fire
+    // on CommandCoordinator play commits; PMC player orders use the same line via PacketIssueOrder.
+    // PMC IFV / PMC DRONE are absent.
     // PMC_MORTAR / PMC_CAS are not crew-radio pools: they are the handheld radio's acknowledgements
     // for a fire mission (HandheldRadioItem, RadioObserverGoal), picked by which support kinds
     // actually answered. PMC_TAKEOFF is a crew line, but only on a plane ordered to take off —
@@ -45,7 +46,12 @@ public final class ModSounds {
     public static final SoundPool PMC_NAVY_IDLE   = pool("pmc_navy_idle", 4);
     public static final SoundPool PMC_NAVY_TARGET = pool("pmc_navy_target", 5);
     public static final SoundPool RU_DAMAGED  = pool("ru_damaged", 3);
-    public static final SoundPool RU_SPOTTED  = pool("ru_spotted", 4);
+    public static final SoundPool RU_SPOTTED  = pool("ru_spotted", 11);
+    public static final SoundPool RU_ORDERS   = pool("ru_orders", 4);
+    public static final SoundPool RU_INVESTIGATING = pool("ru_investigating", 3);
+    public static final SoundPool RU_AMMO_HEAT    = pool("ru_ammo_heat", 4);
+    public static final SoundPool RU_AMMO_SABOT   = pool("ru_ammo_sabot", 4);
+    public static final SoundPool RU_AMMO_GENERAL = pool("ru_ammo_general", 2);
     public static final SoundPool RU_BAIL     = pool("ru_bail", 2);
     public static final SoundPool RU_DECOY    = pool("ru_decoy", 3);
     public static final SoundPool RU_IFV      = pool("ru_ifv", 3);
@@ -57,7 +63,12 @@ public final class ModSounds {
     public static final SoundPool RU_NAVY_IDLE    = pool("ru_navy_idle", 4);
     public static final SoundPool RU_NAVY_TARGET  = pool("ru_navy_target", 5);
     public static final SoundPool US_DAMAGED  = pool("us_damaged", 3);
-    public static final SoundPool US_SPOTTED  = pool("us_spotted", 4);
+    public static final SoundPool US_SPOTTED  = pool("us_spotted", 7);
+    public static final SoundPool US_ORDERS   = pool("us_orders", 3);
+    public static final SoundPool US_INVESTIGATING = pool("us_investigating", 3);
+    public static final SoundPool US_AMMO_HEAT    = pool("us_ammo_heat", 2);
+    public static final SoundPool US_AMMO_SABOT   = pool("us_ammo_sabot", 3);
+    public static final SoundPool US_AMMO_GENERAL = pool("us_ammo_general", 1);
     public static final SoundPool US_BAIL     = pool("us_bail", 3);
     public static final SoundPool US_DECOY    = pool("us_decoy", 3);
     public static final SoundPool US_IFV      = pool("us_ifv", 3);

@@ -500,7 +500,7 @@ public class DriveShipGoal extends Goal {
         int seat = this.vehicle.getSeatIndex(this.unit);
         if (seat < 0 || this.weaponSwitchCooldown > 0) return;
         this.selectedRole = VehicleWeapons.selectWeaponForTarget(
-                this.vehicle, seat, target, this.unit);
+                this.vehicle, seat, target, this.unit).role;
         this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
     }
 

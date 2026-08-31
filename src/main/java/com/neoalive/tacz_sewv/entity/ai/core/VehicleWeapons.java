@@ -261,16 +261,27 @@ public final class VehicleWeapons {
     // and CANNOT re-derive it from getWeaponIndex(): that returns a PHYSICAL slot, and
     // the whole point of this class is that physical order carries no meaning. Handing
     // it back here is free — the role→slot map is already in hand.
-    public static int selectWeaponForTarget(VehicleEntity vehicle, int seatIndex, LivingEntity target) {
-        return selectWeaponForTarget(vehicle, seatIndex, target, null);
+    public static final class WeaponSelection {
+        public final int role;
+        @javax.annotation.Nullable
+        public final String switchedAmmoId;
+
+        WeaponSelection(int role, @javax.annotation.Nullable String switchedAmmoId) {
+            this.role = role;
+            this.switchedAmmoId = switchedAmmoId;
+        }
     }
 
-    public static int selectWeaponForTarget(VehicleEntity vehicle, int seatIndex, LivingEntity target,
-                                            @javax.annotation.Nullable AbstractUnit shooter) {
-        if (seatIndex < 0) return UNCLASSIFIED;
+    public static int selectWeaponForTarget(VehicleEntity vehicle, int seatIndex, LivingEntity target) {
+        return selectWeaponForTarget(vehicle, seatIndex, target, null).role;
+    }
+
+    public static WeaponSelection selectWeaponForTarget(VehicleEntity vehicle, int seatIndex,
+            LivingEntity target, @javax.annotation.Nullable AbstractUnit shooter) {
+        if (seatIndex < 0) return new WeaponSelection(UNCLASSIFIED, null);
         SeatInfo seat = vehicle.getSeat(seatIndex);
         int weaponCount = seat == null ? 0 : seat.weapons().size();
-        if (weaponCount == 0) return UNCLASSIFIED; // weaponless seat — nothing to select
+        if (weaponCount == 0) return new WeaponSelection(UNCLASSIFIED, null);
 
         int[] slot = resolveRoleSlots(vehicle, seatIndex, weaponCount);
         int special = slot[WEAPON_SPECIAL];
@@ -317,17 +328,11 @@ public final class VehicleWeapons {
 
         // Nothing on this seat is usable (every slot is a placeholder) — leave the
         // index alone rather than parking the crew on a turret-breaking slot.
-        if (chosen < 0) return UNCLASSIFIED;
+        if (chosen < 0) return new WeaponSelection(UNCLASSIFIED, null);
         vehicle.setWeaponIndex(seatIndex, chosen);
-        // Safe on whatever `chosen` ended up being: a slot with one ammo type (an MG the
-        // fallback landed on) has nothing to switch to and is left alone.
-        if (ammo != null) selectCannonAmmo(vehicle, seatIndex, chosen, ammo);
-        // Read the role back off the SLOT WE ACTUALLY PICKED rather than off the branch
-        // that picked it: the `fallback` arms can hand back the special's slot (a seat
-        // with an ATGM and no cannon), and reporting that as CANNON would deny it the
-        // fire assist it structurally depends on — the exact deadlock this return value
-        // exists to prevent.
-        return roleOf(slot, chosen);
+        String switchedAmmo = null;
+        if (ammo != null) switchedAmmo = selectCannonAmmo(vehicle, seatIndex, chosen, ammo);
+        return new WeaponSelection(roleOf(slot, chosen), switchedAmmo);
     }
 
     // Which role does this physical slot fill? UNCLASSIFIED if it fills none.
@@ -625,13 +630,14 @@ public final class VehicleWeapons {
      * <p>A preference the hull has run out of is skipped rather than selected: an empty
      * chamber the AI can't refill is worse than the wrong shell.
      */
-    private static void selectCannonAmmo(VehicleEntity vehicle, int seatIndex, int weaponIndex,
+    @javax.annotation.Nullable
+    private static String selectCannonAmmo(VehicleEntity vehicle, int seatIndex, int weaponIndex,
                                          String[] preferences) {
         try {
             GunData gun = gunData(vehicle, seatIndex, weaponIndex);
-            if (gun == null) return;
+            if (gun == null) return null;
             List<AmmoConsumer> consumers = gun.get(GunProp.AMMO_CONSUMER);
-            if (consumers == null || consumers.size() < 2) return; // single-ammo weapon
+            if (consumers == null || consumers.size() < 2) return null;
 
             Entity supplier = vehicle.getAmmoSupplier();
             Entity source = supplier != null ? supplier : vehicle;
@@ -639,19 +645,19 @@ public final class VehicleWeapons {
                 for (int i = 0; i < consumers.size(); i++) {
                     AmmoConsumer c = consumers.get(i);
                     if (c == null || !lower(c.getAmmo()).endsWith(want)) continue;
-                    if (i == gun.selectedAmmoType.get()) return; // already chambered
-                    if (c.count(gun, source) <= 0) break;        // out of it — try next preference
+                    if (i == gun.selectedAmmoType.get()) return null;
+                    if (c.count(gun, source) <= 0) break;
                     int index = i;
                     vehicle.modifyGunData(seatIndex, weaponIndex,
                             d -> d.changeAmmoConsumer(index, source));
-                    // Synched gun map changed — do not serve the pre-switch snapshot later this tick.
                     GUN_MAP.get().invalidate();
-                    return;
+                    return c.getAmmo().toString();
                 }
             }
         } catch (Exception e) {
             // Unreadable/exotic gun data — fire whatever is chambered rather than crash the tick.
         }
+        return null;
     }
 
     // True while the given slot could fire right now: loaded, not reloading/charging,

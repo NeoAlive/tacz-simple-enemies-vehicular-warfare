@@ -284,6 +284,15 @@ tasks.register('selfCheckEngineGates', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckAmmoVoicelines', JavaExec) {
+    group = 'verification'
+    description = 'Runs ammo voiceline classification self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.crew.AmmoVoicelinesSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckSounds', JavaExec) {
     group = 'verification'
     description = 'Asserts ModSounds pool counts, sounds.json, and .ogg files agree.'
@@ -361,7 +370,7 @@ tasks.register('selfCheckBallistics', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle'
+    dependsOn 'selfCheckUtility', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckAmmoVoicelines', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle'
 }
 
 mixin {

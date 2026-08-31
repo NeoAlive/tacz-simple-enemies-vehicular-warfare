@@ -17,6 +17,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.AmmoVoicelines;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -112,6 +113,8 @@ public class DriveVehicleGoal extends Goal {
     private byte standoffPhase;
     /** Throttle for posture override logs (game time of last line). */
     private long lastPostureSteerLog = Long.MIN_VALUE;
+    /** Previous out-of-contact plan — edge-detect SEARCH_LAST_KNOWN for investigating voicelines. */
+    private Action lastIdlePlan = Action.HOLD;
 
     public DriveVehicleGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -167,6 +170,7 @@ public class DriveVehicleGoal extends Goal {
         // The decoy input is latched vehicle state (releasing the steering inputs doesn't touch
         // it), so a crew leaving mid-retreat must let go of it here or the launcher keeps
         // volleying smoke forever.
+        this.lastIdlePlan = Action.HOLD;
         this.driver.stop();
         this.vehicle.setDecoyInputDown(false);
         this.vehicle = null;
@@ -197,6 +201,12 @@ public class DriveVehicleGoal extends Goal {
         // Re-read the battlefield and, on its own ~1s cadence, re-decide. Cheap on the ticks it
         // does nothing, which is most of them.
         this.brain.update(this.unit, this.vehicle, this.posture);
+
+        Action plan = idlePlan();
+        if (plan == Action.SEARCH_LAST_KNOWN && this.lastIdlePlan != Action.SEARCH_LAST_KNOWN) {
+            CrewRadio.play(this.vehicle, CrewRadio.Line.INVESTIGATING);
+        }
+        this.lastIdlePlan = plan;
 
         LivingEntity target = this.unit.getTarget();
 
@@ -727,8 +737,12 @@ public class DriveVehicleGoal extends Goal {
      */
     private void selectWeaponForTarget(int seatIndex, LivingEntity target) {
         if (seatIndex < 0 || this.weaponSwitchCooldown > 0) return;
-        this.selectedRole = VehicleWeapons.selectWeaponForTarget(
+        VehicleWeapons.WeaponSelection pick = VehicleWeapons.selectWeaponForTarget(
                 this.vehicle, seatIndex, target, this.unit);
+        this.selectedRole = pick.role;
+        if (pick.switchedAmmoId != null) {
+            AmmoVoicelines.play(this.vehicle, this.unit, pick.switchedAmmoId);
+        }
         this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
     }
 

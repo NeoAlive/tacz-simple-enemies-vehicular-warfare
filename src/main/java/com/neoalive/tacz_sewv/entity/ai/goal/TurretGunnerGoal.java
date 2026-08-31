@@ -110,7 +110,7 @@ public class TurretGunnerGoal extends Goal {
             this.weaponSwitchCooldown--;
         } else {
             this.selectedRole = VehicleWeapons.selectWeaponForTarget(
-                    this.vehicle, this.seatIndex, target, this.unit);
+                    this.vehicle, this.seatIndex, target, this.unit).role;
             this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
         }
 

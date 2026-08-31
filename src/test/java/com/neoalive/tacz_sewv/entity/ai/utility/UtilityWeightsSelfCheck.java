@@ -277,10 +277,29 @@ public final class UtilityWeightsSelfCheck {
         quiet[Signal.BASE.ordinal()] = 1.0;
         quiet[Signal.OPEN.ordinal()] = 1.0;
 
-        double patrol = weights.score(Action.PATROL, quiet, Doctrine.NEUTRAL);
+        double idleHold = weights.score(Action.IDLE_HOLD, quiet, Doctrine.NEUTRAL);
         double hold = weights.score(Action.HOLD, quiet, Doctrine.NEUTRAL);
-        assert patrol > hold
-                : "an idle crew should get on with something: patrol=" + patrol + " hold=" + hold;
+        assert idleHold > hold
+                : "an idle crew should form up, not park: idleHold=" + idleHold + " hold=" + hold;
+
+        double[] expired = zeroSignals();
+        expired[Signal.BASE.ordinal()] = 1.0;
+        expired[Signal.OPEN.ordinal()] = 1.0;
+        expired[Signal.IDLE_HOLD_EXPIRED.ordinal()] = 1.0;
+        expired[Signal.ALONE.ordinal()] = 1.0;
+        double idleTravel = weights.score(Action.IDLE_TRAVEL, expired, Doctrine.NEUTRAL);
+        double holdAfter = weights.score(Action.IDLE_HOLD, expired, Doctrine.NEUTRAL);
+        assert idleTravel > holdAfter
+                : "expired hold should prefer travel: travel=" + idleTravel + " hold=" + holdAfter;
+
+        double[] oversize = zeroSignals();
+        oversize[Signal.BASE.ordinal()] = 1.0;
+        oversize[Signal.OPEN.ordinal()] = 1.0;
+        oversize[Signal.IDLE_GROUP_OVERSIZE.ordinal()] = 1.0;
+        double travelOver = weights.score(Action.IDLE_TRAVEL, oversize, Doctrine.NEUTRAL);
+        double holdOver = weights.score(Action.IDLE_HOLD, oversize, Doctrine.NEUTRAL);
+        assert travelOver > holdOver
+                : "oversize group should prefer travel: travel=" + travelOver + " hold=" + holdOver;
     }
 
     /**

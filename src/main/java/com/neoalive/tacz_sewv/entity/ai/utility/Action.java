@@ -55,7 +55,20 @@ public enum Action {
     /** Go and look where an enemy was last seen. */
     SEARCH_LAST_KNOWN("searchLastKnown"),
     /** Fall back on the nearest friendly. Also the answer to being out of ammo. */
-    REGROUP("regroup");
+    REGROUP("regroup"),
+
+    /**
+     * Out-of-contact polygon formation with nearby friendly idle ground vehicles.
+     *
+     * <p>Replaces random wander for ground hulls when hybrid idle is enabled. Dispatch lives in
+     * {@code DriveVehicleGoal}; geometry lives in {@code IdleGroupSupport}.
+     */
+    IDLE_HOLD("idleHold"),
+    /**
+     * Out-of-contact constant-bearing single-file column. Triggered by hold timeout, group size
+     * over five, or commander tasking.
+     */
+    IDLE_TRAVEL("idleTravel");
 
     /** The key naming this action in the weights file. */
     public final String key;
@@ -81,7 +94,7 @@ public enum Action {
 
     public boolean needsTarget() {
         return switch (this) {
-            case HOLD, PATROL, SEARCH_LAST_KNOWN, REGROUP -> false;
+            case HOLD, PATROL, SEARCH_LAST_KNOWN, REGROUP, IDLE_HOLD, IDLE_TRAVEL -> false;
             default -> true;
         };
     }

@@ -14,6 +14,7 @@ import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 
 /**
  * Picks what one crew does next, and sticks with it.
@@ -194,6 +195,14 @@ public final class TacticalBrain {
         s[Signal.DISTANT_CONTACT.ordinal()] = f.outerSpotFresh ? f.outerSpotStrength : 0.0;
         s[Signal.UNDER_ORDERS.ordinal()] = f.underOrders ? 1.0 : 0.0;
 
+        s[Signal.IDLE_GROUP_SIZE.ordinal()] = Math.min(f.idleGroupSize, 5) / 5.0;
+        s[Signal.IDLE_GROUP_OVERSIZE.ordinal()] = f.idleGroupOversize ? 1.0 : 0.0;
+        s[Signal.IDLE_HOLD_ELAPSED.ordinal()] = Mth.clamp(f.idleHoldElapsed, 0.0, 1.0);
+        s[Signal.IDLE_HOLD_EXPIRED.ordinal()] = f.idleHoldExpired ? 1.0 : 0.0;
+        s[Signal.IDLE_TRAVEL_ACTIVE.ordinal()] = f.idleTravelActive ? 1.0 : 0.0;
+        s[Signal.IDLE_PEER_VEHICLE.ordinal()] = f.idlePeerVehicleNearby ? 1.0 : 0.0;
+        s[Signal.IDLE_PLAYER_NEAR.ordinal()] = f.idlePlayerNearby ? 1.0 : 0.0;
+
         // rangeError is signed and already normalised against the preferred range, so one field
         // gives both directions and neither can be non-zero at the same time as the other.
         s[Signal.TOO_CLOSE.ordinal()] = hasTarget ? Mth.clamp(-f.rangeError, 0.0, 1.0) : 0.0;
@@ -290,12 +299,33 @@ public final class TacticalBrain {
         if (best != this.plan && (neverPlanned || !planStillValid || (beaten && !committed))) {
             this.plan = best;
             this.planStarted = now;
+            onIdlePlanAdopted(unit);
         } else if (neverPlanned) {
             // Best already IS the plan; stamp it so the hysteresis starts counting from here.
             this.planStarted = now;
+            onIdlePlanAdopted(unit);
         }
 
         if (DEBUG_LOGGING) logDecision(unit, doctrine);
+    }
+
+    /** Align hull NBT with a freshly adopted idle plan. */
+    private void onIdlePlanAdopted(AbstractUnit unit) {
+        if (!(unit.getVehicle() instanceof VehicleEntity hull)) return;
+        var snap = this.facts.idleSnapshot;
+        if (this.plan == Action.IDLE_HOLD) {
+            if (snap == null) {
+                snap = IdleGroupSupport.scan(unit, hull);
+                this.facts.idleSnapshot = snap;
+            }
+            IdleGroupSupport.enterHold(unit, hull, snap);
+        } else if (this.plan == Action.IDLE_TRAVEL) {
+            if (snap == null) {
+                snap = IdleGroupSupport.scan(unit, hull);
+                this.facts.idleSnapshot = snap;
+            }
+            IdleGroupSupport.enterTravel(unit, hull, snap);
+        }
     }
 
     /**
@@ -322,6 +352,24 @@ public final class TacticalBrain {
             case SEARCH_LAST_KNOWN ->
                     !this.facts.underOrders && this.facts.memory.hasFreshContact(this.lastSampledTick);
             case REGROUP -> !this.facts.underOrders && this.facts.nearestAlly != null;
+
+            case IDLE_HOLD -> {
+                boolean taskedHold = this.signals[Signal.TASKED_IDLE_HOLD.ordinal()] > 0.0;
+                yield this.facts.idleGroundDrivable
+                        && (!this.facts.underOrders || taskedHold)
+                        && !this.facts.idleGroupOversize
+                        && !this.facts.idleHoldExpired
+                        && !this.facts.idleTravelActive;
+            }
+            case IDLE_TRAVEL -> {
+                boolean taskedTravel = this.signals[Signal.TASKED_IDLE_TRAVEL.ordinal()] > 0.0;
+                yield this.facts.idleGroundDrivable
+                        && (!this.facts.underOrders || taskedTravel)
+                        && (this.facts.idleHoldExpired
+                        || this.facts.idleGroupOversize
+                        || taskedTravel
+                        || this.facts.idleTravelActive);
+            }
 
             // A request needs something to request from, and a crew that just called must not
             // call again — the cooldown is what stops one contact re-tasking every tube in the

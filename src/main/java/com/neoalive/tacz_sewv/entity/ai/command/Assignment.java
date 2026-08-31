@@ -14,7 +14,11 @@ public final class Assignment {
         OVERWATCH,
         RESERVE,
         HOLD,
-        WITHDRAW
+        WITHDRAW,
+        /** Out-of-contact polygon formation hold. */
+        IDLE_HOLD,
+        /** Out-of-contact constant-bearing column travel. */
+        IDLE_TRAVEL
     }
 
     /** Open-flank side relative to the enemy→us axis, when the role is a flank maneuver. */

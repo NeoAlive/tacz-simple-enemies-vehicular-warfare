@@ -30,6 +30,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TreeFellingSupport;
@@ -272,7 +273,7 @@ public class DriveVehicleGoal extends Goal {
      * option the scorer is offered, so a crew can never wander off an instruction.
      */
     private void standDownTick(BlockPos standing) {
-        BlockPos destination = switch (this.brain.plan()) {
+        BlockPos destination = switch (idlePlan()) {
             case SEARCH_LAST_KNOWN -> {
                 BlockPos seen = this.brain.facts().memory.lastEnemyPos;
                 yield seen != null ? seen : standing;
@@ -282,6 +283,10 @@ public class DriveVehicleGoal extends Goal {
                 yield ally != null ? ally.blockPosition() : standing;
             }
             case HOLD -> null;
+            case IDLE_HOLD -> IdleGroupSupport.holdDestination(
+                    this.unit, this.vehicle, this.brain.facts());
+            case IDLE_TRAVEL -> IdleGroupSupport.travelDestination(
+                    this.unit, this.vehicle, this.brain.facts());
             // PATROL, and anything the scorer somehow let through: work the standing destination.
             default -> standing;
         };
@@ -724,7 +729,27 @@ public class DriveVehicleGoal extends Goal {
     // Destination resolution — SEM order queue for PMC, current target / ally-assist for
     // RU/US — is shared with DriveHelicopterGoal. See VehicleTargeting.
     private BlockPos getTargetPos() {
+        Action plan = idlePlan();
+        if (plan == Action.IDLE_HOLD) {
+            BlockPos p = IdleGroupSupport.holdDestination(this.unit, this.vehicle, this.brain.facts());
+            if (p != null) return p;
+        } else if (plan == Action.IDLE_TRAVEL) {
+            BlockPos p = IdleGroupSupport.travelDestination(this.unit, this.vehicle, this.brain.facts());
+            if (p != null) return p;
+        }
         return VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
+    }
+
+    /** Debug-forced idle modes steer from hull NBT before the scorer adopts IDLE_* . */
+    private Action idlePlan() {
+        if (IdleGroupSupport.isDebugDrive(this.vehicle)) {
+            return switch (IdleGroupSupport.modeOf(this.vehicle)) {
+                case IdleGroupSupport.MODE_HOLD -> Action.IDLE_HOLD;
+                case IdleGroupSupport.MODE_TRAVEL -> Action.IDLE_TRAVEL;
+                default -> this.brain.plan();
+            };
+        }
+        return this.brain.plan();
     }
 
 }

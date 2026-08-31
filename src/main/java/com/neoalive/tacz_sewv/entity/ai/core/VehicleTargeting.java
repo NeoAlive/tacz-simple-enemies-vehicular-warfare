@@ -110,7 +110,10 @@ public final class VehicleTargeting {
                     ? assist.assistTargetPos(unit, vehicle, null, ASSIST_ENGAGEMENT_COOLDOWN, 0.0)
                     : null;
             // Nothing to reinforce either: potter about rather than park like a statue.
-            return aid != null ? aid : IdleSupport.wanderPos(unit, vehicle);
+            // Ground hybrid idle supplies destinations via IDLE_HOLD / IDLE_TRAVEL in DriveVehicleGoal;
+            // ships (and ground when hybrid is off) still use IdleSupport.wanderPos.
+            if (aid != null) return aid;
+            return IdleSupport.wanderPos(unit, vehicle);
         }
 
         // An area task (patrol / search & destroy / sweep) is a standing TDT order that outranks

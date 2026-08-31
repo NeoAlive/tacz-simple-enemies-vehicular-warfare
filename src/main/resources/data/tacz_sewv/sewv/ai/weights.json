@@ -61,7 +61,8 @@
     "postureScoot": -25,
     "exposed": -15,
     "aggression": -10,
-    "initiative": -10
+    "initiative": -10,
+    "idleGroupSize": -10
   },
 
   "retreat": {
@@ -174,7 +175,30 @@
   "patrol": {
     "base": 30,
     "underOrders": 40,
-    "initiative": 10
+    "initiative": 10,
+    "idleGroupSize": -15
+  },
+
+  "idleHold": {
+    "base": 28,
+    "idleGroupSize": 25,
+    "alone": 10,
+    "underOrders": -80,
+    "taskedIdleHold": 55,
+    "idleHoldExpired": -60,
+    "idleGroupOversize": -80,
+    "initiative": 8
+  },
+
+  "idleTravel": {
+    "base": 12,
+    "idleHoldExpired": 50,
+    "idleGroupOversize": 55,
+    "taskedIdleTravel": 55,
+    "idleTravelActive": 40,
+    "idlePeerVehicle": -30,
+    "alone": 15,
+    "underOrders": -80
   },
 
   "searchLastKnown": {

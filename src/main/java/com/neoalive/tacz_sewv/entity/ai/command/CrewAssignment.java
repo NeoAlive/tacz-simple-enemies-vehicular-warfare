@@ -23,15 +23,22 @@ public final class CrewAssignment {
     /**
      * Immutable view of one driver's assignment. {@code flankSide} is set only for a flank
      * maneuver; {@code priorityTargetId} is soft focus-fire (may be stale — readers re-validate).
+     * {@code destX}/{@code destZ} are optional world coordinates (NaN when unset).
      */
     public record Snapshot(
             Assignment.Role role,
             @Nullable Assignment.FlankSide flankSide,
-            @Nullable Integer priorityTargetId
-    ) {}
+            @Nullable Integer priorityTargetId,
+            double destX,
+            double destZ
+    ) {
+        public boolean hasDest() {
+            return Double.isFinite(destX) && Double.isFinite(destZ);
+        }
+    }
 
     public static void publish(Assignment a) {
-        LIVE.put(a.unitId, new Snapshot(a.role, a.flankSide, a.priorityTargetId));
+        LIVE.put(a.unitId, new Snapshot(a.role, a.flankSide, a.priorityTargetId, a.destX, a.destZ));
     }
 
     public static void clear(int unitId) {
@@ -52,11 +59,14 @@ public final class CrewAssignment {
         return LIVE.get(unitId);
     }
 
+    /** True when this unit has a published idle-hold or idle-travel role. */
+    public static boolean isIdleTasked(int unitId) {
+        Snapshot s = LIVE.get(unitId);
+        return s != null && (s.role == Assignment.Role.IDLE_HOLD || s.role == Assignment.Role.IDLE_TRAVEL);
+    }
+
     /**
-     * Raise exactly one {@code TASKED_*} signal for the driver's current role. Role → signal:
-     * BoF → {@link Signal#TASKED_BASE_OF_FIRE}; maneuver with a flank side →
-     * {@link Signal#TASKED_FLANK}; maneuver without → {@link Signal#TASKED_ADVANCE}; overwatch /
-     * reserve / hold → {@link Signal#TASKED_HOLD}; withdraw → {@link Signal#TASKED_WITHDRAW}.
+     * Raise exactly one {@code TASKED_*} signal for the driver's current role.
      */
     public static void raiseTaskSignals(int unitId, double[] signals) {
         Snapshot s = LIVE.get(unitId);
@@ -72,6 +82,8 @@ public final class CrewAssignment {
             }
             case OVERWATCH, RESERVE, HOLD -> signals[Signal.TASKED_HOLD.ordinal()] = 1.0;
             case WITHDRAW -> signals[Signal.TASKED_WITHDRAW.ordinal()] = 1.0;
+            case IDLE_HOLD -> signals[Signal.TASKED_IDLE_HOLD.ordinal()] = 1.0;
+            case IDLE_TRAVEL -> signals[Signal.TASKED_IDLE_TRAVEL.ordinal()] = 1.0;
         }
     }
 

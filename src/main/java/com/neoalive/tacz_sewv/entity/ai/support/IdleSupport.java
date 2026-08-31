@@ -43,10 +43,20 @@ public final class IdleSupport {
     /**
      * The idle destination for this crew, or null to stand still (dwelling, in contact, disabled, or
      * a hull that doesn't drive).
+     *
+     * <p>Ground hulls use hybrid idle ({@link IdleGroupSupport}) when enabled — this method then
+     * returns null for them so {@code IDLE_HOLD}/{@code IDLE_TRAVEL} own the destination. Ships
+     * (and ground when hybrid is off) still wander here.
      */
     @Nullable
     public static BlockPos wanderPos(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
         if (vehicle == null || !SewvConfig.IDLE_WANDER_ENABLED.get()) return null;
+
+        // Hybrid idle owns ground WHEEL/TRACK destinations.
+        if (IdleGroupSupport.hybridEnabled()) {
+            CompoundTag probe = vehicle.getPersistentData();
+            if (drives(vehicle, probe) && !isShip(probe)) return null;
+        }
 
         CompoundTag data = vehicle.getPersistentData();
         // In contact: drop the whole idle state so that when the fight ends the hull re-anchors

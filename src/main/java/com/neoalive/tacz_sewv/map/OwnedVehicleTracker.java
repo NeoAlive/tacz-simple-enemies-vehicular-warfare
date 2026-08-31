@@ -499,8 +499,9 @@ public final class OwnedVehicleTracker {
             case MANEUVER -> VehicleMarker.PlayRole.MANEUVER;
             case OVERWATCH -> VehicleMarker.PlayRole.OVERWATCH;
             case RESERVE -> VehicleMarker.PlayRole.RESERVE;
-            case HOLD -> VehicleMarker.PlayRole.HOLD;
+            case HOLD, IDLE_HOLD -> VehicleMarker.PlayRole.HOLD;
             case WITHDRAW -> VehicleMarker.PlayRole.WITHDRAW;
+            case IDLE_TRAVEL -> VehicleMarker.PlayRole.MANEUVER;
         };
     }
 

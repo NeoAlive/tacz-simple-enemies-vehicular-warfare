@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.data.gun.GunProp;
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -27,11 +28,13 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.util.SmokeVision;
 
@@ -172,6 +175,24 @@ public final class Facts {
      */
     public boolean underOrders;
 
+    // ---- hybrid idle group (written by IdleGroupSupport on refresh) ----
+    public int idleGroupSize;
+    public int idleGroupIndex;
+    public int idleLeaderId = -1;
+    public boolean idleIsLeader;
+    /** 0..1 progress through the current IDLE_HOLD timer. */
+    public double idleHoldElapsed;
+    public boolean idleHoldExpired;
+    public boolean idleTravelActive;
+    public boolean idleGroupOversize;
+    public boolean idlePeerVehicleNearby;
+    public boolean idlePlayerNearby;
+    /** Ground-drivable hull eligible for hybrid idle. */
+    public boolean idleGroundDrivable;
+    /** Cached group snapshot for destination math this refresh window. */
+    @Nullable
+    public com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport.Snapshot idleSnapshot;
+
     /** The range we want to fight the current target at. See {@link #preferredRange}. */
     public double preferredRange;
     /**
@@ -263,6 +284,7 @@ public final class Facts {
 
         readStatus(unit, hull);
         readBattlefield(unit, hull);
+        readIdleGroup(unit, hull);
         readEnvironment(unit, hull);
         readComms(unit, now);
         this.populated = true;
@@ -492,6 +514,37 @@ public final class Facts {
     }
 
     /**
+     * Hybrid idle group membership, hold timer, and travel invalidation — only for ground hulls
+     * when the feature is enabled.
+     */
+    private void readIdleGroup(AbstractUnit unit, VehicleEntity hull) {
+        this.idleSnapshot = null;
+        this.idleGroupSize = 0;
+        this.idleGroupIndex = 0;
+        this.idleLeaderId = -1;
+        this.idleIsLeader = false;
+        this.idleHoldElapsed = 0.0;
+        this.idleHoldExpired = false;
+        this.idleTravelActive = false;
+        this.idleGroupOversize = false;
+        this.idlePeerVehicleNearby = false;
+        this.idlePlayerNearby = false;
+
+        EngineType type;
+        try {
+            type = HullFacts.engineType(hull);
+        } catch (Throwable ignored) {
+            this.idleGroundDrivable = false;
+            return;
+        }
+        this.idleGroundDrivable = type == EngineType.WHEEL || type == EngineType.TRACK;
+        if (!this.idleGroundDrivable || !IdleGroupSupport.hybridEnabled()) return;
+
+        IdleGroupSupport.Snapshot snap = IdleGroupSupport.scan(unit, hull);
+        IdleGroupSupport.applyToFacts(unit, hull, snap, this);
+    }
+
+    /**
      * Where we are fighting, as tactical categories rather than raw world data.
      *
      * <p>Nothing here triggers a behaviour by itself — the doc is explicit that terrain and weather
@@ -578,6 +631,18 @@ public final class Facts {
         this.targetDist = Double.MAX_VALUE;
         this.nearestAlly = null;
         this.underOrders = false;
+        this.idleGroupSize = 0;
+        this.idleGroupIndex = 0;
+        this.idleLeaderId = -1;
+        this.idleIsLeader = false;
+        this.idleHoldElapsed = 0.0;
+        this.idleHoldExpired = false;
+        this.idleTravelActive = false;
+        this.idleGroupOversize = false;
+        this.idlePeerVehicleNearby = false;
+        this.idlePlayerNearby = false;
+        this.idleGroundDrivable = false;
+        this.idleSnapshot = null;
         this.confidence = Confidence.NEUTRAL;
         this.outerSpotFresh = false;
         this.outerSpotDist = Double.MAX_VALUE;

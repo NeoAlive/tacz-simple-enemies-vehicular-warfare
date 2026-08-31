@@ -11,6 +11,9 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
+import com.mojang.brigadier.arguments.FloatArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
@@ -41,6 +44,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.GunCacheProbe;
+import com.neoalive.tacz_sewv.debug.IdleGroupDebug;
 import com.neoalive.tacz_sewv.debug.PerfProbe;
 import com.neoalive.tacz_sewv.debug.SewvConfigFix;
 import com.neoalive.tacz_sewv.debug.SewvDebugDump;
@@ -130,7 +134,36 @@ public class SewvCommand {
                         .then(Commands.literal("IndividualTactics")
                                 .then(Commands.argument("value", BoolArgumentType.bool())
                                         .executes(ctx -> debugIndividualTactics(ctx.getSource(),
-                                                BoolArgumentType.getBool(ctx, "value"))))))
+                                                BoolArgumentType.getBool(ctx, "value")))))
+                        .then(Commands.literal("idleStatus")
+                                .executes(ctx -> IdleGroupDebug.status(ctx.getSource(), 64.0))
+                                .then(Commands.argument("radius", DoubleArgumentType.doubleArg(8.0, 128.0))
+                                        .executes(ctx -> IdleGroupDebug.status(ctx.getSource(),
+                                                DoubleArgumentType.getDouble(ctx, "radius")))))
+                        .then(Commands.literal("idleHold")
+                                .executes(ctx -> IdleGroupDebug.forceHold(ctx.getSource())))
+                        .then(Commands.literal("idleTravel")
+                                .executes(ctx -> IdleGroupDebug.forceTravel(ctx.getSource(), null))
+                                .then(Commands.argument("bearingDeg", FloatArgumentType.floatArg(-180.0f, 360.0f))
+                                        .executes(ctx -> IdleGroupDebug.forceTravel(ctx.getSource(),
+                                                FloatArgumentType.getFloat(ctx, "bearingDeg")))))
+                        .then(Commands.literal("idleExpireHold")
+                                .executes(ctx -> IdleGroupDebug.expireHold(ctx.getSource())))
+                        .then(Commands.literal("idleClear")
+                                .executes(ctx -> IdleGroupDebug.clear(ctx.getSource(), 64.0))
+                                .then(Commands.argument("radius", DoubleArgumentType.doubleArg(8.0, 128.0))
+                                        .executes(ctx -> IdleGroupDebug.clear(ctx.getSource(),
+                                                DoubleArgumentType.getDouble(ctx, "radius")))))
+                        .then(Commands.literal("idleSpawnCluster")
+                                .then(Commands.argument("count", IntegerArgumentType.integer(1, 12))
+                                        .executes(ctx -> IdleGroupDebug.spawnCluster(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "count"), TankFaction.RU))
+                                        .then(Commands.argument("faction", StringArgumentType.word())
+                                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(
+                                                        new String[]{"ru", "us", "pmc"}, b))
+                                                .executes(ctx -> IdleGroupDebug.spawnCluster(ctx.getSource(),
+                                                        IntegerArgumentType.getInteger(ctx, "count"),
+                                                        parseTankFaction(StringArgumentType.getString(ctx, "faction"))))))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("add")
@@ -967,5 +1000,13 @@ public class SewvCommand {
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.spawn.success", faction.name(), reported.toShortString()), true);
         return 1;
+    }
+
+    private static TankFaction parseTankFaction(String name) {
+        return switch (name.toLowerCase()) {
+            case "us" -> TankFaction.US;
+            case "pmc" -> TankFaction.PMC;
+            default -> TankFaction.RU;
+        };
     }
 }

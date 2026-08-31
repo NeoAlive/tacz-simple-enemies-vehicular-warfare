@@ -83,6 +83,22 @@ public enum Signal {
     /** A player order or area task is standing, so where we go is not ours to choose. */
     UNDER_ORDERS("underOrders"),
 
+    // ---- hybrid idle ----
+    /** 0..1 by idle-group size, saturating at five. */
+    IDLE_GROUP_SIZE("idleGroupSize"),
+    /** 1 when the idle group has more than five members (forces travel). */
+    IDLE_GROUP_OVERSIZE("idleGroupOversize"),
+    /** 0..1 progress through the IDLE_HOLD timer. */
+    IDLE_HOLD_ELAPSED("idleHoldElapsed"),
+    /** 1 when the IDLE_HOLD timer has expired. */
+    IDLE_HOLD_EXPIRED("idleHoldExpired"),
+    /** 1 while IDLE_TRAVEL NBT mode is active. */
+    IDLE_TRAVEL_ACTIVE("idleTravelActive"),
+    /** 1 when a non-group VehicleEntity is within travel-detect range. */
+    IDLE_PEER_VEHICLE("idlePeerVehicle"),
+    /** 1 when a non-spectator Player is within travel-detect range. */
+    IDLE_PLAYER_NEAR("idlePlayerNear"),
+
     // ---- where we are ----
     // Exactly one ground signal and at most one sky signal is raised at a time.
     /** Open ground: long sightlines, nothing to hide behind. */
@@ -120,6 +136,10 @@ public enum Signal {
     TASKED_HOLD("taskedHold"),
     /** Commander wants this hull pulling back. */
     TASKED_WITHDRAW("taskedWithdraw"),
+    /** Commander wants this hull in idle polygon formation. */
+    TASKED_IDLE_HOLD("taskedIdleHold"),
+    /** Commander wants this hull on an idle travel column. */
+    TASKED_IDLE_TRAVEL("taskedIdleTravel"),
 
     // ---- individual tactics (cover / posture) ----
     /** 0..1 exposure to the threat bearing from the shared cover cache. */

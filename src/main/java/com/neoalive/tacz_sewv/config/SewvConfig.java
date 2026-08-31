@@ -165,6 +165,19 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
     public static final ForgeConfigSpec.IntValue IDLE_WANDER_RADIUS;
+    public static final ForgeConfigSpec.BooleanValue IDLE_HYBRID_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue IDLE_GROUP_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue IDLE_FORMATION_BASE_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue IDLE_FORMATION_RADIUS_MIN;
+    public static final ForgeConfigSpec.DoubleValue IDLE_FORMATION_RADIUS_MAX;
+    public static final ForgeConfigSpec.DoubleValue IDLE_SCRAMBLE_RADIUS;
+    public static final ForgeConfigSpec.IntValue IDLE_HOLD_MIN_TICKS;
+    public static final ForgeConfigSpec.IntValue IDLE_HOLD_MAX_TICKS;
+    public static final ForgeConfigSpec.DoubleValue IDLE_TRAVEL_LEAD_DISTANCE;
+    public static final ForgeConfigSpec.DoubleValue IDLE_TRAVEL_SPACING_MIN;
+    public static final ForgeConfigSpec.DoubleValue IDLE_TRAVEL_SPACING_MAX;
+    public static final ForgeConfigSpec.DoubleValue IDLE_TRAVEL_DETECT_RADIUS;
+    public static final ForgeConfigSpec.IntValue IDLE_TRAVEL_STUCK_TICKS;
     public static final ForgeConfigSpec.IntValue UTILITY_REFRESH_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
@@ -649,10 +662,42 @@ public final class SewvConfig {
                 .define("komodoRenderFixEnabled", true);
         PATROL_ROTATE_INTERVAL_TICKS = builder.comment("How long (game ticks) a patrol holds one spot before moving on.")
                 .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
-        IDLE_WANDER_ENABLED = builder.comment("Crewed vehicles with nothing to do may wander nearby.")
+        IDLE_WANDER_ENABLED = builder.comment(
+                        "Ship crews with nothing to do may wander nearby on water.",
+                        "Ground hulls use hybrid idle (IDLE_HOLD / IDLE_TRAVEL) when idleHybridEnabled.")
                 .define("idleWanderEnabled", true);
         IDLE_WANDER_RADIUS = builder.comment("Max wander distance (blocks) from where they started waiting.")
                 .defineInRange("idleWanderRadius", 16, 4, 64);
+        IDLE_HYBRID_ENABLED = builder.comment(
+                        "Ground crews use polygon formation hold + constant-bearing travel when idle",
+                        "instead of random wander. Ships still use idleWanderEnabled.")
+                .define("idleHybridEnabled", true);
+        IDLE_GROUP_RADIUS = builder.comment("Friendly idle ground vehicles within this range form an idle group.")
+                .defineInRange("idleGroupRadius", 50.0, 8.0, 128.0);
+        IDLE_FORMATION_BASE_RADIUS = builder.comment("Base polygon radius (blocks) for IDLE_HOLD; scales with group size.")
+                .defineInRange("idleFormationBaseRadius", 15.0, 5.0, 40.0);
+        IDLE_FORMATION_RADIUS_MIN = builder.comment("Minimum IDLE_HOLD formation radius (blocks).")
+                .defineInRange("idleFormationRadiusMin", 15.0, 5.0, 40.0);
+        IDLE_FORMATION_RADIUS_MAX = builder.comment("Maximum IDLE_HOLD formation radius (blocks).")
+                .defineInRange("idleFormationRadiusMax", 40.0, 15.0, 80.0);
+        IDLE_SCRAMBLE_RADIUS = builder.comment("Persistent random XZ offset (±blocks) per formation slot.")
+                .defineInRange("idleScrambleRadius", 5.0, 0.0, 16.0);
+        IDLE_HOLD_MIN_TICKS = builder.comment("Minimum IDLE_HOLD duration (game ticks) before travel may begin (3600 = 3 min).")
+                .defineInRange("idleHoldMinTicks", 3600, 200, 24000);
+        IDLE_HOLD_MAX_TICKS = builder.comment("Maximum IDLE_HOLD duration (game ticks) before travel begins (6000 = 5 min).")
+                .defineInRange("idleHoldMaxTicks", 6000, 200, 48000);
+        IDLE_TRAVEL_LEAD_DISTANCE = builder.comment("How far ahead (blocks) the travel leader pathfinds along its bearing.")
+                .defineInRange("idleTravelLeadDistance", 500.0, 64.0, 2000.0);
+        IDLE_TRAVEL_SPACING_MIN = builder.comment("Minimum column spacing (blocks) between travel followers.")
+                .defineInRange("idleTravelSpacingMin", 5.0, 2.0, 32.0);
+        IDLE_TRAVEL_SPACING_MAX = builder.comment("Maximum column spacing (blocks) between travel followers.")
+                .defineInRange("idleTravelSpacingMax", 8.0, 2.0, 32.0);
+        IDLE_TRAVEL_DETECT_RADIUS = builder.comment(
+                        "Cancel IDLE_TRAVEL when a non-group VehicleEntity or Player is within this range.")
+                .defineInRange("idleTravelDetectRadius", 20.0, 4.0, 64.0);
+        IDLE_TRAVEL_STUCK_TICKS = builder.comment(
+                        "Give up IDLE_TRAVEL and re-enter hold if no progress for this many game ticks.")
+                .defineInRange("idleTravelStuckTicks", 600, 100, 6000);
         UTILITY_REFRESH_INTERVAL_TICKS = builder.comment("How often (game ticks) a ground crew rethinks attack / hold / fall back.")
                 .defineInRange("utilityRefreshIntervalTicks", 30, 5, 200);
         FACTION_ORGANIC_COMMS = builder.comment("RU/US crews can call mortars/TOWs/air support without holding a radio item.")

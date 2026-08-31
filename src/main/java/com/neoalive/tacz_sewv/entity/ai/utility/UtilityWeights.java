@@ -195,6 +195,11 @@ public final class UtilityWeights {
         signals[Action.FLANK_RIGHT.ordinal()][Signal.TASKED_FLANK.ordinal()] = 55.0;
         // Out of contact, keep working the standing destination rather than parking.
         signals[Action.PATROL.ordinal()][Signal.BASE.ordinal()] = 20.0;
+        signals[Action.IDLE_HOLD.ordinal()][Signal.BASE.ordinal()] = 25.0;
+        signals[Action.IDLE_HOLD.ordinal()][Signal.TASKED_IDLE_HOLD.ordinal()] = 50.0;
+        signals[Action.IDLE_TRAVEL.ordinal()][Signal.BASE.ordinal()] = 10.0;
+        signals[Action.IDLE_TRAVEL.ordinal()][Signal.IDLE_HOLD_EXPIRED.ordinal()] = 45.0;
+        signals[Action.IDLE_TRAVEL.ordinal()][Signal.TASKED_IDLE_TRAVEL.ordinal()] = 50.0;
 
         double[] confSignals = new double[Signal.VALUES.length];
         confSignals[Signal.LOW_HEALTH.ordinal()] = -30.0;

@@ -49,6 +49,12 @@ public final class CommandCoordinator {
 
     private static final Map<ResourceKey<Level>, Map<Integer, BattleGroup>> GROUPS_BY_LEVEL = new HashMap<>();
 
+    /**
+     * Idle-tasked unit ids published this command pass (uncontested hybrid idle). Merged into
+     * {@link #syncCrewAssignments()} so retainAll does not wipe them when battle groups are empty.
+     */
+    private static final Set<Integer> IDLE_TASKED_KEEP = new HashSet<>();
+
     private CommandCoordinator() {}
 
     @SubscribeEvent
@@ -58,6 +64,7 @@ public final class CommandCoordinator {
         GROUPS_BY_LEVEL.clear();
         CommandEligibility.clearCache();
         CrewAssignment.clearAll();
+        IDLE_TASKED_KEEP.clear();
     }
 
     @SubscribeEvent
@@ -66,6 +73,7 @@ public final class CommandCoordinator {
         GROUPS_BY_LEVEL.clear();
         CommandEligibility.clearCache();
         CrewAssignment.clearAll();
+        IDLE_TASKED_KEEP.clear();
     }
 
     @SubscribeEvent
@@ -80,6 +88,7 @@ public final class CommandCoordinator {
             return;
         }
         nextScan = now + interval;
+        IDLE_TASKED_KEEP.clear();
 
         GroupParams params;
         int maxUnits;
@@ -111,7 +120,7 @@ public final class CommandCoordinator {
 
     /** Publish every live role into {@link CrewAssignment}; drop units no longer tasked. */
     private static void syncCrewAssignments() {
-        Set<Integer> keep = new HashSet<>();
+        Set<Integer> keep = new HashSet<>(IDLE_TASKED_KEEP);
         for (Map<Integer, BattleGroup> levelGroups : GROUPS_BY_LEVEL.values()) {
             for (BattleGroup g : levelGroups.values()) {
                 Roles roles = g.currentRoles();
@@ -272,7 +281,9 @@ public final class CommandCoordinator {
         }
 
         if (contested.isEmpty()) {
-            // Nothing contested and no existing groups left for this level.
+            // Nothing contested — publish soft IDLE_HOLD for clustered idle ground drivers so the
+            // utility scorer can bias formation without inventing a battle play.
+            publishIdleAssignments(level, drivers);
             return;
         }
 
@@ -622,6 +633,76 @@ public final class CommandCoordinator {
         for (int id : previousIds) {
             if (!liveIds.contains(id) && levelGroups.remove(id) != null) {
                 LOGGER.debug("[sewv-command] dissolve group {} (below min size / split)", id);
+            }
+        }
+    }
+
+    /**
+     * Soft-task idle ground drivers into IDLE_HOLD (≤5) or IDLE_TRAVEL (&gt;5) when no battle is
+     * contested. Destination is the cluster centroid (hold center / travel aim).
+     */
+    private static void publishIdleAssignments(ServerLevel level, List<Candidate> drivers) {
+        if (!com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport.hybridEnabled()) return;
+        double radius;
+        try {
+            radius = SewvConfig.IDLE_GROUP_RADIUS.get();
+        } catch (Throwable ignored) {
+            radius = 50.0;
+        }
+        double radiusSq = radius * radius;
+
+        List<Candidate> idle = new ArrayList<>();
+        for (Candidate c : drivers) {
+            if (!(level.getEntity(c.unitId) instanceof AbstractUnit unit)) continue;
+            if (unit.getTarget() != null) continue;
+            if (com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting.underStandingOrder(unit)) continue;
+            var type = com.neoalive.tacz_sewv.entity.ai.core.HullFacts.engineType(c.hull);
+            if (type != com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType.WHEEL
+                    && type != com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType.TRACK) {
+                continue;
+            }
+            idle.add(c);
+        }
+        idle.sort(Comparator.comparingInt(c -> c.unitId));
+
+        boolean[] used = new boolean[idle.size()];
+        for (int i = 0; i < idle.size(); i++) {
+            if (used[i]) continue;
+            List<Candidate> cluster = new ArrayList<>();
+            cluster.add(idle.get(i));
+            used[i] = true;
+            for (int j = i + 1; j < idle.size(); j++) {
+                if (used[j]) continue;
+                Candidate a = idle.get(i);
+                Candidate b = idle.get(j);
+                if (a.faction != b.faction) continue;
+                double dx = a.x - b.x;
+                double dz = a.z - b.z;
+                if (dx * dx + dz * dz > radiusSq) continue;
+                // Also require proximity to cluster centroid as it grows.
+                double cx = 0, cz = 0;
+                for (Candidate m : cluster) { cx += m.x; cz += m.z; }
+                cx /= cluster.size();
+                cz /= cluster.size();
+                double dx2 = b.x - cx;
+                double dz2 = b.z - cz;
+                if (dx2 * dx2 + dz2 * dz2 > radiusSq) continue;
+                cluster.add(b);
+                used[j] = true;
+            }
+
+            double cx = 0, cz = 0;
+            for (Candidate m : cluster) { cx += m.x; cz += m.z; }
+            cx /= cluster.size();
+            cz /= cluster.size();
+
+            Assignment.Role role = cluster.size() > 5
+                    ? Assignment.Role.IDLE_TRAVEL
+                    : Assignment.Role.IDLE_HOLD;
+            for (Candidate m : cluster) {
+                CrewAssignment.publish(new Assignment(
+                        m.unitId, role, null, null, cx, cz));
+                IDLE_TASKED_KEEP.add(m.unitId);
             }
         }
     }

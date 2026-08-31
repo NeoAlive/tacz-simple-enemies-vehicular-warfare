@@ -49,6 +49,8 @@ public final class SeamSelfCheck {
         assertTasked(Assignment.Role.RESERVE, null, Signal.TASKED_HOLD);
         assertTasked(Assignment.Role.HOLD, null, Signal.TASKED_HOLD);
         assertTasked(Assignment.Role.WITHDRAW, null, Signal.TASKED_WITHDRAW);
+        assertTasked(Assignment.Role.IDLE_HOLD, null, Signal.TASKED_IDLE_HOLD);
+        assertTasked(Assignment.Role.IDLE_TRAVEL, null, Signal.TASKED_IDLE_TRAVEL);
     }
 
     private static void assertTasked(Assignment.Role role, Assignment.FlankSide side, Signal expected) {

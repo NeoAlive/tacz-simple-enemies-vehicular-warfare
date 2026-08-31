@@ -26,6 +26,7 @@ import com.neoalive.tacz_sewv.compat.BerezkaStructureCompat;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.config.ConfigMigration;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.NpcArmor;
 import com.neoalive.tacz_sewv.crew.NpcIdentity;
@@ -155,6 +156,7 @@ public class TaczSewv {
         // equally unsafe to touch from an AI tick before it has been baked.
         Doctrine.refreshPresets();
         WorldTargetPriority.refreshCatalog();
+        ConfigMigration.applyServer();
         // SEM's recruit economy (used by medic capture feature).
         SemRecruitCost.refresh();
     }

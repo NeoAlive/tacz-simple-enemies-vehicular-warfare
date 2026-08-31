@@ -95,7 +95,8 @@ public class NetworkHandler {
     // 62: PacketCaptureMedic (TDT "Capture Medic" order).
     // 67: PacketSetNameCategory (TDT "Identity" category, "Full Names" preference).
     // 68: spawn_probe open/save GUI packets.
-    private static final String PROTOCOL_VERSION = "68";
+    // 69: ConfigUI open/request/save/shortcut packets.
+    private static final String PROTOCOL_VERSION = "69";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -461,6 +462,35 @@ public class NetworkHandler {
                 PacketSaveSpawnProbe::encode,
                 PacketSaveSpawnProbe::new,
                 PacketSaveSpawnProbe::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRequestConfigUI.class,
+                PacketRequestConfigUI::encode,
+                PacketRequestConfigUI::new,
+                PacketRequestConfigUI::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenConfigUI.class,
+                PacketOpenConfigUI::encode,
+                PacketOpenConfigUI::new,
+                PacketOpenConfigUI::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSaveConfigUI.class,
+                PacketSaveConfigUI::encode,
+                PacketSaveConfigUI::new,
+                PacketSaveConfigUI::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketConfigShortcut.class,
+                PacketConfigShortcut::encode,
+                PacketConfigShortcut::new,
+                PacketConfigShortcut::handle
         );
     }
 }

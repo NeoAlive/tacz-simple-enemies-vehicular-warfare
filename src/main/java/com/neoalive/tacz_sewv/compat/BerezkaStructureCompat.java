@@ -46,11 +46,11 @@ public final class BerezkaStructureCompat {
     public static void onStructureSpawned(onStructureSpawned event) {
         if (!SewvConfig.STRUCTURE_VEHICLES_ENABLED.get()) return;
 
-        TankSpawner.TankFaction faction = factionFor(event.getStructureName());
-        if (faction == null) return; // not a mapped structure — ignore
-
         ServerLevel level = API.getCurWorld();
-        if (level == null) return;
+        if (level == null || !com.neoalive.tacz_sewv.spawn.AmbientSpawnGate.allows(level)) return;
+
+        TankSpawner.TankFaction faction = factionFor(event.getStructureName());
+        if (faction == null) return;
         if (faction == TankSpawner.TankFaction.PMC
                 && !level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)) {
             return;

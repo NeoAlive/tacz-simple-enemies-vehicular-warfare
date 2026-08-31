@@ -61,6 +61,7 @@ public class ClientModEvents {
      */
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
+        ConfigUIMenuHook.register();
         if (ModList.get().isLoaded(XaeroMapCompat.MODID)) {
             XaeroMapCompat.register();
         }

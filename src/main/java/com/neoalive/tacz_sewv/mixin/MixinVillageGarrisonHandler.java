@@ -14,6 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -57,9 +58,18 @@ public abstract class MixinVillageGarrisonHandler {
     @Unique
     private static final int TACZ_SEWV$OFFSET_RANGE = 7;
 
+    @Inject(method = "spawnGuard", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void tacz_sewv$gateAmbientGarrison(ServerLevel level, BlockPos basePos, boolean isRu,
+                                                    CallbackInfo ci) {
+        if (!AmbientSpawnGate.allows(level)) {
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "spawnGuard", at = @At("HEAD"), remap = false)
     private static void tacz_sewv$addGarrisonTank(ServerLevel level, BlockPos basePos, boolean isRu,
                                                   CallbackInfo ci) {
+        if (!AmbientSpawnGate.allows(level)) return;
         if (!SewvConfig.GARRISON_VEHICLES_ENABLED.get()) return;
 
         // Defer out of SEM's onLevelTick loop, which is iterating PENDING_GARRISONS while it calls

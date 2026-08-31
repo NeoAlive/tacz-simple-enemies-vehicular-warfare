@@ -436,12 +436,12 @@ public final class IdleGroupSupport {
         }
 
         if (mode == MODE_TRAVEL) {
-            if (shouldInvalidateTravel(unit, hull, snap)) {
+            if (!isDebugDrive(hull) && shouldInvalidateTravel(unit, hull, snap)) {
                 invalidateTravel(hull, snap.size <= MAX_HOLD_SIZE);
                 facts.idleTravelActive = false;
                 facts.idleHoldExpired = false;
                 facts.idleHoldElapsed = 0.0;
-            } else if (isTravelStuck(hull, now)) {
+            } else if (!isDebugDrive(hull) && isTravelStuck(hull, now)) {
                 invalidateTravel(hull, true);
                 facts.idleTravelActive = false;
                 facts.idleHoldExpired = false;
@@ -552,7 +552,7 @@ public final class IdleGroupSupport {
                 ? hull.getPersistentData().getDouble(SPACING_KEY)
                 : spacingMin();
 
-        if (snap.isLeader || snap.index == 0) {
+        if (snap.index == 0) {
             double lead = leadDistance();
             double fx = Math.sin(bearing);
             double fz = Math.cos(bearing);
@@ -562,12 +562,12 @@ public final class IdleGroupSupport {
             return BlockPos.containing(x, y, z);
         }
 
-        Member ahead = snap.members.get(snap.index - 1);
-        double fx = Math.sin(bearing);
-        double fz = Math.cos(bearing);
-        double x = ahead.x - fx * spacing;
-        double z = ahead.z - fz * spacing;
-        double y = groundY(hull.level(), x, z, ahead.y);
+        // Followers track the leader's live position — scan-time Member.x/z left the column parked.
+        Member leader = snap.members.get(0);
+        Vec3 off = travelColumnOffset(snap.index, bearing, spacing);
+        double x = leader.hull.getX() + off.x;
+        double z = leader.hull.getZ() + off.z;
+        double y = groundY(hull.level(), x, z, leader.hull.getY());
         return BlockPos.containing(x, y, z);
     }
 
@@ -618,11 +618,11 @@ public final class IdleGroupSupport {
     }
 
     private static int holdMinTicks() {
-        try { return SewvConfig.IDLE_HOLD_MIN_TICKS.get(); } catch (Throwable t) { return 3600; }
+        try { return SewvConfig.IDLE_HOLD_MIN_TICKS.get(); } catch (Throwable t) { return 100; }
     }
 
     private static int holdMaxTicks() {
-        try { return SewvConfig.IDLE_HOLD_MAX_TICKS.get(); } catch (Throwable t) { return 6000; }
+        try { return SewvConfig.IDLE_HOLD_MAX_TICKS.get(); } catch (Throwable t) { return 200; }
     }
 
     private static double leadDistance() {

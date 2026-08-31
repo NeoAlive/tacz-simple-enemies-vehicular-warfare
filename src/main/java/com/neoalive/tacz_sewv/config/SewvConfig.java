@@ -682,10 +682,10 @@ public final class SewvConfig {
                 .defineInRange("idleFormationRadiusMax", 40.0, 15.0, 80.0);
         IDLE_SCRAMBLE_RADIUS = builder.comment("Persistent random XZ offset (±blocks) per formation slot.")
                 .defineInRange("idleScrambleRadius", 5.0, 0.0, 16.0);
-        IDLE_HOLD_MIN_TICKS = builder.comment("Minimum IDLE_HOLD duration (game ticks) before travel may begin (3600 = 3 min).")
-                .defineInRange("idleHoldMinTicks", 3600, 200, 24000);
-        IDLE_HOLD_MAX_TICKS = builder.comment("Maximum IDLE_HOLD duration (game ticks) before travel begins (6000 = 5 min).")
-                .defineInRange("idleHoldMaxTicks", 6000, 200, 48000);
+        IDLE_HOLD_MIN_TICKS = builder.comment("Minimum IDLE_HOLD duration (game ticks) before travel may begin (100 = 5 s).")
+                .defineInRange("idleHoldMinTicks", 100, 20, 24000);
+        IDLE_HOLD_MAX_TICKS = builder.comment("Maximum IDLE_HOLD duration (game ticks) before travel begins (200 = 10 s).")
+                .defineInRange("idleHoldMaxTicks", 200, 20, 48000);
         IDLE_TRAVEL_LEAD_DISTANCE = builder.comment("How far ahead (blocks) the travel leader pathfinds along its bearing.")
                 .defineInRange("idleTravelLeadDistance", 500.0, 64.0, 2000.0);
         IDLE_TRAVEL_SPACING_MIN = builder.comment("Minimum column spacing (blocks) between travel followers.")

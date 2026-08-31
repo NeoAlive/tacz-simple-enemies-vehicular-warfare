@@ -743,11 +743,18 @@ public class DriveVehicleGoal extends Goal {
     /** Debug-forced idle modes steer from hull NBT before the scorer adopts IDLE_* . */
     private Action idlePlan() {
         if (IdleGroupSupport.isDebugDrive(this.vehicle)) {
-            return switch (IdleGroupSupport.modeOf(this.vehicle)) {
-                case IdleGroupSupport.MODE_HOLD -> Action.IDLE_HOLD;
-                case IdleGroupSupport.MODE_TRAVEL -> Action.IDLE_TRAVEL;
-                default -> this.brain.plan();
-            };
+            byte mode = IdleGroupSupport.modeOf(this.vehicle);
+            if (mode == IdleGroupSupport.MODE_HOLD) return Action.IDLE_HOLD;
+            if (mode == IdleGroupSupport.MODE_TRAVEL) return Action.IDLE_TRAVEL;
+            var assign = com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment.of(this.unit.getId());
+            if (assign != null) {
+                if (assign.role() == com.neoalive.tacz_sewv.entity.ai.command.Assignment.Role.IDLE_TRAVEL) {
+                    return Action.IDLE_TRAVEL;
+                }
+                if (assign.role() == com.neoalive.tacz_sewv.entity.ai.command.Assignment.Role.IDLE_HOLD) {
+                    return Action.IDLE_HOLD;
+                }
+            }
         }
         return this.brain.plan();
     }

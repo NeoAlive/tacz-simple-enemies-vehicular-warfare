@@ -5,6 +5,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 
 import javax.annotation.Nullable;
 
@@ -12,6 +14,7 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -61,8 +64,65 @@ public final class IdleGroupSupport {
     private static final String STUCK_X_KEY = "tacz_sewv:idle_stuck_x";
     private static final String STUCK_Z_KEY = "tacz_sewv:idle_stuck_z";
     private static final String HAS_BEARING_KEY = "tacz_sewv:idle_has_bearing";
+    private static final String LAST_BEARING_KEY = "tacz_sewv:idle_last_bearing";
+    private static final String GROUND_Y_X_KEY = "tacz_sewv:idle_ground_y_x";
+    private static final String GROUND_Y_Z_KEY = "tacz_sewv:idle_ground_y_z";
+    private static final String GROUND_Y_VAL_KEY = "tacz_sewv:idle_ground_y_val";
+    private static final String CONTACT_PEER_KEY = "tacz_sewv:idle_contact_peer";
+    private static final String CONTACT_PLAYER_KEY = "tacz_sewv:idle_contact_player";
+    private static final String CONTACT_VEHICLE_KEY = "tacz_sewv:idle_contact_vehicle";
 
     private static final int MAX_HOLD_SIZE = 5;
+    private static final int OPEN_GROUND_SAMPLES = 8;
+    private static final double OPEN_GROUND_STEP = 16.0;
+
+    private static final LongAdder IDLE_SCAN_CALLS = new LongAdder();
+    private static final LongAdder IDLE_SNAPSHOT_CACHE_HITS = new LongAdder();
+    private static final LongAdder GROUND_Y_PROBES = new LongAdder();
+    private static final LongAdder GROUND_Y_CACHE_HITS = new LongAdder();
+    private static final LongAdder TRAVEL_INVALIDATE_SCANS = new LongAdder();
+
+    private static final ConcurrentHashMap<ClusterCacheKey, CachedCluster> CLUSTER_CACHE = new ConcurrentHashMap<>();
+    private static long lastClusterCacheGen = Long.MIN_VALUE;
+
+    private record ClusterCacheKey(int leaderUnitId, long refreshGen, ResourceKey<Level> dimension) {}
+
+    private static final class CachedCluster {
+        final List<Member> members;
+        final double centerX;
+        final double centerY;
+        final double centerZ;
+        final boolean peerVehicle;
+        final boolean playerNearby;
+
+        CachedCluster(List<Member> members, double centerX, double centerY, double centerZ,
+                      boolean peerVehicle, boolean playerNearby) {
+            this.members = List.copyOf(members);
+            this.centerX = centerX;
+            this.centerY = centerY;
+            this.centerZ = centerZ;
+            this.peerVehicle = peerVehicle;
+            this.playerNearby = playerNearby;
+        }
+    }
+
+    /** Idle perf counters for {@code /sewv debug perf}. */
+    public static String stats() {
+        return "idleScanCalls=" + IDLE_SCAN_CALLS.sum()
+                + " idleSnapshotCacheHits=" + IDLE_SNAPSHOT_CACHE_HITS.sum()
+                + " groundYProbes=" + GROUND_Y_PROBES.sum()
+                + " groundYCacheHits=" + GROUND_Y_CACHE_HITS.sum()
+                + " travelInvalidateScans=" + TRAVEL_INVALIDATE_SCANS.sum();
+    }
+
+    public static void resetStats() {
+        IDLE_SCAN_CALLS.reset();
+        IDLE_SNAPSHOT_CACHE_HITS.reset();
+        GROUND_Y_PROBES.reset();
+        GROUND_Y_CACHE_HITS.reset();
+        TRAVEL_INVALIDATE_SCANS.reset();
+    }
+
     private static final int MAX_SLOT_RISE = 16;
     private static final double STUCK_MOVE_EPS = 1.5;
 
@@ -136,8 +196,8 @@ public final class IdleGroupSupport {
      * Build the idle group around {@code unit}/{@code hull}. Call once per Facts refresh.
      */
     public static Snapshot scan(AbstractUnit unit, VehicleEntity hull) {
+        IDLE_SCAN_CALLS.increment();
         List<Member> members = new ArrayList<>();
-        // Self always participates when eligible.
         if (isGroundIdleEligible(unit, hull)) {
             members.add(new Member(unit, hull));
         } else {
@@ -147,18 +207,15 @@ public final class IdleGroupSupport {
         double groupR = groupRadius();
         double groupRSq = groupR * groupR;
         Level level = hull.level();
+        double scanR = targetScanRadius();
+        double detectR = travelDetectRadius();
+        double queryR = Math.max(groupR, Math.max(scanR, detectR));
 
         List<LivingEntity> living;
-        double scanR;
-        try {
-            scanR = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
-        } catch (Throwable ignored) {
-            scanR = 96.0;
-        }
-        if (scanR >= groupR) {
+        if (scanR >= queryR) {
             living = HullLocalScan.livingInScanCylinder(hull);
         } else {
-            AABB box = hull.getBoundingBox().inflate(groupR, Math.max(8.0, hull.getBbHeight() + 4.0), groupR);
+            AABB box = hull.getBoundingBox().inflate(queryR, Math.max(8.0, hull.getBbHeight() + 4.0), queryR);
             living = level.getEntitiesOfClass(LivingEntity.class, box, Entity::isAlive);
         }
 
@@ -176,6 +233,43 @@ public final class IdleGroupSupport {
 
         members.sort(Comparator.comparingInt(m -> m.unitId));
 
+        long refreshGen = refreshGeneration(level);
+        maybePruneClusterCache(refreshGen);
+        int leaderUnitId = members.get(0).unitId;
+        ClusterCacheKey cacheKey = new ClusterCacheKey(leaderUnitId, refreshGen, level.dimension());
+        CachedCluster cached = CLUSTER_CACHE.get(cacheKey);
+
+        double cx;
+        double cy;
+        double cz;
+        boolean peerVehicle;
+        boolean playerNearby;
+        if (cached != null && sameMembership(cached.members, members)) {
+            IDLE_SNAPSHOT_CACHE_HITS.increment();
+            members = new ArrayList<>(cached.members);
+            cx = cached.centerX;
+            cy = cached.centerY;
+            cz = cached.centerZ;
+            peerVehicle = cached.peerVehicle;
+            playerNearby = cached.playerNearby;
+        } else {
+            cx = 0.0;
+            cy = 0.0;
+            cz = 0.0;
+            for (Member m : members) {
+                cx += m.x;
+                cy += m.y;
+                cz += m.z;
+            }
+            cx /= members.size();
+            cy /= members.size();
+            cz /= members.size();
+            Detect detect = detectContacts(unit, hull, members, living);
+            peerVehicle = detect.peerVehicle;
+            playerNearby = detect.player;
+            CLUSTER_CACHE.put(cacheKey, new CachedCluster(members, cx, cy, cz, peerVehicle, playerNearby));
+        }
+
         int index = 0;
         for (int i = 0; i < members.size(); i++) {
             if (members.get(i).unitId == unit.getId()) {
@@ -184,19 +278,6 @@ public final class IdleGroupSupport {
             }
         }
 
-        double cx = 0.0;
-        double cy = 0.0;
-        double cz = 0.0;
-        for (Member m : members) {
-            cx += m.x;
-            cy += m.y;
-            cz += m.z;
-        }
-        cx /= members.size();
-        cy /= members.size();
-        cz /= members.size();
-
-        // Commander override: tasked hold/travel dest becomes the formation center.
         CrewAssignment.Snapshot assign = CrewAssignment.of(unit.getId());
         if (assign != null && assign.hasDest()
                 && (assign.role() == Assignment.Role.IDLE_HOLD
@@ -205,8 +286,15 @@ public final class IdleGroupSupport {
             cz = assign.destZ();
         }
 
-        Detect detect = detectContacts(unit, hull, members);
-        return new Snapshot(members, index, cx, cy, cz, detect.peerVehicle, detect.player);
+        return new Snapshot(members, index, cx, cy, cz, peerVehicle, playerNearby);
+    }
+
+    private static boolean sameMembership(List<Member> a, List<Member> b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            if (a.get(i).unitId != b.get(i).unitId) return false;
+        }
+        return true;
     }
 
     private static Snapshot emptySnapshot(VehicleEntity hull) {
@@ -215,7 +303,8 @@ public final class IdleGroupSupport {
 
     private record Detect(boolean peerVehicle, boolean player) {}
 
-    private static Detect detectContacts(AbstractUnit unit, VehicleEntity hull, List<Member> members) {
+    private static Detect detectContacts(AbstractUnit unit, VehicleEntity hull, List<Member> members,
+                                         List<LivingEntity> living) {
         double detectR = travelDetectRadius();
         double detectRSq = detectR * detectR;
         Set<Integer> memberHullIds = new HashSet<>();
@@ -227,7 +316,6 @@ public final class IdleGroupSupport {
 
         boolean peer = false;
         boolean player = false;
-        List<LivingEntity> living = HullLocalScan.livingInScanCylinder(hull);
         for (LivingEntity e : living) {
             if (!e.isAlive() || e == unit) continue;
             double dx = e.getX() - hull.getX();
@@ -236,10 +324,10 @@ public final class IdleGroupSupport {
 
             if (e instanceof Player p) {
                 if (p.isCreative() || p.isSpectator()) continue;
+                if (VehicleTargeting.isNonHostile(unit, p)) continue;
                 player = true;
                 continue;
             }
-            // A passenger of a group hull is not a contact.
             if (memberUnitIds.contains(e.getId())) continue;
             Entity ride = e.getVehicle();
             if (ride instanceof VehicleEntity vh) {
@@ -247,12 +335,6 @@ public final class IdleGroupSupport {
                 peer = true;
             }
         }
-
-        // Also catch empty / differently-crewed hulls near us via living passengers already covered;
-        // scan for VehicleEntity among nearby entities that are LivingEntity passengers — if the
-        // hull itself is not LivingEntity it won't appear. Check passengers' vehicles above is enough
-        // for crewed hulls. For empty hulls, inflate a tiny AABB query only when travel is active
-        // (caller gates invalidation). Done in invalidateIfNeeded via level entities.
         return new Detect(peer, player);
     }
 
@@ -297,6 +379,13 @@ public final class IdleGroupSupport {
         data.remove(STUCK_X_KEY);
         data.remove(STUCK_Z_KEY);
         data.remove(HAS_BEARING_KEY);
+        data.remove(LAST_BEARING_KEY);
+        data.remove(GROUND_Y_X_KEY);
+        data.remove(GROUND_Y_Z_KEY);
+        data.remove(GROUND_Y_VAL_KEY);
+        data.remove(CONTACT_PEER_KEY);
+        data.remove(CONTACT_PLAYER_KEY);
+        data.remove(CONTACT_VEHICLE_KEY);
         data.remove(DEBUG_DRIVE_KEY);
     }
 
@@ -319,15 +408,32 @@ public final class IdleGroupSupport {
         data.remove(STUCK_SINCE_KEY);
 
         if (fresh) {
-            int min = holdMinTicks();
-            int max = Math.max(min, holdMaxTicks());
-            int span = Math.max(1, max - min);
-            long until = now + min + unit.getRandom().nextInt(span);
-            data.putLong(HOLD_UNTIL_KEY, until);
-            data.putLong(HOLD_STARTED_KEY, now);
+            if (!snap.isLeader && snap.size > 1) {
+                Member leader = snap.members.get(0);
+                CompoundTag leaderData = leader.hull.isAlive() ? leader.hull.getPersistentData() : null;
+                if (leaderData != null
+                        && leaderData.contains(HOLD_UNTIL_KEY)
+                        && leaderData.contains(HOLD_STARTED_KEY)) {
+                    data.putLong(HOLD_UNTIL_KEY, leaderData.getLong(HOLD_UNTIL_KEY));
+                    data.putLong(HOLD_STARTED_KEY, leaderData.getLong(HOLD_STARTED_KEY));
+                } else {
+                    rollHoldTimer(unit, hull, data, now);
+                }
+            } else {
+                rollHoldTimer(unit, hull, data, now);
+            }
         }
 
         ensureScramble(unit, hull, snap);
+    }
+
+    private static void rollHoldTimer(AbstractUnit unit, VehicleEntity hull, CompoundTag data, long now) {
+        int min = holdMinTicks();
+        int max = Math.max(min, holdMaxTicks());
+        int span = Math.max(1, max - min);
+        long until = now + min + unit.getRandom().nextInt(span);
+        data.putLong(HOLD_UNTIL_KEY, until);
+        data.putLong(HOLD_STARTED_KEY, now);
     }
 
     public static void enterTravel(AbstractUnit unit, VehicleEntity hull, Snapshot snap) {
@@ -373,22 +479,88 @@ public final class IdleGroupSupport {
         CompoundTag data = hull.getPersistentData();
         if (data.getBoolean(HAS_BEARING_KEY)) return;
 
+        float bearing = pickTravelBearing(unit, hull, snap);
+        data.putFloat(BEARING_KEY, bearing);
+        data.putFloat(LAST_BEARING_KEY, bearing);
+        data.putBoolean(HAS_BEARING_KEY, true);
+    }
+
+    private static float pickTravelBearing(AbstractUnit unit, VehicleEntity hull, Snapshot snap) {
+        CompoundTag data = hull.getPersistentData();
+        if (data.contains(LAST_BEARING_KEY)) {
+            return data.getFloat(LAST_BEARING_KEY);
+        }
+
         CrewAssignment.Snapshot assign = CrewAssignment.of(unit.getId());
-        float bearing;
         if (assign != null && assign.hasDest()
                 && assign.role() == Assignment.Role.IDLE_TRAVEL) {
             double dx = assign.destX() - hull.getX();
             double dz = assign.destZ() - hull.getZ();
             if (dx * dx + dz * dz > 1.0E-4) {
-                bearing = (float) Math.atan2(dx, dz);
-            } else {
-                bearing = unit.getRandom().nextFloat() * ((float) Math.PI * 2.0F);
+                return (float) Math.atan2(dx, dz);
             }
-        } else {
-            bearing = unit.getRandom().nextFloat() * ((float) Math.PI * 2.0F);
         }
-        data.putFloat(BEARING_KEY, bearing);
-        data.putBoolean(HAS_BEARING_KEY, true);
+
+        float away = bearingAwayFromNearestPlayer(unit, hull);
+        if (!Float.isNaN(away)) {
+            return away;
+        }
+
+        float open = openGroundBearing(hull);
+        if (!Float.isNaN(open)) {
+            return open;
+        }
+
+        return unit.getRandom().nextFloat() * ((float) Math.PI * 2.0F);
+    }
+
+    /** Prefer marching away from the nearest non-friendly player in detect range. */
+    private static float bearingAwayFromNearestPlayer(AbstractUnit unit, VehicleEntity hull) {
+        double detectR = travelDetectRadius();
+        double detectRSq = detectR * detectR;
+        Player closest = null;
+        double best = detectRSq;
+        for (Player p : hull.level().getEntitiesOfClass(Player.class, hull.getBoundingBox().inflate(detectR))) {
+            if (!p.isAlive() || p.isCreative() || p.isSpectator()) continue;
+            if (VehicleTargeting.isNonHostile(unit, p)) continue;
+            double dx = p.getX() - hull.getX();
+            double dz = p.getZ() - hull.getZ();
+            double d2 = dx * dx + dz * dz;
+            if (d2 < best) {
+                best = d2;
+                closest = p;
+            }
+        }
+        if (closest == null) return Float.NaN;
+        return (float) Math.atan2(hull.getX() - closest.getX(), hull.getZ() - closest.getZ());
+    }
+
+    /** Sample eight headings and pick the one with the longest gentle slope probe. */
+    private static float openGroundBearing(VehicleEntity hull) {
+        Level level = hull.level();
+        double bestScore = -1.0;
+        float bestBearing = Float.NaN;
+        int startY = Mth.floor(hull.getY());
+        for (int i = 0; i < OPEN_GROUND_SAMPLES; i++) {
+            float bearing = (float) (i * (Math.PI * 2.0 / OPEN_GROUND_SAMPLES));
+            double fx = Math.sin(bearing);
+            double fz = Math.cos(bearing);
+            double score = 0.0;
+            int lastY = startY;
+            for (int step = 1; step <= 4; step++) {
+                double px = hull.getX() + fx * OPEN_GROUND_STEP * step;
+                double pz = hull.getZ() + fz * OPEN_GROUND_STEP * step;
+                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(px), Mth.floor(pz));
+                if (Math.abs(y - lastY) > 2) break;
+                lastY = y;
+                score += 1.0;
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                bestBearing = bearing;
+            }
+        }
+        return bestScore > 0.0 ? bestBearing : Float.NaN;
     }
 
     /** Fill Facts idle-group fields from a snapshot + hull NBT. Also runs invalidation/stuck. */
@@ -435,26 +607,70 @@ public final class IdleGroupSupport {
             }
         }
 
-        if (mode == MODE_TRAVEL) {
-            if (!isDebugDrive(hull) && shouldInvalidateTravel(unit, hull, snap)) {
-                invalidateTravel(hull, snap.size <= MAX_HOLD_SIZE);
-                facts.idleTravelActive = false;
-                facts.idleHoldExpired = false;
-                facts.idleHoldElapsed = 0.0;
-            } else if (!isDebugDrive(hull) && isTravelStuck(hull, now)) {
-                invalidateTravel(hull, true);
-                facts.idleTravelActive = false;
-                facts.idleHoldExpired = false;
-                facts.idleHoldElapsed = 0.0;
+        if (mode == MODE_TRAVEL && !snap.members.isEmpty()) {
+            if (!isDebugDrive(hull)) {
+                if (snap.isLeader) {
+                    boolean foreignVehicle = scanForeignVehicles(hull, snap);
+                    writeContactFlags(hull, snap.peerVehicleNearby, snap.playerNearby, foreignVehicle);
+                    if (shouldInvalidateFromContactFlags(hull)) {
+                        invalidateTravel(hull, snap.size <= MAX_HOLD_SIZE);
+                        facts.idleTravelActive = false;
+                        facts.idleHoldExpired = false;
+                        facts.idleHoldElapsed = 0.0;
+                    } else if (isTravelStuck(hull, now)) {
+                        invalidateTravel(hull, true);
+                        facts.idleTravelActive = false;
+                        facts.idleHoldExpired = false;
+                        facts.idleHoldElapsed = 0.0;
+                    }
+                } else {
+                    VehicleEntity leaderHull = snap.members.get(0).hull;
+                    if (!leaderHull.isAlive()) {
+                        invalidateTravel(hull, snap.size <= MAX_HOLD_SIZE);
+                        facts.idleTravelActive = false;
+                        facts.idleHoldExpired = false;
+                        facts.idleHoldElapsed = 0.0;
+                    } else {
+                    CompoundTag leaderData = leaderHull.getPersistentData();
+                    boolean invalidate;
+                    if (leaderData.contains(CONTACT_PEER_KEY)) {
+                        invalidate = shouldInvalidateFromContactFlags(leaderHull);
+                    } else {
+                        invalidate = snap.peerVehicleNearby || snap.playerNearby;
+                    }
+                    if (invalidate) {
+                        invalidateTravel(hull, snap.size <= MAX_HOLD_SIZE);
+                        facts.idleTravelActive = false;
+                        facts.idleHoldExpired = false;
+                        facts.idleHoldElapsed = 0.0;
+                    } else if (isTravelStuck(hull, now)) {
+                        invalidateTravel(hull, true);
+                        facts.idleTravelActive = false;
+                        facts.idleHoldExpired = false;
+                        facts.idleHoldElapsed = 0.0;
+                    }
+                    }
+                }
             }
         }
     }
 
-    private static boolean shouldInvalidateTravel(AbstractUnit unit, VehicleEntity hull, Snapshot snap) {
-        if (snap.playerNearby) return true;
-        if (snap.peerVehicleNearby) return true;
+    private static void writeContactFlags(VehicleEntity hull, boolean peer, boolean player, boolean foreignVehicle) {
+        CompoundTag data = hull.getPersistentData();
+        data.putBoolean(CONTACT_PEER_KEY, peer);
+        data.putBoolean(CONTACT_PLAYER_KEY, player);
+        data.putBoolean(CONTACT_VEHICLE_KEY, foreignVehicle);
+    }
 
-        // Empty / non-passenger VehicleEntity nearby: AABB of VehicleEntity.
+    private static boolean shouldInvalidateFromContactFlags(VehicleEntity hull) {
+        CompoundTag data = hull.getPersistentData();
+        return data.getBoolean(CONTACT_PEER_KEY)
+                || data.getBoolean(CONTACT_PLAYER_KEY)
+                || data.getBoolean(CONTACT_VEHICLE_KEY);
+    }
+
+    private static boolean scanForeignVehicles(VehicleEntity hull, Snapshot snap) {
+        TRAVEL_INVALIDATE_SCANS.increment();
         double detectR = travelDetectRadius();
         Set<Integer> memberHullIds = new HashSet<>();
         for (Member m : snap.members) memberHullIds.add(m.hullId);
@@ -492,12 +708,18 @@ public final class IdleGroupSupport {
 
     private static void invalidateTravel(VehicleEntity hull, boolean reenterHoldTimer) {
         CompoundTag data = hull.getPersistentData();
+        if (data.getBoolean(HAS_BEARING_KEY)) {
+            data.putFloat(LAST_BEARING_KEY, data.getFloat(BEARING_KEY));
+        }
         data.putByte(MODE_KEY, MODE_NONE);
         data.remove(BEARING_KEY);
         data.remove(HAS_BEARING_KEY);
         data.remove(TRAVEL_LEADER_KEY);
         data.remove(STUCK_SINCE_KEY);
         data.remove(SPACING_KEY);
+        data.remove(CONTACT_PEER_KEY);
+        data.remove(CONTACT_PLAYER_KEY);
+        data.remove(CONTACT_VEHICLE_KEY);
         if (reenterHoldTimer) {
             data.remove(HOLD_UNTIL_KEY);
             data.remove(HOLD_STARTED_KEY);
@@ -505,12 +727,14 @@ public final class IdleGroupSupport {
     }
 
     @Nullable
-    public static BlockPos holdDestination(AbstractUnit unit, VehicleEntity hull, Facts facts) {
-        Snapshot snap = facts.idleSnapshot;
-        if (snap == null || snap.size == 0) {
-            snap = scan(unit, hull);
-            facts.idleSnapshot = snap;
-        }
+    public static BlockPos holdDestination(AbstractUnit unit, VehicleEntity hull, @Nullable Facts facts) {
+        return holdDestination(unit, hull, facts, null);
+    }
+
+    @Nullable
+    static BlockPos holdDestination(AbstractUnit unit, VehicleEntity hull, @Nullable Facts facts,
+                                    @Nullable Snapshot preferred) {
+        Snapshot snap = resolveSnapshot(unit, hull, facts, preferred);
         if (snap.size == 0) return null;
         if (modeOf(hull) != MODE_HOLD) {
             enterHold(unit, hull, snap);
@@ -525,23 +749,42 @@ public final class IdleGroupSupport {
                 formationRadiusMin(), formationRadiusMax(), sx, sz);
         double x = snap.centerX + off.x;
         double z = snap.centerZ + off.z;
-        double y = groundY(hull.level(), x, z, snap.centerY);
+        double y = cachedGroundY(hull, x, z, snap.centerY);
         return BlockPos.containing(x, y, z);
     }
 
-    @Nullable
-    public static BlockPos travelDestination(AbstractUnit unit, VehicleEntity hull, Facts facts) {
-        Snapshot snap = facts.idleSnapshot;
-        if (snap == null || snap.size == 0) {
-            snap = scan(unit, hull);
-            facts.idleSnapshot = snap;
+    /** Spatial column index: foremost hull along bearing is index 0. */
+    static int travelColumnIndex(Snapshot snap, float bearingRad, int unitId) {
+        if (snap.size <= 1) return 0;
+        List<Member> sorted = new ArrayList<>();
+        for (Member m : snap.members) {
+            if (m.hull.isAlive()) sorted.add(m);
         }
+        if (sorted.isEmpty()) return snap.index;
+        double fx = Math.sin(bearingRad);
+        double fz = Math.cos(bearingRad);
+        sorted.sort(Comparator.comparingDouble(m -> -(m.hull.getX() * fx + m.hull.getZ() * fz)));
+        for (int i = 0; i < sorted.size(); i++) {
+            if (sorted.get(i).unitId == unitId) return i;
+        }
+        return snap.index;
+    }
+
+    @Nullable
+    public static BlockPos travelDestination(AbstractUnit unit, VehicleEntity hull, @Nullable Facts facts) {
+        return travelDestination(unit, hull, facts, null);
+    }
+
+    @Nullable
+    static BlockPos travelDestination(AbstractUnit unit, VehicleEntity hull, @Nullable Facts facts,
+                                      @Nullable Snapshot preferred) {
+        Snapshot snap = resolveSnapshot(unit, hull, facts, preferred);
         if (snap.size == 0) {
             // Solo travel after hold timeout still valid — treat self as group of 1.
             if (!isGroundIdleEligible(unit, hull)) return null;
             snap = new Snapshot(List.of(new Member(unit, hull)), 0,
                     hull.getX(), hull.getY(), hull.getZ(), false, false);
-            facts.idleSnapshot = snap;
+            if (facts != null) facts.idleSnapshot = snap;
         }
         if (modeOf(hull) != MODE_TRAVEL) {
             enterTravel(unit, hull, snap);
@@ -551,24 +794,53 @@ public final class IdleGroupSupport {
         double spacing = hull.getPersistentData().contains(SPACING_KEY)
                 ? hull.getPersistentData().getDouble(SPACING_KEY)
                 : spacingMin();
+        int colIndex = travelColumnIndex(snap, bearing, unit.getId());
+        Member leader = liveLeader(snap);
+        if (leader == null) return null;
 
-        if (snap.index == 0) {
+        if (colIndex == 0) {
             double lead = leadDistance();
             double fx = Math.sin(bearing);
             double fz = Math.cos(bearing);
-            double x = hull.getX() + fx * lead;
-            double z = hull.getZ() + fz * lead;
-            double y = groundY(hull.level(), x, z, hull.getY());
+            VehicleEntity leadHull = leader.hull;
+            double x = leadHull.getX() + fx * lead;
+            double z = leadHull.getZ() + fz * lead;
+            double y = cachedGroundY(hull, x, z, leadHull.getY());
             return BlockPos.containing(x, y, z);
         }
 
-        // Followers track the leader's live position — scan-time Member.x/z left the column parked.
-        Member leader = snap.members.get(0);
-        Vec3 off = travelColumnOffset(snap.index, bearing, spacing);
+        Vec3 off = travelColumnOffset(colIndex, bearing, spacing);
         double x = leader.hull.getX() + off.x;
         double z = leader.hull.getZ() + off.z;
-        double y = groundY(hull.level(), x, z, leader.hull.getY());
+        double y = cachedGroundY(hull, x, z, leader.hull.getY());
         return BlockPos.containing(x, y, z);
+    }
+
+    private static Snapshot resolveSnapshot(AbstractUnit unit, VehicleEntity hull, @Nullable Facts facts,
+                                            @Nullable Snapshot preferred) {
+        if (preferred != null && preferred.size > 0) return preferred;
+        Snapshot snap = facts != null ? facts.idleSnapshot : null;
+        if (snap == null || snap.size == 0) {
+            snap = scan(unit, hull);
+            if (facts != null) facts.idleSnapshot = snap;
+        }
+        return snap;
+    }
+
+    private static Snapshot resolveSnapshot(AbstractUnit unit, VehicleEntity hull, @Nullable Facts facts) {
+        return resolveSnapshot(unit, hull, facts, null);
+    }
+
+    /** Unit-id leader if its hull is still alive; otherwise the first live member. */
+    @Nullable
+    private static Member liveLeader(Snapshot snap) {
+        if (snap.members.isEmpty()) return null;
+        Member nominal = snap.members.get(0);
+        if (nominal.hull.isAlive()) return nominal;
+        for (Member m : snap.members) {
+            if (m.hull.isAlive()) return m;
+        }
+        return null;
     }
 
     private static float resolveBearing(AbstractUnit unit, VehicleEntity hull, Snapshot snap) {
@@ -577,7 +849,10 @@ public final class IdleGroupSupport {
             return hull.getPersistentData().getFloat(BEARING_KEY);
         }
         // Followers read the leader hull's bearing.
-        Member leader = snap.members.get(0);
+        Member leader = liveLeader(snap);
+        if (leader == null) {
+            return (float) Math.toRadians(hull.getYRot());
+        }
         CompoundTag leaderData = leader.hull.getPersistentData();
         if (leaderData.getBoolean(HAS_BEARING_KEY)) {
             return leaderData.getFloat(BEARING_KEY);
@@ -589,12 +864,52 @@ public final class IdleGroupSupport {
                 return leaderData.getFloat(BEARING_KEY);
             }
         }
-        return (float) Math.atan2(leader.x - hull.getX(), leader.z - hull.getZ());
+        return (float) Math.atan2(leader.hull.getX() - hull.getX(), leader.hull.getZ() - hull.getZ());
     }
 
     static double groundY(Level level, double x, double z, double anchorY) {
+        GROUND_Y_PROBES.increment();
         int probed = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(x), Mth.floor(z));
         return Math.abs(probed - anchorY) > MAX_SLOT_RISE ? anchorY : probed;
+    }
+
+    /** Heightmap probe cached on the hull until destination XZ cell changes. */
+    private static double cachedGroundY(VehicleEntity hull, double x, double z, double anchorY) {
+        int cellX = Mth.floor(x);
+        int cellZ = Mth.floor(z);
+        CompoundTag data = hull.getPersistentData();
+        if (data.contains(GROUND_Y_X_KEY)
+                && data.getInt(GROUND_Y_X_KEY) == cellX
+                && data.getInt(GROUND_Y_Z_KEY) == cellZ) {
+            GROUND_Y_CACHE_HITS.increment();
+            return data.getDouble(GROUND_Y_VAL_KEY);
+        }
+        double y = groundY(hull.level(), x, z, anchorY);
+        data.putInt(GROUND_Y_X_KEY, cellX);
+        data.putInt(GROUND_Y_Z_KEY, cellZ);
+        data.putDouble(GROUND_Y_VAL_KEY, y);
+        return y;
+    }
+
+    private static long refreshGeneration(Level level) {
+        long now = level.getGameTime();
+        int interval;
+        try {
+            interval = SewvConfig.UTILITY_REFRESH_INTERVAL_TICKS.get();
+        } catch (Throwable ignored) {
+            interval = 30;
+        }
+        return now / Math.max(1, interval);
+    }
+
+    private static void maybePruneClusterCache(long refreshGen) {
+        if (refreshGen == lastClusterCacheGen) return;
+        CLUSTER_CACHE.entrySet().removeIf(e -> e.getKey().refreshGen() != refreshGen);
+        lastClusterCacheGen = refreshGen;
+    }
+
+    private static double targetScanRadius() {
+        try { return SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get(); } catch (Throwable t) { return 96.0; }
     }
 
     private static double groupRadius() {
@@ -692,8 +1007,8 @@ public final class IdleGroupSupport {
             long left = data.getLong(HOLD_UNTIL_KEY) - now;
             holdLeft = left > 0 ? " holdIn=" + left + "t" : " holdExpired";
         }
-        BlockPos slot = holdDestination(unit, hull, null);
-        BlockPos march = travelDestination(unit, hull, null);
+        BlockPos slot = holdDestination(unit, hull, null, snap);
+        BlockPos march = travelDestination(unit, hull, null, snap);
         String slotStr = slot != null ? slot.toShortString() : "-";
         String marchStr = march != null ? march.toShortString() : "-";
         float bearing = data.getBoolean(HAS_BEARING_KEY) ? data.getFloat(BEARING_KEY) : Float.NaN;

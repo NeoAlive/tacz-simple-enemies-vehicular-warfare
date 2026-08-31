@@ -187,6 +187,7 @@
     "taskedIdleHold": 55,
     "idleHoldExpired": -60,
     "idleGroupOversize": -80,
+    "idlePlayerNear": -10,
     "initiative": 8
   },
 
@@ -196,7 +197,8 @@
     "idleGroupOversize": 55,
     "taskedIdleTravel": 55,
     "idleTravelActive": 40,
-    "idlePeerVehicle": -30,
+    "idlePeerVehicle": -20,
+    "idlePlayerNear": -15,
     "alone": 15,
     "underOrders": -80
   },

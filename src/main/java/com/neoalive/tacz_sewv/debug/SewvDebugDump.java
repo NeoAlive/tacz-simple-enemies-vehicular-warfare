@@ -146,6 +146,7 @@ public final class SewvDebugDump {
         sb.append("--- Gamerules (spawn gates) ---\n");
         sb.append("sewvRuSpawns=").append(level.getGameRules().getBoolean(ModGameRules.RU_SPAWNS)).append('\n');
         sb.append("sewvUsSpawns=").append(level.getGameRules().getBoolean(ModGameRules.US_SPAWNS)).append('\n');
+        sb.append("sewvAmbientSpawns=").append(level.getGameRules().getBoolean(ModGameRules.AMBIENT_SPAWNS)).append('\n');
         sb.append("sewvPmcAmbientSpawns=").append(level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)).append('\n');
         sb.append("sewvTanksInEvents=").append(level.getGameRules().getBoolean(ModGameRules.TANKS_IN_EVENTS)).append('\n');
         sb.append("sewvFarEventSpawns=").append(level.getGameRules().getBoolean(ModGameRules.FAR_EVENT_SPAWNS)).append('\n');

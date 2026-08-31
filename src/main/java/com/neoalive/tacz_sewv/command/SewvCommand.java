@@ -42,6 +42,7 @@ import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
+import com.neoalive.tacz_sewv.config.ConfigApplier;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.GunCacheProbe;
 import com.neoalive.tacz_sewv.debug.IdleGroupDebug;
@@ -63,6 +64,7 @@ import com.neoalive.tacz_sewv.invasion.InvasionSession;
 import com.neoalive.tacz_sewv.invasion.InvasionSpawn;
 import com.neoalive.tacz_sewv.invasion.InvasionTickets;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketOpenConfigUI;
 import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner.Emplacement;
@@ -88,6 +90,8 @@ public class SewvCommand {
                 )
                 // Ungated (unlike spawn, above): any player can check on their own units.
                 .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
+                .then(Commands.literal("configui")
+                        .executes(ctx -> openConfigUI(ctx.getSource())))
                 .then(Commands.literal("pool")
                         .requires(source -> source.hasPermission(2))
                         .executes(ctx -> openPoolEditor(ctx.getSource()))
@@ -307,6 +311,22 @@ public class SewvCommand {
                     "invasion_spawn tagged: hulls=" + h + " crew=" + c), false);
         }
         return active ? 1 : 0;
+    }
+
+    private static int openConfigUI(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.pool.player_only"));
+            return 0;
+        }
+        boolean canEdit = source.hasPermission(2);
+        var server = player.getServer();
+        java.util.Map<Integer, Object> snapshot = canEdit && server != null
+                ? ConfigApplier.captureServerSnapshot(server)
+                : java.util.Map.of();
+        NetworkHandler.CHANNEL.send(
+                PacketDistributor.PLAYER.with(() -> player),
+                new PacketOpenConfigUI(canEdit, snapshot));
+        return 1;
     }
 
     private static int openPoolEditor(CommandSourceStack source) {

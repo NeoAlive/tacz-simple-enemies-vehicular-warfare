@@ -6,9 +6,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.init.ModGameRules;
+import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 
 /**
  * Scales SEM event spawn distance when {@code sewvFarEventSpawns} is on. Lives here because
@@ -20,6 +23,13 @@ import com.neoalive.tacz_sewv.init.ModGameRules;
 public abstract class MixinDynamicEventManager {
 
     private static final double FAR_SCALE = 2.5;
+
+    @Inject(method = "tick", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void tacz_sewv$gateAmbientEvents(ServerLevel level, CallbackInfo ci) {
+        if (!AmbientSpawnGate.allows(level)) {
+            ci.cancel();
+        }
+    }
 
     @Redirect(
             method = {"tryEventForPlayer", "forceEvent"},

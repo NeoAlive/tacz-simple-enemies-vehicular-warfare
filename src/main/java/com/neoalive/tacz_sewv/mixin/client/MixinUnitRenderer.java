@@ -25,8 +25,8 @@ import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderRenderer;
 
 /**
  * Two jobs on SEM's unit renderers. Hides any mounted unit whose seat encloses it
- * ({@code getHidePassenger}), and swaps in a {@link CrewSkinRegistry} uniform so the unit's
- * camo matches the armor it is wearing. One mixin for all three unit renderers — they share no
+ * ({@code getHidePassenger}), and swaps in a {@link CrewSkinRegistry} uniform (camo pool,
+ * SEM variant override, or role default). One mixin for all three unit renderers — they share no
  * SEM base class (each extends MobRenderer directly), so the entity parameter's type differs
  * per target and is {@code @Coerce}d to the common {@link AbstractUnit}.
  *
@@ -41,9 +41,8 @@ public abstract class MixinUnitRenderer {
     private static final Map<EntityType<?>, boolean[]> TACZ_SEWV$HIDDEN_SEATS = new IdentityHashMap<>();
 
     /**
-     * No pooled uniform for this unit's faction+category+camo → no cancel, and SEM's own
-     * {@code <FACTION>UNIT_TEXTURES[getVariant()]} runs untouched. That is the intended fallback:
-     * a camo only needs uniform art once someone draws it.
+     * No override from {@link CrewSkinRegistry#bodySkin} → no cancel, and SEM's own
+     * {@code <FACTION>UNIT_TEXTURES[getVariant()]} runs untouched.
      */
     @Inject(method = "getTextureLocation", at = @At("HEAD"), cancellable = true, remap = false)
     private void tacz_sewv$pooledUniform(@Coerce AbstractUnit entity, CallbackInfoReturnable<ResourceLocation> cir) {

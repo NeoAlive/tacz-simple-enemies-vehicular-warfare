@@ -27,6 +27,7 @@ public final class GuardPlot {
         Set<Integer> selected = MapMarkers.selected();
         if (selected.isEmpty()) return false;
         CruisePlot.cancel();
+        PathwayPlot.cancel();
         crews = List.copyOf(selected);
         point = null;
         armed = true;

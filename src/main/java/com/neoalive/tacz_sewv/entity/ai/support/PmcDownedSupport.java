@@ -96,7 +96,7 @@ public final class PmcDownedSupport {
         downed.sewv$setDowned(true, pmc.level().getGameTime() + SewvConfig.PMC_DOWNED_BLEED_TICKS.get());
         downed.sewv$setDownedSynced(true);
         pmc.setHealth((float) Math.max(1.0, SewvConfig.PMC_DOWNED_HEALTH.get()));
-        pmc.setTarget(null);
+        OrderStandDown.clearAll(pmc, "PmcDownedSupport.onDeath");
     }
 
     /**

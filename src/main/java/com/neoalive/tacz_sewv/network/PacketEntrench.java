@@ -18,6 +18,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
@@ -72,6 +73,7 @@ public class PacketEntrench {
                     OrderReport.fail(sp, OrderFailure.NOT_OWNED);
                     continue;
                 }
+                if (OrderGuard.rejectIfDowned(sp, pmc)) continue;
                 units.add(pmc);
             }
             if (units.isEmpty()) {

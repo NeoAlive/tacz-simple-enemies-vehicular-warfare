@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMedicTreat;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.ITowRecovery;
@@ -42,6 +43,8 @@ import com.neoalive.tacz_sewv.entity.ai.goal.FollowCommanderGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MoveToPositionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.PathwayGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.PathwayPassiveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlatoonCohesionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlayerReviveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcCaptureMedicGoal;
@@ -65,7 +68,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity
         implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember,
-        IVehiclePatrol, IEscort, ITowRecovery, ISweepInfantry, ICaptureOrder, IMedicTreat, IEntrenched,
+        IVehiclePatrol, IEscort, ITowRecovery, ISweepInfantry, IPathwayInfantry, ICaptureOrder, IMedicTreat, IEntrenched,
         IPmcDowned, ICaptureMedic {
 
     @Unique
@@ -372,6 +375,8 @@ public abstract class MixinPmcUnitEntity
         // Sweep & Advance on-foot: same priority band as escort so MoveToAttackRange cannot yank
         // infantry out of the selected rectangle while the sweep is active.
         ((Mob) self).goalSelector.addGoal(1, new SweepInfantryGoal(self));
+        ((Mob) self).goalSelector.addGoal(1, new PathwayGoal(self));
+        ((Mob) self).goalSelector.addGoal(4, new PathwayPassiveGoal(self));
         // Platoon regroup: same priority band — it only ever engages when idle (no target, no
         // standing order), which is mutually exclusive with what the other MOVE goals here gate on.
         ((Mob) self).goalSelector.addGoal(1, new PlatoonCohesionGoal(self));

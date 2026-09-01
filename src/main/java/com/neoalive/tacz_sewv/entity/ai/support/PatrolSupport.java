@@ -133,7 +133,15 @@ public final class PatrolSupport {
             arrived = horizontalDistSq(vehicle, leg) <= reach * reach;
         }
         if (arrived || now >= task.sewv$getPatrolStepDeadline()) {
-            task.sewv$setPatrolStep(step + 1 >= route.size() ? 0 : step + 1);
+            int next = step + 1;
+            if (next >= route.size()) {
+                if (!task.sewv$cruiseLoops()) {
+                    task.sewv$clearPatrol();
+                    return null;
+                }
+                next = 0;
+            }
+            task.sewv$setPatrolStep(next);
             task.sewv$setPatrolStepDeadline(now + SWEEP_STEP_TIMEOUT);
         }
         return leg;
@@ -192,7 +200,13 @@ public final class PatrolSupport {
     /** Loop these waypoints in order, endlessly, until dismissed. */
     public static void beginCruise(PmcUnitEntity pmc, List<BlockPos> route) {
         EntrenchSupport.clear(pmc);
-        ((IVehiclePatrol) pmc).sewv$setCruise(route);
+        ((IVehiclePatrol) pmc).sewv$setCruise(route, true);
+    }
+
+    /** Drive the plotted route once, then stand down — manual preferred-pathway funnel for hulls. */
+    public static void beginFunnelRoute(PmcUnitEntity pmc, List<BlockPos> route) {
+        EntrenchSupport.clear(pmc);
+        ((IVehiclePatrol) pmc).sewv$setCruise(route, false);
     }
 
     /**

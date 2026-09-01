@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.TdtScreen;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketBailOutVehicle;
 import com.neoalive.tacz_sewv.network.PacketEntrench;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
@@ -113,7 +114,9 @@ public class UnitOrderOption extends RightClickOption {
         CRUISE("cruise", false, Category.MOVEMENT),
         SET_GUARD("set_guard", false, Category.MOVEMENT),
         REACH_GUARD("reach_guard", false, Category.MOVEMENT),
-        DISMISS("dismiss", false, Category.STAND_DOWN);
+        DISMISS("dismiss", false, Category.STAND_DOWN),
+        BAIL_OUT("bail_out", false, Category.STAND_DOWN),
+        PREFERRED_PATHWAYS("preferred_pathways", false, Category.MOVEMENT);
 
         final String labelKey;
         final boolean positional;
@@ -169,6 +172,9 @@ public class UnitOrderOption extends RightClickOption {
         if (action == Action.ATTACK_THAT) {
             active = active && attackTargetId >= 0;
         }
+        if (action == Action.PREFERRED_PATHWAYS) {
+            active = true;
+        }
         setActive(active);
         setNameFormatArgs(selectedCount);
     }
@@ -177,6 +183,14 @@ public class UnitOrderOption extends RightClickOption {
     public void onAction(Screen screen) {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
+
+        if (this.action == Action.PREFERRED_PATHWAYS) {
+            ResourceKey<Level> dim = this.dimension != null ? this.dimension : player.level().dimension();
+            if (PathwayPlot.arm(dim)) {
+                prompt("message.tacz_sewv.pathway.plotting", PathwayPlot.pathId(), 0);
+            }
+            return;
+        }
 
         Set<Integer> drivers = MapMarkers.selected();
         if (drivers.isEmpty()) return;
@@ -191,6 +205,11 @@ public class UnitOrderOption extends RightClickOption {
 
         if (this.action == Action.CRUISE) {
             if (CruisePlot.arm()) prompt("message.tacz_sewv.cruise.plotting", 0);
+            return;
+        }
+
+        if (this.action == Action.BAIL_OUT) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketBailOutVehicle(new ArrayList<>(drivers)));
             return;
         }
 
@@ -296,7 +315,7 @@ public class UnitOrderOption extends RightClickOption {
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
             case ATTACK_THAT -> OrderType.ATTACK_THAT_TARGET;
             case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE,
-                    ENTRENCH_HERE, CRUISE, SET_GUARD, REACH_GUARD, DISMISS ->
+                    ENTRENCH_HERE, CRUISE, SET_GUARD, REACH_GUARD, DISMISS, BAIL_OUT, PREFERRED_PATHWAYS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
         };
     }

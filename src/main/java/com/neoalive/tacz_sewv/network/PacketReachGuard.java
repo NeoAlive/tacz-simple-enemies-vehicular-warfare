@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
@@ -60,6 +61,7 @@ public class PacketReachGuard {
                     OrderReport.fail(sp, OrderFailure.NOT_OWNED);
                     continue;
                 }
+                if (OrderGuard.rejectIfDowned(sp, pmc)) continue;
                 if (!(pmc.getVehicle() instanceof VehicleEntity hull)) {
                     OrderReport.fail(sp, OrderFailure.NOT_MOUNTED, pmc);
                     continue;

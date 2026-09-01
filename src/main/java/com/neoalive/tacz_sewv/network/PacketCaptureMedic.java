@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
@@ -59,6 +60,7 @@ public class PacketCaptureMedic {
                     OrderReport.fail(sp, OrderFailure.NOT_OWNED);
                     continue;
                 }
+                if (OrderGuard.rejectIfDowned(sp, pmc)) continue;
                 if (!hasMedicInRange(pmc, radius)) {
                     OrderReport.fail(sp, OrderFailure.NO_MEDIC_IN_RANGE, pmc);
                     continue;

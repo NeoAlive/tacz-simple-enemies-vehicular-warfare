@@ -9,6 +9,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
+
 /**
  * Hard MOVE_TO_POSITION stick. SEM's {@code CommanderOrderGoal} (prio 3) loses MOVE to SeekCover
  * (prio 2) and bails on a live target; multi-select also columns index&gt;0 behind the point man
@@ -36,6 +38,7 @@ public class MoveToPositionGoal extends Goal {
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
         if (this.unit.isPassenger()) return false;
+        if (((IPathwayInfantry) this.unit).sewv$hasPathway()) return false;
         if (this.unit.getOrder() != OrderType.MOVE_TO_POSITION) return false;
 
         Vec3 dest = this.unit.getMoveToTarget();
@@ -48,6 +51,7 @@ public class MoveToPositionGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
+        if (((IPathwayInfantry) this.unit).sewv$hasPathway()) return false;
         if (this.unit.getOrder() != OrderType.MOVE_TO_POSITION) return false;
         if (this.unit.isPassenger()) return false;
         Vec3 dest = this.unit.getMoveToTarget();

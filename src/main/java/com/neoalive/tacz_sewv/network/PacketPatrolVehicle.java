@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.network;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
@@ -21,9 +23,11 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.PathwaySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
@@ -191,6 +195,7 @@ public class PacketPatrolVehicle {
             OrderReport.fail(player, OrderFailure.NOT_OWNED);
             return null;
         }
+        if (OrderGuard.rejectIfDowned(player, pmc)) return null;
         if (pmc instanceof com.neoalive.tacz_sewv.bridge.ICaptureOrder capture
                 && capture.sewv$hasCaptureOrder()) {
             capture.sewv$clearCaptureOrder();
@@ -211,20 +216,37 @@ public class PacketPatrolVehicle {
      * Cancel the area task on every owned unit that has one. No driver/hull filter: clearing is
      * harmless on a unit that was never tasked, and only units that actually stood down are counted
      * back to the player.
+     *
+     * <p>Units on a preferred pathway are also included when they are in funnel range but were not
+     * in the selection — "funnel all" never puts infantry on the map marker list, so dismiss must
+     * still reach them.
      */
     private void dismiss(Player player) {
+        if (!(player instanceof ServerPlayer sp)) return;
+
+        Set<Integer> targets = new LinkedHashSet<>(this.unitIds);
+        for (PmcUnitEntity pmc : PathwaySupport.funnelCandidates(sp)) {
+            if (((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$hasPathway()) {
+                targets.add(pmc.getId());
+            }
+        }
+
         int dismissed = 0;
-        for (int unitId : this.unitIds) {
+        for (int unitId : targets) {
             if (!(player.level().getEntity(unitId) instanceof PmcUnitEntity pmc)
-                    || !(player instanceof ServerPlayer sp)
                     || !OrderAuth.check(sp, pmc, "PacketPatrolVehicle.dismiss")) continue;
             boolean had = ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
                     || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()
+                    || ((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$hasPathway()
                     || EntrenchSupport.isEntrenched(pmc);
             if (had) {
                 PatrolSupport.clearSweepMembership(pmc, "PacketPatrolVehicle");
                 EntrenchSupport.clear(pmc);
                 TowRecoverySupport.clearIfTowering(pmc);
+                ((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$clearPathway();
+                if (pmc.getVehicle() == null) {
+                    pmc.getNavigation().stop();
+                }
                 dismissed++;
             }
         }

@@ -7,6 +7,8 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import xaero.map.WorldMap;
 import xaero.map.gui.GuiMap;
 
+import com.neoalive.tacz_sewv.client.PreferredPathwaysClient;
+
 /**
  * Soft compat with <b>Xaero's World Map</b>: hangs {@link VehicleMarkerElements},
  * {@link TrenchMarkerElements} and {@link InvasionZoneMarkerElements} on the map's element renderer.
@@ -57,6 +59,8 @@ public final class XaeroMapCompat {
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         CruisePlot.cancel();
         GuardPlot.cancel();
+        PathwayPlot.cancel();
+        PreferredPathwaysClient.clear();
         // Force a re-hang if Xaero builds a fresh handler for the next world.
         hungOn = null;
     }

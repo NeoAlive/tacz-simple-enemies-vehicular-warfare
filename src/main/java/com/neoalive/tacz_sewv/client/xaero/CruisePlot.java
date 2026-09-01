@@ -36,6 +36,7 @@ public final class CruisePlot {
         Set<Integer> selected = MapMarkers.selected();
         if (selected.isEmpty()) return false;
         GuardPlot.cancel();
+        PathwayPlot.cancel();
         crews = List.copyOf(selected);
         NODES.clear();
         armed = true;
@@ -52,6 +53,14 @@ public final class CruisePlot {
 
     public static void add(BlockPos node) {
         if (NODES.size() < PacketPatrolVehicle.MAX_ROUTE_NODES) NODES.add(node);
+    }
+
+    public static void removeAtScreen(int mouseX, int mouseY, PathwayPlot.ScreenProject project,
+                                      double pickPx) {
+        if (NODES.isEmpty()) return;
+        int drop = RoutePlotPick.nearestNode(mouseX, mouseY, project, pickPx, NODES);
+        if (drop < 0) return;
+        NODES.remove(drop);
     }
 
     /**

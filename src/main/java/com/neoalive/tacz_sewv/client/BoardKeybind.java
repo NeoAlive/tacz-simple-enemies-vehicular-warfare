@@ -19,6 +19,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketBailOutVehicle;
 import com.neoalive.tacz_sewv.network.PacketBoardVehicle;
 import com.neoalive.tacz_sewv.network.PacketCaptureMedic;
 import com.neoalive.tacz_sewv.network.PacketDismountVehicle;
@@ -56,6 +57,12 @@ public class BoardKeybind {
     public static void orderDismount() {
         withOwnedUnits(pmc -> true, "message.tacz_sewv.board.no_units",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketDismountVehicle(unitIds)));
+    }
+
+    /** Emergency bail — parachute/scramble/full stand-down; not a simple dismount. */
+    public static void orderBailOut() {
+        withOwnedUnits(pmc -> pmc.getVehicle() != null, "message.tacz_sewv.board.no_units",
+                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketBailOutVehicle(unitIds)));
     }
 
     /**

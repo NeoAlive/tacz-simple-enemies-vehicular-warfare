@@ -247,6 +247,8 @@ public class TdtScreen extends Screen {
         add(Category.CREW, "gui.tacz_sewv.tdt.board_passenger", "gui.tacz_sewv.tdt.board_passenger.tip", true,
                 () -> BoardKeybind.orderBoard(liveBoardTarget(), true));
         add(Category.CREW, "gui.tacz_sewv.tdt.dismount", null, true, BoardKeybind::orderDismount);
+        add(Category.CREW, "gui.tacz_sewv.tdt.bail_out", "gui.tacz_sewv.tdt.bail_out.tip", true,
+                BoardKeybind::orderBailOut);
         add(Category.CREW, "gui.tacz_sewv.tdt.escort", "gui.tacz_sewv.tdt.escort.tip", true, ClientEvents::armEscort);
         add(Category.CREW, "gui.tacz_sewv.tdt.tow", "gui.tacz_sewv.tdt.tow.tip", true, ClientEvents::armTowRecovery);
         add(Category.CREW, "gui.tacz_sewv.tdt.set_guard", "gui.tacz_sewv.tdt.set_guard.tip", true, ClientEvents::armGuardPosition);

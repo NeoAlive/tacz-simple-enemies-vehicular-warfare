@@ -6,6 +6,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
+import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 
 /**
  * Freezes a downed PMC in place and kills it for real once its bleed-out deadline
@@ -53,7 +54,11 @@ public class DownedGoal extends Goal {
     @Override
     public void start() {
         this.unit.getNavigation().stop();
-        this.unit.setTarget(null);
+        if (this.unit instanceof IPmcDowned) {
+            OrderStandDown.clearAll(this.unit, "DownedGoal.start");
+        } else {
+            this.unit.setTarget(null);
+        }
     }
 
     @Override

@@ -19,6 +19,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
@@ -95,6 +96,7 @@ public class PacketManMortar {
                 OrderReport.fail(player, OrderFailure.NOT_OWNED);
                 continue;
             }
+            if (OrderGuard.rejectIfDowned(player, pmc)) continue;
             if (!pmc.isAlive()) {
                 OrderReport.fail(player, OrderFailure.UNIT_DEAD);
                 continue;

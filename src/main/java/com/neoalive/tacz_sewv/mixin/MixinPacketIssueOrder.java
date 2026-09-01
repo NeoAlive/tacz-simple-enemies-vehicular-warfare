@@ -16,6 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEscort;
+import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
+import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
@@ -66,6 +68,11 @@ public abstract class MixinPacketIssueOrder {
         }
         // SEM's packet is one unit per send, so a section arrives as several packets in one tick;
         // okEach counts them and the flush prints the total once.
+        if (pmc instanceof IPmcDowned d && d.sewv$isDowned()) {
+            OrderReport.fail(sender, OrderFailure.UNIT_DOWNED);
+            ci.cancel();
+            return;
+        }
         OrderReport.okEach(sender, "message.tacz_sewv.tdt.order", ChatFormatting.GREEN);
 
         // Cleared for any ordered unit, mounted or not: an area task only means anything to a
@@ -85,6 +92,7 @@ public abstract class MixinPacketIssueOrder {
         if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) {
             capture.sewv$clearCaptureOrder();
         }
+        ((IPathwayInfantry) pmc).sewv$clearPathway();
 
         if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
             CrewRadio.play(hull, CrewRadio.Line.ORDERS);

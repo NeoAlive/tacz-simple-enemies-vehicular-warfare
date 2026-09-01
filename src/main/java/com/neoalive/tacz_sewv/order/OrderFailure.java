@@ -33,6 +33,7 @@ public enum OrderFailure {
     NOT_A_UNIT,
     MALFORMED,
     UNIT_DEAD,
+    UNIT_DOWNED,
     NOT_DRIVER,
     NOT_MOUNTED,
     WRONG_HULL,

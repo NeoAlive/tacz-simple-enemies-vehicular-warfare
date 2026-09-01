@@ -94,6 +94,38 @@ public final class TdtSelection {
         return List.of();
     }
 
+    /**
+     * On-foot owned PMC ids from ribbon / commander snapshot. Refreshes {@link #scan()} first so
+     * mount state comes from the last nearby scan rather than requiring every id to be loaded on
+     * the client (map funnel menu builds before distant entities are tracked).
+     */
+    public static List<Integer> resolveOnFoot(double radius) {
+        scan();
+        List<Integer> chosen = resolve(radius);
+        if (chosen.isEmpty()) return List.of();
+
+        Set<Integer> want = new HashSet<>(chosen);
+        List<Integer> onFoot = new ArrayList<>();
+        for (Entry e : scanned) {
+            if (want.contains(e.id()) && e.vehicleId() < 0) {
+                onFoot.add(e.id());
+            }
+        }
+        if (onFoot.size() == want.size()) return onFoot;
+
+        Minecraft mc = Minecraft.getInstance();
+        Player player = mc.player;
+        if (player == null || mc.level == null) return onFoot;
+
+        for (int id : want) {
+            if (onFoot.contains(id)) continue;
+            if (!(mc.level.getEntity(id) instanceof PmcUnitEntity pmc)) continue;
+            if (!pmc.isOwnedBy(player) || pmc.getVehicle() != null) continue;
+            onFoot.add(id);
+        }
+        return onFoot;
+    }
+
     public static void toggle(int id) {
         if (!SELECTED.add(id)) {
             SELECTED.remove(id);

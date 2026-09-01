@@ -16,6 +16,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 public class PacketDismountVehicle {
@@ -53,6 +54,7 @@ public class PacketDismountVehicle {
                 OrderReport.fail(player, OrderFailure.NOT_OWNED);
                 continue;
             }
+            if (OrderGuard.rejectIfDowned(player, pmc)) continue;
             boolean wasMounted = pmc.getVehicle() != null;
             if (wasMounted) {
                 pmc.stopRiding();

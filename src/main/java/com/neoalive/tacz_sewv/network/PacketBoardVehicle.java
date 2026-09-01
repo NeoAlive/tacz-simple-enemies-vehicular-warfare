@@ -15,6 +15,7 @@ import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 public class PacketBoardVehicle {
@@ -63,6 +64,7 @@ public class PacketBoardVehicle {
                 OrderReport.fail(player, OrderFailure.NOT_OWNED);
                 continue;
             }
+            if (OrderGuard.rejectIfDowned(player, pmc)) continue;
             // A board order goes out to every owned unit in range, so leave crews that
             // are already committed to a mortar out of it — otherwise pressing this at
             // a vehicle silently pulls a working mortar team off its tube, including

@@ -28,9 +28,13 @@ import xaero.map.gui.dropdown.rightclick.RightClickOption;
 
 import com.neoalive.tacz_sewv.client.AirportPlots;
 import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.client.PreferredPathwaysClient;
 import com.neoalive.tacz_sewv.client.xaero.CruisePlot;
 import com.neoalive.tacz_sewv.client.xaero.GuardPlot;
 import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
+import com.neoalive.tacz_sewv.client.xaero.PathwayMapRender;
+import com.neoalive.tacz_sewv.client.xaero.PathwayPathMenuOptions;
+import com.neoalive.tacz_sewv.client.xaero.PathwayPlot;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
 import com.neoalive.tacz_sewv.client.xaero.VehicleMarkerElements;
 import com.neoalive.tacz_sewv.config.ClientConfig;
@@ -126,9 +130,9 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private static final int TACZ_SEWV$NO_HEIGHT = 32767;
 
-    /** How near (in blocks) a right-click has to be to drop that node instead of the last one. */
+    /** Screen-pixel radius for picking a plotted node (zoom-independent). */
     @Unique
-    private static final double TACZ_SEWV$NODE_PICK_REACH = 24.0;
+    private static final double TACZ_SEWV$NODE_PICK_PX = 14.0;
 
     @Unique
     private Button tacz_sewv$confirmButton;
@@ -195,6 +199,13 @@ public abstract class MixinGuiMap extends Screen {
                 b -> {
                     if (GuardPlot.armed()) {
                         tacz_sewv$hint("message.tacz_sewv.guard.plotted", GuardPlot.confirm());
+                    } else if (PathwayPlot.armed()) {
+                        int saved = PathwayPlot.confirm();
+                        if (saved >= 2) {
+                            tacz_sewv$hint("message.tacz_sewv.pathway.plotted", saved);
+                        } else {
+                            tacz_sewv$hint("message.tacz_sewv.pathway.need_nodes");
+                        }
                     } else {
                         tacz_sewv$hint("message.tacz_sewv.cruise.plotted", CruisePlot.confirm());
                     }
@@ -206,6 +217,9 @@ public abstract class MixinGuiMap extends Screen {
                     if (GuardPlot.armed()) {
                         GuardPlot.cancel();
                         tacz_sewv$hint("message.tacz_sewv.guard.cancelled");
+                    } else if (PathwayPlot.armed()) {
+                        PathwayPlot.cancel();
+                        tacz_sewv$hint("message.tacz_sewv.pathway.cancelled");
                     } else {
                         CruisePlot.cancel();
                         tacz_sewv$hint("message.tacz_sewv.cruise.cancelled");
@@ -218,22 +232,8 @@ public abstract class MixinGuiMap extends Screen {
 
     @Inject(method = "mapClicked", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$mapClicked(int button, int x, int y, CallbackInfo ci) {
-        if (CruisePlot.armed()) {
-            if (button == 0) {
-                CruisePlot.add(new BlockPos(this.mouseBlockPosX,
-                        tacz_sewv$nodeY(), this.mouseBlockPosZ));
-            } else {
-                CruisePlot.removeNear(this.mouseBlockPosX, this.mouseBlockPosZ, TACZ_SEWV$NODE_PICK_REACH);
-            }
-            ci.cancel();
-            return;
-        }
-        if (GuardPlot.armed()) {
-            if (button == 0) {
-                GuardPlot.set(new BlockPos(this.mouseBlockPosX, tacz_sewv$nodeY(), this.mouseBlockPosZ));
-            } else {
-                GuardPlot.clearPoint();
-            }
+        // Plot clicks are handled in mouseClicked (screen-space node pick + RMB swallow).
+        if (CruisePlot.armed() || PathwayPlot.armed() || GuardPlot.armed()) {
             ci.cancel();
             return;
         }
@@ -258,7 +258,12 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapPress(double mouseX, double mouseY, int button,
                                       CallbackInfoReturnable<Boolean> cir) {
-        if (!ClientConfig.mapMarkersEnabled() || CruisePlot.armed() || GuardPlot.armed()) return;
+        if (CruisePlot.armed() || GuardPlot.armed() || PathwayPlot.armed()) {
+            if (this.getChildAt(mouseX, mouseY).isPresent()) return;
+            tacz_sewv$handlePlotClick(button, mouseX, mouseY, cir);
+            return;
+        }
+        if (!ClientConfig.mapMarkersEnabled()) return;
         if (tacz_sewv$dropdownOpen()) return; // the right-click menu (or a toggle-menu) owns this click
         if (this.getChildAt(mouseX, mouseY).isPresent()) return; // a Xaero widget, not the map
 
@@ -345,6 +350,13 @@ public abstract class MixinGuiMap extends Screen {
         options.addAll(UnitOrderOption.allFor(options.size(), (GuiMap) (Object) this,
                 this.rightClickX, this.rightClickY, this.rightClickZ, this.rightClickDim,
                 MapMarkers.selected().size(), this.mapTileSelection, attackTargetId));
+        ResourceKey<Level> dim = this.rightClickDim;
+        if (dim == null && Minecraft.getInstance().player != null) {
+            dim = Minecraft.getInstance().player.level().dimension();
+        }
+        if (dim != null) {
+            options.addAll(PathwayPathMenuOptions.all(options.size(), (GuiMap) (Object) this, dim));
+        }
     }
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)
@@ -360,17 +372,20 @@ public abstract class MixinGuiMap extends Screen {
                 tacz_sewv$drawBattleFieldOverlay(guiGraphics);
             }
             if (this.tacz_sewv$orderDragging && !CruisePlot.armed() && !GuardPlot.armed()
-                    && MapMarkers.selected().size() >= 2) {
+                    && !PathwayPlot.armed() && MapMarkers.selected().size() >= 2) {
                 tacz_sewv$drawDragPreview(guiGraphics);
             }
-            if (this.tacz_sewv$boxSelecting && !CruisePlot.armed() && !GuardPlot.armed()) {
+            if (this.tacz_sewv$boxSelecting && !CruisePlot.armed() && !GuardPlot.armed()
+                    && !PathwayPlot.armed()) {
                 tacz_sewv$drawSelectionBox(guiGraphics, mouseX, mouseY);
             }
+            tacz_sewv$drawSavedPathways(guiGraphics);
         }
 
         boolean cruiseArmed = CruisePlot.armed();
         boolean guardArmed = GuardPlot.armed();
-        boolean armed = cruiseArmed || guardArmed;
+        boolean pathwayArmed = PathwayPlot.armed();
+        boolean armed = cruiseArmed || guardArmed || pathwayArmed;
         if (this.tacz_sewv$confirmButton != null) this.tacz_sewv$confirmButton.visible = armed;
         if (this.tacz_sewv$cancelButton != null) this.tacz_sewv$cancelButton.visible = armed;
         if (!armed) return;
@@ -387,6 +402,27 @@ public abstract class MixinGuiMap extends Screen {
             guiGraphics.drawCenteredString(this.font,
                     Component.translatable("message.tacz_sewv.guard.plotting"),
                     this.width / 2, this.height - 42, 0xFFFFFFFF);
+            return;
+        }
+
+        if (pathwayArmed) {
+            PathwayPlot.updateHover(mouseX, mouseY, this::tacz_sewv$toScreen, TACZ_SEWV$NODE_PICK_PX);
+            PathwayMapRender.Cursor cursor = new PathwayMapRender.Cursor(
+                    mouseX, mouseY, this.mouseBlockPosY != TACZ_SEWV$NO_HEIGHT);
+            PathwayMapRender.drawPlot(guiGraphics, this.font, this::tacz_sewv$toScreen,
+                    PathwayPlot.nodes(), PathwayPlot.selectedIndex(), PathwayPlot.hoverIndex(),
+                    color, cursor);
+            String statusKey = PathwayPlot.editing()
+                    ? "message.tacz_sewv.pathway.editing_status"
+                    : "message.tacz_sewv.pathway.plotting";
+            guiGraphics.drawCenteredString(this.font,
+                    Component.translatable(statusKey, PathwayPlot.pathId(), PathwayPlot.nodes().size()),
+                    this.width / 2, this.height - 42, 0xFFFFFFFF);
+            if (!PathwayPlot.canConfirm()) {
+                guiGraphics.drawCenteredString(this.font,
+                        Component.translatable("message.tacz_sewv.pathway.need_nodes"),
+                        this.width / 2, this.height - 54, 0xFFAAAAAA);
+            }
             return;
         }
 
@@ -413,6 +449,45 @@ public abstract class MixinGuiMap extends Screen {
      * none. Never the 32767 sentinel — the drive goal paths TO this position, and a node at y=0
      * would aim the route through bedrock.
      */
+    @Unique
+    private void tacz_sewv$handlePlotClick(int button, double mouseX, double mouseY,
+                                           CallbackInfoReturnable<Boolean> cir) {
+        int sx = (int) Math.round(mouseX);
+        int sy = (int) Math.round(mouseY);
+        PathwayPlot.ScreenProject project = this::tacz_sewv$toScreen;
+
+        if (GuardPlot.armed()) {
+            if (button == 0) {
+                GuardPlot.set(new BlockPos(this.mouseBlockPosX, tacz_sewv$nodeY(), this.mouseBlockPosZ));
+            } else if (button == 1) {
+                GuardPlot.clearPoint();
+            }
+            cir.setReturnValue(true);
+            return;
+        }
+
+        if (PathwayPlot.armed()) {
+            if (button == 0) {
+                PathwayPlot.pickOrAddScreen(
+                        new BlockPos(this.mouseBlockPosX, tacz_sewv$nodeY(), this.mouseBlockPosZ),
+                        sx, sy, project, TACZ_SEWV$NODE_PICK_PX);
+            } else if (button == 1) {
+                PathwayPlot.removeAtScreen(sx, sy, project, TACZ_SEWV$NODE_PICK_PX);
+            }
+            cir.setReturnValue(true);
+            return;
+        }
+
+        if (CruisePlot.armed()) {
+            if (button == 0) {
+                CruisePlot.add(new BlockPos(this.mouseBlockPosX, tacz_sewv$nodeY(), this.mouseBlockPosZ));
+            } else if (button == 1) {
+                CruisePlot.removeAtScreen(sx, sy, project, TACZ_SEWV$NODE_PICK_PX);
+            }
+            cir.setReturnValue(true);
+        }
+    }
+
     /** True while any Xaero menu is up — the right-click order menu, or the waypoint/player toggles. */
     @Unique
     private boolean tacz_sewv$dropdownOpen() {
@@ -796,6 +871,16 @@ public abstract class MixinGuiMap extends Screen {
         guiGraphics.fill(x1, y2 - 1, x2, y2, color);                          // bottom
         guiGraphics.fill(x1, y1, x1 + 1, y2, color);                          // left
         guiGraphics.fill(x2 - 1, y1, x2, y2, color);                          // right
+    }
+
+    @Unique
+    private void tacz_sewv$drawSavedPathways(GuiGraphics guiGraphics) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || PathwayPlot.armed()) return;
+        ResourceKey<Level> dim = mc.player.level().dimension();
+        int color = ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55);
+        PathwayMapRender.drawSaved(guiGraphics, this.font, this::tacz_sewv$toScreen,
+                PreferredPathwaysClient.forDimension(dim), color);
     }
 
     @Unique

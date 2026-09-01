@@ -39,6 +39,8 @@ public interface IVehiclePatrol {
     String TAG_STEP = "tacz_sewv_patrol_step";
     String TAG_STEP_DEADLINE = "tacz_sewv_patrol_step_deadline";
     String TAG_ROUTE = "tacz_sewv_patrol_route";
+    /** False for funnel routes — drive once, then stand down like infantry pathways. */
+    String TAG_CRUISE_LOOP = "tacz_sewv_patrol_cruise_loop";
     String TAG_SWEEP_LEFT = "tacz_sewv_sweep_left";
     String TAG_SWEEP_TOP = "tacz_sewv_sweep_top";
     String TAG_SWEEP_RIGHT = "tacz_sewv_sweep_right";
@@ -61,6 +63,7 @@ public interface IVehiclePatrol {
         tag.remove(TAG_NEXT_ROTATE);
         tag.remove(TAG_STEP_DEADLINE);
         tag.remove(TAG_ROUTE);
+        tag.remove(TAG_CRUISE_LOOP);
         tag.remove(TAG_SWEEP_LEFT);
         tag.remove(TAG_SWEEP_TOP);
         tag.remove(TAG_SWEEP_RIGHT);
@@ -112,11 +115,21 @@ public interface IVehiclePatrol {
      * only new tag. A route is id-free, so like the rest of this state it PERSISTS.
      */
     default void sewv$setCruise(List<BlockPos> route) {
+        sewv$setCruise(route, true);
+    }
+
+    default void sewv$setCruise(List<BlockPos> route, boolean loop) {
         CompoundTag tag = ((Entity) this).getPersistentData();
         long[] packed = new long[route.size()];
         for (int i = 0; i < route.size(); i++) packed[i] = route.get(i).asLong();
         sewv$setAreaTask(route.get(0), 0, MODE_CRUISE, 0, 1);
         tag.putLongArray(TAG_ROUTE, packed);
+        tag.putBoolean(TAG_CRUISE_LOOP, loop);
+    }
+
+    default boolean sewv$cruiseLoops() {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        return !tag.contains(TAG_CRUISE_LOOP) || tag.getBoolean(TAG_CRUISE_LOOP);
     }
 
     /** The cruise legs in order; empty when this crew is not cruising. */
@@ -141,6 +154,7 @@ public interface IVehiclePatrol {
         tag.remove(TAG_STEP);
         tag.remove(TAG_STEP_DEADLINE);
         tag.remove(TAG_ROUTE);
+        tag.remove(TAG_CRUISE_LOOP);
         tag.remove(TAG_SWEEP_LEFT);
         tag.remove(TAG_SWEEP_TOP);
         tag.remove(TAG_SWEEP_RIGHT);

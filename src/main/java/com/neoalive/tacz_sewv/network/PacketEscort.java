@@ -15,6 +15,7 @@ import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
@@ -65,6 +66,7 @@ public class PacketEscort {
                     OrderReport.fail(player, OrderFailure.NOT_OWNED);
                     continue;
                 }
+                if (OrderGuard.rejectIfDowned(player, pmc)) continue;
                 // Leave a crew committed to a mortar on its tube, exactly as the board order does.
                 if (MortarSupport.hasMortarClaim(pmc)) {
                     OrderReport.fail(player, OrderFailure.BUSY_MORTAR, pmc);

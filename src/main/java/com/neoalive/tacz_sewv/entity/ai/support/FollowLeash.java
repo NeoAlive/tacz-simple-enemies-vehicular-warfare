@@ -5,6 +5,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 
 /**
@@ -44,6 +45,7 @@ public final class FollowLeash {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
         if (pmc.getVehicle() != null) return false; // mounted: driven by the vehicle AI, not these goals
         if (((ISweepInfantry) pmc).sewv$hasInfantrySweep()) return true;
+        if (((IPathwayInfantry) pmc).sewv$hasPathway()) return true;
         OrderType order = pmc.getOrder();
         if (order == null) return false;
         return switch (order) {
@@ -62,6 +64,7 @@ public final class FollowLeash {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
         if (pmc.getVehicle() != null) return false;
         if (((ISweepInfantry) pmc).sewv$hasInfantrySweep()) return true;
+        if (((IPathwayInfantry) pmc).sewv$hasPathway()) return true;
         OrderType order = pmc.getOrder();
         return order == OrderType.FOLLOW_COMMANDER
                 || order == OrderType.FORM_WEDGE

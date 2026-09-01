@@ -6,8 +6,6 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleMotionUtils;
-import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
@@ -17,26 +15,15 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-import top.theillusivec4.curios.api.CuriosApi;
-import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
-import com.neoalive.tacz_sewv.crew.CrewRadio;
-import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
 
 /**
@@ -78,12 +65,6 @@ public class BailOutVehicleGoal extends Goal {
     // Reject candidates this far above/below the hull — pathing onto a clifftop or
     // down a ravine burns the whole timeout going nowhere.
     private static final int MAX_ESCAPE_ELEVATION = 8;
-
-    // Curios slot the parachute lives in — SuperbWarfare tags its item into curios:back.
-    private static final String PARACHUTE_SLOT = "back";
-    // Don't bother below this height off the deck: the fall is survivable, and SBW only arms the
-    // canopy after 4 blocks of falling, so there would be no room for it to bite anyway.
-    private static final int PARACHUTE_MIN_HEIGHT = 8;
 
     private static final double ARRIVE_DISTANCE_SQ = 4.0; // 2 blocks
     private static final double SCRAMBLE_SPEED = 1.3;     // navigation multiplier for RU/US
@@ -141,9 +122,11 @@ public class BailOutVehicleGoal extends Goal {
         if (hasSandbagScramble(this.unit) && this.unit.getVehicle() == null) {
             return true;
         }
+        if (BailOutSupport.hasManualBail(this.unit)
+                && this.unit.getVehicle() instanceof VehicleEntity) {
+            return true;
+        }
         if (!(this.unit.getVehicle() instanceof VehicleEntity vehicle)) return false;
-        // Invasion-spawned hulls stay crewed until wrecked/despawned — a bail leaves an
-        // empty tagged hull that still counts toward the base's fleet / wreck top-up.
         if (vehicle.getPersistentData().getBoolean(InvasionTags.SPAWN)) return false;
         return isWrittenOff(vehicle);
     }
@@ -162,6 +145,7 @@ public class BailOutVehicleGoal extends Goal {
         this.scrambleTicks = 0;
         this.sandbagScramble = hasSandbagScramble(this.unit);
         clearSandbagScramble(this.unit);
+        BailOutSupport.clearManualBail(this.unit);
 
         if (this.sandbagScramble) {
             this.escapePos = findEscapePosNear(this.unit.getX(), this.unit.getY(), this.unit.getZ(),
@@ -171,50 +155,10 @@ public class BailOutVehicleGoal extends Goal {
             return;
         }
 
-        // canUse() just established the ride is a crippled VehicleEntity.
         VehicleEntity vehicle = (VehicleEntity) this.unit.getVehicle();
-        // Voice FIRST — before escape search / parachute / stopRiding. Under fire DAMAGED holds the
-        // shared radio channel; BAIL bypasses that gate, but any work before speak risks the unit
-        // dying mid-start and never saying the line.
-        CrewRadio.speak(vehicle, this.unit, CrewRadio.Line.BAIL);
-
-        this.escapePos = findEscapePos(vehicle);
-        issueParachute();
-        TowRecoverySupport.clearOrder(this.unit, vehicle);
-        this.unit.stopRiding();
+        this.escapePos = BailOutSupport.triggerVehicleBail(this.unit, vehicle);
         applyScrambleSpeed();
-
-        // Drop any pending board order, or BoardVehicleGoal would march the unit straight back
-        // to the hull it just abandoned. This is faction-blind on purpose: RU/US units carry
-        // IVehicleBoarder too now (SeekAbandonedVehicleGoal writes them orders), and while this
-        // sat inside the PMC branch a bailed-out RU crew would have walked back to its own
-        // burning tank — and, once clear of it, scavenged it straight back.
-        IVehicleBoarder boarder = (IVehicleBoarder) this.unit;
-        boarder.tacz_sewv$setBoarding(false);
-        boarder.tacz_sewv$setMountTargetId(-1);
-        // Likewise any mortar claim: a crew scrambling clear of a burning hull
-        // shouldn't turn round and walk back to a tube it was assigned earlier.
-        MortarSupport.releaseClaim(this.unit);
-        EntrenchSupport.clear(this.unit);
-        // Vehicle bail already owns the scramble — drop any sandbag-leave flag clear() queued.
-        clearSandbagScramble(this.unit);
-        // And any flight command: every crew type implements IHelicopterPilot, so this is
-        // faction-blind like the two clears above. Without it a pilot bailing with a stale
-        // LANDING/TAKEOFF command + BlockPos carries it straight into the next helicopter
-        // it boards, which starts flying itself toward the old order the moment it's seated.
-        IHelicopterPilot pilot = (IHelicopterPilot) this.unit;
-        pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
-        pilot.sewv$setHeliLandPos(null);
-
-        if (this.unit instanceof PmcUnitEntity pmc) {
-            // Any escort order dies with the bail-out too (PMC-only, so it's cleared here rather
-            // than beside the faction-blind board/mortar clears above).
-            ((com.neoalive.tacz_sewv.bridge.IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
-            PatrolSupport.clearSweepMembership(pmc, "BailOutVehicleGoal");
-            GuardSupport.clearReach(pmc);
-            // setMoveToTarget flips the order to MOVE_TO_POSITION itself.
-            if (this.escapePos != null) pmc.setMoveToTarget(escapeTarget());
-        } else if (this.escapePos != null) {
+        if (!this.commandable && this.escapePos != null) {
             moveToEscapePos();
         }
     }
@@ -272,46 +216,6 @@ public class BailOutVehicleGoal extends Goal {
         if (speed != null) speed.removeModifier(SCRAMBLE_SPEED_UUID);
     }
 
-    /**
-     * Straps a parachute on before the unit steps out, when it is stepping out high enough to need
-     * one. Without it a crew bailing from a stricken helicopter simply falls to its death — the
-     * escape-point search below only looks at ground within {@link #MAX_ESCAPE_ELEVATION} of the
-     * hull, so at altitude it finds nothing and the goal ends the moment it has pushed them out.
-     *
-     * <p><b>Everything past putting the item in the slot is SuperbWarfare's, and all of it was
-     * already written for mobs.</b> {@code ParachuteItem.curioTick} has a whole non-Player branch
-     * that arms the canopy at {@code deltaMovement.y < -0.6 && fallDistance > 4}, then flies it
-     * (x0.75 vertical per tick, a nudge along the look vector), drains durability and calls
-     * {@code resetFallDistance()} every tick it is open — which is what actually cancels the fall
-     * damage. The canopy is drawn by a global {@code RenderLivingEvent.Post} hook in
-     * {@code ParachuteRenderer} that handles non-players explicitly, NOT by the Curios render layer
-     * (Curios only hangs that on the two player skins). And Curios attaches its inventory
-     * capability to every LivingEntity and ticks curios with no Player gate. So the one thing
-     * missing was a back slot with a parachute in it: SEM grants that slot to PMC units only, hence
-     * {@code data/tacz_sewv/curios/entities/unit_back_slots.json} adding it for RU and US.
-     *
-     * <p>Issued at the moment of bailing rather than worn from spawn deliberately. The canopy arms
-     * itself off nothing but fall distance, so a unit that wears one permanently pops it every time
-     * it walks off a ledge — and this way it covers every route into a seat (spawned crew, a
-     * structure's, a PMC the player ordered aboard) without any of them having to know about it.
-     */
-    private void issueParachute() {
-        Level level = this.unit.level();
-        BlockPos ground = level.getHeightmapPos(
-                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, this.unit.blockPosition());
-        if (this.unit.getY() - ground.getY() < PARACHUTE_MIN_HEIGHT) return;
-
-        CuriosApi.getCuriosInventory(this.unit).ifPresent(curios -> {
-            ICurioStacksHandler back = curios.getStacksHandler(PARACHUTE_SLOT).orElse(null);
-            if (back == null || back.getSlots() < 1) return;
-            // Never overwrite what is already on the unit's back: a PMC's curio slots are the
-            // player's to fill, and a chute already there (worn, or from an earlier bail-out) is
-            // the one SuperbWarfare will find anyway.
-            if (!back.getStacks().getStackInSlot(0).isEmpty()) return;
-            back.getStacks().setStackInSlot(0, new ItemStack(ModItems.PARACHUTE.get()));
-        });
-    }
-
     private Vec3 escapeTarget() {
         return Vec3.atBottomCenterOf(this.escapePos);
     }
@@ -321,24 +225,14 @@ public class BailOutVehicleGoal extends Goal {
         this.unit.getNavigation().moveTo(target.x, target.y, target.z, SCRAMBLE_SPEED);
     }
 
-    /**
-     * Nearest standable point just clear of the hull, preferring the same horizontal
-     * hemisphere the unit exits on so the pathfinder is not asked to route through the
-     * wreck. Falls back to any clear candidate if same-side finds nothing.
-     */
-    private BlockPos findEscapePos(VehicleEntity vehicle) {
-        AABB hullBox = VehicleMotionUtils.INSTANCE.calculateCombinedAABBOptimized(vehicle);
-        double halfW = Math.max(hullBox.getXsize(), hullBox.getZsize()) * 0.5;
-        return findEscapePosNear(vehicle.getX(), vehicle.getY(), vehicle.getZ(), hullBox,
-                halfW + MIN_CLEARANCE, halfW + MAX_CLEARANCE);
-    }
-
     /** Sandbag leave: scramble a few blocks clear of the bag with no hull volume to avoid. */
-    private BlockPos findEscapePosNear(double cx, double cy, double cz, @Nullable AABB hullBox) {
+    private BlockPos findEscapePosNear(double cx, double cy, double cz,
+                                       @Nullable net.minecraft.world.phys.AABB hullBox) {
         return findEscapePosNear(cx, cy, cz, hullBox, MIN_CLEARANCE, MAX_CLEARANCE);
     }
 
-    private BlockPos findEscapePosNear(double cx, double cy, double cz, @Nullable AABB hullBox,
+    private BlockPos findEscapePosNear(double cx, double cy, double cz,
+                                       @Nullable net.minecraft.world.phys.AABB hullBox,
                                        double minR, double maxR) {
         Level level = this.unit.level();
         RandomSource random = this.unit.getRandom();

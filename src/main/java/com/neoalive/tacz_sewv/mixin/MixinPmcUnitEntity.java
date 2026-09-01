@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEntrenched;
 import com.neoalive.tacz_sewv.bridge.IEscort;
+import com.neoalive.tacz_sewv.bridge.IFobAssigned;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
@@ -39,6 +40,8 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.DiplomacyEnemyTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.DownedGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.FobPatrolGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.FobScrambleGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.FollowCommanderGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MoveToPositionGoal;
@@ -69,7 +72,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 public abstract class MixinPmcUnitEntity
         implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember,
         IVehiclePatrol, IEscort, ITowRecovery, ISweepInfantry, IPathwayInfantry, ICaptureOrder, IMedicTreat, IEntrenched,
-        IPmcDowned, ICaptureMedic {
+        IPmcDowned, ICaptureMedic, IFobAssigned {
 
     @Unique
     private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING;
@@ -333,6 +336,8 @@ public abstract class MixinPmcUnitEntity
         // Claims no flags, so its priority is nominal — it only relays a contact over the
         // radio and never competes with what the unit is doing.
         ((Mob) self).goalSelector.addGoal(1, new RadioObserverGoal(self));
+        ((Mob) self).goalSelector.addGoal(0, new FobScrambleGoal(self));
+        ((Mob) self).goalSelector.addGoal(1, new FobPatrolGoal(self));
         // PMC-only because the kits are player-supplied and a PMC is the one unit type SEM
         // gives an inventory to — RU/US have no ITEM_HANDLER to hold one. Priority 2 keeps
         // first aid below anything crew-served: it only runs out of contact anyway.
@@ -411,5 +416,10 @@ public abstract class MixinPmcUnitEntity
         // the vehicle scan; both goals self-disable while seated.
         ((Mob) self).targetSelector.addGoal(2, new DiplomacyEnemyTargetGoal<>(self, Player.class));
         ((Mob) self).targetSelector.addGoal(2, new DiplomacyEnemyTargetGoal<>(self, PmcUnitEntity.class));
+    }
+
+    @Override
+    public Entity asEntity() {
+        return (Entity) (Object) this;
     }
 }

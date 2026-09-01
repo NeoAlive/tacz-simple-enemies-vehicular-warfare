@@ -36,6 +36,9 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.EMPLACEMENT.get());
                         output.accept(ModItems.SANDBAG.get());
                         output.accept(ModItems.RUNWAY.get());
+                        output.accept(ModItems.QUARTERS_BENCH.get());
+                        output.accept(ModItems.PARKING_FIELD.get());
+                        output.accept(ModItems.STOCKPILE_AMMO.get());
                         // spawn_probe: command-only (/give), not listed in creative.
                         output.accept(ModItems.RU_MEDIC_SPAWN_EGG.get());
                         output.accept(ModItems.US_MEDIC_SPAWN_EGG.get());

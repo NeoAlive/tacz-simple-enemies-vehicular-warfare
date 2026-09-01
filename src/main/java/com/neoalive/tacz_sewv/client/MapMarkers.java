@@ -10,6 +10,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
 import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.map.BattleFieldMarker;
+import com.neoalive.tacz_sewv.map.FobMarker;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
@@ -39,6 +40,8 @@ public final class MapMarkers {
     private static List<BattleFieldMarker> battleFields = List.of();
     @Nullable
     private static SweepOverlayState sweepOverlay;
+    @Nullable
+    private static FobMarker fobMarker;
     private static final Set<Integer> SELECTED = new HashSet<>();
 
     private MapMarkers() {}
@@ -49,6 +52,11 @@ public final class MapMarkers {
 
     public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields,
                               @Nullable SweepOverlayState sweep) {
+        accept(incoming, fields, sweep, null);
+    }
+
+    public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields,
+                              @Nullable SweepOverlayState sweep, @Nullable FobMarker fob) {
         markers = List.copyOf(incoming);
         BY_VEHICLE_ID.clear();
         BY_DRIVER_ID.clear();
@@ -58,6 +66,7 @@ public final class MapMarkers {
         }
         battleFields = List.copyOf(fields);
         sweepOverlay = sweep;
+        fobMarker = fob;
         // A selected hull that is gone is not selectable any more, and leaving it in would keep
         // sending orders into the void.
         SELECTED.removeIf(driverId -> markers.stream().noneMatch(m -> m.driverId() == driverId));
@@ -70,7 +79,13 @@ public final class MapMarkers {
         BY_DRIVER_ID.clear();
         battleFields = List.of();
         sweepOverlay = null;
+        fobMarker = null;
         SELECTED.clear();
+    }
+
+    @Nullable
+    public static FobMarker fobMarker() {
+        return fobMarker;
     }
 
     public static List<VehicleMarker> markers() {

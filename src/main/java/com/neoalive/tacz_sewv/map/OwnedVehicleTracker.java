@@ -52,6 +52,8 @@ import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
+import com.neoalive.tacz_sewv.fob.FobInstance;
+import com.neoalive.tacz_sewv.fob.FobManager;
 import com.neoalive.tacz_sewv.invasion.InvasionHostility;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
@@ -161,7 +163,8 @@ public final class OwnedVehicleTracker {
             List<VehicleMarker> markers = markersFor(player, candidates, spotRadiusSq);
             SweepOverlayState sweep = sweepOverlayFor(player);
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                    new PacketOwnedVehicles(markers, battleFieldsFor(markers, allFields), sweep));
+                    new PacketOwnedVehicles(markers, battleFieldsFor(markers, allFields), sweep,
+                            fobMarkerFor(player)));
         }
     }
 
@@ -593,5 +596,16 @@ public final class OwnedVehicleTracker {
         // Everything that drives is armour, and an IFV is mechanized infantry — the one distinction
         // the vehicle data cannot make, so it comes off the id clue list HullFacts already owns.
         return HullFacts.isIfvHull(hull) ? VehicleMarker.Kind.MECHANIZED : VehicleMarker.Kind.ARMOR;
+    }
+
+    @Nullable
+    private static FobMarker fobMarkerFor(ServerPlayer player) {
+        for (ServerLevel level : player.server.getAllLevels()) {
+            FobInstance fob = FobManager.get(level).getFobForOwner(player.getUUID());
+            if (fob != null) {
+                return new FobMarker(fob.commandPos, level.dimension(), fob.valid);
+            }
+        }
+        return null;
     }
 }

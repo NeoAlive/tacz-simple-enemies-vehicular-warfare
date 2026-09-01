@@ -52,6 +52,7 @@ public final class XaeroMapCompat {
         WorldMap.mapElementRenderHandler.add(VehicleMarkerElements.INSTANCE);
         WorldMap.mapElementRenderHandler.add(TrenchMarkerElements.INSTANCE);
         WorldMap.mapElementRenderHandler.add(InvasionZoneMarkerElements.INSTANCE);
+        WorldMap.mapElementRenderHandler.add(FobMarkerElements.INSTANCE);
         hungOn = WorldMap.mapElementRenderHandler;
     }
 

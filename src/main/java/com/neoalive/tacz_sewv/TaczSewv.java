@@ -35,12 +35,14 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.SemRecruitCost;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
+import com.neoalive.tacz_sewv.fob.FobTickHandler;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModBlocks;
 import com.neoalive.tacz_sewv.init.ModCreativeTabs;
 import com.neoalive.tacz_sewv.init.ModEntities;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.init.ModItems;
+import com.neoalive.tacz_sewv.init.ModMenus;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.map.OwnedVehicleTracker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -69,6 +71,7 @@ public class TaczSewv {
         modEventBus.addListener(this::commonSetup);
         ModBlocks.BLOCKS.register(modEventBus);
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
+        ModMenus.MENUS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModCreativeTabs.CREATIVE_TABS.register(modEventBus);
         ModSounds.SOUNDS.register(modEventBus);
@@ -78,6 +81,7 @@ public class TaczSewv {
         // Server-side half of the map markers: it only ever SENDS, so it is registered
         // unconditionally — a client with no map mod simply ignores the packet.
         MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
+        MinecraftForge.EVENT_BUS.register(FobTickHandler.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.map.TrenchNetworksTracker.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionHudTracker.class);

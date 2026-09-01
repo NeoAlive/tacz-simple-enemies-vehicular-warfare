@@ -305,6 +305,13 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TREE_FELLING_EXEMPT_GIANT_TRUNKS;
     public static final ForgeConfigSpec.IntValue VEHICLE_TREE_CONTACT_TICKS;
 
+    public static final ForgeConfigSpec.IntValue FOB_MASTER_SIZE;
+    public static final ForgeConfigSpec.IntValue FOB_STOCKPILE_SIZE;
+    public static final ForgeConfigSpec.IntValue FOB_PARKING_SIZE;
+    public static final ForgeConfigSpec.IntValue FOB_THREAT_THRESHOLD;
+    public static final ForgeConfigSpec.IntValue FOB_ALARM_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.IntValue FOB_THREAT_EVAL_INTERVAL_TICKS;
+
     private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
     private static final int[][] DOCTRINE_DEFAULTS = {
             {2, -1, 2, -1, 1, 0, -2, 2},
@@ -1171,6 +1178,21 @@ public final class SewvConfig {
                         "before it falls — a hull that only clips a tree in passing does not fell it. Contact",
                         "must be unbroken; losing touch even for one tick resets that tree's timer to zero.")
                 .defineInRange("vehicleTreeContactTicks", 35, 0, 200);
+        builder.pop();
+
+        builder.push("fob");
+        FOB_MASTER_SIZE = builder.comment("Horizontal span of the FOB master area (blocks, centered on quarters_bench).")
+                .defineInRange("fobMasterSize", 50, 1, 256);
+        FOB_STOCKPILE_SIZE = builder.comment("Horizontal span of the stockpile sub-area (blocks, centered on block).")
+                .defineInRange("fobStockpileSize", 10, 1, 64);
+        FOB_PARKING_SIZE = builder.comment("Horizontal span of the parking sub-area (blocks, centered on block).")
+                .defineInRange("fobParkingSize", 15, 1, 64);
+        FOB_THREAT_THRESHOLD = builder.comment("Threat score at or above this triggers scramble.")
+                .defineInRange("fobThreatThreshold", 100, 1, 10000);
+        FOB_ALARM_COOLDOWN_TICKS = builder.comment("Minimum ticks between FOB alarm sounds (20 = 1 second).")
+                .defineInRange("fobAlarmCooldownTicks", 400, 1, 72000);
+        FOB_THREAT_EVAL_INTERVAL_TICKS = builder.comment("Ticks between threat scans per FOB.")
+                .defineInRange("fobThreatEvalIntervalTicks", 20, 1, 200);
         builder.pop();
 
         SPEC = builder.build();

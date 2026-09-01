@@ -97,7 +97,8 @@ public class NetworkHandler {
     // 68: spawn_probe open/save GUI packets.
     // 69: ConfigUI open/request/save/shortcut packets.
     // 70: PacketTowRecovery (PMC tow order).
-    private static final String PROTOCOL_VERSION = "71";
+    // 71: PacketFobData + FOB assignment/alarm/route packets.
+    private static final String PROTOCOL_VERSION = "72";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -528,6 +529,48 @@ public class NetworkHandler {
                 PacketFunnelPreferredPathway::encode,
                 PacketFunnelPreferredPathway::new,
                 PacketFunnelPreferredPathway::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketFobData.class,
+                PacketFobData::encode,
+                PacketFobData::new,
+                PacketFobData::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketAssignFobLiving.class,
+                PacketAssignFobLiving::encode,
+                PacketAssignFobLiving::new,
+                PacketAssignFobLiving::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketAssignFobVehicle.class,
+                PacketAssignFobVehicle::encode,
+                PacketAssignFobVehicle::new,
+                PacketAssignFobVehicle::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketToggleFobCommand.class,
+                PacketToggleFobCommand::encode,
+                PacketToggleFobCommand::new,
+                PacketToggleFobCommand::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketPlayFobAlarm.class,
+                PacketPlayFobAlarm::encode,
+                PacketPlayFobAlarm::new,
+                PacketPlayFobAlarm::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRouteToFob.class,
+                PacketRouteToFob::encode,
+                PacketRouteToFob::new,
+                PacketRouteToFob::handle
         );
     }
 }

@@ -26,6 +26,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -64,6 +65,11 @@ public abstract class MixinPacketIssueOrder {
         }
         if (!OrderAuth.check(sender, pmc, "PacketIssueOrder")) {
             OrderReport.fail(sender, OrderFailure.NOT_OWNED);
+            return;
+        }
+        if (FobSupport.blocksOrders(pmc)) {
+            OrderReport.fail(sender, OrderFailure.FOB_COMMAND);
+            ci.cancel();
             return;
         }
         // SEM's packet is one unit per send, so a section arrives as several packets in one tick;

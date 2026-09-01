@@ -23,6 +23,7 @@ public interface IPathwayInfantry {
     String TAG_PASSIVE = "tacz_sewv_pathway_passive";
     /** After a manual funnel completes, passive matching stays off until this game time. */
     String TAG_PASSIVE_COOLDOWN = "tacz_sewv_pathway_passive_cooldown";
+    String TAG_STALE_CHECK = "tacz_sewv_pathway_stale_next";
 
     default boolean sewv$hasPathway() {
         return ((Entity) this).getPersistentData().getBoolean(TAG_ACTIVE);
@@ -58,6 +59,7 @@ public interface IPathwayInfantry {
         tag.remove(TAG_STEP_DEADLINE);
         tag.remove(TAG_SOURCE_ID);
         tag.remove(TAG_PASSIVE);
+        tag.remove(TAG_STALE_CHECK);
         if (manual) {
             tag.putLong(TAG_PASSIVE_COOLDOWN,
                     ((Entity) this).level().getGameTime() + PathwaySupport.PASSIVE_COOLDOWN);
@@ -67,6 +69,14 @@ public interface IPathwayInfantry {
     default boolean sewv$isPathwayPassiveBlocked() {
         long until = ((Entity) this).getPersistentData().getLong(TAG_PASSIVE_COOLDOWN);
         return until > 0L && ((Entity) this).level().getGameTime() < until;
+    }
+
+    default long sewv$getPathwayStaleCheck() {
+        return ((Entity) this).getPersistentData().getLong(TAG_STALE_CHECK);
+    }
+
+    default void sewv$setPathwayStaleCheck(long gameTime) {
+        ((Entity) this).getPersistentData().putLong(TAG_STALE_CHECK, gameTime);
     }
 
     default List<BlockPos> sewv$getPathwayRoute() {

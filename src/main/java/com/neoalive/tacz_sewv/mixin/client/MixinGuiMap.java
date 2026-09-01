@@ -406,12 +406,27 @@ public abstract class MixinGuiMap extends Screen {
         }
 
         if (pathwayArmed) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player != null && PathwayPlot.dimension() != null
+                    && !PathwayPlot.dimension().equals(mc.player.level().dimension())) {
+                PathwayPlot.cancel();
+                return;
+            }
             PathwayPlot.updateHover(mouseX, mouseY, this::tacz_sewv$toScreen, TACZ_SEWV$NODE_PICK_PX);
             PathwayMapRender.Cursor cursor = new PathwayMapRender.Cursor(
                     mouseX, mouseY, this.mouseBlockPosY != TACZ_SEWV$NO_HEIGHT);
             PathwayMapRender.drawPlot(guiGraphics, this.font, this::tacz_sewv$toScreen,
                     PathwayPlot.nodes(), PathwayPlot.selectedIndex(), PathwayPlot.hoverIndex(),
                     color, cursor);
+            if (PathwayPlot.editing()) {
+                String title = PathwayPlot.pathId();
+                int tw = this.font.width(title);
+                int tx = this.width / 2;
+                int ty = 10;
+                guiGraphics.fill(tx - tw / 2 - 6, ty - 2, tx + tw / 2 + 6,
+                        ty + this.font.lineHeight + 2, 0xC0000000);
+                guiGraphics.drawCenteredString(this.font, title, tx, ty, 0xFFFFFFFF);
+            }
             String statusKey = PathwayPlot.editing()
                     ? "message.tacz_sewv.pathway.editing_status"
                     : "message.tacz_sewv.pathway.plotting";

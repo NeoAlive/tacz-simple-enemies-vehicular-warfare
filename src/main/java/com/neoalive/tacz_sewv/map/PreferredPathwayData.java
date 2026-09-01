@@ -38,6 +38,9 @@ public class PreferredPathwayData extends SavedData {
     /** player → dimension → pathId → waypoints */
     private final Map<UUID, Map<ResourceKey<Level>, Map<String, List<BlockPos>>>> store = new HashMap<>();
 
+    /** Per-player catalog views — invalidated on any write for that player. */
+    private static final Map<UUID, Map<ResourceKey<Level>, PathCatalog>> CATALOG_CACHE = new HashMap<>();
+
     public PreferredPathwayData() {}
 
     public static PreferredPathwayData load(CompoundTag nbt) {
@@ -97,6 +100,7 @@ public class PreferredPathwayData extends SavedData {
         this.store.computeIfAbsent(player, u -> new HashMap<>())
                 .computeIfAbsent(dim, d -> new LinkedHashMap<>())
                 .put(pathId, List.copyOf(waypoints));
+        CATALOG_CACHE.remove(player);
         setDirty();
     }
 
@@ -108,10 +112,17 @@ public class PreferredPathwayData extends SavedData {
         paths.remove(pathId);
         if (paths.isEmpty()) byDim.remove(dim);
         if (byDim.isEmpty()) this.store.remove(player);
+        CATALOG_CACHE.remove(player);
         setDirty();
     }
 
     public static PathCatalog forOwner(Level level, UUID player, ResourceKey<Level> dim) {
+        return CATALOG_CACHE
+                .computeIfAbsent(player, u -> new HashMap<>())
+                .computeIfAbsent(dim, d -> loadCatalog(level, player, dim));
+    }
+
+    private static PathCatalog loadCatalog(Level level, UUID player, ResourceKey<Level> dim) {
         PreferredPathwayData data = store(level);
         Map<String, List<BlockPos>> paths = data.store
                 .getOrDefault(player, Map.of())

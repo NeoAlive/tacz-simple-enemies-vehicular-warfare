@@ -20,6 +20,14 @@ public final class PathwaySupportSelfCheck {
         double off = PathwaySupport.distanceToSegmentSq(5.5, 64, 3.5, a, b);
         assert Math.abs(off - 9.0) < 0.01 : off;
 
+        var route = java.util.List.of(
+                new net.minecraft.core.BlockPos(0, 64, 0),
+                new net.minecraft.core.BlockPos(20, 64, 0),
+                new net.minecraft.core.BlockPos(40, 64, 0));
+        // Adjacent MOVE dest on path, unit offset beside corridor
+        assert PathwaySupport.pathBboxNear(5, 5, route, 24);
+        assert PathwaySupport.distanceToNearestSegmentSq(5, 5, route) <= PathwaySupport.MOVE_CORRIDOR_RADIUS_SQ;
+
         System.out.println("PathwaySupportSelfCheck passed.");
     }
 }

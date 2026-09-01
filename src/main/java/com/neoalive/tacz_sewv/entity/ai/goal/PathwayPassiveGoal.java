@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 import java.util.List;
 import java.util.Map;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.Level;
@@ -14,8 +13,9 @@ import com.neoalive.tacz_sewv.entity.ai.support.PathwaySupport;
 import com.neoalive.tacz_sewv.map.PreferredPathwayData;
 
 /**
- * Autonomous passive funnel: idle on-foot PMCs near a saved pathway join it when moving parallel.
- * Flagless — only scans and assigns; {@link PathwayGoal} owns movement.
+ * Autonomous passive funnel: idle on-foot PMCs near a saved pathway join it when moving parallel,
+ * or when a MOVE destination lies on the path. Flagless — only scans and assigns;
+ * {@link PathwayGoal} owns movement.
  */
 public class PathwayPassiveGoal extends Goal {
 
@@ -27,6 +27,8 @@ public class PathwayPassiveGoal extends Goal {
 
     public PathwayPassiveGoal(PmcUnitEntity unit) {
         this.unit = unit;
+        // Stagger scans so every PMC does not hit SavedData on the same tick.
+        this.nextScan = unit.level().getGameTime() + (unit.getId() & 31);
     }
 
     @Override
@@ -57,10 +59,17 @@ public class PathwayPassiveGoal extends Goal {
                 this.unit.level(), this.unit.getOwnerUUID(), dim);
         if (catalog.isEmpty()) return;
 
-        for (Map.Entry<String, List<BlockPos>> entry : catalog.paths().entrySet()) {
-            int step = PathwaySupport.matchPassive(this.unit, entry.getValue(), dir);
+        double ex = this.unit.getX();
+        double ez = this.unit.getZ();
+        double margin = 24.0;
+
+        for (Map.Entry<String, List<net.minecraft.core.BlockPos>> entry : catalog.paths().entrySet()) {
+            List<net.minecraft.core.BlockPos> waypoints = entry.getValue();
+            if (!PathwaySupport.pathBboxNear(ex, ez, waypoints, margin)) continue;
+
+            int step = PathwaySupport.matchPassive(this.unit, waypoints, dir);
             if (step >= 0) {
-                PathwaySupport.begin(this.unit, entry.getValue(), step, entry.getKey(), true);
+                PathwaySupport.begin(this.unit, waypoints, step, entry.getKey(), true);
                 return;
             }
         }

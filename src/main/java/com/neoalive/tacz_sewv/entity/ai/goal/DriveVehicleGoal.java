@@ -35,6 +35,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TreeFellingSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Action;
@@ -143,6 +144,7 @@ public class DriveVehicleGoal extends Goal {
         this.vehicle = v;
         this.driver.attach(v);
         this.breaker.attach(v);
+        if (TowRecoverySupport.hasTowOrder(this.unit)) return true;
         return getTargetPos() != null; // only drive if there's somewhere to go
     }
 
@@ -155,7 +157,7 @@ public class DriveVehicleGoal extends Goal {
                 && this.vehicle != null
                 && this.vehicle.getFirstPassenger() == this.unit
                 && !this.vehicle.isWreck()
-                && getTargetPos() != null;
+                && (TowRecoverySupport.hasTowOrder(this.unit) || getTargetPos() != null);
     }
 
     // The stuck detector, retreat-episode detection and the steering ramp all assume one
@@ -192,6 +194,15 @@ public class DriveVehicleGoal extends Goal {
         if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
         this.driver.tickTimers();
         TreeFellingSupport.tick(this.unit, this.vehicle, this.hull);
+
+        if (this.vehicle.getFirstPassenger() == this.unit) {
+            TowRecoverySupport.tickDriverStrandedBroadcast(this.vehicle);
+        }
+
+        if (TowRecoverySupport.isTowering(this.unit, this.vehicle)) {
+            towRecoveryTick();
+            return;
+        }
 
         // Spots before re-score so DISTANT_CONTACT sees this tick's outer fields. noteSpot is
         // gated on getTarget()==null; observe (inside update) still owns Memory when locked.
@@ -748,6 +759,29 @@ public class DriveVehicleGoal extends Goal {
 
     // Destination resolution — SEM order queue for PMC, current target / ally-assist for
     // RU/US — is shared with DriveHelicopterGoal. See VehicleTargeting.
+    private void towRecoveryTick() {
+        if (!(this.unit instanceof com.neoalive.tacz_sewv.bridge.ITowRecovery tow)) return;
+        if (tow.tacz_sewv$getTowVictimId() == -1) return;
+
+        VehicleEntity victim = TowRecoverySupport.resolveTowVictim(this.unit, tow);
+        if (victim == null) {
+            if (TowRecoverySupport.towVictimGraceActive(tow)) {
+                this.driver.stop();
+                return;
+            }
+            TowRecoverySupport.clearOrder(this.unit, this.vehicle);
+            return;
+        }
+
+        if (isLowHealth()) {
+            fightTick(this.unit.getTarget());
+            return;
+        }
+
+        TowRecoverySupport.steerTower(this.unit, this.vehicle, victim, this.driver);
+        TowRecoverySupport.tickCompletion(this.unit, this.vehicle, victim);
+    }
+
     private BlockPos getTargetPos() {
         Action plan = idlePlan();
         if (plan == Action.SEARCH_LAST_KNOWN) {

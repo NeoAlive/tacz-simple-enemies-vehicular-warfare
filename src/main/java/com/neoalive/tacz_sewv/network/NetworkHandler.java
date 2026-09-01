@@ -96,7 +96,8 @@ public class NetworkHandler {
     // 67: PacketSetNameCategory (TDT "Identity" category, "Full Names" preference).
     // 68: spawn_probe open/save GUI packets.
     // 69: ConfigUI open/request/save/shortcut packets.
-    private static final String PROTOCOL_VERSION = "69";
+    // 70: PacketTowRecovery (PMC tow order).
+    private static final String PROTOCOL_VERSION = "70";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -168,6 +169,14 @@ public class NetworkHandler {
                 PacketEscort::encode,
                 PacketEscort::new,
                 PacketEscort::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketTowRecovery.class,
+                PacketTowRecovery::encode,
+                PacketTowRecovery::new,
+                PacketTowRecovery::handle
         );
 
         // The one server->client packet here (PacketDistributor.PLAYER, see OwnedVehicleTracker).

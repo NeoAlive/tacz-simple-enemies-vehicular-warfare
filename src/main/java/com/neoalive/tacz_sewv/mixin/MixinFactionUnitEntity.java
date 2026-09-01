@@ -16,6 +16,7 @@ import com.neoalive.tacz_sewv.bridge.IEntrenched;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.bridge.ITowRecovery;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
@@ -43,7 +44,8 @@ import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 // ICaptureOrder: persistent CAPTURE_POINT pipeline for invasion AI fleets (Stage F). Defaults only.
 @Mixin({RUunitEntity.class, USunitEntity.class})
 public abstract class MixinFactionUnitEntity
-        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, ICaptureOrder, IEntrenched {
+        implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, ICaptureOrder, IEntrenched,
+        ITowRecovery {
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
@@ -62,6 +64,12 @@ public abstract class MixinFactionUnitEntity
 
     @Unique
     private int tacz_sewv$mortarTargetId = IMortarCrew.NO_MORTAR;
+
+    @Unique
+    private int tacz_sewv$towVictimId = -1;
+
+    @Unique
+    private int tacz_sewv$towVictimGraceTicks = 0;
 
     @Override
     public void tacz_sewv$setMountTargetId(int id) {
@@ -111,6 +119,26 @@ public abstract class MixinFactionUnitEntity
     @Override
     public int sewv$getMortarTargetId() {
         return this.tacz_sewv$mortarTargetId;
+    }
+
+    @Override
+    public void tacz_sewv$setTowVictimId(int id) {
+        this.tacz_sewv$towVictimId = id;
+    }
+
+    @Override
+    public int tacz_sewv$getTowVictimId() {
+        return this.tacz_sewv$towVictimId;
+    }
+
+    @Override
+    public int tacz_sewv$getTowVictimGraceTicks() {
+        return this.tacz_sewv$towVictimGraceTicks;
+    }
+
+    @Override
+    public void tacz_sewv$setTowVictimGraceTicks(int ticks) {
+        this.tacz_sewv$towVictimGraceTicks = ticks;
     }
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)

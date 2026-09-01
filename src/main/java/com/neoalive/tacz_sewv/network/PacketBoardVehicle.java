@@ -81,6 +81,7 @@ public class PacketBoardVehicle {
             // Board and escort both drive the unit on foot at goal priority 1 — a unit can't do
             // both. Boarding wins the moment it's ordered.
             ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
+            com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport.clearIfTowering(pmc);
             ordered++;
         }
 

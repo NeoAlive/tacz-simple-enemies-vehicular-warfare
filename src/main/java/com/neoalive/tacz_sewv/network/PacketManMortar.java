@@ -16,6 +16,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
@@ -127,5 +128,6 @@ public class PacketManMortar {
         boarder.tacz_sewv$setBoarding(false);
         boarder.tacz_sewv$setMountTargetId(-1);
         ((IEscort) unit).tacz_sewv$setEscortTargetId(-1);
+        TowRecoverySupport.clearIfTowering(unit);
     }
 }

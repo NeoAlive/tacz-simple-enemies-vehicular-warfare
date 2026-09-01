@@ -314,6 +314,10 @@ public class DriveShipGoal extends Goal {
         // Evaluated unconditionally: || would short-circuit past it on a wide bearing and leave
         // the tracker's baseline stale.
         boolean wedged = updateStuck();
+        if (wedged && this.vehicle.onGround()
+                && !this.vehicle.isInWater() && !this.vehicle.isUnderWater()) {
+            com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport.onBeachedStuck(this.vehicle);
+        }
         // Too far off the bow to sweep round, or wedged: back and fill.
         if (Math.abs(angle) > REVERSE_ANGLE_RAD || wedged) {
             beginReverse(angle);

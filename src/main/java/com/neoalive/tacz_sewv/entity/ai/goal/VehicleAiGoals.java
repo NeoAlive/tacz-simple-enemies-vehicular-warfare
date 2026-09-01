@@ -58,6 +58,7 @@ public final class VehicleAiGoals {
         // Writes that order for an RU/US unit that spots an abandoned hull. Claims no flags and
         // never actually runs — it hands the job to the goal above. RU/US-gated internally.
         unit.goalSelector.addGoal(1, new SeekAbandonedVehicleGoal(unit));
+        unit.goalSelector.addGoal(1, new SeekTowRecoveryGoal(unit));
         // Same feature as the goal above, for the one VehicleEntity it deliberately excludes: a
         // mortar has no seats, so this writes an IMortarCrew claim (ManMortarGoal above) instead
         // of a board order. Claims no flags; RU/US-gated internally.

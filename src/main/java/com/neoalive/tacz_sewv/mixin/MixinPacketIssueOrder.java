@@ -23,6 +23,7 @@ import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -79,6 +80,7 @@ public abstract class MixinPacketIssueOrder {
         // EscortGoal is priority 1 MOVE and ignores the SEM order — an uncleared VIP steals
         // MOVE_TO_POSITION / FOLLOW / HOLD until the escort id is dropped.
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
+        TowRecoverySupport.clearIfTowering(pmc);
         // Capture pipeline outranks SEM orders in resolveDestination — drop it so the order sticks.
         if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) {
             capture.sewv$clearCaptureOrder();

@@ -14,6 +14,7 @@ import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -66,6 +67,7 @@ public class PacketDismountVehicle {
             PatrolSupport.clearSweepMembership(pmc, "PacketDismountVehicle");
             // Likewise any escort order — dismount stands a unit fully down.
             ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
+            TowRecoverySupport.clearIfTowering(pmc);
             // An on-foot unit is stood down all the same; it just has no seat to leave, so it is
             // not counted and not reported as a refusal either.
             if (wasMounted) dismounted++;

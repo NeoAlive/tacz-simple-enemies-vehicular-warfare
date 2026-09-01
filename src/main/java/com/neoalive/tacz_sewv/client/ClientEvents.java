@@ -42,6 +42,7 @@ import com.neoalive.tacz_sewv.network.PacketEscort;
 import com.neoalive.tacz_sewv.network.PacketJoinPlatoon;
 import com.neoalive.tacz_sewv.network.PacketRadioCommand;
 import com.neoalive.tacz_sewv.network.PacketSetGuardPosition;
+import com.neoalive.tacz_sewv.network.PacketTowRecovery;
 
 // FORGE bus, client dist: opens the Tactical Data Terminal, and runs Escort / Guard selection modes.
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
@@ -60,6 +61,11 @@ public class ClientEvents {
     // (SEM's menu selection, or nearby owned units), so the click only has to supply the target.
     private static boolean pendingEscort = false;
     private static List<Integer> pendingEscortUnits = List.of();
+
+    private enum TowPickPhase { VICTIM, TOWER }
+    private static boolean pendingTow = false;
+    private static TowPickPhase pendingTowPhase = TowPickPhase.VICTIM;
+    private static int pendingTowVictimId = -1;
 
     // GUARD_POSITION pick: same arm pattern as escort, but left-click captures a block via pick().
     private static boolean pendingGuard = false;
@@ -96,6 +102,7 @@ public class ClientEvents {
      * selection. Refuses to arm with no units.
      */
     public static void armEscort() {
+        clearTow();
         clearGuard();
         clearEntrench();
         clearLiveSelection();
@@ -110,10 +117,25 @@ public class ClientEvents {
         promptCooldown = 0;
     }
 
+    /** Two-click vehicle tow: victim hull first, tower hull second. */
+    public static void armTowRecovery() {
+        clearEscort();
+        clearGuard();
+        clearEntrench();
+        clearLiveSelection();
+        clearRadioPick();
+        clearJoinPlatoon();
+        pendingTow = true;
+        pendingTowPhase = TowPickPhase.VICTIM;
+        pendingTowVictimId = -1;
+        promptCooldown = 0;
+    }
+
     /**
      * Arm GUARD_POSITION block pick (TDT, Xaero-free). Left-click a block to set; right-click cancels.
      */
     public static void armGuardPosition() {
+        clearTow();
         clearEscort();
         clearEntrench();
         clearLiveSelection();
@@ -132,6 +154,7 @@ public class ClientEvents {
      * Arm ENTRENCHED block pick. Left-click a trench/emplacement/sandbag; server resolves.
      */
     public static void armEntrench() {
+        clearTow();
         clearEscort();
         clearGuard();
         clearLiveSelection();
@@ -148,6 +171,7 @@ public class ClientEvents {
 
     /** Arm in-world Live Selection (TDT ribbon). Screen closes; left-click toggles, right-click finishes. */
     public static void armLiveSelection() {
+        clearTow();
         clearEscort();
         clearGuard();
         clearEntrench();
@@ -161,6 +185,7 @@ public class ClientEvents {
      * (replaces any prior pick); right-click confirms the call or cancels if none selected.
      */
     public static void armRadioEntity(RadioSettings.State settings) {
+        clearTow();
         clearEscort();
         clearGuard();
         clearEntrench();
@@ -176,6 +201,7 @@ public class ClientEvents {
      * Arm radio POSITION designation. Left-click a block to call; right-click cancels.
      */
     public static void armRadioPosition(RadioSettings.State settings) {
+        clearTow();
         clearEscort();
         clearGuard();
         clearEntrench();
@@ -201,6 +227,7 @@ public class ClientEvents {
      * whichever ones did not take.
      */
     public static void armJoinPlatoon() {
+        clearTow();
         clearEscort();
         clearGuard();
         clearEntrench();
@@ -263,6 +290,18 @@ public class ClientEvents {
             } else if (event.isUseItem()) {
                 clearEscort();
                 hint("message.tacz_sewv.escort.cancelled");
+                event.setCanceled(true);
+            }
+            return;
+        }
+
+        if (pendingTow) {
+            if (event.isAttack()) {
+                towVehicleClick(mc);
+                event.setCanceled(true);
+            } else if (event.isUseItem()) {
+                clearTow();
+                hint("message.tacz_sewv.tow.cancelled");
                 event.setCanceled(true);
             }
             return;
@@ -347,7 +386,7 @@ public class ClientEvents {
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        if (!pendingEscort && !pendingGuard && !pendingEntrench && !pendingLiveSelection
+        if (!pendingEscort && !pendingTow && !pendingGuard && !pendingEntrench && !pendingLiveSelection
                 && !pendingRadioEntity && !pendingRadioPosition && !pendingJoinPlatoon) {
             return;
         }
@@ -356,6 +395,7 @@ public class ClientEvents {
         if (mc.player == null || mc.screen != null) {
             if (mc.player == null) {
                 clearEscort();
+                clearTow();
                 clearGuard();
                 clearEntrench();
                 clearLiveSelection();
@@ -385,6 +425,10 @@ public class ClientEvents {
                 hintLive();
             } else if (pendingEscort) {
                 hint("message.tacz_sewv.escort.select");
+            } else if (pendingTow) {
+                hint(pendingTowPhase == TowPickPhase.VICTIM
+                        ? "message.tacz_sewv.tow.pick_victim"
+                        : "message.tacz_sewv.tow.pick_tower");
             } else if (pendingGuard) {
                 hint("message.tacz_sewv.guard.select");
             } else if (pendingJoinPlatoon) {
@@ -413,6 +457,10 @@ public class ClientEvents {
             } else {
                 hint("message.tacz_sewv.escort.no_vehicle");
             }
+            return;
+        }
+        if (pendingTow) {
+            towVehicleClick(mc);
             return;
         }
         if (pendingGuard) {
@@ -449,6 +497,9 @@ public class ClientEvents {
         } else if (pendingEscort) {
             clearEscort();
             hint("message.tacz_sewv.escort.cancelled");
+        } else if (pendingTow) {
+            clearTow();
+            hint("message.tacz_sewv.tow.cancelled");
         } else if (pendingGuard) {
             clearGuard();
             hint("message.tacz_sewv.guard.cancelled");
@@ -661,9 +712,37 @@ public class ClientEvents {
         return best;
     }
 
+    private static void towVehicleClick(Minecraft mc) {
+        Entity target = CommanderRayTrace.rayTraceEntity(mc.player, ESCORT_PICK_RANGE);
+        if (!(target instanceof VehicleEntity vehicle)) {
+            hint("message.tacz_sewv.tow.no_vehicle");
+            return;
+        }
+        if (pendingTowPhase == TowPickPhase.VICTIM) {
+            pendingTowVictimId = vehicle.getId();
+            pendingTowPhase = TowPickPhase.TOWER;
+            promptCooldown = 0;
+            hint("message.tacz_sewv.tow.pick_tower");
+            return;
+        }
+        if (vehicle.getId() == pendingTowVictimId) {
+            hint("message.tacz_sewv.tow.same_vehicle");
+            return;
+        }
+        NetworkHandler.CHANNEL.sendToServer(new PacketTowRecovery(pendingTowVictimId, vehicle.getId()));
+        clearTow();
+    }
+
     private static void clearEscort() {
         pendingEscort = false;
         pendingEscortUnits = List.of();
+        promptCooldown = 0;
+    }
+
+    private static void clearTow() {
+        pendingTow = false;
+        pendingTowPhase = TowPickPhase.VICTIM;
+        pendingTowVictimId = -1;
         promptCooldown = 0;
     }
 
@@ -697,6 +776,7 @@ public class ClientEvents {
         AirportPlots.clear();
         InvasionHudClient.clear();
         clearEscort();
+        clearTow();
         clearGuard();
         clearEntrench();
         clearLiveSelection();

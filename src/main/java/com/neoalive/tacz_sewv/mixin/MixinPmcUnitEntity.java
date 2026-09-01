@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.bridge.IMedicTreat;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
+import com.neoalive.tacz_sewv.bridge.ITowRecovery;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
@@ -64,8 +65,8 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 @Mixin(PmcUnitEntity.class)
 public abstract class MixinPmcUnitEntity
         implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember,
-        IVehiclePatrol, IEscort, ISweepInfantry, ICaptureOrder, IMedicTreat, IEntrenched, IPmcDowned,
-        ICaptureMedic {
+        IVehiclePatrol, IEscort, ITowRecovery, ISweepInfantry, ICaptureOrder, IMedicTreat, IEntrenched,
+        IPmcDowned, ICaptureMedic {
 
     @Unique
     private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING;
@@ -90,6 +91,12 @@ public abstract class MixinPmcUnitEntity
     // sessions. -1 = not escorting.
     @Unique
     private int tacz_sewv$escortTargetId = -1;
+
+    @Unique
+    private int tacz_sewv$towVictimId = -1;
+
+    @Unique
+    private int tacz_sewv$towVictimGraceTicks = 0;
 
     @Unique
     private boolean tacz_sewv$boarding = false;
@@ -165,6 +172,26 @@ public abstract class MixinPmcUnitEntity
     @Override
     public int tacz_sewv$getEscortTargetId() {
         return this.tacz_sewv$escortTargetId;
+    }
+
+    @Override
+    public void tacz_sewv$setTowVictimId(int id) {
+        this.tacz_sewv$towVictimId = id;
+    }
+
+    @Override
+    public int tacz_sewv$getTowVictimId() {
+        return this.tacz_sewv$towVictimId;
+    }
+
+    @Override
+    public int tacz_sewv$getTowVictimGraceTicks() {
+        return this.tacz_sewv$towVictimGraceTicks;
+    }
+
+    @Override
+    public void tacz_sewv$setTowVictimGraceTicks(int ticks) {
+        this.tacz_sewv$towVictimGraceTicks = ticks;
     }
 
     @Override

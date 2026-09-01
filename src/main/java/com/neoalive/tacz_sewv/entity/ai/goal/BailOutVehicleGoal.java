@@ -36,6 +36,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
 
 /**
@@ -179,6 +180,7 @@ public class BailOutVehicleGoal extends Goal {
 
         this.escapePos = findEscapePos(vehicle);
         issueParachute();
+        TowRecoverySupport.clearOrder(this.unit, vehicle);
         this.unit.stopRiding();
         applyScrambleSpeed();
 

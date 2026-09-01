@@ -10,14 +10,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
-import com.neoalive.tacz_sewv.order.OrderFailure;
-import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Hard friendly-fire gate, applied at the source. SEM's retaliation goal
@@ -79,30 +76,13 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
 
         // Stage 4 ENEMY pairs must reach setTarget even when SEM class says "same faction" (PMC↔PMC).
         if (diplEnemy) {
-            if (self instanceof PmcUnitEntity && target instanceof PmcUnitEntity) {
-                SewvDiag.setTarget(
-                        "MixinAbstractUnit APPROVE diplomacyEnemy=true self={}#{} target={}#{} "
-                                + "sameClassFriendly={} (would have blocked without ENEMY exception)",
-                        self.getClass().getSimpleName(), self.getId(),
-                        target.getClass().getSimpleName(), target.getId(),
-                        sameClassFriendly);
-            }
             if (!VehicleTargeting.categoryAllowed(self, target)) {
-                OrderReport.veto(self, OrderFailure.TARGET_EXCLUDED);
                 ci.cancel();
             }
             return;
         }
         // Same-faction friends and medics (neutral to everyone) are never taken as a target.
         if (sameClassFriendly || medic) {
-            if (self instanceof PmcUnitEntity && target instanceof PmcUnitEntity) {
-                SewvDiag.setTarget(
-                        "MixinAbstractUnit BLOCK sameClassFriendly={} medic={} self={}#{} target={}#{}",
-                        sameClassFriendly, medic,
-                        self.getClass().getSimpleName(), self.getId(),
-                        target.getClass().getSimpleName(), target.getId());
-            }
-            OrderReport.veto(self, medic ? OrderFailure.TARGET_IS_MEDIC : OrderFailure.TARGET_FRIENDLY);
             ci.cancel();
             return;
         }
@@ -110,46 +90,21 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
         // declared. Vetoing here keeps SEM's own scans, retaliation and player orders from ever
         // handing a gunner an infantry target its tube cannot answer — see SmallArmsSupport.
         if (SmallArmsSupport.refusesTarget(self, target)) {
-            SewvDiag.setTarget(
-                    "MixinAbstractUnit BLOCK atLauncherNonVehicle self={}#{} target={}#{}",
-                    self.getClass().getSimpleName(), self.getId(),
-                    target.getClass().getSimpleName(), target.getId());
-            OrderReport.veto(self, OrderFailure.TARGET_EXCLUDED);
             ci.cancel();
             return;
         }
         // ...and a unit whose own hands say it is not here to fight refuses the target outright.
-        if (supportRefuse) {            SewvDiag.setTarget(
-                    "MixinAbstractUnit BLOCK supportRoleRefuse self={}#{} target={}#{}",
-                    self.getClass().getSimpleName(), self.getId(),
-                    target.getClass().getSimpleName(), target.getId());
-            // A PMC's support role is what it is HOLDING, so the reason is "take the kit back",
-            // not "this unit is the wrong type" — worth distinguishing from the missing sidearm.
-            OrderReport.veto(self, SupportRole.of(self) == SupportRole.MEDIC
-                    ? OrderFailure.SELF_IS_MEDIC : OrderFailure.SELF_NO_SIDEARM);
+        if (supportRefuse) {
             ci.cancel();
             return;
         }
         // Sweep / patrol / S&D: refuse locks outside the ordered ground so SEM's infantry scan
         // (and any other setTarget path) cannot pin a distant mob and stall Sweep & Advance quiet.
         if (self instanceof PmcUnitEntity pmc && PatrolSupport.refusesOutOfAreaTarget(pmc, target)) {
-            SewvDiag.setTarget(
-                    "MixinAbstractUnit BLOCK outOfAreaTask self={}#{} target={}#{}",
-                    self.getClass().getSimpleName(), self.getId(),
-                    target.getClass().getSimpleName(), target.getId());
-            OrderReport.veto(self, OrderFailure.TARGET_OUT_OF_AREA);
             ci.cancel();
             return;
         }
-        // The one veto with no diag line of its own, and the noisiest: the default priority table
-        // excludes every category but monster, so this fires constantly until a player edits it.
-        // OrderReport's per-unit cooldown is what makes reporting it survivable.
         if (!VehicleTargeting.categoryAllowed(self, target)) {
-            SewvDiag.setTarget(
-                    "MixinAbstractUnit BLOCK categoryNotAllowed self={}#{} target={}#{}",
-                    self.getClass().getSimpleName(), self.getId(),
-                    target.getClass().getSimpleName(), target.getId());
-            OrderReport.veto(self, OrderFailure.TARGET_EXCLUDED);
             ci.cancel();
         }
     }

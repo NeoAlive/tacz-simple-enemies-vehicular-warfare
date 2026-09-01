@@ -146,6 +146,11 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_MIN_HEALTH_FRACTION;
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_STEALS_PLAYER_VEHICLES;
+    public static final ForgeConfigSpec.BooleanValue TOW_AUTO_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue TOW_AUTO_SCAN_RADIUS;
+    public static final ForgeConfigSpec.IntValue TOW_SUBMERGED_REQUEST_TICKS;
+    public static final ForgeConfigSpec.IntValue TOW_STUCK_REQUEST_CYCLES;
+    public static final ForgeConfigSpec.DoubleValue TOW_PLAYER_ORDER_MAX_DISTANCE;
     public static final ForgeConfigSpec.BooleanValue AUTO_MAN_MORTAR_ENABLED;
     public static final ForgeConfigSpec.DoubleValue AUTO_MAN_MORTAR_SCAN_RADIUS;
     public static final ForgeConfigSpec.BooleanValue AUTO_ENTRENCH_ENABLED;
@@ -626,6 +631,21 @@ public final class SewvConfig {
                 .defineInRange("autoBoardMinHealthFraction", 0.25, 0.0, 1.0);
         AUTO_BOARD_STEALS_PLAYER_VEHICLES = builder.comment("If on, RU/US may take vehicles you have driven before. Off by default.")
                 .define("autoBoardStealsPlayerVehicles", false);
+        TOW_AUTO_ENABLED = builder.comment("Idle RU/US drivers may tow friendly hulls flagged as needing recovery.")
+                .define("towAutoEnabled", true);
+        TOW_AUTO_SCAN_RADIUS = builder.comment(
+                        "How far (blocks) a tower looks for stuck/submerged allies. Values above 64 are expensive.")
+                .defineInRange("towAutoScanRadius", 64.0, 8.0, 128.0);
+        TOW_SUBMERGED_REQUEST_TICKS = builder.comment(
+                        "Ticks the hull hitbox stays fully submerged before broadcasting needs_tow.")
+                .defineInRange("towSubmergedRequestTicks", 60, 20, 600);
+        TOW_STUCK_REQUEST_CYCLES = builder.comment(
+                        "Ground stuck unstick cycles before a hull broadcasts needs_tow.")
+                .defineInRange("towStuckRequestCycles", 2, 1, 10);
+        TOW_PLAYER_ORDER_MAX_DISTANCE = builder.comment(
+                        "Max blocks between hulls for an immediate SBW towline link at order time; farther"
+                                + " pairs still get the tow order and link on approach.")
+                .defineInRange("towPlayerOrderMaxDistance", 16.0, 4.0, 128.0);
         AUTO_MAN_MORTAR_ENABLED = builder.comment("Idle RU/US soldiers may crew an empty, unclaimed mortar (same feature as autoBoardEnabled, for mortars).")
                 .define("autoManMortarEnabled", true);
         AUTO_MAN_MORTAR_SCAN_RADIUS = builder.comment("How far (blocks) they look for empty mortars.")

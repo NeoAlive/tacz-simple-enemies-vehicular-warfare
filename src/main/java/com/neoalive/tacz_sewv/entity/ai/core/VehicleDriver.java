@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import com.neoalive.tacz_sewv.entity.ai.sensor.GroundTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.RepairLockSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 
 /**
  * Makes a ground hull go where it is told. Knows nothing about why.
@@ -145,6 +146,9 @@ public final class VehicleDriver {
     private int hullFanReverseTicksLeft;
     private Vec3 hullFanFaceDesired; // face the fouled goal / obstacle while reversing
 
+    private int submergedStrandedTicks;
+    private Vec3 lastSubmergedPos;
+
     // 0 = undecided, >0 = committed left, <0 = committed right — see driveFaceAndReverse.
     private int reverseFaceTurn;
 
@@ -259,6 +263,7 @@ public final class VehicleDriver {
                 return;
             }
         } else if (updateStuck()) {
+            TowRecoverySupport.onStuckThresholdReached(this.vehicle);
             this.unstickTicksLeft = UNSTICK_DURATION;
             this.stuckTicks = 0;
             if (SewvDiag.groundPathingVerbose()) {
@@ -362,6 +367,21 @@ public final class VehicleDriver {
         this.vehicle.setRightInputDown(false);
     }
 
+    /** True while the hull is wedged and stuck recovery is counting or running. */
+    public boolean isPinned() {
+        return this.unstickTicksLeft > 0
+                || this.unstickCooldown > 0
+                || this.stuckTicks > STUCK_TICKS_THRESHOLD / 2;
+    }
+
+    /** Whether the terrain sensor sees an obstacle along a horizontal heading. */
+    public boolean headingBlocked(Vec3 horizontalDir) {
+        if (!this.sensor.enabled() || horizontalDir.lengthSqr() < 1.0E-8) return false;
+        return !this.sensor.headingClear(
+                new Vec3(horizontalDir.x, 0, horizontalDir.z).normalize(),
+                this.sensor.lookahead());
+    }
+
     /**
      * Drop stuck/unstick state. Called whenever the goal isn't actively driving (no task, holding
      * the standoff band, parked) so a fresh drive starts clean.
@@ -379,6 +399,8 @@ public final class VehicleDriver {
         this.hullFanFaceDesired = null;
         this.reverseFaceTurn = 0;
         this.retreatTurn = 0;
+        this.submergedStrandedTicks = 0;
+        this.lastSubmergedPos = null;
     }
 
     /** Forget the hull entirely, for a crew leaving its seat. */
@@ -623,6 +645,9 @@ public final class VehicleDriver {
         this.bankLipReverseTicksLeft = BANK_LIP_REVERSE_DURATION;
         this.bankLipFanBlockedTicks = 0;
         this.reverseFaceTurn = 0;
+        if (this.vehicle.isInWater()) {
+            TowRecoverySupport.onBankLipStuck(this.vehicle);
+        }
         SewvDiag.waterEvent(
                 "bankLip reverse START unit={}#{} vehicle={}#{} pos={} inWater={} desired={} "
                         + "threshold={} duration={} — dry bank lip, full fan blocked, no progress",
@@ -734,11 +759,15 @@ public final class VehicleDriver {
      * {@link #SUBMERGED_ESCAPE_RADIUS} blocks. Returns true when it took over steering this tick.
      */
     private boolean checkSubmergedFailsafe() {
-        if (GroundMobility.isAmphibious(this.vehicle) || !isFullySubmerged()) return false;
+        if (GroundMobility.isAmphibious(this.vehicle) || !isFullySubmerged()) {
+            this.submergedStrandedTicks = 0;
+            this.lastSubmergedPos = null;
+            return false;
+        }
         BlockPos escape = nearestDryCell();
         if (escape == null) {
-            // Nothing dry within reach this tick — hold rather than guess; the loop re-checks
-            // every tick, so as soon as a reachable cell exists (current or drift) this resumes.
+            TowRecoverySupport.onSubmergedFailsafeExhausted(this.vehicle);
+            noteSubmergedStuck();
             stop();
             return true;
         }
@@ -751,7 +780,24 @@ public final class VehicleDriver {
         this.pathRecalcCooldown = 0;
         clearRecovery();
         driveDirectAt(escape);
+        noteSubmergedStuck();
         return true;
+    }
+
+    private void noteSubmergedStuck() {
+        Vec3 pos = this.vehicle.position();
+        boolean moved = this.lastSubmergedPos == null
+                || pos.distanceToSqr(this.lastSubmergedPos) > STUCK_MOVE_EPSILON_SQ;
+        if (moved) {
+            this.lastSubmergedPos = pos;
+            this.submergedStrandedTicks = 0;
+            return;
+        }
+        this.submergedStrandedTicks++;
+        if (this.submergedStrandedTicks > STUCK_TICKS_THRESHOLD) {
+            TowRecoverySupport.onSubmergedNoProgress(this.vehicle);
+            this.submergedStrandedTicks = 0;
+        }
     }
 
     /** True iff every block cell the hull's bounding box overlaps is fluid — not a probe sample,

@@ -20,6 +20,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -78,6 +79,7 @@ public class PacketReachGuard {
 
                 Vec3 target = Vec3.atCenterOf(guard);
                 ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
+                TowRecoverySupport.clearIfTowering(pmc);
                 pmc.setMoveToTarget(target); // also sets MOVE_TO_POSITION
                 GuardSupport.setReaching(pmc, true);
                 ordered++;

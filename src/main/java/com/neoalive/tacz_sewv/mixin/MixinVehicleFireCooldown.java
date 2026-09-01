@@ -24,6 +24,7 @@ import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.util.SmokeVision;
 
@@ -82,6 +83,12 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
 
         if (!(living instanceof AbstractUnit unit)) return;
 
+        VehicleEntity self = (VehicleEntity) (Object) this;
+        if (TowRecoverySupport.hasTowOrder(unit) && self.getFirstPassenger() == unit) {
+            cir.setReturnValue(false);
+            return;
+        }
+
         if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
             cir.setReturnValue(false);
             return;
@@ -93,7 +100,6 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             return;
         }
 
-        VehicleEntity self = (VehicleEntity) (Object) this;
         long now = self.level().getGameTime();
         if (this.tacz_sewv$lastAiShotTick != Long.MIN_VALUE
                 && now - this.tacz_sewv$lastAiShotTick

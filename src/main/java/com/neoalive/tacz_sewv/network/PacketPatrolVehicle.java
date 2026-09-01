@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -223,6 +224,7 @@ public class PacketPatrolVehicle {
             if (had) {
                 PatrolSupport.clearSweepMembership(pmc, "PacketPatrolVehicle");
                 EntrenchSupport.clear(pmc);
+                TowRecoverySupport.clearIfTowering(pmc);
                 dismissed++;
             }
         }

@@ -18,6 +18,7 @@ import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.ITowRecovery;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.entity.ai.goal.CasRelayGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 
@@ -146,12 +147,16 @@ public abstract class MixinFactionUnitEntity
         AbstractUnit self = (AbstractUnit) (Object) this;
         VehicleAiGoals.addDriveGoals(self);
 
+        Mob mob = (Mob) self;
+        // Organic comms relay — any RU/US contact with a live target can task fixed-wing CAS in
+        // range. Claims no flags; see CasRelayGoal.
+        mob.goalSelector.addGoal(1, new CasRelayGoal(self));
+
         // SEM's own plain HurtByTargetGoal (RU/US retaliation, priority 1) never excludes a
         // same-faction attacker — see MixinPmcUnitEntity's identical fix for the PMC side and
         // NoFriendlyHurtByTargetGoal's doc for why this is more than a log-spam fix. Players are
         // deliberately still valid retaliation targets here, matching SEM's own RU/US behaviour —
         // only PMC's original excluded them.
-        Mob mob = (Mob) self;
         mob.targetSelector.removeAllGoals(g -> g.getClass() == HurtByTargetGoal.class);
         NoFriendlyHurtByTargetGoal retaliate = new NoFriendlyHurtByTargetGoal(self, false);
         if (self instanceof USunitEntity) {

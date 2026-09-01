@@ -22,7 +22,11 @@ public final class PreferredPathwaysClient {
     public static void apply(Map<ResourceKey<Level>, Map<String, List<BlockPos>>> incoming) {
         Map<ResourceKey<Level>, Map<String, List<BlockPos>>> copy = new HashMap<>();
         for (Map.Entry<ResourceKey<Level>, Map<String, List<BlockPos>>> e : incoming.entrySet()) {
-            copy.put(e.getKey(), Map.copyOf(e.getValue()));
+            Map<String, List<BlockPos>> paths = new HashMap<>();
+            for (Map.Entry<String, List<BlockPos>> path : e.getValue().entrySet()) {
+                paths.put(path.getKey(), List.copyOf(path.getValue()));
+            }
+            copy.put(e.getKey(), Map.copyOf(paths));
         }
         pathsByDimension = Collections.unmodifiableMap(copy);
     }

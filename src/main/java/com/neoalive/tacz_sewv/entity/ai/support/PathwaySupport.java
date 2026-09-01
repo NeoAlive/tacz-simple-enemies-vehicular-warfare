@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -26,15 +27,18 @@ import com.neoalive.tacz_sewv.map.PreferredPathwayData;
  */
 public final class PathwaySupport {
 
-    /** 10-block proximity radius (blocks² = 100), horizontal for ground paths. */
-    public static final double PROXIMITY_RADIUS_SQ = 100.0;
+    /** 16-block corridor (blocks² = 256), horizontal — matches road-adjacent MOVE joins. */
+    public static final double PROXIMITY_RADIUS_SQ = 256.0;
+    /** Wider band when the MOVE destination is on the path but the unit is offset beside it. */
+    public static final double MOVE_CORRIDOR_RADIUS_SQ = 576.0; // 24 blocks
     /** Infantry arrival — same band as sweep wander. */
     public static final double ARRIVE_SQ = 2.5 * 2.5;
     /** Per-leg timeout — same as sweep/cruise step timeout. */
     public static final long STEP_TIMEOUT = 60 * 20L;
     /** After a manual funnel finishes, passive matching stays off this long (game ticks). */
     public static final long PASSIVE_COOLDOWN = 60 * 20L;
-    /** cos(45°) — parallel direction gate. */
+    /** How often an active pathway re-reads the saved catalog for edits/deletes. */
+    public static final int ROUTE_STALE_CHECK_INTERVAL = 100;
     public static final double PARALLEL_DOT = 0.707;
     /** Minimum horizontal speed to count as moving. */
     public static final double MIN_SPEED = 0.05;
@@ -55,11 +59,58 @@ public final class PathwaySupport {
     }
 
     /**
+     * Drops a pathway whose saved id was deleted, or whose route no longer matches the catalog
+     * (path edited after the unit joined).
+     */
+    public static boolean refreshPathwayRoute(PmcUnitEntity pmc) {
+        IPathwayInfantry pathway = (IPathwayInfantry) pmc;
+        if (!pathway.sewv$hasPathway()) return true;
+
+        long now = pmc.level().getGameTime();
+        if (now < pathway.sewv$getPathwayStaleCheck()) return true;
+        pathway.sewv$setPathwayStaleCheck(now + ROUTE_STALE_CHECK_INTERVAL);
+
+        String sourceId = pathway.sewv$getPathwaySourceId();
+        if (sourceId == null || sourceId.isEmpty()) return true;
+
+        UUID owner = pmc.getOwnerUUID();
+        if (owner == null) {
+            pathway.sewv$clearPathway();
+            return false;
+        }
+
+        PreferredPathwayData.PathCatalog catalog = PreferredPathwayData.forOwner(
+                pmc.level(), owner, pmc.level().dimension());
+        List<BlockPos> live = catalog.waypoints(sourceId);
+        if (live == null || live.size() < 2) {
+            pathway.sewv$clearPathway();
+            return false;
+        }
+
+        List<BlockPos> held = pathway.sewv$getPathwayRoute();
+        if (held.size() != live.size()) {
+            int step = Math.min(pathway.sewv$getPathwayStep(), live.size() - 1);
+            pathway.sewv$setPathway(live, step, sourceId, pathway.sewv$isPathwayPassive());
+            return true;
+        }
+        for (int i = 0; i < held.size(); i++) {
+            if (!held.get(i).equals(live.get(i))) {
+                int step = Math.min(pathway.sewv$getPathwayStep(), live.size() - 1);
+                pathway.sewv$setPathway(live, step, sourceId, pathway.sewv$isPathwayPassive());
+                return true;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Current leg waypoint, advancing on arrival or timeout. Returns null when the route is finished
      * (one-shot — no loop).
      */
     @Nullable
     public static BlockPos currentLeg(PmcUnitEntity pmc) {
+        if (!refreshPathwayRoute(pmc)) return null;
+
         IPathwayInfantry pathway = (IPathwayInfantry) pmc;
         List<BlockPos> route = pathway.sewv$getPathwayRoute();
         if (route.size() < 2) {
@@ -131,8 +182,9 @@ public final class PathwaySupport {
     }
 
     /**
-     * Passive MOVE joins abandon when the unit leaves the path corridor or stops moving parallel
-     * to the nearest segment.
+     * Passive MOVE releases when the unit leaves the path corridor or reaches its MOVE destination.
+     * Parallel bearing is a join gate only — not re-checked every tick (adjacent MOVE paths rarely
+     * aim exactly along the segment).
      */
     public static boolean shouldAbandonPassivePath(PmcUnitEntity pmc) {
         IPathwayInfantry pathway = (IPathwayInfantry) pmc;
@@ -142,12 +194,13 @@ public final class PathwaySupport {
         List<BlockPos> route = pathway.sewv$getPathwayRoute();
         if (route.size() < 2) return true;
 
-        Vec3 dir = movementDirection(pmc, Vec3.ZERO);
-        if (dir.lengthSqr() < MIN_SPEED * MIN_SPEED) return true;
+        if (nearestSegmentIndex(route, pmc.getX(), pmc.getZ(), MOVE_CORRIDOR_RADIUS_SQ) < 0) return true;
 
-        int seg = nearestSegmentIndex(route, pmc.getX(), pmc.getZ());
-        if (seg < 0) return true;
-        return !isParallelToSegment(route, seg, dir);
+        Vec3 dest = pmc.getMoveToTarget();
+        if (dest != null && !dest.equals(Vec3.ZERO) && pmc.distanceToSqr(dest) < ARRIVE_SQ) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -180,14 +233,112 @@ public final class PathwaySupport {
     }
 
     /**
-     * Passive funnel: near a saved path and moving roughly parallel. Returns the step index to join
-     * at, or -1.
+     * Passive funnel: near a saved path and moving along it (or MOVE destination lies on the path).
+     * Returns the step index to join at, or -1.
      */
     public static int matchPassive(PmcUnitEntity pmc, List<BlockPos> waypoints, Vec3 direction) {
         if (waypoints.size() < 2) return -1;
+        double ex = pmc.getX();
+        double ez = pmc.getZ();
+
+        if (pmc.getOrder() == OrderType.MOVE_TO_POSITION) {
+            Vec3 dest = pmc.getMoveToTarget();
+            if (dest != null && !dest.equals(Vec3.ZERO) && isNearPath(dest.x, dest.z, waypoints)) {
+                double unitDist = distanceToNearestSegmentSq(ex, ez, waypoints);
+                if (unitDist <= MOVE_CORRIDOR_RADIUS_SQ) {
+                    return joinStepToward(waypoints, ex, ez, dest.x, dest.z);
+                }
+            }
+        }
+
         if (direction.lengthSqr() < MIN_SPEED * MIN_SPEED) return -1;
-        if (!isNearPath(pmc.getX(), pmc.getZ(), waypoints)) return -1;
-        return nearestParallelSegmentStep(waypoints, pmc.getX(), pmc.getZ(), direction);
+        if (!isNearPath(ex, ez, waypoints)) return -1;
+        int seg = nearestParallelSegmentStep(waypoints, ex, ez, direction);
+        if (seg < 0) return -1;
+        return joinStepAlongSegment(waypoints, ex, ez, seg, direction);
+    }
+
+    /** Cheap reject before segment loops — path AABB expanded by margin blocks. */
+    public static boolean pathBboxNear(double ex, double ez, List<BlockPos> waypoints, double margin) {
+        if (waypoints.isEmpty()) return false;
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+        for (BlockPos wp : waypoints) {
+            minX = Math.min(minX, wp.getX());
+            maxX = Math.max(maxX, wp.getX());
+            minZ = Math.min(minZ, wp.getZ());
+            maxZ = Math.max(maxZ, wp.getZ());
+        }
+        int m = (int) Math.ceil(margin);
+        return ex >= minX - m && ex <= maxX + m + 1 && ez >= minZ - m && ez <= maxZ + m + 1;
+    }
+
+    static double distanceToNearestSegmentSq(double ex, double ez, List<BlockPos> waypoints) {
+        double best = Double.MAX_VALUE;
+        for (int i = 0; i < waypoints.size() - 1; i++) {
+            best = Math.min(best, distanceToSegmentSqHorizontal(ex, ez, waypoints.get(i), waypoints.get(i + 1)));
+        }
+        return best;
+    }
+
+    static int joinStepAlongSegment(List<BlockPos> route, double ex, double ez, int seg, Vec3 forward) {
+        double t = segmentProjectionT(route, seg, ex, ez);
+        BlockPos a = route.get(seg);
+        BlockPos b = route.get(seg + 1);
+        double sx = b.getX() - a.getX();
+        double sz = b.getZ() - a.getZ();
+        double segLen = Math.sqrt(sx * sx + sz * sz);
+        int step = seg;
+        if (segLen > 1.0e-4 && t > 0.35) {
+            double moveLen = Math.sqrt(forward.x * forward.x + forward.z * forward.z);
+            if (moveLen > MIN_SPEED) {
+                double dot = (forward.x * sx + forward.z * sz) / (moveLen * segLen);
+                if (dot > 0) step = seg + 1;
+            }
+        }
+        return Math.min(step, route.size() - 1);
+    }
+
+    static int joinStepToward(List<BlockPos> route, double ex, double ez, double destX, double destZ) {
+        int destNode = nearestNodeIndex(route, destX, destZ);
+        int seg = nearestSegmentIndex(route, ex, ez);
+        int step = seg >= 0 ? joinStepAlongSegment(route, ex, ez, seg, new Vec3(destX - ex, 0, destZ - ez))
+                : 0;
+        if (step < destNode) {
+            step = Math.min(destNode, route.size() - 1);
+        }
+        return Math.max(0, Math.min(step, route.size() - 1));
+    }
+
+    static double segmentProjectionT(List<BlockPos> route, int seg, double ex, double ez) {
+        BlockPos a = route.get(seg);
+        BlockPos b = route.get(seg + 1);
+        double ax = a.getX() + 0.5;
+        double az = a.getZ() + 0.5;
+        double bx = b.getX() + 0.5;
+        double bz = b.getZ() + 0.5;
+        double abx = bx - ax;
+        double abz = bz - az;
+        double abLenSq = abx * abx + abz * abz;
+        if (abLenSq < 1.0e-8) return 0.0;
+        double t = ((ex - ax) * abx + (ez - az) * abz) / abLenSq;
+        return Math.max(0.0, Math.min(1.0, t));
+    }
+
+    static int nearestNodeIndex(List<BlockPos> route, double ex, double ez) {
+        int best = 0;
+        double bestDist = Double.MAX_VALUE;
+        for (int i = 0; i < route.size(); i++) {
+            BlockPos wp = route.get(i);
+            double dx = ex - (wp.getX() + 0.5);
+            double dz = ez - (wp.getZ() + 0.5);
+            double dist = dx * dx + dz * dz;
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = i;
+            }
+        }
+        return best;
     }
 
     static boolean isNearPath(double ex, double ez, List<BlockPos> waypoints) {
@@ -209,11 +360,15 @@ public final class PathwaySupport {
 
     /** Closest segment within proximity, or -1. */
     static int nearestSegmentIndex(List<BlockPos> waypoints, double ex, double ez) {
+        return nearestSegmentIndex(waypoints, ex, ez, PROXIMITY_RADIUS_SQ);
+    }
+
+    static int nearestSegmentIndex(List<BlockPos> waypoints, double ex, double ez, double maxDistSq) {
         int best = -1;
-        double bestDistSq = PROXIMITY_RADIUS_SQ + 1.0;
+        double bestDistSq = maxDistSq + 1.0;
         for (int i = 0; i < waypoints.size() - 1; i++) {
             double distSq = distanceToSegmentSqHorizontal(ex, ez, waypoints.get(i), waypoints.get(i + 1));
-            if (distSq <= PROXIMITY_RADIUS_SQ && distSq < bestDistSq) {
+            if (distSq <= maxDistSq && distSq < bestDistSq) {
                 bestDistSq = distSq;
                 best = i;
             }

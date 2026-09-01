@@ -13,34 +13,29 @@ import com.neoalive.tacz_sewv.crew.CrewFacts;
 /**
  * Asserts the crew-skin filename grammar and that every shipped default agrees with it.
  * Run with {@code ./gradlew selfCheck}.
- *
- * <p>The parser is the one piece of this feature with branches worth a check, and the assets half
- * exists for the same reason {@code SoundPoolSelfCheck} does: nothing at build time notices a PNG
- * named or filed wrongly — it just silently never loads, and the unit renders SEM's stock skin,
- * which looks exactly like the intended fallback.
  */
 public final class CrewSkinSelfCheck {
 
-    /** Which category each skin-pool subfolder is expected to hold. */
-    private static final Map<String, String> FOLDER_CATEGORY = Map.of(
+    /** Which category each legacy skin-pool subfolder is expected to hold. */
+    private static final Map<String, String> LEGACY_FOLDER_CATEGORY = Map.of(
             "infantry", "infantry",
             "medics", "medic",
             "combat_engineers", "combat_engineer",
             "mechanical_engineers", "mechanical_engineer");
 
+    private static final List<String> SEM_VARIANT_ORDER = List.of(
+            "default", "variant1", "variant2", "variant3", "variant4", "variant5");
+
     public static void main(String[] args) throws IOException {
         grammar();
         backwardsCompatible();
+        roleFolderKeys();
         shippedDefaults();
+        semVariantDefaults();
         wipe();
         System.out.println("CrewSkinSelfCheck OK");
     }
 
-    /**
-     * {@code poolSkinResetToDefault} deletes before it re-seeds, so this is the one destructive
-     * path in the feature: it must reach nested folders, take only PNGs, and leave the folders
-     * standing for the seed that follows.
-     */
     private static void wipe() throws IOException {
         Path root = Files.createTempDirectory("sewv-wipe");
         try {
@@ -64,14 +59,12 @@ public final class CrewSkinSelfCheck {
         }
     }
 
-    /** camo + rng, camo only, plain, and the rejects. */
     private static void grammar() {
         CrewSkinRegistry.Parsed both = parse("us_chest_iotv_2_3.png");
         assert both.faction() == CrewFacts.Faction.US : both.faction();
         assert both.kind().equals("chest_iotv") : both.kind();
         assert both.camo() == 2 && both.rng() == 3 : both.camo() + "/" + both.rng();
 
-        // A kind whose own last segment contains digits must not be eaten.
         CrewSkinRegistry.Parsed alnum = parse("ru_helmet_6b47_4_1.png");
         assert alnum.kind().equals("helmet_6b47") : alnum.kind();
         assert alnum.camo() == 4 && alnum.rng() == 1 : alnum.camo() + "/" + alnum.rng();
@@ -89,11 +82,6 @@ public final class CrewSkinSelfCheck {
         assert CrewSkinRegistry.parseFilename("us.png") == null : "no kind";
     }
 
-    /**
-     * The load-bearing back-compat claim: a pre-camo {@code _N} file means camo N, so an existing
-     * {@code config/tacz_sewv/armor_skins/} folder keeps resolving to the same camo ids and no unit
-     * re-rolls its kit on update.
-     */
     private static void backwardsCompatible() {
         CrewSkinRegistry.Parsed old = parse("us_chest_iotv_1.png");
         CrewSkinRegistry.Parsed renamed = parse("us_chest_iotv_1_1.png");
@@ -102,20 +90,51 @@ public final class CrewSkinSelfCheck {
         assert old.rng() == renamed.rng() : old.rng() + " != " + renamed.rng();
     }
 
-    /** Every bundled PNG parses, and every skin-pool PNG sits in the folder its name claims. */
+    private static void roleFolderKeys() {
+        assert "ru_medic".equals(CrewSkinRegistry.roleFolderKey("medic", CrewFacts.Faction.RU));
+        assert "us_engineer".equals(CrewSkinRegistry.roleFolderKey("mechanical_engineer", CrewFacts.Faction.US));
+        assert "pmc_commander".equals(CrewSkinRegistry.roleFolderKey("commander", CrewFacts.Faction.PMC));
+        assert CrewSkinRegistry.roleFolderKey("infantry", CrewFacts.Faction.US) == null;
+    }
+
     private static void shippedDefaults() throws IOException {
         List<String> problems = new ArrayList<>();
         Path assets = Path.of("src/main/resources/assets/tacz_sewv");
 
-        check(assets.resolve("armor_skins_defaults"), problems, false);
-        check(assets.resolve("skin_pools_defaults"), problems, true);
+        checkCamo(assets.resolve("armor_skins_defaults"), problems, false);
+        checkCamo(assets.resolve("unit_skins_defaults/camo"), problems, true);
+        checkCamo(assets.resolve("skin_pools_defaults"), problems, true);
 
         if (!problems.isEmpty()) {
             throw new IllegalStateException("crew skin defaults: " + String.join("; ", problems));
         }
     }
 
-    private static void check(Path root, List<String> problems, boolean categorised) throws IOException {
+    private static void semVariantDefaults() throws IOException {
+        Path root = Path.of("src/main/resources/assets/tacz_sewv/unit_skins_defaults");
+        for (String folder : List.of("ru_unit", "us_unit", "pmc_unit")) {
+            Path dir = root.resolve(folder);
+            if (!Files.isDirectory(dir)) {
+                throw new IllegalStateException("missing SEM variant folder " + dir);
+            }
+            List<String> names;
+            try (Stream<Path> stream = Files.list(dir)) {
+                names = stream.filter(p -> p.getFileName().toString().endsWith(".png"))
+                        .map(p -> p.getFileName().toString())
+                        .sorted()
+                        .toList();
+            }
+            int expected = CrewSkinRegistry.expectedVariantCount(folder);
+            assert names.size() == expected : folder + " has " + names.size() + " skins, expected " + expected;
+            for (int i = 0; i < names.size(); i++) {
+                String expectedSuffix = SEM_VARIANT_ORDER.get(i);
+                assert names.get(i).contains(expectedSuffix) :
+                        folder + " index " + i + " is " + names.get(i) + ", expected *" + expectedSuffix + "*";
+            }
+        }
+    }
+
+    private static void checkCamo(Path root, List<String> problems, boolean categorised) throws IOException {
         if (!Files.isDirectory(root)) {
             problems.add("missing " + root);
             return;
@@ -135,8 +154,9 @@ public final class CrewSkinSelfCheck {
                 if (!categorised) continue;
 
                 String folder = file.getParent().getFileName().toString();
-                String expected = FOLDER_CATEGORY.get(folder);
+                String expected = LEGACY_FOLDER_CATEGORY.get(folder);
                 if (expected == null) {
+                    if ("camo".equals(folder)) continue;
                     problems.add(name + " is in unknown folder " + folder);
                 } else if (!expected.equals(parsed.kind())) {
                     problems.add(name + " is category " + parsed.kind() + " but sits in " + folder);

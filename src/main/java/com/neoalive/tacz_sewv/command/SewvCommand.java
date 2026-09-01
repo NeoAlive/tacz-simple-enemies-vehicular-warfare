@@ -676,7 +676,8 @@ public class SewvCommand {
     }
 
     /**
-     * The work happens client-side: the skin folders live in the <b>client's</b> config directory,
+     * The work happens client-side: the skin folders ({@code unit_skins/}, {@code armor_skins/},
+     * {@code vehicle_skins/}, legacy {@code skin_pools/}) live in the <b>client's</b> config directory,
      * which is not the machine this command ran on once a dedicated server is involved.
      */
     private static int debugReloadSkins(CommandSourceStack source, boolean reset) {

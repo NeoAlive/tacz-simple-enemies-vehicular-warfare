@@ -13,6 +13,7 @@ import net.minecraft.world.entity.Entity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
@@ -35,7 +36,7 @@ import com.neoalive.tacz_sewv.map.VehicleMarker;
  */
 public class CommanderBeretLayer extends RenderLayer<PmcCommanderEntity, PmcCommanderModel<PmcCommanderEntity>> {
 
-    private static final ResourceLocation OVERLAY =
+    private static final ResourceLocation JAR_OVERLAY_FALLBACK =
             new ResourceLocation(TaczSewv.MODID, "skins/pmc_commander_overlay.png");
 
     public CommanderBeretLayer(RenderLayerParent<PmcCommanderEntity, PmcCommanderModel<PmcCommanderEntity>> parent) {
@@ -58,7 +59,12 @@ public class CommanderBeretLayer extends RenderLayer<PmcCommanderEntity, PmcComm
         float g = ((colorRgb >> 8) & 0xFF) / 255.0F;
         float b = (colorRgb & 0xFF) / 255.0F;
 
-        VertexConsumer consumer = buffer.getBuffer(RenderType.entityCutoutNoCull(OVERLAY));
+        VertexConsumer consumer = buffer.getBuffer(RenderType.entityCutoutNoCull(overlayTexture()));
         this.getParentModel().renderToBuffer(poseStack, consumer, packedLight, OverlayTexture.NO_OVERLAY, r, g, b, 1.0F);
+    }
+
+    private static ResourceLocation overlayTexture() {
+        ResourceLocation fromConfig = CrewSkinRegistry.overlayFor("pmc_commander");
+        return fromConfig != null ? fromConfig : JAR_OVERLAY_FALLBACK;
     }
 }

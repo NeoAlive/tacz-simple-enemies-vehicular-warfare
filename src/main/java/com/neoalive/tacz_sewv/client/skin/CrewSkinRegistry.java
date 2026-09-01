@@ -5,10 +5,12 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
@@ -29,6 +31,9 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -43,32 +48,19 @@ import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 
 /**
- * Faction paint for SEM crews: the armor a unit wears <b>and</b> the uniform underneath it, held in
- * one table so the two can never disagree.
+ * Faction paint for SEM crews: armor piece textures, camo-synced uniforms, SEM variant overrides,
+ * and support-role defaults — one registry so armor and body never disagree.
  *
- * <p>Filenames are {@code <faction>_<kind>[_<camo>[_<rng>]].png}. {@code kind} is either an armor
- * piece — the item registry path with a leading {@code us_}/{@code ru_} stripped, so
- * {@code superbwarfare:us_chest_iotv} → {@code chest_iotv} — or a body-skin category
- * ({@code infantry}, {@code medic}, {@code combat_engineer}, {@code mechanical_engineer}). The two
- * never collide, and sharing one table is what makes the camo sync <b>structural</b>: {@code camo}
- * means the same thing on both sides, so {@code us_chest_iotv_2_*} and {@code us_infantry_2_*} are
- * the same kit by construction rather than by two systems agreeing.
+ * <p>Config folders (client-side, reload with F3+T or {@code /sewv debug reloadSkins}):
+ * <ul>
+ *   <li>{@code armor_skins/} — {@code <faction>_<piece>[_camo[_rng]].png}</li>
+ *   <li>{@code unit_skins/} — SEM-native layout: {@code ru_unit/ru_unit_default.png}, role folders
+ *       ({@code ru_medic/ru_medic_default.png}), optional {@code camo/} for armor-matched uniforms</li>
+ *   <li>{@code skin_pools/} — legacy alias; same camo filenames, deprecated</li>
+ * </ul>
  *
- * <p><b>Armor decides the camo, the uniform follows.</b> {@link #resolveSetN} intersects the camo
- * ids available across the pieces actually worn and hashes the wearer's UUID to pick one; the body
- * skin is then looked up at that same camo. No art for it → null → SEM renders its own variant.
- * That fallback is the design, not a failure path: a camo only needs uniform art once someone draws
- * it.
- *
- * <p>Two trailing numbers are optional and both degrade cleanly. One number is read as
- * {@code camo} with {@code rng = 1}, which is exactly what the pre-camo naming
- * ({@code us_chest_iotv_1.png}) already meant — so an existing config folder keeps working and no
- * unit re-rolls.
- *
- * <p>Armor lives flat in {@code config/tacz_sewv/armor_skins/}; body skins live under
- * {@code config/tacz_sewv/skin_pools/}, which is scanned recursively. The subfolders there
- * ({@code infantry/}, {@code medics/}, …) are for the person browsing the folder — the category is
- * read off the filename, so a misfiled PNG still loads.
+ * <p>Body resolution order in {@link #bodySkin}: camo-synced pool → SEM variant index → role
+ * default → null (SEM jar fallback).
  */
 @OnlyIn(Dist.CLIENT)
 public final class CrewSkinRegistry {
@@ -78,6 +70,7 @@ public final class CrewSkinRegistry {
 
     private static final String ARMOR_DEFAULTS = "armor_skins_defaults";
     private static final String SKIN_POOL_DEFAULTS = "skin_pools_defaults";
+    private static final String UNIT_SKIN_DEFAULTS = "unit_skins_defaults";
 
     private static final EquipmentSlot[] ARMOR_SLOTS = {
             EquipmentSlot.FEET, EquipmentSlot.LEGS, EquipmentSlot.CHEST, EquipmentSlot.HEAD
@@ -92,7 +85,17 @@ public final class CrewSkinRegistry {
 
     /** faction_kind → plain and/or camo pools. */
     private static final Map<String, Entry> ENTRIES = new HashMap<>();
+    /** ru_unit / us_unit / pmc_unit → sorted variant textures (SEM index order). */
+    private static final Map<String, ResourceLocation[]> VARIANT_SKINS = new HashMap<>();
+    /** ru_medic / pmc_commander / … → plain role skin. */
+    private static final Map<String, ResourceLocation> ROLE_DEFAULTS = new HashMap<>();
+    /** pmc_commander → beret tint mask. */
+    private static final Map<String, ResourceLocation> ROLE_OVERLAYS = new HashMap<>();
     private static final List<ResourceLocation> REGISTERED = new ArrayList<>();
+
+    private static final Set<String> ROLE_FOLDERS = Set.of(
+            "ru_medic", "us_medic", "ru_engineer", "us_engineer",
+            "ru_combat_engineer", "us_combat_engineer", "pmc_commander");
 
     private CrewSkinRegistry() {
     }
@@ -101,11 +104,16 @@ public final class CrewSkinRegistry {
         return FMLPaths.CONFIGDIR.get().resolve(TaczSewv.MODID).resolve("armor_skins");
     }
 
+    /** Legacy camo-pool folder; still scanned for backwards compatibility. */
     public static Path skinPoolDirectory() {
         return FMLPaths.CONFIGDIR.get().resolve(TaczSewv.MODID).resolve("skin_pools");
     }
 
-    /** Release prior dynamics and re-scan both folders. Safe to call repeatedly. */
+    public static Path unitSkinDirectory() {
+        return FMLPaths.CONFIGDIR.get().resolve(TaczSewv.MODID).resolve("unit_skins");
+    }
+
+    /** Release prior dynamics and re-scan all folders. Safe to call repeatedly. */
     public static synchronized void reload(ResourceManager resources) {
         TextureManager textures = Minecraft.getInstance().getTextureManager();
         for (ResourceLocation id : REGISTERED) {
@@ -113,22 +121,29 @@ public final class CrewSkinRegistry {
         }
         REGISTERED.clear();
         ENTRIES.clear();
+        VARIANT_SKINS.clear();
+        ROLE_DEFAULTS.clear();
+        ROLE_OVERLAYS.clear();
 
         load(armorDirectory(), ARMOR_DEFAULTS, resources, false);
-        load(skinPoolDirectory(), SKIN_POOL_DEFAULTS, resources, true);
+        loadUnitSkins(unitSkinDirectory(), resources);
+        if (Files.isDirectory(skinPoolDirectory())) {
+            LOGGER.info("{} skin_pools/ is deprecated; use unit_skins/ (still loaded for compatibility)",
+                    LOG_PREFIX);
+            load(skinPoolDirectory(), SKIN_POOL_DEFAULTS, resources, true);
+        }
 
-        LOGGER.info("{} loaded {} skin file(s) / {} faction+kind entries", LOG_PREFIX,
-                REGISTERED.size(), ENTRIES.size());
+        LOGGER.info("{} loaded {} skin file(s) / {} camo entries / {} variant sets / {} role defaults",
+                LOG_PREFIX, REGISTERED.size(), ENTRIES.size(), VARIANT_SKINS.size(), ROLE_DEFAULTS.size());
     }
 
     /**
      * Throw away whatever is on disk and put the jar's own art back. Deleting first is what makes
-     * this a real reset rather than a top-up: it also clears pre-camo duplicates, where an old
-     * {@code us_chest_iotv_1.png} would otherwise sit beside the seeded {@code us_chest_iotv_1_1.png}
-     * as a second RNG entry for the same camo. Hand-added camos go with it.
+     * this a real reset rather than a top-up.
      */
     public static synchronized void resetToDefaults(ResourceManager resources) {
         SkinFiles.wipe(armorDirectory(), LOG_PREFIX);
+        SkinFiles.wipe(unitSkinDirectory(), LOG_PREFIX);
         SkinFiles.wipe(skinPoolDirectory(), LOG_PREFIX);
         reload(resources);
     }
@@ -159,6 +174,111 @@ public final class CrewSkinRegistry {
         }
     }
 
+    private static void loadUnitSkins(Path dir, ResourceManager resources) {
+        try {
+            Files.createDirectories(dir);
+        } catch (Exception e) {
+            LOGGER.warn("{} could not create {}: {}", LOG_PREFIX, dir, e.toString());
+            return;
+        }
+        SkinFiles.seed(dir, UNIT_SKIN_DEFAULTS, resources, LOG_PREFIX);
+
+        if (!Files.isDirectory(dir)) return;
+
+        try (Stream<Path> children = Files.list(dir)) {
+            for (Path sub : children.filter(Files::isDirectory).toList()) {
+                String name = sub.getFileName().toString();
+                if (name.matches("(ru|us|pmc)_unit")) {
+                    loadVariantFolder(name, sub);
+                } else if (ROLE_FOLDERS.contains(name)) {
+                    loadRoleFolder(name, sub);
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.warn("{} could not list unit skin subfolders: {}", LOG_PREFIX, e.toString());
+        }
+
+        try (Stream<Path> tree = Files.walk(dir)) {
+            tree.filter(p -> p.getFileName().toString().endsWith(".png"))
+                    .filter(CrewSkinRegistry::shouldLoadAsCamo)
+                    .forEach(CrewSkinRegistry::tryLoad);
+        } catch (Exception e) {
+            LOGGER.warn("{} could not walk {}: {}", LOG_PREFIX, dir, e.toString());
+        }
+    }
+
+    private static void loadVariantFolder(String folderKey, Path dir) {
+        List<Path> files = listSortedPngs(dir);
+        if (files.isEmpty()) return;
+        List<ResourceLocation> ids = new ArrayList<>(files.size());
+        for (Path file : files) {
+            String dynPath = "dynamic/unit_skins/" + folderKey + "/" + file.getFileName().toString();
+            ResourceLocation id = registerDynamic(file, dynPath);
+            if (id != null) ids.add(id);
+        }
+        if (!ids.isEmpty()) {
+            VARIANT_SKINS.put(folderKey, ids.toArray(new ResourceLocation[0]));
+        }
+    }
+
+    private static void loadRoleFolder(String folderKey, Path dir) {
+        List<Path> files = listSortedPngs(dir);
+        for (Path file : files) {
+            String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+            String dynPath = "dynamic/unit_skins/" + folderKey + "/" + file.getFileName().toString();
+            ResourceLocation id = registerDynamic(file, dynPath);
+            if (id == null) continue;
+            if (name.contains("_overlay.")) {
+                ROLE_OVERLAYS.put(folderKey, id);
+            } else if (name.contains("_default.") || !ROLE_DEFAULTS.containsKey(folderKey)) {
+                ROLE_DEFAULTS.put(folderKey, id);
+            }
+        }
+    }
+
+    private static List<Path> listSortedPngs(Path dir) {
+        List<Path> files = new ArrayList<>();
+        try (Stream<Path> stream = Files.list(dir)) {
+            stream.filter(p -> p.getFileName().toString().endsWith(".png")).forEach(files::add);
+        } catch (Exception e) {
+            LOGGER.warn("{} could not list {}: {}", LOG_PREFIX, dir, e.toString());
+            return files;
+        }
+        files.sort(Comparator.comparing(p -> p.getFileName().toString()));
+        return files;
+    }
+
+    /** Camo-named body skins only — variant/role folder PNGs use SEM filenames that must not enter ENTRIES. */
+    private static boolean shouldLoadAsCamo(Path file) {
+        Path parent = file.getParent();
+        if (parent == null) return false;
+        String parentName = parent.getFileName().toString();
+        if (parentName.matches("(ru|us|pmc)_unit") || ROLE_FOLDERS.contains(parentName)) {
+            return false;
+        }
+        Parsed parsed = parseFilename(file.getFileName().toString());
+        return parsed != null && isBodyCategory(parsed.kind());
+    }
+
+    private static boolean isBodyCategory(String kind) {
+        return INFANTRY.equals(kind) || MEDIC.equals(kind) || COMBAT_ENGINEER.equals(kind)
+                || MECHANICAL_ENGINEER.equals(kind) || COMMANDER.equals(kind);
+    }
+
+    @Nullable
+    private static ResourceLocation registerDynamic(Path file, String dynPath) {
+        ResourceLocation id = new ResourceLocation(TaczSewv.MODID, dynPath.toLowerCase(Locale.ROOT));
+        try (InputStream in = Files.newInputStream(file)) {
+            NativeImage image = NativeImage.read(in);
+            Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(image));
+            REGISTERED.add(id);
+            return id;
+        } catch (Exception e) {
+            LOGGER.debug("{} skipped invalid file: {} ({})", LOG_PREFIX, file.getFileName(), e.toString());
+            return null;
+        }
+    }
+
     /**
      * Item registry path → armor kind key. Strips a leading {@code us_}/{@code ru_} so PMC and US
      * share {@code chest_iotv} for {@code us_chest_iotv}.
@@ -183,7 +303,6 @@ public final class CrewSkinRegistry {
         if (camo >= 0) {
             TreeMap<Integer, ResourceLocation> variants = entry.pools.get(camo);
             if (variants != null && !variants.isEmpty()) {
-                // Index-walk rather than copying to a list: this runs per armor piece per frame.
                 int index = Math.floorMod(rngKey, variants.size());
                 for (ResourceLocation id : variants.values()) {
                     if (index-- == 0) return id;
@@ -206,8 +325,7 @@ public final class CrewSkinRegistry {
 
     /**
      * Shared camo id for everything this SEM unit is wearing, or {@code -1} if no matched camo
-     * applies (plain-only kit / no skins). Intersection of camo ids across worn pieces that have
-     * any, with the UUID picking one from that intersection.
+     * applies (plain-only kit / no skins).
      */
     public static int resolveSetN(LivingEntity wearer, CrewFacts.Faction faction) {
         TreeSet<Integer> intersection = null;
@@ -218,7 +336,7 @@ public final class CrewSkinRegistry {
             if (itemId == null) continue;
             String kind = armorKind(itemId.getPath());
             TreeSet<Integer> keys = variantKeys(kind, faction);
-            if (keys.isEmpty()) continue; // plain-only — does not constrain
+            if (keys.isEmpty()) continue;
             if (intersection == null) {
                 intersection = new TreeSet<>(keys);
             } else {
@@ -228,9 +346,6 @@ public final class CrewSkinRegistry {
         return pick(intersection, wearer);
     }
 
-    /**
-     * Resolve the override texture for one worn stack, or null for stock.
-     */
     @Nullable
     public static ResourceLocation textureFor(LivingEntity wearer, ItemStack stack, CrewFacts.Faction faction) {
         if (stack == null || stack.isEmpty() || faction == null) return null;
@@ -243,9 +358,7 @@ public final class CrewSkinRegistry {
     /**
      * The unit's uniform, or null to let SEM pick its own variant.
      *
-     * <p>The camo comes from the armor so the two match. A unit wearing nothing numbered — armor
-     * disabled, or a support unit issued headwear only — falls back to the category's own camos
-     * rather than going unskinned; there is nothing to stay in step with in that case.
+     * <p>Priority: camo-synced pool → SEM variant override → role default → null (SEM jar).
      */
     @Nullable
     public static ResourceLocation bodySkin(LivingEntity unit) {
@@ -256,16 +369,74 @@ public final class CrewSkinRegistry {
         if (camo < 0) {
             camo = pick(variantKeys(category, faction), unit);
         }
-        return get(category, faction, camo, unit.getUUID().hashCode());
+        ResourceLocation camoSkin = get(category, faction, camo, unit.getUUID().hashCode());
+        if (camoSkin != null) return camoSkin;
+
+        ResourceLocation variant = variantFor(unit, faction, category);
+        if (variant != null) return variant;
+
+        return roleDefault(category, faction);
     }
 
-    /**
-     * Which uniform pool a unit draws from. RU/US carry the role in their entity type; a PMC cannot
-     * — it is a unit the player re-tasks in the field — so its role is whatever {@link SupportRole}
-     * reads out of its hands, and its uniform changes when the tool does. Splitting on faction
-     * rather than falling through keeps an RU rifleman handed a medical kit a rifleman, and keeps
-     * the item scan off the common case.
-     */
+    /** Beret tint mask for a role folder (e.g. {@code pmc_commander}), or null. */
+    @Nullable
+    public static ResourceLocation overlayFor(String roleFolderKey) {
+        return ROLE_OVERLAYS.get(roleFolderKey);
+    }
+
+    /** Expected variant count per SEM faction folder (for self-check). */
+    public static int expectedVariantCount(String folderKey) {
+        return switch (folderKey) {
+            case "ru_unit" -> 5;
+            case "us_unit" -> 3;
+            case "pmc_unit" -> 6;
+            default -> -1;
+        };
+    }
+
+    /** Read-only view of loaded variant arrays (self-check). */
+    public static Map<String, ResourceLocation[]> variantSkinsSnapshot() {
+        return Map.copyOf(VARIANT_SKINS);
+    }
+
+    @Nullable
+    private static ResourceLocation variantFor(LivingEntity unit, CrewFacts.Faction faction, String category) {
+        if (!INFANTRY.equals(category)) return null;
+        String folderKey = faction.name().toLowerCase(Locale.ROOT) + "_unit";
+        ResourceLocation[] variants = VARIANT_SKINS.get(folderKey);
+        if (variants == null || variants.length == 0) return null;
+        int index = unitVariant(unit);
+        if (index < 0 || index >= variants.length) return variants[0];
+        return variants[index];
+    }
+
+    private static int unitVariant(LivingEntity unit) {
+        if (unit instanceof RUunitEntity ru) return ru.getVariant();
+        if (unit instanceof USunitEntity us) return us.getVariant();
+        if (unit instanceof PmcUnitEntity pmc) return pmc.getVariant();
+        return 0;
+    }
+
+    @Nullable
+    private static ResourceLocation roleDefault(String category, CrewFacts.Faction faction) {
+        String folder = roleFolderKey(category, faction);
+        if (folder == null) return null;
+        return ROLE_DEFAULTS.get(folder);
+    }
+
+    @Nullable
+    static String roleFolderKey(String category, CrewFacts.Faction faction) {
+        if (INFANTRY.equals(category)) return null;
+        if (COMMANDER.equals(category)) return "pmc_commander";
+        String prefix = faction.name().toLowerCase(Locale.ROOT);
+        return switch (category) {
+            case MEDIC -> prefix + "_medic";
+            case COMBAT_ENGINEER -> prefix + "_combat_engineer";
+            case MECHANICAL_ENGINEER -> prefix + "_engineer";
+            default -> null;
+        };
+    }
+
     private static String category(LivingEntity unit, CrewFacts.Faction faction) {
         if (faction == CrewFacts.Faction.PMC) {
             if (unit instanceof PmcCommanderEntity) return COMMANDER;
@@ -286,7 +457,6 @@ public final class CrewSkinRegistry {
         return INFANTRY;
     }
 
-    /** One camo id out of a set, stable per unit; {@code -1} for an empty or absent set. */
     private static int pick(@Nullable TreeSet<Integer> camos, LivingEntity unit) {
         if (camos == null || camos.isEmpty()) return -1;
         int index = Math.floorMod(unit.getUUID().hashCode(), camos.size());
@@ -300,31 +470,26 @@ public final class CrewSkinRegistry {
         String name = file.getFileName().toString();
         Parsed parsed = parseFilename(name);
         if (parsed == null) {
-            LOGGER.debug("{} skipped invalid file: {}", LOG_PREFIX, name);
+            LOGGER.debug("{} skipped invalid camo file: {}", LOG_PREFIX, name);
             return;
         }
 
         String dynPath = ("dynamic/crew_skins/" + parsed.factionKey + "_" + parsed.kind
                 + (parsed.camo < 0 ? "" : "_" + parsed.camo + "_" + parsed.rng) + ".png")
                 .toLowerCase(Locale.ROOT);
-        ResourceLocation id = new ResourceLocation(TaczSewv.MODID, dynPath);
-        try (InputStream in = Files.newInputStream(file)) {
-            NativeImage image = NativeImage.read(in);
-            Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(image));
-            REGISTERED.add(id);
-            Entry entry = ENTRIES.computeIfAbsent(key(parsed.faction, parsed.kind), k -> new Entry());
-            if (parsed.camo < 0) {
-                if (entry.plain != null) {
-                    LOGGER.info("{} duplicate plain skin, keeping first: {}", LOG_PREFIX, name);
-                } else {
-                    entry.plain = id;
-                }
-            } else if (entry.pools.computeIfAbsent(parsed.camo, k -> new TreeMap<>())
-                    .put(parsed.rng, id) != null) {
-                LOGGER.info("{} duplicate camo/variant skin, overwrote: {}", LOG_PREFIX, name);
+        ResourceLocation id = registerDynamic(file, dynPath);
+        if (id == null) return;
+
+        Entry entry = ENTRIES.computeIfAbsent(key(parsed.faction, parsed.kind), k -> new Entry());
+        if (parsed.camo < 0) {
+            if (entry.plain != null) {
+                LOGGER.info("{} duplicate plain skin, keeping first: {}", LOG_PREFIX, name);
+            } else {
+                entry.plain = id;
             }
-        } catch (Exception e) {
-            LOGGER.debug("{} skipped invalid file: {} ({})", LOG_PREFIX, name, e.toString());
+        } else if (entry.pools.computeIfAbsent(parsed.camo, k -> new TreeMap<>())
+                .put(parsed.rng, id) != null) {
+            LOGGER.info("{} duplicate camo/variant skin, overwrote: {}", LOG_PREFIX, name);
         }
     }
 
@@ -363,7 +528,6 @@ public final class CrewSkinRegistry {
         return new Parsed(factionKey, faction, kind, camo, rng);
     }
 
-    /** Value of the trailing {@code _<digits>} segment, or {@code -1} if there isn't one. */
     private static int trailingNumber(String base) {
         int under = base.lastIndexOf('_');
         if (under <= 0 || under >= base.length() - 1) return -1;
@@ -394,7 +558,6 @@ public final class CrewSkinRegistry {
 
     private static final class Entry {
         @Nullable ResourceLocation plain;
-        /** camo id → rng id → texture. Sorted both ways so selection is order-independent. */
         final TreeMap<Integer, TreeMap<Integer, ResourceLocation>> pools = new TreeMap<>();
     }
 

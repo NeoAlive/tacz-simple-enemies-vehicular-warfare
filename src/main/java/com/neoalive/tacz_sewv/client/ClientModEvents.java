@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.client;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -41,19 +40,6 @@ import com.neoalive.tacz_sewv.init.ModEntities;
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientModEvents {
 
-    // Support-unit skins. These sit under assets/tacz_sewv/skins/ rather than textures/entity/ — a
-    // texture ResourceLocation is just a path under the namespace, so the folder is free choice.
-    private static final ResourceLocation RU_MEDIC_SKIN = skin("ru_squad_medic");
-    private static final ResourceLocation US_MEDIC_SKIN = skin("us_squad_medic");
-    private static final ResourceLocation RU_ENGINEER_SKIN = skin("ru_engineer");
-    private static final ResourceLocation US_ENGINEER_SKIN = skin("us_engineer");
-    private static final ResourceLocation RU_COMBAT_ENGINEER_SKIN = skin("ru_combat_engineer");
-    private static final ResourceLocation US_COMBAT_ENGINEER_SKIN = skin("us_combat_engineer");
-
-    private static ResourceLocation skin(String name) {
-        return new ResourceLocation(TaczSewv.MODID, "skins/" + name + ".png");
-    }
-
     /**
      * Soft compat: only touch Xaero's classes when the map mod is actually present, so its element
      * framework is never classloaded on an install without it. Same gate as berezka in
@@ -88,14 +74,12 @@ public class ClientModEvents {
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.RUNWAY.get(), RunwayBlockRenderer::new);
         event.registerEntityRenderer(ModEntities.SANDBAG_SEAT.get(), NoopRenderer::new);
-        event.registerEntityRenderer(ModEntities.RU_MEDIC.get(), ctx -> new RuSupportRenderer(ctx, RU_MEDIC_SKIN));
-        event.registerEntityRenderer(ModEntities.US_MEDIC.get(), ctx -> new UsSupportRenderer(ctx, US_MEDIC_SKIN));
-        event.registerEntityRenderer(ModEntities.RU_ENGINEER.get(), ctx -> new RuSupportRenderer(ctx, RU_ENGINEER_SKIN));
-        event.registerEntityRenderer(ModEntities.US_ENGINEER.get(), ctx -> new UsSupportRenderer(ctx, US_ENGINEER_SKIN));
-        event.registerEntityRenderer(ModEntities.RU_COMBAT_ENGINEER.get(),
-                ctx -> new RuSupportRenderer(ctx, RU_COMBAT_ENGINEER_SKIN));
-        event.registerEntityRenderer(ModEntities.US_COMBAT_ENGINEER.get(),
-                ctx -> new UsSupportRenderer(ctx, US_COMBAT_ENGINEER_SKIN));
+        event.registerEntityRenderer(ModEntities.RU_MEDIC.get(), RuSupportRenderer::new);
+        event.registerEntityRenderer(ModEntities.US_MEDIC.get(), UsSupportRenderer::new);
+        event.registerEntityRenderer(ModEntities.RU_ENGINEER.get(), RuSupportRenderer::new);
+        event.registerEntityRenderer(ModEntities.US_ENGINEER.get(), UsSupportRenderer::new);
+        event.registerEntityRenderer(ModEntities.RU_COMBAT_ENGINEER.get(), RuSupportRenderer::new);
+        event.registerEntityRenderer(ModEntities.US_COMBAT_ENGINEER.get(), UsSupportRenderer::new);
         event.registerEntityRenderer(ModEntities.PMC_COMMANDER.get(), PmcCommanderRenderer::new);
     }
 

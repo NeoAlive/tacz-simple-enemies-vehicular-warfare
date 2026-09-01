@@ -7,19 +7,16 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 
-/** US counterpart of {@link RuSupportRenderer} — SEM's US renderer with a fixed support-unit skin. */
+/** US counterpart of {@link RuSupportRenderer}. */
 public class UsSupportRenderer extends USunitRenderer {
 
-    private final ResourceLocation texture;
-
-    public UsSupportRenderer(EntityRendererProvider.Context context, ResourceLocation texture) {
+    public UsSupportRenderer(EntityRendererProvider.Context context) {
         super(context);
-        this.texture = texture;
     }
 
     @Override
     public ResourceLocation getTextureLocation(USunitEntity entity) {
-        ResourceLocation pooled = CrewSkinRegistry.bodySkin(entity);
-        return pooled != null ? pooled : this.texture;
+        ResourceLocation skin = CrewSkinRegistry.bodySkin(entity);
+        return skin != null ? skin : super.getTextureLocation(entity);
     }
 }

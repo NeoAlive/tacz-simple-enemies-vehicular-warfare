@@ -12,6 +12,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.client.GunLayerRenderer;
 import org.joml.Quaternionf;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 
 /**
@@ -23,7 +24,7 @@ import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
  */
 public class PmcCommanderRenderer extends MobRenderer<PmcCommanderEntity, PmcCommanderModel<PmcCommanderEntity>> {
 
-    private static final ResourceLocation COMMANDER_SKIN =
+    private static final ResourceLocation JAR_COMMANDER_FALLBACK =
             new ResourceLocation(TaczSewv.MODID, "skins/pmc_commander.png");
 
     public PmcCommanderRenderer(EntityRendererProvider.Context context) {
@@ -32,10 +33,11 @@ public class PmcCommanderRenderer extends MobRenderer<PmcCommanderEntity, PmcCom
         this.addLayer(new CommanderBeretLayer(this));
     }
 
-    /** Fallback when {@code MixinUnitRenderer}'s pooled-uniform inject finds no camo for this unit. */
+    /** Fallback when {@code MixinUnitRenderer}'s pooled-uniform inject finds no skin for this unit. */
     @Override
     public ResourceLocation getTextureLocation(PmcCommanderEntity entity) {
-        return COMMANDER_SKIN;
+        ResourceLocation skin = CrewSkinRegistry.bodySkin(entity);
+        return skin != null ? skin : JAR_COMMANDER_FALLBACK;
     }
 
     @Override

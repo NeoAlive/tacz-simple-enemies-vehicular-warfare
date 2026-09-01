@@ -11,6 +11,7 @@ import com.neoalive.tacz_sewv.block.EmplacementBlockEntity;
 import com.neoalive.tacz_sewv.block.RunwayBlockEntity;
 import com.neoalive.tacz_sewv.block.SandbagBlockEntity;
 import com.neoalive.tacz_sewv.block.SpawnProbeBlockEntity;
+import com.neoalive.tacz_sewv.block.StockpileBlockEntity;
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 
 public class ModBlockEntities {
@@ -46,5 +47,10 @@ public class ModBlockEntities {
     public static final RegistryObject<BlockEntityType<SpawnProbeBlockEntity>> SPAWN_PROBE =
             BLOCK_ENTITIES.register("spawn_probe",
                     () -> BlockEntityType.Builder.of(SpawnProbeBlockEntity::new, ModBlocks.SPAWN_PROBE.get())
+                            .build(null));
+
+    public static final RegistryObject<BlockEntityType<StockpileBlockEntity>> STOCKPILE =
+            BLOCK_ENTITIES.register("stockpile_ammo",
+                    () -> BlockEntityType.Builder.of(StockpileBlockEntity::new, ModBlocks.STOCKPILE_AMMO.get())
                             .build(null));
 }

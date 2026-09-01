@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.client;
 
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
@@ -15,6 +16,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.client.gui.StockpileScreen;
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
@@ -23,6 +25,7 @@ import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModelLayer
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderRenderer;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModEntities;
+import com.neoalive.tacz_sewv.init.ModMenus;
 
 /**
  * MOD bus, client dist. Registers renderers for this mod's support-unit entities (reusing SEM's own
@@ -51,6 +54,7 @@ public class ClientModEvents {
         if (ModList.get().isLoaded(XaeroMapCompat.MODID)) {
             XaeroMapCompat.register();
         }
+        event.enqueueWork(() -> MenuScreens.register(ModMenus.STOCKPILE.get(), StockpileScreen::new));
     }
 
     /**

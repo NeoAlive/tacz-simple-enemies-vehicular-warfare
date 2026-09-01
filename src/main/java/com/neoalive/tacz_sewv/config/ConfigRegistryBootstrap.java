@@ -37,6 +37,22 @@ final class ConfigRegistryBootstrap {
             registerCompatExtermination(b);
         }
         registerCompatTrees(b);
+        registerFob(b);
+    }
+
+    private static void registerFob(ConfigRegistry.Builder b) {
+        b.intRange(ConfigScope.SERVER, "fob", "fobMasterSize", 1, 256,
+                SewvConfig.FOB_MASTER_SIZE, SewvConfig.FOB_MASTER_SIZE::set);
+        b.intRange(ConfigScope.SERVER, "fob", "fobStockpileSize", 1, 64,
+                SewvConfig.FOB_STOCKPILE_SIZE, SewvConfig.FOB_STOCKPILE_SIZE::set);
+        b.intRange(ConfigScope.SERVER, "fob", "fobParkingSize", 1, 64,
+                SewvConfig.FOB_PARKING_SIZE, SewvConfig.FOB_PARKING_SIZE::set);
+        b.intRange(ConfigScope.SERVER, "fob", "fobThreatThreshold", 1, 10000,
+                SewvConfig.FOB_THREAT_THRESHOLD, SewvConfig.FOB_THREAT_THRESHOLD::set);
+        b.intRange(ConfigScope.SERVER, "fob", "fobAlarmCooldownTicks", 1, 72000,
+                SewvConfig.FOB_ALARM_COOLDOWN_TICKS, SewvConfig.FOB_ALARM_COOLDOWN_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "fob", "fobThreatEvalIntervalTicks", 1, 200,
+                SewvConfig.FOB_THREAT_EVAL_INTERVAL_TICKS, SewvConfig.FOB_THREAT_EVAL_INTERVAL_TICKS::set);
     }
 
     private static boolean isExterminationLoaded() {

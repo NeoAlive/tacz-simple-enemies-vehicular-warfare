@@ -9,9 +9,12 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlock;
 import com.neoalive.tacz_sewv.block.EmplacementBlock;
 import com.neoalive.tacz_sewv.block.FoxholeBlock;
+import com.neoalive.tacz_sewv.block.ParkingFieldBlock;
+import com.neoalive.tacz_sewv.block.QuartersBenchBlock;
 import com.neoalive.tacz_sewv.block.RunwayBlock;
 import com.neoalive.tacz_sewv.block.SandbagBlock;
 import com.neoalive.tacz_sewv.block.SpawnProbeBlock;
+import com.neoalive.tacz_sewv.block.StockpileAmmoBlock;
 import com.neoalive.tacz_sewv.block.TeamBaseBlock;
 import com.neoalive.tacz_sewv.block.TrenchBlock;
 import com.neoalive.tacz_sewv.block.TrenchXCrossBlock;
@@ -52,4 +55,14 @@ public class ModBlocks {
     /** Structure-prep vehicle spawn marker (barrier-like, traversable). */
     public static final RegistryObject<Block> SPAWN_PROBE =
             BLOCKS.register("spawn_probe", SpawnProbeBlock::new);
+
+    /** Player-owned Forward Operating Base command block. */
+    public static final RegistryObject<Block> QUARTERS_BENCH =
+            BLOCKS.register("quarters_bench", QuartersBenchBlock::new);
+
+    public static final RegistryObject<Block> PARKING_FIELD =
+            BLOCKS.register("parking_field", ParkingFieldBlock::new);
+
+    public static final RegistryObject<Block> STOCKPILE_AMMO =
+            BLOCKS.register("stockpile_ammo", StockpileAmmoBlock::new);
 }

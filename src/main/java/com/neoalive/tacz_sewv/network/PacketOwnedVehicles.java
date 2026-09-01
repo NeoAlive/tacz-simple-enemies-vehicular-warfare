@@ -16,6 +16,7 @@ import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.map.BattleFieldMarker;
+import com.neoalive.tacz_sewv.map.FobMarker;
 import com.neoalive.tacz_sewv.map.MarkerOrder;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
@@ -37,16 +38,24 @@ public class PacketOwnedVehicles {
     private final List<BattleFieldMarker> battleFields;
     @Nullable
     private final SweepOverlayState sweepOverlay;
+    @Nullable
+    private final FobMarker fobMarker;
 
     public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields) {
-        this(markers, battleFields, null);
+        this(markers, battleFields, null, null);
     }
 
     public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields,
                                @Nullable SweepOverlayState sweepOverlay) {
+        this(markers, battleFields, sweepOverlay, null);
+    }
+
+    public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields,
+                               @Nullable SweepOverlayState sweepOverlay, @Nullable FobMarker fobMarker) {
         this.markers = markers;
         this.battleFields = battleFields;
         this.sweepOverlay = sweepOverlay;
+        this.fobMarker = fobMarker;
     }
 
     public PacketOwnedVehicles(FriendlyByteBuf buf) {
@@ -93,6 +102,14 @@ public class PacketOwnedVehicles {
         }
         this.battleFields = bfs;
         this.sweepOverlay = SweepOverlayState.decodeOptional(buf);
+        if (buf.readBoolean()) {
+            this.fobMarker = new FobMarker(
+                    buf.readBlockPos(),
+                    buf.readResourceKey(Registries.DIMENSION),
+                    buf.readBoolean());
+        } else {
+            this.fobMarker = null;
+        }
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -139,12 +156,19 @@ public class PacketOwnedVehicles {
             buf.writeUtf(bf.playLabel() != null ? bf.playLabel() : "", 64);
         }
         SweepOverlayState.encodeOptional(buf, this.sweepOverlay);
+        buf.writeBoolean(this.fobMarker != null);
+        if (this.fobMarker != null) {
+            buf.writeBlockPos(this.fobMarker.commandPos());
+            buf.writeResourceKey(this.fobMarker.dimension());
+            buf.writeBoolean(this.fobMarker.valid());
+        }
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() ->
                 DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                        () -> () -> MapMarkers.accept(this.markers, this.battleFields, this.sweepOverlay)));
+                        () -> () -> MapMarkers.accept(this.markers, this.battleFields, this.sweepOverlay,
+                                this.fobMarker)));
         ctx.get().setPacketHandled(true);
     }
 }

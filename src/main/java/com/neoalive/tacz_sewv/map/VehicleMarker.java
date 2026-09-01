@@ -112,7 +112,9 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
         ARTILLERY("emplacement"),
         INFANTRY_COMMANDER("infantry_commander"),
         INFANTRY_COMBAT_ENGINEER("infantry_combat_engineer"),
-        DRONE("drone");
+        DRONE("drone"),
+        /** Player-owned Forward Operating Base command post. */
+        FOB("fob");
 
         private static final Kind[] VALUES = values();
         private final String texture;

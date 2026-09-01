@@ -39,6 +39,7 @@ import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
+import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionHostility;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
@@ -99,6 +100,9 @@ public final class VehicleTargeting {
 
         BlockPos entrench = EntrenchSupport.currentCell(unit);
         if (entrench != null) return entrench;
+
+        BlockPos fobPark = FobSupport.parkDestination(unit, vehicle);
+        if (fobPark != null) return fobPark;
 
         if (!(unit instanceof PmcUnitEntity pmc)) {
             LivingEntity target = unit.getTarget();
@@ -901,8 +905,11 @@ public final class VehicleTargeting {
         // scores inside fightTick when the coordinator has assigned a play (DriveVehicleGoal).
         if (CaptureOrderSupport.holdsCourseThroughContact(unit)) return true;
         if (EntrenchSupport.isEntrenched(unit)) return true;
-        if (!(unit instanceof PmcUnitEntity pmc)) return false;
-        return ((IVehiclePatrol) pmc).sewv$isPatrolling() || pmc.getOrder() != OrderType.FREE_FIRE;
+        if (unit instanceof PmcUnitEntity pmc) {
+            if (FobSupport.blocksOrders(pmc)) return true;
+            return ((IVehiclePatrol) pmc).sewv$isPatrolling() || pmc.getOrder() != OrderType.FREE_FIRE;
+        }
+        return false;
     }
 
     // Safety margin (blocks) added around a friendly hull's hitbox when testing

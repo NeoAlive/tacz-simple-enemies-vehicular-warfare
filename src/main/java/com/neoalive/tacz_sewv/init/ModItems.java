@@ -74,6 +74,15 @@ public class ModItems {
     public static final RegistryObject<Item> SPAWN_PROBE = ITEMS.register("spawn_probe",
             () -> new BlockItem(ModBlocks.SPAWN_PROBE.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> QUARTERS_BENCH = ITEMS.register("quarters_bench",
+            () -> new BlockItem(ModBlocks.QUARTERS_BENCH.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> PARKING_FIELD = ITEMS.register("parking_field",
+            () -> new BlockItem(ModBlocks.PARKING_FIELD.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> STOCKPILE_AMMO = ITEMS.register("stockpile_ammo",
+            () -> new BlockItem(ModBlocks.STOCKPILE_AMMO.get(), new Item.Properties()));
+
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer, brown combat engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",

@@ -50,6 +50,9 @@ public final class VehicleSkinSupport {
         String id = faction.name().toLowerCase(Locale.ROOT);
         if (faction == get(hull)) {
             hull.setSkinId(id);
+            if (faction == CrewFacts.Faction.PMC) {
+                PmcVehicleLogoSupport.applyIfPmcCaptured(hull, CrewFacts.pmcOwner(hull));
+            }
             return;
         }
         int salt = hull.getRandom().nextInt();
@@ -80,11 +83,20 @@ public final class VehicleSkinSupport {
 
     /** Command/event crewed spawns — always paint the hull in the spawning faction's colours. */
     public static void applySpawnFaction(VehicleEntity hull, TankSpawner.TankFaction faction) {
+        applySpawnFaction(hull, faction, null);
+    }
+
+    /** Command/event crewed spawns with optional PMC owner for dogTag logo stamping. */
+    public static void applySpawnFaction(VehicleEntity hull, TankSpawner.TankFaction faction,
+                                         @Nullable java.util.UUID pmcOwner) {
         apply(hull, switch (faction) {
             case RU -> CrewFacts.Faction.RU;
             case US -> CrewFacts.Faction.US;
             case PMC -> CrewFacts.Faction.PMC;
         });
+        if (faction == TankSpawner.TankFaction.PMC && pmcOwner != null) {
+            PmcVehicleLogoSupport.applyIfPmcCaptured(hull, pmcOwner);
+        }
     }
 
     /** Set sticky paint, or clear to stock when {@code faction} is null. */

@@ -98,7 +98,8 @@ public class NetworkHandler {
     // 69: ConfigUI open/request/save/shortcut packets.
     // 70: PacketTowRecovery (PMC tow order).
     // 71: PacketFobData + FOB assignment/alarm/route packets.
-    private static final String PROTOCOL_VERSION = "74";
+    // 75: PacketRequestPmcIdentity / PacketSyncPmcIdentity / PacketApplyPmcIdentity (TDT Identity).
+    private static final String PROTOCOL_VERSION = "76";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -571,6 +572,35 @@ public class NetworkHandler {
                 PacketRouteToFob::encode,
                 PacketRouteToFob::new,
                 PacketRouteToFob::handle
+        );
+
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRequestPmcIdentity.class,
+                PacketRequestPmcIdentity::encode,
+                PacketRequestPmcIdentity::new,
+                PacketRequestPmcIdentity::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSyncPmcIdentity.class,
+                PacketSyncPmcIdentity::encode,
+                PacketSyncPmcIdentity::new,
+                PacketSyncPmcIdentity::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketApplyPmcIdentity.class,
+                PacketApplyPmcIdentity::encode,
+                PacketApplyPmcIdentity::new,
+                PacketApplyPmcIdentity::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketVehicleDogTag.class,
+                PacketVehicleDogTag::encode,
+                PacketVehicleDogTag::new,
+                PacketVehicleDogTag::handle
         );
     }
 }

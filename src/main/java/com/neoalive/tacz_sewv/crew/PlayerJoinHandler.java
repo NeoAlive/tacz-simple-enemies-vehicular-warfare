@@ -2,13 +2,18 @@ package com.neoalive.tacz_sewv.crew;
 
 import java.util.UUID;
 
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.network.PacketDistributor;
 
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData;
 import com.neoalive.tacz_sewv.init.ModItems;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketSyncPmcIdentity;
 
 public class PlayerJoinHandler {
 
@@ -32,6 +37,14 @@ public class PlayerJoinHandler {
                 player.drop(ledger, false);
                 data.setReceivedBook(playerUuid);
             }
+        }
+
+        if (player instanceof ServerPlayer sp) {
+            String category = NamePreference.get(sp, SewvConfig.DEFAULT_NAME_CATEGORY.get());
+            NetworkHandler.CHANNEL.send(
+                    PacketDistributor.PLAYER.with(() -> sp),
+                    new PacketSyncPmcIdentity(PmcIdentityPreference.get(sp), category));
+            NpcIdentity.refreshCompanyName(sp);
         }
     }
 }

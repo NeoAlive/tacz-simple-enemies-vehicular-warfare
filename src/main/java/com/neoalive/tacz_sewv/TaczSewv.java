@@ -141,6 +141,7 @@ public class TaczSewv {
         event.addListener(new com.neoalive.tacz_sewv.ballistics.TranslationTable.Loader());
         // See com.neoalive.tacz_sewv.crew.NamePools.
         event.addListener(new com.neoalive.tacz_sewv.crew.NamePools.Loader());
+        event.addListener(new com.neoalive.tacz_sewv.crew.LogoPoolIndex.Loader());
     }
 
     /**

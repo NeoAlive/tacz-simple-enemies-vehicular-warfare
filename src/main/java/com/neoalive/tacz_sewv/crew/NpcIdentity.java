@@ -6,6 +6,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -42,16 +43,20 @@ public final class NpcIdentity {
         if (data.getBoolean(ISSUED)) return;
 
         String category = SewvConfig.DEFAULT_NAME_CATEGORY.get();
+        String company = "";
         if (unit.level() instanceof ServerLevel level) {
             ServerPlayer sp = level.getServer().getPlayerList().getPlayer(owner);
-            if (sp != null) category = NamePreference.get(sp, category);
+            if (sp != null) {
+                category = NamePreference.get(sp, category);
+                company = PmcIdentityPreference.get(sp).companyName();
+            }
         }
 
         NamePools.RolledIdentity id = NamePools.active().roll(unit.level().getRandom(), category);
         data.putString(TAG_NAME, id.name());
         data.putString(TAG_SURNAME, id.surname());
         data.putString(TAG_CATEGORY, id.category());
-        unit.setCustomName(Component.literal(id.name() + " " + id.surname()));
+        unit.setCustomName(formatDisplayName(id.name(), id.surname(), company));
         data.putBoolean(ISSUED, true);
     }
 
@@ -61,6 +66,29 @@ public final class NpcIdentity {
     public static void reissue(PmcUnitEntity unit) {
         unit.getPersistentData().remove(ISSUED);
         issue(unit);
+    }
+
+    private static final double REFRESH_RADIUS = 512.0;
+
+    /** Rewrites nameplates for every owned PMC near the player after identity Apply. */
+    public static void refreshCompanyName(ServerPlayer owner) {
+        String company = PmcIdentityPreference.get(owner).companyName();
+        AABB box = owner.getBoundingBox().inflate(REFRESH_RADIUS);
+        for (PmcUnitEntity unit : owner.level().getEntitiesOfClass(PmcUnitEntity.class, box,
+                u -> owner.getUUID().equals(u.getOwnerUUID()))) {
+            CompoundTag data = unit.getPersistentData();
+            if (!data.getBoolean(ISSUED)) continue;
+            unit.setCustomName(formatDisplayName(data.getString(TAG_NAME), data.getString(TAG_SURNAME), company));
+        }
+    }
+
+    public static Component formatDisplayName(String name, String surname, String companyName) {
+        String line1 = name + " " + surname;
+        if (companyName == null || companyName.isBlank()) {
+            return Component.literal(line1);
+        }
+        // Entity nameplates render \n as a visible [LF] glyph — keep company on one line.
+        return Component.literal(line1 + " (" + companyName.strip() + ")");
     }
 
     public static String name(PmcUnitEntity unit) {

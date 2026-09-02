@@ -312,7 +312,7 @@ public final class TankSpawner {
             }
         }
 
-        VehicleSkinSupport.applySpawnFaction(plane, faction);
+        VehicleSkinSupport.applySpawnFaction(plane, faction, ownerId);
         if (faction == TankFaction.RU || faction == TankFaction.US) {
             VehicleEngineLoot.markPending(plane);
         }
@@ -401,7 +401,7 @@ public final class TankSpawner {
 
         // Source-based paint: command/event crewed spawns always get the faction skin. Field
         // captures keep the chance roll in VehicleSkinEvents.onMount instead.
-        VehicleSkinSupport.applySpawnFaction(tank, faction);
+        VehicleSkinSupport.applySpawnFaction(tank, faction, ownerId);
         if (faction == TankFaction.RU || faction == TankFaction.US) {
             VehicleEngineLoot.markPending(tank);
         }
@@ -482,7 +482,7 @@ public final class TankSpawner {
             // leave on the ground
         }
 
-        VehicleSkinSupport.applySpawnFaction(tank, TankFaction.PMC);
+        VehicleSkinSupport.applySpawnFaction(tank, TankFaction.PMC, player.getUUID());
         return tank;
     }
 

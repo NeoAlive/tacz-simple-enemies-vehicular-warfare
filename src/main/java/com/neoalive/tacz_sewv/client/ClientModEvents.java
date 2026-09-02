@@ -18,6 +18,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.gui.StockpileScreen;
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
+import com.neoalive.tacz_sewv.client.skin.LogoPoolRegistry;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModel;
@@ -72,6 +73,7 @@ public class ClientModEvents {
         event.registerReloadListener((ResourceManagerReloadListener) resources -> {
             VehicleSkinRegistry.reload(resources);
             CrewSkinRegistry.reload(resources);
+            LogoPoolRegistry.reload(resources);
         });
     }
 

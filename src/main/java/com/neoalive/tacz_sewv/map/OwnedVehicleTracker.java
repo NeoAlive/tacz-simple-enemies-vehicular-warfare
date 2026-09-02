@@ -624,7 +624,8 @@ public final class OwnedVehicleTracker {
         for (ServerLevel level : player.server.getAllLevels()) {
             FobInstance fob = FobManager.get(level).getFobForOwner(player.getUUID());
             if (fob != null) {
-                FobManager.get(level).validate(fob.commandPos, level);
+                // Read the stored validity — NOT FobManager.validate, which runs a full clearance
+                // block sweep of the master AABB and would do it once per player every second.
                 int assigned = countAssignedVehicles(fob, level);
                 boolean routeReady = fob.valid && fob.parkingPos != null && assigned > 0;
                 return new FobMarker(fob.commandPos, level.dimension(), fob.valid, assigned, routeReady);
@@ -643,7 +644,8 @@ public final class OwnedVehicleTracker {
                     if (e != null) break;
                 }
             }
-            if (e instanceof VehicleEntity hull && FobSupport.vehicleOwnedBy(hull, fob.owner)) {
+            if (e instanceof VehicleEntity hull && hull.isAlive() && !hull.isWreck()
+                    && FobSupport.vehicleClaimableBy(hull, fob.owner)) {
                 count++;
             }
         }

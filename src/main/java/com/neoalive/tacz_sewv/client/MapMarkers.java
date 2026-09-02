@@ -76,24 +76,7 @@ public final class MapMarkers {
         battleFields = List.copyOf(fields);
         sweepOverlay = sweep;
         fobMarker = fob;
-        migrateSelection();
         SELECTED.removeIf(vehicleId -> !BY_VEHICLE_ID.containsKey(vehicleId));
-    }
-
-    /** Legacy driver-id selection from before vehicle-id keys — runs once per sync. */
-    private static void migrateSelection() {
-        if (SELECTED.isEmpty()) return;
-        Set<Integer> migrated = new HashSet<>();
-        for (int id : SELECTED) {
-            VehicleMarker byDriver = BY_DRIVER_ID.get(id);
-            if (byDriver != null) {
-                migrated.add(byDriver.vehicleId());
-            } else if (BY_VEHICLE_ID.containsKey(id)) {
-                migrated.add(id);
-            }
-        }
-        SELECTED.clear();
-        SELECTED.addAll(migrated);
     }
 
     /** Drop everything — call on disconnect so a new world never inherits the last one's picture. */

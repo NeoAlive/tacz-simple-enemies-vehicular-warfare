@@ -1,7 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.goal;
 
 import java.util.EnumSet;
-import java.util.UUID;
+import java.util.List;
 
 import javax.annotation.Nullable;
 
@@ -10,19 +10,25 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.fob.FobDebug;
 import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobManager;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 
 /**
- * Completes a {@link com.neoalive.tacz_sewv.fob.FobNetworking#routeToFob} order: drivers dismount
- * once their hull reaches the parking pad; on-foot infantry auto-board an assigned empty vehicle.
+ * Completes a {@link com.neoalive.tacz_sewv.fob.FobNetworking#routeToFob} order: a hull that
+ * reaches the parking pad puts its <b>whole</b> crew on the ground, and infantry that walks in
+ * simply stands down there.
+ *
+ * <p>Nobody is re-boarded on arrival. Routing home is a stand-down, so a unit that walked back and
+ * then climbed into a parked tank was not at the FOB in any sense the player asked for; putting
+ * crews back in hulls is {@link FobScrambleGoal}'s job and only happens on a real threat.
  */
 public class FobRouteArrivalGoal extends Goal {
 
@@ -44,17 +50,19 @@ public class FobRouteArrivalGoal extends Goal {
             return false;
         }
 
+        // Deliberately NOT gated on fob.scrambleActive. FobScrambleGoal already yields to a route,
+        // so a scramble that started mid-route would leave the unit parked on the pad with a route
+        // that can never finish — and a route blocks every player order, so that wedged the unit
+        // for good.
         FobInstance fob = fob(level);
-        if (fob == null || fob.scrambleActive || fob.parkingPos == null) {
-            FobDebug.logEntity(this.unit, "route goal canUse=false — fob={}, scramble={}, parking={}",
-                    fob != null, fob != null && fob.scrambleActive, fob != null && fob.parkingPos != null);
+        if (fob == null || fob.parkingPos == null) {
+            FobDebug.logEntity(this.unit, "route goal canUse=false — fob={}, parking={}",
+                    fob != null, fob != null && fob.parkingPos != null);
             return false;
         }
-        boolean ready = readyToFinish(level, fob);
-        if (!ready) {
-            FobDebug.logEntity(this.unit, "route goal canUse=false — not at parking standoff yet");
-        }
-        return ready;
+        // No log for "still driving" — it is the normal state of every routing unit, and printed
+        // ten lines a second per unit it buried everything else in the debug channel.
+        return readyToFinish(level, fob);
     }
 
     @Override
@@ -68,55 +76,59 @@ public class FobRouteArrivalGoal extends Goal {
         FobInstance fob = fob(level);
         if (fob == null) return;
 
-        if (this.unit.isPassenger() && this.unit.getVehicle() instanceof VehicleEntity hull
-                && isDriver(hull) && atParkingStandoff(hull, fob, level)) {
-            FobDebug.logEntity(this.unit, "route arrival — driver dismount at parking standoff");
-            this.unit.stopRiding();
-            finishRoute();
+        if (this.unit.getVehicle() instanceof VehicleEntity hull) {
+            if (atParkingStandoff(hull, fob, level)) {
+                disembark(hull);
+            }
             return;
         }
 
-        if (!this.unit.isPassenger() && atParkingStandoff(this.unit, fob, level)) {
-            tryBoard(level, fob);
+        if (atParkingStandoff(this.unit, fob, level)) {
             FobDebug.logEntity(this.unit, "route arrival — infantry at parking standoff");
             finishRoute();
         }
     }
 
+    /**
+     * Empties the hull. A gunner is not the driver, so its own arrival test could never pass while
+     * it was seated — it stayed mounted with a route that never finished, and a pending route
+     * blocks every player order, so it was stuck for good. Emptying the hull from whichever
+     * crewman's goal runs first fixes both ends at once, and the rest of the crew's routes are
+     * cleared here rather than waiting for a goal of their own.
+     *
+     * <p>A ground hull always empties. Only an <b>aircraft</b> has to be down first: the pad is a
+     * horizontal box spanning the full world height, so a helicopter passing over it reads as "at
+     * the parking standoff" too, and bailing its crew out there would drop them. The test is not
+     * {@code onGround()} for everything, because a hull SBW is floating a fraction above the
+     * surface would then never dismount and its route would hang until the timeout.
+     * Players aboard are never ejected.
+     */
+    private void disembark(VehicleEntity hull) {
+        boolean aircraft = HullFacts.isHelicopterHull(hull) || HullFacts.isPlaneHull(hull);
+        if (aircraft && !hull.onGround()) return;
+        FobDebug.logEntity(this.unit, "route arrival — crew dismount at parking standoff");
+        for (Entity passenger : List.copyOf(hull.getPassengers())) {
+            if (passenger instanceof Player) continue;
+            passenger.stopRiding();
+            FobSupport.clearRoutePending(passenger);
+            if (passenger instanceof PmcUnitEntity crew) {
+                crew.setOrder(OrderType.FREE_FIRE);
+            }
+        }
+        finishRoute();
+    }
+
     private boolean readyToFinish(ServerLevel level, FobInstance fob) {
         if (fob.parkingPos == null) return false;
 
-        if (this.unit.isPassenger() && this.unit.getVehicle() instanceof VehicleEntity hull) {
-            return isDriver(hull) && atParkingStandoff(hull, fob, level);
+        if (this.unit.getVehicle() instanceof VehicleEntity hull) {
+            return atParkingStandoff(hull, fob, level);
         }
         return !this.unit.isPassenger() && atParkingStandoff(this.unit, fob, level);
     }
 
-    private boolean isDriver(VehicleEntity hull) {
-        return hull.getFirstPassenger() == this.unit;
-    }
-
     private static boolean atParkingStandoff(Entity entity, FobInstance fob, Level level) {
         return FobSupport.withinParkingPad(fob, entity, level);
-    }
-
-    private void tryBoard(ServerLevel level, FobInstance fob) {
-        VehicleEntity best = null;
-        double bestDist = Double.MAX_VALUE;
-        for (UUID id : fob.assignedVehicles) {
-            if (!(level.getEntity(id) instanceof VehicleEntity hull)) continue;
-            if (!hull.isAlive() || hull.isWreck() || !hull.getPassengers().isEmpty()) continue;
-            double d = hull.distanceToSqr(this.unit);
-            if (d < bestDist) {
-                bestDist = d;
-                best = hull;
-            }
-        }
-        if (best != null && this.unit instanceof IVehicleBoarder boarder) {
-            boarder.tacz_sewv$setMountTargetId(best.getId());
-            boarder.tacz_sewv$setBoarding(true);
-            boarder.tacz_sewv$setPassengerOnly(false);
-        }
     }
 
     private void finishRoute() {

@@ -260,16 +260,22 @@ public class DriveVehicleGoal extends Goal {
         // the exception: that is not "engaging", it is dying, and preserveRetreat inside fightTick
         // still wins. (Same shape as the old cruise-only exception; extended so Sweep & Advance
         // / S&D / patrol stop abandoning the area to chase every nearby mob.)
+        //
+        // A MOVE_TO_POSITION click and a FOB route are NOT subject to that health exception. They
+        // are a destination the player named, and the whole reason to name one while hurt is to
+        // get the hull out — handing a damaged crew to fightTick made it hold a standoff ring on
+        // the enemy instead, which reads on screen as a hull that keeps backing away rather than
+        // driving home. Retreat is the order; fightTick's version of it goes nowhere.
         if (target != null) {
             boolean captureHold = CaptureOrderSupport.holdsCourseThroughContact(this.unit);
+            boolean orderedMove = VehicleTargeting.holdsOrderedMove(this.unit);
             // Command-tier play (envelopment / flank / BoF): honour the assignment in fightTick
             // so invasion fleets still get advanced tactics; capture destination resumes via
             // resolveDestination when the contact ends. Untasked capture crews hold the approach.
             boolean tasked = com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment.of(this.unit.getId()) != null;
-            if ((PatrolSupport.holdsCourseThroughContact(this.unit)
-                    || VehicleTargeting.holdsOrderedMove(this.unit)
-                    || (captureHold && !tasked))
-                    && !isLowHealth()) {
+            boolean areaHold = (PatrolSupport.holdsCourseThroughContact(this.unit)
+                    || (captureHold && !tasked)) && !isLowHealth();
+            if (orderedMove || areaHold) {
                 if (captureHold && this.unit.level() instanceof ServerLevel sl
                         && sl.getGameTime() % 40L == 0L) {
                     com.neoalive.tacz_sewv.debug.SewvDiag.invasion(
@@ -300,6 +306,13 @@ public class DriveVehicleGoal extends Goal {
      * option the scorer is offered, so a crew can never wander off an instruction.
      */
     private void standDownTick(BlockPos standing) {
+        // Same rule as getTargetPos: a MOVE click or a FOB route is worked as given. HOLD would
+        // park the hull short of it and the three substituting plans would send it somewhere else
+        // entirely — which is how a crew ordered home ended up drifting back toward the fight.
+        if (VehicleTargeting.holdsOrderedMove(this.unit)) {
+            driveTo(standing);
+            return;
+        }
         BlockPos destination = switch (idlePlan()) {
             case SEARCH_LAST_KNOWN -> {
                 BlockPos seen = this.brain.facts().memory.lastEnemyPos;
@@ -323,7 +336,11 @@ public class DriveVehicleGoal extends Goal {
             this.driver.clearRecovery(); // holding on purpose — not stuck
             return;
         }
+        driveTo(destination);
+    }
 
+    /** Steer for {@code destination}, or park on station once inside the arrival ring. */
+    private void driveTo(BlockPos destination) {
         double distanceSq = this.vehicle.distanceToSqr(
                 destination.getX() + 0.5, destination.getY(), destination.getZ() + 0.5);
 
@@ -783,6 +800,15 @@ public class DriveVehicleGoal extends Goal {
     }
 
     private BlockPos getTargetPos() {
+        // A named destination — a MOVE click or a FOB route — is not a suggestion the utility
+        // layer gets to improve on. The three plans below all substitute a destination of their
+        // own (the last place an enemy was seen, an idle hold, an idle leg), and any of them
+        // winning while an order stands sends the hull back towards the fight it was told to
+        // leave. resolveDestination already reads the route/order first, so this only has to stop
+        // the plans from getting in front of it.
+        if (VehicleTargeting.holdsOrderedMove(this.unit)) {
+            return VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
+        }
         Action plan = idlePlan();
         if (plan == Action.SEARCH_LAST_KNOWN) {
             BlockPos seen = this.brain.facts().memory.lastEnemyPos;

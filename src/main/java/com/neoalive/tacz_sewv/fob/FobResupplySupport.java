@@ -1,14 +1,14 @@
 package com.neoalive.tacz_sewv.fob;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.tacz.guns.api.TimelessAPI;
+import com.tacz.guns.api.item.IAmmo;
 import com.tacz.guns.api.item.IGun;
 import com.tacz.guns.api.item.builder.AmmoItemBuilder;
 import net.minecraft.core.BlockPos;
@@ -43,6 +43,9 @@ public final class FobResupplySupport {
     public static BlockPos resupplyDestination(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
         if (!(unit.level() instanceof ServerLevel level)) return null;
         if (FobSupport.hasRoutePending(unit)) return null;
+        // This goal holds MOVE, so without yielding here a unit that decided it wanted ammo simply
+        // ignored the player's click for as long as the stockpile had stock.
+        if (FobSupport.underPlayerMoveOrder(unit)) return null;
         if (unit.getTarget() != null) return null;
 
         FobInstance fob = activeFob(unit, level);
@@ -60,6 +63,7 @@ public final class FobResupplySupport {
     public static boolean shouldResupply(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
         if (!(unit.level() instanceof ServerLevel level)) return false;
         if (FobSupport.hasRoutePending(unit)) return false;
+        if (FobSupport.underPlayerMoveOrder(unit)) return false;
         if (unit.getTarget() != null) return false;
 
         FobInstance fob = activeFob(unit, level);
@@ -95,12 +99,13 @@ public final class FobResupplySupport {
         IItemHandler dest = target.handler();
         if (dest == null) return false;
 
-        Set<Item> eligible = target.eligible();
+        List<AmmoKind> eligible = target.eligible();
         ItemStackHandlerLoop:
         for (int slot = 0; slot < StockpileBlockEntity.SIZE; slot++) {
             ItemStack stack = stockpile.getItems().getStackInSlot(slot);
-            if (stack.isEmpty() || !eligible.contains(stack.getItem())) continue;
-            if (!canAcceptMore(dest, stack.getItem())) continue;
+            AmmoKind kind = match(eligible, stack);
+            if (kind == null) continue;
+            if (!canAcceptMore(dest, kind)) continue;
 
             ItemStack extracted = stockpile.getItems().extractItem(slot, stack.getMaxStackSize(), false);
             if (extracted.isEmpty()) continue;
@@ -142,14 +147,22 @@ public final class FobResupplySupport {
         return be instanceof StockpileBlockEntity stock ? stock : null;
     }
 
-    private static boolean stockpileHasEligible(FobInstance fob, ServerLevel level, Set<Item> eligible) {
+    private static boolean stockpileHasEligible(FobInstance fob, ServerLevel level, List<AmmoKind> eligible) {
         StockpileBlockEntity stockpile = stockpileAt(fob, level);
         if (stockpile == null) return false;
         for (int slot = 0; slot < StockpileBlockEntity.SIZE; slot++) {
-            ItemStack stack = stockpile.getItems().getStackInSlot(slot);
-            if (!stack.isEmpty() && eligible.contains(stack.getItem())) return true;
+            if (match(eligible, stockpile.getItems().getStackInSlot(slot)) != null) return true;
         }
         return false;
+    }
+
+    @Nullable
+    private static AmmoKind match(List<AmmoKind> eligible, ItemStack stack) {
+        if (stack.isEmpty()) return null;
+        for (AmmoKind kind : eligible) {
+            if (kind.matches(stack)) return kind;
+        }
+        return null;
     }
 
     @Nullable
@@ -160,11 +173,12 @@ public final class FobResupplySupport {
             hull = mounted;
         }
         if (hull != null && fob.assignedVehicles.contains(hull.getUUID())) {
-            List<Item> eligible = TankSpawner.resolveEligibleAmmo(hull);
-            return new ResupplyTarget(new HashSet<>(eligible), hullContainerHandler(hull));
+            List<AmmoKind> eligible = new ArrayList<>();
+            addItems(eligible, TankSpawner.resolveEligibleAmmo(hull));
+            return new ResupplyTarget(eligible, hullContainerHandler(hull));
         }
         if (unit instanceof PmcUnitEntity pmc) {
-            Set<Item> eligible = eligibleForInfantry(pmc, fob, level);
+            List<AmmoKind> eligible = eligibleForInfantry(pmc, fob, level);
             IItemHandler inv = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
             if (inv == null || eligible.isEmpty()) return null;
             return new ResupplyTarget(eligible, new PmcStorageView(inv));
@@ -173,11 +187,11 @@ public final class FobResupplySupport {
     }
 
     /**
-     * TACZ reserve items an infantry PMC consumes — resolved from whichever hand or slot 0
+     * TACZ reserve ammo an infantry PMC consumes — resolved from whichever hand or slot 0
      * holds an {@link IGun}, same index path SEM uses when equipping loadouts.
      */
-    public static Set<Item> resolveEligibleTaczAmmo(PmcUnitEntity pmc) {
-        Set<Item> out = new HashSet<>();
+    private static List<AmmoKind> resolveEligibleTaczAmmo(PmcUnitEntity pmc) {
+        List<AmmoKind> out = new ArrayList<>();
         collectTaczAmmoFromGun(pmc.getMainHandItem(), out);
         collectTaczAmmoFromGun(pmc.getOffhandItem(), out);
         pmc.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
@@ -188,7 +202,7 @@ public final class FobResupplySupport {
         return out;
     }
 
-    private static void collectTaczAmmoFromGun(ItemStack stack, Set<Item> out) {
+    private static void collectTaczAmmoFromGun(ItemStack stack, List<AmmoKind> out) {
         IGun gun = IGun.getIGunOrNull(stack);
         if (gun == null || gun.useDummyAmmo(stack)) return;
 
@@ -200,26 +214,32 @@ public final class FobResupplySupport {
                 .orElse(null);
         if (ammoId == null) return;
 
-        ItemStack ammoStack = AmmoItemBuilder.create().setId(ammoId).setCount(1).build();
-        if (!ammoStack.isEmpty()) {
-            out.add(ammoStack.getItem());
-        }
+        ItemStack prototype = AmmoItemBuilder.create().setId(ammoId).setCount(1).build();
+        if (prototype.isEmpty()) return;
+        add(out, new AmmoKind(prototype, ammoId));
     }
 
-    private static Set<Item> eligibleForInfantry(PmcUnitEntity pmc, FobInstance fob, ServerLevel level) {
-        Set<Item> out = new HashSet<>(eligibleForAssignedVehicles(fob, level));
-        out.addAll(resolveEligibleTaczAmmo(pmc));
-        return out;
-    }
-
-    private static Set<Item> eligibleForAssignedVehicles(FobInstance fob, ServerLevel level) {
-        Set<Item> out = new HashSet<>();
+    private static List<AmmoKind> eligibleForInfantry(PmcUnitEntity pmc, FobInstance fob, ServerLevel level) {
+        List<AmmoKind> out = new ArrayList<>(resolveEligibleTaczAmmo(pmc));
         for (UUID id : fob.assignedVehicles) {
-            Entity e = level.getEntity(id);
-            if (!(e instanceof VehicleEntity hull)) continue;
-            out.addAll(TankSpawner.resolveEligibleAmmo(hull));
+            if (level.getEntity(id) instanceof VehicleEntity hull) {
+                addItems(out, TankSpawner.resolveEligibleAmmo(hull));
+            }
         }
         return out;
+    }
+
+    private static void addItems(List<AmmoKind> out, List<Item> items) {
+        for (Item item : items) {
+            add(out, new AmmoKind(new ItemStack(item), null));
+        }
+    }
+
+    private static void add(List<AmmoKind> out, AmmoKind kind) {
+        for (AmmoKind existing : out) {
+            if (existing.sameAs(kind)) return;
+        }
+        out.add(kind);
     }
 
     @Nullable
@@ -234,32 +254,57 @@ public final class FobResupplySupport {
     private static boolean needsResupply(ResupplyTarget target) {
         IItemHandler dest = target.handler();
         if (dest == null) return false;
-        for (Item item : target.eligible()) {
-            int want = item.getMaxStackSize() * RESUPPLY_MIN_STACKS;
-            if (countOf(dest, item) < want && canAcceptMore(dest, item)) return true;
+        for (AmmoKind kind : target.eligible()) {
+            int want = kind.prototype().getMaxStackSize() * RESUPPLY_MIN_STACKS;
+            if (countOf(dest, kind) < want && canAcceptMore(dest, kind)) return true;
         }
         return false;
     }
 
-    private static int countOf(IItemHandler handler, Item item) {
+    private static int countOf(IItemHandler handler, AmmoKind kind) {
         int total = 0;
         for (int slot = 0; slot < handler.getSlots(); slot++) {
             ItemStack stack = handler.getStackInSlot(slot);
-            if (stack.is(item)) total += stack.getCount();
+            if (kind.matches(stack)) total += stack.getCount();
         }
         return total;
     }
 
-    private static boolean canAcceptMore(IItemHandler handler, Item item) {
+    private static boolean canAcceptMore(IItemHandler handler, AmmoKind kind) {
         for (int slot = 0; slot < handler.getSlots(); slot++) {
             ItemStack existing = handler.getStackInSlot(slot);
             if (existing.isEmpty()) return true;
-            if (existing.is(item) && existing.getCount() < existing.getMaxStackSize()) return true;
+            if (kind.matches(existing) && existing.getCount() < existing.getMaxStackSize()) return true;
         }
         return false;
     }
 
-    private record ResupplyTarget(Set<Item> eligible, @Nullable IItemHandler handler) {}
+    /**
+     * One kind of ammunition the stockpile can hand over.
+     *
+     * <p>TACZ ships a <b>single</b> {@code tacz:ammo} item with the calibre in NBT, so matching on
+     * {@link Item} alone makes every calibre interchangeable — a 5.56 rifleman would walk to the
+     * stockpile and fill its pockets with .50 BMG, and then read as resupplied. {@code ammoId} is
+     * the only thing that actually separates them, and {@link IAmmo} is the supported reader for
+     * it (full-NBT equality would be brittle against however a stack was created). A null
+     * {@code ammoId} is an ordinary SBW shell, where the item IS the identity.
+     */
+    private record AmmoKind(ItemStack prototype, @Nullable ResourceLocation ammoId) {
+
+        boolean matches(ItemStack stack) {
+            if (stack.isEmpty() || !stack.is(this.prototype.getItem())) return false;
+            if (this.ammoId == null) return true;
+            IAmmo ammo = IAmmo.getIAmmoOrNull(stack);
+            return ammo != null && this.ammoId.equals(ammo.getAmmoId(stack));
+        }
+
+        boolean sameAs(AmmoKind other) {
+            return this.prototype.is(other.prototype.getItem())
+                    && java.util.Objects.equals(this.ammoId, other.ammoId);
+        }
+    }
+
+    private record ResupplyTarget(List<AmmoKind> eligible, @Nullable IItemHandler handler) {}
 
     /** Vehicle container as a single {@link IItemHandler} view. */
     private static final class VehicleContainerView implements IItemHandler {

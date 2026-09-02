@@ -44,8 +44,9 @@ public final class FollowLeash {
 
     public static boolean leashed(Mob mob) {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
-        if (FobSupport.hasRoutePending(pmc)) return true;
         if (pmc.getVehicle() != null) return false; // mounted: driven by the vehicle AI, not these goals
+        // Route to FOB is a forced MOVE: fire from where you stand, never chase off the route.
+        if (FobSupport.hasRoutePending(pmc)) return true;
         if (((ISweepInfantry) pmc).sewv$hasInfantrySweep()) return true;
         if (((IPathwayInfantry) pmc).sewv$hasPathway()) return true;
         OrderType order = pmc.getOrder();
@@ -79,8 +80,8 @@ public final class FollowLeash {
      */
     public static boolean enRouteToMove(Mob mob) {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
-        if (FobSupport.hasRoutePending(pmc)) return true;
         if (pmc.getVehicle() != null) return false;
+        if (FobSupport.hasRoutePending(pmc)) return true;
         if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) return false;
         Vec3 dest = pmc.getMoveToTarget();
         if (dest == null || dest.equals(Vec3.ZERO)) return false;

@@ -188,7 +188,8 @@ public class FobManager extends SavedData {
                 it.remove();
                 continue;
             }
-            if (!FobSupport.vehicleOwnedBy(hull, fob.owner)) {
+            // Stolen: an RU/US crew took it, or another player's PMC now crews it.
+            if (!FobSupport.vehicleClaimableBy(hull, fob.owner)) {
                 it.remove();
                 FobDebug.logEntity(hull, "unassigned from FOB — stolen or no longer player-owned");
             }
@@ -236,7 +237,7 @@ public class FobManager extends SavedData {
         if (fob == null) return false;
         Entity e = findEntity(level, vehicleId);
         if (!(e instanceof VehicleEntity hull)) return false;
-        if (!FobSupport.vehicleOwnedBy(hull, fob.owner)) return false;
+        if (!FobSupport.vehicleClaimableBy(hull, fob.owner)) return false;
         fob.assignedVehicles.add(vehicleId);
         FobSupport.stamp(hull, commandPos);
         pruneDeadAssignments(fob, level);
@@ -258,11 +259,34 @@ public class FobManager extends SavedData {
         return true;
     }
 
-    public void toggleFobCommand(BlockPos commandPos) {
+    /**
+     * Flips FOB command. Switching it <b>off</b> also cancels any route in progress: a route
+     * outranks every player order, so this is the stand-down control the "that unit is routing"
+     * rejection points at — without it the only way out of a route that cannot reach the pad would
+     * be to unassign the unit.
+     */
+    public void toggleFobCommand(BlockPos commandPos, ServerLevel level) {
         FobInstance fob = this.fobs.get(commandPos);
         if (fob == null) return;
         fob.fobCommandActive = !fob.fobCommandActive;
+        if (!fob.fobCommandActive) {
+            cancelRoutes(fob, level);
+        }
         setDirty();
+    }
+
+    private void cancelRoutes(FobInstance fob, ServerLevel level) {
+        for (UUID id : fob.assignedLiving) {
+            Entity e = findEntity(level, id);
+            if (e != null) FobSupport.clearRoutePending(e);
+        }
+        for (UUID id : fob.assignedVehicles) {
+            if (findEntity(level, id) instanceof VehicleEntity hull) {
+                for (Entity passenger : hull.getPassengers()) {
+                    FobSupport.clearRoutePending(passenger);
+                }
+            }
+        }
     }
 
     public Iterable<FobInstance> all() {

@@ -13,6 +13,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -36,16 +37,20 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.client.skin.LogoPoolRegistry;
 import com.neoalive.tacz_sewv.crew.NamePools;
+import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketApplyPmcIdentity;
 import com.neoalive.tacz_sewv.network.PacketExitPlatoon;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketReachGuard;
+import com.neoalive.tacz_sewv.network.PacketRequestPmcIdentity;
 import com.neoalive.tacz_sewv.network.PacketSetNameCategory;
 import com.neoalive.tacz_sewv.network.PacketToggleAutoOrders;
 import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
@@ -136,6 +141,13 @@ public class TdtScreen extends Screen {
     private static int lineRowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
     private static String selectedNameCategory = NamePools.RANDOM;
 
+    private static String draftCompanyName = "";
+    private static String draftLogoPool = PmcIdentityPreference.DEFAULT_POOL;
+    private static String draftLogoId = PmcIdentityPreference.DEFAULT_LOGO;
+    private static String savedCompanyName = "";
+    private static String savedLogoPool = PmcIdentityPreference.DEFAULT_POOL;
+    private static String savedLogoId = PmcIdentityPreference.DEFAULT_LOGO;
+
     public static int patrolRadius() {
         return patrolRadius;
     }
@@ -172,6 +184,9 @@ public class TdtScreen extends Screen {
     /** Set instead of {@code floatKind} when the expanded flyout is a platoon group, not a Kind bucket. */
     @Nullable
     private Integer floatPlatoonColor;
+    /** Logo-picker flyout — which pool's icons are shown. */
+    @Nullable
+    private String floatLogoPool;
     private float floatAnim;
     private int floatX;
     private int floatY;
@@ -179,6 +194,28 @@ public class TdtScreen extends Screen {
     private final Map<Integer, Float> platoonRibbonAlpha = new HashMap<>();
     @Nullable
     private String pendingTip;
+
+    @Nullable
+    private EditBox companyField;
+    private int identityExtrasY = -1;
+    private int identityExtrasH;
+
+    /** Server snapshot applied — refreshes draft fields and the company EditBox. */
+    public static void receiveIdentitySync(String company, String pool, String logo, String nameCategory) {
+        savedCompanyName = company;
+        savedLogoPool = pool;
+        savedLogoId = logo;
+        draftCompanyName = company;
+        draftLogoPool = pool;
+        draftLogoId = logo;
+        selectedNameCategory = nameCategory;
+    }
+
+    public void onIdentitySynced() {
+        if (this.companyField != null) {
+            this.companyField.setValue(draftCompanyName);
+        }
+    }
 
     private record OrderEntry(Category cat, String labelKey, @Nullable String tipKey,
                               boolean closes, Runnable action, @Nullable StepperKind stepper,
@@ -231,6 +268,28 @@ public class TdtScreen extends Screen {
         rebuildCells();
         this.scroll = Mth.clamp(this.scroll, 0, maxScroll());
         clearFloat();
+
+        setupIdentityWidgets();
+        NetworkHandler.CHANNEL.sendToServer(new PacketRequestPmcIdentity());
+    }
+
+    private void setupIdentityWidgets() {
+        this.companyField = null;
+        clearWidgets();
+        if (showIdentityExtras() && this.identityExtrasY >= 0) {
+            int inset = this.category == Category.ALL ? 6 : STRIPE_W + 4;
+            this.companyField = new EditBox(this.font, 0, 0,
+                    this.contentInnerW - inset - 80, 16,
+                    Component.translatable("gui.tacz_sewv.tdt.pmc_company"));
+            this.companyField.setMaxLength(30);
+            this.companyField.setValue(draftCompanyName);
+            this.companyField.setResponder(val -> draftCompanyName = val);
+            addRenderableWidget(this.companyField);
+        }
+    }
+
+    private static boolean showIdentityExtras() {
+        return true; // rendered whenever identity section is built (ALL + IDENTITY tabs)
     }
 
     private void buildCatalog() {
@@ -318,6 +377,46 @@ public class TdtScreen extends Screen {
         selectedNameCategory = options.get(idx);
     }
 
+    private static List<String> logoPoolOptions() {
+        List<String> pools = LogoPoolRegistry.poolIds();
+        if (pools.isEmpty()) {
+            return List.of(PmcIdentityPreference.DEFAULT_POOL);
+        }
+        return pools;
+    }
+
+    private static void stepLogoPool(int dir) {
+        List<String> options = logoPoolOptions();
+        int idx = options.indexOf(draftLogoPool);
+        if (idx < 0) idx = 0;
+        idx = Math.floorMod(idx + dir, options.size());
+        draftLogoPool = options.get(idx);
+        List<String> icons = LogoPoolRegistry.iconsIn(draftLogoPool);
+        if (!icons.contains(draftLogoId) && !icons.isEmpty()) {
+            draftLogoId = icons.get(0);
+        }
+    }
+
+    private static void resetIdentityDraft() {
+        draftCompanyName = "";
+        draftLogoPool = PmcIdentityPreference.DEFAULT_POOL;
+        draftLogoId = PmcIdentityPreference.DEFAULT_LOGO;
+    }
+
+    private static boolean identityDirty() {
+        return !draftCompanyName.equals(savedCompanyName)
+                || !draftLogoPool.equals(savedLogoPool)
+                || !draftLogoId.equals(savedLogoId);
+    }
+
+    private void applyIdentityDraft() {
+        if (this.companyField != null) {
+            draftCompanyName = this.companyField.getValue().strip();
+        }
+        NetworkHandler.CHANNEL.sendToServer(
+                new PacketApplyPmcIdentity(draftCompanyName, draftLogoPool, draftLogoId));
+    }
+
     private void add(Category cat, String label, @Nullable String tip, boolean closes, Runnable action) {
         add(cat, label, tip, closes, action, (StepperKind) null);
     }
@@ -335,6 +434,8 @@ public class TdtScreen extends Screen {
     private void rebuildCells() {
         this.cells.clear();
         this.sections.clear();
+        this.identityExtrasY = -1;
+        this.identityExtrasH = 0;
         boolean allView = this.category == Category.ALL;
         int y = 0;
         int inset = allView ? GROUP_STRIPE_W + 2 : 0;
@@ -381,6 +482,11 @@ public class TdtScreen extends Screen {
             if (col != 0) {
                 y += CELL_H + CELL_GAP;
             }
+            if (cat == Category.IDENTITY) {
+                this.identityExtrasY = y;
+                this.identityExtrasH = 4 * (CELL_H + CELL_GAP);
+                y += this.identityExtrasH;
+            }
             // Drop trailing cell gap inside the section.
             int sectionBottom = Math.max(sectionTop + (allView ? HEADER_H : 0), y - CELL_GAP);
             if (allView) {
@@ -391,6 +497,9 @@ public class TdtScreen extends Screen {
             }
         }
         this.contentHeight = Math.max(y - (allView ? SECTION_GAP : 0), 0);
+        if (this.identityExtrasY < 0) {
+            this.identityExtrasH = 0;
+        }
     }
 
     private static int stripeFor(Category cat) {
@@ -508,9 +617,18 @@ public class TdtScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        repositionCompanyField();
+        if (this.companyField != null && this.companyField.mouseClicked(mouseX, mouseY, button)) {
+            setFocused(this.companyField);
+            return true;
+        }
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
 
-        boolean floatOpen = this.floatKind != null || this.floatPlatoonColor != null;
+        boolean floatOpen = this.floatKind != null || this.floatPlatoonColor != null || this.floatLogoPool != null;
+        if (floatOpen && this.floatLogoPool != null && clickLogoFloat(mouseX, mouseY)) {
+            clickSound();
+            return true;
+        }
         if (floatOpen && clickFloat(mouseX, mouseY)) {
             clickSound();
             return true;
@@ -578,6 +696,7 @@ public class TdtScreen extends Screen {
                 this.category = c;
                 this.scroll = 0;
                 rebuildCells();
+                setupIdentityWidgets();
                 return true;
             }
             x += tw + TAB_GAP;
@@ -672,7 +791,122 @@ public class TdtScreen extends Screen {
             if (cell.entry().closes) onClose();
             return true;
         }
-        return false;
+        return clickIdentityExtras(mx, my);
+    }
+
+    private boolean clickIdentityExtras(double mx, double my) {
+        if (this.identityExtrasY < 0) return false;
+        if (my < this.listTop || my > this.listBottom) return false;
+        int originX = this.panelLeft + PAD;
+        int contentX = (int) mx - originX;
+        int contentY = (int) my - this.listTop + this.scroll;
+        int y0 = this.identityExtrasY;
+        if (contentY < y0 || contentY >= y0 + this.identityExtrasH) return false;
+
+        boolean allView = this.category == Category.ALL;
+        int inset = allView ? 6 : STRIPE_W + 4;
+        int innerW = this.contentInnerW - inset;
+        int row = (contentY - y0) / (CELL_H + CELL_GAP);
+        int rowY = y0 + row * (CELL_H + CELL_GAP);
+        if (contentY < rowY || contentY >= rowY + CELL_H) return false;
+
+        int relX = contentX - inset;
+        return switch (row) {
+            case 0 -> {
+                repositionCompanyField();
+                if (this.companyField != null && this.companyField.mouseClicked(mx, my, 0)) {
+                    setFocused(this.companyField);
+                    yield true;
+                }
+                yield false;
+            }
+            case 1 -> clickLogoPoolRow(relX, innerW);
+            case 2 -> clickLogoPreviewRow(relX, innerW, mx, my);
+            case 3 -> clickIdentityFooter(relX, innerW);
+            default -> false;
+        };
+    }
+
+    private boolean clickLogoPoolRow(int relX, int innerW) {
+        int nextLeft = innerW - STEP_BTN;
+        int valueW = this.font.width(draftLogoPool);
+        int prevLeft = nextLeft - 4 - valueW - 4 - STEP_BTN;
+        if (relX >= nextLeft) {
+            stepLogoPool(1);
+            return true;
+        }
+        if (relX >= prevLeft && relX < prevLeft + STEP_BTN) {
+            stepLogoPool(-1);
+            return true;
+        }
+        return true;
+    }
+
+    private boolean clickLogoPreviewRow(int relX, int innerW, double mx, double my) {
+        int iconX = relX;
+        if (relX >= iconX && relX < iconX + FLOAT_ICON) {
+            this.floatLogoPool = draftLogoPool;
+            this.floatKind = null;
+            this.floatPlatoonColor = null;
+            this.floatX = (int) mx;
+            this.floatY = (int) my;
+            this.floatAnim = 0.0F;
+            return true;
+        }
+        return true;
+    }
+
+    private boolean clickIdentityFooter(int relX, int innerW) {
+        int btnW = 52;
+        int gap = 6;
+        int resetLeft = innerW - btnW;
+        int applyLeft = resetLeft - gap - btnW;
+        if (relX >= applyLeft && relX < applyLeft + btnW && identityDirty()) {
+            applyIdentityDraft();
+            return true;
+        }
+        if (relX >= resetLeft && relX < resetLeft + btnW) {
+            resetIdentityDraft();
+            if (this.companyField != null) {
+                this.companyField.setValue(draftCompanyName);
+            }
+            return true;
+        }
+        return true;
+    }
+
+    private boolean clickLogoFloat(double mx, double my) {
+        if (this.floatLogoPool == null) return false;
+        List<String> icons = LogoPoolRegistry.iconsIn(this.floatLogoPool);
+        if (icons.isEmpty()) {
+            clearFloat();
+            return false;
+        }
+        int cols = Math.min(icons.size(), 5);
+        int rows = (icons.size() + cols - 1) / cols;
+        int pad = 6;
+        int fw = Math.max(cols * (FLOAT_ICON + 4) + pad * 2, 90);
+        int fh = (1 + rows) * (FLOAT_ICON + 4) + pad * 2;
+        int fx = Mth.clamp(this.floatX - fw / 2, 4, this.width - fw - 4);
+        int fy = Mth.clamp(this.floatY - fh, 4, this.height - fh - 4);
+        if (mx < fx || mx > fx + fw || my < fy || my > fy + fh) {
+            return false;
+        }
+        int ix = fx + pad;
+        int iy = fy + pad + 16;
+        for (String icon : icons) {
+            if (mx >= ix && mx < ix + FLOAT_ICON && my >= iy && my < iy + FLOAT_ICON) {
+                draftLogoId = icon;
+                clearFloat();
+                return true;
+            }
+            ix += FLOAT_ICON + 4;
+            if (ix + FLOAT_ICON > fx + fw - pad) {
+                ix = fx + pad;
+                iy += FLOAT_ICON + 4;
+            }
+        }
+        return true;
     }
 
     private int stepperMinusLeft(Cell cell) {
@@ -803,6 +1037,7 @@ public class TdtScreen extends Screen {
     private void clearFloat() {
         this.floatKind = null;
         this.floatPlatoonColor = null;
+        this.floatLogoPool = null;
         this.floatAnim = 0.0F;
     }
 
@@ -902,8 +1137,14 @@ public class TdtScreen extends Screen {
         renderTabs(g);
         renderList(g, mouseX, mouseY);
         renderRibbon(g);
-        if (this.floatKind != null || this.floatPlatoonColor != null) {
+        if (this.floatLogoPool != null) {
+            renderLogoFloat(g, mouseX, mouseY);
+        } else if (this.floatKind != null || this.floatPlatoonColor != null) {
             renderFloat(g, mouseX, mouseY);
+        }
+
+        if (this.companyField != null) {
+            this.companyField.render(g, mouseX, mouseY, partialTick);
         }
 
         if (this.pendingTip != null) {
@@ -1005,7 +1246,13 @@ public class TdtScreen extends Screen {
                 this.pendingTip = cell.entry().tipKey;
             }
         }
+
+        if (this.identityExtrasY >= 0) {
+            renderIdentityExtras(g, mouseX, mouseY, allView, labelInset);
+        }
         g.disableScissor();
+
+        repositionCompanyField();
 
         if (maxScroll() > 0) {
             int sx = this.panelLeft + this.panelW - PAD - SCROLLBAR_W;
@@ -1021,6 +1268,162 @@ public class TdtScreen extends Screen {
         g.fill(x, y, x + STEP_BTN, y + 1, COL_BORDER);
         g.fill(x, y + CELL_H - 5, x + STEP_BTN, y + CELL_H - 4, COL_BORDER);
         g.drawCenteredString(this.font, glyph, x + STEP_BTN / 2, y + (CELL_H - 4 - 8) / 2, COL_ACCENT);
+    }
+
+    private void renderIdentityExtras(GuiGraphics g, int mouseX, int mouseY, boolean allView, int labelInset) {
+        int originX = this.panelLeft + PAD;
+        int inset = allView ? 6 : STRIPE_W + 4;
+        int innerW = this.contentInnerW - inset;
+        int y0 = this.identityExtrasY;
+
+        for (int row = 0; row < 4; row++) {
+            int sy = this.listTop + y0 + row * (CELL_H + CELL_GAP) - this.scroll;
+            if (sy + CELL_H < this.listTop || sy > this.listBottom) continue;
+
+            int sx = originX + inset;
+            g.fill(sx, sy, sx + innerW, sy + CELL_H, COL_SURFACE);
+            if (!allView) {
+                g.fill(sx, sy, sx + STRIPE_W, sy + CELL_H, COL_STRIPE);
+            }
+            g.fill(sx, sy + CELL_H - 1, sx + innerW, sy + CELL_H, COL_BORDER);
+
+            boolean hover = mouseX >= sx && mouseX < sx + innerW
+                    && mouseY >= sy && mouseY < sy + CELL_H
+                    && mouseY >= this.listTop && mouseY <= this.listBottom;
+            int textX = sx + labelInset;
+            int textColor = COL_TEXT;
+
+            switch (row) {
+                case 0 -> {
+                    Component label = Component.translatable("gui.tacz_sewv.tdt.pmc_company");
+                    g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
+                    if (hover) {
+                        this.pendingTip = "gui.tacz_sewv.tdt.pmc_company.tip";
+                    }
+                }
+                case 1 -> {
+                    Component label = Component.translatable("gui.tacz_sewv.tdt.logo_pool");
+                    String value = draftLogoPool;
+                    int nextLeft = sx + innerW - inset - STEP_BTN;
+                    int valueW = this.font.width(value);
+                    int prevLeft = nextLeft - 4 - valueW - 4 - STEP_BTN;
+                    g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
+                    drawStepBtn(g, prevLeft, sy + 2, "<", hover);
+                    g.drawCenteredString(this.font, value, prevLeft + STEP_BTN + 4 + valueW / 2,
+                            sy + (CELL_H - 8) / 2, COL_MUTED);
+                    drawStepBtn(g, nextLeft, sy + 2, ">", hover);
+                }
+                case 2 -> {
+                    Component label = Component.translatable("gui.tacz_sewv.tdt.logo_icon");
+                    g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
+                    int iconX = sx + innerW - inset - FLOAT_ICON - 4;
+                    drawLogoIcon(g, draftLogoPool, draftLogoId, iconX, sy + (CELL_H - FLOAT_ICON) / 2, true);
+                    g.drawString(this.font, draftLogoId, iconX - 4 - this.font.width(draftLogoId),
+                            sy + (CELL_H - 8) / 2, COL_MUTED, false);
+                    if (hover) {
+                        this.pendingTip = "gui.tacz_sewv.tdt.logo_icon.tip";
+                    }
+                }
+                case 3 -> {
+                    int btnW = 52;
+                    int gap = 6;
+                    int resetLeft = sx + innerW - inset - btnW;
+                    int applyLeft = resetLeft - gap - btnW;
+                    boolean dirty = identityDirty();
+                    g.fill(applyLeft, sy + 2, applyLeft + btnW, sy + CELL_H - 2,
+                            dirty ? COL_ACCENT : COL_MUTED);
+                    g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.identity_apply"),
+                            applyLeft + btnW / 2, sy + (CELL_H - 8) / 2, COL_BASE);
+                    g.fill(resetLeft, sy + 2, resetLeft + btnW, sy + CELL_H - 2, COL_SURFACE);
+                    g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.identity_reset"),
+                            resetLeft + btnW / 2, sy + (CELL_H - 8) / 2, COL_TEXT);
+                }
+                default -> {
+                }
+            }
+        }
+    }
+
+    private void drawLogoIcon(GuiGraphics g, String pool, String icon, int x, int y, boolean selected) {
+        ResourceLocation tex = LogoPoolRegistry.texture(pool, icon);
+        if (tex == null) {
+            g.fill(x, y, x + FLOAT_ICON, y + FLOAT_ICON, COL_MUTED);
+            return;
+        }
+        if (selected) {
+            g.fill(x - 1, y - 1, x + FLOAT_ICON + 1, y + FLOAT_ICON + 1, COL_ACCENT);
+        }
+        g.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+        g.blit(tex, x, y, 0, 0, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON);
+    }
+
+    private void renderLogoFloat(GuiGraphics g, int mouseX, int mouseY) {
+        if (this.floatLogoPool == null) return;
+        List<String> icons = LogoPoolRegistry.iconsIn(this.floatLogoPool);
+        if (icons.isEmpty()) return;
+
+        int cols = Math.min(icons.size(), 5);
+        int rows = (icons.size() + cols - 1) / cols;
+        int pad = 6;
+        int fw = Math.max(cols * (FLOAT_ICON + 4) + pad * 2, 90);
+        int fh = (1 + rows) * (FLOAT_ICON + 4) + pad * 2;
+        int fx = Mth.clamp(this.floatX - fw / 2, 4, this.width - fw - 4);
+        int fy = Mth.clamp(this.floatY - fh - (int) ((1.0F - this.floatAnim) * 12.0F), 4, this.height - fh - 4);
+        int alpha = (int) (this.floatAnim * 220) << 24;
+        g.fill(fx, fy, fx + fw, fy + fh, alpha | 0x101820);
+        g.fill(fx, fy, fx + fw, fy + 1, COL_BORDER);
+        g.drawString(this.font, I18n.get("gui.tacz_sewv.tdt.logo_pick"), fx + pad, fy + pad, COL_ACCENT, false);
+
+        int ix = fx + pad;
+        int iy = fy + pad + 16;
+        for (String icon : icons) {
+            boolean hover = mouseX >= ix && mouseX < ix + FLOAT_ICON && mouseY >= iy && mouseY < iy + FLOAT_ICON;
+            boolean selected = icon.equals(draftLogoId);
+            drawLogoIcon(g, this.floatLogoPool, icon, ix, iy, selected || hover);
+            if (hover) {
+                g.drawString(this.font, icon, fx + pad, fy + fh - 12, COL_MUTED, false);
+            }
+            ix += FLOAT_ICON + 4;
+            if (ix + FLOAT_ICON > fx + fw - pad) {
+                ix = fx + pad;
+                iy += FLOAT_ICON + 4;
+            }
+        }
+    }
+
+    private void repositionCompanyField() {
+        if (this.companyField == null || this.identityExtrasY < 0) return;
+        boolean allView = this.category == Category.ALL;
+        int inset = allView ? 6 : STRIPE_W + 4;
+        int labelInset = inset;
+        int originX = this.panelLeft + PAD;
+        String label = I18n.get("gui.tacz_sewv.tdt.pmc_company");
+        int labelW = this.font.width(label);
+        int rowY = this.listTop + this.identityExtrasY - this.scroll;
+        int fieldX = originX + inset + labelInset + labelW + 4;
+        int fieldW = Math.max(40, this.contentInnerW - inset - labelInset - labelW - 8);
+        this.companyField.setX(fieldX);
+        this.companyField.setY(rowY + (CELL_H - 16) / 2);
+        this.companyField.setWidth(fieldW);
+        this.companyField.setVisible(rowY + CELL_H >= this.listTop && rowY <= this.listBottom);
+    }
+
+    @Override
+    public boolean charTyped(char codePoint, int modifiers) {
+        repositionCompanyField();
+        if (this.companyField != null && this.companyField.charTyped(codePoint, modifiers)) {
+            return true;
+        }
+        return super.charTyped(codePoint, modifiers);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        repositionCompanyField();
+        if (this.companyField != null && this.companyField.keyPressed(keyCode, scanCode, modifiers)) {
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private void renderRibbon(GuiGraphics g) {

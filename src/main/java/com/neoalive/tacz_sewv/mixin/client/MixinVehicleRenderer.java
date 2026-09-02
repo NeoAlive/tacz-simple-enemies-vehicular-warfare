@@ -1,15 +1,19 @@
 package com.neoalive.tacz_sewv.mixin.client;
 
+import java.util.List;
+
 import com.atsuishio.superbwarfare.client.renderer.entity.GeoVehicleRenderer;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.common.ForgeConfigSpec;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -29,6 +33,12 @@ import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
  *
  * <p>{@code @ModifyArg} can only see the invoke's own args, so the hull is stashed for the
  * duration of {@code render} rather than listed on the arg handlers.
+ *
+ * <p>SBW hides {@code *_dogTag_*} bones on purpose (they are placement anchors) and only draws
+ * the custom icon overlay when {@code DisplayConfig.DOG_TAG_ICON_VISIBLE} is on — that toggle
+ * defaults to false and is documented as a kill-message preference. The single
+ * {@code BooleanValue.get()} in {@code render} is that gate; when the hull already carries a
+ * non-blank dogTag grid (player item or our PMC stamp), force the overlay on.
  */
 @Mixin(value = GeoVehicleRenderer.class, remap = false)
 public abstract class MixinVehicleRenderer {
@@ -45,6 +55,37 @@ public abstract class MixinVehicleRenderer {
     @Inject(method = "render", at = @At("RETURN"), remap = false)
     private void tacz_sewv$clearHull(CallbackInfo ci) {
         tacz_sewv$rendering.remove();
+    }
+
+    /** Only {@code BooleanValue.get()} in {@code GeoVehicleRenderer.render} is the dogTag gate. */
+    @Redirect(
+            method = "render",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraftforge/common/ForgeConfigSpec$BooleanValue;get()Ljava/lang/Object;",
+                    remap = false
+            ),
+            remap = false
+    )
+    private Object tacz_sewv$forceDogTagIconVisible(ForgeConfigSpec.BooleanValue value) {
+        VehicleEntity hull = tacz_sewv$rendering.get();
+        if (hull != null && tacz_sewv$hasDogTagArt(hull)) {
+            return Boolean.TRUE;
+        }
+        return value.get();
+    }
+
+    @Unique
+    private static boolean tacz_sewv$hasDogTagArt(VehicleEntity hull) {
+        List<List<Short>> grid = hull.getDogTagIcon();
+        if (grid == null || grid.isEmpty()) return false;
+        for (List<Short> col : grid) {
+            if (col == null) continue;
+            for (Short s : col) {
+                if (s != null && s != -1) return true;
+            }
+        }
+        return false;
     }
 
     @ModifyArg(

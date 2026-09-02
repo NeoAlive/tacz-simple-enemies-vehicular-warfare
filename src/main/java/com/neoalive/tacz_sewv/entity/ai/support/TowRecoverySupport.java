@@ -369,6 +369,10 @@ public final class TowRecoverySupport {
 
         if (!linked) {
             BlockPos approach = approachDestination(tower, victim);
+            if (approach == null) {
+                vehicleDriver.stop();
+                return;
+            }
             double approachDistSq = horizontalDistSq(tower, approach);
             if (dist > linkDist * 0.85) {
                 vehicleDriver.navigateTo(approach, approachDistSq);

@@ -308,6 +308,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue FOB_MASTER_SIZE;
     public static final ForgeConfigSpec.IntValue FOB_STOCKPILE_SIZE;
     public static final ForgeConfigSpec.IntValue FOB_PARKING_SIZE;
+    public static final ForgeConfigSpec.DoubleValue FOB_BUFFER_FACTOR;
     public static final ForgeConfigSpec.IntValue FOB_THREAT_THRESHOLD;
     public static final ForgeConfigSpec.IntValue FOB_ALARM_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue FOB_THREAT_EVAL_INTERVAL_TICKS;
@@ -1187,6 +1188,11 @@ public final class SewvConfig {
                 .defineInRange("fobStockpileSize", 10, 1, 64);
         FOB_PARKING_SIZE = builder.comment("Horizontal span of the parking sub-area (blocks, centered on block).")
                 .defineInRange("fobParkingSize", 15, 1, 64);
+        FOB_BUFFER_FACTOR = builder.comment(
+                        "Threat-detection span as a multiple of fobMasterSize. The master area is the base"
+                                + " itself; the buffer is how far out the garrison watches, so it wants to be"
+                                + " wider than the ground it defends.")
+                .defineInRange("fobBufferFactor", 2.0, 1.0, 8.0);
         FOB_THREAT_THRESHOLD = builder.comment("Threat score at or above this triggers scramble.")
                 .defineInRange("fobThreatThreshold", 100, 1, 10000);
         FOB_ALARM_COOLDOWN_TICKS = builder.comment("Minimum ticks between FOB alarm sounds (20 = 1 second).")

@@ -51,9 +51,19 @@ public final class FobSupport {
                 cx + half, level.getMaxBuildHeight(), cz + half);
     }
 
+    /**
+     * How much wider than the master area the garrison watches. A base sees an attack coming from
+     * outside its own fence or it does not see it coming at all — the buffer used to be the master
+     * area itself, so the first warning was a hostile already standing among the huts.
+     */
+    public static int bufferSize() {
+        return Math.max(masterSize(),
+                (int) Math.round(masterSize() * SewvConfig.FOB_BUFFER_FACTOR.get()));
+    }
+
     public static void refreshCachedAabbs(FobInstance fob, Level level) {
         fob.cachedMasterAabb = horizontalAabb(fob.commandPos, masterSize(), level);
-        fob.cachedBufferAabb = fob.cachedMasterAabb;
+        fob.cachedBufferAabb = horizontalAabb(fob.commandPos, bufferSize(), level);
         fob.cachedStockpileAabb = fob.stockpilePos != null
                 ? horizontalAabb(fob.stockpilePos, stockpileSize(), level) : null;
         fob.cachedParkingAabb = fob.parkingPos != null

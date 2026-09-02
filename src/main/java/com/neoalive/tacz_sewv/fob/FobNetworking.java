@@ -12,6 +12,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -96,20 +97,30 @@ public final class FobNetworking {
                 vehicles);
     }
 
+    /**
+     * The FOB's own AABB, or null when the layout has not resolved one. Both list scans are box
+     * queries against the FOB's <b>own</b> level: they used to walk {@code getAllEntities()} of
+     * every dimension and then test the position against the home dimension's box, which both
+     * cost a full entity sweep per GUI refresh and listed anything sitting at the same X/Z in the
+     * Nether.
+     */
+    @Nullable
+    private static AABB masterBox(FobInstance fob, ServerLevel home) {
+        FobSupport.refreshCachedAabbs(fob, home);
+        return fob.cachedMasterAabb;
+    }
+
     private static List<FobGuiSnapshot.LivingRow> collectLiving(ServerPlayer player, FobInstance fob) {
         List<FobGuiSnapshot.LivingRow> living = new ArrayList<>();
         ServerLevel home = player.serverLevel();
-        FobSupport.refreshCachedAabbs(fob, home);
-        for (ServerLevel dim : player.server.getAllLevels()) {
-            for (Entity e : dim.getAllEntities()) {
-                if (!(e instanceof PmcUnitEntity pmc)) continue;
-                if (!PmcOwnerSupport.isOwner(player, pmc)) continue;
-                if (!FobSupport.withinMasterAabb(fob, pmc, home)) continue;
-                living.add(new FobGuiSnapshot.LivingRow(
-                        pmc.getUUID(),
-                        pmc.getName().getString(),
-                        fob.assignedLiving.contains(pmc.getUUID())));
-            }
+        AABB box = masterBox(fob, home);
+        if (box == null) return living;
+        for (PmcUnitEntity pmc : home.getEntitiesOfClass(PmcUnitEntity.class, box)) {
+            if (!PmcOwnerSupport.isOwner(player, pmc)) continue;
+            living.add(new FobGuiSnapshot.LivingRow(
+                    pmc.getUUID(),
+                    pmc.getName().getString(),
+                    fob.assignedLiving.contains(pmc.getUUID())));
         }
         living.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
         return living;
@@ -118,17 +129,16 @@ public final class FobNetworking {
     private static List<FobGuiSnapshot.VehicleRow> collectVehicles(ServerPlayer player, FobInstance fob) {
         List<FobGuiSnapshot.VehicleRow> vehicles = new ArrayList<>();
         ServerLevel home = player.serverLevel();
-        FobSupport.refreshCachedAabbs(fob, home);
-        for (ServerLevel dim : player.server.getAllLevels()) {
-            for (Entity e : dim.getAllEntities()) {
-                if (!(e instanceof VehicleEntity hull)) continue;
-                if (!FobSupport.vehicleOwnedBy(hull, player.getUUID())) continue;
-                if (!FobSupport.withinMasterAabb(fob, hull, home)) continue;
-                String reg = hull.getType().toString();
-                String posText = positionText(hull);
-                boolean assigned = fob.assignedVehicles.contains(hull.getUUID());
-                vehicles.add(new FobGuiSnapshot.VehicleRow(hull.getUUID(), reg, assigned, posText));
-            }
+        AABB box = masterBox(fob, home);
+        if (box == null) return vehicles;
+        for (VehicleEntity hull : home.getEntitiesOfClass(VehicleEntity.class, box)) {
+            if (!hull.isAlive() || hull.isWreck()) continue;
+            // Anything standing in the FOB that is not somebody else's. An uncrewed hull carries
+            // no ownership signal at all, so the perimeter is what makes it yours; an RU/US crew
+            // is what makes it theirs.
+            if (!FobSupport.vehicleClaimableBy(hull, player.getUUID())) continue;
+            vehicles.add(new FobGuiSnapshot.VehicleRow(hull.getUUID(), hull.getType().toString(),
+                    fob.assignedVehicles.contains(hull.getUUID()), positionText(hull)));
         }
         vehicles.sort((a, b) -> a.registryId().compareToIgnoreCase(b.registryId()));
         return vehicles;
@@ -145,22 +155,28 @@ public final class FobNetworking {
         if (fob == null || fob.parkingPos == null) return 0;
         Vec3 parkDest = Vec3.atBottomCenterOf(fob.parkingPos);
 
-        java.util.Set<UUID> driving = new java.util.HashSet<>();
+        // Everyone aboard a hull that is driving itself home, driver included. Only the driver
+        // takes the order, but the rest of the crew must be left alone: the infantry pass below
+        // dismounts what it touches, and dismounting a gunner would send the tank off unmanned.
+        java.util.Set<UUID> riding = new java.util.HashSet<>();
         int vehicles = 0;
         for (UUID vehicleId : fob.assignedVehicles) {
             Entity e = findEntity(level, vehicleId);
             if (!(e instanceof VehicleEntity hull)) continue;
-            Entity driver = hull.getFirstPassenger();
-            if (!(driver instanceof PmcUnitEntity pmc)) continue;
-            if (!fob.assignedLiving.contains(pmc.getUUID())) continue;
-            orderRouteMove(pmc, parkDest, commandPos);
-            driving.add(pmc.getUUID());
+            if (!(hull.getFirstPassenger() instanceof PmcUnitEntity driver)) continue;
+            // The hull's assignment is the authority here, not the driver's — a crew the player
+            // never stamped still drives an assigned tank home.
+            if (!player.getUUID().equals(driver.getOwnerUUID())) continue;
+            orderRouteMove(driver, parkDest, commandPos);
             vehicles++;
+            for (Entity passenger : hull.getPassengers()) {
+                riding.add(passenger.getUUID());
+            }
         }
 
         int infantry = 0;
         for (UUID livingId : fob.assignedLiving) {
-            if (driving.contains(livingId)) continue;
+            if (riding.contains(livingId)) continue;
             Entity e = findEntity(level, livingId);
             if (!(e instanceof PmcUnitEntity pmc)) continue;
             dismountForRoute(pmc);

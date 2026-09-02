@@ -10,11 +10,13 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-import org.jetbrains.annotations.NotNull;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
@@ -24,6 +26,7 @@ public final class FobSupport {
 
     public static final String TAG_CMD = "sewv:fob_cmd";
     public static final String TAG_ROUTE = "sewv:fob_route";
+    public static final String TAG_ROUTE_DEADLINE = "sewv:fob_route_until";
 
     private FobSupport() {}
 
@@ -75,12 +78,26 @@ public final class FobSupport {
         return entity.getPersistentData().contains(TAG_CMD);
     }
 
+    /**
+     * How long a route may run before it gives up, in game ticks (5 minutes). A route outranks
+     * every order and every combat decision, and the only thing that ends one is arriving at the
+     * pad — so a unit that cannot path there (fenced in, stranded across water, pad rebuilt out
+     * from under it) would otherwise refuse the player's orders for the rest of the save with
+     * nothing to explain it but a bench unassign.
+     */
+    private static final long ROUTE_TIMEOUT_TICKS = 6000L;
+
     public static void markRoutePending(Entity entity, BlockPos commandPos) {
         entity.getPersistentData().putLong(TAG_ROUTE, commandPos.asLong());
+        // Absolute game time, not a countdown: nothing ticks this down, and it has to mean the
+        // same moment after a save/load.
+        entity.getPersistentData().putLong(TAG_ROUTE_DEADLINE,
+                entity.level().getGameTime() + ROUTE_TIMEOUT_TICKS);
     }
 
     public static void clearRoutePending(Entity entity) {
         entity.getPersistentData().remove(TAG_ROUTE);
+        entity.getPersistentData().remove(TAG_ROUTE_DEADLINE);
     }
 
     public static boolean hasRoutePending(Entity entity) {
@@ -163,12 +180,12 @@ public final class FobSupport {
             FobDebug.logEntity(pmc, "cleared route — missing command pos tag");
             return true;
         }
-        if (!isStamped(pmc)) {
+        long deadline = pmc.getPersistentData().getLong(TAG_ROUTE_DEADLINE);
+        if (deadline > 0L && level.getGameTime() > deadline) {
             clearRoutePending(pmc);
-            FobDebug.logEntity(pmc, "cleared route — not stamped");
+            FobDebug.logEntity(pmc, "cleared route — timed out before reaching the parking pad");
             return true;
         }
-
         FobInstance fob = FobManager.get(level).getFob(routeCmd);
         if (fob == null) {
             clearRoutePending(pmc);
@@ -180,7 +197,11 @@ public final class FobSupport {
             FobDebug.logEntity(pmc, "cleared route — invalid FOB or missing parking");
             return true;
         }
-        if (!fob.assignedLiving.contains(pmc.getUUID())) {
+        // Either the unit is assigned, or it is driving an assigned hull home. The second case is
+        // why neither this nor a stamp check can stand alone: "Route Vehicles to FOB" is gated on
+        // ASSIGNED VEHICLES, and a tank whose crew the player never stamped still has to drive
+        // back — otherwise the order silently does nothing for exactly the hulls it advertises.
+        if (!fob.assignedLiving.contains(pmc.getUUID()) && !drivesAssignedHull(pmc, fob)) {
             clearRoutePending(pmc);
             FobDebug.logEntity(pmc, "cleared route — unassigned");
             return true;
@@ -190,6 +211,12 @@ public final class FobSupport {
             return true;
         }
         return false;
+    }
+
+    private static boolean drivesAssignedHull(PmcUnitEntity pmc, FobInstance fob) {
+        return pmc.getVehicle() instanceof VehicleEntity hull
+                && hull.getFirstPassenger() == pmc
+                && fob.assignedVehicles.contains(hull.getUUID());
     }
 
     @Nullable
@@ -228,27 +255,42 @@ public final class FobSupport {
         return null;
     }
 
-    /** RU/US-crewed hulls are off limits — a stolen assigned vehicle reads as locked. */
+    /**
+     * A hull with <b>any</b> RU/US passenger is locked — stolen, or enemy armour parked in the
+     * perimeter. Deliberately per-passenger rather than {@link CrewFacts#factionOf}, which needs a
+     * unanimous crew and so reads a half-captured hull as nobody's.
+     */
     public static boolean isVehicleLocked(VehicleEntity hull) {
-        CrewFacts.Faction faction = CrewFacts.factionOf(hull);
-        return faction == CrewFacts.Faction.RU || faction == CrewFacts.Faction.US;
+        for (Entity passenger : hull.getPassengers()) {
+            CrewFacts.Faction faction = CrewFacts.factionOfCrew(passenger);
+            if (faction == CrewFacts.Faction.RU || faction == CrewFacts.Faction.US) return true;
+        }
+        return false;
     }
 
     /**
-     * Player ownership for a crewed PMC hull or an empty hull whose last driver was that player
-     * (or their PMC). Mixed crews, RU/US occupation, and ownerless PMC garrison hulls answer false.
+     * Whether a player may assign this hull to their FOB. Looser than
+     * {@link #playerOwnerOfEmptyHull} on purpose: the parking field lists what is <b>standing in
+     * the FOB</b>, and a hull that has never been driven has no ownership signal at all (SBW has
+     * no owner field — only {@code lastDriver}, which is why a freshly spawned tank parked on the
+     * pad used not to appear in the list at all). The master-AABB test at the call site is what
+     * makes "anything here" a safe rule, so this only has to reject what is somebody else's:
+     * enemy-crewed hulls, another player's PMC crew, and another player riding it.
      */
-    public static boolean vehicleOwnedBy(@NotNull VehicleEntity hull, UUID playerId) {
+    public static boolean vehicleClaimableBy(VehicleEntity hull, UUID playerId) {
         if (isVehicleLocked(hull)) return false;
-        UUID owner = CrewFacts.pmcOwner(hull);
-        if (owner != null) return owner.equals(playerId);
-        UUID empty = playerOwnerOfEmptyHull(hull);
-        return playerId.equals(empty);
+        UUID pmcOwner = CrewFacts.pmcOwner(hull);
+        if (pmcOwner != null) return pmcOwner.equals(playerId);
+        for (Entity passenger : hull.getPassengers()) {
+            if (passenger instanceof Player rider) return rider.getUUID().equals(playerId);
+        }
+        return true;
     }
 
     /**
      * Last driver UUID for an empty hull, or null when passengers remain, the last driver is not
-     * a player/PMC, or the hull is enemy-crewed.
+     * a player/PMC, or the hull is enemy-crewed. This is the strict test, used for map markers —
+     * an empty hull anywhere in the world is only yours if you have actually driven it.
      */
     @Nullable
     public static UUID playerOwnerOfEmptyHull(VehicleEntity hull) {
@@ -262,6 +304,20 @@ public final class FobSupport {
     /** Route-to-FOB keeps driving the parking waypoint through contact — fire only, no chase. */
     public static boolean holdsRouteThroughContact(AbstractUnit unit) {
         return unit instanceof PmcUnitEntity pmc && hasRoutePending(pmc);
+    }
+
+    /**
+     * A live MOVE_TO_POSITION click, which outranks every piece of FOB automation — patrol,
+     * walking to the stockpile, and mounting up on a scramble. The player pointing at a spot is
+     * the most explicit instruction in the game and has to beat behaviour the base decided on its
+     * own; a route is the one thing above it, and it clears the order when it starts.
+     */
+    public static boolean underPlayerMoveOrder(AbstractUnit unit) {
+        if (hasRoutePending(unit)) return false;
+        if (!(unit instanceof PmcUnitEntity pmc)) return false;
+        if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) return false;
+        Vec3 dest = pmc.getMoveToTarget();
+        return dest != null && !dest.equals(Vec3.ZERO);
     }
 
     public static boolean isHostileToOwner(AbstractUnit perspective, LivingEntity target) {

@@ -31,7 +31,7 @@ public class PacketToggleFobCommand {
             ServerPlayer player = ctx.get().getSender();
             if (player == null) return;
             if (!FobNetworking.isOwner(player, this.commandPos, player.serverLevel())) return;
-            FobManager.get(player.serverLevel()).toggleFobCommand(this.commandPos);
+            FobManager.get(player.serverLevel()).toggleFobCommand(this.commandPos, player.serverLevel());
             FobNetworking.sendRefresh(player, this.commandPos, com.neoalive.tacz_sewv.fob.FobGuiSnapshot.GuiKind.COMMAND);
         });
         ctx.get().setPacketHandled(true);

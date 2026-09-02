@@ -3,18 +3,31 @@ package com.neoalive.tacz_sewv.util;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.VehicleType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.crew.CrewFacts;
+
 /**
  * Soft-kill reaction to SBW lock / missile warnings: pop smoke (ground) or flares (air)
  * the same way a player holding the decoy key would. Processes immediately so an AI goal
  * that clears {@code decoyInputDown} the same tick cannot cancel the volley.
+ *
+ * <p><b>AI crews only.</b> Player-driven, empty and mixed hulls are skipped — lock and missile
+ * warnings fire on a cadence (every ~3 ticks while locking; distance-scaled for in-flight
+ * missiles), so without that gate a player hull would dump its launcher without the key.
+ * One volley per threat episode; the same cadence would otherwise empty the magazine across
+ * reloads for a single lock.
  */
 public final class ThreatDecoy {
+
+    /** Salvos within this window are one episode — mirrors the decoy voiceline grace. */
+    private static final int EPISODE_TICKS = 120;
+    private static final String EPISODE_KEY = "sewv:threat_decoy_ep";
 
     private ThreatDecoy() {}
 
@@ -37,11 +50,22 @@ public final class ThreatDecoy {
         }
     }
 
-    /** @return true if a volley was armed (ready launcher) */
+    /** @return true if a volley was armed (ready AI-crewed launcher) */
     public static boolean pop(VehicleEntity hull) {
         if (hull.level().isClientSide || !hull.hasDecoy() || hull.getDecoyCount() <= 0) {
             return false;
         }
+        // Empty / mixed / player aboard — CrewFacts already answers null for all three.
+        if (CrewFacts.factionOf(hull) == null) {
+            return false;
+        }
+        CompoundTag data = hull.getPersistentData();
+        long now = hull.level().getGameTime();
+        if (now < data.getLong(EPISODE_KEY)) {
+            return false;
+        }
+        data.putLong(EPISODE_KEY, now + EPISODE_TICKS);
+
         hull.setDecoyInputDown(true);
         VehicleType type = hull.getVehicleType();
         if (type == VehicleType.AIRPLANE || type == VehicleType.HELICOPTER) {

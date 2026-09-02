@@ -67,15 +67,29 @@ public final class TdtSelection {
         return SELECTED.contains(id);
     }
 
-    /** Refresh the nearby owned-PMC list. Prunes selection to ids still present. */
+    /** Refresh the nearby owned-PMC list. Prunes only selection the client can prove is gone. */
     public static void scan() {
+        pruneSelection();
         scanned = scanEntries(SCAN_RADIUS);
-        Set<Integer> alive = new HashSet<>();
-        for (Entry e : scanned) {
-            alive.add(e.id());
-        }
-        SELECTED.retainAll(alive);
         syncGlow();
+    }
+
+    /**
+     * Drops a selected id only when the client can <b>see</b> it is no longer an owned live PMC.
+     * An id the client has no entity for is out of tracking range, not gone — this used to be a
+     * {@code retainAll} against the scan, so a selection quietly emptied itself the moment a unit
+     * drove past the tracking distance and every bulk order (Route Vehicles to FOB especially)
+     * became a no-op with nothing on screen to explain it.
+     */
+    private static void pruneSelection() {
+        Minecraft mc = Minecraft.getInstance();
+        Player player = mc.player;
+        if (player == null || mc.level == null) return;
+        SELECTED.removeIf(id -> {
+            Entity e = mc.level.getEntity(id);
+            if (e == null) return false;
+            return !(e instanceof PmcUnitEntity pmc) || !pmc.isAlive() || !pmc.isOwnedBy(player);
+        });
     }
 
     /**
@@ -267,8 +281,34 @@ public final class TdtSelection {
             out.add(new Entry(pmc.getId(), kindOf(pmc), pmc instanceof PmcCommanderEntity, platoonColor,
                     vehicleId, name));
         }
+        // A unit that is already selected stays listed however far away it is. The scan reaches
+        // only as far as the client tracks entities, while the map — where the selection is usually
+        // made — reaches the whole explored world, so without this the ribbon shows an empty
+        // selection for units the player can plainly see marked on the map.
+        Set<Integer> present = new HashSet<>();
+        for (Entry e : out) {
+            present.add(e.id());
+        }
+        for (int id : SELECTED) {
+            if (!present.add(id)) continue;
+            out.add(offRangeEntry(id));
+        }
         out.sort((a, b) -> Integer.compare(a.id(), b.id()));
         return List.copyOf(out);
+    }
+
+    /**
+     * Ribbon entry for a selected unit the client has no entity for. {@link MapMarkers} still
+     * carries it (the server syncs every own hull regardless of distance), so kind and platoon
+     * survive; an infantry marker is its own "vehicle", hence the dismounted {@code -1}.
+     */
+    private static Entry offRangeEntry(int id) {
+        VehicleMarker marker = MapMarkers.markerForDriver(id);
+        if (marker == null) {
+            return new Entry(id, VehicleMarker.Kind.INFANTRY, false, 0, -1, "");
+        }
+        int vehicleId = marker.kind().isInfantry() ? -1 : marker.vehicleId();
+        return new Entry(id, marker.kind(), marker.isCommanderUnit(), marker.platoonColorRgb(), vehicleId, "");
     }
 
     private static VehicleMarker.Kind infantryKind(PmcUnitEntity unit) {

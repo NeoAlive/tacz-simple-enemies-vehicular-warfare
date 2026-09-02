@@ -43,7 +43,12 @@ public class FobResupplyGoal extends Goal {
         if (this.unit.level().isClientSide()) return false;
         VehicleEntity hull = this.unit.getVehicle() instanceof VehicleEntity v ? v : null;
         if (FobResupplySupport.shouldResupply(this.unit, hull)) return true;
-        return this.destination != null && hull == null && !this.unit.isPassenger();
+        if (hull != null || this.unit.isPassenger()) return false;
+        // Re-resolve rather than trusting what canUse cached. This goal holds MOVE, and a stale
+        // destination kept holding it after the need had passed — or after the player gave a MOVE
+        // order, which resupply now stands aside for.
+        this.destination = FobResupplySupport.resupplyDestination(this.unit, null);
+        return this.destination != null;
     }
 
     @Override

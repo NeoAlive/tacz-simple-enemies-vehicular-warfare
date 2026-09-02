@@ -8,6 +8,7 @@ import net.minecraftforge.registries.RegistryObject;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.block.EmplacementBlockEntity;
+import com.neoalive.tacz_sewv.block.FobDecorBlockEntity;
 import com.neoalive.tacz_sewv.block.RunwayBlockEntity;
 import com.neoalive.tacz_sewv.block.SandbagBlockEntity;
 import com.neoalive.tacz_sewv.block.SpawnProbeBlockEntity;
@@ -52,5 +53,11 @@ public class ModBlockEntities {
     public static final RegistryObject<BlockEntityType<StockpileBlockEntity>> STOCKPILE =
             BLOCK_ENTITIES.register("stockpile_ammo",
                     () -> BlockEntityType.Builder.of(StockpileBlockEntity::new, ModBlocks.STOCKPILE_AMMO.get())
+                            .build(null));
+
+    public static final RegistryObject<BlockEntityType<FobDecorBlockEntity>> FOB_DECOR =
+            BLOCK_ENTITIES.register("fob_decor",
+                    () -> BlockEntityType.Builder.of(FobDecorBlockEntity::new,
+                                    ModBlocks.QUARTERS_BENCH.get(), ModBlocks.PARKING_FIELD.get())
                             .build(null));
 }

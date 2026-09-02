@@ -23,6 +23,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 public final class FobSupport {
 
     public static final String TAG_CMD = "sewv:fob_cmd";
+    public static final String TAG_ROUTE = "sewv:fob_route";
 
     private FobSupport() {}
 
@@ -74,6 +75,33 @@ public final class FobSupport {
         return entity.getPersistentData().contains(TAG_CMD);
     }
 
+    public static void markRoutePending(Entity entity, BlockPos commandPos) {
+        entity.getPersistentData().putLong(TAG_ROUTE, commandPos.asLong());
+    }
+
+    public static void clearRoutePending(Entity entity) {
+        entity.getPersistentData().remove(TAG_ROUTE);
+    }
+
+    public static boolean hasRoutePending(Entity entity) {
+        return entity.getPersistentData().contains(TAG_ROUTE);
+    }
+
+    @Nullable
+    public static BlockPos routeCommandPos(Entity entity) {
+        if (!entity.getPersistentData().contains(TAG_ROUTE)) return null;
+        return BlockPos.of(entity.getPersistentData().getLong(TAG_ROUTE));
+    }
+
+    public static boolean withinMasterAabb(FobInstance fob, Entity entity, Level level) {
+        AABB box = fob.cachedMasterAabb;
+        if (box == null) {
+            refreshCachedAabbs(fob, level);
+            box = fob.cachedMasterAabb;
+        }
+        return box != null && box.contains(entity.getX(), entity.getY(), entity.getZ());
+    }
+
     @Nullable
     public static FobInstance fobForEntity(Entity entity, Level level) {
         BlockPos cmd = stampPos(entity);
@@ -107,8 +135,68 @@ public final class FobSupport {
     }
 
     @Nullable
+    public static AABB parkingPad(FobInstance fob, Level level) {
+        if (fob.parkingPos == null) return null;
+        if (fob.cachedParkingAabb == null) {
+            refreshCachedAabbs(fob, level);
+        }
+        return fob.cachedParkingAabb;
+    }
+
+    /** True when {@code entity} is inside the parking pad (not the center block). */
+    public static boolean withinParkingPad(FobInstance fob, Entity entity, Level level) {
+        AABB pad = parkingPad(fob, level);
+        if (pad == null) return false;
+        return pad.inflate(0.5).contains(entity.getX(), entity.getY(), entity.getZ());
+    }
+
+    /**
+     * Clears stale route tags (dead FOB, unassigned unit, missing parking, etc.) and returns
+     * {@code true} when the tag was removed.
+     */
+    public static boolean sanitizeRoutePending(PmcUnitEntity pmc, ServerLevel level) {
+        if (!hasRoutePending(pmc)) return false;
+
+        BlockPos routeCmd = routeCommandPos(pmc);
+        if (routeCmd == null) {
+            clearRoutePending(pmc);
+            FobDebug.logEntity(pmc, "cleared route — missing command pos tag");
+            return true;
+        }
+        if (!isStamped(pmc)) {
+            clearRoutePending(pmc);
+            FobDebug.logEntity(pmc, "cleared route — not stamped");
+            return true;
+        }
+
+        FobInstance fob = FobManager.get(level).getFob(routeCmd);
+        if (fob == null) {
+            clearRoutePending(pmc);
+            FobDebug.logEntity(pmc, "cleared route — FOB gone");
+            return true;
+        }
+        if (!fob.valid || fob.parkingPos == null) {
+            clearRoutePending(pmc);
+            FobDebug.logEntity(pmc, "cleared route — invalid FOB or missing parking");
+            return true;
+        }
+        if (!fob.assignedLiving.contains(pmc.getUUID())) {
+            clearRoutePending(pmc);
+            FobDebug.logEntity(pmc, "cleared route — unassigned");
+            return true;
+        }
+        if (!pmc.isAlive()) {
+            clearRoutePending(pmc);
+            return true;
+        }
+        return false;
+    }
+
+    @Nullable
     public static BlockPos parkDestination(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
         if (vehicle == null) return null;
+        if (hasRoutePending(unit)) return null;
+        if (FobResupplySupport.holdingForResupply(unit, vehicle)) return null;
         FobInstance fob = fobForEntity(vehicle, vehicle.level());
         if (fob == null || !fob.fobCommandActive || fob.scrambleActive) return null;
         if (!fob.assignedVehicles.contains(vehicle.getUUID())) return null;
@@ -140,9 +228,40 @@ public final class FobSupport {
         return null;
     }
 
+    /** RU/US-crewed hulls are off limits — a stolen assigned vehicle reads as locked. */
+    public static boolean isVehicleLocked(VehicleEntity hull) {
+        CrewFacts.Faction faction = CrewFacts.factionOf(hull);
+        return faction == CrewFacts.Faction.RU || faction == CrewFacts.Faction.US;
+    }
+
+    /**
+     * Player ownership for a crewed PMC hull or an empty hull whose last driver was that player
+     * (or their PMC). Mixed crews, RU/US occupation, and ownerless PMC garrison hulls answer false.
+     */
     public static boolean vehicleOwnedBy(@NotNull VehicleEntity hull, UUID playerId) {
+        if (isVehicleLocked(hull)) return false;
         UUID owner = CrewFacts.pmcOwner(hull);
-        return owner != null && owner.equals(playerId);
+        if (owner != null) return owner.equals(playerId);
+        UUID empty = playerOwnerOfEmptyHull(hull);
+        return playerId.equals(empty);
+    }
+
+    /**
+     * Last driver UUID for an empty hull, or null when passengers remain, the last driver is not
+     * a player/PMC, or the hull is enemy-crewed.
+     */
+    @Nullable
+    public static UUID playerOwnerOfEmptyHull(VehicleEntity hull) {
+        if (!hull.getPassengers().isEmpty() || isVehicleLocked(hull)) return null;
+        Entity last = hull.getLastDriver();
+        if (last instanceof net.minecraft.server.level.ServerPlayer sp) return sp.getUUID();
+        if (last instanceof PmcUnitEntity pmc) return pmc.getOwnerUUID();
+        return null;
+    }
+
+    /** Route-to-FOB keeps driving the parking waypoint through contact — fire only, no chase. */
+    public static boolean holdsRouteThroughContact(AbstractUnit unit) {
+        return unit instanceof PmcUnitEntity pmc && hasRoutePending(pmc);
     }
 
     public static boolean isHostileToOwner(AbstractUnit perspective, LivingEntity target) {

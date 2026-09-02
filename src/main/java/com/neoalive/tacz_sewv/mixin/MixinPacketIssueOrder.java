@@ -72,6 +72,11 @@ public abstract class MixinPacketIssueOrder {
             ci.cancel();
             return;
         }
+        if (FobSupport.hasRoutePending(pmc)) {
+            OrderReport.fail(sender, OrderFailure.ROUTE_ACTIVE);
+            ci.cancel();
+            return;
+        }
         // SEM's packet is one unit per send, so a section arrives as several packets in one tick;
         // okEach counts them and the flush prints the total once.
         if (pmc instanceof IPmcDowned d && d.sewv$isDowned()) {

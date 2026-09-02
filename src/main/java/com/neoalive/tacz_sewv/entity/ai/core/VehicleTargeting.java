@@ -39,6 +39,7 @@ import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
+import com.neoalive.tacz_sewv.fob.FobResupplySupport;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionHostility;
@@ -93,6 +94,14 @@ public final class VehicleTargeting {
     // to go (holding position, no target, nothing to reinforce). `assist` carries
     // the stateful ally scan and may be null to opt out of mutual support.
     public static BlockPos resolveDestination(AbstractUnit unit, VehicleEntity vehicle, AllyAssist assist) {
+        // FOB route beats every other destination — capture, scramble, patrol, SEM orders included.
+        if (unit instanceof PmcUnitEntity routePmc && FobSupport.hasRoutePending(routePmc)) {
+            Vec3 moveTarget = routePmc.getMoveToTarget();
+            if (moveTarget != null && !moveTarget.equals(Vec3.ZERO)) {
+                return BlockPos.containing(moveTarget);
+            }
+        }
+
         // Invasion capture pipeline — event-spawned AI fleets and PMC. Before chase / idle / SEM
         // orders so a capture commitment cannot be abandoned for FREE_FIRE wander.
         BlockPos capture = CaptureOrderSupport.currentDestination(unit, vehicle);
@@ -100,6 +109,11 @@ public final class VehicleTargeting {
 
         BlockPos entrench = EntrenchSupport.currentCell(unit);
         if (entrench != null) return entrench;
+
+        BlockPos fobResupply = FobResupplySupport.resupplyDestination(unit, vehicle);
+        if (fobResupply != null) return fobResupply;
+
+        if (FobResupplySupport.holdingForResupply(unit, vehicle)) return null;
 
         BlockPos fobPark = FobSupport.parkDestination(unit, vehicle);
         if (fobPark != null) return fobPark;
@@ -225,6 +239,10 @@ public final class VehicleTargeting {
      */
     public static boolean holdsOrderedMove(AbstractUnit unit) {
         if (!(unit instanceof PmcUnitEntity pmc)) return false;
+        if (FobSupport.holdsRouteThroughContact(pmc)) {
+            Vec3 dest = pmc.getMoveToTarget();
+            return dest != null && !dest.equals(Vec3.ZERO);
+        }
         if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) return false;
         Vec3 dest = pmc.getMoveToTarget();
         return dest != null && !dest.equals(Vec3.ZERO);
@@ -906,6 +924,7 @@ public final class VehicleTargeting {
         if (CaptureOrderSupport.holdsCourseThroughContact(unit)) return true;
         if (EntrenchSupport.isEntrenched(unit)) return true;
         if (unit instanceof PmcUnitEntity pmc) {
+            if (FobSupport.holdsRouteThroughContact(pmc)) return true;
             if (FobSupport.blocksOrders(pmc)) return true;
             return ((IVehiclePatrol) pmc).sewv$isPatrolling() || pmc.getOrder() != OrderType.FREE_FIRE;
         }

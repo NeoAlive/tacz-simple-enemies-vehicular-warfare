@@ -72,6 +72,7 @@ public enum OrderFailure {
     // --- Permission: the player may not give this order ---
     ORDERS_LOCKED,
     FOB_COMMAND,
+    ROUTE_ACTIVE,
     NOT_OPERATOR,
     NO_RADIO,
 

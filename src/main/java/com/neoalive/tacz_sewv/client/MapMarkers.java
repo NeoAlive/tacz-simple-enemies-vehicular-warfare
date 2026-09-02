@@ -27,12 +27,18 @@ import com.neoalive.tacz_sewv.map.VehicleMarker;
  * expiry</b> — with {@code mapLive} a hitch or dropped packet used to blank the whole picture
  * mid-open (markers flashed once on accept, then vanished).
  *
+ * <p>Selection is keyed on {@link VehicleMarker#vehicleId()} so an empty assigned hull (driver id
+ * 0) stays selected and reachable while its crew routes back to board.
+ *
  * <p>Must be {@link #clear() cleared} on client logout: the store is static for the JVM session, and
  * entity network ids are reused in the next world, so leaving stale markers paints ghosts from the
  * previous save until the next sync lands (and that sync can be delayed — see
  * {@code OwnedVehicleTracker}'s {@code nextSend} reset).
  */
 public final class MapMarkers {
+
+    /** Sentinel driver id on markers with no crew — not valid for SEM order packets. */
+    public static final int NO_DRIVER = 0;
 
     private static List<VehicleMarker> markers = List.of();
     private static final Int2ObjectOpenHashMap<VehicleMarker> BY_VEHICLE_ID = new Int2ObjectOpenHashMap<>();
@@ -42,6 +48,7 @@ public final class MapMarkers {
     private static SweepOverlayState sweepOverlay;
     @Nullable
     private static FobMarker fobMarker;
+    /** Selected hull network ids — survives driver dismount and sync refreshes. */
     private static final Set<Integer> SELECTED = new HashSet<>();
 
     private MapMarkers() {}
@@ -62,14 +69,31 @@ public final class MapMarkers {
         BY_DRIVER_ID.clear();
         for (VehicleMarker marker : markers) {
             BY_VEHICLE_ID.put(marker.vehicleId(), marker);
-            BY_DRIVER_ID.put(marker.driverId(), marker);
+            if (marker.driverId() != NO_DRIVER) {
+                BY_DRIVER_ID.put(marker.driverId(), marker);
+            }
         }
         battleFields = List.copyOf(fields);
         sweepOverlay = sweep;
         fobMarker = fob;
-        // A selected hull that is gone is not selectable any more, and leaving it in would keep
-        // sending orders into the void.
-        SELECTED.removeIf(driverId -> markers.stream().noneMatch(m -> m.driverId() == driverId));
+        migrateSelection();
+        SELECTED.removeIf(vehicleId -> !BY_VEHICLE_ID.containsKey(vehicleId));
+    }
+
+    /** Legacy driver-id selection from before vehicle-id keys — runs once per sync. */
+    private static void migrateSelection() {
+        if (SELECTED.isEmpty()) return;
+        Set<Integer> migrated = new HashSet<>();
+        for (int id : SELECTED) {
+            VehicleMarker byDriver = BY_DRIVER_ID.get(id);
+            if (byDriver != null) {
+                migrated.add(byDriver.vehicleId());
+            } else if (BY_VEHICLE_ID.containsKey(id)) {
+                migrated.add(id);
+            }
+        }
+        SELECTED.clear();
+        SELECTED.addAll(migrated);
     }
 
     /** Drop everything — call on disconnect so a new world never inherits the last one's picture. */
@@ -115,7 +139,7 @@ public final class MapMarkers {
     }
 
     public static boolean isSelected(VehicleMarker marker) {
-        return SELECTED.contains(marker.driverId());
+        return SELECTED.contains(marker.vehicleId());
     }
 
     /**
@@ -125,7 +149,7 @@ public final class MapMarkers {
      */
     public static boolean toggleSelected(VehicleMarker marker) {
         if (marker.allegiance() != VehicleMarker.Allegiance.OWN) return false;
-        if (!SELECTED.remove(marker.driverId())) SELECTED.add(marker.driverId());
+        if (!SELECTED.remove(marker.vehicleId())) SELECTED.add(marker.vehicleId());
         return true;
     }
 
@@ -136,13 +160,28 @@ public final class MapMarkers {
      */
     public static boolean addSelected(VehicleMarker marker) {
         if (marker.allegiance() != VehicleMarker.Allegiance.OWN) return false;
-        SELECTED.add(marker.driverId());
+        SELECTED.add(marker.vehicleId());
         return true;
     }
 
-    /** The drivers to order, as a snapshot — the caller sends one order packet per id. */
-    public static Set<Integer> selected() {
+    /** Selected hull ids — stable across crew changes and empty-pad markers. */
+    public static Set<Integer> selectedVehicleIds() {
         return Set.copyOf(SELECTED);
+    }
+
+    /**
+     * The drivers to order, as a snapshot — only hulls with a live crew driver; empty assigned
+     * hulls stay selected on the map but are skipped here.
+     */
+    public static Set<Integer> selected() {
+        Set<Integer> drivers = new HashSet<>();
+        for (int vehicleId : SELECTED) {
+            VehicleMarker marker = BY_VEHICLE_ID.get(vehicleId);
+            if (marker != null && marker.driverId() != NO_DRIVER) {
+                drivers.add(marker.driverId());
+            }
+        }
+        return Set.copyOf(drivers);
     }
 
     public static void clearSelection() {

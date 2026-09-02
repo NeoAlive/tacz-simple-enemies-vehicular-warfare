@@ -23,6 +23,7 @@ import xaero.map.gui.dropdown.rightclick.RightClickOption;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.client.FobClientRoute;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.TdtScreen;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
@@ -114,6 +115,7 @@ public class UnitOrderOption extends RightClickOption {
         CRUISE("cruise", false, Category.MOVEMENT),
         SET_GUARD("set_guard", false, Category.MOVEMENT),
         REACH_GUARD("reach_guard", false, Category.MOVEMENT),
+        ROUTE_TO_FOB("route_to_fob", false, Category.MOVEMENT),
         DISMISS("dismiss", false, Category.STAND_DOWN),
         BAIL_OUT("bail_out", false, Category.STAND_DOWN),
         PREFERRED_PATHWAYS("preferred_pathways", false, Category.MOVEMENT);
@@ -175,6 +177,9 @@ public class UnitOrderOption extends RightClickOption {
         if (action == Action.PREFERRED_PATHWAYS) {
             active = true;
         }
+        if (action == Action.ROUTE_TO_FOB) {
+            active = FobClientRoute.canRoute();
+        }
         setActive(active);
         setNameFormatArgs(selectedCount);
     }
@@ -189,6 +194,11 @@ public class UnitOrderOption extends RightClickOption {
             if (PathwayPlot.arm(dim)) {
                 prompt("message.tacz_sewv.pathway.plotting", PathwayPlot.pathId(), 0);
             }
+            return;
+        }
+
+        if (this.action == Action.ROUTE_TO_FOB) {
+            FobClientRoute.sendRoute();
             return;
         }
 
@@ -315,7 +325,8 @@ public class UnitOrderOption extends RightClickOption {
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
             case ATTACK_THAT -> OrderType.ATTACK_THAT_TARGET;
             case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE,
-                    ENTRENCH_HERE, CRUISE, SET_GUARD, REACH_GUARD, DISMISS, BAIL_OUT, PREFERRED_PATHWAYS ->
+                    ENTRENCH_HERE, CRUISE, SET_GUARD, REACH_GUARD, ROUTE_TO_FOB, DISMISS, BAIL_OUT,
+                    PREFERRED_PATHWAYS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
         };
     }

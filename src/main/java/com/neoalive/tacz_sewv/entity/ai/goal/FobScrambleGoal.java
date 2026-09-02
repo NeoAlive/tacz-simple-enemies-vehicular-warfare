@@ -33,6 +33,7 @@ public class FobScrambleGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        if (FobSupport.hasRoutePending(this.unit)) return false;
         if (!FobSupport.isStamped(this.unit)) return false;
         if (!(this.unit.level() instanceof ServerLevel level)) return false;
         FobInstance fob = fob(level);

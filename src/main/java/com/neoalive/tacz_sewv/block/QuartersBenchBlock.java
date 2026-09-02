@@ -9,8 +9,8 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
@@ -23,14 +23,17 @@ import com.neoalive.tacz_sewv.fob.FobNetworking;
 /**
  * Command block for a player-owned Forward Operating Base. One per player.
  */
-public class QuartersBenchBlock extends Block {
+public class QuartersBenchBlock extends AbstractFobDecorBlock {
 
     public QuartersBenchBlock() {
         super(BlockBehaviour.Properties.of()
                 .mapColor(MapColor.METAL)
                 .strength(3.5f, 6.0f)
                 .sound(SoundType.METAL)
-                .requiresCorrectToolForDrops());
+                .requiresCorrectToolForDrops()
+                .noOcclusion()
+                .isSuffocating((s, g, p) -> false)
+                .isViewBlocking((s, g, p) -> false));
     }
 
     @Override
@@ -55,13 +58,18 @@ public class QuartersBenchBlock extends Block {
                                   InteractionHand hand, BlockHitResult hit) {
         if (level.isClientSide()) return InteractionResult.SUCCESS;
         if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
-        FobManager mgr = FobManager.get((net.minecraft.server.level.ServerLevel) level);
-        FobInstance fob = mgr.getFob(pos);
+        FobInstance fob = FobManager.get((net.minecraft.server.level.ServerLevel) level).getFob(pos);
         if (fob == null || !serverPlayer.getUUID().equals(fob.owner)) {
             return InteractionResult.FAIL;
         }
-        FobNetworking.openGui(serverPlayer, pos);
+        FobNetworking.openCommandGui(serverPlayer, pos);
         return InteractionResult.CONSUME;
+    }
+
+    @Nullable
+    @Override
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new FobDecorBlockEntity(pos, state);
     }
 
     @Override

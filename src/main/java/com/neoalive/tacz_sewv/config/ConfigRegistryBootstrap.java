@@ -47,6 +47,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.FOB_STOCKPILE_SIZE, SewvConfig.FOB_STOCKPILE_SIZE::set);
         b.intRange(ConfigScope.SERVER, "fob", "fobParkingSize", 1, 64,
                 SewvConfig.FOB_PARKING_SIZE, SewvConfig.FOB_PARKING_SIZE::set);
+        b.doubleRange(ConfigScope.SERVER, "fob", "fobBufferFactor", 1.0, 8.0,
+                SewvConfig.FOB_BUFFER_FACTOR, SewvConfig.FOB_BUFFER_FACTOR::set);
         b.intRange(ConfigScope.SERVER, "fob", "fobThreatThreshold", 1, 10000,
                 SewvConfig.FOB_THREAT_THRESHOLD, SewvConfig.FOB_THREAT_THRESHOLD::set);
         b.intRange(ConfigScope.SERVER, "fob", "fobAlarmCooldownTicks", 1, 72000,

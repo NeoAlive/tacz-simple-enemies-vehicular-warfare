@@ -241,6 +241,8 @@ public class TdtScreen extends Screen {
         add(Category.ORDERS, "gui.tacz_sewv.tdt.attack", "gui.tacz_sewv.tdt.attack.tip", false, this::armAttack);
         add(Category.ORDERS, "gui.tacz_sewv.tdt.cease_fire", null, true, () -> issueSemOrder(OrderType.CEASE_FIRE));
         add(Category.ORDERS, "gui.tacz_sewv.tdt.free_fire", null, true, () -> issueSemOrder(OrderType.FREE_FIRE));
+        add(Category.ORDERS, "gui.tacz_sewv.tdt.route_to_fob", "gui.tacz_sewv.tdt.route_to_fob.tip", true,
+                FobClientRoute::sendRoute);
 
         add(Category.CREW, "gui.tacz_sewv.tdt.board", "gui.tacz_sewv.tdt.board.tip", true,
                 () -> BoardKeybind.orderBoard(liveBoardTarget(), false));
@@ -663,7 +665,7 @@ public class TdtScreen extends Screen {
                 return true;
             }
 
-            if (cell.entry().labelKey.equals("gui.tacz_sewv.tdt.reach_guard") && !reachGuardActive()) {
+            if (isInactive(cell.entry())) {
                 return true;
             }
             cell.entry().action.run();
@@ -866,6 +868,16 @@ public class TdtScreen extends Screen {
         return !knownOwn || anyGuard;
     }
 
+    private boolean isInactive(OrderEntry entry) {
+        if ("gui.tacz_sewv.tdt.reach_guard".equals(entry.labelKey())) {
+            return !reachGuardActive();
+        }
+        if ("gui.tacz_sewv.tdt.route_to_fob".equals(entry.labelKey())) {
+            return !FobClientRoute.canRoute();
+        }
+        return false;
+    }
+
     // --- Render -------------------------------------------------------------
 
     /** No world dim — the battlefield stays visible beside the docked panel. */
@@ -941,7 +953,7 @@ public class TdtScreen extends Screen {
             int sy = this.listTop + cell.y() - this.scroll;
             if (sy + cell.h() < this.listTop || sy > this.listBottom) continue;
 
-            boolean inactive = cell.entry().labelKey.equals("gui.tacz_sewv.tdt.reach_guard") && !reachGuardActive();
+            boolean inactive = isInactive(cell.entry());
             boolean hover = mouseX >= sx && mouseX < sx + cell.w()
                     && mouseY >= sy && mouseY < sy + cell.h()
                     && mouseY >= this.listTop && mouseY <= this.listBottom;

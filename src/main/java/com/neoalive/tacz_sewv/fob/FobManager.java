@@ -104,11 +104,19 @@ public class FobManager extends SavedData {
     private void clearStamps(FobInstance fob, ServerLevel level) {
         for (UUID id : fob.assignedLiving) {
             Entity e = findEntity(level, id);
-            if (e != null) FobSupport.clearStamp(e);
+            if (e != null) {
+                FobSupport.clearStamp(e);
+                FobSupport.clearRoutePending(e);
+                FobDebug.logEntity(e, "cleared stamp — FOB removed at {}", fob.commandPos);
+            }
         }
         for (UUID id : fob.assignedVehicles) {
             Entity e = findEntity(level, id);
-            if (e != null) FobSupport.clearStamp(e);
+            if (e != null) {
+                FobSupport.clearStamp(e);
+                FobSupport.clearRoutePending(e);
+                FobDebug.logEntity(e, "cleared vehicle stamp — FOB removed at {}", fob.commandPos);
+            }
         }
     }
 
@@ -149,41 +157,42 @@ public class FobManager extends SavedData {
         if (fob == null) return;
         FobSupport.refreshCachedAabbs(fob, level);
         pruneDeadAssignments(fob, level);
-        fob.valid = true;
-        fob.invalidReason = "";
-        if (fob.stockpilePos == null || fob.parkingPos == null) {
+
+        if (level instanceof ServerLevel server) {
+            FobClearance.Result clearance = FobClearance.check(fob, server);
+            fob.valid = clearance.valid();
+            fob.invalidReason = clearance.valid() ? "" : clearance.reason();
+        } else {
             fob.valid = false;
-            fob.invalidReason = "Missing stockpile or parking field";
-        } else if (fob.cachedMasterAabb != null) {
-            if (!containsXZ(fob.cachedMasterAabb, fob.stockpilePos)) {
-                fob.valid = false;
-                fob.invalidReason = "Stockpile outside FOB area";
-            } else if (!containsXZ(fob.cachedMasterAabb, fob.parkingPos)) {
-                fob.valid = false;
-                fob.invalidReason = "Parking field outside FOB area";
-            }
-        }
-        if (fob.valid) {
-            for (FobInstance other : this.fobs.values()) {
-                if (other == fob || other.cachedMasterAabb == null || fob.cachedMasterAabb == null) continue;
-                if (other.cachedMasterAabb.intersects(fob.cachedMasterAabb)) {
-                    fob.valid = false;
-                    fob.invalidReason = "Overlaps another FOB";
-                    break;
-                }
-            }
+            fob.invalidReason = "";
         }
         setDirty();
-    }
-
-    private static boolean containsXZ(AABB box, BlockPos pos) {
-        return box.contains(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
     }
 
     public void pruneDeadAssignments(FobInstance fob, Level level) {
         if (!(level instanceof ServerLevel server)) return;
         pruneSet(fob.assignedLiving, server);
-        pruneSet(fob.assignedVehicles, server);
+        pruneVehicles(fob, server);
+    }
+
+    private void pruneVehicles(FobInstance fob, ServerLevel level) {
+        Iterator<UUID> it = fob.assignedVehicles.iterator();
+        while (it.hasNext()) {
+            UUID id = it.next();
+            Entity e = findEntity(level, id);
+            if (e == null || !e.isAlive()) {
+                it.remove();
+                continue;
+            }
+            if (!(e instanceof VehicleEntity hull)) {
+                it.remove();
+                continue;
+            }
+            if (!FobSupport.vehicleOwnedBy(hull, fob.owner)) {
+                it.remove();
+                FobDebug.logEntity(hull, "unassigned from FOB — stolen or no longer player-owned");
+            }
+        }
     }
 
     private void pruneSet(java.util.Set<UUID> ids, ServerLevel level) {
@@ -202,6 +211,7 @@ public class FobManager extends SavedData {
         if (!(e instanceof PmcUnitEntity pmc)) return false;
         fob.assignedLiving.add(entityId);
         FobSupport.stamp(pmc, commandPos);
+        FobDebug.logEntity(pmc, "assigned to FOB at {}", commandPos);
         pruneDeadAssignments(fob, level);
         setDirty();
         return true;
@@ -212,7 +222,11 @@ public class FobManager extends SavedData {
         if (fob == null) return false;
         fob.assignedLiving.remove(entityId);
         Entity e = findEntity(level, entityId);
-        if (e != null) FobSupport.clearStamp(e);
+        if (e != null) {
+            FobSupport.clearStamp(e);
+            FobSupport.clearRoutePending(e);
+            FobDebug.logEntity(e, "unassigned from FOB at {}", commandPos);
+        }
         setDirty();
         return true;
     }
@@ -222,6 +236,7 @@ public class FobManager extends SavedData {
         if (fob == null) return false;
         Entity e = findEntity(level, vehicleId);
         if (!(e instanceof VehicleEntity hull)) return false;
+        if (!FobSupport.vehicleOwnedBy(hull, fob.owner)) return false;
         fob.assignedVehicles.add(vehicleId);
         FobSupport.stamp(hull, commandPos);
         pruneDeadAssignments(fob, level);
@@ -234,7 +249,11 @@ public class FobManager extends SavedData {
         if (fob == null) return false;
         fob.assignedVehicles.remove(vehicleId);
         Entity e = findEntity(level, vehicleId);
-        if (e != null) FobSupport.clearStamp(e);
+        if (e != null) {
+            FobSupport.clearStamp(e);
+            FobSupport.clearRoutePending(e);
+            FobDebug.logEntity(e, "unassigned from FOB at {}", commandPos);
+        }
         setDirty();
         return true;
     }

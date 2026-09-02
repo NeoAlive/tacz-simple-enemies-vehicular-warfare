@@ -41,6 +41,8 @@ import com.neoalive.tacz_sewv.entity.ai.goal.DiplomacyEnemyTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.DownedGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.FobPatrolGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.FobResupplyGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.FobRouteArrivalGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.FobScrambleGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.FollowCommanderGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal;
@@ -337,6 +339,8 @@ public abstract class MixinPmcUnitEntity
         // radio and never competes with what the unit is doing.
         ((Mob) self).goalSelector.addGoal(1, new RadioObserverGoal(self));
         ((Mob) self).goalSelector.addGoal(0, new FobScrambleGoal(self));
+        ((Mob) self).goalSelector.addGoal(1, new FobResupplyGoal(self));
+        ((Mob) self).goalSelector.addGoal(1, new FobRouteArrivalGoal(self));
         ((Mob) self).goalSelector.addGoal(1, new FobPatrolGoal(self));
         // PMC-only because the kits are player-supplied and a PMC is the one unit type SEM
         // gives an inventory to — RU/US have no ITEM_HANDLER to hold one. Priority 2 keeps

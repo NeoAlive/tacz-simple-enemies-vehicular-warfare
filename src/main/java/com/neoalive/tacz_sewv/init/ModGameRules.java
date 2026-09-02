@@ -104,6 +104,10 @@ public final class ModGameRules {
     public static final GameRules.Key<GameRules.BooleanValue> INDIVIDUAL_TACTICS_DEBUG =
             GameRules.register("sewvIndividualTacticsDebug", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
 
+    /** FOB route, assign, resupply, and stale-state logging. */
+    public static final GameRules.Key<GameRules.BooleanValue> FOB_DEBUG =
+            GameRules.register("sewvDebugFob", GameRules.Category.MISC, GameRules.BooleanValue.create(false));
+
     private ModGameRules() {}
 
     /**

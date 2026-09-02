@@ -35,6 +35,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
@@ -54,6 +55,7 @@ import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobManager;
+import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionHostility;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
@@ -252,21 +254,40 @@ public final class OwnedVehicleTracker {
             }
 
             CrewFacts.Faction faction = CrewFacts.factionOf(hull);
-            if (faction == null) continue; // empty, mixed, or a player's own ride — not a marker
+            if (faction == CrewFacts.Faction.RU || faction == CrewFacts.Faction.US) continue;
 
-            Entity driver = hull.getFirstPassenger();
-            if (!(driver instanceof AbstractUnit crew)) continue;
+            if (faction == CrewFacts.Faction.PMC) {
+                Entity driver = hull.getFirstPassenger();
+                if (!(driver instanceof AbstractUnit crew)) continue;
+
+                candidates.add(new Candidate(
+                        kindOf(hull), faction, CrewFacts.pmcOwner(hull),
+                        ownerTeamOf(crew), invasionTeamOf(crew), InvasionHostility.enemiesOf(crew),
+                        VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
+                        driver.getId(), hull.getId(),
+                        hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension(),
+                        healthFrac(hull), energyFrac(hull),
+                        FactionColors.wireTint(level.getServer(), CrewFacts.pmcOwner(hull)),
+                        GuardSupport.has(hull),
+                        platoonColorOf(level, driver.getId()), crew instanceof PmcCommanderEntity));
+                continue;
+            }
+
+            if (!hull.getPassengers().isEmpty()) continue;
+
+            UUID emptyOwner = FobSupport.playerOwnerOfEmptyHull(hull);
+            if (emptyOwner == null) continue;
 
             candidates.add(new Candidate(
-                    kindOf(hull), faction, CrewFacts.pmcOwner(hull),
-                    ownerTeamOf(crew), invasionTeamOf(crew), InvasionHostility.enemiesOf(crew),
-                    VehicleTargeting.isFactionFriendly(crew), orderPreviewOf(crew),
-                    driver.getId(), hull.getId(),
+                    kindOf(hull), CrewFacts.Faction.PMC, emptyOwner,
+                    null, null, List.of(),
+                    true, MarkerOrder.NONE,
+                    MapMarkers.NO_DRIVER, hull.getId(),
                     hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension(),
                     healthFrac(hull), energyFrac(hull),
-                    FactionColors.wireTint(level.getServer(), CrewFacts.pmcOwner(hull)),
+                    FactionColors.wireTint(level.getServer(), emptyOwner),
                     GuardSupport.has(hull),
-                    platoonColorOf(level, driver.getId()), crew instanceof PmcCommanderEntity));
+                    0, false));
         }
     }
 
@@ -603,9 +624,29 @@ public final class OwnedVehicleTracker {
         for (ServerLevel level : player.server.getAllLevels()) {
             FobInstance fob = FobManager.get(level).getFobForOwner(player.getUUID());
             if (fob != null) {
-                return new FobMarker(fob.commandPos, level.dimension(), fob.valid);
+                FobManager.get(level).validate(fob.commandPos, level);
+                int assigned = countAssignedVehicles(fob, level);
+                boolean routeReady = fob.valid && fob.parkingPos != null && assigned > 0;
+                return new FobMarker(fob.commandPos, level.dimension(), fob.valid, assigned, routeReady);
             }
         }
         return null;
+    }
+
+    private static int countAssignedVehicles(FobInstance fob, ServerLevel level) {
+        int count = 0;
+        for (UUID id : fob.assignedVehicles) {
+            Entity e = level.getEntity(id);
+            if (e == null) {
+                for (ServerLevel dim : level.getServer().getAllLevels()) {
+                    e = dim.getEntity(id);
+                    if (e != null) break;
+                }
+            }
+            if (e instanceof VehicleEntity hull && FobSupport.vehicleOwnedBy(hull, fob.owner)) {
+                count++;
+            }
+        }
+        return count;
     }
 }

@@ -667,6 +667,17 @@ public final class TankSpawner {
      * softcompat fallbacks (MCSP / ASH / VVP) for packs that ignore SBW's container ammo.
      * The slot-filling and creative-box policy around it differ per caller.
      */
+    /**
+     * Distinct ammo items a hull consumes — same resolution chain as {@link #stockAmmo}, without
+     * filling the container. Used by FOB stockpile resupply.
+     */
+    public static List<Item> resolveEligibleAmmo(VehicleEntity tank) {
+        String id = entityId(tank);
+        if (id == null) return List.of();
+        if (AshAmmoCompat.isMissileSystemHull(id)) return List.of();
+        return resolveWithFallback(tank, id);
+    }
+
     private static List<Item> resolveWithFallback(VehicleEntity tank, String id) {
         List<Item> ammo = resolveAmmo(tank);
         if (ammo.isEmpty() && McspAmmoCompat.isMcspHull(id)) {

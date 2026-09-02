@@ -1,6 +1,6 @@
 {
-  "parent": "minecraft:block/cube_all",
+  "parent": "tacz_sewv:block/fob_invisible",
   "textures": {
-    "all": "minecraft:block/iron_block"
+    "particle": "tacz_sewv:block/stockpile_block"
   }
 }

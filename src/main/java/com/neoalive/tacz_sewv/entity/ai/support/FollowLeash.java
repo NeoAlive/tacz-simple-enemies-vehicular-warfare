@@ -7,6 +7,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
+import com.neoalive.tacz_sewv.fob.FobSupport;
 
 /**
  * Whether an on-foot PMC unit is under a "stay with me" / area order and so must fight from
@@ -43,6 +44,7 @@ public final class FollowLeash {
 
     public static boolean leashed(Mob mob) {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
+        if (FobSupport.hasRoutePending(pmc)) return true;
         if (pmc.getVehicle() != null) return false; // mounted: driven by the vehicle AI, not these goals
         if (((ISweepInfantry) pmc).sewv$hasInfantrySweep()) return true;
         if (((IPathwayInfantry) pmc).sewv$hasPathway()) return true;
@@ -77,6 +79,7 @@ public final class FollowLeash {
      */
     public static boolean enRouteToMove(Mob mob) {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
+        if (FobSupport.hasRoutePending(pmc)) return true;
         if (pmc.getVehicle() != null) return false;
         if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) return false;
         Vec3 dest = pmc.getMoveToTarget();

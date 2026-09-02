@@ -1,3 +1,6 @@
 {
-  "parent": "tacz_sewv:block/parking_field"
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "tacz_sewv:block/parking_field"
+  }
 }

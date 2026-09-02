@@ -11,8 +11,6 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.BaseEntityBlock;
-import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -24,13 +22,16 @@ import net.minecraftforge.network.NetworkHooks;
 import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobManager;
 
-public class StockpileAmmoBlock extends BaseEntityBlock {
+public class StockpileAmmoBlock extends AbstractFobDecorBlock {
 
     public StockpileAmmoBlock() {
         super(BlockBehaviour.Properties.of()
                 .mapColor(MapColor.METAL)
                 .strength(2.5f, 6.0f)
-                .sound(SoundType.METAL));
+                .sound(SoundType.METAL)
+                .noOcclusion()
+                .isSuffocating((s, g, p) -> false)
+                .isViewBlocking((s, g, p) -> false));
     }
 
     @Override
@@ -61,11 +62,6 @@ public class StockpileAmmoBlock extends BaseEntityBlock {
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new StockpileBlockEntity(pos, state);
-    }
-
-    @Override
-    public RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
     }
 
     @Override

@@ -98,7 +98,7 @@ public class NetworkHandler {
     // 69: ConfigUI open/request/save/shortcut packets.
     // 70: PacketTowRecovery (PMC tow order).
     // 71: PacketFobData + FOB assignment/alarm/route packets.
-    private static final String PROTOCOL_VERSION = "72";
+    private static final String PROTOCOL_VERSION = "74";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

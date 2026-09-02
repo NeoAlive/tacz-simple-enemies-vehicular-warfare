@@ -106,6 +106,8 @@ public class PacketOwnedVehicles {
             this.fobMarker = new FobMarker(
                     buf.readBlockPos(),
                     buf.readResourceKey(Registries.DIMENSION),
+                    buf.readBoolean(),
+                    buf.readVarInt(),
                     buf.readBoolean());
         } else {
             this.fobMarker = null;
@@ -161,6 +163,8 @@ public class PacketOwnedVehicles {
             buf.writeBlockPos(this.fobMarker.commandPos());
             buf.writeResourceKey(this.fobMarker.dimension());
             buf.writeBoolean(this.fobMarker.valid());
+            buf.writeVarInt(this.fobMarker.assignedVehicles());
+            buf.writeBoolean(this.fobMarker.routeReady());
         }
     }
 

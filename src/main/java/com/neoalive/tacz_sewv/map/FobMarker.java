@@ -8,7 +8,11 @@ import net.minecraft.world.level.Level;
 public record FobMarker(
         BlockPos commandPos,
         ResourceKey<Level> dimension,
-        boolean valid) {
+        boolean valid,
+        /** Assigned vehicles the owner may still command (excludes stolen RU/US hulls). */
+        int assignedVehicles,
+        /** Valid layout, parking linked, and at least one assigned vehicle. */
+        boolean routeReady) {
 
     public double x() {
         return commandPos.getX() + 0.5;

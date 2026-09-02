@@ -8,7 +8,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 
 public record FobGuiSnapshot(
+        GuiKind kind,
         BlockPos commandPos,
+        BlockPos anchorPos,
         boolean valid,
         String invalidReason,
         boolean fobCommandActive,
@@ -17,17 +19,29 @@ public record FobGuiSnapshot(
         BlockPos stockpilePos,
         BlockPos parkingPos,
         List<LivingRow> living,
-        List<VehicleRow> vehicles,
-        List<AssignedVehicleRow> assignedVehicles) {
+        List<VehicleRow> vehicles) {
+
+    public enum GuiKind {
+        COMMAND,
+        PARKING;
+
+        public static GuiKind decode(FriendlyByteBuf buf) {
+            return buf.readEnum(GuiKind.class);
+        }
+
+        public void encode(FriendlyByteBuf buf) {
+            buf.writeEnum(this);
+        }
+    }
 
     public record LivingRow(UUID uuid, String name, boolean assigned) {}
 
     public record VehicleRow(UUID uuid, String registryId, boolean assigned, String positionText) {}
 
-    public record AssignedVehicleRow(UUID uuid, String registryId, String positionText) {}
-
     public static void encode(FriendlyByteBuf buf, FobGuiSnapshot snap) {
+        snap.kind.encode(buf);
         buf.writeBlockPos(snap.commandPos);
+        buf.writeBlockPos(snap.anchorPos);
         buf.writeBoolean(snap.valid);
         buf.writeUtf(snap.invalidReason == null ? "" : snap.invalidReason);
         buf.writeBoolean(snap.fobCommandActive);
@@ -48,16 +62,12 @@ public record FobGuiSnapshot(
             buf.writeBoolean(row.assigned);
             buf.writeUtf(row.positionText);
         }
-        buf.writeVarInt(snap.assignedVehicles.size());
-        for (AssignedVehicleRow row : snap.assignedVehicles) {
-            buf.writeUUID(row.uuid);
-            buf.writeUtf(row.registryId);
-            buf.writeUtf(row.positionText);
-        }
     }
 
     public static FobGuiSnapshot decode(FriendlyByteBuf buf) {
+        GuiKind kind = GuiKind.decode(buf);
         BlockPos commandPos = buf.readBlockPos();
+        BlockPos anchorPos = buf.readBlockPos();
         boolean valid = buf.readBoolean();
         String invalidReason = buf.readUtf();
         boolean commandActive = buf.readBoolean();
@@ -75,14 +85,9 @@ public record FobGuiSnapshot(
         for (int i = 0; i < vehicleCount; i++) {
             vehicles.add(new VehicleRow(buf.readUUID(), buf.readUtf(), buf.readBoolean(), buf.readUtf()));
         }
-        int assignedCount = buf.readVarInt();
-        List<AssignedVehicleRow> assigned = new ArrayList<>(assignedCount);
-        for (int i = 0; i < assignedCount; i++) {
-            assigned.add(new AssignedVehicleRow(buf.readUUID(), buf.readUtf(), buf.readUtf()));
-        }
-        return new FobGuiSnapshot(commandPos, valid, invalidReason, commandActive, scramble, threat,
+        return new FobGuiSnapshot(kind, commandPos, anchorPos, valid, invalidReason, commandActive, scramble, threat,
                 stockpile.equals(BlockPos.ZERO) ? null : stockpile,
                 parking.equals(BlockPos.ZERO) ? null : parking,
-                living, vehicles, assigned);
+                living, vehicles);
     }
 }

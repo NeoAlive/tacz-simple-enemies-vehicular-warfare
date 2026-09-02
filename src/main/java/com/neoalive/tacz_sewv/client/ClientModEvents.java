@@ -68,6 +68,7 @@ public class ClientModEvents {
         event.registerReloadListener(new DownedUnitPose.Loader());
         // SBM bakes of this mod's bedrock models; also clears the per-BE runway mast instances.
         event.registerReloadListener((ResourceManagerReloadListener) resources -> RunwayBlockClient.rebake(resources));
+        event.registerReloadListener((ResourceManagerReloadListener) resources -> FobBlockClient.rebake(resources));
         event.registerReloadListener((ResourceManagerReloadListener) resources -> {
             VehicleSkinRegistry.reload(resources);
             CrewSkinRegistry.reload(resources);
@@ -77,6 +78,8 @@ public class ClientModEvents {
     @SubscribeEvent
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.RUNWAY.get(), RunwayBlockRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.FOB_DECOR.get(), FobBlockRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.STOCKPILE.get(), FobBlockRenderer::new);
         event.registerEntityRenderer(ModEntities.SANDBAG_SEAT.get(), NoopRenderer::new);
         event.registerEntityRenderer(ModEntities.RU_MEDIC.get(), RuSupportRenderer::new);
         event.registerEntityRenderer(ModEntities.US_MEDIC.get(), UsSupportRenderer::new);

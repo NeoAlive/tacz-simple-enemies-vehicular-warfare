@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.entity.ai.support.FollowLeash;
+import com.neoalive.tacz_sewv.fob.FobSupport;
 
 /**
  * Keeps a following unit from charging an enemy it spots.
@@ -36,14 +37,14 @@ public abstract class MixinMoveToAttackRangeGoal {
 
     @Inject(method = "canUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$holdWhenLeashed(CallbackInfoReturnable<Boolean> cir) {
-        if (FollowLeash.leashed(this.mob)) {
+        if (FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)) {
             cir.setReturnValue(false);
         }
     }
 
     @Inject(method = "canContinueToUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$stopWhenLeashed(CallbackInfoReturnable<Boolean> cir) {
-        if (FollowLeash.leashed(this.mob)) {
+        if (FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)) {
             cir.setReturnValue(false);
         }
     }

@@ -2,6 +2,8 @@ package com.neoalive.tacz_sewv.config;
 
 import com.electronwill.nightconfig.core.CommentedConfig;
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.config.ConfigTracker;
 import net.minecraftforge.fml.config.ModConfig;
 
@@ -17,6 +19,8 @@ public final class ConfigPersistence {
         if (cfg != null) {
             cfg.save();
             FactionColors.refreshConfigArgb();
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                    () -> () -> com.neoalive.tacz_sewv.client.NotificationHud.refreshScreenTimeCache());
         }
     }
 

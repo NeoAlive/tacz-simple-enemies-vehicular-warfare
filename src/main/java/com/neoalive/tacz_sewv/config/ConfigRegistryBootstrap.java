@@ -76,6 +76,8 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.COLOR_PMC, ClientConfig.COLOR_PMC::set);
         b.bool(ConfigScope.CLIENT, "overlay", "heliShowRunPhase",
                 ClientConfig.HELI_SHOW_RUN_PHASE, ClientConfig.HELI_SHOW_RUN_PHASE::set);
+        b.intRange(ConfigScope.CLIENT, "overlay", "notificationScreenSeconds", 1, 30,
+                ClientConfig.NOTIFICATION_SCREEN_SECONDS, ClientConfig.NOTIFICATION_SCREEN_SECONDS::set);
 
         b.bool(ConfigScope.CLIENT, "map", "mapMarkersEnabled",
                 ClientConfig.MAP_MARKERS_ENABLED, ClientConfig.MAP_MARKERS_ENABLED::set);

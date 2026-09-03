@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
 
@@ -29,6 +30,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_COMMAND_DEBUG;
     public static final ForgeConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
+    public static final ForgeConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
 
     /** Temporary on/off from the map-markers keybind; null = follow the setting below. */
     @Nullable
@@ -60,6 +62,10 @@ public final class ClientConfig {
                 .comment("On AI helicopters, append the current attack phase to the hover name",
                         "(approach, attack, break away, and so on).")
                 .define("heliShowRunPhase", true);
+        NOTIFICATION_SCREEN_SECONDS = builder
+                .comment("How many seconds a HUD notification stays on screen before the next queued one",
+                        "(or the banner slides away).")
+                .defineInRange("notificationScreenSeconds", 5, 1, 30);
         builder.pop();
 
         builder.push("map");
@@ -124,6 +130,10 @@ public final class ClientConfig {
 
     @SubscribeEvent
     public static void onConfigReload(ModConfigEvent event) {
-        if (event.getConfig().getSpec() == SPEC) FactionColors.refreshConfigArgb();
+        if (event.getConfig().getSpec() == SPEC) {
+            FactionColors.refreshConfigArgb();
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                    () -> () -> com.neoalive.tacz_sewv.client.NotificationHud.refreshScreenTimeCache());
+        }
     }
 }

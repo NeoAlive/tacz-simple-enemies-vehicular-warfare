@@ -403,6 +403,8 @@ mixin {
     // classpath unless -PwithPlayerRevive) and compileOnly like Xaero, so the mixin targets its
     // class directly.
     config "tacz_sewv.playerrevive.mixins.json"
+    // Separate config + MineColoniesMixinPlugin gate — MineColonies is optional and compileOnly.
+    config "tacz_sewv.minecolonies.mixins.json"
 }
 
 repositories {
@@ -516,6 +518,16 @@ dependencies {
     if (!project.hasProperty('noKomodo')) {
         runtimeOnly fg.deobf("blank:komodo:1.0")
     }
+    // Soft: compile against MineColonies. libs/minecolonies.jar is the official Forge 1.20.1
+    // release jar (ldtteam.jfrog.io/artifactory/modding, com.ldtteam:minecolonies:1.20.1-1.1.1276),
+    // same flatDir pattern as the other libs/*.jar deps. It is a shadow jar carrying its own
+    // libraries, so nothing else has to be added for MineColoniesCompat to compile — but NOT
+    // structurize/blockui/domum_ornamentum, which MineColonies hard-requires at RUNTIME. That is
+    // why there is no runtimeOnly here: dropping the jar alone onto the run classpath makes Forge
+    // fail the whole client on missing dependencies. Test the present-path in a real instance.
+    // Absent-path (the shipped default) needs no flag at all: MineColoniesMixinPlugin refuses both
+    // mixins and MineColoniesCompat is never classloaded.
+    compileOnly fg.deobf("blank:minecolonies:1.0")
     // Soft: compile against PlayerReviveMod (team.creative.playerrevive). libs/playerrevive.jar is
     // CreativeMD's own Forge 1.20.1 release jar, same flatDir pattern as the other libs/*.jar deps.
     // No mixin needed — PlayerReviveServer.revive/isBleeding are plain static methods taking only

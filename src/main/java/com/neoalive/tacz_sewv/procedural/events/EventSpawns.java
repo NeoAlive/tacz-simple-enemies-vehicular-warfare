@@ -15,8 +15,10 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
+import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
 import com.neoalive.tacz_sewv.init.ModGameRules;
+import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -31,6 +33,22 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner;
 final class EventSpawns {
 
     private EventSpawns() {}
+
+    /**
+     * Whether an event may set up here: SEM's universal placement gate (solid block, low block
+     * light) plus the ground this mod refuses to fight on.
+     *
+     * <p>Returning false from an {@code execute} burns the roll <b>without</b> resetting the
+     * event's accumulated chance, so a rejected location costs nothing and the event simply tries
+     * again later — which is why every caller declines rather than searching for a second spot.
+     *
+     * <p>{@code NavalBattleEvent} deliberately does not use this: {@code isValidSpawn} wants a
+     * solid block to stand on, so open water fails it by definition. It calls
+     * {@link AmbientSpawnGate#allowsAt} on its own alongside its biome and navigability checks.
+     */
+    static boolean placeable(ServerLevel level, BlockPos pos) {
+        return SpawnHelper.isValidSpawn(level, pos) && AmbientSpawnGate.allowsAt(level, pos);
+    }
 
     /** One rifleman of {@code faction}, scattered up to {@code scatter} blocks around {@code anchor}. */
     @Nullable

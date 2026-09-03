@@ -47,7 +47,7 @@ public final class BerezkaStructureCompat {
         if (!SewvConfig.STRUCTURE_VEHICLES_ENABLED.get()) return;
 
         ServerLevel level = API.getCurWorld();
-        if (level == null || !com.neoalive.tacz_sewv.spawn.AmbientSpawnGate.allows(level)) return;
+        if (level == null) return;
 
         TankSpawner.TankFaction faction = factionFor(event.getStructureName());
         if (faction == null) return;
@@ -57,6 +57,10 @@ public final class BerezkaStructureCompat {
         }
         BlockPos anchor = event.getBlockPos();
         if (anchor == null) return;
+        // allowsAt rather than allows: a berezka structure can generate over claimed colony
+        // chunks, and armour inside colony borders is a massacre rather than a fight — see
+        // MineColoniesCompat.
+        if (!com.neoalive.tacz_sewv.spawn.AmbientSpawnGate.allowsAt(level, anchor)) return;
         // Footprint of the just-generated structure — hulls spawn just OUTSIDE it, not at the
         // origin. Pieces are immutable data, safe to read off this (possibly worldgen) thread.
         BoundingBox bounds = structureBounds(event.getPieces());

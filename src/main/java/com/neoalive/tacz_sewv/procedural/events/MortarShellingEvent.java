@@ -4,9 +4,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
-import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
 import com.neoalive.tacz_sewv.bridge.FireMission;
+import com.neoalive.tacz_sewv.compat.MineColoniesCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -85,6 +85,11 @@ public final class MortarShellingEvent extends DynamicEvent {
         if (respawn == null) return null;
         // A bed in another dimension is not a base you can be shelled at.
         if (!level.dimension().equals(player.getRespawnDimension())) return null;
+        // Nor is a bed inside a colony. This is the one event whose target position matters more
+        // than its spawn position — keeping the battery out of claimed chunks would not help when
+        // the thing it is aiming at is 200 blocks away inside them, and a colony cannot shoot
+        // back at a vehicle at all (see MineColoniesCompat). So the whole event declines.
+        if (MineColoniesCompat.inAnyColony(level, respawn)) return null;
 
         int radius = SewvConfig.SHELLING_BASE_RADIUS.get();
         return player.blockPosition().distSqr(respawn) <= (double) radius * radius ? respawn : null;
@@ -94,7 +99,7 @@ public final class MortarShellingEvent extends DynamicEvent {
     public boolean execute(ServerLevel level, ServerPlayer player, BlockPos centerPos) {
         BlockPos base = baseOf(player, level);
         if (base == null) return false; // wandered off between the roll and here
-        if (!SpawnHelper.isValidSpawn(level, centerPos)) return false;
+        if (!EventSpawns.placeable(level, centerPos)) return false;
 
         // A battery is one side's, like a convoy. PMC is intentionally not a candidate:
         // these are the player's own units.

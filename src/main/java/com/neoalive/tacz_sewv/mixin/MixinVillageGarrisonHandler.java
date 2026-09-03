@@ -69,7 +69,10 @@ public abstract class MixinVillageGarrisonHandler {
     @Inject(method = "spawnGuard", at = @At("HEAD"), remap = false)
     private static void tacz_sewv$addGarrisonTank(ServerLevel level, BlockPos basePos, boolean isRu,
                                                   CallbackInfo ci) {
-        if (!AmbientSpawnGate.allows(level)) return;
+        // allowsAt, not allows: colonies are routinely built over villages, so a garrison tank is
+        // the same "armour inside colony borders" problem the procedural events avoid, arriving
+        // by a different route.
+        if (!AmbientSpawnGate.allowsAt(level, basePos)) return;
         if (!SewvConfig.GARRISON_VEHICLES_ENABLED.get()) return;
 
         // Defer out of SEM's onLevelTick loop, which is iterating PENDING_GARRISONS while it calls

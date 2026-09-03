@@ -6,7 +6,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
-import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
@@ -80,7 +79,7 @@ public final class LargeCombatEvent extends DynamicEvent {
 
     @Override
     public boolean execute(ServerLevel level, ServerPlayer player, BlockPos centerPos) {
-        if (!SpawnHelper.isValidSpawn(level, centerPos)) return false;
+        if (!EventSpawns.placeable(level, centerPos)) return false;
         // Both sides field armour here, so both pools have to be usable — unlike the one-sided
         // events, there is no "pick whichever faction works" fallback that still makes a battle.
         if (!TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.RU)

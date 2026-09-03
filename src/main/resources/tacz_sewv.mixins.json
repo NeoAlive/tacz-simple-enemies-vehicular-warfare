@@ -61,6 +61,9 @@
     "client.MixinVehicleRenderer",
     "client.MixinVehicleSkinCatalog",
     "client.MixinGeoArmorRenderer",
+    "client.MixinGeckoArmorLayerImpl",
+    "client.MixinThermalImagingGogglesRenderer",
+    "client.MixinParachuteRenderer",
     "client.MixinTextureBrightnessHandler",
     "client.MixinSmartTextureBrightener"
   ],

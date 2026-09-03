@@ -31,6 +31,13 @@ config="tacz_sewv.komodo.mixins.json"
 [[mixins]]
 config="tacz_sewv.playerrevive.mixins.json"
 
+# MineColonies compat. Separate config ("required": false) + MineColoniesMixinPlugin
+# (LoadingModList gate on mod id minecolonies) so an absent MineColonies never queues
+# MixinGuardTargeting / MixinRaidManager. Compiled against libs/minecolonies.jar (compileOnly),
+# same as Xaero/Komodo/PlayerRevive above.
+[[mixins]]
+config="tacz_sewv.minecolonies.mixins.json"
+
 [[dependencies.tacz_sewv]] #optional
     modId="forge" #mandatory
     mandatory=true #mandatory

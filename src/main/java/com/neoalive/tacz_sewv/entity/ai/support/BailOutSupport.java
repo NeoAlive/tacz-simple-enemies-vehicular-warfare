@@ -1,5 +1,10 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.function.BiPredicate;
+
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
@@ -7,9 +12,11 @@ import com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleMotionUtils;
 import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -24,7 +31,9 @@ import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.goal.BailOutVehicleGoal;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 
 /**
  * Shared vehicle bail execution for auto-bail ({@link BailOutVehicleGoal}) and player-triggered
@@ -55,6 +64,48 @@ public final class BailOutSupport {
 
     public static void clearManualBail(AbstractUnit unit) {
         unit.getPersistentData().remove(TAG_MANUAL_BAIL);
+    }
+
+    /**
+     * Expand seed unit ids to every owned PMC passenger on those hulls that pass {@code who},
+     * and queue a manual bail for each. Returns how many units were queued.
+     *
+     * <p>{@code who} is the seat filter: bail-out passes everyone; paratroop reuses
+     * {@link RappelSupport#isRappelEligible} (weaponless cargo only).
+     */
+    public static int requestManualBailExpanded(ServerPlayer player, Collection<Integer> seedIds,
+                                                BiPredicate<VehicleEntity, Entity> who) {
+        Set<VehicleEntity> hulls = new LinkedHashSet<>();
+        for (int unitId : seedIds) {
+            Entity e = player.level().getEntity(unitId);
+            if (!(e instanceof PmcUnitEntity pmc)) continue;
+            if (!OrderAuth.check(player, pmc, "BailOutSupport.expand")) continue;
+            if (!(pmc.getVehicle() instanceof VehicleEntity hull)) continue;
+            hulls.add(hull);
+        }
+
+        int queued = 0;
+        for (VehicleEntity hull : hulls) {
+            for (Entity passenger : hull.getPassengers()) {
+                if (!(passenger instanceof PmcUnitEntity pmc)) continue;
+                if (!OrderAuth.check(player, pmc, "BailOutSupport.expand")) continue;
+                if (OrderGuard.rejectIfDowned(player, pmc)) continue;
+                if (!who.test(hull, passenger)) continue;
+                requestManualBail(pmc);
+                queued++;
+            }
+        }
+        return queued;
+    }
+
+    /** Whole-crew bail — every owned PMC passenger on the hull. */
+    public static BiPredicate<VehicleEntity, Entity> everyone() {
+        return (hull, passenger) -> true;
+    }
+
+    /** Paratroop / rappel seat filter — weaponless cargo only. */
+    public static BiPredicate<VehicleEntity, Entity> rappelEligible() {
+        return RappelSupport::isRappelEligible;
     }
 
     /**

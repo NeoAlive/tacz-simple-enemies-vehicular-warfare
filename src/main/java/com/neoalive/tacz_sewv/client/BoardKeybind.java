@@ -24,6 +24,7 @@ import com.neoalive.tacz_sewv.network.PacketBoardVehicle;
 import com.neoalive.tacz_sewv.network.PacketCaptureMedic;
 import com.neoalive.tacz_sewv.network.PacketDismountVehicle;
 import com.neoalive.tacz_sewv.network.PacketManMortar;
+import com.neoalive.tacz_sewv.network.PacketParatroop;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
 
@@ -59,10 +60,22 @@ public class BoardKeybind {
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketDismountVehicle(unitIds)));
     }
 
-    /** Emergency bail — parachute/scramble/full stand-down; not a simple dismount. */
+    /**
+     * Emergency bail — server expands to every owned PMC on those hulls (parachute / scramble /
+     * full stand-down). Not a simple dismount.
+     */
     public static void orderBailOut() {
         withOwnedUnits(pmc -> pmc.getVehicle() != null, "message.tacz_sewv.board.no_units",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketBailOutVehicle(unitIds)));
+    }
+
+    /**
+     * Air assault drop — server expands to weaponless cargo only (same seat filter as rappel),
+     * then queues the parachute bail pathway. Pilot / gunners stay aboard.
+     */
+    public static void orderParatroop() {
+        withOwnedUnits(pmc -> pmc.getVehicle() != null, "message.tacz_sewv.paratroop.none",
+                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketParatroop(unitIds)));
     }
 
     /**

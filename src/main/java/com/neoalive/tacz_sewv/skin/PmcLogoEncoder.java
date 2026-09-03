@@ -18,17 +18,16 @@ import com.neoalive.tacz_sewv.crew.LogoPoolIndex;
  * Converts logo PNGs into SBW's 16×16 dogTag pixel grid (palette indices 0–15, {@code -1} =
  * transparent). Palette matches {@code DogTagEditorScreen.getColorByNum} in Superb Warfare.
  *
- * <p>Downscale is coverage-aware area averaging, not nearest-neighbour: logo PNGs are thin line
- * art on a black/transparent field, and a 1:1 sample into 16×16 either drops strokes or mixes
- * them with backdrop into muddy greys that then quantize badly.
+ * <p>Shipped logos are authored at 16×16 and map 1:1. Larger pack icons still go through
+ * coverage-aware area averaging as a fallback.
  */
 public final class PmcLogoEncoder {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int SIZE = 16;
-    /** Fraction of opaque ink samples required before a cell stamps (keeps thin strokes alive). */
+    /** Fraction of opaque ink samples required before a cell stamps (larger-than-16 fallback). */
     private static final float MIN_COVERAGE = 0.12f;
-    /** Luminance below this after averaging is treated as leftover backdrop, not ink. */
+    /** Luminance below this is treated as leftover backdrop, not ink. */
     private static final int MIN_INK_LUMA = 48;
 
     /** ARGB palette RGB components 0–15 — from Superb Warfare DogTagEditorScreen.getColorByNum. */
@@ -65,6 +64,9 @@ public final class PmcLogoEncoder {
             if (in == null) return null;
             NativeImage src = NativeImage.read(in);
             try {
+                if (src.getWidth() == SIZE && src.getHeight() == SIZE) {
+                    return rasterizeExact(src);
+                }
                 return rasterizeArea(src);
             } finally {
                 src.close();
@@ -75,8 +77,21 @@ public final class PmcLogoEncoder {
         }
     }
 
+    /** 1:1 palette map for authored 16×16 boards. */
+    private static List<List<Short>> rasterizeExact(NativeImage image) {
+        List<List<Short>> rows = new ArrayList<>(SIZE);
+        for (int x = 0; x < SIZE; x++) {
+            List<Short> col = new ArrayList<>(SIZE);
+            for (int y = 0; y < SIZE; y++) {
+                col.add(toPalette(image.getPixelRGBA(x, y)));
+            }
+            rows.add(col);
+        }
+        return rows;
+    }
+
     /**
-     * For each destination cell, average opaque ink over the corresponding source rectangle.
+     * Fallback for pack icons larger than 16×16: average opaque ink over each destination cell.
      * Near-black / transparent source samples are backdrop and do not dilute the ink colour.
      */
     private static List<List<Short>> rasterizeArea(NativeImage src) {
@@ -134,14 +149,31 @@ public final class PmcLogoEncoder {
         if (luma < MIN_INK_LUMA) {
             return -1;
         }
-        // Pure-ish white line art snaps to palette white; avoids grey anti-alias mush.
         if (luma >= 200 && Math.abs(r - g) < 24 && Math.abs(g - b) < 24) {
             return 1;
         }
         return (short) nearestPaletteIndex((r << 16) | (g << 8) | b);
     }
 
-    /** Skip palette 0 (black) — black ink on a dark hull is invisible; map to nearest non-black. */
+    private static short toPalette(int abgr) {
+        int a = (abgr >> 24) & 0xFF;
+        int r = abgr & 0xFF;
+        int g = (abgr >> 8) & 0xFF;
+        int b = (abgr >> 16) & 0xFF;
+        if (a < 128 || r + g + b < 24) {
+            return -1;
+        }
+        int luma = (r * 30 + g * 59 + b * 11) / 100;
+        if (luma < MIN_INK_LUMA) {
+            return -1;
+        }
+        if (luma >= 200 && Math.abs(r - g) < 24 && Math.abs(g - b) < 24) {
+            return 1;
+        }
+        return (short) nearestPaletteIndex((r << 16) | (g << 8) | b);
+    }
+
+    /** Skip palette 0 (black) — black ink on a dark hull is invisible. */
     private static int nearestPaletteIndex(int rgb) {
         int best = 1;
         long bestDist = Long.MAX_VALUE;

@@ -133,10 +133,13 @@ public final class LogoPoolIndex {
             if (!TaczSewv.MODID.equals(id.getNamespace())) continue;
             String relative = id.getPath().substring(DEFAULTS_ROOT.length() + 1);
             Path dest = dir.resolve(relative);
-            if (Files.exists(dest)) continue;
+            // Shipped pmc_default boards are re-copied on every reload so jar updates land;
+            // other pools (player-authored) are seed-once only.
+            boolean shippedDefault = relative.startsWith(PmcIdentityPreference.DEFAULT_POOL + "/");
+            if (Files.exists(dest) && !shippedDefault) continue;
             try (InputStream in = entry.getValue().open()) {
                 Files.createDirectories(dest.getParent());
-                Files.copy(in, dest);
+                Files.copy(in, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 copied++;
             } catch (IOException e) {
                 LOGGER.warn("{} could not seed {}: {}", LOG_PREFIX, relative, e.toString());

@@ -20,6 +20,9 @@ import com.neoalive.tacz_sewv.crew.LogoPoolIndex;
  *
  * <p>Shipped logos are authored at 16×16 and map 1:1. Larger pack icons still go through
  * coverage-aware area averaging as a fallback.
+ *
+ * <p>Near-white ink is stamped as palette grey (index 2), not pure white (index 1): SBW draws
+ * the overlay as a flat lit quad, so full-white pixels read as glowing against hull camo.
  */
 public final class PmcLogoEncoder {
 
@@ -29,6 +32,9 @@ public final class PmcLogoEncoder {
     private static final float MIN_COVERAGE = 0.12f;
     /** Luminance below this is treated as leftover backdrop, not ink. */
     private static final int MIN_INK_LUMA = 48;
+    /** SBW palette: 1 = pure white, 2 = mid grey — prefer grey for hull-readable stamps. */
+    private static final short PALETTE_WHITE = 1;
+    private static final short PALETTE_GREY = 2;
 
     /** ARGB palette RGB components 0–15 — from Superb Warfare DogTagEditorScreen.getColorByNum. */
     private static final int[] PALETTE = new int[16];
@@ -150,9 +156,9 @@ public final class PmcLogoEncoder {
             return -1;
         }
         if (luma >= 200 && Math.abs(r - g) < 24 && Math.abs(g - b) < 24) {
-            return 1;
+            return PALETTE_GREY;
         }
-        return (short) nearestPaletteIndex((r << 16) | (g << 8) | b);
+        return toneDownWhite(nearestPaletteIndex((r << 16) | (g << 8) | b));
     }
 
     private static short toPalette(int abgr) {
@@ -168,16 +174,22 @@ public final class PmcLogoEncoder {
             return -1;
         }
         if (luma >= 200 && Math.abs(r - g) < 24 && Math.abs(g - b) < 24) {
-            return 1;
+            return PALETTE_GREY;
         }
-        return (short) nearestPaletteIndex((r << 16) | (g << 8) | b);
+        return toneDownWhite(nearestPaletteIndex((r << 16) | (g << 8) | b));
+    }
+
+    /** Pure white on a flat overlay reads as emissive — substitute mid grey. */
+    private static short toneDownWhite(int index) {
+        return index == PALETTE_WHITE ? PALETTE_GREY : (short) index;
     }
 
     /** Skip palette 0 (black) — black ink on a dark hull is invisible. */
     private static int nearestPaletteIndex(int rgb) {
-        int best = 1;
+        int best = PALETTE_GREY;
         long bestDist = Long.MAX_VALUE;
         for (int i = 1; i < PALETTE.length; i++) {
+            if (i == PALETTE_WHITE) continue;
             int pr = (PALETTE[i] >> 16) & 0xFF;
             int pg = (PALETTE[i] >> 8) & 0xFF;
             int pb = PALETTE[i] & 0xFF;

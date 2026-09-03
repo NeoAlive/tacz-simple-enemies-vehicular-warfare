@@ -11,19 +11,19 @@ import net.minecraftforge.network.NetworkEvent;
 import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
 
 /**
- * Player-triggered emergency bail — expands seed unit ids to <b>every</b> owned PMC passenger
- * on those hulls, then queues {@link BailOutSupport#TAG_MANUAL_BAIL} for
- * {@link com.neoalive.tacz_sewv.entity.ai.goal.BailOutVehicleGoal} (parachute + scramble).
+ * Air assault drop: expand seed unit ids to owned PMC passengers that pass the same seat filter
+ * as rappel ({@link com.neoalive.tacz_sewv.entity.ai.support.RappelSupport#isRappelEligible} —
+ * weaponless cargo only), then queue the parachute bail pathway. Pilot / gunners stay aboard.
  */
-public class PacketBailOutVehicle {
+public final class PacketParatroop {
 
     private final List<Integer> unitIds;
 
-    public PacketBailOutVehicle(List<Integer> unitIds) {
+    public PacketParatroop(List<Integer> unitIds) {
         this.unitIds = unitIds;
     }
 
-    public PacketBailOutVehicle(FriendlyByteBuf buf) {
+    public PacketParatroop(FriendlyByteBuf buf) {
         this.unitIds = PacketLists.readUnitIds(buf);
     }
 
@@ -37,10 +37,10 @@ public class PacketBailOutVehicle {
             if (player == null) return;
 
             int queued = BailOutSupport.requestManualBailExpanded(
-                    player, this.unitIds, BailOutSupport.everyone());
+                    player, this.unitIds, BailOutSupport.rappelEligible());
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.bail_out", queued,
-                    ChatFormatting.YELLOW, queued);
+            NetworkHandler.orderFeedback(player, "message.tacz_sewv.paratroop", queued,
+                    ChatFormatting.GREEN, queued);
         });
         ctx.get().setPacketHandled(true);
     }

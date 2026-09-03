@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketBailOutVehicle;
 import com.neoalive.tacz_sewv.network.PacketEntrench;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
+import com.neoalive.tacz_sewv.network.PacketParatroop;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketReachGuard;
 import com.neoalive.tacz_sewv.network.PacketSweepAndAdvance;
@@ -118,6 +119,7 @@ public class UnitOrderOption extends RightClickOption {
         ROUTE_TO_FOB("route_to_fob", false, Category.MOVEMENT),
         DISMISS("dismiss", false, Category.STAND_DOWN),
         BAIL_OUT("bail_out", false, Category.STAND_DOWN),
+        PARATROOP("paratroop", false, Category.AIR),
         PREFERRED_PATHWAYS("preferred_pathways", false, Category.MOVEMENT);
 
         final String labelKey;
@@ -220,6 +222,11 @@ public class UnitOrderOption extends RightClickOption {
 
         if (this.action == Action.BAIL_OUT) {
             NetworkHandler.CHANNEL.sendToServer(new PacketBailOutVehicle(new ArrayList<>(drivers)));
+            return;
+        }
+
+        if (this.action == Action.PARATROOP) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketParatroop(new ArrayList<>(drivers)));
             return;
         }
 
@@ -326,7 +333,7 @@ public class UnitOrderOption extends RightClickOption {
             case ATTACK_THAT -> OrderType.ATTACK_THAT_TARGET;
             case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE,
                     ENTRENCH_HERE, CRUISE, SET_GUARD, REACH_GUARD, ROUTE_TO_FOB, DISMISS, BAIL_OUT,
-                    PREFERRED_PATHWAYS ->
+                    PARATROOP, PREFERRED_PATHWAYS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
         };
     }

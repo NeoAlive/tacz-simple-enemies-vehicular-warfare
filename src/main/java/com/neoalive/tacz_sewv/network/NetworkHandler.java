@@ -99,7 +99,7 @@ public class NetworkHandler {
     // 70: PacketTowRecovery (PMC tow order).
     // 71: PacketFobData + FOB assignment/alarm/route packets.
     // 75: PacketRequestPmcIdentity / PacketSyncPmcIdentity / PacketApplyPmcIdentity (TDT Identity).
-    private static final String PROTOCOL_VERSION = "76";
+    private static final String PROTOCOL_VERSION = "77";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -509,6 +509,13 @@ public class NetworkHandler {
                 PacketBailOutVehicle::encode,
                 PacketBailOutVehicle::new,
                 PacketBailOutVehicle::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketParatroop.class,
+                PacketParatroop::encode,
+                PacketParatroop::new,
+                PacketParatroop::handle
         );
         CHANNEL.registerMessage(
                 nextId(),

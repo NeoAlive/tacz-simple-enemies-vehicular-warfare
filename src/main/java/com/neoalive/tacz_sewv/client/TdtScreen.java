@@ -333,6 +333,8 @@ public class TdtScreen extends Screen {
         add(Category.AIR, "gui.tacz_sewv.tdt.emergency_land", "gui.tacz_sewv.tdt.emergency_land.tip",
                 true, HelicopterKeybind::orderEmergencyLand);
         add(Category.AIR, "gui.tacz_sewv.tdt.rappel", "gui.tacz_sewv.tdt.rappel.tip", true, HelicopterKeybind::orderRappel);
+        add(Category.AIR, "gui.tacz_sewv.tdt.paratroop", "gui.tacz_sewv.tdt.paratroop.tip", true,
+                BoardKeybind::orderParatroop);
 
         add(Category.FORM, "gui.tacz_sewv.tdt.sem_wedge", null, true, () -> issueSemOrder(OrderType.FORM_WEDGE));
         add(Category.FORM, "gui.tacz_sewv.tdt.sem_column", null, true, () -> issueSemOrder(OrderType.FORM_COLUMN));

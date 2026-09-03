@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    { "id": "simpleenemymod:pmcunit", "required": false },
+    { "id": "tacz_sewv:pmc_commander", "required": false },
+    { "id": "tacz_sewv:ru_medic", "required": false },
+    { "id": "tacz_sewv:us_medic", "required": false }
+  ]
+}

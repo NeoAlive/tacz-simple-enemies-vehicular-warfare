@@ -6,7 +6,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
-import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -81,10 +80,7 @@ public final class DerelictVehicleEvent extends DynamicEvent {
 
     @Override
     public boolean execute(ServerLevel level, ServerPlayer player, BlockPos centerPos) {
-        // SEM's universal placement gate. Returning false burns the roll WITHOUT resetting the
-        // event's accumulated chance, so a bad location costs us nothing — which is the behaviour
-        // we want, and the reason not to try harder to find a spot.
-        if (!SpawnHelper.isValidSpawn(level, centerPos)) return false;
+        if (!EventSpawns.placeable(level, centerPos)) return false;
 
         TankSpawner.TankFaction faction = EventSpawns.pickDerelictFaction(level);
         if (faction == null) return false;

@@ -76,6 +76,13 @@ public class TaczSewv {
         ModCreativeTabs.CREATIVE_TABS.register(modEventBus);
         ModSounds.SOUNDS.register(modEventBus);
         ModEntities.register(modEventBus);
+        // Soft compat: MineColonies is compileOnly; only MineColoniesCompat and the two gated
+        // mixins may touch com.minecolonies.*, and only after isLoaded(). It goes here rather
+        // than in commonSetup because half of what it registers is the colony event type, and
+        // RegisterEvent has already fired by the time common setup runs.
+        if (ModList.get().isLoaded(com.neoalive.tacz_sewv.compat.MineColoniesCompat.MODID)) {
+            com.neoalive.tacz_sewv.compat.MineColoniesCompat.register(modEventBus);
+        }
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(ChunkTicketSweep.class);
         // Server-side half of the map markers: it only ever SENDS, so it is registered

@@ -4,7 +4,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
-import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
@@ -71,7 +70,7 @@ public final class AsymmetricInvasionEvent extends DynamicEvent {
 
     @Override
     public boolean execute(ServerLevel level, ServerPlayer player, BlockPos centerPos) {
-        if (!SpawnHelper.isValidSpawn(level, centerPos)) return false;
+        if (!EventSpawns.placeable(level, centerPos)) return false;
         if (!TankSpawner.spawnsEnabled(level, TankSpawner.TankFaction.RU)
                 || !TankSpawner.spawnsEnabled(level, TankSpawner.TankFaction.US)) {
             return false;

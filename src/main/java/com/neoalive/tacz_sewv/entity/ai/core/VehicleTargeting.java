@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.MarchObjective;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
@@ -121,6 +122,10 @@ public final class VehicleTargeting {
         if (!(unit instanceof PmcUnitEntity pmc)) {
             LivingEntity target = unit.getTarget();
             if (target != null) return target.blockPosition();
+            // A standing march objective (today: a MineColonies armored raid) outranks assisting
+            // and idling but not a fight of our own — the crew resumes the march afterwards.
+            BlockPos march = MarchObjective.of(vehicle);
+            if (march != null) return march;
             // No fight of our own — reinforce a nearby allied crew that has one. Cooldown-gated
             // (see ASSIST_ENGAGEMENT_COOLDOWN) so this doesn't peel onto a different ally every
             // scan interval.

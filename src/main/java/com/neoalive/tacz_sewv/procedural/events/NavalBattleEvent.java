@@ -11,6 +11,7 @@ import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
+import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -75,6 +76,9 @@ public final class NavalBattleEvent extends DynamicEvent {
     public boolean execute(ServerLevel level, ServerPlayer player, BlockPos centerPos) {
         if (!isFightableOcean(level, centerPos)) return false;
         if (!WaterSupport.navigable(level, centerPos.getX(), centerPos.getZ())) return false;
+        // The half of EventSpawns.placeable this event can use — a colony can be built on a coast
+        // and claim the water off it.
+        if (!AmbientSpawnGate.allowsAt(level, centerPos)) return false;
         if (!TankSpawner.hasSpawnableShip(level, TankSpawner.TankFaction.RU)
                 || !TankSpawner.hasSpawnableShip(level, TankSpawner.TankFaction.US)) {
             return false;

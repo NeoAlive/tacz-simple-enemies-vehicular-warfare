@@ -313,6 +313,13 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue FOB_ALARM_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue FOB_THREAT_EVAL_INTERVAL_TICKS;
 
+    public static final ForgeConfigSpec.BooleanValue MINECOLONIES_COMPAT_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue MINECOLONIES_PROTECT_PMC;
+    public static final ForgeConfigSpec.BooleanValue MINECOLONIES_SPAWN_EXCLUSION;
+    public static final ForgeConfigSpec.BooleanValue MINECOLONIES_VEHICLE_RETALIATION;
+    public static final ForgeConfigSpec.DoubleValue MINECOLONIES_RAID_CHANCE;
+    public static final ForgeConfigSpec.IntValue MINECOLONIES_RAID_MAX_VEHICLES;
+
     private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
     private static final int[][] DOCTRINE_DEFAULTS = {
             {2, -1, 2, -1, 1, 0, -2, 2},
@@ -1199,6 +1206,39 @@ public final class SewvConfig {
                 .defineInRange("fobAlarmCooldownTicks", 400, 1, 72000);
         FOB_THREAT_EVAL_INTERVAL_TICKS = builder.comment("Ticks between threat scans per FOB.")
                 .defineInRange("fobThreatEvalIntervalTicks", 20, 1, 200);
+        builder.pop();
+
+        builder.push("minecolonies");
+        MINECOLONIES_COMPAT_ENABLED = builder.comment(
+                        "Master switch for the MineColonies compat. Does nothing when MineColonies is absent.",
+                        "Turning this off leaves MineColonies' own untouched behaviour, which means colony guards",
+                        "shoot your PMC squad and US units are attackable by nothing — see the individual keys.")
+                .define("minecoloniesCompatEnabled", true);
+        MINECOLONIES_PROTECT_PMC = builder.comment(
+                        "Colony guards do not open fire on a PMC unit owned by someone the colony recognises.",
+                        "MineColonies decides who is hostile from the entity's MobCategory, and SEM registers",
+                        "pmcunit as MONSTER, so without this a colony shoots the escort you walked in with.")
+                .define("minecoloniesProtectOwnedPmc", true);
+        MINECOLONIES_SPAWN_EXCLUSION = builder.comment(
+                        "Keep procedural war events (convoys, shelling, battles) from placing units and vehicles",
+                        "inside claimed colony chunks. Mortar shelling in particular aims at your respawn point,",
+                        "which for a colony player is usually a bed inside their own walls.")
+                .define("minecoloniesSpawnExclusion", true);
+        MINECOLONIES_VEHICLE_RETALIATION = builder.comment(
+                        "Let citizens and guards react to being shot by a crewed vehicle. MineColonies only",
+                        "registers threat from a LivingEntity attacker, and a vehicle hull is not one, so without",
+                        "this a tank can kill a whole colony without anybody raising the alarm. Blames the crew,",
+                        "not the hull, because a guard can actually shoot a crewman.")
+                .define("minecoloniesVehicleRetaliation", true);
+        MINECOLONIES_RAID_CHANCE = builder.comment(
+                        "Chance (0-1) that a MineColonies raid night fields an armored raid from this mod instead",
+                        "of barbarians/pirates/norsemen. 0 disables it. The raid rides MineColonies' own schedule,",
+                        "difficulty scaling and spawn-point search, so raid frequency is still MineColonies' to set.")
+                .defineInRange("minecoloniesRaidChance", 0.25, 0.0, 1.0);
+        MINECOLONIES_RAID_MAX_VEHICLES = builder.comment(
+                        "Hard cap on hulls fielded by one armored colony raid, before crew. Colony raid level",
+                        "decides the actual number below this.")
+                .defineInRange("minecoloniesRaidMaxVehicles", 3, 1, 12);
         builder.pop();
 
         SPEC = builder.build();

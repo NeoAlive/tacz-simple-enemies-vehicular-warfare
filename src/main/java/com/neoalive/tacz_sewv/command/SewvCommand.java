@@ -65,6 +65,7 @@ import com.neoalive.tacz_sewv.invasion.InvasionSession;
 import com.neoalive.tacz_sewv.invasion.InvasionSpawn;
 import com.neoalive.tacz_sewv.invasion.InvasionTickets;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketHudNotification;
 import com.neoalive.tacz_sewv.network.PacketOpenConfigUI;
 import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
@@ -114,6 +115,17 @@ public class SewvCommand {
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("rappel")
                                 .executes(ctx -> debugRappel(ctx.getSource())))
+                        .then(Commands.literal("notificationTest")
+                                .executes(ctx -> debugNotificationTest(ctx.getSource(),
+                                        "Notification test",
+                                        "Queue another with the same command."))
+                                .then(Commands.argument("title", StringArgumentType.string())
+                                        .executes(ctx -> debugNotificationTest(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "title"), ""))
+                                        .then(Commands.argument("body", StringArgumentType.greedyString())
+                                                .executes(ctx -> debugNotificationTest(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "title"),
+                                                        StringArgumentType.getString(ctx, "body"))))))
                         .then(Commands.literal("guncache")
                                 .executes(ctx -> debugGunCache(ctx.getSource())))
                         .then(Commands.literal("reloadSkins")
@@ -455,6 +467,16 @@ public class SewvCommand {
     }
 
     /** Stage-1 rappel: toggle hover-lock on the looked-at / nearest helicopter. */
+    private static int debugNotificationTest(CommandSourceStack source, String title, String body) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.notificationTest.player_only"));
+            return 0;
+        }
+        PacketHudNotification.sendTo(player, title, body);
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.notificationTest.ok"), false);
+        return 1;
+    }
+
     private static int debugRappel(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.translatable("command.tacz_sewv.debug.rappel.player_only"));

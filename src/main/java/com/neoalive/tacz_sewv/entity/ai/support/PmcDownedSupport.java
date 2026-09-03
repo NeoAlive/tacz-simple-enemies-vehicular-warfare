@@ -20,6 +20,7 @@ import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.network.PacketReviveProgress;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 
 /**
  * PMC-only "downed, not dead" mechanic. RU/US simply die — only a PMC is worth a player's
@@ -97,6 +98,7 @@ public final class PmcDownedSupport {
         downed.sewv$setDownedSynced(true);
         pmc.setHealth((float) Math.max(1.0, SewvConfig.PMC_DOWNED_HEALTH.get()));
         OrderStandDown.clearAll(pmc, "PmcDownedSupport.onDeath");
+        HudNotify.pmcDowned(pmc, event.getSource());
     }
 
     /**

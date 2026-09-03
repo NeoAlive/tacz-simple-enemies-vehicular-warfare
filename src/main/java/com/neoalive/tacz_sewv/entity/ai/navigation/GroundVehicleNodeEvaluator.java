@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
@@ -92,7 +93,27 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
      * happen on the rare early-return paths in that classification loop. */
     private final Long2ByteOpenHashMap footprintTreeCache = newFootprintTreeCache();
 
+    /** Per-search {@link GroundMobility#localGrade} cache, keyed by column ({@code x, 0, z}).
+     * Adjacent accepted nodes often share the same grade sample; without this each node pays
+     * five heightmap reads. */
+    private final Long2DoubleOpenHashMap gradeCache = newGradeCache();
+
+    /** Per-search {@link #nearDeepWater} cache, keyed by node origin. Byte 0/1, -1 = miss. */
+    private final Long2ByteOpenHashMap nearDeepWaterCache = newNearDeepWaterCache();
+
     private static Long2ByteOpenHashMap newFootprintTreeCache() {
+        Long2ByteOpenHashMap cache = new Long2ByteOpenHashMap();
+        cache.defaultReturnValue((byte) -1);
+        return cache;
+    }
+
+    private static Long2DoubleOpenHashMap newGradeCache() {
+        Long2DoubleOpenHashMap cache = new Long2DoubleOpenHashMap();
+        cache.defaultReturnValue(Double.NEGATIVE_INFINITY);
+        return cache;
+    }
+
+    private static Long2ByteOpenHashMap newNearDeepWaterCache() {
         Long2ByteOpenHashMap cache = new Long2ByteOpenHashMap();
         cache.defaultReturnValue((byte) -1);
         return cache;
@@ -111,6 +132,8 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         this.peerZ = EMPTY;
         this.peerSoft = EMPTY;
         this.footprintTreeCache.clear();
+        this.gradeCache.clear();
+        this.nearDeepWaterCache.clear();
         if (mob.getVehicle() instanceof VehicleEntity vehicle) {
             this.amphibious = GroundMobility.isAmphibious(vehicle);
             this.maxUpStep = GroundMobility.maxUpStepOf(vehicle);
@@ -251,19 +274,37 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     }
 
     private boolean nearDeepWater(int x, int y, int z) {
+        long key = BlockPos.asLong(x, y, z);
+        byte cached = this.nearDeepWaterCache.get(key);
+        if (cached != this.nearDeepWaterCache.defaultReturnValue()) return cached != 0;
+
         int margin = GroundMobility.DEEP_WATER_MARGIN;
         int minX = x - margin;
         int maxX = x + Math.max(1, this.entityWidth) - 1 + margin;
         int minZ = z - margin;
         int maxZ = z + Math.max(1, this.entityDepth) - 1 + margin;
+        boolean near = false;
+        scan:
         for (int cx = minX; cx <= maxX; cx++) {
             for (int cz = minZ; cz <= maxZ; cz++) {
                 if (GroundMobility.waterDepth(this.level, this.probe, cx, y, cz) > 0) {
-                    return true;
+                    near = true;
+                    break scan;
                 }
             }
         }
-        return false;
+        this.nearDeepWaterCache.put(key, (byte) (near ? 1 : 0));
+        return near;
+    }
+
+    private double cachedLocalGrade(int x, int z) {
+        long key = BlockPos.asLong(x, 0, z);
+        double cached = this.gradeCache.get(key);
+        if (cached != this.gradeCache.defaultReturnValue()) return cached;
+        double grade = GroundMobility.localGrade(
+                this.mob != null ? this.mob.level() : this.level, x, z, this.gradeHalfSpan);
+        this.gradeCache.put(key, grade);
+        return grade;
     }
 
     @Override
@@ -289,13 +330,14 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         if (Float.isInfinite(slope)) return null;
         node.costMalus += slope;
 
-        node.costMalus += GroundMobility.gradeMalus(GroundMobility.localGrade(
-                this.mob != null ? this.mob.level() : this.level, node.x, node.z, this.gradeHalfSpan));
+        node.costMalus += GroundMobility.gradeMalus(cachedLocalGrade(node.x, node.z));
 
         int depth = footprintWaterDepth(this.level, node.x, node.y, node.z);
         float ford = GroundMobility.fordMalus(depth, this.amphibious);
         if (Float.isInfinite(ford)) return null;
         node.costMalus += ford;
+        // Amphibious / already-wet nodes never pay the shoreline soft margin, so skip the
+        // (W+6)×(D+6) water scan entirely in those cases.
         if (depth <= 0 && !this.amphibious && nearDeepWater(node.x, node.y, node.z)) {
             node.costMalus += GroundMobility.DEEP_MARGIN_PENALTY;
         }

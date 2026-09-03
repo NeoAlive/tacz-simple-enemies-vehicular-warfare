@@ -16,6 +16,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
@@ -57,11 +58,8 @@ public final class VehicleDriver {
     private static final double REVERSE_FACING_CONE_RAD = Math.toRadians(75.0);
 
     // Pathfinding throttles: A* over the vehicle's block volume is the most expensive thing this
-    // does, so a still-valid path is reused instead of recomputed on a fixed timer.
-    private static final int PATH_RECALC_COOLDOWN = 20;        // min ticks between searches
-    private static final int PATH_FAIL_COOLDOWN = 60;          // back off after a failed search
-    private static final int MAX_PATH_AGE_TICKS = 100;         // force a refresh even if "valid"
-    private static final double PATH_TARGET_DRIFT_SQ = 9.0;    // target moved >3 blocks → refresh
+    // does, so a still-valid path is reused instead of recomputed on a fixed timer. Defaults live
+    // in SewvConfig (recalc 40 / drift 6 blocks) — tighter values used to repath ~1 Hz while chasing.
     private static final double PATH_ABANDON_DRIFT_SQ = 256.0; // dest jumped >16 blocks → repath now
     // How close (squared) the hull must be to a waypoint to treat it as reached and aim at the
     // next one. Re-evaluated from the live position every tick, so the aimed waypoint stays put
@@ -71,6 +69,23 @@ public final class VehicleDriver {
     // get a partial path that walks us closer. Ground vehicles never need a 64-block-tall volume.
     private static final int PATH_SEARCH_RANGE = 32;
     private static final int PATH_SEARCH_VERTICAL = 16;
+
+    private static int pathRecalcCooldown() {
+        return SewvConfig.PATH_RECALC_COOLDOWN_TICKS.get();
+    }
+
+    private static int pathFailCooldown() {
+        return SewvConfig.PATH_FAIL_COOLDOWN_TICKS.get();
+    }
+
+    private static int pathMaxAge() {
+        return SewvConfig.PATH_MAX_AGE_TICKS.get();
+    }
+
+    private static double pathTargetDriftSq() {
+        double d = SewvConfig.PATH_TARGET_DRIFT_BLOCKS.get();
+        return d * d;
+    }
 
     // Stuck recovery: if the hull neither moves nor turns for this long while it is being told to
     // drive, it is wedged on terrain — straight reverse for a moment, then repath. No left/right
@@ -427,8 +442,8 @@ public final class VehicleDriver {
                 : this.lastPathTarget.distSqr(dest);
         boolean pathStale = this.currentPath == null
                 || this.currentPath.isDone()
-                || this.pathAge > MAX_PATH_AGE_TICKS
-                || targetDriftSq > PATH_TARGET_DRIFT_SQ;
+                || this.pathAge > pathMaxAge()
+                || targetDriftSq > pathTargetDriftSq();
         // A far jump in destination (order change, retreat flip) means the route in hand points
         // somewhere we no longer want to go, so ignore the throttle and repath immediately rather
         // than coast toward the stale goal for ~20 ticks.
@@ -458,7 +473,7 @@ public final class VehicleDriver {
             this.lastPathTarget = dest;
             this.pathAge = 0;
             // Terrain won't have changed next tick — back off harder after a failed search.
-            this.pathRecalcCooldown = this.currentPath == null ? PATH_FAIL_COOLDOWN : PATH_RECALC_COOLDOWN;
+            this.pathRecalcCooldown = this.currentPath == null ? pathFailCooldown() : pathRecalcCooldown();
             if (SewvDiag.groundPathingVerbose()) {
                 SewvDiag.pathing("repath RESULT unit={}#{} vehicle={}#{} found={} nextNode={} nextIndex={} nodeCount={} cooldown={}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),

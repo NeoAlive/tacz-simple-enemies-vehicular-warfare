@@ -12,6 +12,7 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import org.joml.Vector3f;
 
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
@@ -81,6 +82,10 @@ public final class GroundTerrainSensor extends TerrainSensor {
      * half-plane construction: a perfectly symmetric head-on approach has no basis to prefer a
      * side. See VehicleOrca#halfPlane. */
     private static final double ORCA_TIE_EPS = 1.0E-6;
+    /** Skip the full 7-slot map when the desired bearing is nearly ahead and already clear. */
+    private static final double FAN_SHORTCIRCUIT_YAW_RAD = Math.toRadians(25.0);
+    /** Reuse a computed fan heading while desired has not swung more than this. */
+    private static final double FAN_REUSE_DESIRED_RAD = Math.toRadians(15.0);
 
     private boolean amphibious;
     private float maxUpStep = 1.0F;
@@ -112,6 +117,11 @@ public final class GroundTerrainSensor extends TerrainSensor {
     private double lastStepDelta;
     private int lastWaterDepth;
 
+    /** Last full-map (or short-circuit) result, reused on the following tick when not stuck. */
+    private long lastFanTick = Long.MIN_VALUE;
+    private Vec3 lastFanDesired;
+    private Vec3 lastFanResult;
+
     private List<AABB> allyFootObstacles = List.of();
     private List<VehicleOrca.Peer> peers = List.of();
 
@@ -130,6 +140,9 @@ public final class GroundTerrainSensor extends TerrainSensor {
         this.lastFanHullDominated = false;
         this.lastFanReasons = "";
         this.lastSlot = Integer.MIN_VALUE;
+        this.lastFanTick = Long.MIN_VALUE;
+        this.lastFanDesired = null;
+        this.lastFanResult = null;
         this.allyFootObstacles = List.of();
         this.peers = List.of();
     }
@@ -173,11 +186,48 @@ public final class GroundTerrainSensor extends TerrainSensor {
     @Override
     public Vec3 chooseClearBearing(Vec3 desired, double probeDistance, boolean stuck) {
         if (desired.lengthSqr() < 1.0E-8) return desired;
+        long now = gameTime();
+
+        // Every other tick: reuse last heading when not stuck and the ask has not swung. Stuck
+        // recovery and hard turns still recompute every tick so the whiskers stay responsive.
+        if (!stuck && this.lastFanResult != null && this.lastFanDesired != null
+                && now == this.lastFanTick + 1
+                && horizontalAngleAbs(this.lastFanDesired, desired) <= FAN_REUSE_DESIRED_RAD) {
+            PathingPerf.fanCalls++;
+            return this.lastFanResult;
+        }
+
         long t0 = System.nanoTime();
-        Vec3 result = pickFromMaps(desired, probeDistance);
+        Vec3 result;
+        if (!stuck && canShortCircuit(desired, probeDistance)) {
+            result = desired;
+            this.lastSlot = 3; // center slot of the 7-slot fan
+            this.lastFanHullDominated = false;
+            this.lastFanReasons = "";
+        } else {
+            result = pickFromMaps(desired, probeDistance);
+        }
         PathingPerf.fanNanos += System.nanoTime() - t0;
         PathingPerf.fanCalls++;
+        this.lastFanTick = now;
+        this.lastFanDesired = desired;
+        this.lastFanResult = result;
         return result;
+    }
+
+    /** Desired is nearly ahead and a single beam probe says the hull fits — skip the 7-slot map. */
+    private boolean canShortCircuit(Vec3 desired, double probeDistance) {
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        if (Math.abs(VehicleTargeting.signedAngleTo(forward, desired)) > FAN_SHORTCIRCUIT_YAW_RAD) {
+            return false;
+        }
+        return headingClear(desired, probeDistance);
+    }
+
+    private static double horizontalAngleAbs(Vec3 a, Vec3 b) {
+        double cross = a.x * b.z - a.z * b.x;
+        double dot = a.x * b.x + a.z * b.z;
+        return Math.abs(Math.atan2(cross, dot));
     }
 
     private Vec3 pickFromMaps(Vec3 desired, double probeDistance) {

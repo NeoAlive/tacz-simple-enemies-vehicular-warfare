@@ -164,6 +164,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue STALEMATE_BREAKER_ENABLED;
     public static final ForgeConfigSpec.IntValue STALEMATE_SILENCE_TICKS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TERRAIN_AVOIDANCE;
+    public static final ForgeConfigSpec.IntValue PATH_RECALC_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.IntValue PATH_FAIL_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.IntValue PATH_MAX_AGE_TICKS;
+    public static final ForgeConfigSpec.DoubleValue PATH_TARGET_DRIFT_BLOCKS;
     // groundPathingDebug/shipPathingDebug/sewvDiagDebug moved to gamerules
     // (sewvGroundPathingDebug/sewvShipPathingDebug/sewvDiagDebug) — see ModGameRules.
     public static final ForgeConfigSpec.BooleanValue KOMODO_RENDER_FIX_ENABLED;
@@ -689,6 +693,20 @@ public final class SewvConfig {
                 .defineInRange("stalemateSilenceTicks", 300, 40, 2400);
         VEHICLE_TERRAIN_AVOIDANCE = builder.comment("AI drivers try to avoid water, walls, and other hazards.")
                 .define("vehicleTerrainAvoidance", true);
+        PATH_RECALC_COOLDOWN_TICKS = builder.comment(
+                        "Minimum game ticks between ground-vehicle A* searches when the previous search succeeded.",
+                        "Raising this cuts pathfinding cost while chasing a moving target.")
+                .defineInRange("pathRecalcCooldownTicks", 40, 5, 200);
+        PATH_FAIL_COOLDOWN_TICKS = builder.comment(
+                        "Back-off (game ticks) after a failed A* search before trying again.")
+                .defineInRange("pathFailCooldownTicks", 60, 10, 400);
+        PATH_MAX_AGE_TICKS = builder.comment(
+                        "Force a fresh A* search even if the destination has not drifted, after this many game ticks.")
+                .defineInRange("pathMaxAgeTicks", 100, 20, 600);
+        PATH_TARGET_DRIFT_BLOCKS = builder.comment(
+                        "Recompute the ground path when the destination moves more than this many blocks.",
+                        "Combat chases a live target, so a small value repaths nearly every second.")
+                .defineInRange("pathTargetDriftBlocks", 6.0, 1.0, 32.0);
         KOMODO_RENDER_FIX_ENABLED = builder.comment(
                         "Client-only. Komodo's retained-rendering fallback (used for the first frame or two of a",
                         "newly seen vehicle model+texture, before its GPU-instanced path is baked) can call into",

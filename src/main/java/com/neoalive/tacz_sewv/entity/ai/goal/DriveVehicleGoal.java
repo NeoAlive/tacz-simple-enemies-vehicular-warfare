@@ -246,13 +246,6 @@ public class DriveVehicleGoal extends Goal {
             this.vehicle.setDecoyInputDown(false);
         }
 
-        BlockPos targetPos = getTargetPos();
-        if (targetPos == null) {
-            this.driver.stop();
-            this.driver.clearRecovery(); // no task — nothing to be stuck against
-            return;
-        }
-
         // An area task (patrol / S&D / sweep / cruise) does not yield the wheel to a contact:
         // the ordered ground is the player's standing instruction and the crew fights from it.
         // Everything the fight needs that is NOT movement still runs — weapon choice and the fire
@@ -266,6 +259,9 @@ public class DriveVehicleGoal extends Goal {
         // get the hull out — handing a damaged crew to fightTick made it hold a standoff ring on
         // the enemy instead, which reads on screen as a hull that keeps backing away rather than
         // driving home. Retreat is the order; fightTick's version of it goes nowhere.
+        //
+        // Pure combat steers off the live target inside fightTick — resolveDestination is unused
+        // there, so skip getTargetPos unless a named move / area hold needs the standing dest.
         if (target != null) {
             boolean captureHold = CaptureOrderSupport.holdsCourseThroughContact(this.unit);
             boolean orderedMove = VehicleTargeting.holdsOrderedMove(this.unit);
@@ -275,19 +271,34 @@ public class DriveVehicleGoal extends Goal {
             boolean tasked = com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment.of(this.unit.getId()) != null;
             boolean areaHold = (PatrolSupport.holdsCourseThroughContact(this.unit)
                     || (captureHold && !tasked)) && !isLowHealth();
-            if (orderedMove || areaHold) {
-                if (captureHold && this.unit.level() instanceof ServerLevel sl
-                        && sl.getGameTime() % 40L == 0L) {
-                    com.neoalive.tacz_sewv.debug.SewvDiag.invasion(
-                            "captureHoldUnderFire unit={} target={} dest={}",
-                            this.unit.getId(), target.getId(), targetPos);
-                }
-                selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
-                fireAssistIfSpecial(target);
-            } else {
+            if (!orderedMove && !areaHold) {
                 fightTick(target);
                 return;
             }
+
+            BlockPos targetPos = getTargetPos();
+            if (targetPos == null) {
+                this.driver.stop();
+                this.driver.clearRecovery();
+                return;
+            }
+            if (captureHold && this.unit.level() instanceof ServerLevel sl
+                    && sl.getGameTime() % 40L == 0L) {
+                com.neoalive.tacz_sewv.debug.SewvDiag.invasion(
+                        "captureHoldUnderFire unit={} target={} dest={}",
+                        this.unit.getId(), target.getId(), targetPos);
+            }
+            selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
+            fireAssistIfSpecial(target);
+            standDownTick(targetPos);
+            return;
+        }
+
+        BlockPos targetPos = getTargetPos();
+        if (targetPos == null) {
+            this.driver.stop();
+            this.driver.clearRecovery(); // no task — nothing to be stuck against
+            return;
         }
 
         standDownTick(targetPos);

@@ -279,6 +279,12 @@ public final class Facts {
         // between two refreshes still has to be remembered, and these are all free field reads.
         this.memory.observe(unit, now);
 
+        // First schedule is staggered by hull id (same pattern as OuterRingAwareness) so a wave of
+        // crews that attach on the same tick do not all pay the expensive gather together.
+        if (this.nextRefresh == Long.MIN_VALUE) {
+            int interval = Math.max(1, SewvConfig.UTILITY_REFRESH_INTERVAL_TICKS.get());
+            this.nextRefresh = now + Math.floorMod(hull.getId(), interval);
+        }
         if (now < this.nextRefresh) return false;
         this.nextRefresh = now + SewvConfig.UTILITY_REFRESH_INTERVAL_TICKS.get();
 

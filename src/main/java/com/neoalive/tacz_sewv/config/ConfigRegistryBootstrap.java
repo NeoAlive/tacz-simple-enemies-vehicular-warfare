@@ -407,6 +407,14 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.STALEMATE_SILENCE_TICKS, SewvConfig.STALEMATE_SILENCE_TICKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "vehicleTerrainAvoidance",
                 SewvConfig.VEHICLE_TERRAIN_AVOIDANCE, SewvConfig.VEHICLE_TERRAIN_AVOIDANCE::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "pathRecalcCooldownTicks", 5, 200,
+                SewvConfig.PATH_RECALC_COOLDOWN_TICKS, SewvConfig.PATH_RECALC_COOLDOWN_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "pathFailCooldownTicks", 10, 400,
+                SewvConfig.PATH_FAIL_COOLDOWN_TICKS, SewvConfig.PATH_FAIL_COOLDOWN_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "pathMaxAgeTicks", 20, 600,
+                SewvConfig.PATH_MAX_AGE_TICKS, SewvConfig.PATH_MAX_AGE_TICKS::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "pathTargetDriftBlocks", 1.0, 32.0,
+                SewvConfig.PATH_TARGET_DRIFT_BLOCKS, SewvConfig.PATH_TARGET_DRIFT_BLOCKS::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "patrolRotateIntervalTicks", 200, 24000,
                 SewvConfig.PATROL_ROTATE_INTERVAL_TICKS, SewvConfig.PATROL_ROTATE_INTERVAL_TICKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "idleWanderEnabled",

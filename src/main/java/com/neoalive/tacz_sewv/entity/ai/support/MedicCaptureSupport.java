@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.NpcArmor;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 
 /**
  * Handles medic capture trigger (the `LivingDeathEvent` half) and conversion-to-PMC interaction
@@ -72,6 +73,7 @@ public class MedicCaptureSupport {
                 medic.getName().getString(), SewvConfig.MEDIC_CAPTURE_DURATION_TICKS.get());
         debugLog("capture: {} captured, health={}, deadline in {} ticks", medic,
                 medic.getHealth(), SewvConfig.MEDIC_CAPTURE_DURATION_TICKS.get());
+        HudNotify.medicCaptured(medic, event.getSource());
     }
 
     /**

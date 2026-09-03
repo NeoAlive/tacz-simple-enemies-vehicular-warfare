@@ -15,34 +15,39 @@ import com.neoalive.tacz_sewv.client.NotificationHud;
 /** Server→client: enqueue one HUD notification on that player's screen. */
 public class PacketHudNotification {
 
-    private final String title;
-    private final String body;
+    private final Component title;
+    private final Component body;
 
-    public PacketHudNotification(String title, String body) {
-        this.title = title == null ? "" : title;
-        this.body = body == null ? "" : body;
+    public PacketHudNotification(Component title, Component body) {
+        this.title = title == null ? Component.empty() : title;
+        this.body = body == null ? Component.empty() : body;
     }
 
     public PacketHudNotification(FriendlyByteBuf buf) {
-        this.title = buf.readUtf();
-        this.body = buf.readUtf();
+        this.title = buf.readComponent();
+        this.body = buf.readComponent();
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(this.title);
-        buf.writeUtf(this.body);
+        buf.writeComponent(this.title);
+        buf.writeComponent(this.body);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() ->
                 DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                        () -> () -> NotificationHud.push(
-                                Component.literal(this.title), Component.literal(this.body))));
+                        () -> () -> NotificationHud.push(this.title, this.body)));
         ctx.get().setPacketHandled(true);
     }
 
-    public static void sendTo(ServerPlayer player, String title, String body) {
+    public static void sendTo(ServerPlayer player, Component title, Component body) {
         NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                 new PacketHudNotification(title, body));
+    }
+
+    /** Debug / literal convenience. */
+    public static void sendTo(ServerPlayer player, String title, String body) {
+        sendTo(player, Component.literal(title == null ? "" : title),
+                Component.literal(body == null ? "" : body));
     }
 }

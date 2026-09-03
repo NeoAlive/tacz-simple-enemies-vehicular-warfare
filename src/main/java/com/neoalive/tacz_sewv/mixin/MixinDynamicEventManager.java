@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.mixin;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -11,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.init.ModGameRules;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 
 /**
@@ -18,6 +20,9 @@ import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
  * {@code DynamicEvent#getMinDistance}/{@code getMaxDistance} take no level and cannot read a
  * gamerule themselves — both the per-player roll ({@code tryEventForPlayer}) and
  * {@code forceEvent} go through the same call.
+ *
+ * <p>Also notifies the rolled player when an event {@code execute} succeeds — one redirect covers
+ * both ambient rolls and {@code /semevent force}.
  */
 @Mixin(targets = "net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager")
 public abstract class MixinDynamicEventManager {
@@ -45,5 +50,21 @@ public abstract class MixinDynamicEventManager {
             maxDistance = (int) (maxDistance * FAR_SCALE);
         }
         return SpawnHelper.getRandomPositionNearPlayer(player, minDistance, maxDistance, level);
+    }
+
+    @Redirect(
+            method = {"tryEventForPlayer", "forceEvent"},
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/nekoyuni/SimpleEnemyMod/procedural/events/system/DynamicEvent;execute(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/core/BlockPos;)Z",
+                    remap = false),
+            remap = false)
+    private static boolean tacz_sewv$notifyOnEventSuccess(
+            DynamicEvent event, ServerLevel level, ServerPlayer player, BlockPos pos) {
+        boolean ok = event.execute(level, player, pos);
+        if (ok) {
+            HudNotify.eventNearby(player, event.getId(), pos);
+        }
+        return ok;
     }
 }

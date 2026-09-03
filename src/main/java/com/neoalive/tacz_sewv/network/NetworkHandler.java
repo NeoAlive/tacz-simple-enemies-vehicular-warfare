@@ -100,7 +100,8 @@ public class NetworkHandler {
     // 71: PacketFobData + FOB assignment/alarm/route packets.
     // 75: PacketRequestPmcIdentity / PacketSyncPmcIdentity / PacketApplyPmcIdentity (TDT Identity).
     // 78: PacketHudNotification (S->C top-center HUD banner queue).
-    private static final String PROTOCOL_VERSION = "78";
+    // 79: PacketHudNotification carries Components (translatable title/body) instead of raw UTF.
+    private static final String PROTOCOL_VERSION = "79";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

@@ -45,6 +45,7 @@ public final class HullFacts {
     private boolean helicopter;
     private boolean plane;
     private boolean tracked;
+    private boolean wheeled;
     private boolean ship;
     private boolean groundMobile;
     private boolean ifv;
@@ -67,6 +68,7 @@ public final class HullFacts {
         this.helicopter = computeHelicopter(v);
         this.plane = computePlane(v);
         this.tracked = computeTracked(v);
+        this.wheeled = computeWheeled(v);
         this.ship = computeShip(v);
         this.groundMobile = computeGroundMobile(v);
         this.ifv = computeIfv(v);
@@ -98,6 +100,14 @@ public final class HullFacts {
     /** Tracked hulls pivot in place; wheeled ones must roll through a turn. */
     public boolean isTracked() {
         return this.tracked;
+    }
+
+    /**
+     * {@link EngineType#WHEEL} — cannot turn in place; must roll through turns and back-and-fill
+     * when the bearing is behind the beam. See {@link VehicleDriver}.
+     */
+    public boolean isWheeled() {
+        return this.wheeled;
     }
 
     /** Wheel or track hulls only — excludes {@code FIXED} emplacements (they don't drive),
@@ -460,6 +470,14 @@ public final class HullFacts {
         try {
             EngineType t = v.computed().getEngineType();
             return t == EngineType.WHEEL || t == EngineType.TRACK;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean computeWheeled(VehicleEntity v) {
+        try {
+            return v.computed().getEngineType() == EngineType.WHEEL;
         } catch (Throwable ignored) {
             return false;
         }

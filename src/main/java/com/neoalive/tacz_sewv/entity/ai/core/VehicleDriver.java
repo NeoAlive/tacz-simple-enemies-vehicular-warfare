@@ -40,6 +40,10 @@ import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
  * while left/right stays held; the instant the inputs are released the rate collapses back to a
  * crawl. So every method here ends with inputs set, and {@link #stop()} is a real instruction
  * rather than the absence of one.
+ *
+ * <p>{@link HullFacts#isWheeled() Wheeled} hulls cannot turn in place. They roll through turns
+ * (throttle duty-cycled on hard bends), aim further along the path polyline, and back-and-fill
+ * when the bearing is behind the beam — the same manoeuvre ships use, adapted for ground.
  */
 public final class VehicleDriver {
 
@@ -65,6 +69,20 @@ public final class VehicleDriver {
     // next one. Re-evaluated from the live position every tick, so the aimed waypoint stays put
     // while the hull turns in place instead of jittering.
     private static final double NODE_REACHED_SQ = 9.0;
+    // Wheeled hulls overshoot grid corners; consume nodes a touch earlier and aim further along
+    // the polyline so the car rolls an arc instead of trying to pivot onto each vertex.
+    private static final double WHEEL_NODE_REACHED_SQ = 16.0;
+    private static final double WHEEL_LOOKAHEAD_SQ = 100.0; // ~10 blocks along the path
+    // Past this bearing error a wheeled hull backs and fills instead of sweeping a U-turn
+    // (same manoeuvre DriveShipGoal uses — cars also cannot turn in place).
+    private static final double WHEEL_REVERSE_ANGLE_RAD = Math.toRadians(110.0);
+    private static final int WHEEL_REVERSE_TICKS = 30;
+    private static final int WHEEL_REVERSE_MAX_TICKS = 80;
+    // Throttle duty through a wheeled turn: full ahead on mild curves, pulsed on hard ones so
+    // momentum does not carry the hull into the wall the sensor just cleared.
+    private static final double WHEEL_HARD_TURN_RAD = Math.toRadians(45.0);
+    private static final int WHEEL_TURN_DUTY = 2;
+    private static final int WHEEL_HARD_TURN_DUTY = 3;
     // 32 horizontal keeps the chunk snapshot at 5×5 chunks instead of 9×9; targets beyond it still
     // get a partial path that walks us closer. Ground vehicles never need a 64-block-tall volume.
     private static final int PATH_SEARCH_RANGE = 32;
@@ -172,6 +190,13 @@ public final class VehicleDriver {
     // and must not share commitment state.
     private int retreatTurn;
 
+    // Wheeled three-point turn (back and fill). Separate from hull-fan / bank-lip recovery: those
+    // reverse straight away from an obstruction; this swings the bow onto a bearing behind the beam.
+    private int wheelReverseTicks;
+    private int wheelReverseTotal;
+    private boolean wheelReverseSwingLeft;
+    private int wheelThrottlePhase;
+
     /** When true, forward throttle is duty-cycled ~half (infantry-cover pace). */
     private boolean infantryPace;
 
@@ -262,6 +287,13 @@ public final class VehicleDriver {
             if (this.unstickTicksLeft == 0) {
                 this.unstickCooldown = UNSTICK_COOLDOWN;
             }
+            return;
+        }
+
+        // Wheeled back-and-fill in progress — finish the episode before any forward steer.
+        if (this.wheelReverseTicks > 0) {
+            BlockPos steer = getSteerTarget(dest);
+            backAndFillWheeled(steer);
             return;
         }
 
@@ -416,6 +448,9 @@ public final class VehicleDriver {
         this.retreatTurn = 0;
         this.submergedStrandedTicks = 0;
         this.lastSubmergedPos = null;
+        this.wheelReverseTicks = 0;
+        this.wheelReverseTotal = 0;
+        this.wheelThrottlePhase = 0;
     }
 
     /** Forget the hull entirely, for a crew leaving its seat. */
@@ -490,14 +525,15 @@ public final class VehicleDriver {
         // at the first one still ahead. Re-deriving this from position each tick — instead of
         // advancing once per tick unconditionally — is what keeps the aimed waypoint fixed while the
         // hull turns in place, rather than marching down the path and swinging the steer angle.
+        double reachedSq = this.hull.isWheeled() ? WHEEL_NODE_REACHED_SQ : NODE_REACHED_SQ;
         while (this.currentPath != null && !this.currentPath.isDone()) {
             BlockPos node = this.currentPath.getNextNodePos();
             double nodeDistSq = this.vehicle.distanceToSqr(
                     node.getX() + 0.5, this.vehicle.getY(), node.getZ() + 0.5);
-            if (nodeDistSq >= NODE_REACHED_SQ) {
+            if (nodeDistSq >= reachedSq) {
                 notePathNode(node);
                 logSteerTarget("pathNode", node);
-                return node;
+                return lookAheadSteer(node, dest);
             }
             if (SewvDiag.groundPathingVerbose()) {
                 SewvDiag.pathing("path advance unit={}#{} vehicle={}#{} reachedNode={} distSq={} nextIndex={} nodeCount={}",
@@ -510,6 +546,53 @@ public final class VehicleDriver {
         notePathNode(dest);
         logSteerTarget("directDest", dest);
         return dest; // no usable path (or path exhausted) — steer straight at the goal
+    }
+
+    /**
+     * For wheeled hulls, aim past the next grid vertex toward a point ~10 blocks along the
+     * polyline so the car rolls through a corner instead of trying to face each node in place.
+     * Tracked hulls keep the next node (they can pivot onto it).
+     */
+    private BlockPos lookAheadSteer(BlockPos nextNode, BlockPos dest) {
+        if (!this.hull.isWheeled() || this.currentPath == null || this.currentPath.isDone()) {
+            return nextNode;
+        }
+        int idx = this.currentPath.getNextNodeIndex();
+        int count = this.currentPath.getNodeCount();
+        double vx = this.vehicle.getX();
+        double vz = this.vehicle.getZ();
+        BlockPos best = nextNode;
+        for (int i = idx; i < count; i++) {
+            var n = this.currentPath.getNode(i);
+            BlockPos p = new BlockPos(n.x, n.y, n.z);
+            double dx = p.getX() + 0.5 - vx;
+            double dz = p.getZ() + 0.5 - vz;
+            double dsq = dx * dx + dz * dz;
+            best = p;
+            if (dsq >= WHEEL_LOOKAHEAD_SQ) {
+                // Skip the chord only when the terrain sensor says the cut is clear; otherwise
+                // keep the nearer node so we do not drive through a building corner.
+                if (i > idx && this.sensor.enabled()) {
+                    Vec3 cut = new Vec3(dx, 0, dz);
+                    if (cut.lengthSqr() > 1.0E-8
+                            && !this.sensor.headingClear(cut.normalize(), this.sensor.lookahead())) {
+                        return nextNode;
+                    }
+                }
+                notePathNode(p);
+                logSteerTarget("wheelLookahead", p);
+                return p;
+            }
+        }
+        // Path shorter than lookahead — prefer the real destination if it is further out.
+        double destDsq = this.vehicle.distanceToSqr(
+                dest.getX() + 0.5, this.vehicle.getY(), dest.getZ() + 0.5);
+        double bestDsq = this.vehicle.distanceToSqr(
+                best.getX() + 0.5, this.vehicle.getY(), best.getZ() + 0.5);
+        BlockPos pick = destDsq > bestDsq ? dest : best;
+        notePathNode(pick);
+        logSteerTarget("wheelLookaheadEnd", pick);
+        return pick;
     }
 
     private void notePathNode(BlockPos node) {
@@ -586,6 +669,13 @@ public final class VehicleDriver {
                 if (armFanReverse(desired, "boxedIn")) {
                     return; // reverse armed — inputs already set
                 }
+                // Wheeled last resort: three-point turn instead of holding for a pivot that cannot happen.
+                if (this.hull.isWheeled()) {
+                    Vector3f fwd = this.vehicle.getForwardDirection().normalize();
+                    beginWheelReverse(VehicleTargeting.signedAngleTo(fwd, desired));
+                    backAndFillWheeled(targetPos);
+                    return;
+                }
                 // No safe retreat this tick either — hold still and re-probe next tick rather than
                 // pivot blind. updateStuck's own straight-reverse fallback still applies if this
                 // persists (position AND yaw both genuinely static, unlike a pivot that always
@@ -598,6 +688,14 @@ public final class VehicleDriver {
 
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, steer);
+
+        // Bearing behind the beam: a wheeled hull cannot sweep a U-turn — back and fill.
+        if (this.hull.isWheeled() && Math.abs(angle) > WHEEL_REVERSE_ANGLE_RAD) {
+            beginWheelReverse(angle);
+            backAndFillWheeled(targetPos);
+            return;
+        }
+
         double angleThreshold = getRotationStopAngle(distanceSq);
         // Only translate when the direction the hull would actually move (its facing) is itself
         // clear — while it is still swinging toward the chosen detour bearing the nose may still
@@ -624,13 +722,98 @@ public final class VehicleDriver {
                             Math.toDegrees(angle), Math.toDegrees(angleThreshold),
                             this.vehicle.isInWater(), this.vehicle.blockPosition());
                 }
-                faceHeading(steer);
+                // Tracked can pivot onto the clear bearing. Wheeled cannot — rolling forward while
+                // the nose still points at the hazard drives into it, so hold and re-probe.
+                if (this.hull.isWheeled()) {
+                    stop();
+                } else {
+                    faceHeading(steer);
+                }
             }
         } else {
             this.vehicle.setLeftInputDown(angle > 0);
             this.vehicle.setRightInputDown(angle < 0);
-            this.vehicle.setForwardInputDown(!this.hull.isTracked() && facingClear);
+            // Wheeled: throttle through the turn (duty-cycled on hard bends). Tracked pivots stopped.
+            boolean roll = this.hull.isWheeled() && facingClear;
+            this.vehicle.setForwardInputDown(roll && wheelThrottleTick(Math.abs(angle)));
             this.vehicle.setBackInputDown(false);
+        }
+    }
+
+    /** Pulse throttle on wheeled turns — same duty idea as {@link DriveShipGoal}, ground-side. */
+    private boolean wheelThrottleTick(double angle) {
+        int duty = angle >= WHEEL_HARD_TURN_RAD ? WHEEL_HARD_TURN_DUTY : WHEEL_TURN_DUTY;
+        return this.wheelThrottlePhase++ % duty == 0;
+    }
+
+    private void beginWheelReverse(double angle) {
+        if (this.wheelReverseTicks <= 0) {
+            this.wheelReverseTicks = WHEEL_REVERSE_TICKS;
+            this.wheelReverseSwingLeft = angle > 0;
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("wheel reverse START unit={}#{} vehicle={}#{} angleDeg={} swingLeft={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        Math.toDegrees(angle), this.wheelReverseSwingLeft);
+            }
+        }
+    }
+
+    /**
+     * Astern with the rudder over: swings the bow onto a bearing a wheeled hull cannot reach by
+     * rolling forward. Steering sense inverts while reversing (SBW flips yaw with power sign),
+     * same as {@link DriveShipGoal}'s back-and-fill.
+     */
+    private void backAndFillWheeled(BlockPos dest) {
+        this.wheelReverseTicks--;
+        this.wheelReverseTotal++;
+        this.vehicle.setForwardInputDown(false);
+        this.vehicle.setBackInputDown(true);
+        // Inverted while reversing.
+        this.vehicle.setLeftInputDown(!this.wheelReverseSwingLeft);
+        this.vehicle.setRightInputDown(this.wheelReverseSwingLeft);
+
+        if (this.wheelReverseTicks > 0) return;
+
+        if (this.wheelReverseTotal >= WHEEL_REVERSE_MAX_TICKS) {
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("wheel reverse MAX unit={}#{} vehicle={}#{} total={} — abort",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        this.wheelReverseTotal);
+            }
+            this.wheelReverseTicks = 0;
+            this.wheelReverseTotal = 0;
+            this.currentPath = null;
+            this.pathRecalcCooldown = 0;
+            return;
+        }
+
+        Vec3 desired = new Vec3(
+                dest.getX() + 0.5 - this.vehicle.getX(), 0.0,
+                dest.getZ() + 0.5 - this.vehicle.getZ());
+        if (desired.lengthSqr() < 1.0E-6) {
+            this.wheelReverseTicks = 0;
+            this.wheelReverseTotal = 0;
+            return;
+        }
+        desired = desired.normalize();
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        boolean lined = Math.abs(VehicleTargeting.signedAngleTo(forward, desired))
+                < WHEEL_REVERSE_ANGLE_RAD;
+        boolean clear = !this.sensor.enabled()
+                || this.sensor.headingClear(desired, this.sensor.lookahead());
+        if (lined && clear) {
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("wheel reverse END unit={}#{} vehicle={}#{} total={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        this.wheelReverseTotal);
+            }
+            this.wheelReverseTicks = 0;
+            this.wheelReverseTotal = 0;
+        } else {
+            this.wheelReverseTicks = WHEEL_REVERSE_TICKS;
         }
     }
 
@@ -885,7 +1068,7 @@ public final class VehicleDriver {
         } else {
             this.vehicle.setLeftInputDown(angle > 0);
             this.vehicle.setRightInputDown(angle < 0);
-            this.vehicle.setForwardInputDown(!this.hull.isTracked());
+            this.vehicle.setForwardInputDown(this.hull.isWheeled());
             this.vehicle.setBackInputDown(false);
         }
     }

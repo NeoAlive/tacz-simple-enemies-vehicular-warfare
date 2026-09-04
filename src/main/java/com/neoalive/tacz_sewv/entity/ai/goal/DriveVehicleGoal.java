@@ -801,9 +801,14 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
 
+        // Same gate as the main tick path: fightTick assumes a live target (blockPosition on
+        // the first line). A hurt tower with nobody locked just keeps towing.
         if (isLowHealth()) {
-            fightTick(this.unit.getTarget());
-            return;
+            LivingEntity target = this.unit.getTarget();
+            if (target != null) {
+                fightTick(target);
+                return;
+            }
         }
 
         TowRecoverySupport.steerTower(this.unit, this.vehicle, victim, this.driver);

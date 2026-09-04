@@ -65,10 +65,18 @@ public final class GroundMobilitySelfCheck {
         assert GroundMobility.gradeDanger(1.0) <= GroundMobility.GRADE_FAN_MAX + 1.0E-4F : "fan capped";
     }
 
-    /** Fence 1.5 > maxUpStep 1 is a wall; a 1-block hill is a step, not occupancy-1. */
+    /**
+     * Ordinary Minecraft rises (1-block hill, fence-height 1.5) are soft preference — hard
+     * walls are cliffs/buildings past {@link GroundMobility#STEP_WALL}. Treating fence-height
+     * as HARD_CAP was what armed reverse recovery on every uneven hillside.
+     */
     private static void stepDangerFenceVsHill() {
-        assertClose(1.0F, GroundMobility.stepDanger(1.5, 1.0F), "fence");
-        assert GroundMobility.stepDanger(1.0, 1.0F) < 1.0F : "1-block hill is not a hard wall";
+        assert GroundMobility.stepDanger(1.0, 1.0F) < GroundMobility.HARD_CAP : "1-block hill is not a hard wall";
+        assert GroundMobility.stepDanger(1.0, 1.0F) <= GroundMobility.STEP_SOFT_MAX + 1.0E-4F
+                : "climbable step stays at soft max";
+        assert GroundMobility.stepDanger(1.5, 1.0F) < GroundMobility.HARD_CAP
+                : "fence-height is prefer-around, not reverse-trigger";
+        assertClose(1.0F, GroundMobility.stepDanger(3.0, 1.0F), "cliff past STEP_WALL");
         assertClose(0.0F, GroundMobility.stepDanger(0.4, 1.0F), "kerb");
     }
 

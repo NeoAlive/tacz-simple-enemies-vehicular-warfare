@@ -44,6 +44,16 @@ public final class GroundMobility {
     /** Fan danger cap — preference only, never {@link #HARD_CAP}. */
     public static final float GRADE_FAN_MAX = 0.4F;
 
+    /**
+     * Rise (blocks) above which a step is a hard wall. Minecraft hills routinely jump 1–2
+     * between neighbouring columns; hard-blocking those arms reverse recovery on ordinary
+     * terrain. Buildings/cliffs still clear this. Preference only below it.
+     */
+    public static final float STEP_WALL = 2.5F;
+
+    /** Soft fan danger at {@code maxUpStep} — prefer around, never boxed-in. */
+    public static final float STEP_SOFT_MAX = 0.55F;
+
     /** Amphibious still slightly prefers land when the dry detour is equal. */
     public static final float AMPHIBIOUS_WATER_COST = 0.5F;
 
@@ -94,11 +104,21 @@ public final class GroundMobility {
         return SLOPE_PENALTY * bite((float) (rise / maxUpStep));
     }
 
-    /** 0–1 danger from a vertical jump. 1 iff {@code delta > maxUpStep}. */
+    /**
+     * 0–1 danger from a vertical jump. Hard ({@link #HARD_CAP}) only past {@link #STEP_WALL}.
+     * Climbable and marginal rises stay under the cap so a fan of ordinary hills cannot read
+     * as boxed-in and trigger reverse recovery.
+     */
     public static float stepDanger(double delta, float maxUpStep) {
         if (delta <= 0.0 || maxUpStep <= 0.0F) return 0.0F;
-        if (delta > maxUpStep) return 1.0F;
-        return Math.min(0.99F, bite((float) (delta / maxUpStep)));
+        if (delta > STEP_WALL) return HARD_CAP;
+        if (delta <= maxUpStep) {
+            return STEP_SOFT_MAX * bite((float) (delta / maxUpStep));
+        }
+        float span = STEP_WALL - maxUpStep;
+        if (span <= 1.0E-4F) return 0.99F;
+        float t = (float) ((delta - maxUpStep) / span);
+        return STEP_SOFT_MAX + (0.99F - STEP_SOFT_MAX) * smoothstep(t);
     }
 
     /**

@@ -85,6 +85,8 @@
   "message.tacz_sewv.tow.no_vehicle": "That's not a vehicle. Left-click a hull, or right-click to cancel.",
   "message.tacz_sewv.tow.same_vehicle": "Pick a different hull to do the towing.",
   "message.tacz_sewv.tow.cancelled": "Tow order cancelled.",
+  "message.tacz_sewv.tow.cannot_tow": "That hull can't tow (emplacement, aircraft, mortar or artillery).",
+  "message.tacz_sewv.tow.cannot_be_towed": "That hull can't be towed (emplacement, aircraft, mortar or artillery).",
   "message.tacz_sewv.tow.ordered": "%s will tow %s.",
   "gui.tacz_sewv.map.move_here": "→ Move %s units here",
   "gui.tacz_sewv.map.follow_me": "⚑ Follow me (%s)",

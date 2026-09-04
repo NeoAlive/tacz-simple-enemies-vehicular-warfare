@@ -32,6 +32,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
+import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
@@ -719,6 +720,10 @@ public class ClientEvents {
             return;
         }
         if (pendingTowPhase == TowPickPhase.VICTIM) {
+            if (!TowRecoverySupport.isTowVictimCandidate(vehicle)) {
+                hint("message.tacz_sewv.tow.cannot_be_towed");
+                return;
+            }
             pendingTowVictimId = vehicle.getId();
             pendingTowPhase = TowPickPhase.TOWER;
             promptCooldown = 0;
@@ -727,6 +732,10 @@ public class ClientEvents {
         }
         if (vehicle.getId() == pendingTowVictimId) {
             hint("message.tacz_sewv.tow.same_vehicle");
+            return;
+        }
+        if (!TowRecoverySupport.isTowTowerCandidate(vehicle)) {
+            hint("message.tacz_sewv.tow.cannot_tow");
             return;
         }
         NetworkHandler.CHANNEL.sendToServer(new PacketTowRecovery(pendingTowVictimId, vehicle.getId()));

@@ -742,19 +742,30 @@ public final class VehicleTargeting {
         return new DiplomacyEval(rel, true, selfFaction, otherFaction, owner, otherOwner, otherKind);
     }
 
-    /** Throttle key → last gameTime logged. */
+    /** Throttle key → last gameTime logged. Only populated while targeting diag is on. */
     private static final java.util.Map<String, Long> TARGET_DIAG_LAST = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static final long TARGET_DIAG_THROTTLE_TICKS = 40L;
+
+    /** Drop owner-pair throttle rows (server stop / cache eviction). */
+    public static void clearDiagThrottle() {
+        TARGET_DIAG_LAST.clear();
+    }
 
     private static void logTargetingDiag(AbstractUnit unit, LivingEntity target, DiplomacyEval dipl,
                                          boolean openPacShieldUnused, boolean sameFaction,
                                          boolean friendlyFlag, boolean finalNonHostile,
                                          boolean usesDiplomacyForDecision, String decidingFactor) {
+        if (!SewvDiag.diagEnabled()) return;
         if (dipl.owner == null || dipl.otherOwner == null) return;
 
         long now = unit.level().getGameTime();
         String key = dipl.owner + ">" + dipl.otherOwner;
         Long last = TARGET_DIAG_LAST.get(key);
-        if (last != null && now - last < 40) return;
+        if (last != null) {
+            if (now - last < TARGET_DIAG_THROTTLE_TICKS) return;
+            TARGET_DIAG_LAST.remove(key, last);
+        }
         TARGET_DIAG_LAST.put(key, now);
 
         boolean openPacAllied = unit.getServer() != null

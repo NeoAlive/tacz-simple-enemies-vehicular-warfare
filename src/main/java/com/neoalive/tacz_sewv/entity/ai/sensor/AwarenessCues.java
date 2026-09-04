@@ -178,7 +178,12 @@ public final class AwarenessCues {
         for (int cx = cx0; cx <= cx1; cx++) {
             for (int cz = cz0; cz <= cz1; cz++) {
                 List<SoundCue> cues = reg.chunkCues.get(Registry.chunkKey(cx, cz));
-                if (cues == null || cues.isEmpty()) continue;
+                if (cues == null || cues.isEmpty()) {
+                    if (cues != null && cues.isEmpty()) {
+                        reg.chunkCues.remove(Registry.chunkKey(cx, cz));
+                    }
+                    continue;
+                }
                 Iterator<SoundCue> it = cues.iterator();
                 while (it.hasNext()) {
                     SoundCue cue = it.next();
@@ -197,6 +202,9 @@ public final class AwarenessCues {
                         bestDist = dist;
                         bestSeen = cue.heardAt;
                     }
+                }
+                if (cues.isEmpty()) {
+                    reg.chunkCues.remove(Registry.chunkKey(cx, cz));
                 }
             }
         }
@@ -445,6 +453,7 @@ public final class AwarenessCues {
 
         void register(BlockPos pos, TriggerKind kind, @Nullable CrewFacts.Faction sourceFaction,
                 int sourceUnitId, long now) {
+            pruneExpiredDedupe(now);
             long cellKey = cellKey(pos, kind);
             int interval = kind.ordinal() < DEDUPE_INTERVAL.length ? DEDUPE_INTERVAL[kind.ordinal()] : 0;
             if (interval > 0) {
@@ -462,6 +471,11 @@ public final class AwarenessCues {
             }
             list.add(new SoundCue(pos.immutable(), kind, sourceFaction, sourceUnitId, now));
             debug("register kind={} pos={} faction={}", kind, pos, sourceFaction);
+        }
+
+        /** Drop expired dedupe rows so explored cells do not accumulate for the level's life. */
+        private void pruneExpiredDedupe(long now) {
+            this.dedupeDeadline.entrySet().removeIf(e -> e.getValue() <= now);
         }
 
         static long chunkKey(int cx, int cz) {

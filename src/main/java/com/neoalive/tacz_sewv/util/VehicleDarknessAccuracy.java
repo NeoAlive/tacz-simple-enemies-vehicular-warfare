@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.util;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -11,6 +12,10 @@ import com.neoalive.tacz_sewv.crew.NvgSupport;
 /**
  * Per-hull darkness accuracy fraction for {@link com.neoalive.tacz_sewv.mixin.MixinAiAimSpread}.
  * Light + rendered-seat NVG are scanned on a ~1s game-time cadence, not per pellet.
+ *
+ * <p>Entries are keyed by network id and hold no live {@link VehicleEntity} — leave-level
+ * invalidation plus identity checks via {@link Level#getEntity(int)} keep the map from pinning
+ * destroyed hulls.
  */
 public final class VehicleDarknessAccuracy {
 
@@ -29,13 +34,24 @@ public final class VehicleDarknessAccuracy {
         return entry(vehicle).fraction;
     }
 
+    public static void invalidate(int hullId) {
+        BY_HULL.remove(hullId);
+    }
+
+    public static void clearAll() {
+        BY_HULL.clear();
+    }
+
     private static Entry entry(VehicleEntity v) {
         Level level = v.level();
         long now = level.getGameTime();
         int id = v.getId();
         Entry e = BY_HULL.get(id);
-        if (e != null && e.hull == v && now < e.expiresAt) {
-            return e;
+        if (e != null) {
+            if (now < e.expiresAt && stillSameHull(level, id, v)) {
+                return e;
+            }
+            BY_HULL.remove(id, e);
         }
 
         double fraction = 1.0;
@@ -49,15 +65,18 @@ public final class VehicleDarknessAccuracy {
         }
 
         Entry fresh = new Entry();
-        fresh.hull = v;
         fresh.expiresAt = now + REFRESH_TICKS;
         fresh.fraction = fraction;
         BY_HULL.put(id, fresh);
         return fresh;
     }
 
+    private static boolean stillSameHull(Level level, int id, VehicleEntity v) {
+        Entity live = level.getEntity(id);
+        return live == v;
+    }
+
     private static final class Entry {
-        VehicleEntity hull;
         long expiresAt;
         double fraction = 1.0;
     }

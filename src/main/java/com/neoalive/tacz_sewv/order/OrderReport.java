@@ -218,4 +218,9 @@ public final class OrderReport {
         PENDING.clear();
         NEXT_VETO_LINE.clear();
     }
+
+    /** Drop one player's veto floor on logout (dedicated-server uptime hygiene). */
+    public static void clearVetoFloor(UUID ownerId) {
+        NEXT_VETO_LINE.remove(ownerId);
+    }
 }

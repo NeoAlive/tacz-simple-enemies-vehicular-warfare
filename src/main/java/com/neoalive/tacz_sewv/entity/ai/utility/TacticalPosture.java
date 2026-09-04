@@ -120,6 +120,13 @@ public final class TacticalPosture {
         FAN_BIAS.remove(unitId);
     }
 
+    /** Server-stop / full eviction. */
+    public static void clearAll() {
+        AMBUSH_HOLD.clear();
+        COVER_THREAT.clear();
+        FAN_BIAS.clear();
+    }
+
     /** Soft cover path malus toward the published threat, or 0. Never BLOCKED. */
     public static float coverPathMalus(int unitId, double nodeX, double nodeZ, ServerLevel level) {
         long[] threat = COVER_THREAT.get(unitId);

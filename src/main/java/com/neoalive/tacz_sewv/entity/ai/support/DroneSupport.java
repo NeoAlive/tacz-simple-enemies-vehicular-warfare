@@ -110,6 +110,9 @@ public final class DroneSupport {
         for (DroneEntity drone : scanned) {
             ids.add(drone.getId());
         }
+        if (ids.isEmpty()) {
+            OWNED_DRONE_IDS.remove(ownerId);
+        }
         if (scanned.size() == 1) {
             DroneControl.rememberDrone(owner, scanned.get(0));
         }
@@ -174,6 +177,16 @@ public final class DroneSupport {
         List<Integer> ids = OWNED_DRONE_IDS.computeIfAbsent(ownerId, ignored -> new ArrayList<>());
         int netId = drone.getId();
         if (!ids.contains(netId)) ids.add(netId);
+    }
+
+    /** Drop the soft network-id cache for one engineer (leave / logout). */
+    public static void forgetOwner(UUID ownerId) {
+        OWNED_DRONE_IDS.remove(ownerId);
+    }
+
+    /** Server-stop eviction of every engineer soft cache row. */
+    public static void clearOwnedCache() {
+        OWNED_DRONE_IDS.clear();
     }
 
     @Nullable

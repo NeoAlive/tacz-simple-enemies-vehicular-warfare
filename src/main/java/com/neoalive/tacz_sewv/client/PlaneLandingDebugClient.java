@@ -44,4 +44,9 @@ public final class PlaneLandingDebugClient {
     public static void clear(int entityId) {
         STATES.remove(entityId);
     }
+
+    /** Logout / dimension wipe. */
+    public static void clearAll() {
+        STATES.clear();
+    }
 }

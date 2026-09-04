@@ -63,4 +63,9 @@ public final class HeliRunPhaseClient {
             LOGGER.info("[sewv heli] client #{} rappel={}", entityId, false);
         }
     }
+
+    /** Logout / dimension wipe. */
+    public static void clearAll() {
+        PHASES.clear();
+    }
 }

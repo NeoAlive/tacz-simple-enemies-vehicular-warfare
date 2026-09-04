@@ -49,6 +49,16 @@ public class BoardVehicleGoal extends Goal {
 
     private static final ConcurrentHashMap<UUID, Long> LAST_CANCEL_FEEDBACK = new ConcurrentHashMap<>();
 
+    /** Drop all cancel-feedback throttle rows (server stop). */
+    public static void clearCancelFeedback() {
+        LAST_CANCEL_FEEDBACK.clear();
+    }
+
+    /** Drop one owner's cancel-feedback throttle (logout). */
+    public static void clearCancelFeedback(UUID ownerId) {
+        LAST_CANCEL_FEEDBACK.remove(ownerId);
+    }
+
     private enum CancelReason { FULL, WRECKED, TIMEOUT, GONE }
 
     private final AbstractUnit unit;
@@ -198,7 +208,10 @@ public class BoardVehicleGoal extends Goal {
 
         long now = level.getGameTime();
         Long last = LAST_CANCEL_FEEDBACK.get(ownerId);
-        if (last != null && now - last < CANCEL_FEEDBACK_COOLDOWN) return;
+        if (last != null) {
+            if (now - last < CANCEL_FEEDBACK_COOLDOWN) return;
+            LAST_CANCEL_FEEDBACK.remove(ownerId, last);
+        }
         LAST_CANCEL_FEEDBACK.put(ownerId, now);
 
         OrderReport.fail(owner, switch (reason) {

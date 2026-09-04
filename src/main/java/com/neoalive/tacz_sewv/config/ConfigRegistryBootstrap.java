@@ -91,6 +91,41 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.MAP_SHOW_HEALTH_BAR, ClientConfig.MAP_SHOW_HEALTH_BAR::set);
         b.bool(ConfigScope.CLIENT, "map", "mapShowEnergyBar",
                 ClientConfig.MAP_SHOW_ENERGY_BAR, ClientConfig.MAP_SHOW_ENERGY_BAR::set);
+
+        b.bool(ConfigScope.CLIENT, "debug", "groundPathingDebug",
+                ClientConfig.GROUND_PATHING_DEBUG, ClientConfig.GROUND_PATHING_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "shipPathingDebug",
+                ClientConfig.SHIP_PATHING_DEBUG, ClientConfig.SHIP_PATHING_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "sewvDiagDebug",
+                ClientConfig.SEWV_DIAG_DEBUG, ClientConfig.SEWV_DIAG_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "outerRingDebugLogging",
+                ClientConfig.OUTER_RING_DEBUG_LOGGING, ClientConfig.OUTER_RING_DEBUG_LOGGING::set);
+        b.bool(ConfigScope.CLIENT, "debug", "heliCombatDebug",
+                ClientConfig.HELI_COMBAT_DEBUG, ClientConfig.HELI_COMBAT_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "heliFlightDebug",
+                ClientConfig.HELI_FLIGHT_DEBUG, ClientConfig.HELI_FLIGHT_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "planeCombatDebug",
+                ClientConfig.PLANE_COMBAT_DEBUG, ClientConfig.PLANE_COMBAT_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "mortarDebugLogging",
+                ClientConfig.MORTAR_DEBUG_LOGGING, ClientConfig.MORTAR_DEBUG_LOGGING::set);
+        b.bool(ConfigScope.CLIENT, "debug", "ballisticTranslationDebug",
+                ClientConfig.BALLISTIC_TRANSLATION_DEBUG, ClientConfig.BALLISTIC_TRANSLATION_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "orderFailureDebug",
+                ClientConfig.ORDER_FAILURE_DEBUG, ClientConfig.ORDER_FAILURE_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "targetVetoDebug",
+                ClientConfig.TARGET_VETO_DEBUG, ClientConfig.TARGET_VETO_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "tripodShieldFlareAlwaysOn",
+                ClientConfig.TRIPOD_SHIELD_FLARE_ALWAYS_ON, ClientConfig.TRIPOD_SHIELD_FLARE_ALWAYS_ON::set);
+        b.bool(ConfigScope.CLIENT, "debug", "tripodShieldWireframe",
+                ClientConfig.TRIPOD_SHIELD_WIREFRAME, ClientConfig.TRIPOD_SHIELD_WIREFRAME::set);
+        b.bool(ConfigScope.CLIENT, "debug", "showSpawnProbes",
+                ClientConfig.SHOW_SPAWN_PROBES, ClientConfig.SHOW_SPAWN_PROBES::set);
+        b.bool(ConfigScope.CLIENT, "debug", "individualTacticsDebug",
+                ClientConfig.INDIVIDUAL_TACTICS_DEBUG, ClientConfig.INDIVIDUAL_TACTICS_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "fobDebug",
+                ClientConfig.FOB_DEBUG, ClientConfig.FOB_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "mapShowCommandDebug",
+                ClientConfig.MAP_SHOW_COMMAND_DEBUG, ClientConfig.MAP_SHOW_COMMAND_DEBUG::set);
     }
 
     private static void registerShortcuts(ConfigRegistry.Builder b) {
@@ -107,7 +142,6 @@ final class ConfigRegistryBootstrap {
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.pmc_ambient_spawns",
                 ModGameRules.PMC_AMBIENT_SPAWNS);
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.tanks_in_events", ModGameRules.TANKS_IN_EVENTS);
-        b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.far_event_spawns", ModGameRules.FAR_EVENT_SPAWNS);
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.can_mobs_damage_vehicles",
                 ModGameRules.CAN_MOBS_DAMAGE_VEHICLES);
         if (isExterminationLoaded() && ModGameRules.INVASION_OVERRIDES != null) {
@@ -121,6 +155,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.TANK_SPAWN_CHANCE_RU, SewvConfig.TANK_SPAWN_CHANCE_RU::set);
         b.doubleRange(ConfigScope.SERVER, "events", "tankSpawnChanceUs", 0.0, 1.0,
                 SewvConfig.TANK_SPAWN_CHANCE_US, SewvConfig.TANK_SPAWN_CHANCE_US::set);
+        b.bool(ConfigScope.SERVER, "events", "farEventSpawns",
+                SewvConfig.FAR_EVENT_SPAWNS, SewvConfig.FAR_EVENT_SPAWNS::set);
         b.bool(ConfigScope.SERVER, "events", "planesInEvents",
                 SewvConfig.PLANES_IN_EVENTS, SewvConfig.PLANES_IN_EVENTS::set);
         b.doubleRange(ConfigScope.SERVER, "events", "planeSpawnChanceRu", 0.0, 1.0,

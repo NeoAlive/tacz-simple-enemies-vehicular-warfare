@@ -16,11 +16,11 @@ import org.slf4j.Logger;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
@@ -250,7 +250,7 @@ public class ManType63Goal extends Goal {
     }
 
     private void hold(String reason) {
-        if (!ModGameRules.server(ModGameRules.MORTAR_DEBUG_LOGGING)) return;
+        if (!ClientConfig.flag(ClientConfig.MORTAR_DEBUG_LOGGING)) return;
         if (reason.equals(this.lastHold)) return;
         this.lastHold = reason;
         LOGGER.info("[type63] unit {} at launcher {}: {}",
@@ -258,7 +258,7 @@ public class ManType63Goal extends Goal {
     }
 
     private void hold(String fmt, Object... args) {
-        if (!ModGameRules.server(ModGameRules.MORTAR_DEBUG_LOGGING)) return;
+        if (!ClientConfig.flag(ClientConfig.MORTAR_DEBUG_LOGGING)) return;
         hold(String.format(fmt, args));
     }
 

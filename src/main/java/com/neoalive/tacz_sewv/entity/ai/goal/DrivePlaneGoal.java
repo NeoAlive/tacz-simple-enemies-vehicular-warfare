@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -45,7 +46,6 @@ import com.neoalive.tacz_sewv.entity.ai.plane.PlaneWeapons;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketClearPlaneLandingDebug;
@@ -2063,7 +2063,7 @@ public class DrivePlaneGoal extends Goal {
      */
     private void sendDubinsDebug(BlockPos pad, Vec3 entry, double entryY, Vec3 axis) {
         if (this.vehicle == null || !(this.vehicle.level() instanceof ServerLevel)) return;
-        if (!ModGameRules.server(ModGameRules.PLANE_COMBAT_DEBUG)) return;
+        if (!ClientConfig.flag(ClientConfig.PLANE_COMBAT_DEBUG)) return;
         Vec3 padPos = new Vec3(pad.getX() + 0.5, entryY, pad.getZ() + 0.5);
         List<DubinsPath.Segment> segments = this.dubinsPath == null ? List.of()
                 : this.dubinsPath.segments();
@@ -2075,7 +2075,7 @@ public class DrivePlaneGoal extends Goal {
 
     private void sendClearDubinsDebug() {
         if (this.vehicle == null || !(this.vehicle.level() instanceof ServerLevel)) return;
-        if (!ModGameRules.server(ModGameRules.PLANE_COMBAT_DEBUG)) return;
+        if (!ClientConfig.flag(ClientConfig.PLANE_COMBAT_DEBUG)) return;
         NetworkHandler.CHANNEL.send(
                 PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> this.vehicle),
                 new PacketClearPlaneLandingDebug(this.vehicle.getId()));

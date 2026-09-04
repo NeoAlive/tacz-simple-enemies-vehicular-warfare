@@ -6,7 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 
 import com.neoalive.tacz_sewv.client.gui.SpawnProbeScreen;
-import com.neoalive.tacz_sewv.init.ModGameRules;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 
 /**
  * Physical-client stub for spawn_probe packets / visibility.
@@ -17,7 +17,7 @@ public final class SpawnProbeClient {
     private SpawnProbeClient() {}
 
     public static boolean showProbes() {
-        return ClientGameRules.get(ModGameRules.SHOW_SPAWN_PROBES);
+        return ClientConfig.flag(ClientConfig.SHOW_SPAWN_PROBES);
     }
 
     public static void openScreen(BlockPos pos, List<String> vehicleList, boolean preCrewedSpawn,

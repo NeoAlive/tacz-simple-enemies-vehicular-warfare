@@ -21,9 +21,9 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 
 /**
  * Outer awareness ring for ground crews: banded, coarse heightmap spotting beyond the mounted
@@ -281,7 +281,7 @@ public final class OuterRingAwareness {
     }
 
     private static void debug(String msg, Object... args) {
-        if (!ModGameRules.server(ModGameRules.OUTER_RING_DEBUG_LOGGING)) return;
+        if (!ClientConfig.flag(ClientConfig.OUTER_RING_DEBUG_LOGGING)) return;
         LOG.info("[sewv-outer] " + msg, args);
     }
 

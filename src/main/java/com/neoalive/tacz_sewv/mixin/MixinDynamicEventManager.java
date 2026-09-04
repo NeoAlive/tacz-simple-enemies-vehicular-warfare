@@ -11,15 +11,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.neoalive.tacz_sewv.init.ModGameRules;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 
 /**
- * Scales SEM event spawn distance when {@code sewvFarEventSpawns} is on. Lives here because
- * {@code DynamicEvent#getMinDistance}/{@code getMaxDistance} take no level and cannot read a
- * gamerule themselves — both the per-player roll ({@code tryEventForPlayer}) and
- * {@code forceEvent} go through the same call.
+ * Scales SEM event spawn distance when {@link SewvConfig#FAR_EVENT_SPAWNS} is on. Lives here because
+ * {@code DynamicEvent#getMinDistance}/{@code getMaxDistance} take no level and cannot read config
+ * themselves — both the per-player roll ({@code tryEventForPlayer}) and {@code forceEvent} go
+ * through the same call.
  *
  * <p>Also notifies the rolled player when an event {@code execute} succeeds — one redirect covers
  * both ambient rolls and {@code /semevent force}.
@@ -45,7 +45,7 @@ public abstract class MixinDynamicEventManager {
             remap = false)
     private static BlockPos tacz_sewv$scaleEventDistance(
             ServerPlayer player, int minDistance, int maxDistance, ServerLevel level) {
-        if (level.getGameRules().getBoolean(ModGameRules.FAR_EVENT_SPAWNS)) {
+        if (SewvConfig.FAR_EVENT_SPAWNS.get()) {
             minDistance = (int) (minDistance * FAR_SCALE);
             maxDistance = (int) (maxDistance * FAR_SCALE);
         }

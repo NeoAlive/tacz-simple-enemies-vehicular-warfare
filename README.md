@@ -26,6 +26,8 @@ Most gameplay and client settings are edited in-game via **Combined Arms Configu
   Changes apply live and are written back to `config/tacz_sewv-server.toml`.
 - **Shortcuts** category: opens the vehicle pool, misc cues/armor, and target-priority editors.
 - **World rules** category: live toggles for key gamerules (`sewvAmbientSpawns`, `sewvRuSpawns`, `sewvTanksInEvents`, …).
+- **Debug** category (Client tab): pathing / combat / mortar / order-failure diagnosis flags formerly exposed as gamerules.
+- **Far event spawns**: server config under Events (`farEventSpawns`), not a gamerule.
 
 Forge `client` / `server` config files remain for modpack defaults and dev-only keys (debug logging,
 Komodo render fix, armor list data edited via the misc editor). Delete a config file to pick up code

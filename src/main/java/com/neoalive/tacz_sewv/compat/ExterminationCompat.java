@@ -41,6 +41,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 
@@ -294,7 +295,7 @@ public final class ExterminationCompat {
             }
         }
 
-        if (!com.neoalive.tacz_sewv.init.ModGameRules.server(com.neoalive.tacz_sewv.init.ModGameRules.TRIPOD_SHIELD_FLARE_ALWAYS_ON)) return;
+        if (!ClientConfig.flag(ClientConfig.TRIPOD_SHIELD_FLARE_ALWAYS_ON)) return;
         if (!isShieldedPod(entity)) return;
         if (entity.tickCount % DEBUG_FLARE_INTERVAL != 0) return;
         try {

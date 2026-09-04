@@ -24,6 +24,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -136,7 +137,7 @@ public final class OrderReport {
         // Gates the spoken reply as well as the log line, deliberately: this flag means "report
         // refusals a unit made on its own account", and a squad of medics answering aloud every
         // time they decline a target is the same spam in a different medium.
-        if (!com.neoalive.tacz_sewv.init.ModGameRules.server(com.neoalive.tacz_sewv.init.ModGameRules.TARGET_VETO_DEBUG)) return;
+        if (!ClientConfig.flag(ClientConfig.TARGET_VETO_DEBUG)) return;
 
         UUID ownerId = pmc.getOwnerUUID();
         if (ownerId == null) return;

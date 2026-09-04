@@ -19,11 +19,11 @@ import com.neoalive.tacz_sewv.block.EmplacementSupport;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
@@ -383,7 +383,7 @@ public class ManMortarGoal extends Goal {
 
     /** Names the gate the crew is stuck on, once per change, when sewvMortarDebugLogging is on. */
     private void hold(String reason) {
-        if (!ModGameRules.server(ModGameRules.MORTAR_DEBUG_LOGGING)) return;
+        if (!ClientConfig.flag(ClientConfig.MORTAR_DEBUG_LOGGING)) return;
         if (reason.equals(this.lastHold)) return;
         this.lastHold = reason;
         LOGGER.info("[mortar] unit {} at mortar {}: {}",
@@ -397,7 +397,7 @@ public class ManMortarGoal extends Goal {
      * sewvMortarDebugLogging is off (the common case).
      */
     private void hold(String fmt, Object... args) {
-        if (!ModGameRules.server(ModGameRules.MORTAR_DEBUG_LOGGING)) return;
+        if (!ClientConfig.flag(ClientConfig.MORTAR_DEBUG_LOGGING)) return;
         hold(String.format(fmt, args));
     }
 

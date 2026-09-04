@@ -33,7 +33,9 @@ public final class ConfigCategoryStyle {
             Map.entry("compat_trees", "\uD83C\uDF33"),
             Map.entry("interaction", "\uD83D\uDD90"),
             Map.entry("overlay", "\uD83C\uDFA8"),
-            Map.entry("map", "\uD83D\uDCCD"));
+            Map.entry("map", "\uD83D\uDCCD"),
+            Map.entry("debug", "\uD83D\uDD0D"),
+            Map.entry("fob", "\uD83C\uDFD7"));
 
     private static final Map<String, Integer> COLOR = Map.ofEntries(
             Map.entry("shortcuts", 0xFFFFD54F),
@@ -59,7 +61,9 @@ public final class ConfigCategoryStyle {
             Map.entry("compat_trees", 0xFF66BB6A),
             Map.entry("interaction", 0xFF26C6DA),
             Map.entry("overlay", 0xFFF48FB1),
-            Map.entry("map", 0xFF29B6F6));
+            Map.entry("map", 0xFF29B6F6),
+            Map.entry("debug", 0xFFFFCA28),
+            Map.entry("fob", 0xFF8D6E63));
 
     private ConfigCategoryStyle() {}
 

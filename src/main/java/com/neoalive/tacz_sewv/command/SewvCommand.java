@@ -43,7 +43,9 @@ import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.ConfigApplier;
+import com.neoalive.tacz_sewv.config.ConfigPersistence;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.GunCacheProbe;
 import com.neoalive.tacz_sewv.debug.IdleGroupDebug;
@@ -56,7 +58,6 @@ import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.support.DigFoxholeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SandbagSupport;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionHudTracker;
@@ -612,8 +613,8 @@ public class SewvCommand {
     }
 
     private static int debugShowSpawnProbes(CommandSourceStack source, boolean value) {
-        ServerLevel level = source.getLevel();
-        level.getGameRules().getRule(ModGameRules.SHOW_SPAWN_PROBES).set(value, source.getServer());
+        ClientConfig.SHOW_SPAWN_PROBES.set(value);
+        ConfigPersistence.saveClient();
         source.sendSuccess(() -> Component.translatable(
                 value ? "command.tacz_sewv.debug.ShowSpawnProbes.on"
                         : "command.tacz_sewv.debug.ShowSpawnProbes.off"), true);
@@ -621,8 +622,8 @@ public class SewvCommand {
     }
 
     private static int debugIndividualTactics(CommandSourceStack source, boolean value) {
-        ServerLevel level = source.getLevel();
-        level.getGameRules().getRule(ModGameRules.INDIVIDUAL_TACTICS_DEBUG).set(value, source.getServer());
+        ClientConfig.INDIVIDUAL_TACTICS_DEBUG.set(value);
+        ConfigPersistence.saveClient();
         source.sendSuccess(() -> Component.translatable(
                 value ? "command.tacz_sewv.debug.IndividualTactics.on"
                         : "command.tacz_sewv.debug.IndividualTactics.off"), true);

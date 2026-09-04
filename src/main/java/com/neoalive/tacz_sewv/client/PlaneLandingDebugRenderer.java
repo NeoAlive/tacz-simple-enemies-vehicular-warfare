@@ -14,8 +14,8 @@ import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.entity.ai.plane.DubinsPath;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 
 /**
  * Debug wireframe for the plane Dubins landing entry: the straight fix->pad line the "existing LERP
@@ -39,7 +39,7 @@ public final class PlaneLandingDebugRenderer {
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) return;
-        if (!ClientGameRules.get(ModGameRules.PLANE_COMBAT_DEBUG)) return;
+        if (!ClientConfig.flag(ClientConfig.PLANE_COMBAT_DEBUG)) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;

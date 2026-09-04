@@ -20,11 +20,11 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 
 /**
  * Shared investigate layer for ground crews: merges outer-ring entity spots with audible sound
@@ -357,7 +357,7 @@ public final class AwarenessCues {
     }
 
     private static void debug(String msg, Object... args) {
-        if (!ModGameRules.server(ModGameRules.OUTER_RING_DEBUG_LOGGING)) return;
+        if (!ClientConfig.flag(ClientConfig.OUTER_RING_DEBUG_LOGGING)) return;
         LOG.info("[sewv-cues] " + msg, args);
     }
 

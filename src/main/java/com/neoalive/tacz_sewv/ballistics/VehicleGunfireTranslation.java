@@ -15,9 +15,9 @@ import net.minecraft.world.entity.Entity;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.ballistics.BallisticClassifier.Category;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.util.WarnOnce;
 
 /**
@@ -125,7 +125,7 @@ public final class VehicleGunfireTranslation {
 
     private static void debugLog(ResourceLocation gunId, Category category, double factor, String half,
                                  float in, float out, float result) {
-        if (!ModGameRules.server(ModGameRules.BALLISTIC_TRANSLATION_DEBUG)) return;
+        if (!ClientConfig.flag(ClientConfig.BALLISTIC_TRANSLATION_DEBUG)) return;
         LOGGER.info("[sewv-ballistics] {} -> {} factor={} half={} {}->{} => {}",
                 gunId, category, String.format(Locale.ROOT, "%.3f", factor), half, in, out, result);
     }

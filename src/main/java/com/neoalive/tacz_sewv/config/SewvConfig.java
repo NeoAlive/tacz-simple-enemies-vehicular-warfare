@@ -15,6 +15,8 @@ public final class SewvConfig {
 
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_RU;
     public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_US;
+    /** When on, SEM event spawn min/max distance is multiplied by 2.5. Formerly gamerule sewvFarEventSpawns. */
+    public static final ForgeConfigSpec.BooleanValue FAR_EVENT_SPAWNS;
     public static final ForgeConfigSpec.BooleanValue PLANES_IN_EVENTS;
     public static final ForgeConfigSpec.DoubleValue PLANE_SPAWN_CHANCE_RU;
     public static final ForgeConfigSpec.DoubleValue PLANE_SPAWN_CHANCE_US;
@@ -168,8 +170,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue PATH_FAIL_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue PATH_MAX_AGE_TICKS;
     public static final ForgeConfigSpec.DoubleValue PATH_TARGET_DRIFT_BLOCKS;
-    // groundPathingDebug/shipPathingDebug/sewvDiagDebug moved to gamerules
-    // (sewvGroundPathingDebug/sewvShipPathingDebug/sewvDiagDebug) — see ModGameRules.
+    // groundPathingDebug/shipPathingDebug/sewvDiagDebug → ClientConfig (Config UI Client → Debug).
     public static final ForgeConfigSpec.BooleanValue KOMODO_RENDER_FIX_ENABLED;
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
@@ -193,7 +194,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue OUTER_RING_ENABLED;
     public static final ForgeConfigSpec.DoubleValue OUTER_RING_MAX_BLOCKS;
     public static final ForgeConfigSpec.BooleanValue AWARENESS_CUES_ENABLED;
-    // outerRingDebugLogging moved to gamerule sewvOuterRingDebugLogging — see ModGameRules.
+    // outerRingDebugLogging → ClientConfig (Config UI Client → Debug).
 
     public static final ForgeConfigSpec.BooleanValue COVER_CACHE_ENABLED;
     public static final ForgeConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
@@ -217,7 +218,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HELI_MAX_DEPRESSION_DEG;
     public static final ForgeConfigSpec.DoubleValue HELI_MIN_STANDOFF;
-    // heliCombatDebug/heliFlightDebug moved to gamerules sewvHeliCombatDebug/sewvHeliFlightDebug.
+    // heliCombatDebug/heliFlightDebug → ClientConfig (Config UI Client → Debug).
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
@@ -252,7 +253,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue AIRPORT_EXTRA_TAKEOFF_FACTOR;
     public static final ForgeConfigSpec.DoubleValue AIRPORT_TAXI_SPEED;
     public static final ForgeConfigSpec.BooleanValue DEBUG_AUTO_PLANE_DEPLOY;
-    // planeCombatDebug moved to gamerule sewvPlaneCombatDebug — see ModGameRules.
+    // planeCombatDebug → ClientConfig (Config UI Client → Debug).
 
     public static final ForgeConfigSpec.DoubleValue MORTAR_USE_DISTANCE;
     public static final ForgeConfigSpec.IntValue MORTAR_FIRE_COOLDOWN_TICKS;
@@ -268,7 +269,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_DELAY_TICKS;
     public static final ForgeConfigSpec.DoubleValue IDLE_VOICELINE_HEALTH_FRACTION;
 
-    // orderFailureDebug/targetVetoDebug moved to gamerules sewvOrderFailureDebug/sewvTargetVetoDebug.
+    // orderFailureDebug/targetVetoDebug → ClientConfig (Config UI Client → Debug).
     public static final ForgeConfigSpec.IntValue TARGET_VETO_COOLDOWN_TICKS;
 
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
@@ -341,6 +342,10 @@ public final class SewvConfig {
         TANK_SPAWN_CHANCE_US = builder.comment("Chance a US tank appears when Simple Enemy Mod rolls a distant fight.",
                         "Turn tanks in events on/off with the sewvTanksInEvents gamerule.")
                 .defineInRange("tankSpawnChanceUs", 0.12, 0.0, 1.0);
+        FAR_EVENT_SPAWNS = builder.comment(
+                        "Multiply SEM event spawn distance by 2.5 for wider, more spread-out fights.",
+                        "(This mod's events and SEM's own.) Off restores packed base ranges.")
+                .define("farEventSpawns", true);
         PLANES_IN_EVENTS = builder.comment("Allow rare RU/US planes to appear in combat events.").define("planesInEvents", true);
         PLANE_SPAWN_CHANCE_RU = builder.comment("Chance an RU plane appears when Simple Enemy Mod rolls a distant fight.")
                 .defineInRange("planeSpawnChanceRu", 0.02, 0.0, 1.0);

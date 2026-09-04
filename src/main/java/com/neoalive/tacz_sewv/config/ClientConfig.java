@@ -32,6 +32,24 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
     public static final ForgeConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
 
+    // Formerly ModGameRules debug toggles — live via Config UI Client → Debug.
+    public static final ForgeConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue SHIP_PATHING_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue SEWV_DIAG_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue OUTER_RING_DEBUG_LOGGING;
+    public static final ForgeConfigSpec.BooleanValue HELI_COMBAT_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue HELI_FLIGHT_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue PLANE_COMBAT_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue MORTAR_DEBUG_LOGGING;
+    public static final ForgeConfigSpec.BooleanValue BALLISTIC_TRANSLATION_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue ORDER_FAILURE_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue TARGET_VETO_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_FLARE_ALWAYS_ON;
+    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_WIREFRAME;
+    public static final ForgeConfigSpec.BooleanValue SHOW_SPAWN_PROBES;
+    public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_TACTICS_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue FOB_DEBUG;
+
     /** Temporary on/off from the map-markers keybind; null = follow the setting below. */
     @Nullable
     private static volatile Boolean MAP_MARKERS_SESSION_OVERRIDE;
@@ -95,10 +113,57 @@ public final class ClientConfig {
                 .define("mapShowCommandDebug", false);
         builder.pop();
 
+        builder.push("debug");
+        GROUND_PATHING_DEBUG = builder.comment("Log ground vehicle pathing / shoreline probes.")
+                .define("groundPathingDebug", false);
+        SHIP_PATHING_DEBUG = builder.comment("Log ship pathing / depth probes.")
+                .define("shipPathingDebug", false);
+        SEWV_DIAG_DEBUG = builder.comment("General [sewv-diag] channels (targeting, scan, claim, …).")
+                .define("sewvDiagDebug", false);
+        OUTER_RING_DEBUG_LOGGING = builder.comment("Log outer-ring awareness / cue polls.")
+                .define("outerRingDebugLogging", false);
+        HELI_COMBAT_DEBUG = builder.comment("Helicopter combat / run-phase diagnosis (logs + overlay).")
+                .define("heliCombatDebug", false);
+        HELI_FLIGHT_DEBUG = builder.comment("Helicopter flyToward / hover investigation logs.")
+                .define("heliFlightDebug", false);
+        PLANE_COMBAT_DEBUG = builder.comment("Fixed-wing combat / landing diagnosis (logs + client arcs).")
+                .define("planeCombatDebug", false);
+        MORTAR_DEBUG_LOGGING = builder.comment("Log mortar / Type-63 crew gates (why a tube is holding).")
+                .define("mortarDebugLogging", false);
+        BALLISTIC_TRANSLATION_DEBUG = builder.comment("Print TaCZ→SBW ballistic translation for every translated hit.")
+                .define("ballisticTranslationDebug", false);
+        ORDER_FAILURE_DEBUG = builder.comment("Log refused orders (default on — silent until something fails).")
+                .define("orderFailureDebug", true);
+        TARGET_VETO_DEBUG = builder.comment("Log target vetoes (the noisy half of order-failure reporting).")
+                .define("targetVetoDebug", true);
+        TRIPOD_SHIELD_FLARE_ALWAYS_ON = builder.comment("Extermination: keep pod-shield flare sparks always on.")
+                .define("tripodShieldFlareAlwaysOn", false);
+        TRIPOD_SHIELD_WIREFRAME = builder.comment("Extermination: draw pod-shield debug wireframe.")
+                .define("tripodShieldWireframe", false);
+        SHOW_SPAWN_PROBES = builder.comment("Render spawn_probe blocks with the barrier placeholder texture.")
+                .define("showSpawnProbes", false);
+        INDIVIDUAL_TACTICS_DEBUG = builder.comment("Log cover-cache bake and per-crew posture.")
+                .define("individualTacticsDebug", false);
+        FOB_DEBUG = builder.comment("FOB route, assign, resupply, and stale-state logging.")
+                .define("fobDebug", false);
+        builder.pop();
+
         SPEC = builder.build();
     }
 
     private ClientConfig() {}
+
+    /**
+     * Safe read for debug flags from common/server code. Client config is always loaded in
+     * singleplayer; on a dedicated server with no client config baked, returns the default.
+     */
+    public static boolean flag(ForgeConfigSpec.BooleanValue value) {
+        try {
+            return value.get();
+        } catch (Throwable t) {
+            return Boolean.TRUE.equals(value.getDefault());
+        }
+    }
 
     /**
      * Whether map markers are shown right now. Uses the keybind override when set,

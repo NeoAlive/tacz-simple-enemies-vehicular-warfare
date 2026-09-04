@@ -14,8 +14,8 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner;
  * {@link TankSpawner#spawnPlaneWithCrew} puts PMC planes on the ground with a takeoff order, which
  * is the opposite of an overflight.
  *
- * <p>Player distance is the packed base below; {@code sewvFarEventSpawns} scales it at SEM's
- * {@code DynamicEventManager} when that gamerule is on.
+ * <p>Player distance is the packed base below; {@link SewvConfig#FAR_EVENT_SPAWNS} scales it at
+ * SEM's {@code DynamicEventManager} when that config is on.
  */
 public final class OverflightEvent extends DynamicEvent {
 

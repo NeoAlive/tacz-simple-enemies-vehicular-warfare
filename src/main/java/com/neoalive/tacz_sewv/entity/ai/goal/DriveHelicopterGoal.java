@@ -24,6 +24,7 @@ import org.joml.Vector3f;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -35,7 +36,6 @@ import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
 import com.neoalive.tacz_sewv.entity.ai.support.HeliArmament;
 import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
-import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHeliRunPhase;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
@@ -855,7 +855,7 @@ public class DriveHelicopterGoal extends Goal {
                 ? CombatManeuver.ORBIT
                 : CombatManeuver.STRAFE;
         this.orbitTicks = 0;
-        if (ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG) && this.vehicle != null) {
+        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && this.vehicle != null) {
             LOGGER.info("[sewv heli] {}#{} maneuver={}",
                     this.vehicle.getName().getString(),
                     this.vehicle.getId(),
@@ -900,7 +900,7 @@ public class DriveHelicopterGoal extends Goal {
         // Force doctrine re-pick for the new contact (soft→armor must switch slots).
         clearWeaponHold();
 
-        if (ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG)) {
+        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
             LOGGER.info("[sewv heli] {}#{} HANDOFF dead→{} phase={} alt={}",
                     this.vehicle.getName().getString(),
                     this.vehicle.getId(),
@@ -1259,7 +1259,7 @@ public class DriveHelicopterGoal extends Goal {
 
         this.rappelEngageSince = Long.MIN_VALUE;
         setRappelRequested(this.vehicle, true);
-        if (ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG)) {
+        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
             LOGGER.info("[sewv heli] {}#{} autonomous rappel (target=#{} dist={} debounce={})",
                     this.vehicle.getName().getString(),
                     this.vehicle.getId(),
@@ -1304,7 +1304,7 @@ public class DriveHelicopterGoal extends Goal {
         }
         if (this.rappelStableAt == Long.MIN_VALUE) {
             this.rappelStableAt = now;
-            if (ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG)) {
+            if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
                 LOGGER.info("[sewv heli] {}#{} rappel settle start ({} ticks)",
                         this.vehicle.getName().getString(),
                         this.vehicle.getId(),
@@ -1362,7 +1362,7 @@ public class DriveHelicopterGoal extends Goal {
     private void exitRappel(String reason) {
         setRappelRequested(this.vehicle, false);
         clearForcedRappel(this.vehicle);
-        if (ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG) && this.vehicle != null) {
+        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && this.vehicle != null) {
             LOGGER.info("[sewv heli] {}#{} rappel teardown reason={} ropesIdle={}",
                     this.vehicle.getName().getString(),
                     this.vehicle.getId(),
@@ -1449,7 +1449,7 @@ public class DriveHelicopterGoal extends Goal {
                 this.rappelRopeMinusAx = top.x;
                 this.rappelRopeMinusAz = top.z;
             }
-            if (ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG)) {
+            if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
                 LOGGER.info("[sewv heli] {}#{} rappel start unit=#{} rope={} xz={},{}",
                         this.vehicle.getName().getString(),
                         this.vehicle.getId(),
@@ -1493,7 +1493,7 @@ public class DriveHelicopterGoal extends Goal {
 
     /** Wipe a committed run to IDLE, logging the gate that forced it when debug is on. */
     private void abandonRun(String reason) {
-        if (this.runPhase != RunPhase.IDLE && ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG) && this.vehicle != null) {
+        if (this.runPhase != RunPhase.IDLE && ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && this.vehicle != null) {
             LivingEntity live = this.unit.getTarget();
             // Distinguishes false loss (live enemy still in the scan cylinder) from
             // genuine end-of-fight (nothing left to re-lock).
@@ -1538,7 +1538,7 @@ public class DriveHelicopterGoal extends Goal {
                     PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> this.vehicle),
                     new PacketHeliRunPhase(this.vehicle.getId(), this.runPhase.ordinal()));
         }
-        if (phaseChanged && ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG)) {
+        if (phaseChanged && ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
             LOGGER.info("[sewv heli] {}#{} phase={} slot={} alt={}",
                     this.vehicle.getName().getString(),
                     this.vehicle.getId(),
@@ -1572,7 +1572,7 @@ public class DriveHelicopterGoal extends Goal {
                 clearWeaponHold();
                 return;
             }
-            if (ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG) && slot != this.heldWeaponSlot) {
+            if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && slot != this.heldWeaponSlot) {
                 LOGGER.info("[sewv heli] {}#{} PICK slot={}→{} armor={} target={} phase={}",
                         this.vehicle.getName().getString(),
                         this.vehicle.getId(),
@@ -1612,7 +1612,7 @@ public class DriveHelicopterGoal extends Goal {
             this.cycleHadCone = true;
             sampleConeMiss(target);
         }
-        if (!ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG)) return;
+        if (!ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) return;
         if (gate == VehicleWeapons.FireGate.RPM_WAIT) return;
         int seat = this.vehicle.getSeatIndex(this.unit);
         int selected = seat >= 0 ? this.vehicle.getSelectedWeapon(seat) : -1;
@@ -1672,7 +1672,7 @@ public class DriveHelicopterGoal extends Goal {
             this.coneFailAttempts++;
             if (this.coneFailAttempts >= CONE_FAIL_ATTEMPTS_BEFORE_COMPENSATION) {
                 this.compensationActive = true;
-                if (ModGameRules.server(ModGameRules.HELI_COMBAT_DEBUG) && this.vehicle != null) {
+                if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && this.vehicle != null) {
                     LOGGER.info("[sewv heli] {}#{} COMPENSATION armed fails={} yawMiss={} pitchMiss={}",
                             this.vehicle.getName().getString(),
                             this.vehicle.getId(),

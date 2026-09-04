@@ -22,6 +22,7 @@ import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.forgespi.language.IModFileInfo;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.invasion.InvasionSession;
@@ -149,7 +150,7 @@ public final class SewvDebugDump {
         sb.append("sewvAmbientSpawns=").append(level.getGameRules().getBoolean(ModGameRules.AMBIENT_SPAWNS)).append('\n');
         sb.append("sewvPmcAmbientSpawns=").append(level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)).append('\n');
         sb.append("sewvTanksInEvents=").append(level.getGameRules().getBoolean(ModGameRules.TANKS_IN_EVENTS)).append('\n');
-        sb.append("sewvFarEventSpawns=").append(level.getGameRules().getBoolean(ModGameRules.FAR_EVENT_SPAWNS)).append('\n');
+        sb.append("farEventSpawns=").append(SewvConfig.FAR_EVENT_SPAWNS.get()).append('\n');
         sb.append("canMobsDamageVehicles=")
                 .append(level.getGameRules().getBoolean(ModGameRules.CAN_MOBS_DAMAGE_VEHICLES)).append('\n');
         if (ModGameRules.INVASION_OVERRIDES != null) {
@@ -157,9 +158,9 @@ public final class SewvDebugDump {
                     .append(level.getGameRules().getBoolean(ModGameRules.INVASION_OVERRIDES))
                     .append('\n');
         }
-        sb.append("note=Former toml [spawn_gates] / tanksInEvents — toggle with /gamerule, not config.\n");
-        sb.append("sewvIndividualTacticsDebug=")
-                .append(level.getGameRules().getBoolean(ModGameRules.INDIVIDUAL_TACTICS_DEBUG)).append('\n');
+        sb.append("note=Spawn gates remain gamerules; farEventSpawns is server config; debug is client config.\n");
+        sb.append("individualTacticsDebug=")
+                .append(ClientConfig.flag(ClientConfig.INDIVIDUAL_TACTICS_DEBUG)).append('\n');
         sb.append('\n');
     }
 

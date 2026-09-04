@@ -32,6 +32,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
+import com.neoalive.tacz_sewv.client.skin.VehicleSkinClient;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModItems;
@@ -784,6 +785,9 @@ public class ClientEvents {
         MapTrenchMarkers.clear();
         AirportPlots.clear();
         InvasionHudClient.clear();
+        VehicleSkinClient.clearAll();
+        HeliRunPhaseClient.clearAll();
+        PlaneLandingDebugClient.clearAll();
         clearEscort();
         clearTow();
         clearGuard();

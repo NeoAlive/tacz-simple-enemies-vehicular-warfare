@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -19,8 +20,10 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
  * One LivingEntity AABB fill per hull per scan interval, shared by target acquisition and
  * {@link com.neoalive.tacz_sewv.entity.ai.utility.Facts} force counts.
  *
- * <p>Keyed on hull network id. Identity mismatch or expiry forces a refill; hits are free list
- * reuse. Counters expose fill vs hit rate for Spark-adjacent MSPT diagnosis.
+ * <p>Keyed on hull network id. Identity mismatch (via {@link Level#getEntity(int)}) or expiry
+ * forces a refill; hits are free list reuse. No live {@link VehicleEntity} is stored — leave-level
+ * {@link #invalidate(int)} plus server-stop {@link #clearAll()} drop abandoned rows. Counters
+ * expose fill vs hit rate for Spark-adjacent MSPT diagnosis.
  */
 public final class HullLocalScan {
 
@@ -43,6 +46,10 @@ public final class HullLocalScan {
 
     public static void invalidate(int hullId) {
         BY_HULL.remove(hullId);
+    }
+
+    public static void clearAll() {
+        BY_HULL.clear();
     }
 
     /**
@@ -76,9 +83,12 @@ public final class HullLocalScan {
         long now = level.getGameTime();
         int id = v.getId();
         Entry e = BY_HULL.get(id);
-        if (e != null && e.hull == v && now < e.expiresAt) {
-            HITS.increment();
-            return e;
+        if (e != null) {
+            if (now < e.expiresAt && stillSameHull(level, id, v)) {
+                HITS.increment();
+                return e;
+            }
+            BY_HULL.remove(id, e);
         }
 
         double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
@@ -92,13 +102,17 @@ public final class HullLocalScan {
         int interval = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
 
         Entry fresh = new Entry();
-        fresh.hull = v;
         fresh.expiresAt = now + interval;
         fresh.living = living;
         fresh.units = null;
         BY_HULL.put(id, fresh);
         FILLS.increment();
         return fresh;
+    }
+
+    private static boolean stillSameHull(Level level, int id, VehicleEntity v) {
+        Entity live = level.getEntity(id);
+        return live == v;
     }
 
     private static double altitudeSlack(VehicleEntity v) {
@@ -110,7 +124,6 @@ public final class HullLocalScan {
     }
 
     private static final class Entry {
-        VehicleEntity hull;
         long expiresAt;
         List<LivingEntity> living = List.of();
         /** Lazily filtered from {@link #living}; null until first units request. */

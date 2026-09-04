@@ -118,6 +118,16 @@ public final class Facts {
         LIVE.remove(unit.getId(), this);
     }
 
+    /** Drop any Facts bound to this network id (entity leave — goal {@code stop} may not run). */
+    public static void unbindIfPresent(int unitId) {
+        LIVE.remove(unitId);
+    }
+
+    /** Server-stop / full eviction. */
+    public static void clearAll() {
+        LIVE.clear();
+    }
+
     /** The Facts bound to this unit id, or null if the crew has not driven yet this session. */
     @Nullable
     public static Facts of(int unitId) {

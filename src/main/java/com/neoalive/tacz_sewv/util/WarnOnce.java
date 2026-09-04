@@ -32,4 +32,9 @@ public final class WarnOnce {
             log.info(message);
         }
     }
+
+    /** Server-stop eviction — entity-id keyed warnings must not accumulate forever. */
+    public static void clear() {
+        SEEN.clear();
+    }
 }

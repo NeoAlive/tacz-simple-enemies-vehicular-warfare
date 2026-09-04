@@ -43,6 +43,14 @@ public class PreferredPathwayData extends SavedData {
 
     public PreferredPathwayData() {}
 
+    public static void clearCatalogCache() {
+        CATALOG_CACHE.clear();
+    }
+
+    public static void clearCatalogCache(UUID player) {
+        CATALOG_CACHE.remove(player);
+    }
+
     public static PreferredPathwayData load(CompoundTag nbt) {
         PreferredPathwayData data = new PreferredPathwayData();
         if (!nbt.contains("entries", Tag.TAG_LIST)) return data;

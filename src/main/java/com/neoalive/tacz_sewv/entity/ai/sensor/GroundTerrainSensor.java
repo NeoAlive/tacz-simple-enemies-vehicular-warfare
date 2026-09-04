@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.entity.ai.sensor;
 import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
@@ -86,6 +88,8 @@ public final class GroundTerrainSensor extends TerrainSensor {
     private static final double FAN_SHORTCIRCUIT_YAW_RAD = Math.toRadians(25.0);
     /** Reuse a computed fan heading while desired has not swung more than this. */
     private static final double FAN_REUSE_DESIRED_RAD = Math.toRadians(15.0);
+    /** Slot index of 0° relative to desired ({@link GroundMobility#SLOTS_DEG}). */
+    private static final int CENTER_SLOT = 3;
 
     private boolean amphibious;
     private float maxUpStep = 1.0F;
@@ -101,6 +105,13 @@ public final class GroundTerrainSensor extends TerrainSensor {
     private int centerCacheBaseY;
     private double cachedCenterFloor = GroundMobility.NO_FLOOR;
     private int cachedCenterWater;
+
+    /** Game-time key for the per-tick column / grade maps below. */
+    private long columnCacheTick = Long.MIN_VALUE;
+    private final Long2ObjectOpenHashMap<Column> columnCache = new Long2ObjectOpenHashMap<>();
+    private final Long2DoubleOpenHashMap gradeCache = new Long2DoubleOpenHashMap();
+    /** Centerline probes from the last {@link #fillMaps} — beam validate reuses the winner's. */
+    private final Probe[] slotCenterProbes = new Probe[N];
 
     private final float[] interest = new float[N];
     private final float[] hardDanger = new float[N];
@@ -127,6 +138,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
 
     public GroundTerrainSensor(AbstractUnit unit) {
         super(unit);
+        this.gradeCache.defaultReturnValue(Double.NaN);
     }
 
     @Override
@@ -136,6 +148,9 @@ public final class GroundTerrainSensor extends TerrainSensor {
         this.gradeHalfSpan = Math.max(1, Mth.floor(v.getBbWidth() * 0.5F));
         this.hullTop = Math.max(1, Mth.ceil(v.getBbHeight()) - 1);
         this.centerCacheTick = Long.MIN_VALUE;
+        this.columnCacheTick = Long.MIN_VALUE;
+        this.columnCache.clear();
+        this.gradeCache.clear();
         this.mapsPrimed = false;
         this.lastFanHullDominated = false;
         this.lastFanReasons = "";
@@ -145,6 +160,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
         this.lastFanResult = null;
         this.allyFootObstacles = List.of();
         this.peers = List.of();
+        for (int i = 0; i < N; i++) this.slotCenterProbes[i] = null;
     }
 
     /**
@@ -239,7 +255,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
         int winner = GroundMobility.pickWinner(this.interest, this.hardDanger, this.peerSkirt, reachable);
         while (winner >= 0) {
             Vec3 candidate = VehicleTargeting.rotateY(desired, Math.toRadians(GroundMobility.SLOTS_DEG[winner]));
-            Probe sample = probeHeading(candidate, probeDistance, true);
+            Probe sample = probeHeadingBeam(candidate, probeDistance, this.slotCenterProbes[winner]);
             if (sample.hard < GroundMobility.HARD_CAP) {
                 double offset = GroundMobility.interpolateOffsetDeg(
                         winner, this.interest, this.hardDanger, this.peerSkirt);
@@ -257,27 +273,56 @@ public final class GroundTerrainSensor extends TerrainSensor {
 
     private boolean[] fillMaps(Vec3 desired, double probeDistance) {
         var forward = this.vehicle.getForwardDirection().normalize();
-        int facingSlot = 0;
-        double bestFacing = Double.MAX_VALUE;
-        for (int i = 0; i < N; i++) {
-            Vec3 dir = VehicleTargeting.rotateY(desired, Math.toRadians(GroundMobility.SLOTS_DEG[i]));
-            Probe p = probeHeading(dir, probeDistance, false);
-            this.hardDanger[i] = p.hard;
-            this.peerSkirt[i] = p.skirt;
-            this.slotReason[i] = p.reason;
-            this.interest[i] = GroundMobility.goalInterest(GroundMobility.SLOTS_DEG[i]);
-            double facingErr = Math.abs(VehicleTargeting.signedAngleTo(forward, dir));
-            if (facingErr < bestFacing) {
-                bestFacing = facingErr;
-                facingSlot = i;
+        // Desired-center first: when open and no ORCA peers, skip the six flank centerlines.
+        Vec3 centerDir = VehicleTargeting.rotateY(desired, Math.toRadians(GroundMobility.SLOTS_DEG[CENTER_SLOT]));
+        Probe center = probeHeading(centerDir, probeDistance, false);
+        this.slotCenterProbes[CENTER_SLOT] = center;
+        this.hardDanger[CENTER_SLOT] = center.hard;
+        this.peerSkirt[CENTER_SLOT] = center.skirt;
+        this.slotReason[CENTER_SLOT] = center.reason;
+        this.interest[CENTER_SLOT] = GroundMobility.goalInterest(GroundMobility.SLOTS_DEG[CENTER_SLOT]);
+
+        boolean centerClear = this.peers.isEmpty()
+                && center.hard < GroundMobility.HARD_CAP
+                && center.skirt <= 0.0F;
+        int facingSlot = CENTER_SLOT;
+        double bestFacing = Math.abs(VehicleTargeting.signedAngleTo(forward, centerDir));
+
+        if (centerClear) {
+            for (int i = 0; i < N; i++) {
+                if (i == CENTER_SLOT) continue;
+                this.hardDanger[i] = 1.0F;
+                this.peerSkirt[i] = 0.0F;
+                this.slotReason[i] = "skipped";
+                this.interest[i] = GroundMobility.goalInterest(GroundMobility.SLOTS_DEG[i]);
+                this.slotCenterProbes[i] = null;
+            }
+        } else {
+            for (int i = 0; i < N; i++) {
+                if (i == CENTER_SLOT) continue;
+                Vec3 dir = VehicleTargeting.rotateY(desired, Math.toRadians(GroundMobility.SLOTS_DEG[i]));
+                Probe p = probeHeading(dir, probeDistance, false);
+                this.slotCenterProbes[i] = p;
+                this.hardDanger[i] = p.hard;
+                this.peerSkirt[i] = p.skirt;
+                this.slotReason[i] = p.reason;
+                this.interest[i] = GroundMobility.goalInterest(GroundMobility.SLOTS_DEG[i]);
+                double facingErr = Math.abs(VehicleTargeting.signedAngleTo(forward, dir));
+                if (facingErr < bestFacing) {
+                    bestFacing = facingErr;
+                    facingSlot = i;
+                }
             }
         }
+
         this.interest[facingSlot] = Math.max(this.interest[facingSlot], GroundMobility.FACING_INTEREST);
         TacticalPosture.applyPublishedFanBias(this.unit.getId(), this.interest);
         if (this.mapsPrimed) {
             GroundMobility.blendMaps(this.prevInterest, this.interest);
-            GroundMobility.blendMaps(this.prevHard, this.hardDanger);
-            GroundMobility.blendMaps(this.prevSkirt, this.peerSkirt);
+            if (!centerClear) {
+                GroundMobility.blendMaps(this.prevHard, this.hardDanger);
+                GroundMobility.blendMaps(this.prevSkirt, this.peerSkirt);
+            }
         }
         this.mapsPrimed = true;
         System.arraycopy(this.interest, 0, this.prevInterest, 0, N);
@@ -338,24 +383,58 @@ public final class GroundTerrainSensor extends TerrainSensor {
     }
 
     private Probe probeHeading(Vec3 dir, double distance, boolean beam) {
-        double half = halfWidth();
-        Vec3 side = new Vec3(-dir.z, 0.0, dir.x);
-        Probe p;
         if (!beam) {
+            return finishProbe(dir, probeLine(dir, 0.0, distance, sideOf(dir)));
+        }
+        return probeHeadingBeam(dir, distance, null);
+    }
+
+    /**
+     * Width-validated probe. When {@code centerline} is the fillMaps sample for this heading,
+     * only the ±halfWidth lines are walked — the centerline is not recomputed.
+     */
+    private Probe probeHeadingBeam(Vec3 dir, double distance, Probe centerline) {
+        double half = halfWidth();
+        Vec3 side = sideOf(dir);
+        Probe p = centerline != null ? copyProbe(centerline) : new Probe();
+        if (centerline == null) {
             p = probeLine(dir, 0.0, distance, side);
-        } else {
-            p = new Probe();
-            for (int k = -1; k <= 1; k++) {
-                Probe sample = probeLine(dir, k * half, distance, side);
-                if (sample.hard >= GroundMobility.HARD_CAP) {
-                    p = sample;
-                    break;
-                }
-                if (sample.hard > p.hard) p = sample;
-                else p.skirt = Math.max(p.skirt, sample.skirt);
+            if (p.hard >= GroundMobility.HARD_CAP) return finishProbe(dir, p);
+        } else if (p.hard >= GroundMobility.HARD_CAP) {
+            return finishProbe(dir, p);
+        }
+        for (int k = -1; k <= 1; k += 2) {
+            Probe sample = probeLine(dir, k * half, distance, side);
+            if (sample.hard >= GroundMobility.HARD_CAP) {
+                return finishProbe(dir, sample);
+            }
+            if (sample.hard > p.hard) {
+                float skirt = Math.max(p.skirt, sample.skirt);
+                p = sample;
+                p.skirt = Math.max(p.skirt, skirt);
+            } else {
+                p.skirt = Math.max(p.skirt, sample.skirt);
             }
         }
+        return finishProbe(dir, p);
+    }
+
+    private Probe finishProbe(Vec3 dir, Probe p) {
         if (p.hard < GroundMobility.HARD_CAP) applyRvo(dir, p);
+        return p;
+    }
+
+    private static Vec3 sideOf(Vec3 dir) {
+        return new Vec3(-dir.z, 0.0, dir.x);
+    }
+
+    private static Probe copyProbe(Probe src) {
+        Probe p = new Probe();
+        p.hard = src.hard;
+        p.skirt = src.skirt;
+        p.reason = src.reason;
+        p.stepDelta = src.stepDelta;
+        p.waterDepth = src.waterDepth;
         return p;
     }
 
@@ -379,7 +458,9 @@ public final class GroundTerrainSensor extends TerrainSensor {
                 return out;
             }
 
-            Column col = probeColumn(level, pos, Mth.floor(sampleX), Mth.floor(sampleZ));
+            int colX = Mth.floor(sampleX);
+            int colZ = Mth.floor(sampleZ);
+            Column col = cachedColumn(level, pos, colX, colZ);
             out.waterDepth = Math.max(out.waterDepth, col.waterDepth);
             if (col.lava) {
                 out.hard = 1.0F;
@@ -428,13 +509,15 @@ public final class GroundTerrainSensor extends TerrainSensor {
                     }
                 }
             }
-            if (col.floorY != GroundMobility.NO_FLOOR) {
-                float gradeD = GroundMobility.gradeDanger(GroundMobility.localGrade(
-                        level, Mth.floor(sampleX), Mth.floor(sampleZ), this.gradeHalfSpan));
+            if (col.floorY != GroundMobility.NO_FLOOR
+                    && out.hard < GroundMobility.GRADE_FAN_MAX) {
+                float gradeD = GroundMobility.gradeDanger(cachedLocalGrade(level, colX, colZ));
                 if (gradeD > out.hard) {
                     out.hard = gradeD;
                     out.reason = "grade";
                 }
+            } else if (col.floorY != GroundMobility.NO_FLOOR) {
+                PathingPerf.gradeSkipped++;
             }
             floor = col.floorY;
         }
@@ -486,13 +569,48 @@ public final class GroundTerrainSensor extends TerrainSensor {
                 && baseY == this.centerCacheBaseY) {
             return;
         }
-        Column col = probeColumn(level, new BlockPos.MutableBlockPos(), colX, colZ);
+        Column col = cachedColumn(level, new BlockPos.MutableBlockPos(), colX, colZ);
         this.centerCacheTick = now;
         this.centerCacheColX = colX;
         this.centerCacheColZ = colZ;
         this.centerCacheBaseY = baseY;
         this.cachedCenterFloor = col.floorY;
         this.cachedCenterWater = col.waterDepth;
+    }
+
+    private void ensureColumnCacheTick(long now) {
+        if (now == this.columnCacheTick) return;
+        this.columnCacheTick = now;
+        this.columnCache.clear();
+        this.gradeCache.clear();
+    }
+
+    private Column cachedColumn(Level level, BlockPos.MutableBlockPos pos, int x, int z) {
+        ensureColumnCacheTick(level.getGameTime());
+        long key = BlockPos.asLong(x, 0, z);
+        Column hit = this.columnCache.get(key);
+        if (hit != null) {
+            PathingPerf.columnCacheHits++;
+            return hit;
+        }
+        PathingPerf.columnCacheMisses++;
+        Column fresh = probeColumn(level, pos, x, z);
+        this.columnCache.put(key, fresh);
+        return fresh;
+    }
+
+    private double cachedLocalGrade(Level level, int x, int z) {
+        ensureColumnCacheTick(level.getGameTime());
+        long key = BlockPos.asLong(x, 0, z);
+        double hit = this.gradeCache.get(key);
+        if (!Double.isNaN(hit)) {
+            PathingPerf.gradeCacheHits++;
+            return hit;
+        }
+        PathingPerf.gradeCacheMisses++;
+        double grade = GroundMobility.localGrade(level, x, z, this.gradeHalfSpan);
+        this.gradeCache.put(key, grade);
+        return grade;
     }
 
     private Column probeColumn(Level level, BlockPos.MutableBlockPos pos, int x, int z) {

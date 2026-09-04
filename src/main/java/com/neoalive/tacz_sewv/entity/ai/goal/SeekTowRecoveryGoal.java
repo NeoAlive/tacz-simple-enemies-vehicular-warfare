@@ -12,7 +12,6 @@ import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.ITowRecovery;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 
 /**
@@ -65,10 +64,6 @@ public class SeekTowRecoveryGoal extends Goal {
         if (tower.getFirstPassenger() != this.unit) return false;
         if (TowRecoverySupport.hasTowOrder(this.unit)) return false;
         if (tower.isTowingAny()) return false;
-
-        HullFacts facts = new HullFacts();
-        facts.attach(tower);
-        if (facts.isHelicopter() || facts.isPlane() || facts.isShip()) return false;
         if (!TowRecoverySupport.isTowTowerCandidate(tower)) return false;
 
         if (this.unit instanceof IMortarCrew mortarCrew

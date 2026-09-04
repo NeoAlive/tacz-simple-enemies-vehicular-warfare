@@ -545,23 +545,28 @@ public final class TowRecoverySupport {
         }
     }
 
-    public static boolean isTowTowerCandidate(VehicleEntity hull) {
-        if (!hull.isAlive() || hull.isWreck()) return false;
+    /**
+     * Ground WHEEL/TRACK only — FIXED emplacements, aircraft, ships, mortars and artillery do not
+     * pull (or get pulled). Shared by tower and victim so a CIWS cannot end up either side of a line.
+     */
+    public static boolean isTowCapableHull(VehicleEntity hull) {
+        if (hull instanceof MortarEntity || hull instanceof Type63Entity) return false;
         HullFacts facts = new HullFacts();
         facts.attach(hull);
-        if (facts.isHelicopter() || facts.isPlane() || facts.isShip()) return false;
-        if (hull instanceof MortarEntity || hull instanceof Type63Entity) return false;
+        return facts.isGroundMobile() && !facts.isArtillery();
+    }
+
+    public static boolean isTowTowerCandidate(VehicleEntity hull) {
+        if (!hull.isAlive() || hull.isWreck()) return false;
+        if (!isTowCapableHull(hull)) return false;
         if (!hull.getTowedByUUID().isBlank()) return false;
         return true;
     }
 
     public static boolean isTowVictimCandidate(VehicleEntity hull) {
         if (!hull.isAlive() || hull.isWreck()) return false;
-        if (hull instanceof MortarEntity || hull instanceof Type63Entity) return false;
+        if (!isTowCapableHull(hull)) return false;
         if (NpcVehicleOverrides.refusesNpcRiders(hull)) return false;
-        HullFacts facts = new HullFacts();
-        facts.attach(hull);
-        if (facts.isHelicopter() || facts.isPlane()) return false;
         if (!hull.getTowedByUUID().isBlank()) return false;
         return true;
     }

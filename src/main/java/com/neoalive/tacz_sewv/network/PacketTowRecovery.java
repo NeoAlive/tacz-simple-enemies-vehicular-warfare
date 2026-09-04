@@ -5,6 +5,7 @@ import java.util.function.Supplier;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
@@ -66,8 +67,18 @@ public class PacketTowRecovery {
                 OrderReport.fail(player, OrderFailure.NOT_OWNED);
                 return;
             }
-            if (!TowRecoverySupport.isTowVictimCandidate(victim) || !TowRecoverySupport.isTowTowerCandidate(tower)) {
-                OrderReport.fail(player, OrderFailure.TARGET_NOT_VEHICLE);
+            // OrderReport.fail is console-only — a player click on a CIWS/plane/mortar/SPH must
+            // land on the action bar, not vanish as a silent no-op.
+            if (!TowRecoverySupport.isTowVictimCandidate(victim)) {
+                sp.displayClientMessage(Component.translatable("message.tacz_sewv.tow.cannot_be_towed")
+                        .withStyle(ChatFormatting.RED), true);
+                OrderReport.fail(player, OrderFailure.WRONG_HULL);
+                return;
+            }
+            if (!TowRecoverySupport.isTowTowerCandidate(tower)) {
+                sp.displayClientMessage(Component.translatable("message.tacz_sewv.tow.cannot_tow")
+                        .withStyle(ChatFormatting.RED), true);
+                OrderReport.fail(player, OrderFailure.WRONG_HULL);
                 return;
             }
             if (!victim.getTowedByUUID().isBlank() || !tower.getTowedByUUID().isBlank() || tower.isTowingAny()) {

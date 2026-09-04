@@ -790,6 +790,11 @@ public class DriveVehicleGoal extends Goal {
     private void towRecoveryTick() {
         if (!(this.unit instanceof com.neoalive.tacz_sewv.bridge.ITowRecovery tow)) return;
         if (tow.tacz_sewv$getTowVictimId() == -1) return;
+        // Stale order on a FIXED / plane / mortar / SPH — drop it rather than steering inert inputs.
+        if (!TowRecoverySupport.isTowTowerCandidate(this.vehicle)) {
+            TowRecoverySupport.clearOrder(this.unit, this.vehicle);
+            return;
+        }
 
         VehicleEntity victim = TowRecoverySupport.resolveTowVictim(this.unit, tow);
         if (victim == null) {

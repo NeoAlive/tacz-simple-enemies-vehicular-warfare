@@ -10,6 +10,7 @@ import java.util.Set;
 import com.atsuishio.superbwarfare.entity.OBBEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.tools.OBB;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.tags.BlockTags;
@@ -18,7 +19,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-import org.joml.Vector3d;
 
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
@@ -39,6 +39,10 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
  * keeps these world-space and current every tick (its own hit-detection runs off the same
  * list), so this reuses real data instead of a second, approximate hitbox. Leaf contact
  * resolves downward to a trunk before felling starts.
+ *
+ * <p>Scan volume is each part's {@link OBB#getWorldAABB} (not one fat vertex-union), and
+ * {@code #minecraft:logs}/{@code leaves} are filtered <em>before</em> SAT so air/dirt cells
+ * never pay {@link OBB#isColliding}.
  *
  * <p>A tree does not fall on the first tick of contact — it needs {@link
  * SewvConfig#VEHICLE_TREE_CONTACT_TICKS} of <em>unbroken</em> contact first, so a hull that only
@@ -77,29 +81,29 @@ public final class TreeFellingSupport {
         Level level = vehicle.level();
         List<OBB> obbs = vehicle.getOBBs();
         List<OBB> contactObbs = inflateForContact(obbs);
-        AABB scanBox = contactObbs.isEmpty()
-                ? vehicle.getBoundingBox().inflate(CONTACT_BUFFER)
-                : unionBox(contactObbs);
 
-        int minX = Mth.floor(scanBox.minX);
-        int minY = Mth.floor(scanBox.minY);
-        int minZ = Mth.floor(scanBox.minZ);
-        int maxX = Mth.floor(scanBox.maxX);
-        int maxY = Mth.floor(scanBox.maxY);
-        int maxZ = Mth.floor(scanBox.maxZ);
+        List<AABB> partBoxes;
+        AABB fallbackBox = null;
+        if (contactObbs.isEmpty()) {
+            partBoxes = List.of();
+            fallbackBox = vehicle.getBoundingBox().inflate(CONTACT_BUFFER);
+        } else {
+            partBoxes = new ArrayList<>(contactObbs.size());
+            for (OBB obb : contactObbs) {
+                partBoxes.add(OBB.getWorldAABB(obb));
+            }
+        }
 
-        // Cheapest check first: the OBB union AABB usually overestimates an angled hull's real
-        // footprint, so most positions in it never touch anything. touchesHull (plain geometry)
-        // and the #minecraft:logs / leaves tags filter for free; isFellable's registry scan runs
-        // last, only against the handful of candidates that already passed both.
+        LongOpenHashSet visited = new LongOpenHashSet();
         Set<BlockPos> touchedNow = new HashSet<>();
-        for (BlockPos pos : BlockPos.betweenClosed(minX, minY, minZ, maxX, maxY, maxZ)) {
-            if (!touchesHull(contactObbs, vehicle, pos)) continue;
-            BlockState state = level.getBlockState(pos);
-            BlockPos trunk = resolveTrunk(level, pos, state);
-            if (trunk == null) continue;
-            if (!EnhancedFallingTreesFeller.isFellable(level, trunk, level.getBlockState(trunk))) continue;
-            touchedNow.add(trunk);
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+
+        if (fallbackBox != null) {
+            scanBox(level, contactObbs, partBoxes, vehicle, fallbackBox, visited, touchedNow, cursor);
+        } else {
+            for (AABB partBox : partBoxes) {
+                scanBox(level, contactObbs, partBoxes, vehicle, partBox, visited, touchedNow, cursor);
+            }
         }
 
         long now = level.getGameTime();
@@ -128,6 +132,35 @@ public final class TreeFellingSupport {
         }
     }
 
+    private static void scanBox(Level level, List<OBB> contactObbs, List<AABB> partBoxes,
+                                VehicleEntity vehicle, AABB box, LongOpenHashSet visited,
+                                Set<BlockPos> touchedNow, BlockPos.MutableBlockPos cursor) {
+        int minX = Mth.floor(box.minX);
+        int minY = Mth.floor(box.minY);
+        int minZ = Mth.floor(box.minZ);
+        int maxX = Mth.floor(box.maxX);
+        int maxY = Mth.floor(box.maxY);
+        int maxZ = Mth.floor(box.maxZ);
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    long packed = BlockPos.asLong(x, y, z);
+                    if (!visited.add(packed)) continue;
+                    cursor.set(x, y, z);
+                    BlockState state = level.getBlockState(cursor);
+                    // Tag filter before SAT — most cells in the overestimate are air/dirt.
+                    if (!state.is(BlockTags.LOGS) && !state.is(BlockTags.LEAVES)) continue;
+                    if (!touchesHull(contactObbs, partBoxes, vehicle, cursor)) continue;
+                    BlockPos trunk = resolveTrunk(level, cursor, state);
+                    if (trunk == null) continue;
+                    if (!EnhancedFallingTreesFeller.isFellable(level, trunk, level.getBlockState(trunk))) continue;
+                    touchedNow.add(trunk);
+                }
+            }
+        }
+    }
+
     /** Inflate every part by {@link #CONTACT_BUFFER}; empty list stays empty (caller uses entity BB). */
     private static List<OBB> inflateForContact(List<OBB> obbs) {
         if (obbs == null || obbs.isEmpty()) return List.of();
@@ -153,34 +186,21 @@ public final class TreeFellingSupport {
         return null;
     }
 
-    /** Exact per-part collision when OBBs are available; falls back to the plain hitbox only for
-     * a hull with no OBB data at all (unionBox already covers this — an empty obbs list means
-     * scanBox came from getBoundingBox() in the first place). */
-    private static boolean touchesHull(List<OBB> obbs, VehicleEntity vehicle, BlockPos pos) {
+    /**
+     * Exact per-part collision when OBBs are available; falls back to the plain hitbox only for
+     * a hull with no OBB data at all. Broadphase uses each part's world AABB before SAT.
+     */
+    private static boolean touchesHull(List<OBB> obbs, List<AABB> worldBoxes, VehicleEntity vehicle,
+                                       BlockPos pos) {
         AABB blockBox = new AABB(pos);
         if (obbs.isEmpty()) {
             return vehicle.getBoundingBox().inflate(CONTACT_BUFFER).intersects(blockBox);
         }
-        for (OBB obb : obbs) {
-            if (OBB.isColliding(obb, blockBox)) return true;
+        for (int i = 0; i < obbs.size(); i++) {
+            if (!worldBoxes.get(i).intersects(blockBox)) continue;
+            if (OBB.isColliding(obbs.get(i), blockBox)) return true;
         }
         return false;
-    }
-
-    private static AABB unionBox(List<OBB> obbs) {
-        double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, minZ = Double.MAX_VALUE;
-        double maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
-        for (OBB obb : obbs) {
-            for (Vector3d v : obb.getVertices()) {
-                if (v.x < minX) minX = v.x;
-                if (v.y < minY) minY = v.y;
-                if (v.z < minZ) minZ = v.z;
-                if (v.x > maxX) maxX = v.x;
-                if (v.y > maxY) maxY = v.y;
-                if (v.z > maxZ) maxZ = v.z;
-            }
-        }
-        return new AABB(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     private static Map<BlockPos, Long> readContacts(VehicleEntity vehicle) {

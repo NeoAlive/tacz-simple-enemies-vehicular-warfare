@@ -21,8 +21,9 @@ import com.neoalive.tacz_sewv.crew.LogoPoolIndex;
  * <p>Shipped logos are authored at 16×16 and map 1:1. Larger pack icons still go through
  * coverage-aware area averaging as a fallback.
  *
- * <p>Near-white ink is stamped as palette grey (index 2), not pure white (index 1): SBW draws
- * the overlay as a flat lit quad, so full-white pixels read as glowing against hull camo.
+ * <p>Transparency is alpha-only — opaque black ink is real ink (palette 0), not discarded
+ * backdrop. Near-white ink is stamped as palette grey (index 2), not pure white (index 1):
+ * SBW draws the overlay as a flat lit quad, so full-white pixels read as glowing against hull camo.
  */
 public final class PmcLogoEncoder {
 
@@ -30,9 +31,8 @@ public final class PmcLogoEncoder {
     private static final int SIZE = 16;
     /** Fraction of opaque ink samples required before a cell stamps (larger-than-16 fallback). */
     private static final float MIN_COVERAGE = 0.12f;
-    /** Luminance below this is treated as leftover backdrop, not ink. */
-    private static final int MIN_INK_LUMA = 48;
-    /** SBW palette: 1 = pure white, 2 = mid grey — prefer grey for hull-readable stamps. */
+    /** SBW palette: 0 = black, 1 = pure white, 2 = mid grey — prefer grey over white for hulls. */
+    private static final short PALETTE_BLACK = 0;
     private static final short PALETTE_WHITE = 1;
     private static final short PALETTE_GREY = 2;
 
@@ -98,7 +98,7 @@ public final class PmcLogoEncoder {
 
     /**
      * Fallback for pack icons larger than 16×16: average opaque ink over each destination cell.
-     * Near-black / transparent source samples are backdrop and do not dilute the ink colour.
+     * Transparent source samples are backdrop and do not dilute the ink colour.
      */
     private static List<List<Short>> rasterizeArea(NativeImage src) {
         int sw = src.getWidth();
@@ -129,15 +129,12 @@ public final class PmcLogoEncoder {
                 total++;
                 int abgr = src.getPixelRGBA(sx, sy);
                 int a = (abgr >> 24) & 0xFF;
-                int r = abgr & 0xFF;
-                int g = (abgr >> 8) & 0xFF;
-                int b = (abgr >> 16) & 0xFF;
-                if (a < 128 || r + g + b < 24) {
+                if (a < 128) {
                     continue;
                 }
-                sumR += r;
-                sumG += g;
-                sumB += b;
+                sumR += abgr & 0xFF;
+                sumG += (abgr >> 8) & 0xFF;
+                sumB += (abgr >> 16) & 0xFF;
                 ink++;
             }
         }
@@ -152,9 +149,6 @@ public final class PmcLogoEncoder {
         int g = (int) (sumG / ink);
         int b = (int) (sumB / ink);
         int luma = (r * 30 + g * 59 + b * 11) / 100;
-        if (luma < MIN_INK_LUMA) {
-            return -1;
-        }
         if (luma >= 200 && Math.abs(r - g) < 24 && Math.abs(g - b) < 24) {
             return PALETTE_GREY;
         }
@@ -163,16 +157,13 @@ public final class PmcLogoEncoder {
 
     private static short toPalette(int abgr) {
         int a = (abgr >> 24) & 0xFF;
+        if (a < 128) {
+            return -1;
+        }
         int r = abgr & 0xFF;
         int g = (abgr >> 8) & 0xFF;
         int b = (abgr >> 16) & 0xFF;
-        if (a < 128 || r + g + b < 24) {
-            return -1;
-        }
         int luma = (r * 30 + g * 59 + b * 11) / 100;
-        if (luma < MIN_INK_LUMA) {
-            return -1;
-        }
         if (luma >= 200 && Math.abs(r - g) < 24 && Math.abs(g - b) < 24) {
             return PALETTE_GREY;
         }
@@ -184,11 +175,10 @@ public final class PmcLogoEncoder {
         return index == PALETTE_WHITE ? PALETTE_GREY : (short) index;
     }
 
-    /** Skip palette 0 (black) — black ink on a dark hull is invisible. */
     private static int nearestPaletteIndex(int rgb) {
-        int best = PALETTE_GREY;
+        int best = PALETTE_BLACK;
         long bestDist = Long.MAX_VALUE;
-        for (int i = 1; i < PALETTE.length; i++) {
+        for (int i = 0; i < PALETTE.length; i++) {
             if (i == PALETTE_WHITE) continue;
             int pr = (PALETTE[i] >> 16) & 0xFF;
             int pg = (PALETTE[i] >> 8) & 0xFF;

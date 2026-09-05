@@ -380,7 +380,12 @@ public class TdtScreen extends Screen {
     }
 
     private static List<String> logoPoolOptions() {
-        List<String> pools = LogoPoolRegistry.poolIds();
+        List<String> pools = new ArrayList<>();
+        for (String id : LogoPoolRegistry.poolIds()) {
+            if (id.startsWith("pmc_")) {
+                pools.add(id);
+            }
+        }
         if (pools.isEmpty()) {
             return List.of(PmcIdentityPreference.DEFAULT_POOL);
         }
@@ -1355,6 +1360,8 @@ public class TdtScreen extends Screen {
         if (selected) {
             g.fill(x - 1, y - 1, x + FLOAT_ICON + 1, y + FLOAT_ICON + 1, COL_ACCENT);
         }
+        // Light plate so black-on-transparent logos stay readable on the dark TDT panel.
+        g.fill(x, y, x + FLOAT_ICON, y + FLOAT_ICON, COL_TEXT);
         g.setColor(1.0F, 1.0F, 1.0F, 1.0F);
         g.blit(tex, x, y, 0, 0, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON);
     }

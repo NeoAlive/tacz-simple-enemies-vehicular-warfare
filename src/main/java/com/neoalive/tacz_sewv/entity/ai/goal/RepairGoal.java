@@ -153,8 +153,11 @@ public class RepairGoal extends Goal {
         // Sticky faction paint: an engineer repairing a hull paints it in their colours when a
         // filesystem skin exists for that hull+faction (client no-ops if the PNG is missing).
         VehicleSkinSupport.apply(this.target, CrewFacts.factionOfCrew(this.unit));
+        // Logos follow live crew ownership (independent of the sticky skin roll).
+        com.neoalive.tacz_sewv.skin.PmcVehicleLogoSupport.applyFromOwnership(this.target);
         CrewFacts.Faction painted = CrewFacts.factionOfCrew(this.unit);
         if (painted == CrewFacts.Faction.PMC && this.unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity pmc) {
+            // Force identity refresh past the same-faction early-out in applyFromOwnership.
             com.neoalive.tacz_sewv.skin.PmcVehicleLogoSupport.applyIfPmcCaptured(this.target, pmc.getOwnerUUID());
         }
         showRepairEffects();

@@ -28,15 +28,18 @@ import org.slf4j.Logger;
 import com.neoalive.tacz_sewv.TaczSewv;
 
 /**
- * Server-side index of {@code config/tacz_sewv/logo_pools/pmc_*} folders. Used to validate TDT
- * Apply requests and to locate PNGs for dogTag encoding — no GL, filenames only.
+ * Server-side index of {@code config/tacz_sewv/logo_pools/{pmc,ru,us}_*} folders. Used to
+ * validate TDT Apply requests and to locate PNGs for dogTag encoding — no GL, filenames only.
  */
 public final class LogoPoolIndex {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final String LOG_PREFIX = "[sewv-logo-pools]";
     private static final String DEFAULTS_ROOT = "logo_pools_defaults";
-    private static final Pattern POOL_ID = Pattern.compile("^pmc_[a-z0-9_]+$");
+    private static final Pattern POOL_ID = Pattern.compile("^(pmc|ru|us)_[a-z0-9_]+$");
+    /** Shipped faction defaults — dirs always created; PNGs re-copied from jar on every reload. */
+    private static final List<String> SHIPPED_DEFAULT_POOLS = List.of(
+            PmcIdentityPreference.DEFAULT_POOL, "ru_default", "us_default");
 
     private static volatile Map<String, List<String>> pools = Map.of(
             PmcIdentityPreference.DEFAULT_POOL,
@@ -72,12 +75,15 @@ public final class LogoPoolIndex {
         return icons != null && icons.contains(iconId);
     }
 
-    /** Seeds missing defaults from the jar, then rescans every {@code pmc_*} subfolder. */
+    /** Seeds missing defaults from the jar, then rescans every {@code {pmc,ru,us}_*} subfolder. */
     public static synchronized void reload(@Nullable ResourceManager manager) {
         resources = manager;
         Path root = rootDirectory();
         try {
             Files.createDirectories(root);
+            for (String pool : SHIPPED_DEFAULT_POOLS) {
+                Files.createDirectories(root.resolve(pool));
+            }
         } catch (IOException e) {
             LOGGER.warn("{} could not create {}: {}", LOG_PREFIX, root, e.toString());
         }
@@ -133,9 +139,9 @@ public final class LogoPoolIndex {
             if (!TaczSewv.MODID.equals(id.getNamespace())) continue;
             String relative = id.getPath().substring(DEFAULTS_ROOT.length() + 1);
             Path dest = dir.resolve(relative);
-            // Shipped pmc_default boards are re-copied on every reload so jar updates land;
+            // Shipped *_default boards are re-copied on every reload so jar updates land;
             // other pools (player-authored) are seed-once only.
-            boolean shippedDefault = relative.startsWith(PmcIdentityPreference.DEFAULT_POOL + "/");
+            boolean shippedDefault = isShippedDefaultRelative(relative);
             if (Files.exists(dest) && !shippedDefault) continue;
             try (InputStream in = entry.getValue().open()) {
                 Files.createDirectories(dest.getParent());
@@ -148,6 +154,13 @@ public final class LogoPoolIndex {
         if (copied > 0) {
             LOGGER.info("{} seeded {} default logo(s) into {}", LOG_PREFIX, copied, dir);
         }
+    }
+
+    private static boolean isShippedDefaultRelative(String relative) {
+        for (String pool : SHIPPED_DEFAULT_POOLS) {
+            if (relative.startsWith(pool + "/")) return true;
+        }
+        return false;
     }
 
     /** Opens a logo PNG for dogTag encoding. Caller closes the stream. */

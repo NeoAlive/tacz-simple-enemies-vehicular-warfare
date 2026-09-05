@@ -6,18 +6,37 @@ package com.neoalive.tacz_sewv.debug;
  * {@code /sewv debug perf}. Observe-only — zero when nothing is flying.
  *
  * <p>NEAR vs FAR are the LOD bands: per-call averages here are independent of how rare plane ticks
- * are relative to the rest of the server thread (the sampling-rarity problem that killed profiler
- * passes). {@code planeTicketsHeld} is a live gauge — it should track airborne planes, not lifetime
- * spawns.
+ * are relative to the rest of the server thread. Sub-buckets under FAR (ally scan vs skip) and NEAR
+ * (parked vs active) exist to diagnose composition / throttling artifacts — not to change LOD.
  */
 public final class PlanePerf {
 
     /** Wall time inside {@code DrivePlaneGoal.tick} while {@code farLod == false}. */
     public static long nearNanos;
     public static long nearCalls;
+    /** NEAR ticks in {@code LANDED}/{@code GROUNDED} — cheap holdPark. */
+    public static long nearParkedNanos;
+    public static long nearParkedCalls;
+    /** NEAR ticks that are actually flying / fighting / landing. */
+    public static long nearActiveNanos;
+    public static long nearActiveCalls;
+
     /** Wall time inside {@code DrivePlaneGoal.tick} while {@code farLod == true}. */
     public static long farNanos;
     public static long farCalls;
+    /** FAR ticks that ran the RU/US ally AABB scan this tick. */
+    public static long farScanNanos;
+    public static long farScanCalls;
+    /** FAR ticks that skipped the ally scan (throttled). */
+    public static long farSkipNanos;
+    public static long farSkipCalls;
+    /** Wall time spent inside the ally scan body only (FAR ticks that scanned). */
+    public static long farAllyScanBodyNanos;
+    public static long farAllyScanBodyCalls;
+
+    /** {@link com.neoalive.tacz_sewv.entity.ai.support.AirLod#nearPlayers} cache. */
+    public static long playerNearHits;
+    public static long playerNearMisses;
 
     /**
      * Live count of plane goals currently holding a Forge ticket. +1 on acquire, −1 on release.
@@ -38,14 +57,46 @@ public final class PlanePerf {
 
     private PlanePerf() {}
 
-    public static void recordTick(long nanos, boolean farLod) {
+    /**
+     * @param farLod      post-mode FAR transit flag
+     * @param farAllyScan true when this FAR tick actually ran {@code refreshAllies}' scan
+     * @param parked      mode is LANDED or GROUNDED (NEAR composition)
+     */
+    public static void recordTick(long nanos, boolean farLod, boolean farAllyScan, boolean parked) {
         if (farLod) {
             farNanos += nanos;
             farCalls++;
+            if (farAllyScan) {
+                farScanNanos += nanos;
+                farScanCalls++;
+            } else {
+                farSkipNanos += nanos;
+                farSkipCalls++;
+            }
         } else {
             nearNanos += nanos;
             nearCalls++;
+            if (parked) {
+                nearParkedNanos += nanos;
+                nearParkedCalls++;
+            } else {
+                nearActiveNanos += nanos;
+                nearActiveCalls++;
+            }
         }
+    }
+
+    public static void noteFarAllyScanBody(long nanos) {
+        farAllyScanBodyNanos += nanos;
+        farAllyScanBodyCalls++;
+    }
+
+    public static void notePlayerNearHit() {
+        playerNearHits++;
+    }
+
+    public static void notePlayerNearMiss() {
+        playerNearMisses++;
     }
 
     public static void notePlaneTicketHeld(boolean holding) {
@@ -54,18 +105,39 @@ public final class PlanePerf {
 
     public static String snapshotAndReset() {
         String s = String.format(
-                "plane tick near=%.2fms/%d (avg=%.3fms) far=%.2fms/%d (avg=%.3fms) "
+                "plane tick near=%.2fms/%d (avg=%.3fms) [parked avg=%.3fms/%d active avg=%.3fms/%d] "
+                        + "far=%.2fms/%d (avg=%.3fms) [scan avg=%.3fms/%d skip avg=%.3fms/%d "
+                        + "allyBody avg=%.3fms/%d] "
+                        + "playerNearCache=%d/%d | "
                         + "planeTicketsHeld=%d heldTicks=%d | "
                         + "ticket follow=%d (noop=%d cross=%d) force +%d/-%d heldNow=%d",
                 nearNanos / 1.0e6, nearCalls, avgMs(nearNanos, nearCalls),
+                avgMs(nearParkedNanos, nearParkedCalls), nearParkedCalls,
+                avgMs(nearActiveNanos, nearActiveCalls), nearActiveCalls,
                 farNanos / 1.0e6, farCalls, avgMs(farNanos, farCalls),
+                avgMs(farScanNanos, farScanCalls), farScanCalls,
+                avgMs(farSkipNanos, farSkipCalls), farSkipCalls,
+                avgMs(farAllyScanBodyNanos, farAllyScanBodyCalls), farAllyScanBodyCalls,
+                playerNearHits, playerNearHits + playerNearMisses,
                 planeTicketsHeld, planeTicketHeldTicks,
                 ticketFollowCalls, ticketFollowNoops, ticketFollowCrosses,
                 ticketForceAdds, ticketForceRemoves, ticketHeldNow);
         nearNanos = 0;
         nearCalls = 0;
+        nearParkedNanos = 0;
+        nearParkedCalls = 0;
+        nearActiveNanos = 0;
+        nearActiveCalls = 0;
         farNanos = 0;
         farCalls = 0;
+        farScanNanos = 0;
+        farScanCalls = 0;
+        farSkipNanos = 0;
+        farSkipCalls = 0;
+        farAllyScanBodyNanos = 0;
+        farAllyScanBodyCalls = 0;
+        playerNearHits = 0;
+        playerNearMisses = 0;
         planeTicketHeldTicks = 0;
         ticketFollowCalls = 0;
         ticketFollowNoops = 0;

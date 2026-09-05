@@ -46,9 +46,9 @@ public final class AirframeSupport {
         private long tick = Long.MIN_VALUE;
         private int highest;
 
-        boolean matches(int x, int z, int bucket, long now) {
+        boolean matches(int x, int z, int bucket, long now, int ttl) {
             return x == this.destX && z == this.destZ && bucket == this.lookaheadBucket
-                    && now - this.tick < CACHE_TTL_TICKS;
+                    && now - this.tick < ttl;
         }
 
         void store(int x, int z, int bucket, long now, int value) {
@@ -110,19 +110,32 @@ public final class AirframeSupport {
         return highestGroundToward(vehicle, toX, toZ, lookahead) + flightAltitude;
     }
 
+    public static double cruiseAltitudeToward(VehicleEntity vehicle, double toX, double toZ,
+                                       double flightAltitude, double lookahead, int cacheTtl) {
+        return highestGroundToward(vehicle, toX, toZ, lookahead, cacheTtl) + flightAltitude;
+    }
+
     /**
      * Highest {@link Heightmap.Types#WORLD_SURFACE} along the leg to {@code (toX, toZ)}, sampling
      * the centerline and a ±{@link #LATERAL_BAND} band so a ridge beside the course still raises
      * cruise altitude. Cached ~{@link #CACHE_TTL_TICKS} game ticks per hull/dest.
+     *
+     * <p>Unloaded columns are skipped — never {@code getHeight} into a chunk the ticket does not
+     * hold, or a far cruise streams worldgen along its look-ahead.
      */
     public static int highestGroundToward(VehicleEntity vehicle, double toX, double toZ, double lookahead) {
+        return highestGroundToward(vehicle, toX, toZ, lookahead, CACHE_TTL_TICKS);
+    }
+
+    public static int highestGroundToward(VehicleEntity vehicle, double toX, double toZ,
+                                          double lookahead, int cacheTtl) {
         int destX = Mth.floor(toX);
         int destZ = Mth.floor(toZ);
         int lookaheadBucket = Mth.floor(lookahead);
         long now = vehicle.level().getGameTime();
         GroundSample sample = GROUND_CACHE.get()
                 .computeIfAbsent(vehicle.getId(), id -> new GroundSample());
-        if (sample.matches(destX, destZ, lookaheadBucket, now)) {
+        if (sample.matches(destX, destZ, lookaheadBucket, now, cacheTtl)) {
             return sample.highest;
         }
 
@@ -151,14 +164,26 @@ public final class AirframeSupport {
         for (double d = TERRAIN_SAMPLE_STEP; d <= reach; d += TERRAIN_SAMPLE_STEP) {
             double cx = ox + nx * d;
             double cz = oz + nz * d;
-            highest = Math.max(highest, surfaceAt(level, cx, cz));
-            highest = Math.max(highest, surfaceAt(level, cx + px * LATERAL_BAND, cz + pz * LATERAL_BAND));
-            highest = Math.max(highest, surfaceAt(level, cx - px * LATERAL_BAND, cz - pz * LATERAL_BAND));
+            highest = Math.max(highest, surfaceAtLoadedOr(level, cx, cz, highest));
+            highest = Math.max(highest, surfaceAtLoadedOr(level,
+                    cx + px * LATERAL_BAND, cz + pz * LATERAL_BAND, highest));
+            highest = Math.max(highest, surfaceAtLoadedOr(level,
+                    cx - px * LATERAL_BAND, cz - pz * LATERAL_BAND, highest));
         }
         return highest;
     }
 
-    private static int surfaceAt(Level level, double x, double z) {
-        return level.getHeight(Heightmap.Types.WORLD_SURFACE, Mth.floor(x), Mth.floor(z));
+    /**
+     * Heightmap read that never sync-loads. Returns {@link Integer#MIN_VALUE} when the column's
+     * chunk is unloaded — callers treat that as "no sample" (clear for corridor routing).
+     */
+    public static int surfaceAtLoaded(Level level, int blockX, int blockZ) {
+        if (!level.hasChunk(blockX >> 4, blockZ >> 4)) return Integer.MIN_VALUE;
+        return level.getHeight(Heightmap.Types.WORLD_SURFACE, blockX, blockZ);
+    }
+
+    private static int surfaceAtLoadedOr(Level level, double x, double z, int fallback) {
+        int h = surfaceAtLoaded(level, Mth.floor(x), Mth.floor(z));
+        return h == Integer.MIN_VALUE ? fallback : h;
     }
 }

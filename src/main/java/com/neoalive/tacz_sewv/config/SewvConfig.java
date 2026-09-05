@@ -221,6 +221,8 @@ public final class SewvConfig {
     // heliCombatDebug/heliFlightDebug → ClientConfig (Config UI Client → Debug).
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
+    public static final ForgeConfigSpec.DoubleValue PLANE_FAR_LOD_BLOCKS;
+    public static final ForgeConfigSpec.DoubleValue HELI_FAR_LOD_BLOCKS;
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PLANE_GUN_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue PLANE_MISSILE_CONE_DEG;
@@ -844,6 +846,15 @@ public final class SewvConfig {
                         "Default true (matches mortarChunkLoading). Existing installs keep whatever",
                         "value is already in tacz_sewv-common.toml until that file is deleted.")
                 .define("planeChunkLoading", true);
+        PLANE_FAR_LOD_BLOCKS = builder.comment(
+                        "Past this distance (blocks) from every player, a ticketed plane in cruise/hold/",
+                        "RTB/ingress uses cheaper terrain and ally scans. Combat, takeoff and landing",
+                        "always stay full fidelity. Delete tacz_sewv-common.toml to pick up a new default.")
+                .defineInRange("planeFarLodBlocks", 256.0, 64.0, 1024.0);
+        HELI_FAR_LOD_BLOCKS = builder.comment(
+                        "Same FAR band for AI helicopters (ground-cache TTL only; heli terrain is already",
+                        "shorter than planes). Delete tacz_sewv-common.toml to pick up a new default.")
+                .defineInRange("heliFarLodBlocks", 128.0, 64.0, 1024.0);
         PLANE_COMMAND_RADIUS = builder.comment("Max distance (blocks) for player orders to aircraft.",
                         "Doubles as the soft leash: past this a plane finishes its pass and returns to you.",
                         "Combat is abandoned outright at 1.5x this distance.",

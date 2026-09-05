@@ -120,7 +120,9 @@ public final class HullLocalScan {
             return 0.0;
         }
         int surface = v.level().getHeight(Heightmap.Types.WORLD_SURFACE, v.getBlockX(), v.getBlockZ());
-        return Math.max(0.0, v.getY() - surface);
+        // Cap so a 200 AGL cruise does not inflate the LivingEntity AABB by full altitude while
+        // the hull is ticketed far from players.
+        return Math.min(64.0, Math.max(0.0, v.getY() - surface));
     }
 
     private static final class Entry {

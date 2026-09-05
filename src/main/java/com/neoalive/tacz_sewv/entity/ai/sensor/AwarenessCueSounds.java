@@ -15,10 +15,14 @@ import com.neoalive.tacz_sewv.TaczSewv;
 /**
  * Classifies server {@code playSound} events into {@link AwarenessCues.TriggerKind} for the
  * awareness cue registry. Package-visible helpers are exercised by {@code AwarenessCuesSelfCheck}.
+ *
+ * <p>TaCZ gunfire is <b>not</b> classified here — it never hits {@code Level.playSound}; see
+ * {@link AwarenessCueEvents} / {@code GunFireEvent}.
  */
 public final class AwarenessCueSounds {
 
     private static final String SBW = "superbwarfare";
+    private static final String MC = "minecraft";
 
     private AwarenessCueSounds() {}
 
@@ -29,11 +33,18 @@ public final class AwarenessCueSounds {
     public static AwarenessCues.TriggerKind classify(SoundEvent sound, SoundSource source,
             @Nullable Entity boundEntity) {
         ResourceLocation id = sound.getLocation();
-        if (TaczSewv.MODID.equals(id.getNamespace()) && source == SoundSource.VOICE) {
+        String ns = id.getNamespace();
+        String path = id.getPath().toLowerCase(Locale.ROOT);
+
+        if (TaczSewv.MODID.equals(ns) && source == SoundSource.VOICE) {
             return AwarenessCues.TriggerKind.CREW_VOICE;
         }
-        if (!SBW.equals(id.getNamespace())) return null;
-        String path = id.getPath().toLowerCase(Locale.ROOT);
+        if (MC.equals(ns)) {
+            return classifyMinecraft(path);
+        }
+        if (!SBW.equals(ns)) return null;
+
+        if (isDrone(path)) return AwarenessCues.TriggerKind.DRONE;
         if (isEngine(path)) {
             if (!(boundEntity instanceof VehicleEntity vehicle)) return null;
             if (vehicle.getDeltaMovement().horizontalDistanceSqr() <= 0.01) return null;
@@ -50,16 +61,35 @@ public final class AwarenessCueSounds {
     static AwarenessCues.TriggerKind classifyId(ResourceLocation id, SoundSource source,
             boolean movingVehicle) {
         String ns = id.getNamespace();
+        String path = id.getPath().toLowerCase(Locale.ROOT);
         if (TaczSewv.MODID.equals(ns) && source == SoundSource.VOICE) {
             return AwarenessCues.TriggerKind.CREW_VOICE;
         }
+        if (MC.equals(ns)) {
+            return classifyMinecraft(path);
+        }
         if (!SBW.equals(ns)) return null;
-        String path = id.getPath().toLowerCase(Locale.ROOT);
+        if (isDrone(path)) return AwarenessCues.TriggerKind.DRONE;
         if (isEngine(path)) {
             return movingVehicle ? AwarenessCues.TriggerKind.VEHICLE_ENGINE : null;
         }
         if (isCannon(path)) return AwarenessCues.TriggerKind.VEHICLE_CANNON;
         return null;
+    }
+
+    @Nullable
+    static AwarenessCues.TriggerKind classifyMinecraft(String path) {
+        if (path.startsWith("entity.player.hurt") || path.equals("entity.generic.hurt")) {
+            return AwarenessCues.TriggerKind.PLAYER_HURT;
+        }
+        if (path.equals("entity.generic.eat") || path.equals("entity.player.burp")) {
+            return AwarenessCues.TriggerKind.PLAYER_EAT;
+        }
+        return null;
+    }
+
+    static boolean isDrone(String path) {
+        return path.equals("drone_engine") || path.contains("drone_engine");
     }
 
     static boolean isEngine(String path) {

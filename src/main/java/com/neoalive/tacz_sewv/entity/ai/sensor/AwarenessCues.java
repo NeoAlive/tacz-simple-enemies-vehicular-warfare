@@ -1,10 +1,8 @@
 package com.neoalive.tacz_sewv.entity.ai.sensor;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
@@ -24,42 +22,65 @@ import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCueRegistry.Reject;
+import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCueRegistry.SoundCue;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 
 /**
- * Shared investigate layer for ground crews: merges outer-ring entity spots with audible sound
- * cues, then publishes {@link Facts#outerSpotFresh} / {@link Facts.Memory#noteSpot} — never
- * {@code setTarget}.
+ * Per-hull investigate merge/publish layer: outer-ring entity spots + audible sound cues from
+ * {@link AwarenessCueRegistry}, then {@link Facts#outerSpotFresh} / {@link Facts.Memory#noteSpot}
+ * — never {@code setTarget}.
  *
- * <p>Per-hull instance owned by {@code DriveVehicleGoal}. Sound cues live in a sparse per-level
- * registry ({@link Registry}).
+ * <p>Owned by {@code DriveVehicleGoal}. Tick order (load-bearing): OuterRing offers → this
+ * {@link #tick} publishes → {@code TacticalBrain.update}. {@code facts.underOrders} here may be
+ * one Facts-refresh stale; that is acceptable. {@link #clearFacts} must not clear Memory.
  */
 public final class AwarenessCues {
 
     private static final Logger LOG = LogUtils.getLogger();
 
-    /** Max hear radius across sound triggers — bounds chunk queries on consume. */
-    public static final int MAX_SOUND_HEAR_RADIUS = 256;
+    /** Max hear radius across sound kinds — bounds chunk queries on consume. */
+    public static final int MAX_SOUND_HEAR_RADIUS = AwarenessCueRegistry.TriggerKind.maxHearRadius();
+
     static final int GLANCE_HOLD_TICKS = 40;
+    /** Debug summary cadence (game ticks) — not every driver tick. */
+    private static final int DEBUG_SUMMARY_INTERVAL = 40;
 
-    private static final double CELL_SIZE = 4.0;
-    private static final int MAX_CUES_PER_CHUNK = 8;
-    private static final int[] DEDUPE_INTERVAL = {0, 40, 10, 60}; // index = TriggerKind.ordinal
-
+    /**
+     * Nested name kept for mixins / self-check / {@link AwarenessCueSounds}; values delegate to
+     * {@link AwarenessCueRegistry.TriggerKind}.
+     */
     public enum TriggerKind {
-        OUTER_ENTITY(0, 1.0, 1.0),
-        VEHICLE_ENGINE(60, 0.30, 0.35),
-        VEHICLE_CANNON(256, 1.0, 0.85),
-        CREW_VOICE(40, 0.15, 0.25);
+        OUTER_ENTITY(AwarenessCueRegistry.TriggerKind.OUTER_ENTITY),
+        VEHICLE_ENGINE(AwarenessCueRegistry.TriggerKind.VEHICLE_ENGINE),
+        VEHICLE_CANNON(AwarenessCueRegistry.TriggerKind.VEHICLE_CANNON),
+        CREW_VOICE(AwarenessCueRegistry.TriggerKind.CREW_VOICE),
+        TACZ_FIRE(AwarenessCueRegistry.TriggerKind.TACZ_FIRE),
+        DRONE(AwarenessCueRegistry.TriggerKind.DRONE),
+        PLAYER_HURT(AwarenessCueRegistry.TriggerKind.PLAYER_HURT),
+        PLAYER_EAT(AwarenessCueRegistry.TriggerKind.PLAYER_EAT);
 
-        final int hearRadius;
-        final double triggerChance;
-        final double strength;
+        final AwarenessCueRegistry.TriggerKind delegate;
 
-        TriggerKind(int hearRadius, double triggerChance, double strength) {
-            this.hearRadius = hearRadius;
-            this.triggerChance = triggerChance;
-            this.strength = strength;
+        TriggerKind(AwarenessCueRegistry.TriggerKind delegate) {
+            this.delegate = delegate;
+        }
+
+        AwarenessCueRegistry.TriggerKind unwrap() {
+            return this.delegate;
+        }
+
+        static TriggerKind wrap(AwarenessCueRegistry.TriggerKind k) {
+            return switch (k) {
+                case OUTER_ENTITY -> OUTER_ENTITY;
+                case VEHICLE_ENGINE -> VEHICLE_ENGINE;
+                case VEHICLE_CANNON -> VEHICLE_CANNON;
+                case CREW_VOICE -> CREW_VOICE;
+                case TACZ_FIRE -> TACZ_FIRE;
+                case DRONE -> DRONE;
+                case PLAYER_HURT -> PLAYER_HURT;
+                case PLAYER_EAT -> PLAYER_EAT;
+            };
         }
     }
 
@@ -82,10 +103,17 @@ public final class AwarenessCues {
     private Vec3 glanceBearing;
     private long glanceUntil = Long.MIN_VALUE;
 
+    /** Per-cue chance latch for this hull: cueKey → heard. Cleared when the cue expires. */
+    private final Map<Long, Boolean> chanceLatch = new ConcurrentHashMap<>();
+    private long nextDebugSummary = Long.MIN_VALUE;
+
     public void clear() {
         this.hull = null;
         dropEntitySpot();
         dropSoundSpot();
+        this.chanceLatch.clear();
+        this.glanceBearing = null;
+        this.glanceUntil = Long.MIN_VALUE;
     }
 
     /**
@@ -146,24 +174,34 @@ public final class AwarenessCues {
             clearFacts(facts);
             return;
         }
-        if (unit.getTarget() != null || facts.underOrders) {
+        if (unit.getTarget() != null) {
             clearFacts(facts);
+            debugGate(unit, vehicle, now, Reject.GATED_COMBAT);
+            return;
+        }
+        if (facts.underOrders) {
+            clearFacts(facts);
+            debugGate(unit, vehicle, now, Reject.GATED_ORDERS);
             return;
         }
 
         refreshEntitySpot(unit, vehicle, now);
-        consumeSoundCues(unit, vehicle, now);
-        publish(unit, vehicle, facts, now);
+        ConsumeStats stats = consumeSoundCues(unit, vehicle, now);
+        publish(unit, vehicle, facts, now, stats);
     }
 
-    private void consumeSoundCues(AbstractUnit unit, VehicleEntity vehicle, long now) {
+    private ConsumeStats consumeSoundCues(AbstractUnit unit, VehicleEntity vehicle, long now) {
+        ConsumeStats stats = new ConsumeStats();
+        // Keep prior sound spot only if still fresh and no better cue wins — drop then refill so
+        // an empty scan clears investigate; reject tallies explain why.
         dropSoundSpot();
-        if (!SewvConfig.AWARENESS_CUES_ENABLED.get()) return;
-        if (!(unit.level() instanceof ServerLevel level)) return;
+        if (!SewvConfig.AWARENESS_CUES_ENABLED.get()) return stats;
+        if (!(unit.level() instanceof ServerLevel level)) return stats;
 
         double hx = vehicle.getX();
         double hz = vehicle.getZ();
-        int chunkRadius = (MAX_SOUND_HEAR_RADIUS + 15) >> 4;
+        int maxHear = AwarenessCueRegistry.TriggerKind.maxHearRadius();
+        int chunkRadius = (maxHear + 15) >> 4;
         int cx0 = (Mth.floor(hx) >> 4) - chunkRadius;
         int cz0 = (Mth.floor(hz) >> 4) - chunkRadius;
         int cx1 = (Mth.floor(hx) >> 4) + chunkRadius;
@@ -173,38 +211,48 @@ public final class AwarenessCues {
         double bestStrength = -1.0;
         double bestDist = Double.MAX_VALUE;
         long bestSeen = Long.MIN_VALUE;
+        AwarenessCueRegistry.TriggerKind bestKind = null;
 
-        Registry reg = Registry.of(level);
+        AwarenessCueRegistry reg = AwarenessCueRegistry.of(level);
         for (int cx = cx0; cx <= cx1; cx++) {
             for (int cz = cz0; cz <= cz1; cz++) {
-                List<SoundCue> cues = reg.chunkCues.get(Registry.chunkKey(cx, cz));
+                List<SoundCue> cues = reg.chunkCues.get(AwarenessCueRegistry.chunkKey(cx, cz));
                 if (cues == null || cues.isEmpty()) {
                     if (cues != null && cues.isEmpty()) {
-                        reg.chunkCues.remove(Registry.chunkKey(cx, cz));
+                        reg.chunkCues.remove(AwarenessCueRegistry.chunkKey(cx, cz));
                     }
                     continue;
                 }
                 Iterator<SoundCue> it = cues.iterator();
                 while (it.hasNext()) {
                     SoundCue cue = it.next();
-                    if (Facts.ticksSince(cue.heardAt, now) >= Facts.CONTACT_MEMORY_TICKS) {
+                    if (AwarenessCueRegistry.expired(cue, now)) {
                         it.remove();
+                        this.chanceLatch.remove(cue.cueKey);
+                        stats.count(Reject.EXPIRED);
                         continue;
                     }
-                    if (!cueAudible(unit, vehicle, cue, hx, hz, now)) continue;
+                    Reject reject = cueAudible(unit, vehicle, cue, hx, hz);
+                    if (reject != null) {
+                        stats.count(reject);
+                        continue;
+                    }
+                    stats.audible++;
 
                     double dist = Math.sqrt(horizontalDistSq(hx, hz, cue.pos));
                     if (cue.strength > bestStrength
                             || (cue.strength == bestStrength && dist < bestDist)
-                            || (cue.strength == bestStrength && dist == bestDist && cue.heardAt > bestSeen)) {
+                            || (cue.strength == bestStrength && dist == bestDist
+                                    && cue.heardAt > bestSeen)) {
                         bestPos = cue.pos;
                         bestStrength = cue.strength;
                         bestDist = dist;
                         bestSeen = cue.heardAt;
+                        bestKind = cue.kind;
                     }
                 }
                 if (cues.isEmpty()) {
-                    reg.chunkCues.remove(Registry.chunkKey(cx, cz));
+                    reg.chunkCues.remove(AwarenessCueRegistry.chunkKey(cx, cz));
                 }
             }
         }
@@ -214,37 +262,47 @@ public final class AwarenessCues {
             this.soundSpotDist = bestDist;
             this.soundSpotStrength = bestStrength;
             this.soundSpotSeen = bestSeen;
+            stats.bestKind = bestKind;
             armGlancePos(vehicle, bestPos, now);
         }
+        return stats;
     }
 
-    private boolean cueAudible(AbstractUnit unit, VehicleEntity vehicle, SoundCue cue,
-            double hx, double hz, long now) {
+    /**
+     * @return reject reason, or {@code null} if the cue is audible to this hull
+     */
+    @Nullable
+    private Reject cueAudible(AbstractUnit unit, VehicleEntity vehicle, SoundCue cue,
+            double hx, double hz) {
         double dx = cue.pos.getX() + 0.5 - hx;
         double dz = cue.pos.getZ() + 0.5 - hz;
         double distSq = dx * dx + dz * dz;
         double radius = cue.kind.hearRadius;
-        if (distSq > radius * radius) return false;
+        if (distSq > radius * radius) return Reject.RANGE;
 
         if (cue.sourceFaction != null) {
-            CrewFacts.Faction listener = listenerFaction(unit);
-            if (listener != null && listener == cue.sourceFaction) return false;
+            CrewFacts.Faction listener = CrewFacts.factionOfCrew(unit);
+            if (listener != null && listener == cue.sourceFaction) return Reject.SAME_FACTION;
         }
         if (cue.sourceUnitId >= 0) {
             Entity src = unit.level().getEntity(cue.sourceUnitId);
             if (src instanceof LivingEntity living && VehicleTargeting.isNonHostile(unit, living)) {
-                return false;
+                return Reject.FRIENDLY_SOURCE;
             }
         }
-        return rollTrigger(vehicle.getId(), cue.pos.asLong(), cue.kind, cue.kind.triggerChance);
+
+        Boolean latched = this.chanceLatch.get(cue.cueKey);
+        if (latched == null) {
+            boolean pass = rollTrigger(vehicle.getId(), cue.pos.asLong(),
+                    TriggerKind.wrap(cue.kind), cue.kind.triggerChance);
+            this.chanceLatch.put(cue.cueKey, pass);
+            latched = pass;
+        }
+        return latched ? null : Reject.CHANCE;
     }
 
-    @Nullable
-    private static CrewFacts.Faction listenerFaction(AbstractUnit unit) {
-        return CrewFacts.factionOfCrew(unit);
-    }
-
-    private void publish(AbstractUnit unit, VehicleEntity vehicle, Facts facts, long now) {
+    private void publish(AbstractUnit unit, VehicleEntity vehicle, Facts facts, long now,
+            ConsumeStats stats) {
         boolean entityFresh = this.entitySpotId >= 0 && this.entitySpotPos != null
                 && Facts.ticksSince(this.entitySpotSeen, now) < Facts.CONTACT_MEMORY_TICKS;
         boolean soundFresh = this.soundSpotPos != null
@@ -281,8 +339,10 @@ public final class AwarenessCues {
         facts.outerSpotDist = fresh ? dist : Double.MAX_VALUE;
         facts.outerSpotStrength = fresh ? strength : 0.0;
 
+        boolean noted = false;
         if (fresh && unit.getTarget() == null) {
             facts.memory.noteSpot(aim, now);
+            noted = true;
         }
 
         if (this.glanceBearing != null && now < this.glanceUntil && unit.getTarget() == null) {
@@ -294,6 +354,8 @@ public final class AwarenessCues {
             facts.outerGlanceBearing = null;
             facts.outerGlanceUntil = Long.MIN_VALUE;
         }
+
+        debugSummary(unit, vehicle, now, stats, fresh, noted, strength, dist);
     }
 
     private void armGlance(VehicleEntity vehicle, LivingEntity spot, long now) {
@@ -333,6 +395,7 @@ public final class AwarenessCues {
         this.soundSpotStrength = 0.0;
     }
 
+    /** Clears outer-spot Facts fields only — never Memory. */
     private static void clearFacts(Facts facts) {
         facts.outerSpotFresh = false;
         facts.outerSpotDist = Double.MAX_VALUE;
@@ -364,17 +427,43 @@ public final class AwarenessCues {
         return v < (int) (chance * 1000);
     }
 
-    private static void debug(String msg, Object... args) {
-        if (!ClientConfig.flag(ClientConfig.OUTER_RING_DEBUG_LOGGING)) return;
-        LOG.info("[sewv-cues] " + msg, args);
+    /** Package-visible: latch result for a cue key (self-check). */
+    Boolean latchGet(long cueKey) {
+        return this.chanceLatch.get(cueKey);
     }
 
-    // ---- global sound registry ----
+    void latchPut(long cueKey, boolean pass) {
+        this.chanceLatch.put(cueKey, pass);
+    }
+
+    private void debugGate(AbstractUnit unit, VehicleEntity vehicle, long now, Reject gate) {
+        if (!ClientConfig.flag(ClientConfig.OUTER_RING_DEBUG_LOGGING)) return;
+        if (this.nextDebugSummary != Long.MIN_VALUE && now < this.nextDebugSummary) return;
+        this.nextDebugSummary = now + DEBUG_SUMMARY_INTERVAL;
+        LOG.info("[sewv-cues] hull=#{} gated={} pos={}", vehicle.getId(), gate, vehicle.blockPosition());
+    }
+
+    private void debugSummary(AbstractUnit unit, VehicleEntity vehicle, long now, ConsumeStats stats,
+            boolean fresh, boolean noted, double strength, double dist) {
+        if (!ClientConfig.flag(ClientConfig.OUTER_RING_DEBUG_LOGGING)) return;
+        if (this.nextDebugSummary != Long.MIN_VALUE && now < this.nextDebugSummary) return;
+        this.nextDebugSummary = now + DEBUG_SUMMARY_INTERVAL;
+        LOG.info(
+                "[sewv-cues] hull=#{} audible={} best={} outer={} noted={} str={} dist={} "
+                        + "reject={{range={},faction={},friendly={},chance={},expired={}}}",
+                vehicle.getId(), stats.audible, stats.bestKind, fresh, noted,
+                String.format("%.2f", strength),
+                Double.isInfinite(dist) || dist > 1.0E6 ? "-" : String.format("%.0f", dist),
+                stats.range, stats.sameFaction, stats.friendly, stats.chance, stats.expired);
+    }
+
+    // ---- register facades (mixins / CrewRadio keep calling AwarenessCues) ----
 
     public static void registerSound(ServerLevel level, BlockPos pos, TriggerKind kind,
             @Nullable CrewFacts.Faction sourceFaction, int sourceUnitId) {
         if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.AWARENESS_CUES_ENABLED.get()) return;
-        Registry.of(level).register(pos, kind, sourceFaction, sourceUnitId, level.getGameTime());
+        AwarenessCueRegistry.of(level).register(pos, kind.unwrap(), sourceFaction, sourceUnitId,
+                level.getGameTime());
     }
 
     /**
@@ -385,7 +474,7 @@ public final class AwarenessCues {
             @Nullable Entity sender) {
         if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.AWARENESS_CUES_ENABLED.get()) return;
         if (!"superbwarfare".equals(sound.getLocation().getNamespace())) return;
-        AwarenessCues.TriggerKind kind = AwarenessCueSounds.classifyDistant(sound, sender);
+        TriggerKind kind = AwarenessCueSounds.classifyDistant(sound, sender);
         if (kind == null) return;
 
         CrewFacts.Faction faction = null;
@@ -409,101 +498,39 @@ public final class AwarenessCues {
                 CrewFacts.factionOf(vehicle), -1);
     }
 
+    /**
+     * TaCZ shot — from {@link AwarenessCueEvents} / {@code GunFireEvent}. Registry dedupe is 6 s
+     * over a 16-block cell so full-auto does not flood the cue list.
+     */
+    public static void registerTaczFire(ServerLevel level, LivingEntity shooter) {
+        if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.AWARENESS_CUES_ENABLED.get()) return;
+        CrewFacts.Faction faction = null;
+        int unitId = -1;
+        if (shooter instanceof AbstractUnit unit) {
+            faction = CrewFacts.factionOfCrew(unit);
+            unitId = unit.getId();
+        } else if (shooter.getVehicle() instanceof VehicleEntity vehicle) {
+            faction = CrewFacts.factionOf(vehicle);
+        }
+        registerSound(level, shooter.blockPosition(), TriggerKind.TACZ_FIRE, faction, unitId);
+    }
+
+    /**
+     * SBW drone (or swarm drone) in motion — engine loops are client-only; this mirrors
+     * {@link #registerEngine} with vertical motion counted and a dedicated kind.
+     */
+    public static void registerDrone(ServerLevel level, VehicleEntity drone) {
+        if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.AWARENESS_CUES_ENABLED.get()) return;
+        registerSound(level, drone.blockPosition(), TriggerKind.DRONE,
+                CrewFacts.factionOf(drone), -1);
+    }
+
     /** Direct path from {@link com.neoalive.tacz_sewv.crew.CrewRadio}. */
     public static void registerCrewVoice(ServerLevel level, AbstractUnit speaker, BlockPos pos) {
         if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.AWARENESS_CUES_ENABLED.get()) return;
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(speaker);
-        Registry.of(level).register(pos, TriggerKind.CREW_VOICE, faction, speaker.getId(),
-                level.getGameTime());
-    }
-
-    static final class SoundCue {
-        final BlockPos pos;
-        final TriggerKind kind;
-        final double strength;
-        @Nullable
-        final CrewFacts.Faction sourceFaction;
-        final int sourceUnitId;
-        final long heardAt;
-
-        SoundCue(BlockPos pos, TriggerKind kind, @Nullable CrewFacts.Faction sourceFaction,
-                int sourceUnitId, long heardAt) {
-            this.pos = pos;
-            this.kind = kind;
-            this.strength = kind.strength;
-            this.sourceFaction = sourceFaction;
-            this.sourceUnitId = sourceUnitId;
-            this.heardAt = heardAt;
-        }
-    }
-
-    static final class Registry {
-        private static final Map<ServerLevel, Registry> LEVELS = new WeakHashMap<>();
-        private static final Map<ServerLevel, Registry> LEVELS_SYNC = java.util.Collections
-                .synchronizedMap(LEVELS);
-
-        final Map<Long, List<SoundCue>> chunkCues = new ConcurrentHashMap<>();
-        private final Map<Long, Long> dedupeDeadline = new ConcurrentHashMap<>();
-
-        static Registry of(ServerLevel level) {
-            synchronized (LEVELS_SYNC) {
-                return LEVELS.computeIfAbsent(level, ignored -> new Registry());
-            }
-        }
-
-        void register(BlockPos pos, TriggerKind kind, @Nullable CrewFacts.Faction sourceFaction,
-                int sourceUnitId, long now) {
-            pruneExpiredDedupe(now);
-            long cellKey = cellKey(pos, kind);
-            int interval = kind.ordinal() < DEDUPE_INTERVAL.length ? DEDUPE_INTERVAL[kind.ordinal()] : 0;
-            if (interval > 0) {
-                Long next = this.dedupeDeadline.get(cellKey);
-                if (next != null && now < next) return;
-                this.dedupeDeadline.put(cellKey, now + interval);
-            }
-
-            int cx = pos.getX() >> 4;
-            int cz = pos.getZ() >> 4;
-            long ck = chunkKey(cx, cz);
-            List<SoundCue> list = this.chunkCues.computeIfAbsent(ck, ignored -> new ArrayList<>(2));
-            if (list.size() >= MAX_CUES_PER_CHUNK) {
-                list.remove(0);
-            }
-            list.add(new SoundCue(pos.immutable(), kind, sourceFaction, sourceUnitId, now));
-            debug("register kind={} pos={} faction={}", kind, pos, sourceFaction);
-        }
-
-        /** Drop expired dedupe rows so explored cells do not accumulate for the level's life. */
-        private void pruneExpiredDedupe(long now) {
-            this.dedupeDeadline.entrySet().removeIf(e -> e.getValue() <= now);
-        }
-
-        static long chunkKey(int cx, int cz) {
-            return ((long) cx << 32) | (cz & 0xFFFFFFFFL);
-        }
-
-        private static long cellKey(BlockPos pos, TriggerKind kind) {
-            int x = (int) (pos.getX() / CELL_SIZE);
-            int y = (int) (pos.getY() / CELL_SIZE);
-            int z = (int) (pos.getZ() / CELL_SIZE);
-            return ((long) kind.ordinal() << 60)
-                    | ((long) x & 0xFFFFF) << 40
-                    | ((long) y & 0xFFFFF) << 20
-                    | ((long) z & 0xFFFFF);
-        }
-
-        /** Package-visible for self-check dedupe tests. */
-        boolean wouldDedupe(BlockPos pos, TriggerKind kind, long now) {
-            long cellKey = cellKey(pos, kind);
-            int interval = kind.ordinal() < DEDUPE_INTERVAL.length ? DEDUPE_INTERVAL[kind.ordinal()] : 0;
-            if (interval <= 0) return false;
-            Long next = this.dedupeDeadline.get(cellKey);
-            return next != null && now < next;
-        }
-
-        void registerForTest(BlockPos pos, TriggerKind kind, long now) {
-            register(pos, kind, null, -1, now);
-        }
+        AwarenessCueRegistry.of(level).register(pos, AwarenessCueRegistry.TriggerKind.CREW_VOICE,
+                faction, speaker.getId(), level.getGameTime());
     }
 
     /** Package-visible merge ordering for self-check. */
@@ -515,5 +542,27 @@ public final class AwarenessCues {
         if (t1 > t2) return 1;
         if (t1 < t2) return -1;
         return 0;
+    }
+
+    private static final class ConsumeStats {
+        int audible;
+        int range;
+        int sameFaction;
+        int friendly;
+        int chance;
+        int expired;
+        @Nullable
+        AwarenessCueRegistry.TriggerKind bestKind;
+
+        void count(Reject r) {
+            switch (r) {
+                case RANGE -> this.range++;
+                case SAME_FACTION -> this.sameFaction++;
+                case FRIENDLY_SOURCE -> this.friendly++;
+                case CHANCE -> this.chance++;
+                case EXPIRED -> this.expired++;
+                default -> {}
+            }
+        }
     }
 }

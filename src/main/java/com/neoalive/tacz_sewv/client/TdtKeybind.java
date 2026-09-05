@@ -70,6 +70,8 @@ public final class TdtKeybind {
             event.register(MapMarkersKeybind.TOGGLE_MAP_MARKERS);
             event.register(BoardMyVehicleKeybind.BOARD_MY_VEHICLE);
             event.register(RadioZoom.ZOOM);
+            event.register(RappelKeybind.SELF_RAPPEL);
+            event.register(RappelKeybind.CREW_RAPPEL);
         }
     }
 

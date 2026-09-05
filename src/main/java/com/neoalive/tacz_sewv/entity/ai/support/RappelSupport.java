@@ -2,12 +2,14 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 
 /**
@@ -61,6 +63,7 @@ public final class RappelSupport {
     /**
      * Weaponless cargo only: passenger whose seat has no vehicle weapons.
      * Pilot (seat 0) and armed gunners fail {@link VehicleWeapons#controlsVehicleWeapon}.
+     * Used by AI/TDT rappel and paratroop — not gated by {@link SewvConfig#PLAYER_CREW_RAPPEL_ALL_SEATS}.
      */
     public static boolean isRappelEligible(VehicleEntity hull, Entity passenger) {
         if (!(passenger instanceof AbstractUnit unit) || passenger instanceof Player) return false;
@@ -77,29 +80,53 @@ public final class RappelSupport {
     }
 
     /**
+     * Player-driver crew-rappel eligibility. When {@link SewvConfig#PLAYER_CREW_RAPPEL_ALL_SEATS}
+     * is off, same as {@link #isRappelEligible}; when on, any non-player {@link AbstractUnit}.
+     */
+    public static boolean isCrewRappelEligible(VehicleEntity hull, Entity passenger) {
+        if (!(passenger instanceof AbstractUnit unit) || passenger instanceof Player) return false;
+        if (passenger.getVehicle() != hull) return false;
+        if (SewvConfig.PLAYER_CREW_RAPPEL_ALL_SEATS.get()) return true;
+        return !VehicleWeapons.controlsVehicleWeapon(unit);
+    }
+
+    /** True if any mounted passenger would drop under the player-driver crew-rappel keybind. */
+    public static boolean hasCrewRappelEligible(VehicleEntity hull) {
+        for (Entity passenger : hull.getPassengers()) {
+            if (isCrewRappelEligible(hull, passenger)) return true;
+        }
+        return false;
+    }
+
+    /**
      * One tick of a committed rope slide: pin XZ, drop Y by {@link #DESCENT_STEP}, snap to ground.
      *
      * @return {@code true} if still descending; {@code false} when landed or lost
      */
-    public static boolean tickDescent(AbstractUnit unit, double anchorX, double anchorZ) {
-        if (!unit.isAlive()) return false;
-        if (unit.isPassenger()) {
-            unit.stopRiding(); // IFV dismount endpoint — frees rifle / AtWeaponGoal
+    public static boolean tickDescent(LivingEntity entity, double anchorX, double anchorZ) {
+        if (!entity.isAlive()) return false;
+        if (entity.isPassenger()) {
+            entity.stopRiding(); // IFV dismount endpoint — frees rifle / AtWeaponGoal
         }
-        unit.setDeltaMovement(Vec3.ZERO);
-        unit.fallDistance = 0.0F;
+        entity.setDeltaMovement(Vec3.ZERO);
+        entity.fallDistance = 0.0F;
 
-        double ground = groundY(unit.level(), anchorX, anchorZ);
-        double nextY = unit.getY() - DESCENT_STEP;
+        double ground = groundY(entity.level(), anchorX, anchorZ);
+        double nextY = entity.getY() - DESCENT_STEP;
         if (nextY <= ground) {
-            unit.setPos(anchorX, ground, anchorZ);
-            unit.setDeltaMovement(Vec3.ZERO);
-            unit.fallDistance = 0.0F;
-            unit.setOnGround(true);
+            entity.setPos(anchorX, ground, anchorZ);
+            entity.setDeltaMovement(Vec3.ZERO);
+            entity.fallDistance = 0.0F;
+            entity.setOnGround(true);
             return false;
         }
-        unit.setPos(anchorX, nextY, anchorZ);
+        entity.setPos(anchorX, nextY, anchorZ);
         return true;
+    }
+
+    /** Unit overload — same slide as {@link #tickDescent(LivingEntity, double, double)}. */
+    public static boolean tickDescent(AbstractUnit unit, double anchorX, double anchorZ) {
+        return tickDescent((LivingEntity) unit, anchorX, anchorZ);
     }
 
     /** Headless geometry checks — run from {@code selfCheckHeli}. */

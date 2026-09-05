@@ -102,6 +102,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
     public static final ForgeConfigSpec.BooleanValue SEM_CREW_DISABLE_INERTIA_ROTATE;
     public static final ForgeConfigSpec.BooleanValue TANK_RIDER_DISMOUNT_ENABLED;
+    /** Player-driver crew-rappel keybind: all units vs weaponless seats only. */
+    public static final ForgeConfigSpec.BooleanValue PLAYER_CREW_RAPPEL_ALL_SEATS;
+    /** Player self-rappel also drops eligible units (same seat filter as crew rappel). */
+    public static final ForgeConfigSpec.BooleanValue PLAYER_SELF_RAPPEL_WITH_UNITS;
     public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_RU;
     public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_US;
     public static final ForgeConfigSpec.DoubleValue AT_SECOND_GUNNER_CHANCE;
@@ -552,6 +556,14 @@ public final class SewvConfig {
                 .define("semCrewDisableInertiaRotate", true);
         TANK_RIDER_DISMOUNT_ENABLED = builder.comment("Soldiers hanging on outside seats jump off when combat starts.")
                 .define("tankRiderDismountEnabled", true);
+        PLAYER_CREW_RAPPEL_ALL_SEATS = builder.comment(
+                        "When the player-driver crew-rappel keybind fires: true = every non-player unit drops;",
+                        "false = only weaponless cargo seats (same filter as AI/TDT rappel).")
+                .define("playerCrewRappelAllSeats", false);
+        PLAYER_SELF_RAPPEL_WITH_UNITS = builder.comment(
+                        "When the player self-rappel keybind fires: also drop eligible units after the hover settle.",
+                        "Seat filter still follows playerCrewRappelAllSeats. Default off = player only.")
+                .define("playerSelfRappelWithUnits", false);
         AT_WEAPON_RU = builder.comment("Rocket/missile launcher given to RU soldiers who leave the vehicle to fight tanks.")
                 .define("atWeaponRu", "superbwarfare:rpg");
         AT_WEAPON_US = builder.comment("Rocket/missile launcher given to US soldiers who leave the vehicle to fight tanks.")

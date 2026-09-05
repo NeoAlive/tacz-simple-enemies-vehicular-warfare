@@ -22,7 +22,10 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCueSounds;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 
 /**
- * Registers audible combat cues for idle crew investigation. Fast-rejects non-SBW/tacz_sewv sounds.
+ * Registers audible combat cues for idle crew investigation.
+ *
+ * <p>Fast-rejects by namespace ({@code superbwarfare} / {@code tacz_sewv} / {@code minecraft})
+ * before classification. TaCZ gunfire is <b>not</b> captured here — see {@code AwarenessCueEvents}.
  */
 @Mixin(Level.class)
 public abstract class MixinLevelAwarenessSound {
@@ -59,6 +62,11 @@ public abstract class MixinLevelAwarenessSound {
         if (this.isClientSide()) return;
         if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.AWARENESS_CUES_ENABLED.get()) return;
 
+        String ns = sound.getLocation().getNamespace();
+        if (!("superbwarfare".equals(ns) || "tacz_sewv".equals(ns) || "minecraft".equals(ns))) {
+            return;
+        }
+
         AwarenessCues.TriggerKind kind = AwarenessCueSounds.classify(sound, source, bound);
         if (kind == null || kind == AwarenessCues.TriggerKind.OUTER_ENTITY) return;
 
@@ -72,6 +80,9 @@ public abstract class MixinLevelAwarenessSound {
         } else if (bound instanceof AbstractUnit unit) {
             faction = CrewFacts.factionOfCrew(unit);
             unitId = unit.getId();
+        } else if (bound instanceof Player) {
+            // No SEM faction — hostility filter uses living entity id when present.
+            unitId = bound.getId();
         }
 
         AwarenessCues.registerSound(server, pos, kind, faction, unitId);

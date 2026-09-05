@@ -34,6 +34,7 @@ public final class UtilityWeightsSelfCheck {
         confidenceDoesNotSaturate();
         everyActionIsDispatchable();
         idleCrewsDoNotJustSit();
+        investigateBeatsIdleFormation();
         emptyCrewsDisengage();
 
         System.out.println("utility scorer self-check: OK");
@@ -300,6 +301,37 @@ public final class UtilityWeightsSelfCheck {
         double holdOver = weights.score(Action.IDLE_HOLD, oversize, Doctrine.NEUTRAL);
         assert travelOver > holdOver
                 : "oversize group should prefer travel: travel=" + travelOver + " hold=" + holdOver;
+    }
+
+    /**
+     * A live investigate cue must outrank formation idle on the scoreboard (belt-and-suspenders
+     * for {@code TacticalBrain} making IDLE_* infeasible while {@code outerSpotFresh} /
+     * {@code hasFreshContact}).
+     *
+     * <p>Engine-strength distantContact (0.35) is the hard case that previously lost to IDLE_HOLD
+     * hysteresis — SEARCH with lostContact must still win the weight sum once idle is gated off.
+     */
+    private static void investigateBeatsIdleFormation() {
+        UtilityWeights weights = UtilityWeights.parse(
+                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+
+        double[] cue = zeroSignals();
+        cue[Signal.BASE.ordinal()] = 1.0;
+        cue[Signal.OPEN.ordinal()] = 1.0;
+        cue[Signal.LOST_CONTACT.ordinal()] = 1.0;
+        cue[Signal.DISTANT_CONTACT.ordinal()] = 0.35; // engine strength
+        cue[Signal.IDLE_GROUP_SIZE.ordinal()] = 1.0;  // worst-case group boost on idleHold
+
+        double search = weights.score(Action.SEARCH_LAST_KNOWN, cue, Doctrine.NEUTRAL);
+        double idleHold = weights.score(Action.IDLE_HOLD, cue, Doctrine.NEUTRAL);
+        double idleTravel = weights.score(Action.IDLE_TRAVEL, cue, Doctrine.NEUTRAL);
+        assert search > idleHold
+                : "search must beat idleHold on engine cue: search=" + search + " idleHold=" + idleHold;
+        assert search > idleTravel
+                : "search must beat idleTravel on engine cue: search=" + search
+                + " idleTravel=" + idleTravel;
+        assert idleHold < 0.0 || idleHold < search - 10.0
+                : "idleHold should be crushed by lost/distant negatives: idleHold=" + idleHold;
     }
 
     /**

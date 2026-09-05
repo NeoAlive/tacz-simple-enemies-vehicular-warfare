@@ -206,6 +206,9 @@ public class DriveVehicleGoal extends Goal {
 
         // Spots before re-score so DISTANT_CONTACT sees this tick's outer fields. noteSpot is
         // gated on getTarget()==null; observe (inside update) still owns Memory when locked.
+        // Order is load-bearing: OuterRing offers → AwarenessCues publishes → brain samples.
+        // facts.underOrders here may be one Facts-refresh stale; acceptable. clearFacts must
+        // never wipe Memory.
         Facts facts = this.brain.facts();
         this.outerRing.tick(this.unit, this.vehicle, this.awareness, facts.underOrders);
         this.awareness.tick(this.unit, this.vehicle, facts);

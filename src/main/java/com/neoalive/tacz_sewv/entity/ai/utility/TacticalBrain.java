@@ -309,9 +309,18 @@ public final class TacticalBrain {
         if (DEBUG_LOGGING) logDecision(unit, doctrine);
     }
 
-    /** Align hull NBT with a freshly adopted idle plan. */
+    /** Align hull NBT with a freshly adopted idle/search plan. */
     private void onIdlePlanAdopted(AbstractUnit unit) {
         if (!(unit.getVehicle() instanceof VehicleEntity hull)) return;
+        // Investigate and formation idle are mutually exclusive — drop hold/travel NBT so timers
+        // cannot revive IDLE_* after SEARCH wins. Preserve debug-drive so a cue mid-test does not
+        // silently kill /sewv idle debug.
+        if (this.plan == Action.SEARCH_LAST_KNOWN) {
+            boolean debug = IdleGroupSupport.isDebugDrive(hull);
+            IdleGroupSupport.clear(hull);
+            if (debug) IdleGroupSupport.setDebugDrive(hull, true);
+            return;
+        }
         var snap = this.facts.idleSnapshot;
         if (this.plan == Action.IDLE_HOLD) {
             if (snap == null) {
@@ -326,6 +335,12 @@ public final class TacticalBrain {
             }
             IdleGroupSupport.enterTravel(unit, hull, snap);
         }
+    }
+
+    /** Live outer-ring / sound cue, or contact memory still worth searching. */
+    private boolean investigating() {
+        return this.facts.outerSpotFresh
+                || this.facts.memory.hasFreshContact(this.lastSampledTick);
     }
 
     /**
@@ -355,7 +370,10 @@ public final class TacticalBrain {
 
             case IDLE_HOLD -> {
                 boolean taskedHold = this.signals[Signal.TASKED_IDLE_HOLD.ordinal()] > 0.0;
+                // Same hard gate as underOrders: formation idle must not sit on a live cue while
+                // SEARCH cannot beat IDLE_HOLD hysteresis (engine/voice strengths especially).
                 yield this.facts.idleGroundDrivable
+                        && !investigating()
                         && (!this.facts.underOrders || taskedHold)
                         && !this.facts.idleGroupOversize
                         && !this.facts.idleHoldExpired
@@ -364,6 +382,7 @@ public final class TacticalBrain {
             case IDLE_TRAVEL -> {
                 boolean taskedTravel = this.signals[Signal.TASKED_IDLE_TRAVEL.ordinal()] > 0.0;
                 yield this.facts.idleGroundDrivable
+                        && !investigating()
                         && (!this.facts.underOrders || taskedTravel)
                         && (this.facts.idleHoldExpired
                         || this.facts.idleGroupOversize

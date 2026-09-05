@@ -46,10 +46,9 @@ public final class NotificationHudOverlay {
 
         int tx = x + NotificationHud.TEXT_X;
         int ty = y + NotificationHud.TEXT_Y;
-        // Title is drawn at 2× scale, so the unscaled width budget is half the body budget.
+        // Title stays single-line (scaled); body wraps to new lines instead of being trimmed.
         int titleBudget = Math.max(1, (int) (NotificationHud.TEXT_MAX_W / NotificationHud.TITLE_SCALE));
         String title = font.plainSubstrByWidth(item.title().getString(), titleBudget);
-        String body = font.plainSubstrByWidth(item.body().getString(), NotificationHud.TEXT_MAX_W);
 
         var pose = g.pose();
         pose.pushPose();
@@ -58,8 +57,10 @@ public final class NotificationHudOverlay {
         g.drawString(font, title, 0, 0, NotificationHud.CYAN, false);
         pose.popPose();
 
-        // Body sits under the 2× title (two unscaled line heights ≈ one scaled title line).
-        g.drawString(font, body, tx, ty + Math.round(font.lineHeight * NotificationHud.TITLE_SCALE),
-                NotificationHud.BODY_COLOR, false);
+        int bodyY = ty + Math.round(font.lineHeight * NotificationHud.TITLE_SCALE);
+        for (var line : font.split(item.body(), NotificationHud.TEXT_MAX_W)) {
+            g.drawString(font, line, tx, bodyY, NotificationHud.BODY_COLOR, false);
+            bodyY += font.lineHeight;
+        }
     }
 }

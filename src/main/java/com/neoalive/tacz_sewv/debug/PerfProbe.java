@@ -60,7 +60,8 @@ public final class PerfProbe {
         sb.append("HullLocalScan: ").append(HullLocalScan.stats()).append('\n');
         sb.append("IdleGroupSupport: ").append(
                 com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport.stats()).append('\n');
-        sb.append(PathingPerf.snapshotAndReset());
+        sb.append(PathingPerf.snapshotAndReset()).append('\n');
+        sb.append(PlanePerf.snapshotAndReset());
         return sb.toString();
     }
 

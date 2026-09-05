@@ -7,6 +7,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 
 import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
+import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
+import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 
 /**
  * What the ground ahead is doing, for an aircraft that cannot stop to think about it.
@@ -26,7 +28,9 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
  * </ul>
  *
  * <p>Terrain is read from {@link Heightmap.Types#WORLD_SURFACE}; blocks are the whisker's job. This
- * class answers questions and never steers.
+ * class answers questions and never steers. Heightmap samples never sync-load: unloaded columns are
+ * skipped (treated as clear for corridor routing), matching the whisker's refusal to
+ * {@code managedBlock} past the single chunk ticket.
  */
 public final class PlaneTerrain {
 
@@ -46,16 +50,14 @@ public final class PlaneTerrain {
     private static final int EXPAND_BEST = 4;
     /** Cost added to a leg whose continuation is blocked — flyable now, a dead end shortly. */
     private static final double DEAD_END_COST = 120.0;
-    private static final int CACHE_TTL_TICKS = 20;
-    /** Whisker TTL: shorter than the corridor — traffic moves, terrain does not. */
-    private static final int WHISKER_CACHE_TTL_TICKS = 8;
+
+    /** Steps the dive integrator takes along the run before it trusts the geometry. */
+    private static final int DIVE_SAMPLES = 12;
+
     /** Heading buckets for the whisker cache (~5°), matching the corridor quantiser. */
     private static final double WHISKER_HEADING_BUCKET_DEG = 5.0;
     /** Speed buckets so a climb/dive that changes airspeed refreshes the reach. */
     private static final double WHISKER_SPEED_BUCKET = 0.5;
-
-    /** Steps the dive integrator takes along the run before it trusts the geometry. */
-    private static final int DIVE_SAMPLES = 12;
 
     // Corridor cache — one goal per pilot, so instance state is per aircraft by construction.
     private long cacheTick = Long.MIN_VALUE;
@@ -63,6 +65,7 @@ public final class PlaneTerrain {
     private int cacheClearY;
     private Vec3 cacheDir;
     private boolean cacheValid;
+    private int corridorTtl = AirLod.NEAR_CORRIDOR_TTL;
 
     // Whisker cache — holdAbout used to pay a full fan every tick for an orbit that barely turns.
     private long whiskerCacheTick = Long.MIN_VALUE;
@@ -70,6 +73,13 @@ public final class PlaneTerrain {
     private int whiskerSpeedQ;
     private Vec3 whiskerCacheDir;
     private boolean whiskerCacheValid;
+    private int whiskerTtl = AirLod.NEAR_WHISKER_TTL;
+
+    /** Apply FAR-transit or NEAR cache lifetimes for this tick's planning. */
+    public void setFarLod(boolean far) {
+        this.corridorTtl = AirLod.corridorTtl(far);
+        this.whiskerTtl = AirLod.whiskerTtl(far);
+    }
 
     /** Drop the cached corridor and whisker — a new hull, or a deliberate re-plan. */
     public void clear() {
@@ -79,6 +89,8 @@ public final class PlaneTerrain {
         this.whiskerCacheValid = false;
         this.whiskerCacheDir = null;
         this.whiskerCacheTick = Long.MIN_VALUE;
+        this.corridorTtl = AirLod.NEAR_CORRIDOR_TTL;
+        this.whiskerTtl = AirLod.NEAR_WHISKER_TTL;
     }
 
     /**
@@ -89,17 +101,21 @@ public final class PlaneTerrain {
         return Mth.clamp(Math.max(speed, 0.0) * PROBE_LOOKAHEAD_TICKS, PROBE_MIN, PROBE_MAX);
     }
 
-    /** Highest surface along a straight leg, sampled every {@link #SAMPLE_STEP} blocks. */
+    /**
+     * Highest surface along a straight leg, sampled every {@link #SAMPLE_STEP} blocks.
+     * Unloaded columns are skipped (not sync-loaded); if nothing in range is loaded, falls back to
+     * the origin column when that chunk is present.
+     */
     public static int ridgeAlong(Level level, double ox, double oz, Vec3 dir, double length) {
         int highest = Integer.MIN_VALUE;
         for (double d = SAMPLE_STEP; d <= length; d += SAMPLE_STEP) {
-            int h = level.getHeight(Heightmap.Types.WORLD_SURFACE,
+            int h = AirframeSupport.surfaceAtLoaded(level,
                     Mth.floor(ox + dir.x * d), Mth.floor(oz + dir.z * d));
-            if (h > highest) highest = h;
+            if (h != Integer.MIN_VALUE && h > highest) highest = h;
         }
-        return highest == Integer.MIN_VALUE
-                ? level.getHeight(Heightmap.Types.WORLD_SURFACE, Mth.floor(ox), Mth.floor(oz))
-                : highest;
+        if (highest != Integer.MIN_VALUE) return highest;
+        int origin = AirframeSupport.surfaceAtLoaded(level, Mth.floor(ox), Mth.floor(oz));
+        return origin != Integer.MIN_VALUE ? origin : 0;
     }
 
     /**
@@ -117,7 +133,7 @@ public final class PlaneTerrain {
         Vec3 desiredN = desired.lengthSqr() > 1.0E-8 ? desired.normalize() : new Vec3(0, 0, 1);
         int headingQ = Mth.floor(Math.toDegrees(Math.atan2(desiredN.x, desiredN.z)) / 5.0);
         int clearYFloor = Mth.floor(clearY);
-        if (this.cacheValid && gameTime - this.cacheTick < CACHE_TTL_TICKS
+        if (this.cacheValid && gameTime - this.cacheTick < this.corridorTtl
                 && headingQ == this.cacheHeadingQ && clearYFloor == this.cacheClearY) {
             return this.cacheDir;
         }
@@ -190,6 +206,8 @@ public final class PlaneTerrain {
      * answered "unsafe" for every ground attack that has ever been proposed, the aircraft never
      * left {@code INGRESS}, and it flew over its target at cruise height without firing. A dive
      * ends at a firing altitude and is followed by a pull-up; it does not end at the target.
+     *
+     * <p>Unloaded columns are skipped (not treated as a wall).
      */
     public static boolean diveSafe(Level level, double ox, double oy, double oz, Vec3 dir,
                                    double runLength, double endY, double minClearance) {
@@ -197,8 +215,9 @@ public final class PlaneTerrain {
         for (int i = 1; i <= DIVE_SAMPLES; i++) {
             double d = step * i;
             double y = diveAltitudeAt(oy, endY, runLength, d);
-            int surface = level.getHeight(Heightmap.Types.WORLD_SURFACE,
+            int surface = AirframeSupport.surfaceAtLoaded(level,
                     Mth.floor(ox + dir.x * d), Mth.floor(oz + dir.z * d));
+            if (surface == Integer.MIN_VALUE) continue;
             if (y - surface < minClearance) return false;
         }
         return true;
@@ -218,7 +237,7 @@ public final class PlaneTerrain {
                 : 0;
         int speedQ = Mth.floor(Math.max(speed, 0.0) / WHISKER_SPEED_BUCKET);
         long gameTime = sensor.gameTime();
-        if (this.whiskerCacheValid && gameTime - this.whiskerCacheTick < WHISKER_CACHE_TTL_TICKS
+        if (this.whiskerCacheValid && gameTime - this.whiskerCacheTick < this.whiskerTtl
                 && headingQ == this.whiskerHeadingQ && speedQ == this.whiskerSpeedQ) {
             return this.whiskerCacheDir;
         }
@@ -239,8 +258,8 @@ public final class PlaneTerrain {
         double dz = toZ - vehicle.getZ();
         double dist = Math.sqrt(dx * dx + dz * dz);
         if (dist < 1.0E-4) {
-            return level.getHeight(Heightmap.Types.WORLD_SURFACE,
-                    vehicle.getBlockX(), vehicle.getBlockZ());
+            int h = AirframeSupport.surfaceAtLoaded(level, vehicle.getBlockX(), vehicle.getBlockZ());
+            return h != Integer.MIN_VALUE ? h : AirframeSupport.surfaceBelow(vehicle);
         }
         Vec3 dir = new Vec3(dx / dist, 0.0, dz / dist);
         return ridgeAlong(level, vehicle.getX(), vehicle.getZ(), dir, Math.min(dist, lookahead));

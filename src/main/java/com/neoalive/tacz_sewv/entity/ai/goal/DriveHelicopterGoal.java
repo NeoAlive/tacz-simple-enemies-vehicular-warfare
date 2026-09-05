@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
+import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
 import com.neoalive.tacz_sewv.entity.ai.support.HeliArmament;
@@ -625,9 +626,13 @@ public class DriveHelicopterGoal extends Goal {
 
     @Override
     public void tick() {
-        // Independent of flight state: hold the airframe's chunk loaded (if enabled)
-        // whether it is cruising, fighting, spiraling in, or parked.
-        AirframeSupport.updateChunkLoading(this.chunkTicket, this.vehicle, SewvConfig.HELI_CHUNK_LOADING.get());
+        IHelicopterPilot earlyPilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
+        int earlyCommand = earlyPilot != null
+                ? earlyPilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
+        // Sticky LANDED on the deck: no ticket. Airborne / takeoff / landing keep the follow.
+        boolean parked = earlyCommand == IHelicopterPilot.HELI_CMD_LANDED && this.vehicle.onGround();
+        AirframeSupport.updateChunkLoading(this.chunkTicket, this.vehicle,
+                SewvConfig.HELI_CHUNK_LOADING.get() && !parked);
 
         // Before the crash guard on purpose: a burning airframe spiraling in keeps
         // popping flares all the way down.
@@ -2052,8 +2057,11 @@ public class DriveHelicopterGoal extends Goal {
     // falls away — instead of holding an absolute level anchored at the takeoff
     // origin into terrain it knows nothing about.
     private double cruiseAltitudeToward(double toX, double toZ) {
+        boolean far = AirLod.farTransit(this.vehicle, SewvConfig.HELI_FAR_LOD_BLOCKS.get(),
+                this.unit.getTarget() == null);
         return AirframeSupport.cruiseAltitudeToward(
-                this.vehicle, toX, toZ, flightAltitude(), TERRAIN_LOOKAHEAD);
+                this.vehicle, toX, toZ, flightAltitude(), TERRAIN_LOOKAHEAD,
+                AirLod.groundTtl(far));
     }
 
     // The active hold height including the whisker climb floor, which decays about

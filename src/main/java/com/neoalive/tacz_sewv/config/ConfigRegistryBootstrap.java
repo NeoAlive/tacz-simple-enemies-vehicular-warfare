@@ -550,6 +550,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.HELI_CHUNK_LOADING, SewvConfig.HELI_CHUNK_LOADING::set);
         b.bool(ConfigScope.SERVER, "flight", "planeChunkLoading",
                 SewvConfig.PLANE_CHUNK_LOADING, SewvConfig.PLANE_CHUNK_LOADING::set);
+        b.doubleRange(ConfigScope.SERVER, "flight", "planeFarLodBlocks", 64.0, 1024.0,
+                SewvConfig.PLANE_FAR_LOD_BLOCKS, SewvConfig.PLANE_FAR_LOD_BLOCKS::set);
+        b.doubleRange(ConfigScope.SERVER, "flight", "heliFarLodBlocks", 64.0, 1024.0,
+                SewvConfig.HELI_FAR_LOD_BLOCKS, SewvConfig.HELI_FAR_LOD_BLOCKS::set);
         b.doubleRange(ConfigScope.SERVER, "flight", "planeCommandRadius", 32.0, 4096.0,
                 SewvConfig.PLANE_COMMAND_RADIUS, SewvConfig.PLANE_COMMAND_RADIUS::set);
         b.doubleRange(ConfigScope.SERVER, "flight", "planeGunConeDeg", 1.0, 45.0,

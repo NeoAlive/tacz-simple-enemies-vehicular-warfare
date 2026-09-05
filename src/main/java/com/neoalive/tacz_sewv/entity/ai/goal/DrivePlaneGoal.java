@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.PlanePerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -44,6 +45,7 @@ import com.neoalive.tacz_sewv.entity.ai.plane.PlaneNav;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneTerrain;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneWeapons;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
+import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
@@ -476,6 +478,15 @@ public class DrivePlaneGoal extends Goal {
     @Nullable
     private AbstractUnit cachedAllyUnit;
 
+    /**
+     * FAR transit LOD for this tick: cheaper terrain / no whisker in cruise-family modes when no
+     * player is nearby. Combat and landing ignore it.
+     */
+    private boolean farLod;
+
+    /** Tracks planeTicketsHeld gauge across acquire/release. */
+    private boolean wasHoldingTicket;
+
     public DrivePlaneGoal(AbstractUnit unit) {
         this.unit = unit;
         this.sensor = new AirTerrainSensor(unit);
@@ -532,6 +543,10 @@ public class DrivePlaneGoal extends Goal {
             AirframeSupport.releaseInputs(this.vehicle);
             AirframeSupport.clearDecoy(this.vehicle);
             this.chunkTicket.release(this.vehicle);
+            if (this.wasHoldingTicket) {
+                if (PlanePerf.planeTicketsHeld > 0) PlanePerf.planeTicketsHeld--;
+                this.wasHoldingTicket = false;
+            }
         }
         clearDubinsPath(); // must run before vehicle goes null: it addresses the clear packet by it
         this.dubinsRecomputeCount = 0;
@@ -552,19 +567,39 @@ public class DrivePlaneGoal extends Goal {
         this.allyScanTick = Long.MIN_VALUE;
         this.cachedAllyHull = null;
         this.cachedAllyUnit = null;
+        this.farLod = false;
         this.mode = PlaneMode.GROUNDED;
     }
 
     @Override
     public void tick() {
+        long t0 = System.nanoTime();
+        try {
+            tickInner();
+        } finally {
+            PlanePerf.recordTick(System.nanoTime() - t0, this.farLod);
+            boolean holding = this.chunkTicket.isHeld();
+            if (holding && !this.wasHoldingTicket) PlanePerf.planeTicketsHeld++;
+            if (!holding && this.wasHoldingTicket && PlanePerf.planeTicketsHeld > 0) {
+                PlanePerf.planeTicketsHeld--;
+            }
+            this.wasHoldingTicket = holding;
+            PlanePerf.notePlaneTicketHeld(holding);
+        }
+    }
+
+    private void tickInner() {
+        // Parked hulls do not need a force-load; airborne modes keep the follow ticket.
+        boolean parked = this.mode == PlaneMode.LANDED || this.mode == PlaneMode.GROUNDED;
         AirframeSupport.updateChunkLoading(this.chunkTicket, this.vehicle,
-                SewvConfig.PLANE_CHUNK_LOADING.get());
+                SewvConfig.PLANE_CHUNK_LOADING.get() && !parked);
         AirframeSupport.updateDecoy(this.vehicle, this.unit, this.flares,
                 DECOY_HEALTH_FRACTION, PRESERVE_DECOY_CHANCE);
 
         long now = this.unit.level().getGameTime();
         this.kinematics.sample(this.vehicle, now);
-        refreshAllies(now);
+        refreshAllies(now, AirLod.farTransit(this.vehicle,
+                SewvConfig.PLANE_FAR_LOD_BLOCKS.get(), isFarTransitMode(this.mode)));
 
         // Unflyable: SBW is already taking the aircraft down, or there is nothing to fly it with.
         float max = this.vehicle.getMaxHealth();
@@ -587,13 +622,19 @@ public class DrivePlaneGoal extends Goal {
             onModeChange(this.mode, next, target);
             this.mode = next;
         }
+
+        this.farLod = AirLod.farTransit(this.vehicle,
+                SewvConfig.PLANE_FAR_LOD_BLOCKS.get(), isFarTransitMode(this.mode));
+        this.terrain.setFarLod(this.farLod);
+
         if (SewvDiag.planeVerbose()) {
-            SewvDiag.planeHeartbeat(now, "mode={} leash={} spd={} agl={} r={} target={}",
+            SewvDiag.planeHeartbeat(now, "mode={} leash={} spd={} agl={} r={} target={} far={}",
                     this.mode, this.leash.state(),
                     String.format("%.2f", this.kinematics.speed()),
                     String.format("%.1f", this.kinematics.agl()),
                     String.format("%.0f", this.kinematics.turnRadius()),
-                    target == null ? "none" : target.getName().getString());
+                    target == null ? "none" : target.getName().getString(),
+                    this.farLod);
         }
 
         // Every branch below issues a complete set of inputs. There is no "do nothing" case: the
@@ -631,6 +672,12 @@ public class DrivePlaneGoal extends Goal {
         // After the switch, because it reads the inputs the branch just issued. A no-op on every
         // airframe but the one whose engine answers the throttle for players only.
         NpcVehicleOverrides.mirrorThrottle(this.vehicle);
+    }
+
+    /** Modes allowed to cheapen when no player is nearby. Combat / land / takeoff stay full. */
+    private static boolean isFarTransitMode(PlaneMode mode) {
+        return mode == PlaneMode.CRUISE || mode == PlaneMode.HOLD
+                || mode == PlaneMode.RTB || mode == PlaneMode.INGRESS;
     }
 
     // --- Mode selection ---------------------------------------------------------------------
@@ -944,9 +991,11 @@ public class DrivePlaneGoal extends Goal {
         return Vec3.atCenterOf(mission.pos());
     }
 
-    /** One ally scan per tick, shared by target inheritance, the destination and the leash. */
-    private void refreshAllies(long now) {
-        if (this.unit instanceof PmcUnitEntity || now == this.allyScanTick) return;
+    /** One ally scan per cadence, shared by target inheritance, the destination and the leash. */
+    private void refreshAllies(long now, boolean far) {
+        if (this.unit instanceof PmcUnitEntity) return;
+        int interval = far ? AirLod.FAR_ALLY_INTERVAL_TICKS : 1;
+        if (this.allyScanTick != Long.MIN_VALUE && now - this.allyScanTick < interval) return;
         this.allyScanTick = now;
         this.cachedAllyHull = findNearestGroundAlly();
         this.cachedAllyUnit = this.cachedAllyHull == null ? findNearestAllyUnit() : null;
@@ -1148,7 +1197,9 @@ public class DrivePlaneGoal extends Goal {
         Vec3 steer = PlaneNav.orbitSteer(this.vehicle.getX() - centre.x,
                 this.vehicle.getZ() - centre.z, radius, orbitClockwise());
         this.control.throttleUp();
-        Vec3 clear = this.terrain.clearBearing(this.sensor, steer, this.kinematics.speed());
+        // FAR transit: heightmap corridor already ran via other paths; skip the block whisker.
+        Vec3 clear = this.farLod ? steer
+                : this.terrain.clearBearing(this.sensor, steer, this.kinematics.speed());
         if (clear == null) {
             avoidBlocked(steer, desiredY);
             return;
@@ -1197,13 +1248,16 @@ public class DrivePlaneGoal extends Goal {
                 ? new Vec3(dx / dist, 0, dz / dist) : this.kinematics.forwardFlat();
 
         double held = heldAltitude(desiredY);
+        double lookahead = Math.min(dist, terrainLookahead());
         Vec3 corridor = this.terrain.corridorBearing(this.unit.level(),
                 this.vehicle.getX(), this.vehicle.getZ(), dirToDest, held,
-                Math.min(dist, TERRAIN_LOOKAHEAD), this.unit.level().getGameTime());
+                lookahead, this.unit.level().getGameTime());
         Vec3 desiredBearing = corridor != null ? corridor : dirToDest;
 
-        Vec3 travelDir = this.terrain.clearBearing(this.sensor, desiredBearing,
-                this.kinematics.speed());
+        // FAR transit: heightmap corridor only — whisker reaches past the ticket and is the
+        // expensive half; combat / land / takeoff keep farLod false and still whisker.
+        Vec3 travelDir = this.farLod ? desiredBearing
+                : this.terrain.clearBearing(this.sensor, desiredBearing, this.kinematics.speed());
         if (travelDir == null) {
             avoidBlocked(desiredBearing, desiredY);
             return;
@@ -2625,7 +2679,12 @@ public class DrivePlaneGoal extends Goal {
 
     private double cruiseAltitudeToward(double toX, double toZ) {
         return AirframeSupport.cruiseAltitudeToward(
-                this.vehicle, toX, toZ, flightAltitude(), TERRAIN_LOOKAHEAD);
+                this.vehicle, toX, toZ, flightAltitude(), terrainLookahead(),
+                AirLod.groundTtl(this.farLod));
+    }
+
+    private double terrainLookahead() {
+        return this.farLod ? Math.min(TERRAIN_LOOKAHEAD, AirLod.FAR_LOOKAHEAD) : TERRAIN_LOOKAHEAD;
     }
 
     private double flightAltitude() {

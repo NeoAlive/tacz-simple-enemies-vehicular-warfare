@@ -7,6 +7,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 
+import com.neoalive.tacz_sewv.debug.PlanePerf;
+
 /**
  * Distance band for airframe AI: full fidelity near players, cheaper work when ticketed far away.
  *
@@ -60,8 +62,12 @@ public final class AirLod {
         long now = level.getGameTime();
         PlayerNearSample sample = NEAR_CACHE.get()
                 .computeIfAbsent(entity.getId(), id -> new PlayerNearSample());
-        if (sample.matches(blocks, now)) return sample.near;
+        if (sample.matches(blocks, now)) {
+            PlanePerf.notePlayerNearHit();
+            return sample.near;
+        }
 
+        PlanePerf.notePlayerNearMiss();
         double r2 = blocks * blocks;
         boolean near = false;
         for (ServerPlayer player : level.players()) {

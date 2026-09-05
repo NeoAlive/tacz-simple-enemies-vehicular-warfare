@@ -487,6 +487,9 @@ public class DrivePlaneGoal extends Goal {
     /** Tracks planeTicketsHeld gauge across acquire/release. */
     private boolean wasHoldingTicket;
 
+    /** Set by {@link #refreshAllies} when a FAR tick actually ran the ally AABB scan. */
+    private boolean farAllyScannedThisTick;
+
     public DrivePlaneGoal(AbstractUnit unit) {
         this.unit = unit;
         this.sensor = new AirTerrainSensor(unit);
@@ -574,10 +577,13 @@ public class DrivePlaneGoal extends Goal {
     @Override
     public void tick() {
         long t0 = System.nanoTime();
+        this.farAllyScannedThisTick = false;
         try {
             tickInner();
         } finally {
-            PlanePerf.recordTick(System.nanoTime() - t0, this.farLod);
+            boolean parked = this.mode == PlaneMode.LANDED || this.mode == PlaneMode.GROUNDED;
+            PlanePerf.recordTick(System.nanoTime() - t0, this.farLod,
+                    this.farAllyScannedThisTick, parked);
             boolean holding = this.chunkTicket.isHeld();
             if (holding && !this.wasHoldingTicket) PlanePerf.planeTicketsHeld++;
             if (!holding && this.wasHoldingTicket && PlanePerf.planeTicketsHeld > 0) {
@@ -997,8 +1003,13 @@ public class DrivePlaneGoal extends Goal {
         int interval = far ? AirLod.FAR_ALLY_INTERVAL_TICKS : 1;
         if (this.allyScanTick != Long.MIN_VALUE && now - this.allyScanTick < interval) return;
         this.allyScanTick = now;
+        long t0 = System.nanoTime();
         this.cachedAllyHull = findNearestGroundAlly();
         this.cachedAllyUnit = this.cachedAllyHull == null ? findNearestAllyUnit() : null;
+        if (far) {
+            this.farAllyScannedThisTick = true;
+            PlanePerf.noteFarAllyScanBody(System.nanoTime() - t0);
+        }
     }
 
     private void inheritTarget(AbstractUnit ally) {

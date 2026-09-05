@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.client.HeliRunPhaseClient;
+import com.neoalive.tacz_sewv.client.PlayerRappelClient;
 import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 
 /**
@@ -23,7 +24,8 @@ import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
  * {@link GeoVehicleRenderer}'s pushed/axis-rotated pose so they bank with the airframe.
  * Length is {@code min(distance to ground, }{@link #TACZ_SEWV$RAPPEL_WIRE_MAX_LENGTH}{@code)} —
  * short drops reach terrain; tall drops (cliffs/valleys) cap instead of a huge streamer.
- * Gated solely on {@link HeliRunPhaseClient#isRappelling(int)}.
+ * Gated on {@link HeliRunPhaseClient#isRappelling(int)} (AI RAPPEL) or
+ * {@link PlayerRappelClient#hasWires(int)} (player-driver crew drop).
  *
  * <p>Uses {@link RenderType#leash()} ({@code POSITION_COLOR_LIGHTMAP} triangle strip) so the
  * rope takes the vehicle's {@code packedLight} and darkens in shadow instead of glowing
@@ -63,7 +65,8 @@ public abstract class MixinVehicleRappelWires {
             MultiBufferSource buffer,
             int packedLight,
             CallbackInfo ci) {
-        if (!HeliRunPhaseClient.isRappelling(entity.getId())) return;
+        if (!HeliRunPhaseClient.isRappelling(entity.getId())
+                && !PlayerRappelClient.hasWires(entity.getId())) return;
 
         double face = RappelSupport.localFaceX(entity);
         double attachY = RappelSupport.localAttachY(entity);

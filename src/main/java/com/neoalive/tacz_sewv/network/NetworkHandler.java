@@ -101,7 +101,9 @@ public class NetworkHandler {
     // 75: PacketRequestPmcIdentity / PacketSyncPmcIdentity / PacketApplyPmcIdentity (TDT Identity).
     // 78: PacketHudNotification (S->C top-center HUD banner queue).
     // 79: PacketHudNotification carries Components (translatable title/body) instead of raw UTF.
-    private static final String PROTOCOL_VERSION = "79";
+    // 80: PacketPlayerSelfRappel / PacketPlayerCrewRappel / PacketPlayerRappelWires / PacketPlayerSelfRappelLock.
+    // 81: PacketPlayerSelfRappelLock carries hover/rope mode + hull id (stale-safe).
+    private static final String PROTOCOL_VERSION = "81";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -617,6 +619,34 @@ public class NetworkHandler {
                 PacketHudNotification::encode,
                 PacketHudNotification::new,
                 PacketHudNotification::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketPlayerSelfRappel.class,
+                PacketPlayerSelfRappel::encode,
+                PacketPlayerSelfRappel::new,
+                PacketPlayerSelfRappel::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketPlayerCrewRappel.class,
+                PacketPlayerCrewRappel::encode,
+                PacketPlayerCrewRappel::new,
+                PacketPlayerCrewRappel::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketPlayerRappelWires.class,
+                PacketPlayerRappelWires::encode,
+                PacketPlayerRappelWires::new,
+                PacketPlayerRappelWires::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketPlayerSelfRappelLock.class,
+                PacketPlayerSelfRappelLock::encode,
+                PacketPlayerSelfRappelLock::new,
+                PacketPlayerSelfRappelLock::handle
         );
     }
 }

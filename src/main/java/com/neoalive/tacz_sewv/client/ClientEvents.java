@@ -787,6 +787,7 @@ public class ClientEvents {
         InvasionHudClient.clear();
         VehicleSkinClient.clearAll();
         HeliRunPhaseClient.clearAll();
+        PlayerRappelClient.clearAll();
         PlaneLandingDebugClient.clearAll();
         clearEscort();
         clearTow();

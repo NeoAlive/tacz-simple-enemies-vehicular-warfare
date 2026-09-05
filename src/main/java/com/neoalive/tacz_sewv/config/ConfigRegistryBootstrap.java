@@ -548,6 +548,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.HELI_MIN_STANDOFF, SewvConfig.HELI_MIN_STANDOFF::set);
         b.bool(ConfigScope.SERVER, "flight", "heliChunkLoading",
                 SewvConfig.HELI_CHUNK_LOADING, SewvConfig.HELI_CHUNK_LOADING::set);
+        b.bool(ConfigScope.SERVER, "flight", "playerCrewRappelAllSeats",
+                SewvConfig.PLAYER_CREW_RAPPEL_ALL_SEATS, SewvConfig.PLAYER_CREW_RAPPEL_ALL_SEATS::set);
+        b.bool(ConfigScope.SERVER, "flight", "playerSelfRappelWithUnits",
+                SewvConfig.PLAYER_SELF_RAPPEL_WITH_UNITS, SewvConfig.PLAYER_SELF_RAPPEL_WITH_UNITS::set);
         b.bool(ConfigScope.SERVER, "flight", "planeChunkLoading",
                 SewvConfig.PLANE_CHUNK_LOADING, SewvConfig.PLANE_CHUNK_LOADING::set);
         b.doubleRange(ConfigScope.SERVER, "flight", "planeFarLodBlocks", 64.0, 1024.0,

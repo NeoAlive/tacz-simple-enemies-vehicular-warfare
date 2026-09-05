@@ -42,11 +42,11 @@ public final class PlayerRappelTracker {
     private static final double RAPPEL_HOVER_AGL = 10.0;
     private static final double ALT_DEADBAND = 2.5;
     private static final double RAPPEL_STABLE_XZ = 1.0;
-    private static final double CAPTURE_GAIN = 0.15;
-    private static final double CAPTURE_BLEND = 0.35;
-    private static final double CAPTURE_MAX_SPEED = 0.15;
-    private static final double CLIMB_RATE_CAP = 0.22;
-    private static final double DESCEND_RATE_CAP = 0.22;
+    /** Authoritative lerp toward the hover station — player inputs cannot fight setPos. */
+    private static final double HOVER_BLEND = 0.35;
+    /** Give up fighting altitude and snap+drop (player flight inputs used to strand APPROACH forever). */
+    private static final int FORCE_APPROACH_TICKS = 80;
+    private static final int MAX_DISMOUNT_RETRIES = 40;
     private static final int MAX_AT_GUNNERS = 2;
     private static final int RAPPEL_TIMEOUT_TICKS = 6000;
 
@@ -191,7 +191,7 @@ public final class PlayerRappelTracker {
                     if (session.playerDriver) {
                         stationHover(hull, session.lockX, session.lockZ);
                     }
-                    if (!hoverStable(hull, session.lockX, session.lockZ)) {
+                    if (!readyToDrop(hull, session, now)) {
                         session.stableAt = Long.MIN_VALUE;
                         break;
                     }
@@ -201,20 +201,45 @@ public final class PlayerRappelTracker {
                         break;
                     }
                     if (now - session.stableAt < RappelSupport.SETTLE_TICKS) {
+                        // Keep pinning the station through settle — otherwise player flight
+                        // inputs climb out of the band before the rope starts.
+                        if (session.playerDriver) {
+                            stationHover(hull, session.lockX, session.lockZ);
+                        }
                         break;
                     }
-                    // Settle done — player onto a rope; optional units fill the other / follow.
                     beginPlayerRope(player, hull, session);
                     session.phase = SelfPhase.DESCENDING;
-                    // Passenger + AI pilot: cargo is DriveHelicopterGoal's job. Only the
-                    // player-driver sequence drops units from this tracker.
+                    session.dismountTries = 0;
                     if (session.withUnits && session.playerDriver) {
                         session.dropUnits = true;
                     }
                 }
                 case DESCENDING -> {
-                    // Finish in-flight unit slides even if the hull is gone.
-                    if (hull != null && session.dropUnits) {
+                    if (hull != null && player.getVehicle() == hull) {
+                        session.dismountTries++;
+                        beginPlayerRope(player, hull, session);
+                        if (session.dismountTries >= MAX_DISMOUNT_RETRIES
+                                && player.getVehicle() == hull) {
+                            feedback(player, "message.tacz_sewv.rappel.dismount_fail");
+                            abortSelf(session, player, hull);
+                            it.remove();
+                            continue;
+                        }
+                    }
+
+                    boolean playerStillRiding = player.getVehicle() instanceof VehicleEntity;
+                    if (!playerStillRiding && session.playerOnRope) {
+                        boolean stillSliding = RappelSupport.tickDescent(
+                                player, session.playerAx, session.playerAz);
+                        if (!stillSliding) {
+                            session.playerOnRope = false;
+                            sendLock(player, PacketPlayerSelfRappelLock.off());
+                        }
+                    }
+
+                    boolean playerClear = !playerStillRiding;
+                    if (hull != null && session.dropUnits && playerClear) {
                         if (session.ropeMinusId < 0) tryStartUnitRope(hull, session, false);
                         if (session.ropePlusId < 0) tryStartUnitRope(hull, session, true);
                     }
@@ -226,17 +251,9 @@ public final class PlayerRappelTracker {
                         session.ropePlusId = -1;
                     }
 
-                    boolean playerDone = true;
-                    if (session.playerOnRope) {
-                        playerDone = !RappelSupport.tickDescent(player, session.playerAx, session.playerAz);
-                        if (playerDone) {
-                            session.playerOnRope = false;
-                            sendLock(player, PacketPlayerSelfRappelLock.off());
-                        }
-                    }
-
+                    boolean playerDone = playerClear && !session.playerOnRope;
                     boolean unitsIdle = session.ropeMinusId < 0 && session.ropePlusId < 0;
-                    boolean moreUnits = session.dropUnits && hull != null
+                    boolean moreUnits = session.dropUnits && hull != null && playerClear
                             && RappelSupport.hasCrewRappelEligible(hull);
                     if (playerDone && unitsIdle && !moreUnits) {
                         finishSelf(session, player, hull);
@@ -249,23 +266,50 @@ public final class PlayerRappelTracker {
 
     private static void beginPlayerRope(ServerPlayer player, VehicleEntity hull, SelfSession session) {
         boolean plusX = (player.getId() & 1) == 0;
-        // Prefer a free rope side if we will also drop units.
-        if (session.withUnits) {
-            plusX = session.ropePlusId < 0;
-            if (session.ropeMinusId < 0 && session.ropePlusId >= 0) plusX = false;
-        }
         Vec3 top = RappelSupport.ropeTopWorld(hull, plusX);
-        player.stopRiding();
+
+        // Same call SBW's /dismount uses (Entity.stopRiding → removeVehicle → removePassenger).
+        if (player.getVehicle() == hull) {
+            player.stopRiding();
+        }
         player.setDeltaMovement(Vec3.ZERO);
         player.fallDistance = 0.0F;
         player.setPos(top.x, top.y, top.z);
-        session.playerOnRope = true;
+
+        if (hull.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            serverLevel.getChunkSource().broadcastAndSend(
+                    hull, new net.minecraft.network.protocol.game.ClientboundSetPassengersPacket(hull));
+        }
+
+        session.playerOnRope = !(player.getVehicle() instanceof VehicleEntity);
         session.playerAx = top.x;
         session.playerAz = top.z;
-        sendLock(player, PacketPlayerSelfRappelLock.rope());
+        if (session.playerOnRope) {
+            sendLock(player, PacketPlayerSelfRappelLock.rope());
+        }
         if (session.playerDriver) {
             AirframeSupport.releaseInputs(hull);
         }
+    }
+
+    /**
+     * Driver path: authoritative hover (setPos), with a hard snap after {@link #FORCE_APPROACH_TICKS}.
+     * Passenger path: AI owns the station — rappel-request + hover AGL.
+     */
+    private static boolean readyToDrop(VehicleEntity hull, SelfSession session, long now) {
+        double targetY = AirframeSupport.surfaceBelow(hull) + RAPPEL_HOVER_AGL;
+        if (session.playerDriver && now - session.startedAt >= FORCE_APPROACH_TICKS) {
+            hull.setPos(session.lockX, targetY, session.lockZ);
+            hull.setDeltaMovement(Vec3.ZERO);
+            return true;
+        }
+        if (Math.abs(hull.getY() - targetY) > ALT_DEADBAND) return false;
+        if (session.playerDriver) {
+            double dx = session.lockX - hull.getX();
+            double dz = session.lockZ - hull.getZ();
+            return dx * dx + dz * dz <= RAPPEL_STABLE_XZ * RAPPEL_STABLE_XZ;
+        }
+        return DriveHelicopterGoal.isRappelRequested(hull);
     }
 
     private static void tryStartUnitRope(VehicleEntity hull, SelfSession session, boolean plusX) {
@@ -355,43 +399,19 @@ public final class PlayerRappelTracker {
 
     private static void stationHover(VehicleEntity hull, double lockX, double lockZ) {
         double targetY = AirframeSupport.surfaceBelow(hull) + RAPPEL_HOVER_AGL;
-        double dx = lockX - hull.getX();
-        double dz = lockZ - hull.getZ();
-        double dist = Math.sqrt(dx * dx + dz * dz);
-
-        hull.setBackInputDown(false);
-        hull.setLeftInputDown(false);
-        hull.setRightInputDown(false);
+        // Player flight packets overwrite input flags every tick — setPos is the only lock that sticks.
+        double x = Mth.lerp(HOVER_BLEND, hull.getX(), lockX);
+        double y = Mth.lerp(HOVER_BLEND, hull.getY(), targetY);
+        double z = Mth.lerp(HOVER_BLEND, hull.getZ(), lockZ);
+        if (Math.abs(x - lockX) < 0.35) x = lockX;
+        if (Math.abs(z - lockZ) < 0.35) z = lockZ;
+        if (Math.abs(y - targetY) < 0.5) y = targetY;
+        hull.setPos(x, y, z);
+        hull.setDeltaMovement(Vec3.ZERO);
+        hull.setHoverMode(true);
+        AirframeSupport.releaseInputs(hull);
         hull.setMouseMoveSpeedX(0.0F);
         hull.setMouseMoveSpeedY(0.0F);
-        hull.setHoverMode(true);
-        applyCollective(hull, targetY);
-
-        double speed = Math.min(CAPTURE_MAX_SPEED, dist * CAPTURE_GAIN);
-        double desX = dist > 1.0E-4 ? dx / dist * speed : 0.0;
-        double desZ = dist > 1.0E-4 ? dz / dist * speed : 0.0;
-        Vec3 v = hull.getDeltaMovement();
-        hull.setDeltaMovement(
-                Mth.lerp(CAPTURE_BLEND, v.x, desX),
-                v.y,
-                Mth.lerp(CAPTURE_BLEND, v.z, desZ));
-    }
-
-    private static void applyCollective(VehicleEntity hull, double desiredY) {
-        double dy = desiredY - hull.getY();
-        double vy = hull.getDeltaMovement().y;
-        boolean climb = dy > ALT_DEADBAND && vy < CLIMB_RATE_CAP;
-        boolean descend = dy < -ALT_DEADBAND && vy > -DESCEND_RATE_CAP;
-        hull.setForwardInputDown(climb);
-        hull.setDownInputDown(descend);
-    }
-
-    private static boolean hoverStable(VehicleEntity hull, double lockX, double lockZ) {
-        double targetY = AirframeSupport.surfaceBelow(hull) + RAPPEL_HOVER_AGL;
-        if (Math.abs(hull.getY() - targetY) > ALT_DEADBAND) return false;
-        double dx = lockX - hull.getX();
-        double dz = lockZ - hull.getZ();
-        return dx * dx + dz * dz <= RAPPEL_STABLE_XZ * RAPPEL_STABLE_XZ;
     }
 
     private static void tickCrew() {
@@ -533,6 +553,7 @@ public final class PlayerRappelTracker {
 
         SelfPhase phase = SelfPhase.APPROACH;
         long stableAt = Long.MIN_VALUE;
+        int dismountTries;
         boolean dropUnits;
         boolean playerOnRope;
         double playerAx = Double.NaN;

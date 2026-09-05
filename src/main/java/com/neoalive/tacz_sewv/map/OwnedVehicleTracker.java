@@ -20,6 +20,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.Vec3;
@@ -32,6 +33,8 @@ import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
@@ -273,6 +276,12 @@ public final class OwnedVehicleTracker {
                 continue;
             }
 
+            // Player seated (alone or with their PMCs): CrewFacts.factionOf is null by design,
+            // but the map must still show OWN hulls so orders work from inside a vehicle.
+            if (collectPlayerOccupied(level, hull, candidates)) {
+                continue;
+            }
+
             if (!hull.getPassengers().isEmpty()) continue;
 
             UUID emptyOwner = FobSupport.playerOwnerOfEmptyHull(hull);
@@ -289,6 +298,71 @@ public final class OwnedVehicleTracker {
                     GuardSupport.has(hull),
                     0, false));
         }
+    }
+
+    /**
+     * Hull with a player aboard — {@link CrewFacts#factionOf} returns null (player breaks the
+     * unanimous-SEM-crew rule). Still mark it when every SEM passenger is a PMC owned by that
+     * seated player (or the player is alone). Order target is the first owned PMC when present
+     * so map orders still name a unit; player-only hulls use {@link MapMarkers#NO_DRIVER}.
+     *
+     * @return true when a candidate was added (or the hull was deliberately skipped as foreign)
+     */
+    private static boolean collectPlayerOccupied(ServerLevel level, VehicleEntity hull,
+                                                 List<Candidate> candidates) {
+        Player seated = null;
+        UUID pmcOwner = null;
+        AbstractUnit orderUnit = null;
+        boolean sawSem = false;
+        for (Entity passenger : hull.getPassengers()) {
+            if (passenger instanceof Player player) {
+                if (seated != null) return true; // multi-player crew — leave unmarked
+                seated = player;
+                continue;
+            }
+            if (passenger instanceof RUunitEntity || passenger instanceof USunitEntity) {
+                return true; // mixed with enemy faction — leave unmarked
+            }
+            if (!(passenger instanceof PmcUnitEntity pmc)) {
+                return true; // unknown passenger type
+            }
+            sawSem = true;
+            UUID owner = pmc.getOwnerUUID();
+            if (owner == null) return true;
+            if (pmcOwner == null) pmcOwner = owner;
+            else if (!pmcOwner.equals(owner)) return true;
+            if (orderUnit == null) orderUnit = pmc;
+            // Prefer a PMC that is actually in seat 0 when the player is not.
+            if (hull.getFirstPassenger() == pmc) orderUnit = pmc;
+        }
+        if (seated == null) return false; // no player — caller continues empty/FOB path
+
+        if (sawSem) {
+            if (!seated.getUUID().equals(pmcOwner)) return true; // riding someone else's crew
+        } else {
+            pmcOwner = seated.getUUID();
+        }
+
+        int driverId = orderUnit != null ? orderUnit.getId() : MapMarkers.NO_DRIVER;
+        MarkerOrder order = orderUnit != null ? orderPreviewOf(orderUnit) : MarkerOrder.NONE;
+        String ownerTeam = orderUnit != null ? ownerTeamOf(orderUnit) : null;
+        String invasionTeam = orderUnit != null ? invasionTeamOf(orderUnit) : null;
+        List<String> enemies = orderUnit != null ? InvasionHostility.enemiesOf(orderUnit) : List.of();
+        boolean friendly = orderUnit == null || VehicleTargeting.isFactionFriendly(orderUnit);
+        boolean commander = orderUnit instanceof PmcCommanderEntity;
+        int platoonColor = orderUnit != null ? platoonColorOf(level, orderUnit.getId()) : 0;
+
+        candidates.add(new Candidate(
+                kindOf(hull), CrewFacts.Faction.PMC, pmcOwner,
+                ownerTeam, invasionTeam, enemies,
+                friendly, order,
+                driverId, hull.getId(),
+                hull.getX(), hull.getY(), hull.getZ(), hull.getYRot(), level.dimension(),
+                healthFrac(hull), energyFrac(hull),
+                FactionColors.wireTint(level.getServer(), pmcOwner),
+                GuardSupport.has(hull),
+                platoonColor, commander));
+        return true;
     }
 
     /**

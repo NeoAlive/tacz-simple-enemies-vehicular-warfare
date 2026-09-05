@@ -70,6 +70,7 @@
   "message.tacz_sewv.rappel.already": "Already rappelling.",
   "message.tacz_sewv.rappel.self_ok": "Rappelling.",
   "message.tacz_sewv.rappel.crew_ok": "Crew rappelling.",
+  "message.tacz_sewv.rappel.dismount_fail": "Could not leave the seat to rappel.",
   "message.tacz_sewv.board.ordered.single": "%s unit ordered to board.",
   "message.tacz_sewv.board.ordered.multiple": "%s units ordered to board.",
   "message.tacz_sewv.board.ordered.none": "No eligible units to board.",

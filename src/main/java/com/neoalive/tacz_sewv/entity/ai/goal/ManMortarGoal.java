@@ -6,6 +6,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -13,6 +14,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.block.EmplacementSupport;
@@ -24,6 +26,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
@@ -341,7 +344,14 @@ public class ManMortarGoal extends Goal {
         }
         if (shell.isEmpty()) {
             hold("no mortar shells in this unit's inventory");
+            if (this.unit instanceof PmcUnitEntity pmc) {
+                HudNotify.pmcAmmoOut(pmc, this.mortar,
+                        Component.translatable("notification.tacz_sewv.kind.emplacement"));
+            }
             return;
+        }
+        if (this.unit instanceof PmcUnitEntity) {
+            HudNotify.clearAmmoOut(this.mortar);
         }
 
         // Load through getItems() rather than setItem(): setItem routes through

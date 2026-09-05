@@ -12,8 +12,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -24,6 +26,7 @@ import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.crew.NpcIdentity;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
@@ -121,6 +124,189 @@ public final class HudNotify {
                 Component.translatable("notification.tacz_sewv.medic_captured.title", faction),
                 Component.translatable("notification.tacz_sewv.medic_captured.body",
                         faction, pos.getX(), pos.getY(), pos.getZ()));
+    }
+
+    // --- Ammo / engage / energy -----------------------------------------------------------
+
+    private static final String TAG_AMMO_OUT = "sewv:ammo_out_notified";
+
+    /** Clears the ammo-out rising-edge latch (e.g. after a mortar restocks). */
+    public static void clearAmmoOut(Entity host) {
+        if (host != null) host.getPersistentData().putBoolean(TAG_AMMO_OUT, false);
+    }
+
+    private static final String TAG_ENERGY_LOW = "sewv:energy_low_notified";
+    private static final String TAG_VEHICLE_WATCH_AT = "sewv:hud_vehicle_watch_at";
+    private static final String TAG_INFANTRY_WATCH_AT = "sewv:hud_infantry_watch_at";
+    private static final String TAG_ENGAGE_CD = "sewv:engage_notify_cd";
+    private static final long VEHICLE_WATCH_INTERVAL = 20L;
+    private static final long INFANTRY_WATCH_INTERVAL = 40L;
+    private static final long ENGAGE_UNIT_CD_TICKS = 300L; // 15s
+    private static final long ENGAGE_OWNER_CD_TICKS = 100L; // 5s squad throttle
+    private static final long ENGAGE_GLOBAL_CD_MS = 8000L;
+    private static final float ENERGY_LOW = 0.10F;
+    private static final float ENERGY_CLEAR = 0.15F;
+    private static final java.util.concurrent.ConcurrentHashMap<UUID, Long> OWNER_ENGAGE_CD =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static volatile long lastEngageNotifyMs;
+
+    /**
+     * Driver-only rising-edge watch for ammo-out and energy&lt;10% on a PMC-crewed hull.
+     * Throttled to once per second of game time per hull.
+     */
+    public static void watchPmcVehicle(AbstractUnit unit, VehicleEntity hull) {
+        if (hull == null || hull.level().isClientSide()) return;
+        if (!(unit instanceof PmcUnitEntity pmc) || pmc.getOwnerUUID() == null) return;
+        if (hull.getFirstPassenger() != unit) return;
+
+        long now = hull.level().getGameTime();
+        var data = hull.getPersistentData();
+        if (now < data.getLong(TAG_VEHICLE_WATCH_AT)) return;
+        data.putLong(TAG_VEHICLE_WATCH_AT, now + VEHICLE_WATCH_INTERVAL);
+
+        watchEnergy(pmc, hull, data);
+        int seat = hull.getSeatIndex(unit);
+        boolean dry = seat >= 0 && VehicleWeapons.isSelectedWeaponDry(hull, seat);
+        risingAmmoOut(pmc, hull, dry, vehicleKindLabel(hull), data);
+    }
+
+    /** Rising-edge ammo-out for on-foot PMC TACZ guns. */
+    public static void watchPmcInfantryAmmo(PmcUnitEntity pmc) {
+        if (pmc.level().isClientSide() || pmc.getOwnerUUID() == null) return;
+        if (pmc.getVehicle() instanceof VehicleEntity) return;
+
+        long now = pmc.level().getGameTime();
+        var data = pmc.getPersistentData();
+        if (now < data.getLong(TAG_INFANTRY_WATCH_AT)) return;
+        data.putLong(TAG_INFANTRY_WATCH_AT, now + INFANTRY_WATCH_INTERVAL);
+
+        risingAmmoOut(pmc, pmc, isInfantryTaczDry(pmc), kindLabel(infantryKind(pmc)), data);
+    }
+
+    /** Emplacement / mortar / TOW dry — call once when a load attempt fails. */
+    public static void pmcAmmoOut(PmcUnitEntity pmc, Component kind) {
+        if (pmc == null || pmc.getOwnerUUID() == null) return;
+        risingAmmoOut(pmc, pmc, true, kind, pmc.getPersistentData());
+    }
+
+    public static void pmcAmmoOut(PmcUnitEntity pmc, VehicleEntity weapon, Component kind) {
+        if (pmc == null || pmc.getOwnerUUID() == null || weapon == null) return;
+        risingAmmoOut(pmc, weapon, true, kind, weapon.getPersistentData());
+    }
+
+    /**
+     * Owned PMC acquired a hostile target. Only fires for players, SEM units, or contacts
+     * in/as a vehicle — zombies and other noise targets are ignored. Per-unit, per-owner,
+     * and global cooldowns further suppress retarget spam. Driver-only when mounted.
+     */
+    public static void pmcEngaging(PmcUnitEntity pmc, LivingEntity target) {
+        if (pmc == null || target == null || !target.isAlive()) return;
+        if (pmc.getOwnerUUID() == null) return;
+        if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() != pmc) return;
+        if (VehicleTargeting.isFriendly(pmc, target) || VehicleTargeting.isMedic(target)) return;
+        // Combat-relevant contacts only — not Monster / animals / misc LivingEntity noise.
+        if (!(target instanceof Player
+                || target instanceof AbstractUnit
+                || target.getVehicle() instanceof VehicleEntity)) {
+            return;
+        }
+
+        long now = pmc.level().getGameTime();
+        var data = pmc.getPersistentData();
+        if (now < data.getLong(TAG_ENGAGE_CD)) return;
+        Long ownerCd = OWNER_ENGAGE_CD.get(pmc.getOwnerUUID());
+        if (ownerCd != null && now < ownerCd) return;
+        long wallNow = System.currentTimeMillis();
+        if (wallNow - lastEngageNotifyMs < ENGAGE_GLOBAL_CD_MS) return;
+
+        ServerPlayer owner = ownerOf(pmc);
+        if (owner == null) return;
+
+        data.putLong(TAG_ENGAGE_CD, now + ENGAGE_UNIT_CD_TICKS);
+        OWNER_ENGAGE_CD.put(pmc.getOwnerUUID(), now + ENGAGE_OWNER_CD_TICKS);
+        lastEngageNotifyMs = wallNow;
+
+        String name = unitName(pmc);
+        Component kind = pmc.getVehicle() instanceof VehicleEntity hull
+                ? vehicleKindLabel(hull) : kindLabel(infantryKind(pmc));
+        Component contact = entityLabel(target);
+        if (contact == null) contact = Component.translatable("notification.tacz_sewv.faction.unknown");
+        BlockPos pos = pmc.blockPosition();
+        send(owner,
+                Component.translatable("notification.tacz_sewv.pmc_engaging.title", name, contact),
+                Component.translatable("notification.tacz_sewv.pmc_engaging.body",
+                        kind, name, contact, pos.getX(), pos.getY(), pos.getZ()));
+    }
+
+    private static void watchEnergy(PmcUnitEntity pmc, VehicleEntity hull,
+                                    net.minecraft.nbt.CompoundTag data) {
+        float frac = energyFraction(hull);
+        if (Float.isNaN(frac)) {
+            data.remove(TAG_ENERGY_LOW);
+            return;
+        }
+        if (frac >= ENERGY_CLEAR) {
+            data.putBoolean(TAG_ENERGY_LOW, false);
+            return;
+        }
+        if (frac >= ENERGY_LOW) return;
+        if (data.getBoolean(TAG_ENERGY_LOW)) return;
+
+        ServerPlayer owner = ownerOf(pmc);
+        if (owner == null) return;
+        data.putBoolean(TAG_ENERGY_LOW, true);
+
+        Component kind = vehicleKindLabel(hull);
+        BlockPos pos = hull.blockPosition();
+        int pct = Math.max(0, Math.round(frac * 100f));
+        send(owner,
+                Component.translatable("notification.tacz_sewv.pmc_energy_low.title", kind),
+                Component.translatable("notification.tacz_sewv.pmc_energy_low.body",
+                        kind, pct, pos.getX(), pos.getY(), pos.getZ()));
+    }
+
+    private static void risingAmmoOut(PmcUnitEntity pmc, Entity flagHost, boolean dry,
+                                      Component kind, net.minecraft.nbt.CompoundTag data) {
+        if (!dry) {
+            data.putBoolean(TAG_AMMO_OUT, false);
+            return;
+        }
+        if (data.getBoolean(TAG_AMMO_OUT)) return;
+
+        ServerPlayer owner = ownerOf(pmc);
+        if (owner == null) return;
+        data.putBoolean(TAG_AMMO_OUT, true);
+
+        String name = unitName(pmc);
+        BlockPos pos = flagHost.blockPosition();
+        send(owner,
+                Component.translatable("notification.tacz_sewv.pmc_ammo_out.title", name),
+                Component.translatable("notification.tacz_sewv.pmc_ammo_out.body",
+                        kind, name, pos.getX(), pos.getY(), pos.getZ()));
+    }
+
+    /** NaN when the hull has no energy storage. */
+    private static float energyFraction(VehicleEntity hull) {
+        try {
+            if (!hull.hasEnergyStorage()) return Float.NaN;
+            int max = hull.getMaxEnergy();
+            if (max <= 0 || max == Integer.MAX_VALUE) return Float.NaN;
+            return Mth.clamp(hull.getEnergy() / (float) max, 0.0F, 1.0F);
+        } catch (Throwable ignored) {
+            return Float.NaN;
+        }
+    }
+
+    private static boolean isInfantryTaczDry(PmcUnitEntity pmc) {
+        return isTaczStackDry(pmc, pmc.getMainHandItem())
+                || isTaczStackDry(pmc, pmc.getOffhandItem());
+    }
+
+    private static boolean isTaczStackDry(PmcUnitEntity pmc, net.minecraft.world.item.ItemStack stack) {
+        com.tacz.guns.api.item.IGun gun = com.tacz.guns.api.item.IGun.getIGunOrNull(stack);
+        if (gun == null || gun.useDummyAmmo(stack)) return false;
+        if (gun.getCurrentAmmoCount(stack) > 0) return false;
+        return !gun.hasInventoryAmmo(pmc, stack, false);
     }
 
     private static void send(ServerPlayer player, Component title, Component body) {

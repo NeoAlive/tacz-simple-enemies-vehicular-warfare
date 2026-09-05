@@ -43,6 +43,7 @@ import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalBrain;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 
 /**
  * Drives a ground hull for its crew: where to be relative to the target, how to get there, and
@@ -215,6 +216,7 @@ public class DriveVehicleGoal extends Goal {
         // Re-read the battlefield and, on its own ~1s cadence, re-decide. Cheap on the ticks it
         // does nothing, which is most of them.
         this.brain.update(this.unit, this.vehicle, this.posture);
+        HudNotify.watchPmcVehicle(this.unit, this.vehicle);
 
         Action plan = idlePlan();
         if (plan == Action.SEARCH_LAST_KNOWN && this.lastIdlePlan != Action.SEARCH_LAST_KNOWN) {

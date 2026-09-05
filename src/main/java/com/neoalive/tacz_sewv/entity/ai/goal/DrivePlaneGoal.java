@@ -52,6 +52,7 @@ import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketClearPlaneLandingDebug;
 import com.neoalive.tacz_sewv.network.PacketPlaneLandingDebug;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
@@ -576,6 +577,7 @@ public class DrivePlaneGoal extends Goal {
 
     @Override
     public void tick() {
+        HudNotify.watchPmcVehicle(this.unit, this.vehicle);
         long t0 = System.nanoTime();
         this.farAllyScannedThisTick = false;
         try {

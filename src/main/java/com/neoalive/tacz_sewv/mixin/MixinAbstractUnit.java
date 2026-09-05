@@ -15,6 +15,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 
 /**
  * Hard friendly-fire gate, applied at the source. SEM's retaliation goal
@@ -107,5 +108,16 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
         if (!VehicleTargeting.categoryAllowed(self, target)) {
             ci.cancel();
         }
+    }
+
+    /** After vetoes: owned PMC acquired a live hostile — rising-edge toast with cooldown. */
+    @Inject(method = "setTarget", at = @At("TAIL"))
+    private void tacz_sewv$notifyEngage(LivingEntity target, CallbackInfo ci) {
+        if (target == null) return;
+        AbstractUnit self = (AbstractUnit) (Object) this;
+        if (!(self instanceof PmcUnitEntity pmc)) return;
+        if (self.level().isClientSide()) return;
+        if (self.getTarget() != target) return; // HEAD veto cancelled the assign
+        HudNotify.pmcEngaging(pmc, target);
     }
 }

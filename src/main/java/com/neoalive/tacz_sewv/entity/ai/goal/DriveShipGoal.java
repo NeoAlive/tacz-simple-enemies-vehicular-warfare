@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 
 /**
  * Drives a ship. Separate from {@link DriveVehicleGoal} because a hull that floats handles nothing
@@ -174,6 +175,7 @@ public class DriveShipGoal extends Goal {
 
     @Override
     public void tick() {
+        HudNotify.watchPmcVehicle(this.unit, this.vehicle);
         if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
         if (this.pathRecalcCooldown > 0) this.pathRecalcCooldown--;
         this.pathAge++;

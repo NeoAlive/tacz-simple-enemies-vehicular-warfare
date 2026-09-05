@@ -100,7 +100,14 @@ public final class TowSupport {
                 // PMC pad: spend one missile from the emplacement into virtualAmmo — same channel
                 // as issued ammo, no inventory hop (TOW crew is seated; pockets are the wrong model).
                 fromPad = EmplacementSupport.tryFeedTowVirtualAmmo(tow, gun);
-                if (!fromPad) return false;
+                if (!fromPad) {
+                    if (unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity pmc) {
+                        com.neoalive.tacz_sewv.notify.HudNotify.pmcAmmoOut(pmc, tow,
+                                net.minecraft.network.chat.Component.translatable(
+                                        "notification.tacz_sewv.kind.tow"));
+                    }
+                    return false;
+                }
             }
 
             boolean useVirtual = issued || fromPad;

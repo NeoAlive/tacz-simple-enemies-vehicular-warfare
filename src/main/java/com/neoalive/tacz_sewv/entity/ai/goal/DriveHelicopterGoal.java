@@ -39,6 +39,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHeliRunPhase;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
@@ -626,6 +627,7 @@ public class DriveHelicopterGoal extends Goal {
 
     @Override
     public void tick() {
+        HudNotify.watchPmcVehicle(this.unit, this.vehicle);
         IHelicopterPilot earlyPilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
         int earlyCommand = earlyPilot != null
                 ? earlyPilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;

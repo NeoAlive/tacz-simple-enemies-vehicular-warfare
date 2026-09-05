@@ -577,6 +577,23 @@ public final class VehicleWeapons {
     }
 
     /**
+     * True when the seat's currently selected weapon has no usable rounds (magazine + supplier
+     * reserves). Mid-reload does not count as dry. Weaponless seats answer false.
+     */
+    public static boolean isSelectedWeaponDry(VehicleEntity vehicle, int seatIndex) {
+        try {
+            GunData gun = gunData(vehicle, seatIndex);
+            if (gun == null) return false;
+            if (gun.reloading()) return false;
+            Entity supplier = vehicle.getAmmoSupplier();
+            if (supplier == null) supplier = vehicle;
+            return gun.currentAvailableAmmo(supplier) <= 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * True when {@code weaponIndex} has at least one round it could fire right now — read-only,
      * never switches the chambered shell. {@code preferences} null means a single-ammo-type
      * weapon (an MG): usable if any of its consumers (normally exactly one) is non-empty.

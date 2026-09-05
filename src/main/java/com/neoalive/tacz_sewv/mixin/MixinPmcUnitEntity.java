@@ -52,6 +52,7 @@ import com.neoalive.tacz_sewv.entity.ai.goal.PathwayGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PathwayPassiveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlatoonCohesionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlayerReviveGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.PmcAmmoWatchGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcCaptureMedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcCombatDebugGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcReviveGoal;
@@ -401,6 +402,7 @@ public abstract class MixinPmcUnitEntity
         // goal could win canUse() and still never actually move. See FollowCommanderGoal's class doc
         // for the same fight fought at priority 1.
         ((Mob) self).goalSelector.addGoal(2, new PmcCaptureMedicGoal(self));
+        ((Mob) self).goalSelector.addGoal(5, new PmcAmmoWatchGoal(self));
         // BoardVehicleGoal is NOT here any more: it moved into addDriveGoals once RU/US units
         // gained IVehicleBoarder for scavenging. It never cared where an order came from.
         // ManMortarGoal lives in addDriveGoals with the rest of the crew-served wiring:

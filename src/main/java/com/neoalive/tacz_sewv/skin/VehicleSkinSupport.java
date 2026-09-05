@@ -89,14 +89,14 @@ public final class VehicleSkinSupport {
     /** Command/event crewed spawns with optional PMC owner for dogTag logo stamping. */
     public static void applySpawnFaction(VehicleEntity hull, TankSpawner.TankFaction faction,
                                          @Nullable java.util.UUID pmcOwner) {
-        apply(hull, switch (faction) {
+        CrewFacts.Faction paint = switch (faction) {
             case RU -> CrewFacts.Faction.RU;
             case US -> CrewFacts.Faction.US;
             case PMC -> CrewFacts.Faction.PMC;
-        });
-        if (faction == TankSpawner.TankFaction.PMC && pmcOwner != null) {
-            PmcVehicleLogoSupport.applyIfPmcCaptured(hull, pmcOwner);
-        }
+        };
+        apply(hull, paint);
+        // Spawn paint runs before passengers board — stamp from the spawn faction, not crew.
+        PmcVehicleLogoSupport.applySpawnFaction(hull, paint, pmcOwner);
     }
 
     /** Set sticky paint, or clear to stock when {@code faction} is null. */

@@ -49,7 +49,9 @@ public final class PacketApplyPmcIdentity {
             String pool = this.logoPool.toLowerCase();
             String logo = this.logoId.toLowerCase();
 
-            if (!LogoPoolIndex.isValidPool(pool) || !LogoPoolIndex.isValidIcon(pool, logo)) {
+            if (!pool.startsWith("pmc_")
+                    || !LogoPoolIndex.isValidPool(pool)
+                    || !LogoPoolIndex.isValidIcon(pool, logo)) {
                 NetworkHandler.sendOrderFeedback(player,
                         Component.translatable("message.tacz_sewv.identity.invalid_logo"));
                 return;

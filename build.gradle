@@ -443,20 +443,35 @@ repositories {
     }
 }
 
-// Two superbwarfare builds live side by side in the parent Progetti folder (this checkout tracks
-// a "latest" SBW branch and a "stable" one). Default build copies the latest release jar into
-// libs/superbwarfare.jar (flatDir resolves blank:superbwarfare:1.0 to that literal filename,
-// version-blind); -PstableSbw copies the older one instead. No-op if the parent folder doesn't
-// have either (a machine other than this one) — whatever's already in libs/ is used untouched,
-// same as before this existed.
+// ---------------------------------------------------------------------------
+// Superb Warfare compile jar (flatDir → blank:superbwarfare:1.0)
+// ---------------------------------------------------------------------------
+// Compatibility matrix for THIS branch (main):
+//   SBW 0.8.9.1+  → supported (mods.toml versionRange [0.8.9.1,))
+//   SBW 0.8.9     → NOT supported — API/mixin surface diverged; use git branch
+//                   hotfix/0.8.9 for that line. Do not point libs/ at a 0.8.9 jar.
+//
+// Parent Progetti/ may hold both release jars side by side. This script only ever
+// copies a 0.8.9.1 *-all.jar into libs/superbwarfare.jar. FlatDir is version-blind
+// (blank:superbwarfare:1.0 → that literal filename), so the copy step is what
+// enforces the right build. No-op if the parent folder has no matching jar
+// (another machine) — whatever is already in libs/ is used untouched.
+//
+// -PstableSbw used to swap in 0.8.9; that is deliberately rejected on main.
+if (project.hasProperty('stableSbw')) {
+    throw new GradleException(
+            "main is not compatible with SBW 0.8.9. Drop -PstableSbw and use " +
+            "superbwarfare-0.8.9.1-*-all.jar, or check out branch hotfix/0.8.9.")
+}
+def sbwRequiredVersion = findProperty('sbw_required_version') ?: '0.8.9.1'
 def sbwSourceDir = file("${projectDir}/..")
-def wantStableSbw = project.hasProperty('stableSbw')
-def latestSbwCandidates = fileTree(sbwSourceDir) { include 'superbwarfare-0.8.9.1-*-all.jar' }.files
-def stableSbwCandidates = fileTree(sbwSourceDir) { include 'superbwarfare-0.8.9-*-all.jar' }.files
-def sbwCandidates = wantStableSbw ? stableSbwCandidates : latestSbwCandidates
+// Ant glob: 0.8.9.1-* does not match 0.8.9-final (dot after 0.8.9 vs hyphen).
+def sbwCandidates = fileTree(sbwSourceDir) {
+    include "superbwarfare-${sbwRequiredVersion}-*-all.jar"
+}.files
 if (sbwCandidates.size() > 1) {
-    throw new GradleException("Multiple superbwarfare candidates in ${sbwSourceDir} for " +
-            "${wantStableSbw ? '-PstableSbw' : 'default (latest)'}: ${sbwCandidates*.name}")
+    throw new GradleException("Multiple superbwarfare ${sbwRequiredVersion} candidates in " +
+            "${sbwSourceDir}: ${sbwCandidates*.name}")
 } else if (sbwCandidates.size() == 1) {
     def sourceSbwJar = sbwCandidates.first()
     def targetSbwJar = file('libs/superbwarfare.jar')
@@ -467,11 +482,16 @@ if (sbwCandidates.size() > 1) {
             rename { 'superbwarfare.jar' }
         }
     }
-    println "SBW jar: ${sourceSbwJar.name}${wantStableSbw ? ' (-PstableSbw)' : ''}"
+    println "SBW jar: ${sourceSbwJar.name} (required ${sbwRequiredVersion}+; not 0.8.9)"
+} else {
+    println "SBW jar: using libs/superbwarfare.jar as-is " +
+            "(no superbwarfare-${sbwRequiredVersion}-*-all.jar in ${sbwSourceDir})"
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    // Superb Warfare — main requires 0.8.9.1+ (see block above + mods.toml).
+    // Not back-compatible with 0.8.9; that line lives on branch hotfix/0.8.9.
     implementation fg.deobf("blank:superbwarfare:1.0")
     implementation fg.deobf("blank:curios:1.0")
     implementation fg.deobf("blank:geckolib:1.0")

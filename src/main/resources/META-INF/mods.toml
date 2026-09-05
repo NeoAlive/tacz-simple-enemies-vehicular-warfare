@@ -52,6 +52,7 @@ config="tacz_sewv.minecolonies.mixins.json"
     ordering="NONE"
     side="BOTH"
 
+# SBW 0.8.9.1+ only on main — not back-compatible with 0.8.9 (that line: branch hotfix/0.8.9).
 [[dependencies.tacz_sewv]]
     modId="superbwarfare"
     mandatory=true

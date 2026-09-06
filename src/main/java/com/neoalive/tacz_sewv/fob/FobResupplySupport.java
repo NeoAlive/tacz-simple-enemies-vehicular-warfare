@@ -136,6 +136,67 @@ public final class FobResupplySupport {
         return box.inflate(0.5).contains(entity.getX(), entity.getY(), entity.getZ());
     }
 
+    /**
+     * True when {@code source} holds at least one stack matching the PMC's TACZ guns
+     * (same match rules as stockpile / {@link #refillFromHandler}).
+     */
+    public static boolean handlerHasEligible(PmcUnitEntity pmc, IItemHandler source) {
+        if (source == null) return false;
+        List<AmmoKind> eligible = resolveEligibleTaczAmmo(pmc);
+        if (eligible.isEmpty()) return false;
+        for (int slot = 0; slot < source.getSlots(); slot++) {
+            if (match(eligible, source.getStackInSlot(slot)) != null) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Immediate stockpile transfer for a stamped FOB unit already in the stockpile pad
+     * (Quick Refill). Same path as the auto resupply goal.
+     */
+    public static boolean forceStockpileRefill(PmcUnitEntity pmc) {
+        return tickResupply(pmc, null);
+    }
+
+    /**
+     * Pull TACZ ammo matching the unit's guns from any {@link IItemHandler} (chest, barrel, …)
+     * into PMC storage slots 6+. Same match rules as the FOB stockpile.
+     */
+    public static boolean refillFromHandler(PmcUnitEntity pmc, IItemHandler source) {
+        if (source == null) return false;
+        IItemHandler inv = pmc.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        if (inv == null) return false;
+        List<AmmoKind> eligible = resolveEligibleTaczAmmo(pmc);
+        if (eligible.isEmpty()) return false;
+        IItemHandler dest = new PmcStorageView(inv);
+
+        boolean moved = false;
+        for (int slot = 0; slot < source.getSlots(); slot++) {
+            ItemStack stack = source.getStackInSlot(slot);
+            AmmoKind kind = match(eligible, stack);
+            if (kind == null) continue;
+            if (!canAcceptMore(dest, kind)) continue;
+
+            ItemStack extracted = source.extractItem(slot, stack.getMaxStackSize(), false);
+            if (extracted.isEmpty()) continue;
+            ItemStack remainder = ItemHandlerHelper.insertItemStacked(dest, extracted, false);
+            if (!remainder.isEmpty()) {
+                ItemStack leftover = ItemHandlerHelper.insertItemStacked(source, remainder, false);
+                if (!leftover.isEmpty() && pmc.level() instanceof ServerLevel level) {
+                    Containers.dropItemStack(level, pmc.getX(), pmc.getY(), pmc.getZ(), leftover);
+                }
+            }
+            moved = true;
+            if (!needsResupply(new ResupplyTarget(eligible, dest))) break;
+        }
+        return moved;
+    }
+
+    public static boolean isUnderFobCommand(PmcUnitEntity pmc) {
+        if (!(pmc.level() instanceof ServerLevel level)) return false;
+        return activeFob(pmc, level) != null;
+    }
+
     @Nullable
     private static FobInstance activeFob(AbstractUnit unit, ServerLevel level) {
         if (!FobSupport.isStamped(unit)) return null;

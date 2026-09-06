@@ -298,15 +298,38 @@ public final class HudNotify {
     }
 
     private static boolean isInfantryTaczDry(PmcUnitEntity pmc) {
-        return isTaczStackDry(pmc, pmc.getMainHandItem())
-                || isTaczStackDry(pmc, pmc.getOffhandItem());
+        // Main hand only — SEM fires from there; OR-ing offhand treated a spare empty gun as dry
+        // even when the rifle still had rounds.
+        return isTaczStackDry(pmc, pmc.getMainHandItem());
     }
 
     private static boolean isTaczStackDry(PmcUnitEntity pmc, net.minecraft.world.item.ItemStack stack) {
         com.tacz.guns.api.item.IGun gun = com.tacz.guns.api.item.IGun.getIGunOrNull(stack);
         if (gun == null || gun.useDummyAmmo(stack)) return false;
         if (gun.getCurrentAmmoCount(stack) > 0) return false;
-        return !gun.hasInventoryAmmo(pmc, stack, false);
+        // Mag empty: only "out of ammo" when reserves are gone too.
+        // Do NOT call hasInventoryAmmo(..., false) — for magazine guns that API returns false
+        // whenever !useInventoryAmmo, which made every empty mag a rising-edge spam after refill.
+        return !hasReserveTaczAmmo(pmc, stack);
+    }
+
+    private static boolean hasReserveTaczAmmo(PmcUnitEntity pmc, net.minecraft.world.item.ItemStack gun) {
+        return pmc.getCapability(net.minecraftforge.common.capabilities.ForgeCapabilities.ITEM_HANDLER)
+                .map(cap -> {
+                    for (int i = 0; i < cap.getSlots(); i++) {
+                        net.minecraft.world.item.ItemStack ammo = cap.getStackInSlot(i);
+                        if (ammo.isEmpty()) continue;
+                        if (ammo.getItem() instanceof com.tacz.guns.api.item.IAmmo iAmmo
+                                && iAmmo.isAmmoOfGun(gun, ammo)) {
+                            return true;
+                        }
+                        if (ammo.getItem() instanceof com.tacz.guns.api.item.IAmmoBox iBox
+                                && iBox.isAmmoBoxOfGun(gun, ammo)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }).orElse(false);
     }
 
     private static void send(ServerPlayer player, Component title, Component body) {

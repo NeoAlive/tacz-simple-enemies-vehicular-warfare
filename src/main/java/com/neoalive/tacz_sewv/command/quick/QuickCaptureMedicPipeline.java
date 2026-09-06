@@ -3,14 +3,13 @@ package com.neoalive.tacz_sewv.command.quick;
 import java.util.List;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.order.OrderFailure;
@@ -27,14 +26,14 @@ public final class QuickCaptureMedicPipeline implements QuickCommandPipeline {
                     ChatFormatting.RED);
             return;
         }
-        double radius = SewvConfig.PMC_CAPTURE_MEDIC_RADIUS.get();
+        if (!(issuer.level() instanceof ServerLevel level)) return;
+        double radius = SewvConfig.QUICK_LAND_RADIUS.get();
+        double captureRadius = SewvConfig.PMC_CAPTURE_MEDIC_RADIUS.get();
         int ordered = 0;
-        for (int unitId : context.unitIds()) {
-            Entity e = issuer.level().getEntity(unitId);
-            if (!(e instanceof PmcUnitEntity pmc)) continue;
-            if (!OrderAuth.check(issuer, pmc, "QuickCaptureMedic")) continue;
+        for (PmcUnitEntity pmc : QuickCommandUnits.owned(issuer, level, context.unitIds(), radius)) {
             if (OrderGuard.rejectIfDowned(issuer, pmc)) continue;
-            if (!hasMedicInRange(pmc, radius)) {
+            if (QuickCommandUnits.refuseFobOrRoute(issuer, pmc)) continue;
+            if (!hasMedicInRange(pmc, captureRadius)) {
                 OrderReport.fail(issuer, OrderFailure.NO_MEDIC_IN_RANGE, pmc);
                 continue;
             }

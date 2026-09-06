@@ -81,7 +81,6 @@ public final class QuickCommandRegistry {
                         new WedgeEntry.PipelineEntry("Route to FOB", "\u2302", ID_QUICK_ROUTE_FOB))),
                 new WedgeEntry.CategoryEntry("Air", "\u2708", List.of(
                         new WedgeEntry.PipelineEntry("Quick Evac", "\u21E7", ID_QUICK_EVAC))),
-                new WedgeEntry.CategoryEntry("Sea", "\u2693", List.of()),
                 new WedgeEntry.CategoryEntry("Formation", "\u25C8", List.of(
                         new WedgeEntry.PipelineEntry("SEM Wedge", "\u25B2", ID_FORM_SEM_WEDGE),
                         new WedgeEntry.PipelineEntry("SEM Column", "\u25B3", ID_FORM_SEM_COLUMN),

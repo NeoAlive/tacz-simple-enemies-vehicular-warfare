@@ -20,6 +20,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
@@ -30,7 +31,7 @@ import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
  * <p>Stale-safe: never holds live entity references across ticks — every poll re-resolves by
  * network id. Each leg takes off when its reserved units are aboard (or gone) or the timeout hits.
  *
- * <p>One active run per player (a new dispatch replaces the previous).
+ * <p>One active run per player (a new dispatch replaces the previous after aborting it).
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID)
 public final class QuickEvacTracker {
@@ -42,12 +43,60 @@ public final class QuickEvacTracker {
     private QuickEvacTracker() {}
 
     public static void start(UUID playerId, List<LegSpec> legs, long now) {
+        // Replace: drop prior land commands / board walks before latching the new run.
+        cancelPlayer(playerId, resolveLevel(playerId));
         long deadline = now + SewvConfig.QUICK_EVAC_BOARD_TIMEOUT_TICKS.get();
         List<Leg> live = new ArrayList<>(legs.size());
         for (LegSpec spec : legs) {
             live.add(new Leg(spec.heliId(), spec.pilotId(), List.copyOf(spec.reservedUnitIds())));
         }
         ACTIVE.put(playerId, new Run(playerId, live, deadline));
+    }
+
+    /**
+     * Abort an in-flight Quick Evac: clear land/takeoff on each leg's pilot and drop reserved
+     * board orders. Returns {@code true} if a run was active.
+     */
+    public static boolean cancelPlayer(UUID playerId, ServerLevel level) {
+        Run run = ACTIVE.remove(playerId);
+        if (run == null) return false;
+        if (level == null) return true;
+        for (Leg leg : run.legs) {
+            if (leg.done) continue;
+            Entity pilotEnt = level.getEntity(leg.pilotId);
+            Entity heliEnt = level.getEntity(leg.heliId);
+            if (pilotEnt instanceof PmcUnitEntity pilot
+                    && heliEnt instanceof VehicleEntity hull) {
+                FlightOrders.clearCommand(pilot, hull);
+            } else if (pilotEnt instanceof PmcUnitEntity pilot) {
+                FlightOrders.clearCommand(pilot, null);
+            }
+            for (int unitId : leg.reservedUnitIds) {
+                Entity e = level.getEntity(unitId);
+                if (!(e instanceof PmcUnitEntity pmc)) continue;
+                IVehicleBoarder boarder = (IVehicleBoarder) pmc;
+                if (boarder.tacz_sewv$getMountTargetId() == leg.heliId) {
+                    boarder.tacz_sewv$setBoarding(false);
+                    boarder.tacz_sewv$setMountTargetId(-1);
+                    if (pmc.getVehicle() == null) {
+                        pmc.getNavigation().stop();
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    public static boolean isActive(UUID playerId) {
+        return ACTIVE.containsKey(playerId);
+    }
+
+    private static ServerLevel resolveLevel(UUID playerId) {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return null;
+        ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+        if (player == null || !(player.level() instanceof ServerLevel level)) return null;
+        return level;
     }
 
     @SubscribeEvent
@@ -125,7 +174,7 @@ public final class QuickEvacTracker {
         Entity pilotEnt = level.getEntity(leg.pilotId);
         if (!(heliEnt instanceof VehicleEntity hull) || !hull.isAlive()) return null;
         if (!(pilotEnt instanceof PmcUnitEntity pilot) || !pilot.isAlive()) return null;
-        if (!pilot.isOwnedBy(player)) return null;
+        if (!com.neoalive.tacz_sewv.invasion.PmcOwnerSupport.isOwner(player, pilot)) return null;
         if (!(pilot instanceof IHelicopterPilot)) return null;
         if (pilot.getVehicle() != hull) return null;
         if (hull.getFirstPassenger() != pilot) return null;

@@ -7,6 +7,7 @@ import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.scores.PlayerTeam;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -60,13 +61,13 @@ public final class PmcOwnerSupport {
 
     /**
      * True if {@code player} may command {@code pmc}: SEM UUID owner, or scoreboard teammate of
-     * a team-owned invasion PMC.
+     * a team-owned invasion PMC. Works on client and server (scoreboard team membership).
      */
-    public static boolean isOwner(ServerPlayer player, PmcUnitEntity pmc) {
+    public static boolean isOwner(Player player, PmcUnitEntity pmc) {
         if (pmc.isOwnedBy(player)) return true;
         String ownerTeam = ownerTeamOf(pmc);
         if (ownerTeam == null) return false;
-        PlayerTeam team = player.server.getScoreboard().getPlayersTeam(player.getScoreboardName());
+        PlayerTeam team = player.level().getScoreboard().getPlayersTeam(player.getScoreboardName());
         return team != null && ownerTeam.equals(team.getName());
     }
 

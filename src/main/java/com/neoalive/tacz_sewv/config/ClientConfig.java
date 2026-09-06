@@ -64,8 +64,9 @@ public final class ClientConfig {
                 .comment("Show a short message above the hotbar when an order succeeds.")
                 .define("showOrderFeedback", true);
         QUICK_EVAC_PULL_SELECTED_FROM_RIBBON = builder
-                .comment("Quick Evac unit pick: off (default) = all owned on-foot PMCs within",
-                        "quickEvacBoardRadius of the player. On = ribbon/SEM selection only.")
+                .comment("Quick Evac unit pick only: off (default) = all owned on-foot PMCs within",
+                        "quickEvacBoardRadius of the player. On = ribbon/SEM selection only.",
+                        "Does not affect Board / Follow / Formation / other pipelines.")
                 .define("quickEvacPullSelectedFromRibbon", false);
         builder.pop();
 

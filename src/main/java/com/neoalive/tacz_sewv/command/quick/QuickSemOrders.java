@@ -3,8 +3,8 @@ package com.neoalive.tacz_sewv.command.quick;
 import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -14,13 +14,12 @@ import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
-import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
-import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -34,19 +33,11 @@ public final class QuickSemOrders {
 
     /** @return how many units accepted the order */
     public static int apply(ServerPlayer issuer, List<Integer> unitIds, OrderType order) {
+        if (!(issuer.level() instanceof ServerLevel level)) return 0;
+        double radius = SewvConfig.QUICK_LAND_RADIUS.get();
         int ok = 0;
-        for (int id : unitIds) {
-            Entity e = issuer.level().getEntity(id);
-            if (!(e instanceof PmcUnitEntity pmc)) continue;
-            if (!OrderAuth.check(issuer, pmc, "QuickSemOrder")) continue;
-            if (FobSupport.blocksOrders(pmc)) {
-                OrderReport.fail(issuer, OrderFailure.FOB_COMMAND, pmc);
-                continue;
-            }
-            if (FobSupport.hasRoutePending(pmc)) {
-                OrderReport.fail(issuer, OrderFailure.ROUTE_ACTIVE, pmc);
-                continue;
-            }
+        for (PmcUnitEntity pmc : QuickCommandUnits.owned(issuer, level, unitIds, radius)) {
+            if (QuickCommandUnits.refuseFobOrRoute(issuer, pmc)) continue;
             if (pmc instanceof IPmcDowned d && d.sewv$isDowned()) {
                 OrderReport.fail(issuer, OrderFailure.UNIT_DOWNED, pmc);
                 continue;

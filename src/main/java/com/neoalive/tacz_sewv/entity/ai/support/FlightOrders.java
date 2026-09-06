@@ -92,6 +92,22 @@ public final class FlightOrders {
     }
 
     /**
+     * Drop a pending land/takeoff command and clear forced-land pads (Quick Cancel / evac abort).
+     * Does not change SEM order or dismount the pilot.
+     */
+    public static void clearCommand(PmcUnitEntity pilot, @Nullable VehicleEntity hull) {
+        IHelicopterPilot heli = (IHelicopterPilot) pilot;
+        heli.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
+        heli.sewv$setHeliLandPos(null);
+        if (hull == null) return;
+        if (HullFacts.isPlaneHull(hull)) {
+            DrivePlaneGoal.clearForcedLand(hull);
+        } else if (HullFacts.isHelicopterHull(hull)) {
+            DriveHelicopterGoal.clearForcedLand(hull);
+        }
+    }
+
+    /**
      * Same pad search as {@code PacketHelicopterCommand.emergencyPad} — kept here so quick-command
      * pipelines do not go through a second packet hop.
      */

@@ -671,6 +671,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.QUICK_EVAC_BOARD_RADIUS, SewvConfig.QUICK_EVAC_BOARD_RADIUS::set);
         b.intRange(ConfigScope.SERVER, "boarding", "quickEvacBoardTimeoutTicks", 40, 2400,
                 SewvConfig.QUICK_EVAC_BOARD_TIMEOUT_TICKS, SewvConfig.QUICK_EVAC_BOARD_TIMEOUT_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "quickRefillTimeoutTicks", 40, 2400,
+                SewvConfig.QUICK_REFILL_TIMEOUT_TICKS, SewvConfig.QUICK_REFILL_TIMEOUT_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "boarding", "quickLandRadius", 8.0, 256.0,
                 SewvConfig.QUICK_LAND_RADIUS, SewvConfig.QUICK_LAND_RADIUS::set);
     }

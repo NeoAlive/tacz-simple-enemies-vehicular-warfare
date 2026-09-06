@@ -282,6 +282,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue QUICK_EVAC_HELI_SEARCH_RADIUS;
     public static final ForgeConfigSpec.DoubleValue QUICK_EVAC_BOARD_RADIUS;
     public static final ForgeConfigSpec.IntValue QUICK_EVAC_BOARD_TIMEOUT_TICKS;
+    public static final ForgeConfigSpec.IntValue QUICK_REFILL_TIMEOUT_TICKS;
     public static final ForgeConfigSpec.DoubleValue QUICK_LAND_RADIUS;
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
@@ -1122,9 +1123,13 @@ public final class SewvConfig {
                         "Absolute game-time budget (ticks) for Quick Evac: each heli takes off when",
                         "its reserved seats are filled, or when this timeout elapses — whichever first.")
                 .defineInRange("quickEvacBoardTimeoutTicks", 350, 40, 2400);
+        QUICK_REFILL_TIMEOUT_TICKS = builder.comment(
+                        "Absolute game-time budget (ticks) for Quick Refill walks to a chest/stockpile",
+                        "before the MOVE is dropped back to FREE_FIRE.")
+                .defineInRange("quickRefillTimeoutTicks", 350, 40, 2400);
         QUICK_LAND_RADIUS = builder.comment(
-                        "How far (blocks) Quick Board / Entrench / Refill look for owned PMCs,",
-                        "friendly vehicles, trenches, and chests.")
+                        "How far (blocks) Quick Board / Entrench / Refill / General / Formation look",
+                        "for owned PMCs, friendly vehicles, trenches, and chests.")
                 .defineInRange("quickLandRadius", 64.0, 8.0, 256.0);
         builder.pop();
 

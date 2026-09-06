@@ -51,7 +51,8 @@ public final class QuickRefillTracker {
     private QuickRefillTracker() {}
 
     public static void start(UUID playerId, List<LegSpec> legs, long now) {
-        long deadline = now + SewvConfig.QUICK_EVAC_BOARD_TIMEOUT_TICKS.get();
+        cancelPlayer(playerId, resolveLevel(playerId));
+        long deadline = now + SewvConfig.QUICK_REFILL_TIMEOUT_TICKS.get();
         List<Leg> live = new ArrayList<>(legs.size());
         for (LegSpec spec : legs) {
             live.add(new Leg(spec.unitId(), spec.chestPos(), spec.fobStockpile()));
@@ -59,13 +60,27 @@ public final class QuickRefillTracker {
         ACTIVE.put(playerId, new Run(playerId, live, deadline));
     }
 
-    /** Abort an in-flight refill for this player (Quick Cancel) and drop MOVE walks. */
-    public static void cancelPlayer(UUID playerId, ServerLevel level) {
+    /**
+     * Abort an in-flight refill for this player (Quick Cancel) and drop MOVE walks.
+     * @return {@code true} if a run was active
+     */
+    public static boolean cancelPlayer(UUID playerId, ServerLevel level) {
         Run run = ACTIVE.remove(playerId);
-        if (run == null) return;
-        for (Leg leg : run.legs) {
-            if (!leg.done) dropRefillWalk(level, leg);
+        if (run == null) return false;
+        if (level != null) {
+            for (Leg leg : run.legs) {
+                if (!leg.done) dropRefillWalk(level, leg);
+            }
         }
+        return true;
+    }
+
+    private static ServerLevel resolveLevel(UUID playerId) {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return null;
+        ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+        if (player == null || !(player.level() instanceof ServerLevel level)) return null;
+        return level;
     }
 
     @SubscribeEvent
@@ -103,7 +118,8 @@ public final class QuickRefillTracker {
             }
 
             Entity e = level.getEntity(leg.unitId);
-            if (!(e instanceof PmcUnitEntity pmc) || !pmc.isAlive() || !pmc.isOwnedBy(player)) {
+            if (!(e instanceof PmcUnitEntity pmc) || !pmc.isAlive()
+                    || !com.neoalive.tacz_sewv.invasion.PmcOwnerSupport.isOwner(player, pmc)) {
                 leg.done = true;
                 continue;
             }

@@ -30,7 +30,7 @@ import com.neoalive.tacz_sewv.item.RadioSettings;
  */
 public class RadioScreen extends Screen {
 
-    private static final int PANEL_W = 240;
+    private static final int PANEL_W_PREF = 240;
     private static final int PAD = 10;
     private static final int CELL_H = 22;
     private static final int CELL_GAP = 4;
@@ -65,6 +65,7 @@ public class RadioScreen extends Screen {
     private RadioSettings.State settings;
     private int panelLeft;
     private int panelTop;
+    private int panelW;
     private int panelH;
     private final List<Btn> buttons = new ArrayList<>();
     private final List<Section> sections = new ArrayList<>();
@@ -94,7 +95,8 @@ public class RadioScreen extends Screen {
         this.buttons.clear();
         this.sections.clear();
 
-        int innerW = PANEL_W - PAD * 2;
+        this.panelW = com.neoalive.tacz_sewv.client.gui.GuiFit.panelW(PANEL_W_PREF, this.width);
+        int innerW = this.panelW - PAD * 2;
         int halfW = (innerW - CELL_GAP) / 2;
         int x0 = PAD;
         int y = PAD + 14; // below title
@@ -161,7 +163,7 @@ public class RadioScreen extends Screen {
         this.sections.add(new Section(STRIPE_ACTION, secTop, y, "gui.tacz_sewv.radio.section.action"));
 
         this.panelH = y + PAD;
-        this.panelLeft = (this.width - PANEL_W) / 2;
+        this.panelLeft = (this.width - this.panelW) / 2;
         this.panelTop = (this.height - this.panelH) / 2;
     }
 
@@ -184,11 +186,11 @@ public class RadioScreen extends Screen {
         int pl = this.panelLeft;
         int pt = this.panelTop;
 
-        g.fill(pl, pt, pl + PANEL_W, pt + this.panelH, COL_BASE);
-        g.fill(pl, pt, pl + PANEL_W, pt + 1, COL_BORDER);
-        g.fill(pl, pt + this.panelH - 1, pl + PANEL_W, pt + this.panelH, COL_BORDER);
+        g.fill(pl, pt, pl + this.panelW, pt + this.panelH, COL_BASE);
+        g.fill(pl, pt, pl + this.panelW, pt + 1, COL_BORDER);
+        g.fill(pl, pt + this.panelH - 1, pl + this.panelW, pt + this.panelH, COL_BORDER);
         g.fill(pl, pt, pl + 1, pt + this.panelH, COL_BORDER);
-        g.fill(pl + PANEL_W - 1, pt, pl + PANEL_W, pt + this.panelH, COL_BORDER);
+        g.fill(pl + this.panelW - 1, pt, pl + this.panelW, pt + this.panelH, COL_BORDER);
 
         g.drawString(this.font, this.title, pl + PAD, pt + PAD, COL_ACCENT, false);
 
@@ -196,7 +198,7 @@ public class RadioScreen extends Screen {
             int sy0 = pt + section.y0();
             int sy1 = pt + section.y1();
             g.fill(pl + PAD, sy0, pl + PAD + STRIPE_W, sy1, section.stripe());
-            g.fill(pl + PAD + STRIPE_W, sy1 - 1, pl + PANEL_W - PAD, sy1, COL_BORDER);
+            g.fill(pl + PAD + STRIPE_W, sy1 - 1, pl + this.panelW - PAD, sy1, COL_BORDER);
             g.drawString(this.font, I18n.get(section.headerKey()),
                     pl + PAD + STRIPE_W + 4, sy0 + 2, COL_MUTED, false);
         }
@@ -234,7 +236,7 @@ public class RadioScreen extends Screen {
         if (button != 0) return true; // swallow — world stays non-interactive while open
 
         // Clicks outside the panel are swallowed (same doctrine as TDT).
-        if (mouseX < this.panelLeft || mouseX > this.panelLeft + PANEL_W
+        if (mouseX < this.panelLeft || mouseX > this.panelLeft + this.panelW
                 || mouseY < this.panelTop || mouseY > this.panelTop + this.panelH) {
             return true;
         }

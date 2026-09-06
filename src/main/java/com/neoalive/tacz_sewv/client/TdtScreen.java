@@ -255,7 +255,8 @@ public class TdtScreen extends Screen {
         TdtSelection.scan();
         buildCatalog();
 
-        this.panelW = Mth.clamp((int) (this.width * PANEL_WIDTH_FRAC), PANEL_W_MIN, PANEL_W_MAX);
+        this.panelW = com.neoalive.tacz_sewv.client.gui.GuiFit.panelW(
+                this.width, PANEL_WIDTH_FRAC, PANEL_W_MIN, PANEL_W_MAX);
         this.panelLeft = 0;
         this.panelTop = 0;
         this.panelBottom = this.height;

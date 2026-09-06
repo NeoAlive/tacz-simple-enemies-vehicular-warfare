@@ -37,7 +37,7 @@ import com.neoalive.tacz_sewv.network.PacketAirportAction;
  */
 public class AirportScreen extends Screen {
 
-    private static final int PANEL_W = 400;
+    private static final int PANEL_W_PREF = 400;
     private static final int PAD = 10;
     private static final int ROW_H = 16;
     private static final int ROW_GAP = 4;
@@ -101,6 +101,7 @@ public class AirportScreen extends Screen {
     private int panelLeft;
     private int panelTop;
     private int panelBottom;
+    private int panelW;
     private int innerW;
     private int fieldsY;
     private int slidersY;
@@ -141,10 +142,11 @@ public class AirportScreen extends Screen {
     protected void init() {
         int panelH = PAD + 16 + (ROW_H * 2 + ROW_GAP) + 8 + (ROW_H * 3 + ROW_GAP)
                 + 6 + DIAGRAM_H + 14 + 11 + BTN_H + 18 + PAD;
-        this.panelLeft = (this.width - PANEL_W) / 2;
+        this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
+        this.panelLeft = (this.width - this.panelW) / 2;
         this.panelTop = Math.max(0, (this.height - panelH) / 2);
         this.panelBottom = this.panelTop + panelH;
-        this.innerW = PANEL_W - PAD * 2;
+        this.innerW = this.panelW - PAD * 2;
 
         int left = this.panelLeft + PAD;
         this.fieldsY = this.panelTop + PAD + 16;
@@ -399,8 +401,8 @@ public class AirportScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        g.fill(this.panelLeft, this.panelTop, this.panelLeft + PANEL_W, this.panelBottom, COL_BASE);
-        frame(g, this.panelLeft, this.panelTop, this.panelLeft + PANEL_W, this.panelBottom);
+        g.fill(this.panelLeft, this.panelTop, this.panelLeft + this.panelW, this.panelBottom, COL_BASE);
+        frame(g, this.panelLeft, this.panelTop, this.panelLeft + this.panelW, this.panelBottom);
 
         int left = this.panelLeft + PAD;
         g.drawString(this.font, this.title, left, this.panelTop + PAD - 2, COL_TEXT, false);

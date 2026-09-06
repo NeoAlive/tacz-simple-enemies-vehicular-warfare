@@ -16,7 +16,7 @@ import com.neoalive.tacz_sewv.network.PacketSaveCapturePoint;
 /** Op config UI for a capture_point. Snapshot edited locally; Save pushes {@link PacketSaveCapturePoint}. */
 public class CapturePointScreen extends Screen {
 
-    private static final int PANEL_W = 280;
+    private static final int PANEL_W_PREF = 280;
 
     private final BlockPos pos;
     private int pointId;
@@ -28,6 +28,10 @@ public class CapturePointScreen extends Screen {
 
     private EditBox pointIdBox;
     private EditBox timeBox;
+
+    private int panelW() {
+        return GuiFit.panelW(PANEL_W_PREF, this.width);
+    }
     private EditBox radiusBox;
     private Button ownedTeamButton;
     private Button invisibleButton;
@@ -46,7 +50,7 @@ public class CapturePointScreen extends Screen {
 
     @Override
     protected void init() {
-        int left = (this.width - PANEL_W) / 2;
+        int left = (this.width - panelW()) / 2;
         int y = 40;
 
         this.pointIdBox = field(left, y, "Point ID", Integer.toString(this.pointId));
@@ -59,23 +63,23 @@ public class CapturePointScreen extends Screen {
         this.ownedTeamButton = addRenderableWidget(Button.builder(ownedLabel(), b -> {
             this.ownedTeam = cycleTeam(this.ownedTeam);
             this.ownedTeamButton.setMessage(ownedLabel());
-        }).bounds(left, y, PANEL_W, 20).build());
+        }).bounds(left, y, panelW(), 20).build());
         y += 24;
 
         this.invisibleButton = addRenderableWidget(Button.builder(invisibleLabel(), b -> {
             this.invisible = !this.invisible;
             this.invisibleButton.setMessage(invisibleLabel());
-        }).bounds(left, y, PANEL_W, 20).build());
+        }).bounds(left, y, panelW(), 20).build());
         y += 28;
 
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.invasion.save"), b -> save())
-                .bounds(left, y, PANEL_W / 2 - 4, 20).build());
+                .bounds(left, y, panelW() / 2 - 4, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
-                .bounds(left + PANEL_W / 2 + 4, y, PANEL_W / 2 - 4, 20).build());
+                .bounds(left + panelW() / 2 + 4, y, panelW() / 2 - 4, 20).build());
     }
 
     private EditBox field(int left, int y, String label, String value) {
-        EditBox box = new EditBox(this.font, left + 90, y, PANEL_W - 90, 20, Component.literal(label));
+        EditBox box = new EditBox(this.font, left + 90, y, panelW() - 90, 20, Component.literal(label));
         box.setValue(value);
         box.setMaxLength(32);
         addRenderableWidget(box);
@@ -120,7 +124,7 @@ public class CapturePointScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
-        int left = (this.width - PANEL_W) / 2;
+        int left = (this.width - panelW()) / 2;
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 18, 0xFFFFFF);
         int y = 46;
         graphics.drawString(this.font, "Point ID", left, y, 0xA0A0A0, false);

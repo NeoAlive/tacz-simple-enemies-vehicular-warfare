@@ -23,7 +23,7 @@ import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
  */
 public class MiscEditorScreen extends Screen {
 
-    private static final int PANEL_W = 360;
+    private static final int PANEL_W_PREF = 360;
     private static final int LIST_ROWS = 10;
 
     private enum Tab {
@@ -43,6 +43,10 @@ public class MiscEditorScreen extends Screen {
     private int selected = -1;
     private EditBox filterBox;
     private List<String> filteredCatalog = List.of();
+
+    private int panelW() {
+        return GuiFit.panelW(PANEL_W_PREF, this.width);
+    }
 
     public MiscEditorScreen(Map<CueKind, List<String>> cues,
                             Map<CueKind, List<String>> cueDefaults,
@@ -91,7 +95,7 @@ public class MiscEditorScreen extends Screen {
 
     @Override
     protected void init() {
-        int left = (this.width - PANEL_W) / 2;
+        int left = (this.width - panelW()) / 2;
         int top = 28;
         int x = left;
         int y = top;
@@ -118,7 +122,7 @@ public class MiscEditorScreen extends Screen {
         int listTop = y + 24;
         int listBottom = listTop + LIST_ROWS * 12;
 
-        this.filterBox = new EditBox(this.font, left, listBottom + 8, PANEL_W - 90, 20,
+        this.filterBox = new EditBox(this.font, left, listBottom + 8, panelW() - 90, 20,
                 Component.translatable("gui.tacz_sewv.pool.filter"));
         this.filterBox.setMaxLength(128);
         this.filterBox.setResponder(s -> refreshFilter());
@@ -126,7 +130,7 @@ public class MiscEditorScreen extends Screen {
         refreshFilter();
 
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.add"), b -> addFromFilter())
-                .bounds(left + PANEL_W - 84, listBottom + 8, 84, 20).build());
+                .bounds(left + panelW() - 84, listBottom + 8, 84, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.remove"), b -> removeSelected())
                 .bounds(left, listBottom + 32, 100, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.reset"), b -> resetCurrent())
@@ -134,14 +138,14 @@ public class MiscEditorScreen extends Screen {
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.save"), b -> {
             NetworkHandler.CHANNEL.sendToServer(new PacketUpdateVehicleClasses(this.cues, this.armor));
             onClose();
-        }).bounds(left + PANEL_W - 100, listBottom + 32, 100, 20).build());
+        }).bounds(left + panelW() - 100, listBottom + 32, 100, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("▲"), b -> {
             if (this.scroll > 0) this.scroll--;
-        }).bounds(left + PANEL_W - 20, listTop, 20, 20).build());
+        }).bounds(left + panelW() - 20, listTop, 20, 20).build());
         addRenderableWidget(Button.builder(Component.literal("▼"), b -> {
             if (this.scroll + LIST_ROWS < currentList().size()) this.scroll++;
-        }).bounds(left + PANEL_W - 20, listBottom - 20, 20, 20).build());
+        }).bounds(left + panelW() - 20, listBottom - 20, 20, 20).build());
     }
 
     private void refreshFilter() {
@@ -216,7 +220,7 @@ public class MiscEditorScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
         super.render(g, mouseX, mouseY, partialTick);
-        int left = (this.width - PANEL_W) / 2;
+        int left = (this.width - panelW()) / 2;
         int listTop = 28 + 40 + 24;
         g.drawString(this.font, this.title, left, 12, 0xFFFFFF, false);
 
@@ -237,9 +241,9 @@ public class MiscEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        int left = (this.width - PANEL_W) / 2;
+        int left = (this.width - panelW()) / 2;
         int listTop = 28 + 40 + 24;
-        if (mouseX >= left && mouseX < left + PANEL_W - 24
+        if (mouseX >= left && mouseX < left + panelW() - 24
                 && mouseY >= listTop && mouseY < listTop + LIST_ROWS * 12) {
             int row = (int) ((mouseY - listTop) / 12);
             int idx = this.scroll + row;

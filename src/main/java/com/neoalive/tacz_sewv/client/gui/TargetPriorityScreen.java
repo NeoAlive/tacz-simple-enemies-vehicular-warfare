@@ -54,13 +54,26 @@ public class TargetPriorityScreen extends Screen {
     }
 
     private int panelW() {
-        return LABEL_W + COLS.length * COL_W;
+        return GuiFit.panelW(LABEL_W + COLS.length * COL_W, this.width);
+    }
+
+    private int labelW() {
+        int ideal = LABEL_W + COLS.length * COL_W;
+        int pw = panelW();
+        if (pw >= ideal) return LABEL_W;
+        return Math.max(48, pw * LABEL_W / ideal);
+    }
+
+    private int colW() {
+        return Math.max(36, (panelW() - labelW()) / COLS.length);
     }
 
     @Override
     protected void init() {
         this.toggles.clear();
         int left = (this.width - panelW()) / 2;
+        int lw = labelW();
+        int cw = colW();
         int top = 44;
         int rows = Math.min(VISIBLE, Math.max(this.catalog.size(), 1));
         for (int i = 0; i < rows; i++) {
@@ -68,7 +81,7 @@ public class TargetPriorityScreen extends Screen {
             for (int c = 0; c < COLS.length; c++) {
                 final int col = c;
                 Button b = addRenderableWidget(Button.builder(Component.empty(), btn -> toggle(row, col))
-                        .bounds(left + LABEL_W + col * COL_W, top + i * ROW_H, COL_W - 4, 20)
+                        .bounds(left + lw + col * cw, top + i * ROW_H, cw - 4, 20)
                         .build());
                 this.toggles.add(b);
             }
@@ -79,14 +92,15 @@ public class TargetPriorityScreen extends Screen {
         addRenderableWidget(Button.builder(
                 Component.translatable("gui.tacz_sewv.target_priority.reset"),
                 b -> resetDefaults())
-                .bounds(left, bottom, 120, 20).build());
+                .bounds(left, bottom, Math.min(120, panelW() / 2 - 4), 20).build());
         addRenderableWidget(Button.builder(
                 Component.translatable("gui.tacz_sewv.pool.save"),
                 b -> {
                     NetworkHandler.CHANNEL.sendToServer(new PacketUpdateTargetPriority(this.excluded));
                     onClose();
                 })
-                .bounds(left + panelW() - 100, bottom, 100, 20).build());
+                .bounds(left + panelW() - Math.min(100, panelW() / 2 - 4), bottom,
+                        Math.min(100, panelW() / 2 - 4), 20).build());
 
         if (this.catalog.size() > VISIBLE) {
             addRenderableWidget(Button.builder(Component.literal("▲"), b -> {
@@ -150,11 +164,13 @@ public class TargetPriorityScreen extends Screen {
         renderBackground(g);
         super.render(g, mouseX, mouseY, partialTick);
         int left = (this.width - panelW()) / 2;
+        int lw = labelW();
+        int cw = colW();
         g.drawString(this.font, this.title, left, 12, 0xFFFFFF, false);
         int headerY = 30;
         for (int c = 0; c < COLS.length; c++) {
             String label = COLS[c].name();
-            int x = left + LABEL_W + c * COL_W + 8;
+            int x = left + lw + c * cw + 8;
             g.drawString(this.font, label, x, headerY, 0xFFFFA0, false);
         }
         int top = 44;
@@ -163,8 +179,8 @@ public class TargetPriorityScreen extends Screen {
             String cat = categoryAt(i);
             if (cat == null) continue;
             String shown = cat.toUpperCase(Locale.ROOT);
-            if (this.font.width(shown) > LABEL_W - 6) {
-                shown = this.font.plainSubstrByWidth(shown, LABEL_W - 12) + "…";
+            if (this.font.width(shown) > lw - 6) {
+                shown = this.font.plainSubstrByWidth(shown, lw - 12) + "…";
             }
             g.drawString(this.font, shown, left, top + i * ROW_H + 6, 0xE0E0E0, false);
         }

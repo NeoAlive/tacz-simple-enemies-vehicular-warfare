@@ -38,8 +38,9 @@ public final class InvasionHudOverlay {
         int n = snap.slots().size();
         if (n < 2) return;
 
-        float xStart = (screenW - WIDGET_W) / 2f;
-        float step = (float) WIDGET_W / (n - 1);
+        int widgetW = Math.min(WIDGET_W, Math.max(0, screenW - 16));
+        float xStart = (screenW - widgetW) / 2f;
+        float step = (float) widgetW / (n - 1);
 
         float[] target = InvasionHudClient.targetX();
         float[] current = InvasionHudClient.currentX();
@@ -55,7 +56,7 @@ public final class InvasionHudOverlay {
             boolean anyNaN = false;
             for (int i = 0; i < n; i++) {
                 if (Float.isNaN(current[i])) {
-                    current[i] = xStart + WIDGET_W / 2f;
+                    current[i] = xStart + widgetW / 2f;
                     anyNaN = true;
                 }
                 current[i] += (target[i] - current[i]) * alpha;

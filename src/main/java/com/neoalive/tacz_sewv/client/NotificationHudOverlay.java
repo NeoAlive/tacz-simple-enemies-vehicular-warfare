@@ -10,6 +10,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.client.gui.GuiFit;
 
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class NotificationHudOverlay {
@@ -30,27 +31,33 @@ public final class NotificationHudOverlay {
         GuiGraphics g = event.getGuiGraphics();
         Font font = mc.font;
         int screenW = mc.getWindow().getGuiScaledWidth();
-        int x = (screenW - NotificationHud.TEX_W) / 2;
-        int y = NotificationHud.drawY();
+        float scale = GuiFit.fitScale(NotificationHud.TEX_W, screenW);
+        int drawW = Math.round(NotificationHud.TEX_W * scale);
+        int x = (screenW - drawW) / 2;
+        int y = Math.round(NotificationHud.drawY() * scale);
 
-        g.blit(NotificationHud.texture(), x, y, 0, 0,
+        var pose = g.pose();
+        pose.pushPose();
+        pose.translate(x, y, 0);
+        pose.scale(scale, scale, 1f);
+
+        g.blit(NotificationHud.texture(), 0, 0, 0, 0,
                 NotificationHud.TEX_W, NotificationHud.TEX_H,
                 NotificationHud.TEX_W, NotificationHud.TEX_H);
 
         float t = NotificationHud.barT();
         int barW = Math.max(NotificationHud.BAR_W_EMPTY,
                 Math.round(Mth.lerp(t, NotificationHud.BAR_W_FULL, NotificationHud.BAR_W_EMPTY)));
-        g.fill(x + NotificationHud.BAR_X, y + NotificationHud.BAR_Y,
-                x + NotificationHud.BAR_X + barW, y + NotificationHud.BAR_Y + NotificationHud.BAR_H,
+        g.fill(NotificationHud.BAR_X, NotificationHud.BAR_Y,
+                NotificationHud.BAR_X + barW, NotificationHud.BAR_Y + NotificationHud.BAR_H,
                 NotificationHud.BAR_COLOR);
 
-        int tx = x + NotificationHud.TEXT_X;
-        int ty = y + NotificationHud.TEXT_Y;
+        int tx = NotificationHud.TEXT_X;
+        int ty = NotificationHud.TEXT_Y;
         // Title stays single-line (scaled); body wraps to new lines instead of being trimmed.
         int titleBudget = Math.max(1, (int) (NotificationHud.TEXT_MAX_W / NotificationHud.TITLE_SCALE));
         String title = font.plainSubstrByWidth(item.title().getString(), titleBudget);
 
-        var pose = g.pose();
         pose.pushPose();
         pose.translate(tx, ty, 0);
         pose.scale(NotificationHud.TITLE_SCALE, NotificationHud.TITLE_SCALE, 1f);
@@ -62,5 +69,6 @@ public final class NotificationHudOverlay {
             g.drawString(font, line, tx, bodyY, NotificationHud.BODY_COLOR, false);
             bodyY += font.lineHeight;
         }
+        pose.popPose();
     }
 }

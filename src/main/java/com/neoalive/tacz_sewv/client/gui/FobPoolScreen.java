@@ -21,11 +21,11 @@ import com.neoalive.tacz_sewv.network.PacketFobData;
  */
 abstract class FobPoolScreen extends Screen {
 
-    private static final int PANEL_W = 400;
+    private static final int PANEL_W_PREF = 400;
     private static final int PAD = 10;
     private static final int ROW_H = 16;
     private static final int ROW_GAP = 4;
-    private static final int LIST_ROWS = 12;
+    private static final int LIST_ROWS_PREF = 12;
     private static final int LIST_ROW_H = 14;
     private static final int BTN_H = 20;
     private static final int SCROLL_W = 18;
@@ -51,6 +51,8 @@ abstract class FobPoolScreen extends Screen {
     private int panelLeft;
     private int panelTop;
     private int panelBottom;
+    private int panelW;
+    private int listRows;
     private int innerW;
     private int statusY;
     private int listTop;
@@ -112,15 +114,20 @@ abstract class FobPoolScreen extends Screen {
     private void computeLayout() {
         int footerRows = extraFooterRows();
         int stripH = statusStripH();
-        int panelH = PAD + 14 + stripH + ROW_GAP + 14 + 8 + LIST_ROWS * LIST_ROW_H + 8
+        // Chrome outside the list: title, status, captions, action/footer/close rows, padding.
+        int reserved = PAD + 14 + stripH + ROW_GAP + 14 + 8 + 8
+                + BTN_H + footerRows * (BTN_H + ROW_GAP) + PAD + BTN_H + PAD + 24;
+        this.listRows = GuiFit.fitRows(LIST_ROWS_PREF, LIST_ROW_H, this.height, reserved);
+        this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
+        int panelH = PAD + 14 + stripH + ROW_GAP + 14 + 8 + this.listRows * LIST_ROW_H + 8
                 + BTN_H + footerRows * (BTN_H + ROW_GAP) + PAD + BTN_H + PAD;
-        this.panelLeft = (this.width - PANEL_W) / 2;
+        this.panelLeft = (this.width - this.panelW) / 2;
         this.panelTop = Math.max(8, (this.height - panelH) / 2);
         this.panelBottom = this.panelTop + panelH;
-        this.innerW = PANEL_W - PAD * 2;
+        this.innerW = this.panelW - PAD * 2;
         this.statusY = this.panelTop + PAD + 14;
         this.listTop = this.statusY + stripH + ROW_GAP + 14 + 8;
-        this.listBottom = this.listTop + LIST_ROWS * LIST_ROW_H;
+        this.listBottom = this.listTop + this.listRows * LIST_ROW_H;
         this.actionRowY = this.listBottom + 8;
         this.footerY = this.actionRowY + BTN_H + ROW_GAP;
         this.closeY = this.panelBottom - PAD - BTN_H;
@@ -181,7 +188,7 @@ abstract class FobPoolScreen extends Screen {
         }
         if (mouseX >= left + listW && mouseX < left + this.innerW
                 && mouseY >= this.listBottom - BTN_H && mouseY < this.listBottom) {
-            if (this.scroll + LIST_ROWS < this.rows.size()) {
+            if (this.scroll + this.listRows < this.rows.size()) {
                 this.scroll++;
                 click();
             }
@@ -208,7 +215,7 @@ abstract class FobPoolScreen extends Screen {
         }
 
         int closeW = 100;
-        int closeX = this.panelLeft + (PANEL_W - closeW) / 2;
+        int closeX = this.panelLeft + (this.panelW - closeW) / 2;
         if (mouseX >= closeX && mouseX < closeX + closeW
                 && mouseY >= this.closeY && mouseY < this.closeY + BTN_H) {
             click();
@@ -241,7 +248,7 @@ abstract class FobPoolScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         if (delta > 0 && this.scroll > 0) this.scroll--;
-        else if (delta < 0 && this.scroll + LIST_ROWS < this.rows.size()) this.scroll++;
+        else if (delta < 0 && this.scroll + this.listRows < this.rows.size()) this.scroll++;
         return true;
     }
 
@@ -251,8 +258,8 @@ abstract class FobPoolScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        g.fill(this.panelLeft, this.panelTop, this.panelLeft + PANEL_W, this.panelBottom, COL_BASE);
-        frame(g, this.panelLeft, this.panelTop, this.panelLeft + PANEL_W, this.panelBottom);
+        g.fill(this.panelLeft, this.panelTop, this.panelLeft + this.panelW, this.panelBottom, COL_BASE);
+        frame(g, this.panelLeft, this.panelTop, this.panelLeft + this.panelW, this.panelBottom);
 
         int left = this.panelLeft + PAD;
         g.drawString(this.font, this.title, left, this.panelTop + PAD, COL_TEXT, false);
@@ -260,7 +267,7 @@ abstract class FobPoolScreen extends Screen {
                 ? I18n.get("gui.tacz_sewv.fob.tag.command")
                 : I18n.get("gui.tacz_sewv.fob.tag.parking");
         g.drawString(this.font, kindTag,
-                this.panelLeft + PANEL_W - PAD - this.font.width(kindTag),
+                this.panelLeft + this.panelW - PAD - this.font.width(kindTag),
                 this.panelTop + PAD, COL_ACCENT, false);
 
         renderStatusStrip(g, left);
@@ -284,7 +291,7 @@ abstract class FobPoolScreen extends Screen {
         }
 
         int closeW = 100;
-        int closeX = this.panelLeft + (PANEL_W - closeW) / 2;
+        int closeX = this.panelLeft + (this.panelW - closeW) / 2;
         renderFlatButton(g, mouseX, mouseY,
                 closeX, this.closeY, closeW, BTN_H,
                 Component.translatable("gui.done").getString(), true, false);
@@ -334,10 +341,10 @@ abstract class FobPoolScreen extends Screen {
 
         if (this.rows.isEmpty()) {
             g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.fob.list_empty"),
-                    left + listW / 2, this.listTop + LIST_ROWS * LIST_ROW_H / 2 - 4, COL_MUTED);
+                    left + listW / 2, this.listTop + this.listRows * LIST_ROW_H / 2 - 4, COL_MUTED);
         }
 
-        for (int i = 0; i < LIST_ROWS; i++) {
+        for (int i = 0; i < this.listRows; i++) {
             int idx = i + this.scroll;
             if (idx >= this.rows.size()) break;
             FobRow row = this.rows.get(idx);
@@ -360,7 +367,7 @@ abstract class FobPoolScreen extends Screen {
         renderFlatButton(g, mouseX, mouseY, scrollX, this.listTop, SCROLL_W - 2, BTN_H, "▲",
                 this.scroll > 0, false);
         renderFlatButton(g, mouseX, mouseY, scrollX, this.listBottom - BTN_H, SCROLL_W - 2, BTN_H, "▼",
-                this.scroll + LIST_ROWS < this.rows.size(), false);
+                this.scroll + this.listRows < this.rows.size(), false);
     }
 
     private void renderButtonRow(GuiGraphics g, int left, int mouseX, int mouseY, int y, int cols,

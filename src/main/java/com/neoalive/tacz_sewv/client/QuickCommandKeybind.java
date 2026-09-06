@@ -72,7 +72,7 @@ public final class QuickCommandKeybind {
         if (!rising) return;
         if (mc.screen != null) return;
 
-        if (!holdingTerminal(mc.player)) {
+        if (!hasTerminal(mc.player)) {
             mc.player.displayClientMessage(
                     Component.translatable("message.tacz_sewv.tdt.hold_terminal")
                             .withStyle(ChatFormatting.GRAY),
@@ -99,11 +99,17 @@ public final class QuickCommandKeybind {
         return OPEN_WHEEL.isDown();
     }
 
-    /** TDT in main hand or offhand — not inventory carry (wheel is an in-hand command surface). */
+    /** TDT anywhere in the player's inventory (including offhand / hotbar), not only held. */
+    public static boolean hasTerminal(Player player) {
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.is(ModItems.TACTICAL_DATA_TERMINAL.get())) return true;
+        }
+        return false;
+    }
+
+    /** @deprecated use {@link #hasTerminal} */
     public static boolean holdingTerminal(Player player) {
-        ItemStack main = player.getMainHandItem();
-        ItemStack off = player.getOffhandItem();
-        return main.is(ModItems.TACTICAL_DATA_TERMINAL.get())
-                || off.is(ModItems.TACTICAL_DATA_TERMINAL.get());
+        return hasTerminal(player);
     }
 }

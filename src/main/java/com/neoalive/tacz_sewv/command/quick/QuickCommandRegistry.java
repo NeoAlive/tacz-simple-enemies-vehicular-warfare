@@ -18,6 +18,7 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_BOARD = "quick_board";
     public static final String ID_QUICK_ENTRENCH = "quick_entrench";
     public static final String ID_QUICK_REFILL = "quick_refill";
+    public static final String ID_QUICK_CANCEL = "quick_cancel";
 
     private static final Map<String, QuickCommandPipeline> BY_ID = new HashMap<>();
     private static List<WedgeEntry> ROOT = List.of();
@@ -31,6 +32,7 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_BOARD, new QuickBoardPipeline());
         register(ID_QUICK_ENTRENCH, new QuickEntrenchPipeline());
         register(ID_QUICK_REFILL, new QuickRefillPipeline());
+        register(ID_QUICK_CANCEL, new QuickCancelPipeline());
 
         ROOT = List.of(
                 new WedgeEntry.CategoryEntry("Land", "\u2694", List.of(
@@ -39,7 +41,8 @@ public final class QuickCommandRegistry {
                         new WedgeEntry.PipelineEntry("Quick Refill", "\u21BB", ID_QUICK_REFILL))),
                 new WedgeEntry.CategoryEntry("Air", "\u2708", List.of(
                         new WedgeEntry.PipelineEntry("Quick Evac", "\u21E7", ID_QUICK_EVAC))),
-                new WedgeEntry.CategoryEntry("Sea", "\u2693", List.of()));
+                new WedgeEntry.CategoryEntry("Sea", "\u2693", List.of()),
+                new WedgeEntry.PipelineEntry("Cancel", "\u2715", ID_QUICK_CANCEL));
     }
 
     private static void register(String id, QuickCommandPipeline pipeline) {

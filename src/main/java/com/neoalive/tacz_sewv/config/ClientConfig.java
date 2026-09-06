@@ -30,6 +30,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_COMMAND_DEBUG;
     public static final ForgeConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
+    public static final ForgeConfigSpec.BooleanValue NOTIFICATIONS_ENABLED;
     public static final ForgeConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
 
     // Formerly ModGameRules debug toggles — live via Config UI Client → Debug.
@@ -80,6 +81,9 @@ public final class ClientConfig {
                 .comment("On AI helicopters, append the current attack phase to the hover name",
                         "(approach, attack, break away, and so on).")
                 .define("heliShowRunPhase", true);
+        NOTIFICATIONS_ENABLED = builder
+                .comment("Show HUD notification banners (unit downed, vehicle destroyed, ammo out, and so on).")
+                .define("notificationsEnabled", true);
         NOTIFICATION_SCREEN_SECONDS = builder
                 .comment("How many seconds a HUD notification stays on screen before the next queued one",
                         "(or the banner slides away).")

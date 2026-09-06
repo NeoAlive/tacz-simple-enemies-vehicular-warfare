@@ -976,9 +976,15 @@ public final class VehicleDriver {
                 this.vehicle.blockPosition(), escape);
         this.currentPath = null;
         this.pathRecalcCooldown = 0;
-        clearRecovery();
-        driveDirectAt(escape);
+        // clearRecovery wipes submerged progress — snapshot first so noteSubmergedStuck can
+        // detect a hull that isn't making way toward the escape cell.
         noteSubmergedStuck();
+        int stranded = this.submergedStrandedTicks;
+        Vec3 last = this.lastSubmergedPos;
+        clearRecovery();
+        this.submergedStrandedTicks = stranded;
+        this.lastSubmergedPos = last;
+        driveDirectAt(escape);
         return true;
     }
 

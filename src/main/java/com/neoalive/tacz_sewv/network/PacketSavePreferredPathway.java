@@ -32,18 +32,28 @@ public class PacketSavePreferredPathway {
         this.delete = delete;
     }
 
+    private static final int MAX_PATH_ID_LEN = 64;
+
     public PacketSavePreferredPathway(FriendlyByteBuf buf) {
-        this.pathId = buf.readUtf();
+        this.pathId = buf.readUtf(MAX_PATH_ID_LEN);
         ResourceLocation dimId = buf.readResourceLocation();
         this.dimension = ResourceKey.create(Registries.DIMENSION, dimId);
-        this.nodes = buf.readList(FriendlyByteBuf::readBlockPos);
+        int n = buf.readVarInt();
+        if (n < 0 || n > PacketPatrolVehicle.MAX_ROUTE_NODES) {
+            throw new IllegalArgumentException("pathway node count out of range: " + n);
+        }
+        java.util.ArrayList<BlockPos> list = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) list.add(buf.readBlockPos());
+        this.nodes = list;
         this.delete = buf.readBoolean();
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(this.pathId);
+        buf.writeUtf(this.pathId, MAX_PATH_ID_LEN);
         buf.writeResourceLocation(this.dimension.location());
-        buf.writeCollection(this.nodes, FriendlyByteBuf::writeBlockPos);
+        List<BlockPos> route = this.nodes.size() > PacketPatrolVehicle.MAX_ROUTE_NODES
+                ? this.nodes.subList(0, PacketPatrolVehicle.MAX_ROUTE_NODES) : this.nodes;
+        buf.writeCollection(route, FriendlyByteBuf::writeBlockPos);
         buf.writeBoolean(this.delete);
     }
 

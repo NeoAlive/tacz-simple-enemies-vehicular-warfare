@@ -201,6 +201,9 @@ public class DriveVehicleGoal extends Goal {
         }
 
         if (TowRecoverySupport.isTowering(this.unit, this.vehicle)) {
+            // Tow early-return skips the per-tick decoy release below — release here or a smoke
+            // latch from before the tow order keeps volleying forever.
+            this.vehicle.setDecoyInputDown(false);
             towRecoveryTick();
             return;
         }

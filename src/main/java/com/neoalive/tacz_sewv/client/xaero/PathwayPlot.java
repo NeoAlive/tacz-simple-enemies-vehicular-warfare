@@ -121,10 +121,12 @@ public final class PathwayPlot {
         NODES.remove(drop);
         if (NODES.isEmpty()) {
             selectedIndex = -1;
-        } else if (selectedIndex >= NODES.size()) {
-            selectedIndex = NODES.size() - 1;
+        } else if (selectedIndex > drop) {
+            selectedIndex--;
         } else if (selectedIndex == drop) {
             selectedIndex = Math.min(drop, NODES.size() - 1);
+        } else if (selectedIndex >= NODES.size()) {
+            selectedIndex = NODES.size() - 1;
         }
         hoverIndex = -1;
     }

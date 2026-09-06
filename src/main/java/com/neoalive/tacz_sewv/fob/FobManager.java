@@ -210,6 +210,8 @@ public class FobManager extends SavedData {
         if (fob == null) return false;
         Entity e = findEntity(level, entityId);
         if (!(e instanceof PmcUnitEntity pmc)) return false;
+        UUID owner = pmc.getOwnerUUID();
+        if (owner == null || !owner.equals(fob.owner)) return false;
         fob.assignedLiving.add(entityId);
         FobSupport.stamp(pmc, commandPos);
         FobDebug.logEntity(pmc, "assigned to FOB at {}", commandPos);

@@ -158,7 +158,10 @@ public class RepairGoal extends Goal {
         CrewFacts.Faction painted = CrewFacts.factionOfCrew(this.unit);
         if (painted == CrewFacts.Faction.PMC && this.unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity pmc) {
             // Force identity refresh past the same-faction early-out in applyFromOwnership.
-            com.neoalive.tacz_sewv.skin.PmcVehicleLogoSupport.applyIfPmcCaptured(this.target, pmc.getOwnerUUID());
+            java.util.UUID owner = pmc.getOwnerUUID();
+            if (owner != null) {
+                com.neoalive.tacz_sewv.skin.PmcVehicleLogoSupport.applyIfPmcCaptured(this.target, owner);
+            }
         }
         showRepairEffects();
         this.cooldown = SewvConfig.ENGINEER_REPAIR_COOLDOWN.get();

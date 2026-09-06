@@ -273,6 +273,8 @@ public final class Facts {
     public double alliedInfantryNear;
     public boolean postureScoot;
     public boolean postureAmbush;
+    /** SEEK_COVER waypoint live (smoke+low-conf or debug). */
+    public boolean postureSeekCover;
 
     public final Memory memory = new Memory();
 
@@ -672,6 +674,7 @@ public final class Facts {
         this.alliedInfantryNear = 0.0;
         this.postureScoot = false;
         this.postureAmbush = false;
+        this.postureSeekCover = false;
         this.memory.clear();
     }
 

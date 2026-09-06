@@ -146,6 +146,7 @@ public class DriveVehicleGoal extends Goal {
         this.driver.attach(v);
         this.breaker.attach(v);
         if (TowRecoverySupport.hasTowOrder(this.unit)) return true;
+        if (seekCoverWantsDrive()) return true;
         return getTargetPos() != null; // only drive if there's somewhere to go
     }
 
@@ -158,7 +159,9 @@ public class DriveVehicleGoal extends Goal {
                 && this.vehicle != null
                 && this.vehicle.getFirstPassenger() == this.unit
                 && !this.vehicle.isWreck()
-                && (TowRecoverySupport.hasTowOrder(this.unit) || getTargetPos() != null);
+                && (TowRecoverySupport.hasTowOrder(this.unit)
+                        || seekCoverWantsDrive()
+                        || getTargetPos() != null);
     }
 
     // The stuck detector, retreat-episode detection and the steering ramp all assume one
@@ -220,6 +223,10 @@ public class DriveVehicleGoal extends Goal {
         // does nothing, which is most of them.
         this.brain.update(this.unit, this.vehicle, this.posture);
         HudNotify.watchPmcVehicle(this.unit, this.vehicle);
+
+        // SEEK_COVER steers here — not only inside fightTick — so a lost target / idle wander
+        // still drives to the cover point (overworld log: eval found cover, never force RETREAT).
+        if (trySteerSeekCover()) return;
 
         Action plan = idlePlan();
         if (plan == Action.SEARCH_LAST_KNOWN && this.lastIdlePlan != Action.SEARCH_LAST_KNOWN) {
@@ -445,6 +452,7 @@ public class DriveVehicleGoal extends Goal {
         // while retreating, where silence is success rather than a stall.
         Action plan = this.brain.plan();
         long now = this.unit.level().getGameTime();
+
         Vec3 scoot = this.posture.scootOverrideDestination(now);
         if (scoot != null && plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
             // Fire-and-maneuver: temporary dest override; fan/ORCA still gate the approach.
@@ -567,14 +575,71 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
+     * Manual arm or a live cover waypoint keeps this goal runnable even with no wander dest /
+     * target (so {@code /sewv debug seekCover} works on a parked hull).
+     */
+    private boolean seekCoverWantsDrive() {
+        long now = this.unit.level().getGameTime();
+        if (TacticalPosture.debugSeekCoverArmed(this.unit.getId(), now)) return true;
+        return this.posture.seekCoverDestination(now) != null;
+    }
+
+    /**
+     * Drive to the SEEK_COVER waypoint from the main tick. Independent of {@code getTarget()} —
+     * posture may arm from memory / debug while the combat lock is already gone.
+     *
+     * @return true if this tick's steering was consumed
+     */
+    private boolean trySteerSeekCover() {
+        long now = this.unit.level().getGameTime();
+        Vec3 seekCover = this.posture.seekCoverDestination(now);
+        if (seekCover == null) return false;
+        // Player-named MOVE / FOB route still wins — SEEK_COVER is break-contact, not an order override.
+        if (VehicleTargeting.holdsOrderedMove(this.unit)) return false;
+
+        Action plan = this.brain.plan();
+        if (plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE
+                && this.posture.seekCoverForcesRetreat()) {
+            this.brain.force(Action.RETREAT, now);
+            plan = Action.RETREAT;
+            SewvDiag.seekCoverTemp(
+                    "force RETREAT unit={}#{} vehicle={}#{} dest={},{},{}",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(),
+                    String.format("%.1f", seekCover.x),
+                    String.format("%.1f", seekCover.y),
+                    String.format("%.1f", seekCover.z));
+        }
+        // Always navigate while the waypoint is live — do not wait for the scorer to agree.
+        if (plan == Action.DEPLOY_SMOKE && this.vehicle.hasDecoy()) {
+            this.vehicle.setDecoyInputDown(true);
+            this.brain.facts().memory.lastSmokeTick = now;
+        }
+        this.driver.setInfantryPace(false);
+        logPostureSteer(now, "seekCover", seekCover, plan);
+        this.driver.navigateTo(BlockPos.containing(seekCover), this.vehicle.distanceToSqr(seekCover));
+        return true;
+    }
+
+    /**
      * Which way this crew works around a target. Entity-id parity, matching
      * {@link StalemateBreaker}'s own choice so the breaker's orbit and the scored flank never
      * disagree about the direction and walk the hull back and forth over the same ground.
      */
     private void logPostureSteer(long now, String kind, Vec3 dest, Action plan) {
-        if (!SewvDiag.individualTacticsVerbose()) return;
         if (now - this.lastPostureSteerLog < 20L) return;
         this.lastPostureSteerLog = now;
+        if ("seekCover".equals(kind)) {
+            SewvDiag.seekCoverTemp(
+                    "steer unit={}#{} vehicle={}#{} plan={} dest={},{},{}",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(),
+                    plan,
+                    String.format("%.1f", dest.x),
+                    String.format("%.1f", dest.y),
+                    String.format("%.1f", dest.z));
+        }
+        if (!SewvDiag.individualTacticsVerbose()) return;
         SewvDiag.posture(
                 "steer unit={}#{} vehicle={}#{} kind={} plan={} dest={},{},{}",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),

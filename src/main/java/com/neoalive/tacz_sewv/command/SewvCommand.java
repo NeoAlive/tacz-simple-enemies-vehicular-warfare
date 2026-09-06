@@ -50,6 +50,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.GunCacheProbe;
 import com.neoalive.tacz_sewv.debug.IdleGroupDebug;
 import com.neoalive.tacz_sewv.debug.PerfProbe;
+import com.neoalive.tacz_sewv.debug.SeekCoverDebug;
 import com.neoalive.tacz_sewv.debug.SewvConfigFix;
 import com.neoalive.tacz_sewv.debug.SewvDebugDump;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
@@ -157,6 +158,8 @@ public class SewvCommand {
                                 .then(Commands.argument("value", BoolArgumentType.bool())
                                         .executes(ctx -> debugIndividualTactics(ctx.getSource(),
                                                 BoolArgumentType.getBool(ctx, "value")))))
+                        .then(Commands.literal("seekCover")
+                                .executes(ctx -> SeekCoverDebug.force(ctx.getSource())))
                         .then(Commands.literal("idleStatus")
                                 .executes(ctx -> IdleGroupDebug.status(ctx.getSource(), 64.0))
                                 .then(Commands.argument("radius", DoubleArgumentType.doubleArg(8.0, 128.0))

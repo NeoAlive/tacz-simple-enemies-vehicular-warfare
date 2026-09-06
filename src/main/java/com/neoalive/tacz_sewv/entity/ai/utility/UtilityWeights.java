@@ -184,6 +184,7 @@ public final class UtilityWeights {
         signals[Action.RETREAT.ordinal()][Signal.LOW_HEALTH.ordinal()] = 90.0;
         signals[Action.RETREAT.ordinal()][Signal.TOO_CLOSE.ordinal()] = 40.0;
         signals[Action.RETREAT.ordinal()][Signal.TASKED_WITHDRAW.ordinal()] = 45.0;
+        signals[Action.RETREAT.ordinal()][Signal.POSTURE_SEEK_COVER.ordinal()] = 40.0;
         signals[Action.DEPLOY_SMOKE.ordinal()][Signal.LOW_HEALTH.ordinal()] = 60.0;
         signals[Action.DEPLOY_SMOKE.ordinal()][Signal.RECENTLY_HIT.ordinal()] = 25.0;
         signals[Action.DEPLOY_SMOKE.ordinal()][Signal.SMOKE_READY.ordinal()] = 10.0;

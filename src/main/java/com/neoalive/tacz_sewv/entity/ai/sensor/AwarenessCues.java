@@ -103,9 +103,19 @@ public final class AwarenessCues {
     private Vec3 glanceBearing;
     private long glanceUntil = Long.MIN_VALUE;
 
-    /** Per-cue chance latch for this hull: cueKey → heard. Cleared when the cue expires. */
-    private final Map<Long, Boolean> chanceLatch = new ConcurrentHashMap<>();
+    /** Per-cue chance latch for this hull: cueKey → (pass, heardAt). Aged out after contact memory. */
+    private final Map<Long, ChanceLatch> chanceLatch = new ConcurrentHashMap<>();
     private long nextDebugSummary = Long.MIN_VALUE;
+
+    private static final class ChanceLatch {
+        final boolean pass;
+        final long heardAt;
+
+        ChanceLatch(boolean pass, long heardAt) {
+            this.pass = pass;
+            this.heardAt = heardAt;
+        }
+    }
 
     public void clear() {
         this.hull = null;
@@ -197,6 +207,9 @@ public final class AwarenessCues {
         dropSoundSpot();
         if (!SewvConfig.AWARENESS_CUES_ENABLED.get()) return stats;
         if (!(unit.level() instanceof ServerLevel level)) return stats;
+
+        this.chanceLatch.entrySet().removeIf(e ->
+                Facts.ticksSince(e.getValue().heardAt, now) >= Facts.CONTACT_MEMORY_TICKS);
 
         double hx = vehicle.getX();
         double hz = vehicle.getZ();
@@ -291,14 +304,14 @@ public final class AwarenessCues {
             }
         }
 
-        Boolean latched = this.chanceLatch.get(cue.cueKey);
+        ChanceLatch latched = this.chanceLatch.get(cue.cueKey);
         if (latched == null) {
             boolean pass = rollTrigger(vehicle.getId(), cue.pos.asLong(),
                     TriggerKind.wrap(cue.kind), cue.kind.triggerChance);
-            this.chanceLatch.put(cue.cueKey, pass);
-            latched = pass;
+            latched = new ChanceLatch(pass, cue.heardAt);
+            this.chanceLatch.put(cue.cueKey, latched);
         }
-        return latched ? null : Reject.CHANCE;
+        return latched.pass ? null : Reject.CHANCE;
     }
 
     private void publish(AbstractUnit unit, VehicleEntity vehicle, Facts facts, long now,
@@ -429,11 +442,12 @@ public final class AwarenessCues {
 
     /** Package-visible: latch result for a cue key (self-check). */
     Boolean latchGet(long cueKey) {
-        return this.chanceLatch.get(cueKey);
+        ChanceLatch latch = this.chanceLatch.get(cueKey);
+        return latch == null ? null : latch.pass;
     }
 
     void latchPut(long cueKey, boolean pass) {
-        this.chanceLatch.put(cueKey, pass);
+        this.chanceLatch.put(cueKey, new ChanceLatch(pass, 0L));
     }
 
     private void debugGate(AbstractUnit unit, VehicleEntity vehicle, long now, Reject gate) {

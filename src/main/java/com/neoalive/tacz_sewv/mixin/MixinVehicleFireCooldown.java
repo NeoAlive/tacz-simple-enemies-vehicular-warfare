@@ -194,12 +194,25 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         // they're indirect fire, and this overload doesn't consult canShoot.
         if ((Object) this instanceof MortarEntity || (Object) this instanceof Type63Entity) return;
 
+        AbstractUnit unit = (AbstractUnit) living;
+        VehicleEntity self = (VehicleEntity) (Object) this;
+
+        if (TowRecoverySupport.hasTowOrder(unit) && self.getFirstPassenger() == unit) {
+            ci.cancel();
+            return;
+        }
+
         if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
             ci.cancel();
             return;
         }
 
-        VehicleEntity self = (VehicleEntity) (Object) this;
+        LivingEntity ambushTarget = unit.getTarget();
+        if (ambushTarget != null && TacticalPosture.ambushHoldsFire(unit, ambushTarget)) {
+            ci.cancel();
+            return;
+        }
+
         long now = self.level().getGameTime();
         if (this.tacz_sewv$lastAiShotTick != Long.MIN_VALUE
                 && now - this.tacz_sewv$lastAiShotTick

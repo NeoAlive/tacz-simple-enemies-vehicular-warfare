@@ -68,10 +68,17 @@ public class PacketOpenPoolEditor {
         }
     }
 
+    /** Cap for C→S string lists (vehicle pools, spawn probes, armor catalogs). */
+    static final int MAX_STRING_LIST = 512;
+    static final int MAX_STRING_LEN = 256;
+
     static List<String> readStringList(FriendlyByteBuf buf) {
         int n = buf.readVarInt();
+        if (n < 0 || n > MAX_STRING_LIST) {
+            throw new IllegalArgumentException("string list size out of range: " + n);
+        }
         List<String> list = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) list.add(buf.readUtf());
+        for (int i = 0; i < n; i++) list.add(buf.readUtf(MAX_STRING_LEN));
         return list;
     }
 

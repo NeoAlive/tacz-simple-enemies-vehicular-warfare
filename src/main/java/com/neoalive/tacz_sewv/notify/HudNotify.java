@@ -148,7 +148,9 @@ public final class HudNotify {
     private static final float ENERGY_CLEAR = 0.15F;
     private static final java.util.concurrent.ConcurrentHashMap<UUID, Long> OWNER_ENGAGE_CD =
             new java.util.concurrent.ConcurrentHashMap<>();
-    private static volatile long lastEngageNotifyMs;
+    /** Wall-clock floor per owner — avoids one player's contact silencing another's HUD. */
+    private static final java.util.concurrent.ConcurrentHashMap<UUID, Long> OWNER_ENGAGE_WALL_MS =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * Driver-only rising-edge watch for ammo-out and energy&lt;10% on a PMC-crewed hull.
@@ -217,14 +219,15 @@ public final class HudNotify {
         Long ownerCd = OWNER_ENGAGE_CD.get(pmc.getOwnerUUID());
         if (ownerCd != null && now < ownerCd) return;
         long wallNow = System.currentTimeMillis();
-        if (wallNow - lastEngageNotifyMs < ENGAGE_GLOBAL_CD_MS) return;
+        Long wallCd = OWNER_ENGAGE_WALL_MS.get(pmc.getOwnerUUID());
+        if (wallCd != null && wallNow - wallCd < ENGAGE_GLOBAL_CD_MS) return;
 
         ServerPlayer owner = ownerOf(pmc);
         if (owner == null) return;
 
         data.putLong(TAG_ENGAGE_CD, now + ENGAGE_UNIT_CD_TICKS);
         OWNER_ENGAGE_CD.put(pmc.getOwnerUUID(), now + ENGAGE_OWNER_CD_TICKS);
-        lastEngageNotifyMs = wallNow;
+        OWNER_ENGAGE_WALL_MS.put(pmc.getOwnerUUID(), wallNow);
 
         String name = unitName(pmc);
         Component kind = pmc.getVehicle() instanceof VehicleEntity hull

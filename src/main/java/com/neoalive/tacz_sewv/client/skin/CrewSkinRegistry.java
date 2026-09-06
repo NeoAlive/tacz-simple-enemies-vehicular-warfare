@@ -94,8 +94,10 @@ public final class CrewSkinRegistry {
     private static final List<ResourceLocation> REGISTERED = new ArrayList<>();
 
     private static final Set<String> ROLE_FOLDERS = Set.of(
-            "ru_medic", "us_medic", "ru_engineer", "us_engineer",
-            "ru_combat_engineer", "us_combat_engineer", "pmc_commander");
+            "ru_medic", "us_medic", "pmc_medic",
+            "ru_engineer", "us_engineer", "pmc_engineer",
+            "ru_combat_engineer", "us_combat_engineer", "pmc_combat_engineer",
+            "pmc_commander");
 
     private CrewSkinRegistry() {
     }
@@ -267,12 +269,15 @@ public final class CrewSkinRegistry {
 
     @Nullable
     private static ResourceLocation registerDynamic(Path file, String dynPath) {
-        ResourceLocation id = new ResourceLocation(TaczSewv.MODID, dynPath.toLowerCase(Locale.ROOT));
-        try (InputStream in = Files.newInputStream(file)) {
-            NativeImage image = NativeImage.read(in);
-            Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(image));
-            REGISTERED.add(id);
-            return id;
+        String safe = dynPath.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9/._-]", "_");
+        try {
+            ResourceLocation id = new ResourceLocation(TaczSewv.MODID, safe);
+            try (InputStream in = Files.newInputStream(file)) {
+                NativeImage image = NativeImage.read(in);
+                Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(image));
+                REGISTERED.add(id);
+                return id;
+            }
         } catch (Exception e) {
             LOGGER.debug("{} skipped invalid file: {} ({})", LOG_PREFIX, file.getFileName(), e.toString());
             return null;

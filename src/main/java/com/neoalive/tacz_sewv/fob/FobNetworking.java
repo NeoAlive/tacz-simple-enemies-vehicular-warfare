@@ -137,7 +137,9 @@ public final class FobNetworking {
             // no ownership signal at all, so the perimeter is what makes it yours; an RU/US crew
             // is what makes it theirs.
             if (!FobSupport.vehicleClaimableBy(hull, player.getUUID())) continue;
-            vehicles.add(new FobGuiSnapshot.VehicleRow(hull.getUUID(), hull.getType().toString(),
+            String registryId = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                    .getKey(hull.getType()).toString();
+            vehicles.add(new FobGuiSnapshot.VehicleRow(hull.getUUID(), registryId,
                     fob.assignedVehicles.contains(hull.getUUID()), positionText(hull)));
         }
         vehicles.sort((a, b) -> a.registryId().compareToIgnoreCase(b.registryId()));

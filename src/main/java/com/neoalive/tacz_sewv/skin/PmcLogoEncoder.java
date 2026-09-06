@@ -2,9 +2,9 @@ package com.neoalive.tacz_sewv.skin;
 
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
@@ -49,7 +49,10 @@ public final class PmcLogoEncoder {
         }
     }
 
-    private static final Map<String, List<List<Short>>> CACHE = new HashMap<>();
+    /** Concurrent — encode can run from repair / assign paths on different hulls. */
+    private static final Map<String, List<List<Short>>> CACHE = new ConcurrentHashMap<>();
+    /** Sentinel for failed encodes — ConcurrentHashMap rejects null values. */
+    private static final List<List<Short>> MISS = List.of();
 
     private PmcLogoEncoder() {
     }
@@ -61,7 +64,11 @@ public final class PmcLogoEncoder {
     @Nullable
     public static List<List<Short>> encode(String poolId, String iconId) {
         String key = poolId + "/" + iconId;
-        return CACHE.computeIfAbsent(key, k -> encodeFresh(poolId, iconId));
+        List<List<Short>> cached = CACHE.get(key);
+        if (cached != null) return cached == MISS ? null : cached;
+        List<List<Short>> fresh = encodeFresh(poolId, iconId);
+        CACHE.put(key, fresh == null ? MISS : fresh);
+        return fresh;
     }
 
     @Nullable

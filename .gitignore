@@ -5,6 +5,7 @@ build/
 CLAUDE.md
 .cursor
 .claude
+scripts/
 
 # IDE
 .idea/

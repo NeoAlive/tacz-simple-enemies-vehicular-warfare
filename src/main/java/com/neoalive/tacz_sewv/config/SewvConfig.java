@@ -279,6 +279,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue TARGET_VETO_COOLDOWN_TICKS;
 
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue QUICK_EVAC_HELI_SEARCH_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue QUICK_EVAC_BOARD_RADIUS;
+    public static final ForgeConfigSpec.IntValue QUICK_EVAC_BOARD_TIMEOUT_TICKS;
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
@@ -1107,6 +1110,17 @@ public final class SewvConfig {
         builder.push("interaction");
         BOARD_SCAN_RADIUS = builder.comment("How far (blocks) nearby units can be selected for boarding and similar orders.")
                 .defineInRange("boardScanRadius", 64.0, 8.0, 128.0);
+        QUICK_EVAC_HELI_SEARCH_RADIUS = builder.comment(
+                        "How far (blocks) Quick Evac looks for owned PMC helicopters with a free seat.")
+                .defineInRange("quickEvacHeliSearchRadius", 256.0, 16.0, 512.0);
+        QUICK_EVAC_BOARD_RADIUS = builder.comment(
+                        "How far (blocks) from the player Quick Evac pulls owned on-foot PMCs",
+                        "(default unit pick; ignored when the client ribbon-only toggle is on).")
+                .defineInRange("quickEvacBoardRadius", 48.0, 8.0, 128.0);
+        QUICK_EVAC_BOARD_TIMEOUT_TICKS = builder.comment(
+                        "Absolute game-time budget (ticks) for Quick Evac: each heli takes off when",
+                        "its reserved seats are filled, or when this timeout elapses — whichever first.")
+                .defineInRange("quickEvacBoardTimeoutTicks", 350, 40, 2400);
         builder.pop();
 
         builder.push("map");

@@ -65,6 +65,9 @@ final class ConfigRegistryBootstrap {
     private static void registerClient(ConfigRegistry.Builder b) {
         b.bool(ConfigScope.CLIENT, "interaction", "showOrderFeedback",
                 ClientConfig.SHOW_ORDER_FEEDBACK, ClientConfig.SHOW_ORDER_FEEDBACK::set);
+        b.bool(ConfigScope.CLIENT, "interaction", "quickEvacPullSelectedFromRibbon",
+                ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON,
+                ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON::set);
 
         b.bool(ConfigScope.CLIENT, "overlay", "factionColorsEnabled",
                 ClientConfig.FACTION_COLORS_ENABLED, ClientConfig.FACTION_COLORS_ENABLED::set);
@@ -662,6 +665,12 @@ final class ConfigRegistryBootstrap {
     private static void registerBoarding(ConfigRegistry.Builder b) {
         b.doubleRange(ConfigScope.SERVER, "boarding", "boardScanRadius", 8.0, 128.0,
                 SewvConfig.BOARD_SCAN_RADIUS, SewvConfig.BOARD_SCAN_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "boarding", "quickEvacHeliSearchRadius", 16.0, 512.0,
+                SewvConfig.QUICK_EVAC_HELI_SEARCH_RADIUS, SewvConfig.QUICK_EVAC_HELI_SEARCH_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "boarding", "quickEvacBoardRadius", 8.0, 128.0,
+                SewvConfig.QUICK_EVAC_BOARD_RADIUS, SewvConfig.QUICK_EVAC_BOARD_RADIUS::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "quickEvacBoardTimeoutTicks", 40, 2400,
+                SewvConfig.QUICK_EVAC_BOARD_TIMEOUT_TICKS, SewvConfig.QUICK_EVAC_BOARD_TIMEOUT_TICKS::set);
     }
 
     private static void registerMapIntel(ConfigRegistry.Builder b) {

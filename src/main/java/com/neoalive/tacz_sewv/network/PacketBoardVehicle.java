@@ -11,8 +11,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.entity.ai.support.BoardOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderGuard;
@@ -75,15 +74,7 @@ public class PacketBoardVehicle {
                 continue;
             }
 
-            IVehicleBoarder boarder = (IVehicleBoarder) pmc;
-            boarder.tacz_sewv$setMountTargetId(this.vehicleId);
-            boarder.tacz_sewv$setPassengerOnly(this.passengerOnly);
-            boarder.tacz_sewv$setBoardCleared(false);
-            boarder.tacz_sewv$setBoarding(true);
-            // Board and escort both drive the unit on foot at goal priority 1 — a unit can't do
-            // both. Boarding wins the moment it's ordered.
-            ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
-            com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport.clearIfTowering(pmc);
+            BoardOrders.issue(pmc, this.vehicleId, this.passengerOnly);
             ordered++;
         }
 

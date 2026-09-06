@@ -116,6 +116,7 @@ public class TaczSewv {
     event.enqueueWork(() -> {
         ModGameRules.bootstrap();
         NetworkHandler.register();
+        com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry.init();
     });
     ChunkTicketSweep.register(event);
     // Soft compat: only touch berezka_api's classes when it is actually present, so the

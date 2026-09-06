@@ -103,7 +103,7 @@ public class NetworkHandler {
     // 79: PacketHudNotification carries Components (translatable title/body) instead of raw UTF.
     // 80: PacketPlayerSelfRappel / PacketPlayerCrewRappel / PacketPlayerRappelWires / PacketPlayerSelfRappelLock.
     // 81: PacketPlayerSelfRappelLock carries hover/rope mode + hull id (stale-safe).
-    private static final String PROTOCOL_VERSION = "81";
+    private static final String PROTOCOL_VERSION = "82";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -647,6 +647,13 @@ public class NetworkHandler {
                 PacketPlayerSelfRappelLock::encode,
                 PacketPlayerSelfRappelLock::new,
                 PacketPlayerSelfRappelLock::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketQuickCommand.class,
+                PacketQuickCommand::encode,
+                PacketQuickCommand::new,
+                PacketQuickCommand::handle
         );
     }
 }

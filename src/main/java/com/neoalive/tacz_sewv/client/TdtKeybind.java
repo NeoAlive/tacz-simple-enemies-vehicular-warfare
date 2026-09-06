@@ -72,6 +72,7 @@ public final class TdtKeybind {
             event.register(RadioZoom.ZOOM);
             event.register(RappelKeybind.SELF_RAPPEL);
             event.register(RappelKeybind.CREW_RAPPEL);
+            event.register(QuickCommandKeybind.OPEN_WHEEL);
         }
     }
 

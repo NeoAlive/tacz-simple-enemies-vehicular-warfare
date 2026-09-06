@@ -1,0 +1,251 @@
+package com.neoalive.tacz_sewv.client.radial;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+
+import com.neoalive.tacz_sewv.client.QuickCommandKeybind;
+import com.neoalive.tacz_sewv.client.TdtSelection;
+import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
+import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketQuickCommand;
+
+/**
+ * Far Cry–style radial wheel. Cursor is GLFW-disabled (not vanilla {@code grabMouse}, which would
+ * close this Screen). Raw deltas arrive via {@link com.neoalive.tacz_sewv.mixin.client.MixinMouseHandler}.
+ */
+public final class QuickCommandWheelScreen extends Screen {
+
+    private static final int WEDGE_FILL = 0xAA1A2230;
+    private static final int WEDGE_HOT = 0xDD3A7A5C;
+    private static final int HUB_FILL = 0xCC0E1218;
+    private static final int LABEL = 0xFFE8ECF0;
+    private static final int LABEL_HOT = 0xFFFFFFFF;
+
+    private final RadialInputState input;
+    private boolean cursorDisabled;
+    private boolean closing;
+
+    private boolean wasAttackDown;
+    private boolean wasUseDown;
+
+    public QuickCommandWheelScreen() {
+        super(Component.translatable("gui.tacz_sewv.quick_command_wheel"));
+        if (QuickCommandRegistry.rootWedges().isEmpty()) {
+            QuickCommandRegistry.init();
+        }
+        this.input = new RadialInputState(QuickCommandRegistry.rootWedges());
+    }
+
+    public RadialInputState inputState() {
+        return this.input;
+    }
+
+    @Override
+    protected void init() {
+        disableCursor();
+    }
+
+    @Override
+    public void removed() {
+        restoreCursor();
+        super.removed();
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
+
+    @Override
+    public void tick() {
+        Minecraft mc = this.minecraft;
+        if (mc == null || mc.player == null) {
+            closeQuiet();
+            return;
+        }
+        // Hard override: key release closes before any click-commit in the same frame.
+        // Must use GLFW — KeyMapping.isDown() is false under IN_GAME whenever a Screen is open.
+        if (!QuickCommandKeybind.isBoundKeyPhysicallyDown(mc)) {
+            closeQuiet();
+            return;
+        }
+        if (!QuickCommandKeybind.holdingTerminal(mc.player)) {
+            closeQuiet();
+            return;
+        }
+
+        // SBW cancels MouseButton.Pre in armed seats, which kills both Screen.mouseClicked and
+        // KeyMapping.click. Read GLFW button state directly so the wheel still commits while seated.
+        long window = mc.getWindow().getWindow();
+        boolean attackDown = org.lwjgl.glfw.GLFW.glfwGetMouseButton(window,
+                org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+        boolean useDown = org.lwjgl.glfw.GLFW.glfwGetMouseButton(window,
+                org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_RIGHT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+        boolean attackRising = attackDown && !this.wasAttackDown;
+        boolean useRising = useDown && !this.wasUseDown;
+        this.wasAttackDown = attackDown;
+        this.wasUseDown = useDown;
+
+        if (attackRising) {
+            onCommit();
+            if (this.closing) return;
+        }
+        if (useRising) {
+            onPop();
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Clicks are handled in tick() via GLFW so seated banHand still works; swallow here
+        // to keep the Screen from propagating into the world (e.g. other keybinds) on close.
+        return button == 0 || button == 1 || super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        // Prefer tick()+GLFW for release — keyReleased can race open. Only close if this is
+        // still our binding and GLFW agrees the key is up (avoids spurious closes).
+        if (QuickCommandKeybind.OPEN_WHEEL.matches(keyCode, scanCode)
+                && this.minecraft != null
+                && !QuickCommandKeybind.isBoundKeyPhysicallyDown(this.minecraft)) {
+            closeQuiet();
+            return true;
+        }
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    /** Called from {@link com.neoalive.tacz_sewv.mixin.client.MixinMouseHandler}. */
+    public void feedRawDelta(double dx, double dy) {
+        this.input.feedMouseDelta(dx, dy);
+    }
+
+    private void onCommit() {
+        RadialInputState.CommitResult result = this.input.commitHot();
+        if (result instanceof RadialInputState.CommitResult.FiredLeaf leaf) {
+            if (firePipeline(leaf.pipelineId())) {
+                closeQuiet();
+            }
+            // Client-side reject (no selection, etc.): keep the wheel open.
+        }
+        // EnteredSubmenu / Deadzone: stay open; state already updated.
+    }
+
+    private void onPop() {
+        if (this.input.popMenu()) {
+            closeQuiet();
+        }
+    }
+
+    /** @return {@code true} if the packet was sent (caller should close). */
+    private boolean firePipeline(String pipelineId) {
+        Minecraft mc = this.minecraft;
+        if (mc == null || mc.player == null || mc.level == null) return false;
+
+        List<Integer> units = resolveBoardUnits(mc);
+        if (units.isEmpty()) {
+            String key = ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON.get()
+                    ? "message.tacz_sewv.quick_evac.need_selection"
+                    : "message.tacz_sewv.quick_evac.need_units";
+            mc.player.displayClientMessage(
+                    Component.translatable(key).withStyle(ChatFormatting.GRAY),
+                    true);
+            return false;
+        }
+        NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, units));
+        return true;
+    }
+
+    /**
+     * Default: every owned on-foot PMC within {@code quickEvacBoardRadius} of the player.
+     * Config {@code quickEvacPullSelectedFromRibbon}: ribbon/SEM selection only (no radius fill).
+     */
+    private static List<Integer> resolveBoardUnits(Minecraft mc) {
+        Player player = mc.player;
+        if (ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON.get()) {
+            List<Integer> selected = new ArrayList<>(
+                    TdtSelection.resolve(SewvConfig.BOARD_SCAN_RADIUS.get()));
+            return filterOnFootOwned(mc, player, selected);
+        }
+
+        double radius = SewvConfig.QUICK_EVAC_BOARD_RADIUS.get();
+        AABB box = player.getBoundingBox().inflate(radius);
+        List<Integer> nearby = new ArrayList<>();
+        for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class, box,
+                u -> u.isAlive() && u.isOwnedBy(player) && u.getVehicle() == null)) {
+            nearby.add(pmc.getId());
+        }
+        return nearby;
+    }
+
+    private static List<Integer> filterOnFootOwned(Minecraft mc, Player player, List<Integer> ids) {
+        List<Integer> out = new ArrayList<>();
+        for (int id : ids) {
+            Entity e = mc.level.getEntity(id);
+            if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player) && pmc.getVehicle() == null) {
+                out.add(id);
+            }
+        }
+        return out;
+    }
+
+    private void closeQuiet() {
+        if (this.closing) return;
+        this.closing = true;
+        restoreCursor();
+        Minecraft mc = this.minecraft;
+        if (mc != null && mc.screen == this) {
+            mc.setScreen(null);
+        }
+    }
+
+    private void disableCursor() {
+        Minecraft mc = this.minecraft;
+        if (mc == null || this.cursorDisabled) return;
+        long window = mc.getWindow().getWindow();
+        // CURSOR_DISABLED without MouseHandler.grabMouse — that API would setScreen(null).
+        InputConstants.grabOrReleaseMouse(window, InputConstants.CURSOR_DISABLED,
+                mc.getWindow().getScreenWidth() / 2.0,
+                mc.getWindow().getScreenHeight() / 2.0);
+        this.cursorDisabled = true;
+    }
+
+    private void restoreCursor() {
+        Minecraft mc = this.minecraft;
+        if (mc == null || !this.cursorDisabled) return;
+        long window = mc.getWindow().getWindow();
+        InputConstants.grabOrReleaseMouse(window, InputConstants.CURSOR_NORMAL,
+                mc.getWindow().getScreenWidth() / 2.0,
+                mc.getWindow().getScreenHeight() / 2.0);
+        this.cursorDisabled = false;
+    }
+
+    @Override
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        // No dim overlay — keep the world readable behind the wheel.
+        int cx = this.width / 2;
+        int cy = this.height / 2;
+        // Compact footprint; ring thickness ~2× the previous thin annulus.
+        int outer = Math.min(this.width, this.height) / 6;
+        int inner = Math.max(8, (int) (outer * 0.24));
+
+        List<WedgeEntry> wedges = this.input.currentWedges();
+        RadialWheelDraw.renderRing(g, this.font, cx, cy, inner, outer, wedges, this.input.hotIndex(),
+                WEDGE_FILL, WEDGE_HOT, HUB_FILL, LABEL, LABEL_HOT);
+
+        super.render(g, mouseX, mouseY, partialTick);
+    }
+}

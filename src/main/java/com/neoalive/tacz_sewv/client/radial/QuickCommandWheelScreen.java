@@ -155,11 +155,11 @@ public final class QuickCommandWheelScreen extends Screen {
         Minecraft mc = this.minecraft;
         if (mc == null || mc.player == null || mc.level == null) return false;
 
-        List<Integer> units = resolveBoardUnits(mc);
+        List<Integer> units = resolveUnits(mc, pipelineId);
         if (units.isEmpty()) {
             String key = ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON.get()
-                    ? "message.tacz_sewv.quick_evac.need_selection"
-                    : "message.tacz_sewv.quick_evac.need_units";
+                    ? "message.tacz_sewv.quick_command.need_selection"
+                    : "message.tacz_sewv.quick_command.need_units";
             mc.player.displayClientMessage(
                     Component.translatable(key).withStyle(ChatFormatting.GRAY),
                     true);
@@ -170,10 +170,10 @@ public final class QuickCommandWheelScreen extends Screen {
     }
 
     /**
-     * Default: every owned on-foot PMC within {@code quickEvacBoardRadius} of the player.
-     * Config {@code quickEvacPullSelectedFromRibbon}: ribbon/SEM selection only (no radius fill).
+     * Default: every owned on-foot PMC within the pipeline's radius of the player.
+     * Config {@code quickEvacPullSelectedFromRibbon}: ribbon/SEM selection only.
      */
-    private static List<Integer> resolveBoardUnits(Minecraft mc) {
+    private static List<Integer> resolveUnits(Minecraft mc, String pipelineId) {
         Player player = mc.player;
         if (ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON.get()) {
             List<Integer> selected = new ArrayList<>(
@@ -181,7 +181,9 @@ public final class QuickCommandWheelScreen extends Screen {
             return filterOnFootOwned(mc, player, selected);
         }
 
-        double radius = SewvConfig.QUICK_EVAC_BOARD_RADIUS.get();
+        double radius = QuickCommandRegistry.ID_QUICK_EVAC.equals(pipelineId)
+                ? SewvConfig.QUICK_EVAC_BOARD_RADIUS.get()
+                : SewvConfig.QUICK_LAND_RADIUS.get();
         AABB box = player.getBoundingBox().inflate(radius);
         List<Integer> nearby = new ArrayList<>();
         for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class, box,

@@ -1341,6 +1341,7 @@
   "message.tacz_sewv.fob.give": "FOB kit added to inventory.",
   "message.tacz_sewv.fob.already_owned": "You already have a Forward Operating Base.",
   "message.tacz_sewv.fob.no_fob_here": "Place this inside your FOB master area.",
+  "message.tacz_sewv.fob.not_owner": "Only the FOB owner can place or break this.",
   "message.tacz_sewv.fob.route_sent": "Routed %1$s vehicle crew(s) and %2$s infantry to the FOB.",
   "message.tacz_sewv.order.failure.fob_command": "That unit is under FOB command — toggle it off at the quarters bench.",
   "message.tacz_sewv.order.failure.route_active": "That unit is routing to the FOB — wait for arrival or cancel the route from the quarters bench."

@@ -21,9 +21,16 @@ final class FobSubBlock {
         FobManager mgr = FobManager.get(server);
         FobInstance fob = mgr.getFobAt(pos, level);
         if (fob == null) {
-            level.destroyBlock(pos, false);
+            level.destroyBlock(pos, true);
             if (placer instanceof ServerPlayer player) {
-                FobManager.denyPlacement(player, "message.tacz_sewv.fob.no_command_block");
+                FobManager.denyPlacement(player, "message.tacz_sewv.fob.no_fob_here");
+            }
+            return;
+        }
+        if (!(placer instanceof ServerPlayer player) || !player.getUUID().equals(fob.owner)) {
+            level.destroyBlock(pos, true);
+            if (placer instanceof ServerPlayer denied) {
+                FobManager.denyPlacement(denied, "message.tacz_sewv.fob.not_owner");
             }
             return;
         }

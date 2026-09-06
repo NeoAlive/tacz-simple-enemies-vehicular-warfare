@@ -25,7 +25,10 @@ public class StockpileMenu extends AbstractContainerMenu {
 
     public StockpileMenu(int id, Inventory playerInv, BlockEntity be) {
         super(ModMenus.STOCKPILE.get(), id);
-        this.stockpile = (StockpileBlockEntity) be;
+        if (!(be instanceof StockpileBlockEntity stock)) {
+            throw new IllegalArgumentException("Expected StockpileBlockEntity at menu open");
+        }
+        this.stockpile = stock;
         this.access = ContainerLevelAccess.create(this.stockpile.getLevel(), this.stockpile.getBlockPos());
         IItemHandler handler = this.stockpile.getItems();
         int slot = 0;

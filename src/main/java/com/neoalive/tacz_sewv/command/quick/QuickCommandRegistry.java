@@ -18,6 +18,10 @@ import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 public final class QuickCommandRegistry {
 
     public static final String ID_QUICK_EVAC = "quick_evac";
+    public static final String ID_QUICK_TAKEOFF = "quick_takeoff";
+    public static final String ID_QUICK_LANDING = "quick_landing";
+    public static final String ID_RAPPEL_SELF = "rappel_self";
+    public static final String ID_RAPPEL_CREW = "rappel_crew";
     public static final String ID_QUICK_BOARD = "quick_board";
     public static final String ID_QUICK_ENTRENCH = "quick_entrench";
     public static final String ID_QUICK_REFILL = "quick_refill";
@@ -68,28 +72,36 @@ public final class QuickCommandRegistry {
         register(ID_FORM_ECHELON_RIGHT, new QuickFormationPipeline(FormationShape.ECHELON_RIGHT));
 
         ROOT = List.of(
-                new WedgeEntry.CategoryEntry("General", "\u2605", List.of(
-                        new WedgeEntry.PipelineEntry("Quick Board", "\u2399", ID_QUICK_BOARD),
-                        new WedgeEntry.PipelineEntry("Quick Follow", "\u21AA", ID_QUICK_FOLLOW),
-                        new WedgeEntry.PipelineEntry("Quick Dismount", "\u2193", ID_QUICK_DISMOUNT),
-                        new WedgeEntry.PipelineEntry("Quick Hold", "\u25A1", ID_QUICK_HOLD),
-                        new WedgeEntry.PipelineEntry("Attack That", "\u2694", ID_QUICK_ATTACK))),
-                new WedgeEntry.CategoryEntry("Land", "\u26F0", List.of(
-                        new WedgeEntry.PipelineEntry("Quick Entrench", "\u26F0", ID_QUICK_ENTRENCH),
-                        new WedgeEntry.PipelineEntry("Quick Refill", "\u21BB", ID_QUICK_REFILL),
-                        new WedgeEntry.PipelineEntry("Capture Medic", "\u271A", ID_QUICK_CAPTURE_MEDIC),
-                        new WedgeEntry.PipelineEntry("Route to FOB", "\u2302", ID_QUICK_ROUTE_FOB))),
-                new WedgeEntry.CategoryEntry("Air", "\u2708", List.of(
-                        new WedgeEntry.PipelineEntry("Quick Evac", "\u21E7", ID_QUICK_EVAC))),
-                new WedgeEntry.CategoryEntry("Formation", "\u25C8", List.of(
-                        new WedgeEntry.PipelineEntry("SEM Wedge", "\u25B2", ID_FORM_SEM_WEDGE),
-                        new WedgeEntry.PipelineEntry("SEM Column", "\u25B3", ID_FORM_SEM_COLUMN),
-                        new WedgeEntry.PipelineEntry("Wedge", "\u25B2", ID_FORM_WEDGE),
-                        new WedgeEntry.PipelineEntry("Column", "\u25B3", ID_FORM_COLUMN),
-                        new WedgeEntry.PipelineEntry("Line", "\u2501", ID_FORM_LINE),
-                        new WedgeEntry.PipelineEntry("Echelon L", "\u25E2", ID_FORM_ECHELON_LEFT),
-                        new WedgeEntry.PipelineEntry("Echelon R", "\u25E3", ID_FORM_ECHELON_RIGHT))),
-                new WedgeEntry.PipelineEntry("Cancel", "\u2715", ID_QUICK_CANCEL));
+                new WedgeEntry.CategoryEntry("General", "\u2605", 0xE8B84A, List.of(
+                        leaf("Quick Board", "\u2399", ID_QUICK_BOARD, 0xE8B84A),
+                        leaf("Quick Follow", "\u21AA", ID_QUICK_FOLLOW, 0xE8B84A),
+                        leaf("Quick Dismount", "\u2193", ID_QUICK_DISMOUNT, 0xE8B84A),
+                        leaf("Quick Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A),
+                        leaf("Attack That", "\u2694", ID_QUICK_ATTACK, 0xE8B84A))),
+                new WedgeEntry.CategoryEntry("Land", "\u26F0", 0x6BA84A, List.of(
+                        leaf("Quick Entrench", "\u26F0", ID_QUICK_ENTRENCH, 0x6BA84A),
+                        leaf("Quick Refill", "\u21BB", ID_QUICK_REFILL, 0x6BA84A),
+                        leaf("Capture Medic", "\u271A", ID_QUICK_CAPTURE_MEDIC, 0x6BA84A),
+                        leaf("Route to FOB", "\u2302", ID_QUICK_ROUTE_FOB, 0x6BA84A))),
+                new WedgeEntry.CategoryEntry("Air", "\u2708", 0x4AB8E8, List.of(
+                        leaf("Quick Evacuation", "\u21E7", ID_QUICK_EVAC, 0x4AB8E8),
+                        leaf("Quick Takeoff", "\u2191", ID_QUICK_TAKEOFF, 0x4AB8E8),
+                        leaf("Quick Landing", "\u2193", ID_QUICK_LANDING, 0x4AB8E8),
+                        leaf("Rappel Crew", "\u21CA", ID_RAPPEL_CREW, 0x4AB8E8),
+                        leaf("Rappel Self", "\u21F3", ID_RAPPEL_SELF, 0x4AB8E8))),
+                new WedgeEntry.CategoryEntry("Formation", "\u25C8", 0xA06BD4, List.of(
+                        leaf("SEM Wedge", "\u25B2", ID_FORM_SEM_WEDGE, 0xA06BD4),
+                        leaf("SEM Column", "\u25B3", ID_FORM_SEM_COLUMN, 0xA06BD4),
+                        leaf("Wedge", "\u25B2", ID_FORM_WEDGE, 0xA06BD4),
+                        leaf("Column", "\u25B3", ID_FORM_COLUMN, 0xA06BD4),
+                        leaf("Line", "\u2501", ID_FORM_LINE, 0xA06BD4),
+                        leaf("Echelon L", "\u25E2", ID_FORM_ECHELON_LEFT, 0xA06BD4),
+                        leaf("Echelon R", "\u25E3", ID_FORM_ECHELON_RIGHT, 0xA06BD4))),
+                leaf("Cancel", "\u2715", ID_QUICK_CANCEL, 0xE85A4A));
+    }
+
+    private static WedgeEntry.PipelineEntry leaf(String label, String icon, String id, int accent) {
+        return new WedgeEntry.PipelineEntry(label, icon, id, accent);
     }
 
     private static void register(String id, QuickCommandPipeline pipeline) {

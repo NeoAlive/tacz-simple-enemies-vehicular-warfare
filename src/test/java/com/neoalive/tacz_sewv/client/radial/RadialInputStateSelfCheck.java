@@ -28,11 +28,11 @@ public final class RadialInputStateSelfCheck {
 
     private static List<WedgeEntry> sampleRoot() {
         return List.of(
-                new WedgeEntry.CategoryEntry("LAND", "\u2694", List.of(
-                        new WedgeEntry.PipelineEntry("Dig In", "\u26F0", "dig_in"))),
-                new WedgeEntry.CategoryEntry("AIR", "\u2708", List.of(
-                        new WedgeEntry.PipelineEntry("Quick Evac", "\u21E7", "quick_evac"))),
-                new WedgeEntry.CategoryEntry("SEA", "\u2693", List.of()));
+                new WedgeEntry.CategoryEntry("LAND", "\u2694", 0x6BA84A, List.of(
+                        new WedgeEntry.PipelineEntry("Dig In", "\u26F0", "dig_in", 0x6BA84A))),
+                new WedgeEntry.CategoryEntry("AIR", "\u2708", 0x4AB8E8, List.of(
+                        new WedgeEntry.PipelineEntry("Quick Evac", "\u21E7", "quick_evac", 0x4AB8E8))),
+                new WedgeEntry.CategoryEntry("SEA", "\u2693", 0x4A8BC8, List.of()));
     }
 
     private static void deadzoneIgnoresSmallMotion() {

@@ -7,6 +7,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -44,6 +46,15 @@ public final class QuickCommandKeybind {
     private static boolean wasDown;
 
     private QuickCommandKeybind() {}
+
+    /** Hub unicode sits on the crosshair — hide the vanilla reticle while the wheel is up. */
+    @SubscribeEvent
+    public static void hideCrosshair(RenderGuiOverlayEvent.Pre event) {
+        if (event.getOverlay() != VanillaGuiOverlay.CROSSHAIR.type()) return;
+        if (Minecraft.getInstance().screen instanceof QuickCommandWheelScreen) {
+            event.setCanceled(true);
+        }
+    }
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {

@@ -32,8 +32,6 @@ import com.neoalive.tacz_sewv.network.PacketQuickCommand;
  */
 public final class QuickCommandWheelScreen extends Screen {
 
-    private static final int WEDGE_FILL = 0xAA1A2230;
-    private static final int WEDGE_HOT = 0xDD3A7A5C;
     private static final int HUB_FILL = 0xCC0E1218;
     private static final int LABEL = 0xFFE8ECF0;
     private static final int LABEL_HOT = 0xFFFFFFFF;
@@ -115,8 +113,10 @@ public final class QuickCommandWheelScreen extends Screen {
         this.wasUseDown = useDown;
 
         if (attackRising) {
-            playUi(ModSounds.INTERACT_BEEP.get());
-            onCommit();
+            if (hotEnabled()) {
+                playUi(ModSounds.INTERACT_BEEP.get());
+                onCommit();
+            }
             if (this.closing) return;
         }
         if (useRising) {
@@ -156,6 +156,17 @@ public final class QuickCommandWheelScreen extends Screen {
         this.input.feedMouseDelta(dx, dy);
     }
 
+    private boolean hotEnabled() {
+        int hot = this.input.hotIndex();
+        if (hot < 0) return true;
+        List<WedgeEntry> wedges = this.input.currentWedges();
+        if (hot >= wedges.size()) return true;
+        WedgeEntry e = wedges.get(hot);
+        if (!(e instanceof WedgeEntry.PipelineEntry leaf)) return true;
+        if (!QuickAirClient.isAirClientAction(leaf.pipelineId())) return true;
+        return QuickAirClient.isEnabled(leaf.pipelineId());
+    }
+
     private void onCommit() {
         RadialInputState.CommitResult result = this.input.commitHot();
         if (result instanceof RadialInputState.CommitResult.FiredLeaf leaf) {
@@ -188,6 +199,11 @@ public final class QuickCommandWheelScreen extends Screen {
         if (QuickCommandRegistry.ID_QUICK_ROUTE_FOB.equals(pipelineId)) {
             NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, List.of()));
             return true;
+        }
+
+        // Air client actions: player rappel + radius takeoff/landing (no PacketQuickCommand).
+        if (QuickAirClient.isAirClientAction(pipelineId)) {
+            return QuickAirClient.fire(pipelineId);
         }
 
         List<Integer> units = resolveUnits(mc, pipelineId);
@@ -318,8 +334,18 @@ public final class QuickCommandWheelScreen extends Screen {
 
         List<WedgeEntry> wedges = this.input.currentWedges();
         tickFades(wedges.size(), this.input.hotIndex());
+        boolean[] enabled = new boolean[wedges.size()];
+        for (int i = 0; i < wedges.size(); i++) {
+            WedgeEntry e = wedges.get(i);
+            if (e instanceof WedgeEntry.PipelineEntry leaf
+                    && QuickAirClient.isAirClientAction(leaf.pipelineId())) {
+                enabled[i] = QuickAirClient.isEnabled(leaf.pipelineId());
+            } else {
+                enabled[i] = true;
+            }
+        }
         RadialWheelDraw.renderRing(g, this.font, cx, cy, inner, outer, wedges, this.wedgeHot,
-                this.menuAlpha, WEDGE_FILL, WEDGE_HOT, HUB_FILL, LABEL, LABEL_HOT);
+                this.menuAlpha, HUB_FILL, LABEL, LABEL_HOT, enabled);
 
         super.render(g, mouseX, mouseY, partialTick);
     }

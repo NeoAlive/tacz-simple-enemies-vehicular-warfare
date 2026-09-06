@@ -548,12 +548,30 @@ public final class TowRecoverySupport {
     /**
      * Ground WHEEL/TRACK only — FIXED emplacements, aircraft, ships, mortars and artillery do not
      * pull (or get pulled). Shared by tower and victim so a CIWS cannot end up either side of a line.
+     * Aircraft check is explicit (not only via {@link HullFacts#isGroundMobile}) so a datapack that
+     * declares WHEEL while {@link com.neoalive.tacz_sewv.compat.NpcVehicleOverrides} remaps it to
+     * AIRCRAFT cannot slip through.
      */
     public static boolean isTowCapableHull(VehicleEntity hull) {
         if (hull instanceof MortarEntity || hull instanceof Type63Entity) return false;
+        if (HullFacts.isPlaneHull(hull) || HullFacts.isHelicopterHull(hull) || HullFacts.isShipHull(hull)) {
+            return false;
+        }
         HullFacts facts = new HullFacts();
         facts.attach(hull);
         return facts.isGroundMobile() && !facts.isArtillery();
+    }
+
+    /**
+     * Drop vehicle↔vehicle tow links on aircraft. Catapult shuttles are not {@link VehicleEntity}
+     * towers, so a plane on a catapult (TowedByShuttle) is left alone.
+     */
+    public static void scrubIllegalAircraftTow(VehicleEntity hull) {
+        if (hull.level().isClientSide) return;
+        if (!HullFacts.isPlaneHull(hull) && !HullFacts.isHelicopterHull(hull)) return;
+        if (hull.isTowingAny() || hull.getTowedByEntity() != null) {
+            hull.clearTowingInfo();
+        }
     }
 
     public static boolean isTowTowerCandidate(VehicleEntity hull) {

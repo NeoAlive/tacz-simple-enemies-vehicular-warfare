@@ -35,6 +35,7 @@
     "MixinVehicleDamageRedirect",
     "MixinVehicleDeathDrops",
     "MixinVehicleDestroyNotify",
+    "MixinVehicleAircraftTow",
     "MixinRangedGunAttackGoal",
     "MixinMoveToAttackRangeGoal",
     "MixinSemOnFootTacticalGoals",

@@ -245,6 +245,11 @@ public final class TdtSelection {
         CommanderOverlayRenderer.selectedUnitsSnapshot = new LinkedHashSet<>(SELECTED);
     }
 
+    /** Seed SEM's pick-mode snapshot from an explicit id list (Quick Attack). */
+    public static void writeSnapshotIds(java.util.Collection<Integer> ids) {
+        CommanderOverlayRenderer.selectedUnitsSnapshot = new LinkedHashSet<>(ids);
+    }
+
     public static VehicleMarker.Kind kindOf(PmcUnitEntity pmc) {
         Entity vehicle = pmc.getVehicle();
         if (vehicle instanceof VehicleEntity hull) {

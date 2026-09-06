@@ -179,10 +179,16 @@ public final class QuickCommandWheelScreen extends Screen {
         }
     }
 
-    /** @return {@code true} if the packet was sent (caller should close). */
+    /** @return {@code true} if the packet was sent / mode armed (caller should close). */
     private boolean firePipeline(String pipelineId) {
         Minecraft mc = this.minecraft;
         if (mc == null || mc.player == null || mc.level == null) return false;
+
+        // Route-to-FOB uses FOB assignment lists, not the radius unit pick.
+        if (QuickCommandRegistry.ID_QUICK_ROUTE_FOB.equals(pipelineId)) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, List.of()));
+            return true;
+        }
 
         List<Integer> units = resolveUnits(mc, pipelineId);
         if (units.isEmpty()) {
@@ -194,20 +200,34 @@ public final class QuickCommandWheelScreen extends Screen {
                     true);
             return false;
         }
+
+        // Attack That: arm SEM target pick with radius units as the snapshot (same as TDT).
+        if (QuickCommandRegistry.ID_QUICK_ATTACK.equals(pipelineId)) {
+            TdtSelection.writeSnapshotIds(units);
+            net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer.isSelectingTarget = true;
+            mc.player.displayClientMessage(
+                    Component.translatable("message.tacz_sewv.tdt.select_target")
+                            .withStyle(ChatFormatting.GREEN),
+                    true);
+            return true;
+        }
+
         NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, units));
         return true;
     }
 
     /**
-     * Default: every owned on-foot PMC within the pipeline's radius of the player.
+     * Default: owned PMCs within the pipeline's radius of the player.
+     * Board / entrench / refill / evac stay on-foot-only.
      * Config {@code quickEvacPullSelectedFromRibbon}: ribbon/SEM selection only.
      */
     private static List<Integer> resolveUnits(Minecraft mc, String pipelineId) {
         Player player = mc.player;
+        boolean onFootOnly = QuickCommandRegistry.requiresOnFoot(pipelineId);
         if (ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON.get()) {
             List<Integer> selected = new ArrayList<>(
                     TdtSelection.resolve(SewvConfig.BOARD_SCAN_RADIUS.get()));
-            return filterOnFootOwned(mc, player, selected);
+            return filterOwned(mc, player, selected, onFootOnly);
         }
 
         double radius = QuickCommandRegistry.ID_QUICK_EVAC.equals(pipelineId)
@@ -216,19 +236,21 @@ public final class QuickCommandWheelScreen extends Screen {
         AABB box = player.getBoundingBox().inflate(radius);
         List<Integer> nearby = new ArrayList<>();
         for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class, box,
-                u -> u.isAlive() && u.isOwnedBy(player) && u.getVehicle() == null)) {
+                u -> u.isAlive() && u.isOwnedBy(player)
+                        && (!onFootOnly || u.getVehicle() == null))) {
             nearby.add(pmc.getId());
         }
         return nearby;
     }
 
-    private static List<Integer> filterOnFootOwned(Minecraft mc, Player player, List<Integer> ids) {
+    private static List<Integer> filterOwned(Minecraft mc, Player player, List<Integer> ids,
+                                             boolean onFootOnly) {
         List<Integer> out = new ArrayList<>();
         for (int id : ids) {
             Entity e = mc.level.getEntity(id);
-            if (e instanceof PmcUnitEntity pmc && pmc.isOwnedBy(player) && pmc.getVehicle() == null) {
-                out.add(id);
-            }
+            if (!(e instanceof PmcUnitEntity pmc) || !pmc.isOwnedBy(player)) continue;
+            if (onFootOnly && pmc.getVehicle() != null) continue;
+            out.add(id);
         }
         return out;
     }

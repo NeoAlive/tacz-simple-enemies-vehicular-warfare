@@ -1,6 +1,5 @@
 package com.neoalive.tacz_sewv.command.quick;
 
-import java.util.List;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.server.level.ServerLevel;

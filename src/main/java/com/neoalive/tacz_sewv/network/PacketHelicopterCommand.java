@@ -10,10 +10,8 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -25,6 +23,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneLeash;
+import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -131,23 +130,36 @@ public class PacketHelicopterCommand {
                 // is cleared again by the flight goal on its next tick, which reads as a
                 // successful order that then quietly resumes the FOLLOW orbit. Refusing it here
                 // is what lets the feedback say so.
+                if (emergency) {
+                    if (!FlightOrders.emergencyLand(pmc, v)) {
+                        OrderReport.fail(player, OrderFailure.NO_PAD, pmc);
+                        continue;
+                    }
+                    ordered++;
+                    continue;
+                }
+
                 BlockPos pad = null;
                 AirportRegistry.Airport airport = null;
                 if (landing) {
-                    if (emergency) {
-                        pad = emergencyPad(sp.serverLevel(), v, plane);
-                    } else {
-                        airport = nearestAirport(sp.serverLevel(), v);
-                        if (airport != null) pad = airport.touchdown();
-                    }
+                    airport = nearestAirport(sp.serverLevel(), v);
+                    if (airport != null) pad = airport.touchdown();
                     if (pad == null) {
-                        OrderReport.fail(player,
-                                emergency ? OrderFailure.NO_PAD : OrderFailure.NO_AIRPORT, pmc);
+                        OrderReport.fail(player, OrderFailure.NO_AIRPORT, pmc);
                         continue;
                     }
                 }
 
                 IHelicopterPilot pilot = (IHelicopterPilot) pmc;
+                if (this.command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
+                    FlightOrders.takeoff(pmc, v, this.altitude);
+                    if (plane) {
+                        CrewRadio.play(v, CrewRadio.Line.TAKEOFF);
+                    }
+                    ordered++;
+                    continue;
+                }
+
                 pilot.sewv$setHeliCommand(stored);
                 if (landing) {
                     pilot.sewv$setHeliLandPos(pad);
@@ -171,16 +183,6 @@ public class PacketHelicopterCommand {
                         DriveHelicopterGoal.clearForcedLand(v);
                     }
                 }
-                // Takeoff carries the live cruise trim; clamp to the flight band (never trust the
-                // client) and store it on the pilot for DriveHelicopterGoal to read every tick.
-                if (this.command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
-                    pilot.sewv$setCruiseAltitude(Mth.clamp(this.altitude, MIN_ALTITUDE, MAX_ALTITUDE));
-                    // Plane-only ack: helicopters stay on the generic ORDERS path (SEM packet)
-                    // and spawn/auto takeoffs never come through here.
-                    if (plane) {
-                        CrewRadio.play(v, CrewRadio.Line.TAKEOFF);
-                    }
-                }
                 ordered++;
             }
 
@@ -189,40 +191,6 @@ public class PacketHelicopterCommand {
             NetworkHandler.orderFeedback(player, base, ordered, ChatFormatting.GREEN, ordered);
         });
         ctx.get().setPacketHandled(true);
-    }
-
-    /**
-     * Where an emergency landing puts the aircraft down. A plane needs a strip it can roll out on,
-     * which is exactly {@link DrivePlaneGoal#findFieldPad}; a helicopter needs nothing but ground
-     * that is not water, so asking it for 32 blocks of flat rollout would refuse pads it can
-     * obviously use. Both search around the <b>aircraft</b> — "nearby" means near the thing that is
-     * coming down, and this order carries no clicked point for exactly that reason.
-     */
-    @Nullable
-    private static BlockPos emergencyPad(ServerLevel level, VehicleEntity v, boolean plane) {
-        if (plane) {
-            return DrivePlaneGoal.findFieldPad(v);
-        }
-        int bx = v.getBlockX();
-        int bz = v.getBlockZ();
-        for (int r = 0; r <= 48; r += 4) {
-            for (int dx = -r; dx <= r; dx += 4) {
-                for (int dz = -r; dz <= r; dz += 4) {
-                    if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r) continue;
-                    int x = bx + dx;
-                    int z = bz + dz;
-                    // Never generate terrain to look at it: getHeight would, and a helicopter can
-                    // be a long way from anyone. Its own chunk is loaded, which is the case that
-                    // matters for something that lands by descending vertically.
-                    if (!level.hasChunkAt(x, z)) continue;
-                    int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-                    if (y <= level.getMinBuildHeight()) continue;
-                    BlockPos pad = new BlockPos(x, y, z);
-                    if (level.getFluidState(pad).isEmpty()) return pad;
-                }
-            }
-        }
-        return null;
     }
 
     /**

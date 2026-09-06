@@ -26,9 +26,8 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 /** Op config UI for a team_base. Snapshot edited locally; Save pushes {@link PacketSaveTeamBase}. */
 public class TeamBaseScreen extends Screen {
 
-    private static final int PANEL_W = 400;
-    private static final int LIST_ROWS = 4;
-    private static final int COL_W = PANEL_W / 2 - 4;
+    private static final int PANEL_W_PREF = 400;
+    private static final int LIST_ROWS_PREF = 4;
 
     private final BlockPos pos;
     private String assignedTeam;
@@ -74,6 +73,9 @@ public class TeamBaseScreen extends Screen {
     private int delayLabelY;
     private int poolLabelY;
     private int listTop;
+    private int panelW;
+    private int colW;
+    private int listRows;
     private List<String> filteredCatalog = List.of();
 
     public TeamBaseScreen(BlockPos pos, String assignedTeam, boolean playerOwned,
@@ -122,13 +124,17 @@ public class TeamBaseScreen extends Screen {
 
     @Override
     protected void init() {
-        int left = (this.width - PANEL_W) / 2;
-        int y = 32;
+        this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
+        this.colW = this.panelW / 2 - 4;
+        // ~220px of form chrome above the lists + ~100 below; shrink rows at high GUI scale.
+        this.listRows = GuiFit.fitRows(LIST_ROWS_PREF, 12, this.height, 320);
+        int left = (this.width - this.panelW) / 2;
+        int y = Math.min(32, Math.max(8, this.height / 16));
 
         this.assignedButton = addRenderableWidget(Button.builder(assignedLabel(), b -> {
             this.assignedTeam = cycleTeam(this.assignedTeam);
             this.assignedButton.setMessage(assignedLabel());
-        }).bounds(left, y, PANEL_W, 20).build());
+        }).bounds(left, y, this.panelW, 20).build());
         y += 22;
 
         this.playerOwnedButton = addRenderableWidget(Button.builder(playerOwnedLabel(), b -> {
@@ -138,11 +144,11 @@ public class TeamBaseScreen extends Screen {
             }
             this.playerOwnedButton.setMessage(playerOwnedLabel());
             this.aiCountLabel.setMessage(aiCountLabel());
-        }).bounds(left, y, PANEL_W / 2 - 2, 20).build());
+        }).bounds(left, y, this.panelW / 2 - 2, 20).build());
         this.spawnNpcButton = addRenderableWidget(Button.builder(spawnNpcLabel(), b -> {
             this.spawnPlayerOwnedTanksWithNpc = !this.spawnPlayerOwnedTanksWithNpc;
             this.spawnNpcButton.setMessage(spawnNpcLabel());
-        }).bounds(left + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
+        }).bounds(left + this.panelW / 2 + 2, y, this.panelW / 2 - 2, 20).build());
         y += 22;
 
         this.factionButton = addRenderableWidget(Button.builder(factionLabel(), b -> {
@@ -154,27 +160,27 @@ public class TeamBaseScreen extends Screen {
             }
             this.factionButton.setMessage(factionLabel());
             refreshPmcOwnerButton();
-        }).bounds(left, y, PANEL_W / 2 - 2, 20).build());
+        }).bounds(left, y, this.panelW / 2 - 2, 20).build());
         this.ownedTeamButton = addRenderableWidget(Button.builder(ownedLabel(), b -> {
             this.ownedTeam = cycleTeam(this.ownedTeam);
             this.ownedTeamButton.setMessage(ownedLabel());
-        }).bounds(left + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
+        }).bounds(left + this.panelW / 2 + 2, y, this.panelW / 2 - 2, 20).build());
         y += 22;
 
         this.pmcOwnerButton = addRenderableWidget(Button.builder(pmcOwnerLabel(), b -> {
             cyclePmcOwner();
             this.pmcOwnerButton.setMessage(pmcOwnerLabel());
-        }).bounds(left, y, PANEL_W, 20).build());
+        }).bounds(left, y, this.panelW, 20).build());
         refreshPmcOwnerButton();
         y += 22;
 
         addRenderableWidget(Button.builder(Component.literal("-"), b -> adjustAiCount(-1))
                 .bounds(left, y, 20, 20).build());
         this.aiCountLabel = addRenderableWidget(Button.builder(aiCountLabel(), b -> {})
-                .bounds(left + 22, y, PANEL_W - 44, 20).build());
+                .bounds(left + 22, y, this.panelW - 44, 20).build());
         this.aiCountLabel.active = false;
         addRenderableWidget(Button.builder(Component.literal("+"), b -> adjustAiCount(1))
-                .bounds(left + PANEL_W - 20, y, 20, 20).build());
+                .bounds(left + this.panelW - 20, y, 20, 20).build());
         y += 24;
 
         this.timeLabelY = y;
@@ -191,19 +197,19 @@ public class TeamBaseScreen extends Screen {
         this.invisibleButton = addRenderableWidget(Button.builder(invisibleLabel(), b -> {
             this.invisible = !this.invisible;
             this.invisibleButton.setMessage(invisibleLabel());
-        }).bounds(left, y, PANEL_W / 2 - 2, 20).build());
+        }).bounds(left, y, this.panelW / 2 - 2, 20).build());
         this.endOnCaptureButton = addRenderableWidget(Button.builder(endOnCaptureLabel(), b -> {
             this.endInvasionOnCapture = !this.endInvasionOnCapture;
             this.endOnCaptureButton.setMessage(endOnCaptureLabel());
-        }).bounds(left + PANEL_W / 2 + 2, y, PANEL_W / 2 - 2, 20).build());
+        }).bounds(left + this.panelW / 2 + 2, y, this.panelW / 2 - 2, 20).build());
         y += 22;
 
         this.pointsConqueredButton = addRenderableWidget(Button.builder(pointsConqueredLabel(), b -> {
             this.pointsHaveToBeConquered = !this.pointsHaveToBeConquered;
             this.pointsConqueredButton.setMessage(pointsConqueredLabel());
-        }).bounds(left, y, PANEL_W / 2 - 2, 20).build());
+        }).bounds(left, y, this.panelW / 2 - 2, 20).build());
         this.delayLabelY = y;
-        this.spawnDelayBox = new EditBox(this.font, left + PANEL_W / 2 + 90, y, 70, 20,
+        this.spawnDelayBox = new EditBox(this.font, left + this.panelW / 2 + 90, y, 70, 20,
                 Component.literal("spawnDelay"));
         this.spawnDelayBox.setValue(Integer.toString(this.spawnDelaySeconds));
         this.spawnDelayBox.setMaxLength(8);
@@ -213,10 +219,10 @@ public class TeamBaseScreen extends Screen {
         this.poolLabelY = y;
         y += 12;
         this.listTop = y;
-        int listBottom = this.listTop + LIST_ROWS * 12;
-        int rightCol = left + COL_W + 8;
+        int listBottom = this.listTop + this.listRows * 12;
+        int rightCol = left + this.colW + 8;
 
-        this.filterBox = new EditBox(this.font, left, listBottom + 4, COL_W - 84, 20,
+        this.filterBox = new EditBox(this.font, left, listBottom + 4, this.colW - 84, 20,
                 Component.translatable("gui.tacz_sewv.pool.filter"));
         this.filterBox.setMaxLength(128);
         this.filterBox.setResponder(s -> refreshFilter());
@@ -224,7 +230,7 @@ public class TeamBaseScreen extends Screen {
         refreshFilter();
 
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.add"), b -> addFromFilter())
-                .bounds(left + COL_W - 80, listBottom + 4, 80, 20).build());
+                .bounds(left + this.colW - 80, listBottom + 4, 80, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.remove"), b -> removeSelected())
                 .bounds(left, listBottom + 28, 100, 20).build());
         // Same source as /sewv pool Armor for the selected crew faction.
@@ -233,23 +239,23 @@ public class TeamBaseScreen extends Screen {
 
         addRenderableWidget(Button.builder(Component.literal("▲"), b -> {
             if (this.scroll > 0) this.scroll--;
-        }).bounds(left + COL_W - 20, this.listTop, 20, 20).build());
+        }).bounds(left + this.colW - 20, this.listTop, 20, 20).build());
         addRenderableWidget(Button.builder(Component.literal("▼"), b -> {
-            if (this.scroll + LIST_ROWS < this.vehiclePool.size()) this.scroll++;
-        }).bounds(left + COL_W - 20, listBottom - 20, 20, 20).build());
+            if (this.scroll + this.listRows < this.vehiclePool.size()) this.scroll++;
+        }).bounds(left + this.colW - 20, listBottom - 20, 20, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("▲"), b -> {
             if (this.enemyScroll > 0) this.enemyScroll--;
-        }).bounds(rightCol + COL_W - 20, this.listTop, 20, 20).build());
+        }).bounds(rightCol + this.colW - 20, this.listTop, 20, 20).build());
         addRenderableWidget(Button.builder(Component.literal("▼"), b -> {
-            if (this.enemyScroll + LIST_ROWS < this.teams.size()) this.enemyScroll++;
-        }).bounds(rightCol + COL_W - 20, listBottom - 20, 20, 20).build());
+            if (this.enemyScroll + this.listRows < this.teams.size()) this.enemyScroll++;
+        }).bounds(rightCol + this.colW - 20, listBottom - 20, 20, 20).build());
 
         int saveY = listBottom + 52;
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.invasion.save"), b -> save())
-                .bounds(left, saveY, PANEL_W / 2 - 4, 20).build());
+                .bounds(left, saveY, this.panelW / 2 - 4, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
-                .bounds(left + PANEL_W / 2 + 4, saveY, PANEL_W / 2 - 4, 20).build());
+                .bounds(left + this.panelW / 2 + 4, saveY, this.panelW / 2 - 4, 20).build());
     }
 
     private void refreshPmcOwnerButton() {
@@ -404,8 +410,8 @@ public class TeamBaseScreen extends Screen {
         if (id == null) return;
         if (!this.vehiclePool.contains(id)) this.vehiclePool.add(id);
         this.selected = this.vehiclePool.indexOf(id);
-        if (this.selected >= this.scroll + LIST_ROWS) {
-            this.scroll = this.selected - LIST_ROWS + 1;
+        if (this.selected >= this.scroll + this.listRows) {
+            this.scroll = this.selected - this.listRows + 1;
         }
         refreshFilter();
     }
@@ -449,17 +455,17 @@ public class TeamBaseScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        int left = (this.width - PANEL_W) / 2;
-        int rightCol = left + COL_W + 8;
-        if (mouseY >= this.listTop && mouseY < this.listTop + LIST_ROWS * 12) {
-            if (mouseX >= left && mouseX < left + COL_W - 24) {
+        int left = (this.width - this.panelW) / 2;
+        int rightCol = left + this.colW + 8;
+        if (mouseY >= this.listTop && mouseY < this.listTop + this.listRows * 12) {
+            if (mouseX >= left && mouseX < left + this.colW - 24) {
                 int row = (int) ((mouseY - this.listTop) / 12) + this.scroll;
                 if (row >= 0 && row < this.vehiclePool.size()) {
                     this.selected = row;
                     return true;
                 }
             }
-            if (mouseX >= rightCol && mouseX < rightCol + COL_W - 24) {
+            if (mouseX >= rightCol && mouseX < rightCol + this.colW - 24) {
                 int row = (int) ((mouseY - this.listTop) / 12) + this.enemyScroll;
                 if (row >= 0 && row < this.teams.size()) {
                     toggleEnemy(this.teams.get(row));
@@ -479,15 +485,15 @@ public class TeamBaseScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        int left = (this.width - PANEL_W) / 2;
-        int rightCol = left + COL_W + 8;
+        int left = (this.width - this.panelW) / 2;
+        int rightCol = left + this.colW + 8;
         if (mouseX >= rightCol) {
             if (delta > 0 && this.enemyScroll > 0) this.enemyScroll--;
-            else if (delta < 0 && this.enemyScroll + LIST_ROWS < this.teams.size()) this.enemyScroll++;
+            else if (delta < 0 && this.enemyScroll + this.listRows < this.teams.size()) this.enemyScroll++;
             return true;
         }
         if (delta > 0 && this.scroll > 0) this.scroll--;
-        else if (delta < 0 && this.scroll + LIST_ROWS < this.vehiclePool.size()) this.scroll++;
+        else if (delta < 0 && this.scroll + this.listRows < this.vehiclePool.size()) this.scroll++;
         return true;
     }
 
@@ -496,18 +502,18 @@ public class TeamBaseScreen extends Screen {
         renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
 
-        int left = (this.width - PANEL_W) / 2;
-        int rightCol = left + COL_W + 8;
+        int left = (this.width - this.panelW) / 2;
+        int rightCol = left + this.colW + 8;
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
 
         graphics.drawString(this.font, "Time (s)", left, this.timeLabelY + 6, 0xA0A0A0, false);
         graphics.drawString(this.font, "Radius", left + 170, this.timeLabelY + 6, 0xA0A0A0, false);
         graphics.drawString(this.font,
                 Component.translatable("gui.tacz_sewv.invasion.spawn_delay"),
-                left + PANEL_W / 2 + 2, this.delayLabelY + 6, 0xA0A0A0, false);
+                left + this.panelW / 2 + 2, this.delayLabelY + 6, 0xA0A0A0, false);
 
-        graphics.fill(left - 2, this.listTop - 2, left + COL_W - 2, this.listTop + LIST_ROWS * 12 + 2, 0x88000000);
-        graphics.fill(rightCol - 2, this.listTop - 2, rightCol + COL_W - 2, this.listTop + LIST_ROWS * 12 + 2, 0x88000000);
+        graphics.fill(left - 2, this.listTop - 2, left + this.colW - 2, this.listTop + this.listRows * 12 + 2, 0x88000000);
+        graphics.fill(rightCol - 2, this.listTop - 2, rightCol + this.colW - 2, this.listTop + this.listRows * 12 + 2, 0x88000000);
         graphics.drawString(this.font,
                 Component.translatable("gui.tacz_sewv.invasion.vehicle_pool", this.vehiclePool.size()),
                 left, this.poolLabelY, 0xA0A0A0, false);
@@ -515,13 +521,13 @@ public class TeamBaseScreen extends Screen {
                 Component.translatable("gui.tacz_sewv.invasion.enemy_teams"),
                 rightCol, this.poolLabelY, 0xA0A0A0, false);
 
-        for (int i = 0; i < LIST_ROWS; i++) {
+        for (int i = 0; i < this.listRows; i++) {
             int idx = i + this.scroll;
             if (idx >= this.vehiclePool.size()) break;
             int color = idx == this.selected ? 0xFFFFAA00 : 0xFFE0E0E0;
             graphics.drawString(this.font, this.vehiclePool.get(idx), left + 4, this.listTop + i * 12 + 2, color, false);
         }
-        for (int i = 0; i < LIST_ROWS; i++) {
+        for (int i = 0; i < this.listRows; i++) {
             int idx = i + this.enemyScroll;
             if (idx >= this.teams.size()) break;
             String team = this.teams.get(idx);

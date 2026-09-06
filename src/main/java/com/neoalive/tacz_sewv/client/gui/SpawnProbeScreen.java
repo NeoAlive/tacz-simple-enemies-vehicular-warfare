@@ -20,7 +20,7 @@ import com.neoalive.tacz_sewv.network.PacketSaveSpawnProbe;
  */
 public class SpawnProbeScreen extends Screen {
 
-    private static final int PANEL_W = 280;
+    private static final int PANEL_W_PREF = 280;
     private static final int LIST_ROWS = 8;
 
     private final BlockPos pos;
@@ -35,6 +35,10 @@ public class SpawnProbeScreen extends Screen {
     private int scroll;
     private int listTop;
 
+    private int panelW() {
+        return GuiFit.panelW(PANEL_W_PREF, this.width);
+    }
+
     public SpawnProbeScreen(BlockPos pos, List<String> vehicleList, boolean preCrewedSpawn,
                             List<String> catalog) {
         super(Component.translatable("gui.tacz_sewv.spawn_probe.title"));
@@ -46,19 +50,19 @@ public class SpawnProbeScreen extends Screen {
 
     @Override
     protected void init() {
-        int left = (this.width - PANEL_W) / 2;
+        int left = (this.width - panelW()) / 2;
         int y = 40;
 
         this.preCrewedButton = addRenderableWidget(Button.builder(preCrewedLabel(), b -> {
             this.preCrewedSpawn = !this.preCrewedSpawn;
             this.preCrewedButton.setMessage(preCrewedLabel());
-        }).bounds(left, y, PANEL_W, 20).build());
+        }).bounds(left, y, panelW(), 20).build());
         y += 28;
 
         this.listTop = y + 12;
         int listBottom = this.listTop + LIST_ROWS * 12;
 
-        this.filterBox = new EditBox(this.font, left, listBottom + 4, PANEL_W - 84, 20,
+        this.filterBox = new EditBox(this.font, left, listBottom + 4, panelW() - 84, 20,
                 Component.translatable("gui.tacz_sewv.pool.filter"));
         this.filterBox.setMaxLength(128);
         this.filterBox.setResponder(s -> refreshFilter());
@@ -66,22 +70,22 @@ public class SpawnProbeScreen extends Screen {
         refreshFilter();
 
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.add"), b -> addFromFilter())
-                .bounds(left + PANEL_W - 80, listBottom + 4, 80, 20).build());
+                .bounds(left + panelW() - 80, listBottom + 4, 80, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.remove"), b -> removeSelected())
                 .bounds(left, listBottom + 28, 100, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("▲"), b -> {
             if (this.scroll > 0) this.scroll--;
-        }).bounds(left + PANEL_W - 20, this.listTop, 20, 20).build());
+        }).bounds(left + panelW() - 20, this.listTop, 20, 20).build());
         addRenderableWidget(Button.builder(Component.literal("▼"), b -> {
             if (this.scroll + LIST_ROWS < this.vehicleList.size()) this.scroll++;
-        }).bounds(left + PANEL_W - 20, listBottom - 20, 20, 20).build());
+        }).bounds(left + panelW() - 20, listBottom - 20, 20, 20).build());
 
         int applyY = listBottom + 52;
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.spawn_probe.apply"), b -> apply())
-                .bounds(left, applyY, PANEL_W / 2 - 4, 20).build());
+                .bounds(left, applyY, panelW() / 2 - 4, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
-                .bounds(left + PANEL_W / 2 + 4, applyY, PANEL_W / 2 - 4, 20).build());
+                .bounds(left + panelW() / 2 + 4, applyY, panelW() / 2 - 4, 20).build());
     }
 
     private Component preCrewedLabel() {
@@ -141,8 +145,8 @@ public class SpawnProbeScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
-            int left = (this.width - PANEL_W) / 2;
-            if (mouseX >= left && mouseX < left + PANEL_W - 20
+            int left = (this.width - panelW()) / 2;
+            if (mouseX >= left && mouseX < left + panelW() - 20
                     && mouseY >= this.listTop && mouseY < this.listTop + LIST_ROWS * 12) {
                 int row = (int) ((mouseY - this.listTop) / 12);
                 int idx = this.scroll + row;
@@ -166,7 +170,7 @@ public class SpawnProbeScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
-        int left = (this.width - PANEL_W) / 2;
+        int left = (this.width - panelW()) / 2;
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 18, 0xFFFFFF);
         graphics.drawString(this.font,
                 Component.translatable("gui.tacz_sewv.spawn_probe.vehicle_list", this.vehicleList.size()),

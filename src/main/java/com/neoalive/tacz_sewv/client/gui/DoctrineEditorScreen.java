@@ -16,7 +16,7 @@ import com.neoalive.tacz_sewv.network.PacketSaveDoctrine;
 public class DoctrineEditorScreen extends Screen {
 
     private static final int MAX_POINTS = 20;
-    private static final int PANEL_W = 400;
+    private static final int PANEL_W_PREF = 400;
     private static final int PANEL_H = 36;
     private static final int GAP = 8;
     private static final int STEP_BTN_W = 20;
@@ -39,6 +39,10 @@ public class DoctrineEditorScreen extends Screen {
 
     private record AxisRow(Button minus, Button plus, int index) {}
 
+    private int panelW() {
+        return GuiFit.panelW(PANEL_W_PREF, this.width);
+    }
+
     public DoctrineEditorScreen() {
         super(Component.translatable("item.tacz_sewv.doctrine_ledger"));
     }
@@ -49,7 +53,7 @@ public class DoctrineEditorScreen extends Screen {
         this.scrollOffset = 0;
         this.draggingScrollbar = false;
 
-        this.listLeft = (this.width - PANEL_W) / 2;
+        this.listLeft = (this.width - panelW()) / 2;
         this.listTop = HEADER_H;
         this.listBottom = this.height - FOOTER_H;
         this.contentHeight = Doctrine.Axis.VALUES.length * PANEL_H
@@ -103,8 +107,8 @@ public class DoctrineEditorScreen extends Screen {
             AxisRow row = this.rows.get(i);
             int rowTop = this.listTop + i * (PANEL_H + GAP) - this.scrollOffset;
             int btnY = rowTop + 8;
-            int btnMinusX = this.listLeft + PANEL_W - 12 - 20 - 30 - 20;
-            int btnPlusX = this.listLeft + PANEL_W - 12 - 20;
+            int btnMinusX = this.listLeft + panelW() - 12 - 20 - 30 - 20;
+            int btnPlusX = this.listLeft + panelW() - 12 - 20;
 
             row.minus().setX(btnMinusX);
             row.minus().setY(btnY);
@@ -147,7 +151,7 @@ public class DoctrineEditorScreen extends Screen {
     }
 
     private int scrollbarX() {
-        return this.listLeft + PANEL_W + 4;
+        return this.listLeft + panelW() + 4;
     }
 
     private void renderScrollbar(GuiGraphics g) {
@@ -191,14 +195,14 @@ public class DoctrineEditorScreen extends Screen {
         g.drawCenteredString(this.font, Component.translatable("gui.tacz_sewv.doctrine.remaining", remaining),
                 this.width / 2, 28, color);
 
-        g.enableScissor(this.listLeft, this.listTop, this.listLeft + PANEL_W, this.listBottom);
+        g.enableScissor(this.listLeft, this.listTop, this.listLeft + panelW(), this.listBottom);
         String pendingAxisTip = null;
         for (AxisRow row : this.rows) {
             int y = this.listTop + row.index() * (PANEL_H + GAP) - this.scrollOffset;
             if (y + PANEL_H < this.listTop || y > this.listBottom) continue;
 
-            g.fill(this.listLeft, y, this.listLeft + PANEL_W, y + PANEL_H, 0x44000000);
-            g.renderOutline(this.listLeft, y, PANEL_W, PANEL_H, 0xFF444444);
+            g.fill(this.listLeft, y, this.listLeft + panelW(), y + PANEL_H, 0x44000000);
+            g.renderOutline(this.listLeft, y, panelW(), PANEL_H, 0xFF444444);
 
             Doctrine.Axis axis = Doctrine.Axis.VALUES[row.index()];
             String name = Component.translatable("gui.tacz_sewv.doctrine.axis." + axis.key).getString();
@@ -207,16 +211,16 @@ public class DoctrineEditorScreen extends Screen {
             String tipKey = "gui.tacz_sewv.doctrine.axis." + axis.key + ".tip";
             String tip = Component.translatable(tipKey).getString();
             String desc = tip.equals(tipKey) ? axis.description : tip;
-            int maxDescWidth = PANEL_W - 90 - 12 - 10;
+            int maxDescWidth = panelW() - 90 - 12 - 10;
             String truncatedDesc = this.font.plainSubstrByWidth(desc, maxDescWidth);
             if (!truncatedDesc.equals(desc)) truncatedDesc += "...";
             g.drawString(this.font, truncatedDesc, this.listLeft + 12, y + 20, 0xFFAAAAAA, true);
 
             int value = this.draftedAxes[row.index()];
             String displayVal = (value > 0 ? "+" : "") + value;
-            g.drawCenteredString(this.font, displayVal, this.listLeft + PANEL_W - 47, y + 14, 0xFFFFFF);
+            g.drawCenteredString(this.font, displayVal, this.listLeft + panelW() - 47, y + 14, 0xFFFFFF);
 
-            if (mouseX >= this.listLeft && mouseX < this.listLeft + PANEL_W
+            if (mouseX >= this.listLeft && mouseX < this.listLeft + panelW()
                     && mouseY >= y && mouseY < y + PANEL_H
                     && mouseY >= this.listTop && mouseY < this.listBottom) {
                 pendingAxisTip = tip.equals(tipKey) ? axis.description : tip;

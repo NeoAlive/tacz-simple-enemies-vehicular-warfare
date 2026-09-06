@@ -90,7 +90,8 @@ public class ConfigUIScreen extends Screen {
     }
 
     private int panelW() {
-        return Mth.clamp((int) (this.width * PANEL_WIDTH_FRAC), 340, PANEL_MAX_W);
+        return com.neoalive.tacz_sewv.client.gui.GuiFit.panelW(
+                this.width, PANEL_WIDTH_FRAC, 340, PANEL_MAX_W);
     }
 
     private int panelLeft() {

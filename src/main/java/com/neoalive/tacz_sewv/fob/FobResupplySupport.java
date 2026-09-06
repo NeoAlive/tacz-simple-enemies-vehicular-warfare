@@ -14,6 +14,7 @@ import com.tacz.guns.api.item.builder.AmmoItemBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Containers;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -110,12 +111,16 @@ public final class FobResupplySupport {
             ItemStack extracted = stockpile.getItems().extractItem(slot, stack.getMaxStackSize(), false);
             if (extracted.isEmpty()) continue;
 
+            int took = extracted.getCount();
             ItemStack remainder = ItemHandlerHelper.insertItemStacked(dest, extracted, false);
             if (!remainder.isEmpty()) {
-                stockpile.getItems().insertItem(slot, remainder, false);
+                ItemStack leftover = ItemHandlerHelper.insertItemStacked(stockpile.getItems(), remainder, false);
+                if (!leftover.isEmpty()) {
+                    Containers.dropItemStack(level, unit.getX(), unit.getY(), unit.getZ(), leftover);
+                }
             }
             moved = true;
-            FobDebug.logEntity(unit, "resupplied {} x{}", extracted.getItem(), extracted.getCount());
+            FobDebug.logEntity(unit, "resupplied {} x{}", extracted.getItem(), took - remainder.getCount());
             if (!needsResupply(target)) break ItemStackHandlerLoop;
         }
         return moved;
@@ -332,7 +337,7 @@ public final class FobResupplySupport {
             if (!existing.isEmpty() && !ItemStack.isSameItemSameTags(existing, stack)) {
                 return stack;
             }
-            int max = Math.min(stack.getMaxStackSize(), stack.getCount());
+            int max = stack.getMaxStackSize();
             int room = existing.isEmpty() ? max : max - existing.getCount();
             if (room <= 0) return stack;
             int move = Math.min(room, stack.getCount());

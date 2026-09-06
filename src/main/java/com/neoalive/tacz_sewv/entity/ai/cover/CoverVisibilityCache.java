@@ -89,7 +89,7 @@ public final class CoverVisibilityCache {
         long ck = chunkKey(blockX, blockZ);
         ChunkCoverGrid grid = cache.grids.get(ck);
         if (grid == null) {
-            cache.dirtyChunks.add(ck);
+            enqueueDirty(cache, ck);
             return MAX_RANGE;
         }
         int lx = Mth.positiveModulo((blockX >> 1), CELLS_PER_EDGE);

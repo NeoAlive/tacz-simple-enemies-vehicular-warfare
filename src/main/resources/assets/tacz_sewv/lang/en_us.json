@@ -1032,6 +1032,8 @@
   "config.tacz_sewv.navalFailureMultiplier.tooltip": "How much the naval-battle chance grows after each miss.",
   "config.tacz_sewv.navalShipsPerSide": "Naval Ships Per Side",
   "config.tacz_sewv.navalShipsPerSide.tooltip": "How many ships each side gets in a naval battle.",
+  "config.tacz_sewv.notificationsEnabled": "Notifications Enabled",
+  "config.tacz_sewv.notificationsEnabled.tooltip": "Show HUD notification banners (unit downed, vehicle destroyed, ammo out, and so on).",
   "config.tacz_sewv.notificationScreenSeconds": "Notification Screen Seconds",
   "config.tacz_sewv.notificationScreenSeconds.tooltip": "How many seconds a HUD notification stays on screen before the next queued one, or the banner slides away.",
   "config.tacz_sewv.npcArmorEnabled": "Npc Armor Enabled",

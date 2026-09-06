@@ -70,6 +70,7 @@ public final class NotificationHud {
     }
 
     public static void push(Component title, Component body) {
+        if (!ClientConfig.flag(ClientConfig.NOTIFICATIONS_ENABLED)) return;
         if (title == null) title = Component.empty();
         if (body == null) body = Component.empty();
         if (queue.size() >= MAX_QUEUE) return;

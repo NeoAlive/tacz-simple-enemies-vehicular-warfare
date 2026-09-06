@@ -6,7 +6,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
@@ -17,7 +16,6 @@ import org.lwjgl.glfw.GLFW;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.radial.QuickCommandWheelScreen;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
-import com.neoalive.tacz_sewv.init.ModItems;
 
 /**
  * Hold-to-open quick-command wheel. Polled from {@link TickEvent.ClientTickEvent} like
@@ -101,11 +99,7 @@ public final class QuickCommandKeybind {
 
     /** TDT anywhere in the player's inventory (including offhand / hotbar), not only held. */
     public static boolean hasTerminal(Player player) {
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            ItemStack stack = player.getInventory().getItem(i);
-            if (stack.is(ModItems.TACTICAL_DATA_TERMINAL.get())) return true;
-        }
-        return false;
+        return com.neoalive.tacz_sewv.item.TacticalTerminal.hasInInventory(player);
     }
 
     /** @deprecated use {@link #hasTerminal} */

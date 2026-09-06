@@ -192,7 +192,9 @@ public final class QuickCommandWheelScreen extends Screen {
 
         List<Integer> units = resolveUnits(mc, pipelineId);
         if (units.isEmpty()) {
-            String key = ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON.get()
+            boolean ribbon = QuickCommandRegistry.ID_QUICK_EVAC.equals(pipelineId)
+                    && ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON.get();
+            String key = ribbon
                     ? "message.tacz_sewv.quick_command.need_selection"
                     : "message.tacz_sewv.quick_command.need_units";
             mc.player.displayClientMessage(
@@ -219,12 +221,14 @@ public final class QuickCommandWheelScreen extends Screen {
     /**
      * Default: owned PMCs within the pipeline's radius of the player.
      * Board / entrench / refill / evac stay on-foot-only.
-     * Config {@code quickEvacPullSelectedFromRibbon}: ribbon/SEM selection only.
+     * Config {@code quickEvacPullSelectedFromRibbon}: ribbon/SEM selection for Quick Evac only.
      */
     private static List<Integer> resolveUnits(Minecraft mc, String pipelineId) {
         Player player = mc.player;
         boolean onFootOnly = QuickCommandRegistry.requiresOnFoot(pipelineId);
-        if (ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON.get()) {
+        boolean ribbonEvac = QuickCommandRegistry.ID_QUICK_EVAC.equals(pipelineId)
+                && ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON.get();
+        if (ribbonEvac) {
             List<Integer> selected = new ArrayList<>(
                     TdtSelection.resolve(SewvConfig.BOARD_SCAN_RADIUS.get()));
             return filterOwned(mc, player, selected, onFootOnly);
@@ -236,7 +240,8 @@ public final class QuickCommandWheelScreen extends Screen {
         AABB box = player.getBoundingBox().inflate(radius);
         List<Integer> nearby = new ArrayList<>();
         for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class, box,
-                u -> u.isAlive() && u.isOwnedBy(player)
+                u -> u.isAlive()
+                        && com.neoalive.tacz_sewv.invasion.PmcOwnerSupport.isOwner(player, u)
                         && (!onFootOnly || u.getVehicle() == null))) {
             nearby.add(pmc.getId());
         }
@@ -248,7 +253,8 @@ public final class QuickCommandWheelScreen extends Screen {
         List<Integer> out = new ArrayList<>();
         for (int id : ids) {
             Entity e = mc.level.getEntity(id);
-            if (!(e instanceof PmcUnitEntity pmc) || !pmc.isOwnedBy(player)) continue;
+            if (!(e instanceof PmcUnitEntity pmc)) continue;
+            if (!com.neoalive.tacz_sewv.invasion.PmcOwnerSupport.isOwner(player, pmc)) continue;
             if (onFootOnly && pmc.getVehicle() != null) continue;
             out.add(id);
         }

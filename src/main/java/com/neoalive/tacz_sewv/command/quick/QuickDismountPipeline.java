@@ -7,6 +7,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
@@ -18,10 +20,14 @@ public final class QuickDismountPipeline implements QuickCommandPipeline {
 
     @Override
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
+        double radius = SewvConfig.QUICK_LAND_RADIUS.get();
+        double r2 = radius * radius;
         int dismounted = 0;
         for (int unitId : context.unitIds()) {
             Entity e = issuer.level().getEntity(unitId);
-            if (!(e instanceof PmcUnitEntity pmc) || !pmc.isOwnedBy(issuer)) continue;
+            if (!(e instanceof PmcUnitEntity pmc) || !pmc.isAlive()) continue;
+            if (!OrderAuth.check(issuer, pmc, "QuickDismount")) continue;
+            if (pmc.distanceToSqr(issuer) > r2) continue;
             if (OrderGuard.rejectIfDowned(issuer, pmc)) continue;
             boolean wasMounted = pmc.getVehicle() != null;
             if (wasMounted) {

@@ -35,6 +35,7 @@ public class PacketQuickCommand {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
             if (player == null) return;
+            if (!com.neoalive.tacz_sewv.item.TacticalTerminal.hasInInventory(player)) return;
             QuickCommandPipeline pipeline = QuickCommandRegistry.get(this.pipelineId);
             if (pipeline == null) return;
             pipeline.execute(player, new QuickCommandPipeline.QuickCommandContext(this.unitIds));

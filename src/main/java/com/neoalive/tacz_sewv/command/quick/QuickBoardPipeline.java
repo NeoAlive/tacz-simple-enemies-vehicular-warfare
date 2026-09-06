@@ -110,6 +110,12 @@ public final class QuickBoardPipeline implements QuickCommandPipeline {
             int free = freeSeats(hull);
             if (free <= 0) continue;
             boolean empty = hull.getPassengers().isEmpty();
+            // Same player-hull lock as RU/US auto-board: lastDriver Player means off-limits unless
+            // the steal toggle is on (issuer's own lastDriver still counts as "player-driven").
+            if (empty && !SewvConfig.AUTO_BOARD_STEALS_PLAYER_VEHICLES.get()
+                    && hull.getLastDriver() instanceof Player) {
+                continue;
+            }
             out.add(BoardSlot.vehicle(hull, free, empty));
         }
         return out;

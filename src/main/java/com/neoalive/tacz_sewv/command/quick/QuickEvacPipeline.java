@@ -19,6 +19,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.BoardOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
@@ -30,8 +31,8 @@ import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Quick Evac: every non-full owned PMC heli in range lands toward nearby infantry; on-foot PMCs
- * are split across free seats up front and start walking immediately; each heli takes off once
- * its reserved seats are filled or the timeout elapses.
+ * are split across free seats up front; board orders are issued only after a pad succeeds; each
+ * heli takes off once its reserved seats are filled or the timeout elapses.
  *
  * <p>Full hulls are ignored. Tracker re-resolves by network id each poll (stale-safe).
  */
@@ -85,13 +86,12 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
             int hid = best.hull().getId();
             reserved.get(hid).add(pmc.getId());
             remaining.put(hid, remaining.get(hid) - 1);
-            // Passenger seats only, latch already cleared — AI pilot holds the stick.
-            BoardOrders.issueCleared(pmc, hid, true);
         }
 
+        // Land first — only then issue board orders for legs that actually got a pad.
         Set<Long> claimedPads = new HashSet<>();
         List<QuickEvacTracker.LegSpec> legs = new ArrayList<>();
-        int landedOrders = 0;
+        int boarded = 0;
         for (ResolvedHeli heli : helis) {
             List<Integer> assignees = reserved.getOrDefault(heli.hull().getId(), List.of());
             BlockPos focus = landFocus(heli, assignees, units, level);
@@ -99,19 +99,26 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
                 OrderReport.fail(issuer, OrderFailure.NO_PAD, heli.pilot());
                 continue;
             }
+            for (int unitId : assignees) {
+                Entity e = level.getEntity(unitId);
+                if (!(e instanceof PmcUnitEntity pmc) || !pmc.isAlive()) continue;
+                if (pmc.getVehicle() != null) continue;
+                BoardOrders.issueCleared(pmc, heli.hull().getId(), true);
+                boarded++;
+            }
             legs.add(new QuickEvacTracker.LegSpec(heli.hull().getId(), heli.pilot().getId(),
                     List.copyOf(assignees)));
-            landedOrders++;
         }
-        if (landedOrders == 0 || legs.isEmpty()) {
+        if (legs.isEmpty()) {
             NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_evac.no_heli", 0,
                     ChatFormatting.RED);
             return;
         }
 
         QuickEvacTracker.start(issuer.getUUID(), legs, level.getGameTime());
-        NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_evac.started", units.size(),
-                ChatFormatting.GREEN, units.size());
+        NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_evac.started",
+                Math.max(boarded, units.size()),
+                ChatFormatting.GREEN, Math.max(boarded, units.size()));
     }
 
     /** Owned PMC-crewed helicopters in range that still have at least one free seat. */
@@ -125,7 +132,7 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
             if (hull.distanceToSqr(issuer) > r2) continue;
             if (isFull(hull)) continue;
             if (!(hull.getFirstPassenger() instanceof PmcUnitEntity pilot)) continue;
-            if (!pilot.isOwnedBy(issuer)) continue;
+            if (!OrderAuth.check(issuer, pilot, "QuickEvacHeli")) continue;
             if (!(pilot instanceof IHelicopterPilot)) continue;
             out.add(new ResolvedHeli(hull, pilot));
         }
@@ -180,14 +187,13 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
 
     private static List<PmcUnitEntity> resolveBoarders(ServerPlayer issuer, ServerLevel level,
                                                        List<Integer> unitIds) {
+        double radius = SewvConfig.QUICK_EVAC_BOARD_RADIUS.get();
         List<PmcUnitEntity> out = new ArrayList<>();
-        for (int id : unitIds) {
-            Entity e = level.getEntity(id);
-            if (!(e instanceof PmcUnitEntity pmc)) continue;
-            if (!pmc.isOwnedBy(issuer)) continue;
+        for (PmcUnitEntity pmc : QuickCommandUnits.owned(issuer, level, unitIds, radius)) {
             if (pmc.getVehicle() != null) continue;
             if (OrderGuard.rejectIfDowned(issuer, pmc)) continue;
             if (MortarSupport.hasMortarClaim(pmc)) continue;
+            if (QuickCommandUnits.refuseFobOrRoute(issuer, pmc)) continue;
             out.add(pmc);
         }
         return out;

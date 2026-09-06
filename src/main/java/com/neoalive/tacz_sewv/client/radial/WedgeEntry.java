@@ -7,16 +7,20 @@ import java.util.Objects;
  * One spoke of the quick-command wheel. Icons are Unicode glyphs (no texture assets).
  *
  * <p>Holds a pipeline <em>id</em> rather than a pipeline instance so {@link RadialInputState}
- * stays free of server/command types (and of Minecraft).
+ * stays free of server/command types (and of Minecraft). {@link #accentRgb()} is a plain
+ * 0xRRGGBB int for the same reason.
  */
 public sealed interface WedgeEntry permits WedgeEntry.CategoryEntry, WedgeEntry.PipelineEntry {
 
     String label();
 
-    /** Single Unicode glyph drawn on the wedge (Effortless-style icon slot). */
     String icon();
 
-    record CategoryEntry(String label, String icon, List<WedgeEntry> children) implements WedgeEntry {
+    /** Category / leaf accent as 0xRRGGBB (no alpha). */
+    int accentRgb();
+
+    record CategoryEntry(String label, String icon, int accentRgb, List<WedgeEntry> children)
+            implements WedgeEntry {
         public CategoryEntry {
             Objects.requireNonNull(label, "label");
             Objects.requireNonNull(icon, "icon");
@@ -24,7 +28,8 @@ public sealed interface WedgeEntry permits WedgeEntry.CategoryEntry, WedgeEntry.
         }
     }
 
-    record PipelineEntry(String label, String icon, String pipelineId) implements WedgeEntry {
+    record PipelineEntry(String label, String icon, String pipelineId, int accentRgb)
+            implements WedgeEntry {
         public PipelineEntry {
             Objects.requireNonNull(label, "label");
             Objects.requireNonNull(icon, "icon");

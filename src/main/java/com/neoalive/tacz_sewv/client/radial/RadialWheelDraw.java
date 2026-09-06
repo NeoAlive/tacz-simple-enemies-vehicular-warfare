@@ -12,11 +12,10 @@ import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
 
-/**
- * Effortless-inspired radial draw: one gapped trapezoid quad per wedge (not tessellated arcs).
- * Selection / size / mouse math stay in {@link RadialInputState} and the screen; this is paint only.
- */
 final class RadialWheelDraw {
+
+    /** Unicode icon scale relative to the default font size. */
+    private static final float ICON_SCALE = 1.85f;
 
     private RadialWheelDraw() {}
 
@@ -28,7 +27,7 @@ final class RadialWheelDraw {
      */
     static void renderRing(GuiGraphics g, Font font, int cx, int cy, int innerR, int outerR,
                            java.util.List<WedgeEntry> wedges, float[] hotStrengths, float menuAlpha,
-                           int fillArgb, int hotArgb, int hubArgb, int labelArgb, int labelHotArgb) {
+                           int hubArgb, int labelArgb, int labelHotArgb, boolean[] enabled) {
         int n = wedges.size();
         float ringA = Mth.clamp(menuAlpha, 0.0f, 1.0f);
         if (n <= 0) {
@@ -37,7 +36,6 @@ final class RadialWheelDraw {
             return;
         }
 
-        // Effortless: keep wedges from getting huge when few slots by flooring divisor.
         int denom = Math.max(n, 3);
         double rad = (Math.PI * 2.0) / denom;
         double innerGap = Math.PI * 0.007;
@@ -45,7 +43,16 @@ final class RadialWheelDraw {
         double categoryOuter = innerR + Math.max(2.0, (outerR - innerR) * 0.12);
 
         for (int i = 0; i < n; i++) {
-            // Slot 0 at top; wedge centred on i (same polar layout as Effortless).
+            WedgeEntry entry = wedges.get(i);
+            boolean on = enabled == null || i >= enabled.length || enabled[i];
+            int accent = on ? entry.accentRgb() : 0x888888;
+            int fillArgb = fillFromAccent(accent);
+            int hotArgb = hotFromAccent(accent);
+            int stripCold = stripFromAccent(accent, false);
+            int stripHot = stripFromAccent(accent, true);
+            int coldLabel = on ? labelArgb : 0xFF888888;
+            int hotLabel = on ? labelHotArgb : 0xFFAAAAAA;
+
             double lRad = (i - 0.5) * rad - Math.PI / 2.0;
             double rRad = (i + 0.5) * rad - Math.PI / 2.0;
 
@@ -67,12 +74,11 @@ final class RadialWheelDraw {
                     (float) (cx + x1m2), (float) (cy + y1m2),
                     color);
 
-            // Thin inner category band (Effortless tint strip) — brighter when hot.
             double x1m3 = Math.cos(lRad + innerGap) * categoryOuter;
             double x2m3 = Math.cos(rRad - innerGap) * categoryOuter;
             double y1m3 = Math.sin(lRad + innerGap) * categoryOuter;
             double y2m3 = Math.sin(rRad - innerGap) * categoryOuter;
-            int strip = scaleAlpha(lerpArgb(0x885A6A7A, 0xEE5A9A7A, hot), ringA);
+            int strip = scaleAlpha(lerpArgb(stripCold, stripHot, hot), ringA);
             renderQuad(g,
                     (float) (cx + x1m1), (float) (cy + y1m1),
                     (float) (cx + x2m1), (float) (cy + y2m1),
@@ -80,9 +86,6 @@ final class RadialWheelDraw {
                     (float) (cx + x1m3), (float) (cy + y1m3),
                     strip);
 
-            WedgeEntry entry = wedges.get(i);
-            // Effortless places the icon on the average of the edge unit vectors (not a
-            // renormalised bisector) — same visual for 3–8 wedges, cheaper.
             double x1 = Math.cos(lRad);
             double x2 = Math.cos(rRad);
             double y1 = Math.sin(lRad);
@@ -92,15 +95,13 @@ final class RadialWheelDraw {
             double iconY = (y1 + y2) * 0.5 * iconR;
             int ix = cx + (int) Math.round(iconX);
             int iy = cy + (int) Math.round(iconY);
-            String icon = entry.icon();
-            int iw = font.width(icon);
-            g.drawString(font, icon, ix - iw / 2, iy - 4,
-                    scaleAlpha(lerpArgb(labelArgb, labelHotArgb, hot), ringA), false);
+            int iconColor = scaleAlpha(lerpArgb(coldLabel, withAccentTint(hotLabel, accent), hot),
+                    ringA);
+            drawScaledIcon(g, font, entry.icon(), ix, iy, iconColor);
 
             double bx = (x1 + x2) * 0.5;
             double by = (y1 + y2) * 0.5;
             double textR = outerR + Math.max(10, outerR * 0.22);
-            // Scale the average vector out to textR (same shape as Effortless TEXT_DISTANCE).
             double avgLen = Math.hypot(bx, by);
             double txOff = avgLen > 1.0e-6 ? (bx / avgLen) * textR : 0;
             double tyOff = avgLen > 1.0e-6 ? (by / avgLen) * textR : -textR;
@@ -117,15 +118,60 @@ final class RadialWheelDraw {
                 drawX = tx - tw / 2;
             }
             g.drawString(font, label, drawX, ty - 4,
-                    scaleAlpha(lerpArgb(labelArgb, labelHotArgb, hot), ringA), false);
+                    scaleAlpha(lerpArgb(coldLabel, hotLabel, hot), ringA), false);
         }
 
         float hubHot = 0.0f;
         for (float h : hotStrengths) hubHot = Math.max(hubHot, h);
-        String hub = hubHot > 0.35f && n > 0
-                ? wedges.get(hottestIndex(hotStrengths, n)).icon() : "•";
+        int hotIdx = hottestIndex(hotStrengths, n);
+        boolean hubOn = enabled == null || hotIdx >= enabled.length || enabled[hotIdx];
+        String hub = hubHot > 0.35f && n > 0 ? wedges.get(hotIdx).icon() : "•";
+        int hubGlyph = hubHot > 0.35f && n > 0
+                ? (hubOn
+                        ? withAccentTint(labelHotArgb, wedges.get(hotIdx).accentRgb())
+                        : 0xFFAAAAAA)
+                : labelHotArgb;
         drawHub(g, font, cx, cy, innerR, scaleAlpha(hubArgb, ringA), hub,
-                scaleAlpha(labelHotArgb, ringA));
+                scaleAlpha(hubGlyph, ringA));
+    }
+
+    private static void drawScaledIcon(GuiGraphics g, Font font, String icon, int cx, int cy,
+                                       int argb) {
+        float scale = ICON_SCALE;
+        g.pose().pushPose();
+        g.pose().translate(cx, cy, 0);
+        g.pose().scale(scale, scale, 1.0f);
+        int iw = font.width(icon);
+        g.drawString(font, icon, -iw / 2, -4, argb, false);
+        g.pose().popPose();
+    }
+
+    /** Dark translucent fill from a category accent. */
+    private static int fillFromAccent(int rgb) {
+        return pack(0xAA, darken(rgb, 0.22f));
+    }
+
+    private static int hotFromAccent(int rgb) {
+        return pack(0xDD, darken(rgb, 0.45f));
+    }
+
+    private static int stripFromAccent(int rgb, boolean hot) {
+        return pack(hot ? 0xEE : 0x88, darken(rgb, hot ? 0.70f : 0.40f));
+    }
+
+    private static int withAccentTint(int labelArgb, int accentRgb) {
+        return lerpArgb(labelArgb, 0xFF000000 | (accentRgb & 0xFFFFFF), 0.35f);
+    }
+
+    private static int darken(int rgb, float factor) {
+        int r = Math.round(((rgb >> 16) & 0xFF) * factor);
+        int g = Math.round(((rgb >> 8) & 0xFF) * factor);
+        int b = Math.round((rgb & 0xFF) * factor);
+        return (r << 16) | (g << 8) | b;
+    }
+
+    private static int pack(int alpha, int rgb) {
+        return (alpha << 24) | (rgb & 0xFFFFFF);
     }
 
     private static int hottestIndex(float[] hot, int n) {
@@ -178,11 +224,9 @@ final class RadialWheelDraw {
         }
         BufferUploader.drawWithShader(buffer.end());
 
-        int gw = font.width(glyph);
-        g.drawString(font, glyph, cx - gw / 2, cy - 4, glyphArgb, false);
+        drawScaledIcon(g, font, glyph, cx, cy, glyphArgb);
     }
 
-    /** One Effortless-style trapezoid (GUI has no cull on these shaders). */
     static void renderQuad(GuiGraphics g,
                            float x1, float y1, float x2, float y2,
                            float x3, float y3, float x4, float y4, int argb) {

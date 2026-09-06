@@ -74,7 +74,9 @@
     "taskedWithdraw": 50,
     "confidence": -15,
     "aggression": -15,
-    "riskTolerance": -15
+    "riskTolerance": -15,
+    "postureSeekCover": 45,
+    "exposed": 15
   },
 
   "deploySmoke": {

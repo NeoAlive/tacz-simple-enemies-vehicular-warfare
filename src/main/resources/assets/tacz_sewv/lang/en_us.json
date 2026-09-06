@@ -681,6 +681,8 @@
   "command.tacz_sewv.debug.ShowSpawnProbes.off": "Spawn probes hidden.",
   "command.tacz_sewv.debug.IndividualTactics.on": "Individual tactics debug ON. Grep logs for [sewv-diag][posture] / [sewv-diag][cover].",
   "command.tacz_sewv.debug.IndividualTactics.off": "Individual tactics debug OFF.",
+  "command.tacz_sewv.debug.seekCover.none": "No crewed ground vehicle within range (look at one or stand near a driver).",
+  "command.tacz_sewv.debug.seekCover.ok": "SEEK_COVER armed on %s #%s (%s #%s) — forcing RETREAT toward cover. Grep [sewv-diag][seekCover][TEMP].",
   "gui.tacz_sewv.airport.title": "Airport",
   "gui.tacz_sewv.airport.check": "Check Clearance",
   "gui.tacz_sewv.airport.deploy": "Deploy Plane",

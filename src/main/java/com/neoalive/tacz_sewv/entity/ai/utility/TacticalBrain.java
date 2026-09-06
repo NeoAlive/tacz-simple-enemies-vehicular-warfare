@@ -118,6 +118,7 @@ public final class TacticalBrain {
         s[Signal.ALLY_INFANTRY_NEAR.ordinal()] = Mth.clamp(f.alliedInfantryNear, 0.0, 1.0);
         s[Signal.POSTURE_SCOOT.ordinal()] = f.postureScoot ? 1.0 : 0.0;
         s[Signal.POSTURE_AMBUSH.ordinal()] = f.postureAmbush ? 1.0 : 0.0;
+        s[Signal.POSTURE_SEEK_COVER.ordinal()] = f.postureSeekCover ? 1.0 : 0.0;
     }
 
     public Action plan() {
@@ -252,6 +253,7 @@ public final class TacticalBrain {
         s[Signal.ALLY_INFANTRY_NEAR.ordinal()] = Mth.clamp(f.alliedInfantryNear, 0.0, 1.0);
         s[Signal.POSTURE_SCOOT.ordinal()] = f.postureScoot ? 1.0 : 0.0;
         s[Signal.POSTURE_AMBUSH.ordinal()] = f.postureAmbush ? 1.0 : 0.0;
+        s[Signal.POSTURE_SEEK_COVER.ordinal()] = f.postureSeekCover ? 1.0 : 0.0;
     }
 
     private void decide(AbstractUnit unit, Doctrine doctrine, UtilityWeights weights, long now) {

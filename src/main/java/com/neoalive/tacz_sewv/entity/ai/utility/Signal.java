@@ -155,7 +155,9 @@ public enum Signal {
     /** Scoot waypoint is active (fire-and-maneuver). */
     POSTURE_SCOOT("postureScoot"),
     /** Ambush posture armed (orders-gated). */
-    POSTURE_AMBUSH("postureAmbush");
+    POSTURE_AMBUSH("postureAmbush"),
+    /** Seeking hard cover under retreat/smoke (or debug force). */
+    POSTURE_SEEK_COVER("postureSeekCover");
 
     /** The key naming this signal in the weights file. */
     public final String key;

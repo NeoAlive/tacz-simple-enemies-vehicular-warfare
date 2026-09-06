@@ -144,6 +144,47 @@ public final class CoverQuery {
     }
 
     /**
+     * Farther break-contact point: prefer positions away from the threat with low exposure
+     * (masked by an occluder closer than the threat). Used by SEEK_COVER under retreat/smoke.
+     */
+    @Nullable
+    public static Vec3 suggestRetreatCover(ServerLevel level, VehicleEntity hull,
+                                           double threatX, double threatZ) {
+        double hx = hull.getX();
+        double hz = hull.getZ();
+        double toThreatX = threatX - hx;
+        double toThreatZ = threatZ - hz;
+        double len = Math.sqrt(toThreatX * toThreatX + toThreatZ * toThreatZ);
+        if (len < 1.0E-3) return null;
+        double fx = toThreatX / len;
+        double fz = toThreatZ / len;
+        double lx = -fz;
+        double lz = fx;
+        int parity = Integer.signum(hull.getId()) >= 0 ? 1 : -1;
+
+        double bestScore = Double.NEGATIVE_INFINITY;
+        Vec3 best = null;
+        // Rings behind / lateral-behind the hull; farther than fire-and-maneuver scoot.
+        for (double back : new double[] {12.0, 18.0, 24.0, 30.0}) {
+            for (int side : new int[] {0, parity, -parity}) {
+                double lat = side == 0 ? 0.0 : 8.0 + Math.abs(side) * 4.0;
+                double px = hx - fx * back + lx * side * lat;
+                double pz = hz - fz * back + lz * side * lat;
+                double exp = exposure(level, px, pz, threatX, threatZ);
+                if (exp >= 0.55) continue;
+                double distMove = Math.sqrt((px - hx) * (px - hx) + (pz - hz) * (pz - hz));
+                // Prefer masked + a clean break distance (~18–24).
+                double score = (1.0 - exp) * 12.0 - Math.abs(distMove - 20.0) * 0.15;
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = new Vec3(px, hull.getY(), pz);
+                }
+            }
+        }
+        return best;
+    }
+
+    /**
      * Fan-slot cover interest: for each of 7 heading offsets, how much a one-hull-length step
      * in that direction reduces exposure to the threat (0..1).
      */

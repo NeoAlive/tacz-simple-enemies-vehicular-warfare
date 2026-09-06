@@ -24,8 +24,8 @@ import com.neoalive.tacz_sewv.network.PacketPlayerSelfRappel;
 import com.neoalive.tacz_sewv.network.PacketPlayerSelfRappelLock;
 
 /**
- * Client-side Air quick commands: player rappel + radius takeoff/landing (TDT reinvoke).
- * Eligibility is evaluated live so the wheel can gray wedges that cannot fire.
+ * Client-side Air quick commands: player rappel + radius takeoff/landing/emergency land
+ * (TDT reinvoke). Eligibility is evaluated live so the wheel can gray wedges that cannot fire.
  */
 public final class QuickAirClient {
 
@@ -35,7 +35,8 @@ public final class QuickAirClient {
         return QuickCommandRegistry.ID_RAPPEL_SELF.equals(pipelineId)
                 || QuickCommandRegistry.ID_RAPPEL_CREW.equals(pipelineId)
                 || QuickCommandRegistry.ID_QUICK_TAKEOFF.equals(pipelineId)
-                || QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId);
+                || QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)
+                || QuickCommandRegistry.ID_QUICK_EMERGENCY_LAND.equals(pipelineId);
     }
 
     public static boolean isEnabled(String pipelineId) {
@@ -48,7 +49,8 @@ public final class QuickAirClient {
             return canCrewRappel(mc);
         }
         if (QuickCommandRegistry.ID_QUICK_TAKEOFF.equals(pipelineId)
-                || QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)) {
+                || QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)
+                || QuickCommandRegistry.ID_QUICK_EMERGENCY_LAND.equals(pipelineId)) {
             return !findAircraftPilots(mc).isEmpty();
         }
         return true;
@@ -78,6 +80,12 @@ public final class QuickAirClient {
         if (QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)) {
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
                     pilots, IHelicopterPilot.HELI_CMD_LANDING, mc.player.blockPosition(), 0));
+            return true;
+        }
+        // Same as TDT: no pad — server picks flat ground next to each aircraft.
+        if (QuickCommandRegistry.ID_QUICK_EMERGENCY_LAND.equals(pipelineId)) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
+                    pilots, IHelicopterPilot.HELI_CMD_EMERGENCY_LAND, null, 0));
             return true;
         }
         return false;

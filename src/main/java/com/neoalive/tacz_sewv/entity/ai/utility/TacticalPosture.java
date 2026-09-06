@@ -34,10 +34,21 @@ public final class TacticalPosture {
         COVERING_ADVANCE,
         CORNER_PEEK,
         AMBUSH,
-        INFANTRY_COVER
+        INFANTRY_COVER,
+        /** Break contact toward hard cover after smoke / low confidence (or debug force). */
+        SEEK_COVER
     }
 
     private static final long SCOOT_DURATION = 80;
+    /** Hold the cover waypoint ~15s so the hull can path there before re-pick. */
+    private static final long SEEK_COVER_DURATION = 300;
+    /** How long after a smoke volley still counts as "just screened". */
+    private static final long SMOKE_FRESH_TICKS = 120;
+    /**
+     * Confidence ceiling for natural SEEK_COVER. Scale is 0–100 ({@link Confidence#NEUTRAL}=50);
+     * 35 ≈ "rattled" (same band ambush requires as a floor the other way).
+     */
+    public static final double SEEK_COVER_CONFIDENCE_MAX = Confidence.NEUTRAL - 15.0;
     private static final long RECENT_SHOT_FULL = 40;
     private static final long RECENT_SHOT_FADE = 80;
     private static final double INFANTRY_NEAR = 24.0;
@@ -56,12 +67,20 @@ public final class TacticalPosture {
     /** Unit id → fan cover interest (length 7), published each evaluate. */
     private static final ConcurrentHashMap<Integer, float[]> FAN_BIAS = new ConcurrentHashMap<>();
 
+    /** Unit id → game-time deadline for {@code /sewv debug seekCover} (bypasses smoke/conf gates). */
+    private static final ConcurrentHashMap<Integer, Long> MANUAL_SEEK_UNTIL = new ConcurrentHashMap<>();
+
     private final EnumSet<Tactic> active = EnumSet.noneOf(Tactic.class);
     private final float[] coverInterest = new float[GroundMobility.SLOT_COUNT];
 
     @Nullable
     private Vec3 scootWaypoint;
     private long scootUntil = Long.MIN_VALUE;
+    @Nullable
+    private Vec3 seekCoverWaypoint;
+    private long seekCoverUntil = Long.MIN_VALUE;
+    /** Manual / debug arm — fightTick may force {@link Action#RETREAT} to honour the waypoint. */
+    private boolean seekCoverForceRetreat;
     @Nullable
     private Vec3 peekWaypoint;
     @Nullable
@@ -73,6 +92,9 @@ public final class TacticalPosture {
         this.active.clear();
         this.scootWaypoint = null;
         this.scootUntil = Long.MIN_VALUE;
+        this.seekCoverWaypoint = null;
+        this.seekCoverUntil = Long.MIN_VALUE;
+        this.seekCoverForceRetreat = false;
         this.peekWaypoint = null;
         this.infantryShieldPoint = null;
         this.throttleInfantryPace = false;
@@ -99,8 +121,38 @@ public final class TacticalPosture {
     }
 
     @Nullable
+    public Vec3 seekCoverDestination(long now) {
+        if (this.seekCoverWaypoint == null || now > this.seekCoverUntil) return null;
+        return this.seekCoverWaypoint;
+    }
+
+    /** True while a manual/debug SEEK_COVER arm wants {@link Action#RETREAT} forced. */
+    public boolean seekCoverForcesRetreat() {
+        return this.seekCoverForceRetreat && this.seekCoverWaypoint != null;
+    }
+
+    @Nullable
     public Vec3 peekOffset() {
         return this.peekWaypoint;
+    }
+
+    /**
+     * Op-only: arm SEEK_COVER on {@code unitId} until {@code untilGameTime}, bypassing smoke /
+     * confidence gates. Cleared by {@link #clearUnit} or expiry.
+     */
+    public static void debugArmSeekCover(int unitId, long untilGameTime) {
+        MANUAL_SEEK_UNTIL.put(unitId, untilGameTime);
+        SewvDiag.seekCoverTemp("MANUAL arm unitId={} until={}", unitId, untilGameTime);
+    }
+
+    public static boolean debugSeekCoverArmed(int unitId, long now) {
+        Long until = MANUAL_SEEK_UNTIL.get(unitId);
+        if (until == null) return false;
+        if (now > until) {
+            MANUAL_SEEK_UNTIL.remove(unitId, until);
+            return false;
+        }
+        return true;
     }
 
     @Nullable
@@ -118,6 +170,7 @@ public final class TacticalPosture {
         AMBUSH_HOLD.remove(unitId);
         COVER_THREAT.remove(unitId);
         FAN_BIAS.remove(unitId);
+        MANUAL_SEEK_UNTIL.remove(unitId);
     }
 
     /** Server-stop / full eviction. */
@@ -125,6 +178,7 @@ public final class TacticalPosture {
         AMBUSH_HOLD.clear();
         COVER_THREAT.clear();
         FAN_BIAS.clear();
+        MANUAL_SEEK_UNTIL.clear();
     }
 
     /** Soft cover path malus toward the published threat, or 0. Never BLOCKED. */
@@ -164,6 +218,7 @@ public final class TacticalPosture {
             facts.alliedInfantryNear = 0.0;
             facts.postureScoot = false;
             facts.postureAmbush = false;
+            facts.postureSeekCover = false;
             return;
         }
 
@@ -186,6 +241,14 @@ public final class TacticalPosture {
         } else {
             threatX = threatZ = 0;
             hasThreatBearing = false;
+        }
+
+        // Manual seekCover with no contact: invent a threat ahead of the bow so cover is rear/lateral.
+        if (!hasThreatBearing && debugSeekCoverArmed(unitId, unit.level().getGameTime())) {
+            var fwd = hull.getForwardDirection();
+            threatX = hull.getX() + fwd.x() * 40.0;
+            threatZ = hull.getZ() + fwd.z() * 40.0;
+            hasThreatBearing = true;
         }
 
         double exposure = 1.0;
@@ -215,6 +278,14 @@ public final class TacticalPosture {
             this.scootWaypoint = null;
             this.scootUntil = Long.MIN_VALUE;
         }
+        if (this.seekCoverWaypoint != null && now > this.seekCoverUntil) {
+            this.seekCoverWaypoint = null;
+            this.seekCoverUntil = Long.MIN_VALUE;
+            this.seekCoverForceRetreat = false;
+        }
+
+        boolean manualSeek = debugSeekCoverArmed(unitId, now);
+        boolean groundMobile = facts.idleGroundDrivable;
 
         // ---- Covering advance ----
         if (hasThreatBearing) {
@@ -228,8 +299,47 @@ public final class TacticalPosture {
                     threatX, threatZ, this.coverInterest, GroundMobility.SLOTS_DEG);
         }
 
+        // ---- Seek cover (retreat bias after smoke / low confidence, or debug force) ----
+        boolean smokeFresh = Facts.ticksSince(facts.memory.lastSmokeTick, now) <= SMOKE_FRESH_TICKS;
+        boolean lowConf = facts.confidence <= SEEK_COVER_CONFIDENCE_MAX;
+        boolean wantSeek = manualSeek || (smokeFresh && lowConf && groundMobile);
+        if (wantSeek && hasThreatBearing && groundMobile && this.seekCoverWaypoint == null) {
+            Vec3 cover = CoverQuery.suggestRetreatCover(level, hull, threatX, threatZ);
+            if (cover == null) {
+                // Open / unbaked ground: still break contact rearwards (natural + manual).
+                if (target != null) {
+                    cover = CoverQuery.suggestDisplace(level, hull, target, true);
+                }
+                if (cover == null) {
+                    var fwd = hull.getForwardDirection();
+                    cover = new Vec3(hull.getX() - fwd.x * 20.0, hull.getY(), hull.getZ() - fwd.z * 20.0);
+                }
+            }
+            SewvDiag.seekCoverTemp(
+                    "eval unit={}#{} hull={}#{} manual={} smokeFresh={} conf={} want={} cover={}",
+                    unit.getClass().getSimpleName(), unitId,
+                    hull.getName().getString(), hull.getId(),
+                    manualSeek, smokeFresh,
+                    String.format("%.0f", facts.confidence),
+                    wantSeek,
+                    cover == null ? "none" : String.format("%.1f,%.1f", cover.x, cover.z));
+            if (cover != null) {
+                this.active.add(Tactic.SEEK_COVER);
+                this.seekCoverWaypoint = cover;
+                this.seekCoverUntil = now + SEEK_COVER_DURATION;
+                // Force RETREAT so cover routing runs even if the scorer still prefers ATTACK.
+                this.seekCoverForceRetreat = true;
+                biasFanToward(hull, cover);
+            }
+        } else if (this.seekCoverWaypoint != null && now <= this.seekCoverUntil) {
+            this.active.add(Tactic.SEEK_COVER);
+            this.seekCoverForceRetreat = true;
+            biasFanToward(hull, this.seekCoverWaypoint);
+        }
+
         // ---- Fire and maneuver (1C) ----
-        if (target != null && recentShot > 0.55 && this.scootWaypoint == null) {
+        if (target != null && recentShot > 0.55 && this.scootWaypoint == null
+                && this.seekCoverWaypoint == null) {
             boolean breakLos = facts.memory.recentlyHit(now, 100)
                     || facts.confidence < Confidence.NEUTRAL;
             Vec3 scoot = CoverQuery.suggestDisplace(level, hull, target, breakLos);
@@ -252,7 +362,8 @@ public final class TacticalPosture {
         }
 
         // ---- Corner peek ----
-        if (target != null && keyhole > 0.45 && this.scootWaypoint == null) {
+        if (target != null && keyhole > 0.45 && this.scootWaypoint == null
+                && this.seekCoverWaypoint == null) {
             this.active.add(Tactic.CORNER_PEEK);
             Vec3 peek = CoverQuery.suggestKeyhole(level, hull, target);
             this.peekWaypoint = peek;
@@ -298,13 +409,14 @@ public final class TacticalPosture {
         facts.alliedInfantryNear = allyInfantry;
         facts.postureScoot = this.scootWaypoint != null && now <= this.scootUntil;
         facts.postureAmbush = ambush;
+        facts.postureSeekCover = this.seekCoverWaypoint != null && now <= this.seekCoverUntil;
 
         float[] published = FAN_BIAS.computeIfAbsent(unitId, id -> new float[GroundMobility.SLOT_COUNT]);
         System.arraycopy(this.coverInterest, 0, published, 0, this.coverInterest.length);
 
         if (SewvDiag.individualTacticsVerbose() && !this.active.isEmpty()) {
             SewvDiag.posture(
-                    "unit={}#{} hull={}#{} tactics={} exp={} cover={} keyhole={} shot={} allies={} scoot={} ambush={} conf={}",
+                    "unit={}#{} hull={}#{} tactics={} exp={} cover={} keyhole={} shot={} allies={} scoot={} ambush={} seekCover={} conf={}",
                     unit.getClass().getSimpleName(), unitId,
                     hull.getName().getString(), hull.getId(),
                     this.active,
@@ -315,6 +427,7 @@ public final class TacticalPosture {
                     String.format("%.2f", allyInfantry),
                     facts.postureScoot,
                     ambush,
+                    facts.postureSeekCover,
                     String.format("%.0f", facts.confidence));
         }
     }

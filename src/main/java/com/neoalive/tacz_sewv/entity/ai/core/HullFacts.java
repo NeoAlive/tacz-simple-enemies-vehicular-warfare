@@ -468,7 +468,11 @@ public final class HullFacts {
 
     private static boolean computeGroundMobile(VehicleEntity v) {
         try {
-            EngineType t = v.computed().getEngineType();
+            // Same applyEngineHint path as plane/heli — raw datapack WHEEL on an override-AIRCRAFT
+            // hull must not read as towable ground (that was linking planes into SBW tow chains).
+            EngineType t = NpcVehicleOverrides.applyEngineHint(
+                    ForgeRegistries.ENTITY_TYPES.getKey(v.getType()).toString(),
+                    v.computed().getEngineType());
             return t == EngineType.WHEEL || t == EngineType.TRACK;
         } catch (Throwable ignored) {
             return false;

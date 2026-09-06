@@ -1392,6 +1392,7 @@
   "gui.tacz_sewv.fob.scramble_active": "SCRAMBLE ACTIVE",
   "gui.tacz_sewv.fob.tag.command": "COMMAND POST",
   "gui.tacz_sewv.fob.tag.parking": "PARKING FIELD",
+  "gui.tacz_sewv.fob.wip": "FOB structures still WIP, please use with caution.",
   "message.tacz_sewv.fob.give": "FOB kit added to inventory.",
   "message.tacz_sewv.fob.already_owned": "You already have a Forward Operating Base.",
   "message.tacz_sewv.fob.no_fob_here": "Place this inside your FOB master area.",

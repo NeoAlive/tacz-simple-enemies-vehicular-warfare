@@ -114,18 +114,18 @@ abstract class FobPoolScreen extends Screen {
     private void computeLayout() {
         int footerRows = extraFooterRows();
         int stripH = statusStripH();
-        // Chrome outside the list: title, status, captions, action/footer/close rows, padding.
-        int reserved = PAD + 14 + stripH + ROW_GAP + 14 + 8 + 8
+        // Chrome outside the list: title + WIP line, status, captions, action/footer/close rows, padding.
+        int reserved = PAD + 14 + 10 + stripH + ROW_GAP + 14 + 8 + 8
                 + BTN_H + footerRows * (BTN_H + ROW_GAP) + PAD + BTN_H + PAD + 24;
         this.listRows = GuiFit.fitRows(LIST_ROWS_PREF, LIST_ROW_H, this.height, reserved);
         this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
-        int panelH = PAD + 14 + stripH + ROW_GAP + 14 + 8 + this.listRows * LIST_ROW_H + 8
+        int panelH = PAD + 14 + 10 + stripH + ROW_GAP + 14 + 8 + this.listRows * LIST_ROW_H + 8
                 + BTN_H + footerRows * (BTN_H + ROW_GAP) + PAD + BTN_H + PAD;
         this.panelLeft = (this.width - this.panelW) / 2;
         this.panelTop = Math.max(8, (this.height - panelH) / 2);
         this.panelBottom = this.panelTop + panelH;
         this.innerW = this.panelW - PAD * 2;
-        this.statusY = this.panelTop + PAD + 14;
+        this.statusY = this.panelTop + PAD + 14 + 10;
         this.listTop = this.statusY + stripH + ROW_GAP + 14 + 8;
         this.listBottom = this.listTop + this.listRows * LIST_ROW_H;
         this.actionRowY = this.listBottom + 8;
@@ -263,6 +263,7 @@ abstract class FobPoolScreen extends Screen {
 
         int left = this.panelLeft + PAD;
         g.drawString(this.font, this.title, left, this.panelTop + PAD, COL_TEXT, false);
+        g.drawString(this.font, I18n.get("gui.tacz_sewv.fob.wip"), left, this.panelTop + PAD + 11, COL_BAD, false);
         String kindTag = guiKind() == FobGuiSnapshot.GuiKind.COMMAND
                 ? I18n.get("gui.tacz_sewv.fob.tag.command")
                 : I18n.get("gui.tacz_sewv.fob.tag.parking");

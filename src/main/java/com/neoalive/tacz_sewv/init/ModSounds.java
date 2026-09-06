@@ -102,6 +102,8 @@ public final class ModSounds {
 
     /** UI click for the Tactical Data Terminal (and similar interactable panels). */
     public static final RegistryObject<SoundEvent> INTERACT_BEEP = register("interact_beep");
+    /** Quick-command wheel: right-click / back (pair with {@link #INTERACT_BEEP} for left-click). */
+    public static final RegistryObject<SoundEvent> INTERACT_BEEP_BACK = register("interact_beep_back");
 
     /** Vehicle lock / unlock. */
     public static final RegistryObject<SoundEvent> LOCK = register("lock");

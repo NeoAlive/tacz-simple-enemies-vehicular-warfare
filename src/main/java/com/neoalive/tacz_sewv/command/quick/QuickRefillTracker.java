@@ -59,6 +59,15 @@ public final class QuickRefillTracker {
         ACTIVE.put(playerId, new Run(playerId, live, deadline));
     }
 
+    /** Abort an in-flight refill for this player (Quick Cancel) and drop MOVE walks. */
+    public static void cancelPlayer(UUID playerId, ServerLevel level) {
+        Run run = ACTIVE.remove(playerId);
+        if (run == null) return;
+        for (Leg leg : run.legs) {
+            if (!leg.done) dropRefillWalk(level, leg);
+        }
+    }
+
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
@@ -88,6 +97,7 @@ public final class QuickRefillTracker {
         for (Leg leg : run.legs) {
             if (leg.done) continue;
             if (timedOut) {
+                dropRefillWalk(level, leg);
                 leg.done = true;
                 continue;
             }
@@ -98,12 +108,21 @@ public final class QuickRefillTracker {
                 continue;
             }
             if (pmc.getVehicle() != null) {
+                dropRefillWalk(pmc);
                 leg.done = true;
                 continue;
             }
 
             BlockPos chest = leg.chestPos;
             if (chest == null || !level.isLoaded(chest)) {
+                dropRefillWalk(pmc);
+                leg.done = true;
+                continue;
+            }
+
+            if (!chestStillEligible(level, pmc, chest, leg.fobStockpile)) {
+                // Chest emptied / wrong stock — abort the walk instead of camping an empty box.
+                dropRefillWalk(pmc);
                 leg.done = true;
                 continue;
             }
@@ -129,6 +148,8 @@ public final class QuickRefillTracker {
             }
             if (moved) {
                 HudNotify.clearAmmoOut(pmc);
+            } else {
+                dropRefillWalk(pmc);
             }
             leg.done = true;
         }
@@ -176,6 +197,30 @@ public final class QuickRefillTracker {
             }
         }
         return best;
+    }
+
+    private static boolean chestStillEligible(ServerLevel level, PmcUnitEntity pmc, BlockPos chest,
+                                              boolean fobStockpile) {
+        if (fobStockpile) {
+            // Stockpile transfer gates itself inside forceStockpileRefill; keep walking until reach.
+            return true;
+        }
+        BlockEntity be = level.getBlockEntity(chest);
+        IItemHandler handler = be == null ? null
+                : be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
+        return FobResupplySupport.handlerHasEligible(pmc, handler);
+    }
+
+    private static void dropRefillWalk(ServerLevel level, Leg leg) {
+        Entity e = level.getEntity(leg.unitId);
+        if (e instanceof PmcUnitEntity pmc) dropRefillWalk(pmc);
+    }
+
+    private static void dropRefillWalk(PmcUnitEntity pmc) {
+        if (pmc.getOrder() == OrderType.MOVE_TO_POSITION) {
+            pmc.setOrder(OrderType.FREE_FIRE);
+            pmc.getNavigation().stop();
+        }
     }
 
     public record LegSpec(int unitId, BlockPos chestPos, boolean fobStockpile) {}

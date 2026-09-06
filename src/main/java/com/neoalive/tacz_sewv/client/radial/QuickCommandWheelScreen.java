@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.client.radial;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.mojang.blaze3d.platform.InputConstants;
@@ -8,7 +9,9 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
@@ -19,6 +22,7 @@ import com.neoalive.tacz_sewv.client.TdtSelection;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketQuickCommand;
 
@@ -34,12 +38,22 @@ public final class QuickCommandWheelScreen extends Screen {
     private static final int LABEL = 0xFFE8ECF0;
     private static final int LABEL_HOT = 0xFFFFFFFF;
 
+    /** Per-frame approach rate toward hot/cold (higher = snappier fade). */
+    private static final float HOT_FADE_SPEED = 0.28f;
+    private static final float MENU_FADE_IN_SPEED = 0.18f;
+    private static final float MENU_FADE_OUT_SPEED = 0.22f;
+
     private final RadialInputState input;
     private boolean cursorDisabled;
     private boolean closing;
 
     private boolean wasAttackDown;
     private boolean wasUseDown;
+
+    /** 0..1 highlight strength per wedge — lerps toward the current hot index. */
+    private float[] wedgeHot = new float[0];
+    /** Whole-ring opacity for open / submenu transitions. */
+    private float menuAlpha = 0.0f;
 
     public QuickCommandWheelScreen() {
         super(Component.translatable("gui.tacz_sewv.quick_command_wheel"));
@@ -56,6 +70,7 @@ public final class QuickCommandWheelScreen extends Screen {
     @Override
     protected void init() {
         disableCursor();
+        this.menuAlpha = 0.0f;
     }
 
     @Override
@@ -82,7 +97,7 @@ public final class QuickCommandWheelScreen extends Screen {
             closeQuiet();
             return;
         }
-        if (!QuickCommandKeybind.holdingTerminal(mc.player)) {
+        if (!QuickCommandKeybind.hasTerminal(mc.player)) {
             closeQuiet();
             return;
         }
@@ -100,12 +115,20 @@ public final class QuickCommandWheelScreen extends Screen {
         this.wasUseDown = useDown;
 
         if (attackRising) {
+            playUi(ModSounds.INTERACT_BEEP.get());
             onCommit();
             if (this.closing) return;
         }
         if (useRising) {
+            playUi(ModSounds.INTERACT_BEEP_BACK.get());
             onPop();
         }
+    }
+
+    private static void playUi(net.minecraft.sounds.SoundEvent sound) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null) return;
+        mc.getSoundManager().play(SimpleSoundInstance.forUI(sound, 1.0F));
     }
 
     @Override
@@ -140,13 +163,19 @@ public final class QuickCommandWheelScreen extends Screen {
                 closeQuiet();
             }
             // Client-side reject (no selection, etc.): keep the wheel open.
+        } else if (result instanceof RadialInputState.CommitResult.EnteredSubmenu) {
+            // Soft fade-out then back in on the new layer.
+            this.menuAlpha = 0.25f;
+            Arrays.fill(this.wedgeHot, 0.0f);
         }
-        // EnteredSubmenu / Deadzone: stay open; state already updated.
     }
 
     private void onPop() {
         if (this.input.popMenu()) {
             closeQuiet();
+        } else {
+            this.menuAlpha = 0.25f;
+            Arrays.fill(this.wedgeHot, 0.0f);
         }
     }
 
@@ -235,6 +264,21 @@ public final class QuickCommandWheelScreen extends Screen {
         this.cursorDisabled = false;
     }
 
+    private void tickFades(int wedgeCount, int hotIndex) {
+        if (wedgeCount != this.wedgeHot.length) {
+            this.wedgeHot = new float[wedgeCount];
+        }
+        // Fade the ring in (or recover after a submenu dip).
+        float menuTarget = 1.0f;
+        float menuSpeed = this.menuAlpha < menuTarget ? MENU_FADE_IN_SPEED : MENU_FADE_OUT_SPEED;
+        this.menuAlpha = Mth.lerp(menuSpeed, this.menuAlpha, menuTarget);
+
+        for (int i = 0; i < wedgeCount; i++) {
+            float target = i == hotIndex ? 1.0f : 0.0f;
+            this.wedgeHot[i] = Mth.lerp(HOT_FADE_SPEED, this.wedgeHot[i], target);
+        }
+    }
+
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         // No dim overlay — keep the world readable behind the wheel.
@@ -245,8 +289,9 @@ public final class QuickCommandWheelScreen extends Screen {
         int inner = Math.max(8, (int) (outer * 0.24));
 
         List<WedgeEntry> wedges = this.input.currentWedges();
-        RadialWheelDraw.renderRing(g, this.font, cx, cy, inner, outer, wedges, this.input.hotIndex(),
-                WEDGE_FILL, WEDGE_HOT, HUB_FILL, LABEL, LABEL_HOT);
+        tickFades(wedges.size(), this.input.hotIndex());
+        RadialWheelDraw.renderRing(g, this.font, cx, cy, inner, outer, wedges, this.wedgeHot,
+                this.menuAlpha, WEDGE_FILL, WEDGE_HOT, HUB_FILL, LABEL, LABEL_HOT);
 
         super.render(g, mouseX, mouseY, partialTick);
     }

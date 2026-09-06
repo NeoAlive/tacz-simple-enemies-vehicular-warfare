@@ -9,6 +9,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
 
 /**
@@ -22,13 +23,17 @@ final class RadialWheelDraw {
     /**
      * @param outerR current wheel outer radius (screen already chose size)
      * @param innerR current wheel inner radius
+     * @param hotStrengths 0..1 per wedge (fade toward selection); length must match wedges
+     * @param menuAlpha 0..1 whole-ring opacity (open / submenu fade)
      */
     static void renderRing(GuiGraphics g, Font font, int cx, int cy, int innerR, int outerR,
-                           java.util.List<WedgeEntry> wedges, int hotIndex,
+                           java.util.List<WedgeEntry> wedges, float[] hotStrengths, float menuAlpha,
                            int fillArgb, int hotArgb, int hubArgb, int labelArgb, int labelHotArgb) {
         int n = wedges.size();
+        float ringA = Mth.clamp(menuAlpha, 0.0f, 1.0f);
         if (n <= 0) {
-            drawHub(g, font, cx, cy, innerR, hubArgb, "•", labelHotArgb);
+            drawHub(g, font, cx, cy, innerR, scaleAlpha(hubArgb, ringA), "•",
+                    scaleAlpha(labelHotArgb, ringA));
             return;
         }
 
@@ -53,8 +58,8 @@ final class RadialWheelDraw {
             double y1m2 = Math.sin(lRad + outerGap) * outerR;
             double y2m2 = Math.sin(rRad - outerGap) * outerR;
 
-            boolean hot = i == hotIndex;
-            int color = hot ? hotArgb : fillArgb;
+            float hot = i < hotStrengths.length ? Mth.clamp(hotStrengths[i], 0.0f, 1.0f) : 0.0f;
+            int color = scaleAlpha(lerpArgb(fillArgb, hotArgb, hot), ringA);
             renderQuad(g,
                     (float) (cx + x1m1), (float) (cy + y1m1),
                     (float) (cx + x2m1), (float) (cy + y2m1),
@@ -67,7 +72,7 @@ final class RadialWheelDraw {
             double x2m3 = Math.cos(rRad - innerGap) * categoryOuter;
             double y1m3 = Math.sin(lRad + innerGap) * categoryOuter;
             double y2m3 = Math.sin(rRad - innerGap) * categoryOuter;
-            int strip = hot ? 0xEE5A9A7A : 0x885A6A7A;
+            int strip = scaleAlpha(lerpArgb(0x885A6A7A, 0xEE5A9A7A, hot), ringA);
             renderQuad(g,
                     (float) (cx + x1m1), (float) (cy + y1m1),
                     (float) (cx + x2m1), (float) (cy + y2m1),
@@ -89,7 +94,8 @@ final class RadialWheelDraw {
             int iy = cy + (int) Math.round(iconY);
             String icon = entry.icon();
             int iw = font.width(icon);
-            g.drawString(font, icon, ix - iw / 2, iy - 4, hot ? labelHotArgb : labelArgb, false);
+            g.drawString(font, icon, ix - iw / 2, iy - 4,
+                    scaleAlpha(lerpArgb(labelArgb, labelHotArgb, hot), ringA), false);
 
             double bx = (x1 + x2) * 0.5;
             double by = (y1 + y2) * 0.5;
@@ -110,11 +116,43 @@ final class RadialWheelDraw {
             } else {
                 drawX = tx - tw / 2;
             }
-            g.drawString(font, label, drawX, ty - 4, hot ? labelHotArgb : labelArgb, false);
+            g.drawString(font, label, drawX, ty - 4,
+                    scaleAlpha(lerpArgb(labelArgb, labelHotArgb, hot), ringA), false);
         }
 
-        String hub = hotIndex >= 0 && hotIndex < n ? wedges.get(hotIndex).icon() : "•";
-        drawHub(g, font, cx, cy, innerR, hubArgb, hub, labelHotArgb);
+        float hubHot = 0.0f;
+        for (float h : hotStrengths) hubHot = Math.max(hubHot, h);
+        String hub = hubHot > 0.35f && n > 0
+                ? wedges.get(hottestIndex(hotStrengths, n)).icon() : "•";
+        drawHub(g, font, cx, cy, innerR, scaleAlpha(hubArgb, ringA), hub,
+                scaleAlpha(labelHotArgb, ringA));
+    }
+
+    private static int hottestIndex(float[] hot, int n) {
+        int best = 0;
+        float bestV = -1.0f;
+        for (int i = 0; i < n && i < hot.length; i++) {
+            if (hot[i] > bestV) {
+                bestV = hot[i];
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    /** Channel-wise lerp of two ARGB colours; {@code t} in 0..1. */
+    private static int lerpArgb(int from, int to, float t) {
+        t = Mth.clamp(t, 0.0f, 1.0f);
+        int a = (int) Mth.lerp(t, (from >> 24) & 0xFF, (to >> 24) & 0xFF);
+        int r = (int) Mth.lerp(t, (from >> 16) & 0xFF, (to >> 16) & 0xFF);
+        int g = (int) Mth.lerp(t, (from >> 8) & 0xFF, (to >> 8) & 0xFF);
+        int b = (int) Mth.lerp(t, from & 0xFF, to & 0xFF);
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    private static int scaleAlpha(int argb, float factor) {
+        int a = Math.round(((argb >> 24) & 0xFF) * Mth.clamp(factor, 0.0f, 1.0f));
+        return (a << 24) | (argb & 0x00FFFFFF);
     }
 
     private static void drawHub(GuiGraphics g, Font font, int cx, int cy, int innerR,

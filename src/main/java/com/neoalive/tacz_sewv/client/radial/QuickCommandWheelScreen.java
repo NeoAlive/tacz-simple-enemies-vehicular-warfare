@@ -48,8 +48,10 @@ public final class QuickCommandWheelScreen extends Screen {
     private static final int LABEL_HOT = 0xFFFFFFFF;
 
     private static final float STRETCH_STEP = 0.1f;
+    private static final float FILTER_LERP_SPEED = 0.28f;
     private static float formationWidth = IFormationMember.DEFAULT_STRETCH;
     private static float formationLength = IFormationMember.DEFAULT_STRETCH;
+    private static FormationComposition.Kind formationFilter = FormationComposition.Kind.GROUND;
 
     /** Per-frame approach rate toward hot/cold (higher = snappier fade). */
     private static final float HOT_FADE_SPEED = 0.28f;
@@ -67,6 +69,8 @@ public final class QuickCommandWheelScreen extends Screen {
     private float[] wedgeHot = new float[0];
     /** Whole-ring opacity for open / submenu transitions. */
     private float menuAlpha = 0.0f;
+    /** Continuous highlight index for the INFY/GRND/SHIP filter strip. */
+    private float filterLerp = FormationComposition.Kind.GROUND.ordinal();
 
     public QuickCommandWheelScreen() {
         super(Component.translatable("gui.tacz_sewv.quick_command_wheel"));
@@ -180,15 +184,23 @@ public final class QuickCommandWheelScreen extends Screen {
         if (!inFormationSubmenu() || hotFormationShape() == null) {
             return super.mouseScrolled(mouseX, mouseY, delta);
         }
-        float step = delta > 0.0 ? STRETCH_STEP : -STRETCH_STEP;
         Minecraft mc = this.minecraft;
-        boolean shift = mc != null && (InputConstants.isKeyDown(mc.getWindow().getWindow(),
-                InputConstants.KEY_LSHIFT)
-                || InputConstants.isKeyDown(mc.getWindow().getWindow(), InputConstants.KEY_RSHIFT));
-        if (shift) {
-            formationWidth = IFormationMember.clampStretch(formationWidth + step);
+        long window = mc != null ? mc.getWindow().getWindow() : 0L;
+        boolean ctrl = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LCONTROL)
+                || InputConstants.isKeyDown(window, InputConstants.KEY_RCONTROL));
+        boolean shift = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LSHIFT)
+                || InputConstants.isKeyDown(window, InputConstants.KEY_RSHIFT));
+
+        if (ctrl) {
+            int step = delta > 0.0 ? 1 : -1;
+            formationFilter = formationFilter.cycle(step);
         } else {
-            formationLength = IFormationMember.clampStretch(formationLength + step);
+            float step = delta > 0.0 ? STRETCH_STEP : -STRETCH_STEP;
+            if (shift) {
+                formationWidth = IFormationMember.clampStretch(formationWidth + step);
+            } else {
+                formationLength = IFormationMember.clampStretch(formationLength + step);
+            }
         }
         float pitch = 0.92f + (float) (Math.random() * 0.16);
         playUi(ModSounds.SCALE.get(), pitch);
@@ -311,7 +323,16 @@ public final class QuickCommandWheelScreen extends Screen {
     private boolean fireFormation(Minecraft mc, String pipelineId, List<Integer> unitIds) {
         FormationShape shape = QuickCommandRegistry.formationShapeOf(pipelineId);
         if (shape == null || mc.player == null || mc.level == null) return false;
-        List<PmcUnitEntity> units = resolvePmcList(mc, unitIds);
+        List<PmcUnitEntity> all = resolvePmcList(mc, unitIds);
+        List<PmcUnitEntity> units = FormationComposition.filter(all, formationFilter);
+        if (units.isEmpty()) {
+            mc.player.displayClientMessage(
+                    Component.translatable(FormationComposition.MSG_NONE_MATCH)
+                            .withStyle(ChatFormatting.GRAY),
+                    true);
+            return false;
+        }
+        // Filter already enforced purity; resolve is belt-and-suspenders for the packet path.
         FormationComposition.Kind kind = FormationComposition.resolve(units);
         if (kind == null) {
             mc.player.displayClientMessage(
@@ -332,7 +353,9 @@ public final class QuickCommandWheelScreen extends Screen {
                     true);
             return false;
         }
-        BoardKeybind.orderFormation(unitIds, shape, IFormationMember.axisOf(axis), rowSize,
+        List<Integer> filteredIds = new ArrayList<>(units.size());
+        for (PmcUnitEntity pmc : units) filteredIds.add(pmc.getId());
+        BoardKeybind.orderFormation(filteredIds, shape, IFormationMember.axisOf(axis), rowSize,
                 formationWidth, formationLength);
         return true;
     }
@@ -455,6 +478,8 @@ public final class QuickCommandWheelScreen extends Screen {
             float target = i == hotIndex ? 1.0f : 0.0f;
             this.wedgeHot[i] = Mth.lerp(HOT_FADE_SPEED, this.wedgeHot[i], target);
         }
+        this.filterLerp = Mth.lerp(FILTER_LERP_SPEED, this.filterLerp,
+                (float) formationFilter.ordinal());
     }
 
     @Override
@@ -485,15 +510,14 @@ public final class QuickCommandWheelScreen extends Screen {
         if (inFormationSubmenu() && previewShape != null && this.minecraft != null
                 && this.minecraft.player != null && this.minecraft.level != null) {
             List<Integer> ids = resolveUnits(this.minecraft, QuickCommandRegistry.ID_FORM_WEDGE);
-            List<PmcUnitEntity> pmcs = resolvePmcList(this.minecraft, ids);
-            FormationComposition.Kind kind = FormationComposition.resolve(pmcs);
-            int slots = kind == null ? 0 : VehicleFormation.slotCountFor(pmcs);
-            if (slots > 0) {
-                double baseline = FormationComposition.baselineSpacing(kind);
-                FormationPreviewDraw.render(g, this.font, cx, cy, outer, this.menuAlpha,
-                        previewShape, slots, baseline, formationWidth, formationLength,
-                        PacketVehicleFormation.DEFAULT_ROW_SIZE, HUB_FILL, LABEL_HOT);
-            }
+            List<PmcUnitEntity> filtered = FormationComposition.filter(
+                    resolvePmcList(this.minecraft, ids), formationFilter);
+            int slots = VehicleFormation.slotCountFor(filtered);
+            double baseline = FormationComposition.baselineSpacing(formationFilter);
+            FormationPreviewDraw.render(g, this.font, cx, cy, outer, this.menuAlpha,
+                    previewShape, slots, baseline, formationWidth, formationLength,
+                    PacketVehicleFormation.DEFAULT_ROW_SIZE, formationFilter, this.filterLerp,
+                    HUB_FILL, LABEL_HOT);
         }
 
         super.render(g, mouseX, mouseY, partialTick);

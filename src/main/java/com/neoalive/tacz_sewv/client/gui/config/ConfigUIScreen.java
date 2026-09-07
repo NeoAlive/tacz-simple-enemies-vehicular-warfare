@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -62,18 +61,18 @@ public class ConfigUIScreen extends Screen {
     private int contentScroll;
     private boolean draggingScrollbar;
 
-    private Button confirmButton;
-    private Button resetButton;
-    private Button scopeClientTab;
-    private Button scopeServerTab;
-    private Button ribbonLeft;
-    private Button ribbonRight;
+    private ConfigWidgets.FlatButton confirmButton;
+    private ConfigWidgets.FlatButton resetButton;
+    private ConfigWidgets.FlatButton scopeClientTab;
+    private ConfigWidgets.FlatButton scopeServerTab;
+    private ConfigWidgets.FlatButton ribbonLeft;
+    private ConfigWidgets.FlatButton ribbonRight;
 
     private final List<RowWidgets> rows = new ArrayList<>();
 
     private record RowWidgets(ConfigEntry entry, ConfigWidgets.OnOffSwitch toggle,
-                              ConfigWidgets.ValidatedEditBox field, Button enumBtn,
-                              Button shortcutBtn, Button minusBtn, Button plusBtn) {}
+                              ConfigWidgets.ValidatedEditBox field, ConfigWidgets.FlatButton enumBtn,
+                              ConfigWidgets.FlatButton shortcutBtn) {}
 
     public ConfigUIScreen(boolean canEditServer,
                           Map<Integer, String> clientDraft,
@@ -173,39 +172,47 @@ public class ConfigUIScreen extends Screen {
         int pw = panelW();
         int tabY = scopeTabY();
 
-        this.scopeClientTab = addRenderableWidget(Button.builder(
-                        Component.translatable("gui.tacz_sewv.config.scope.client"),
-                        b -> switchScope(ConfigScope.CLIENT))
-                .bounds(left + PAD, tabY, SCOPE_TAB_W, SCOPE_TAB_H).build());
-        this.scopeServerTab = addRenderableWidget(Button.builder(
-                        Component.translatable("gui.tacz_sewv.config.scope.server"),
-                        b -> switchScope(ConfigScope.SERVER))
-                .bounds(left + PAD + SCOPE_TAB_W + 6, tabY, SCOPE_TAB_W, SCOPE_TAB_H).build());
+        this.scopeClientTab = addRenderableWidget(new ConfigWidgets.FlatButton(
+                left + PAD, tabY, SCOPE_TAB_W, SCOPE_TAB_H,
+                Component.translatable("gui.tacz_sewv.config.scope.client"),
+                () -> switchScope(ConfigScope.CLIENT))
+                .selected(this.scope == ConfigScope.CLIENT));
+        this.scopeServerTab = addRenderableWidget(new ConfigWidgets.FlatButton(
+                left + PAD + SCOPE_TAB_W + 6, tabY, SCOPE_TAB_W, SCOPE_TAB_H,
+                Component.translatable("gui.tacz_sewv.config.scope.server"),
+                () -> switchScope(ConfigScope.SERVER))
+                .selected(this.scope == ConfigScope.SERVER));
         this.scopeServerTab.active = this.canEditServer;
         this.scopeServerTab.visible = this.canEditServer;
 
         int ribbonY = ribbonY();
-        this.ribbonLeft = addRenderableWidget(Button.builder(Component.literal("<"), b -> scrollCategories(-1))
-                .bounds(left + PAD, ribbonY, 16, RIBBON_H).build());
-        this.ribbonRight = addRenderableWidget(Button.builder(Component.literal(">"), b -> scrollCategories(1))
-                .bounds(left + pw - PAD - 16, ribbonY, 16, RIBBON_H).build());
+        this.ribbonLeft = addRenderableWidget(new ConfigWidgets.FlatButton(
+                left + PAD, ribbonY, 16, RIBBON_H, Component.literal("<"),
+                () -> scrollCategories(-1)));
+        this.ribbonRight = addRenderableWidget(new ConfigWidgets.FlatButton(
+                left + pw - PAD - 16, ribbonY, 16, RIBBON_H, Component.literal(">"),
+                () -> scrollCategories(1)));
 
         rebuildEntryWidgets();
 
         int btnY = panelBottom() - 30;
         int cx = this.width / 2;
-        addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
-                .bounds(cx - 158, btnY, 96, 20).build());
-        this.resetButton = addRenderableWidget(Button.builder(
-                        Component.translatable("gui.tacz_sewv.config.reset"), b -> resetCategory())
-                .bounds(cx - 48, btnY, 96, 20).build());
+        addRenderableWidget(new ConfigWidgets.FlatButton(
+                cx - 158, btnY, 96, 20,
+                Component.translatable("gui.cancel"), this::onClose));
+        this.resetButton = addRenderableWidget(new ConfigWidgets.FlatButton(
+                cx - 48, btnY, 96, 20,
+                Component.translatable("gui.tacz_sewv.config.reset"), this::resetCategory));
         this.resetButton.setTooltip(Tooltip.create(
                 Component.translatable("gui.tacz_sewv.config.reset.tooltip")));
-        this.confirmButton = addRenderableWidget(Button.builder(
-                        Component.translatable("gui.tacz_sewv.config.confirm"), b -> confirm())
-                .bounds(cx + 62, btnY, 96, 20).build());
+        this.confirmButton = addRenderableWidget(new ConfigWidgets.FlatButton(
+                cx + 62, btnY, 96, 20,
+                Component.translatable("gui.tacz_sewv.config.confirm"), this::confirm)
+                .accent(true));
 
         updateConfirmButton();
+        ensureCategoryVisible();
+        refreshRibbonArrows();
     }
 
     private void switchScope(ConfigScope next) {
@@ -218,7 +225,80 @@ public class ConfigUIScreen extends Screen {
     }
 
     private void scrollCategories(int dir) {
-        this.categoryScroll = Mth.clamp(this.categoryScroll + dir, 0, Math.max(0, categories().size() - 1));
+        int max = maxCategoryScroll();
+        this.categoryScroll = Mth.clamp(this.categoryScroll + dir, 0, max);
+        refreshRibbonArrows();
+    }
+
+    /** Largest first-visible index such that every remaining category still fits in the ribbon. */
+    private int maxCategoryScroll() {
+        List<String> cats = categories();
+        if (cats.isEmpty()) return 0;
+        int inner = ribbonInnerWidth();
+        for (int start = 0; start < cats.size(); start++) {
+            if (ribbonWidthFrom(cats, start) <= inner) {
+                return start;
+            }
+        }
+        return Math.max(0, cats.size() - 1);
+    }
+
+    private int ribbonInnerWidth() {
+        // Matches renderRibbon: between the < > buttons, minus chip padding.
+        return panelW() - 2 * PAD - 36 - 8;
+    }
+
+    private int ribbonWidthFrom(List<String> cats, int start) {
+        int w = 0;
+        for (int i = start; i < cats.size(); i++) {
+            w += this.font.width(ConfigCategoryStyle.ribbonLabel(cats.get(i))) + 14 + 4;
+        }
+        return w;
+    }
+
+    private boolean categoryOverflowsFrom(int start) {
+        return ribbonWidthFrom(categories(), start) > ribbonInnerWidth();
+    }
+
+    private void ensureCategoryVisible() {
+        List<String> cats = categories();
+        if (cats.isEmpty()) {
+            this.categoryScroll = 0;
+            return;
+        }
+        this.categoryIndex = Mth.clamp(this.categoryIndex, 0, cats.size() - 1);
+        if (this.categoryIndex < this.categoryScroll) {
+            this.categoryScroll = this.categoryIndex;
+        }
+        // Scroll right until the selected chip fits in the visible window (or max scroll).
+        int max = maxCategoryScroll();
+        while (this.categoryScroll < max && !isCategoryDrawn(this.categoryIndex)) {
+            this.categoryScroll++;
+        }
+        this.categoryScroll = Mth.clamp(this.categoryScroll, 0, max);
+    }
+
+    /** Whether category {@code index} would be painted at the current {@code categoryScroll}. */
+    private boolean isCategoryDrawn(int index) {
+        List<String> cats = categories();
+        if (index < this.categoryScroll || index >= cats.size()) return false;
+        int x = 0;
+        int inner = ribbonInnerWidth();
+        for (int i = this.categoryScroll; i < cats.size(); i++) {
+            int w = this.font.width(ConfigCategoryStyle.ribbonLabel(cats.get(i))) + 14;
+            if (x + w > inner) return false;
+            if (i == index) return true;
+            x += w + 4;
+        }
+        return false;
+    }
+
+    private void refreshRibbonArrows() {
+        if (this.ribbonLeft == null || this.ribbonRight == null) return;
+        this.ribbonLeft.visible = this.categoryScroll > 0;
+        this.ribbonRight.visible = categoryOverflowsFrom(this.categoryScroll);
+        this.ribbonLeft.active = this.ribbonLeft.visible;
+        this.ribbonRight.active = this.ribbonRight.visible;
     }
 
     private void resetCategory() {
@@ -241,12 +321,12 @@ public class ConfigUIScreen extends Screen {
             Runnable onChange = this::updateConfirmButton;
 
             if (entry.type == ConfigValueType.SHORTCUT) {
-                Button btn = addRenderableWidget(Button.builder(
-                                Component.translatable(entry.labelKey()),
-                                b -> openShortcut(entry))
-                        .bounds(0, 0, SHORTCUT_BTN_W, SHORTCUT_BTN_H).build());
+                ConfigWidgets.FlatButton btn = addRenderableWidget(new ConfigWidgets.FlatButton(
+                        0, 0, SHORTCUT_BTN_W, SHORTCUT_BTN_H,
+                        Component.translatable(entry.labelKey()),
+                        () -> openShortcut(entry)));
                 btn.setTooltip(Tooltip.create(Component.translatable(entry.tooltipKey())));
-                this.rows.add(new RowWidgets(entry, null, null, null, btn, null, null));
+                this.rows.add(new RowWidgets(entry, null, null, null, btn));
                 continue;
             }
 
@@ -257,17 +337,20 @@ public class ConfigUIScreen extends Screen {
                             draft.put(entry.index, v ? "true" : "false");
                             onChange.run();
                         }));
-                this.rows.add(new RowWidgets(entry, sw, null, null, null, null, null));
+                this.rows.add(new RowWidgets(entry, sw, null, null, null));
                 continue;
             }
 
             if (entry.type == ConfigValueType.ENUM) {
-                Button cycle = addRenderableWidget(Button.builder(enumOptionLabel(entry, value), b -> {
-                    cycleEnum(entry);
-                    onChange.run();
-                }).bounds(0, 0, Math.min(140, valueW()), 20).build());
+                ConfigWidgets.FlatButton cycle = addRenderableWidget(new ConfigWidgets.FlatButton(
+                        0, 0, Math.min(140, valueW()), 20,
+                        enumOptionLabel(entry, value),
+                        () -> {
+                            cycleEnum(entry);
+                            onChange.run();
+                        }));
                 applyEnumTooltip(cycle, entry, value);
-                this.rows.add(new RowWidgets(entry, null, null, cycle, null, null, null));
+                this.rows.add(new RowWidgets(entry, null, null, cycle, null));
                 continue;
             }
 
@@ -284,7 +367,7 @@ public class ConfigUIScreen extends Screen {
             } else if (entry.type == ConfigValueType.HEX_COLOR) {
                 box.setFilter(s -> s.isEmpty() || s.matches("[#0-9A-Fa-f]*"));
             }
-            this.rows.add(new RowWidgets(entry, null, box, null, null, null, null));
+            this.rows.add(new RowWidgets(entry, null, box, null, null));
         }
         layoutRows();
     }
@@ -293,7 +376,7 @@ public class ConfigUIScreen extends Screen {
         return Component.translatable(ConfigEntry.enumOptionLabelKey(entry.key, option));
     }
 
-    private static void applyEnumTooltip(Button button, ConfigEntry entry, String option) {
+    private static void applyEnumTooltip(ConfigWidgets.FlatButton button, ConfigEntry entry, String option) {
         Component field = Component.translatable(entry.tooltipKey());
         Component optionTip = Component.translatable(ConfigEntry.enumOptionTooltipKey(entry.key, option));
         button.setTooltip(Tooltip.create(Component.empty().append(field).append("\n").append(optionTip)));
@@ -443,7 +526,9 @@ public class ConfigUIScreen extends Screen {
     private void updateConfirmButton() {
         if (this.confirmButton == null) return;
         syncDraftFromWidgets();
-        this.confirmButton.active = isDirty() && isValid();
+        boolean ready = isDirty() && isValid();
+        this.confirmButton.active = ready;
+        this.confirmButton.accent(ready);
     }
 
     private Map<Integer, String> collectChanges(ConfigScope targetScope) {
@@ -570,16 +655,15 @@ public class ConfigUIScreen extends Screen {
         }
         this.ribbonLeft.setPosition(left + PAD, ribbonY);
         this.ribbonRight.setPosition(left + pw - PAD - 16, ribbonY);
-        this.ribbonLeft.visible = this.categoryScroll > 0;
-        this.ribbonRight.visible = x >= maxX && this.categoryScroll + 1 < cats.size();
+        refreshRibbonArrows();
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
-            int ribbonLeft = panelLeft() + PAD + 22;
+            int ribbonLeft = panelLeft() + PAD + 18 + 4;
             int ribbonY = ribbonY();
-            int maxX = panelLeft() + panelW() - PAD - 22;
+            int maxX = panelLeft() + panelW() - PAD - 18 - 4;
             List<String> cats = categories();
             int x = ribbonLeft;
             for (int i = this.categoryScroll; i < cats.size(); i++) {
@@ -589,6 +673,7 @@ public class ConfigUIScreen extends Screen {
                 if (mouseX >= x && mouseX < x + w && mouseY >= ribbonY && mouseY < ribbonY + RIBBON_H) {
                     this.categoryIndex = i;
                     this.contentScroll = 0;
+                    ensureCategoryVisible();
                     init();
                     return true;
                 }
@@ -600,6 +685,12 @@ public class ConfigUIScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        int ribbonY = ribbonY();
+        if (mouseX >= panelLeft() && mouseX <= panelLeft() + panelW()
+                && mouseY >= ribbonY && mouseY <= ribbonY + RIBBON_H) {
+            scrollCategories(delta < 0 ? 1 : -1);
+            return true;
+        }
         if (mouseX >= panelLeft() && mouseX <= panelLeft() + panelW()
                 && mouseY >= contentTop() && mouseY <= contentBottom()) {
             this.contentScroll = Mth.clamp(this.contentScroll - (int) (delta * 16), 0, maxContentScroll());

@@ -26,6 +26,7 @@ public final class QuickCommandRegistry {
     public static final String ID_RAPPEL_SELF = "rappel_self";
     public static final String ID_RAPPEL_CREW = "rappel_crew";
     public static final String ID_QUICK_BOARD = "quick_board";
+    public static final String ID_BOARD_QUEUED = "board_queued";
     public static final String ID_QUICK_ENTRENCH = "quick_entrench";
     public static final String ID_QUICK_REFILL = "quick_refill";
     public static final String ID_QUICK_CANCEL = "quick_cancel";
@@ -77,6 +78,7 @@ public final class QuickCommandRegistry {
         ROOT = List.of(
                 new WedgeEntry.CategoryEntry("General", "\u2605", 0xE8B84A, List.of(
                         leaf("Quick Board", "\u2399", ID_QUICK_BOARD, 0xE8B84A),
+                        leaf("Board Queued", "\u21A7", ID_BOARD_QUEUED, 0xE8B84A),
                         leaf("Quick Follow", "\u21AA", ID_QUICK_FOLLOW, 0xE8B84A),
                         leaf("Quick Dismount", "\u2193", ID_QUICK_DISMOUNT, 0xE8B84A),
                         leaf("Quick Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A),

@@ -32,11 +32,7 @@ final class ConfigRegistryBootstrap {
         registerSweep(b);
         registerInvasion(b);
         registerDoctrine(b);
-        registerBallistics(b);
-        if (isExterminationLoaded()) {
-            registerCompatExtermination(b);
-        }
-        registerCompatTrees(b);
+        registerCompat(b);
         registerFob(b);
     }
 
@@ -424,6 +420,16 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.AUTO_BOARD_MIN_HEALTH_FRACTION, SewvConfig.AUTO_BOARD_MIN_HEALTH_FRACTION::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "autoBoardStealsPlayerVehicles",
                 SewvConfig.AUTO_BOARD_STEALS_PLAYER_VEHICLES, SewvConfig.AUTO_BOARD_STEALS_PLAYER_VEHICLES::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "towAutoEnabled",
+                SewvConfig.TOW_AUTO_ENABLED, SewvConfig.TOW_AUTO_ENABLED::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "towAutoScanRadius", 8.0, 128.0,
+                SewvConfig.TOW_AUTO_SCAN_RADIUS, SewvConfig.TOW_AUTO_SCAN_RADIUS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "towSubmergedRequestTicks", 20, 600,
+                SewvConfig.TOW_SUBMERGED_REQUEST_TICKS, SewvConfig.TOW_SUBMERGED_REQUEST_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "towStuckRequestCycles", 1, 10,
+                SewvConfig.TOW_STUCK_REQUEST_CYCLES, SewvConfig.TOW_STUCK_REQUEST_CYCLES::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "towPlayerOrderMaxDistance", 4.0, 128.0,
+                SewvConfig.TOW_PLAYER_ORDER_MAX_DISTANCE, SewvConfig.TOW_PLAYER_ORDER_MAX_DISTANCE::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "autoManMortarEnabled",
                 SewvConfig.AUTO_MAN_MORTAR_ENABLED, SewvConfig.AUTO_MAN_MORTAR_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "autoManMortarScanRadius", 4.0, 128.0,
@@ -717,44 +723,62 @@ final class ConfigRegistryBootstrap {
         }
     }
 
-    private static void registerBallistics(ConfigRegistry.Builder b) {
-        b.bool(ConfigScope.SERVER, "ballistics", "tacZBallisticTranslationEnabled",
+    private static void registerCompat(ConfigRegistry.Builder b) {
+        // TaCZ ballistics
+        b.bool(ConfigScope.SERVER, "compat", "tacZBallisticTranslationEnabled",
                 SewvConfig.TACZ_BALLISTIC_TRANSLATION_ENABLED, SewvConfig.TACZ_BALLISTIC_TRANSLATION_ENABLED::set);
-        b.doubleRange(ConfigScope.SERVER, "ballistics", "tacZBallisticGlobalScale", 0.0, 10.0,
+        b.doubleRange(ConfigScope.SERVER, "compat", "tacZBallisticGlobalScale", 0.0, 10.0,
                 SewvConfig.TACZ_BALLISTIC_GLOBAL_SCALE, SewvConfig.TACZ_BALLISTIC_GLOBAL_SCALE::set);
-    }
 
-    private static void registerCompatExtermination(ConfigRegistry.Builder b) {
-        b.bool(ConfigScope.SERVER, "compat_extermination", "tripodShieldEnabled",
-                SewvConfig.TRIPOD_SHIELD_ENABLED, SewvConfig.TRIPOD_SHIELD_ENABLED::set);
-        b.doubleRange(ConfigScope.SERVER, "compat_extermination", "tripodHpMultiplier", 1.0, 10.0,
-                SewvConfig.TRIPOD_HP_MULTIPLIER, SewvConfig.TRIPOD_HP_MULTIPLIER::set);
-        b.doubleRange(ConfigScope.SERVER, "compat_extermination", "tripodShieldBreakDamage", 1.0, 100000.0,
-                SewvConfig.TRIPOD_SHIELD_BREAK_DAMAGE, SewvConfig.TRIPOD_SHIELD_BREAK_DAMAGE::set);
-        b.intRange(ConfigScope.SERVER, "compat_extermination", "tripodShieldRegenTicks", 0, 72000,
-                SewvConfig.TRIPOD_SHIELD_REGEN_TICKS, SewvConfig.TRIPOD_SHIELD_REGEN_TICKS::set);
-        b.intRange(ConfigScope.SERVER, "compat_extermination", "tripodShieldFlareTicks", 1, 100,
-                SewvConfig.TRIPOD_SHIELD_FLARE_TICKS, SewvConfig.TRIPOD_SHIELD_FLARE_TICKS::set);
-        b.doubleRange(ConfigScope.SERVER, "compat_extermination", "tripodShieldAxisScale", 0.25, 4.0,
-                SewvConfig.TRIPOD_SHIELD_AXIS_SCALE, SewvConfig.TRIPOD_SHIELD_AXIS_SCALE::set);
-        b.doubleRange(ConfigScope.SERVER, "compat_extermination", "invasionPodAvoidRadius", 8.0, 128.0,
-                SewvConfig.INVASION_POD_AVOID_RADIUS, SewvConfig.INVASION_POD_AVOID_RADIUS::set);
-        b.doubleRange(ConfigScope.SERVER, "compat_extermination", "heatRaySpeed", 3.5, 40.0,
-                SewvConfig.HEAT_RAY_SPEED, SewvConfig.HEAT_RAY_SPEED::set);
-    }
-
-    private static void registerCompatTrees(ConfigRegistry.Builder b) {
-        b.bool(ConfigScope.SERVER, "compat_trees", "vehicleTreeFellingEnabled",
+        // Enhanced Falling Trees
+        b.bool(ConfigScope.SERVER, "compat", "vehicleTreeFellingEnabled",
                 SewvConfig.VEHICLE_TREE_FELLING_ENABLED, SewvConfig.VEHICLE_TREE_FELLING_ENABLED::set);
-        b.doubleRange(ConfigScope.SERVER, "compat_trees", "vehicleTreeFellDamage", 0.0, 20.0,
+        b.doubleRange(ConfigScope.SERVER, "compat", "vehicleTreeFellDamage", 0.0, 20.0,
                 SewvConfig.VEHICLE_TREE_FELL_DAMAGE, SewvConfig.VEHICLE_TREE_FELL_DAMAGE::set);
-        b.doubleRange(ConfigScope.SERVER, "compat_trees", "vehicleTreePathMalus", 0.0, 50.0,
+        b.doubleRange(ConfigScope.SERVER, "compat", "vehicleTreePathMalus", 0.0, 50.0,
                 SewvConfig.VEHICLE_TREE_PATH_MALUS, SewvConfig.VEHICLE_TREE_PATH_MALUS::set);
-        b.doubleRange(ConfigScope.SERVER, "compat_trees", "vehicleTreeSensorDanger", 0.0, 0.99,
+        b.doubleRange(ConfigScope.SERVER, "compat", "vehicleTreeSensorDanger", 0.0, 0.99,
                 SewvConfig.VEHICLE_TREE_SENSOR_DANGER, SewvConfig.VEHICLE_TREE_SENSOR_DANGER::set);
-        b.bool(ConfigScope.SERVER, "compat_trees", "vehicleTreeFellingExemptGiantTrunks",
+        b.bool(ConfigScope.SERVER, "compat", "vehicleTreeFellingExemptGiantTrunks",
                 SewvConfig.VEHICLE_TREE_FELLING_EXEMPT_GIANT_TRUNKS, SewvConfig.VEHICLE_TREE_FELLING_EXEMPT_GIANT_TRUNKS::set);
-        b.intRange(ConfigScope.SERVER, "compat_trees", "vehicleTreeContactTicks", 0, 200,
+        b.intRange(ConfigScope.SERVER, "compat", "vehicleTreeContactTicks", 0, 200,
                 SewvConfig.VEHICLE_TREE_CONTACT_TICKS, SewvConfig.VEHICLE_TREE_CONTACT_TICKS::set);
+
+        // MineColonies
+        b.bool(ConfigScope.SERVER, "compat", "minecoloniesCompatEnabled",
+                SewvConfig.MINECOLONIES_COMPAT_ENABLED, SewvConfig.MINECOLONIES_COMPAT_ENABLED::set);
+        b.bool(ConfigScope.SERVER, "compat", "minecoloniesProtectOwnedPmc",
+                SewvConfig.MINECOLONIES_PROTECT_PMC, SewvConfig.MINECOLONIES_PROTECT_PMC::set);
+        b.bool(ConfigScope.SERVER, "compat", "minecoloniesSpawnExclusion",
+                SewvConfig.MINECOLONIES_SPAWN_EXCLUSION, SewvConfig.MINECOLONIES_SPAWN_EXCLUSION::set);
+        b.bool(ConfigScope.SERVER, "compat", "minecoloniesVehicleRetaliation",
+                SewvConfig.MINECOLONIES_VEHICLE_RETALIATION, SewvConfig.MINECOLONIES_VEHICLE_RETALIATION::set);
+        b.doubleRange(ConfigScope.SERVER, "compat", "minecoloniesRaidChance", 0.0, 1.0,
+                SewvConfig.MINECOLONIES_RAID_CHANCE, SewvConfig.MINECOLONIES_RAID_CHANCE::set);
+        b.intRange(ConfigScope.SERVER, "compat", "minecoloniesRaidMaxVehicles", 1, 12,
+                SewvConfig.MINECOLONIES_RAID_MAX_VEHICLES, SewvConfig.MINECOLONIES_RAID_MAX_VEHICLES::set);
+
+        // Komodo (client mixin, value lives in server/common toml)
+        b.bool(ConfigScope.SERVER, "compat", "komodoRenderFixEnabled",
+                SewvConfig.KOMODO_RENDER_FIX_ENABLED, SewvConfig.KOMODO_RENDER_FIX_ENABLED::set);
+
+        if (isExterminationLoaded()) {
+            b.bool(ConfigScope.SERVER, "compat", "tripodShieldEnabled",
+                    SewvConfig.TRIPOD_SHIELD_ENABLED, SewvConfig.TRIPOD_SHIELD_ENABLED::set);
+            b.doubleRange(ConfigScope.SERVER, "compat", "tripodHpMultiplier", 1.0, 10.0,
+                    SewvConfig.TRIPOD_HP_MULTIPLIER, SewvConfig.TRIPOD_HP_MULTIPLIER::set);
+            b.doubleRange(ConfigScope.SERVER, "compat", "tripodShieldBreakDamage", 1.0, 100000.0,
+                    SewvConfig.TRIPOD_SHIELD_BREAK_DAMAGE, SewvConfig.TRIPOD_SHIELD_BREAK_DAMAGE::set);
+            b.intRange(ConfigScope.SERVER, "compat", "tripodShieldRegenTicks", 0, 72000,
+                    SewvConfig.TRIPOD_SHIELD_REGEN_TICKS, SewvConfig.TRIPOD_SHIELD_REGEN_TICKS::set);
+            b.intRange(ConfigScope.SERVER, "compat", "tripodShieldFlareTicks", 1, 100,
+                    SewvConfig.TRIPOD_SHIELD_FLARE_TICKS, SewvConfig.TRIPOD_SHIELD_FLARE_TICKS::set);
+            b.doubleRange(ConfigScope.SERVER, "compat", "tripodShieldAxisScale", 0.25, 4.0,
+                    SewvConfig.TRIPOD_SHIELD_AXIS_SCALE, SewvConfig.TRIPOD_SHIELD_AXIS_SCALE::set);
+            b.doubleRange(ConfigScope.SERVER, "compat", "invasionPodAvoidRadius", 8.0, 128.0,
+                    SewvConfig.INVASION_POD_AVOID_RADIUS, SewvConfig.INVASION_POD_AVOID_RADIUS::set);
+            b.doubleRange(ConfigScope.SERVER, "compat", "heatRaySpeed", 3.5, 40.0,
+                    SewvConfig.HEAT_RAY_SPEED, SewvConfig.HEAT_RAY_SPEED::set);
+        }
     }
 }

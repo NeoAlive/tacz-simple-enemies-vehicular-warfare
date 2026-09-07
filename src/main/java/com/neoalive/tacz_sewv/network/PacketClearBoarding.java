@@ -16,10 +16,11 @@ import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
- * "Board my vehicle" — sent from {@code BoardMyVehicleKeybind} once the player is seated in the
- * hull they want their squad to fill. A passenger-only board order ({@link PacketBoardVehicle})
- * walks units up and holds them beside the hull ({@code BoardVehicleGoal}'s wait); this is the
- * release that lets them actually mount, so the player gets first pick of seat.
+ * "Board my vehicle" — sent from the quick-command wheel (General → Board Queued) once the
+ * player is seated in the hull they want their squad to fill. A passenger-only board order
+ * ({@link PacketBoardVehicle}) walks units up and holds them beside the hull
+ * ({@code BoardVehicleGoal}'s wait); this is the release that lets them actually mount, so the
+ * player gets first pick of seat.
  */
 public class PacketClearBoarding {
 

@@ -85,6 +85,31 @@ public final class NotificationHud {
         }
     }
 
+    /**
+     * Skip the remaining on-screen delay for the current notification. ENTER finishes into
+     * SHOWING first; then the hold timer is marked elapsed so the next {@link #tick} advances
+     * to EXIT (or the next queued item) with the normal exit animation. Idle / already exiting
+     * is a no-op.
+     *
+     * @return true if a live notification's delay was skipped
+     */
+    public static boolean dismiss() {
+        if (phase == Phase.IDLE || phase == Phase.EXIT) return false;
+        if (phase == Phase.ENTER) {
+            animElapsedMs = ANIM_MS;
+            phase = Phase.SHOWING;
+            beginFrontTimer();
+        }
+        if (phase != Phase.SHOWING) return false;
+        frontElapsedMs = frontDurationMs;
+        return true;
+    }
+
+    /** True while a banner is entering, showing, or exiting. */
+    public static boolean isActive() {
+        return phase != Phase.IDLE;
+    }
+
     static void tick(boolean paused, long nowMs) {
         if (lastWallMs == 0L) lastWallMs = nowMs;
         long dt = nowMs - lastWallMs;

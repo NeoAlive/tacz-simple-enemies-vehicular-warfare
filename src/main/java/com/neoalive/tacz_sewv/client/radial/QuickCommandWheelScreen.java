@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketClearBoarding;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketQuickCommand;
 
@@ -202,6 +203,12 @@ public final class QuickCommandWheelScreen extends Screen {
         // Route-to-FOB uses FOB assignment lists, not the radius unit pick.
         if (QuickCommandRegistry.ID_QUICK_ROUTE_FOB.equals(pipelineId)) {
             NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, List.of()));
+            return true;
+        }
+
+        // Release passenger-only board waiters into the player's current hull.
+        if (QuickCommandRegistry.ID_BOARD_QUEUED.equals(pipelineId)) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketClearBoarding());
             return true;
         }
 

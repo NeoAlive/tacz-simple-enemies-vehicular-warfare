@@ -39,8 +39,6 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_CAPTURE_MEDIC = "quick_capture_medic";
     public static final String ID_QUICK_ROUTE_FOB = "quick_route_fob";
     public static final String ID_REVIVE_CALL = "revive_call";
-    public static final String ID_FORM_SEM_WEDGE = "form_sem_wedge";
-    public static final String ID_FORM_SEM_COLUMN = "form_sem_column";
     public static final String ID_FORM_WEDGE = "form_wedge";
     public static final String ID_FORM_COLUMN = "form_column";
     public static final String ID_FORM_LINE = "form_line";
@@ -69,15 +67,7 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_CAPTURE_MEDIC, new QuickCaptureMedicPipeline());
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());
         register(ID_REVIVE_CALL, new QuickReviveCallPipeline());
-        register(ID_FORM_SEM_WEDGE, new QuickSemOrderPipeline(OrderType.FORM_WEDGE,
-                "message.tacz_sewv.quick_form.started"));
-        register(ID_FORM_SEM_COLUMN, new QuickSemOrderPipeline(OrderType.FORM_COLUMN,
-                "message.tacz_sewv.quick_form.started"));
-        register(ID_FORM_WEDGE, new QuickFormationPipeline(FormationShape.WEDGE));
-        register(ID_FORM_COLUMN, new QuickFormationPipeline(FormationShape.COLUMN));
-        register(ID_FORM_LINE, new QuickFormationPipeline(FormationShape.LINE));
-        register(ID_FORM_ECHELON_LEFT, new QuickFormationPipeline(FormationShape.ECHELON_LEFT));
-        register(ID_FORM_ECHELON_RIGHT, new QuickFormationPipeline(FormationShape.ECHELON_RIGHT));
+        // Formation leaves are client-committed via PacketVehicleFormation (not PacketQuickCommand).
 
         List<WedgeEntry> general = new ArrayList<>();
         general.add(leaf("Quick Board", "\u2399", ID_QUICK_BOARD, 0xE8B84A));
@@ -108,8 +98,6 @@ public final class QuickCommandRegistry {
                         leaf("Search & Destroy", "\u25CE", ID_QUICK_SEARCH, 0x5AB8A0),
                         leaf("Patrol", "\u27F3", ID_QUICK_PATROL, 0x5AB8A0))),
                 new WedgeEntry.CategoryEntry("Formation", "\u25C8", 0xA06BD4, List.of(
-                        leaf("SEM Wedge", "\u25B2", ID_FORM_SEM_WEDGE, 0xA06BD4),
-                        leaf("SEM Column", "\u25B3", ID_FORM_SEM_COLUMN, 0xA06BD4),
                         leaf("Wedge", "\u25B2", ID_FORM_WEDGE, 0xA06BD4),
                         leaf("Column", "\u25B3", ID_FORM_COLUMN, 0xA06BD4),
                         leaf("Line", "\u2501", ID_FORM_LINE, 0xA06BD4),
@@ -141,5 +129,26 @@ public final class QuickCommandRegistry {
                 || ID_QUICK_ENTRENCH.equals(pipelineId)
                 || ID_QUICK_REFILL.equals(pipelineId)
                 || ID_QUICK_EVAC.equals(pipelineId);
+    }
+
+    /** True when the leaf is a Combined Arms formation shape (client PacketVehicleFormation path). */
+    public static boolean isFormationPipeline(String pipelineId) {
+        return ID_FORM_WEDGE.equals(pipelineId)
+                || ID_FORM_COLUMN.equals(pipelineId)
+                || ID_FORM_LINE.equals(pipelineId)
+                || ID_FORM_ECHELON_LEFT.equals(pipelineId)
+                || ID_FORM_ECHELON_RIGHT.equals(pipelineId);
+    }
+
+    @Nullable
+    public static FormationShape formationShapeOf(String pipelineId) {
+        return switch (pipelineId) {
+            case ID_FORM_WEDGE -> FormationShape.WEDGE;
+            case ID_FORM_COLUMN -> FormationShape.COLUMN;
+            case ID_FORM_LINE -> FormationShape.LINE;
+            case ID_FORM_ECHELON_LEFT -> FormationShape.ECHELON_LEFT;
+            case ID_FORM_ECHELON_RIGHT -> FormationShape.ECHELON_RIGHT;
+            default -> null;
+        };
     }
 }

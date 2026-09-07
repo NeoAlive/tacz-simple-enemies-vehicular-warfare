@@ -300,6 +300,10 @@ public abstract class MixinPmcUnitEntity
     private void tacz_sewv$dropFormationAxisOnReorder(int index, CallbackInfo ci) {
         if (!((Entity) (Object) this).isAddedToWorld()) return;
         this.sewv$setFormationDirection(null);
+        ((Entity) (Object) this).getPersistentData().remove(IFormationMember.TAG_FORMATION_SHAPE);
+        ((Entity) (Object) this).getPersistentData().remove(IFormationMember.TAG_FORMATION_ROWSIZE);
+        ((Entity) (Object) this).getPersistentData().remove(IFormationMember.TAG_FORMATION_WIDTH);
+        ((Entity) (Object) this).getPersistentData().remove(IFormationMember.TAG_FORMATION_LENGTH);
     }
 
     /**

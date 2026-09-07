@@ -100,14 +100,25 @@ public class BoardKeybind {
     }
 
     /**
-     * Form owned crews into {@code shape} along {@code axisInt} (the cardinal captured when the TDT
-     * opened). {@code rowSize} is the LINE units-per-row, ignored by the other shapes. The server
-     * numbers the slots and re-checks ownership.
+     * Form owned crews into {@code shape} along {@code axisInt} with WIDTH/LENGTH stretch.
+     * {@code rowSize} is the LINE units-per-row (internal default). The server numbers the slots
+     * and re-checks ownership / composition.
      */
-    public static void orderFormation(FormationShape shape, int axisInt, int rowSize) {
+    public static void orderFormation(FormationShape shape, int axisInt, int rowSize,
+                                      float widthStretch, float lengthStretch) {
         withOwnedUnits(pmc -> true, "message.tacz_sewv.board.no_units",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
-                        new PacketVehicleFormation(unitIds, shape, axisInt, rowSize)));
+                        new PacketVehicleFormation(unitIds, shape, axisInt, rowSize,
+                                widthStretch, lengthStretch)));
+    }
+
+    /** Quick-wheel path: explicit unit ids already resolved by the wheel. */
+    public static void orderFormation(List<Integer> unitIds, FormationShape shape, int axisInt,
+                                      int rowSize, float widthStretch, float lengthStretch) {
+        if (unitIds.isEmpty()) return;
+        NetworkHandler.CHANNEL.sendToServer(
+                new PacketVehicleFormation(unitIds, shape, axisInt, rowSize,
+                        widthStretch, lengthStretch));
     }
 
     /**

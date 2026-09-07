@@ -4,9 +4,11 @@ import java.util.function.Supplier;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.network.NetworkEvent;
+import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
 import org.spongepowered.asm.mixin.Mixin;
@@ -81,6 +83,15 @@ public abstract class MixinPacketIssueOrder {
         // okEach counts them and the flush prints the total once.
         if (pmc instanceof IPmcDowned d && d.sewv$isDowned()) {
             OrderReport.fail(sender, OrderFailure.UNIT_DOWNED);
+            ci.cancel();
+            return;
+        }
+        OrderType order = ((AccessorPacketIssueOrder) packet).tacz_sewv$order();
+        if (order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN) {
+            sender.displayClientMessage(
+                    Component.translatable("message.tacz_sewv.formation.use_quickwheel")
+                            .withStyle(ChatFormatting.GRAY),
+                    true);
             ci.cancel();
             return;
         }

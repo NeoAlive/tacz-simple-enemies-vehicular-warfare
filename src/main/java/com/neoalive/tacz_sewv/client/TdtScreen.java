@@ -18,7 +18,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
@@ -34,13 +33,11 @@ import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.skin.LogoPoolRegistry;
 import com.neoalive.tacz_sewv.crew.NamePools;
 import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
-import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
@@ -53,7 +50,6 @@ import com.neoalive.tacz_sewv.network.PacketReachGuard;
 import com.neoalive.tacz_sewv.network.PacketRequestPmcIdentity;
 import com.neoalive.tacz_sewv.network.PacketSetNameCategory;
 import com.neoalive.tacz_sewv.network.PacketToggleAutoOrders;
-import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
 
 /**
  * Tactical Data Terminal: left-docked C2 overlay (no world dim) with a category-filtered
@@ -117,15 +113,14 @@ public class TdtScreen extends Screen {
     private static final int STRIPE_CREW = 0x4D8FAA6B;
     private static final int STRIPE_AREA = 0x4DC9A15A;
     private static final int STRIPE_AIR = 0x4DB57ED1;
-    private static final int STRIPE_FORM = 0x4DD98F6B;
     private static final int STRIPE_PLATOON = 0x4DD9C96B;
     private static final int STRIPE_IDENTITY = 0x4D6BD9A1;
 
     enum Category {
-        ALL, ORDERS, CREW, AREA, AIR, FORM, PLATOON, IDENTITY
+        ALL, ORDERS, CREW, AREA, AIR, PLATOON, IDENTITY
     }
 
-    private enum StepperKind { PATROL, SEARCH, ALTITUDE, LINE }
+    private enum StepperKind { PATROL, SEARCH, ALTITUDE }
 
     private enum CycleKind { NAME_CATEGORY }
 
@@ -133,12 +128,10 @@ public class TdtScreen extends Screen {
     private final Entity boardTarget;
     @Nullable
     private final BlockPos landPad;
-    private final int formationAxis;
 
     private static int patrolRadius = DEFAULT_RADIUS;
     private static int searchRadius = DEFAULT_RADIUS;
     private static int heliAltitude = IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
-    private static int lineRowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
     private static String selectedNameCategory = NamePools.RANDOM;
 
     private static String draftCompanyName = "";
@@ -227,11 +220,10 @@ public class TdtScreen extends Screen {
     /** Painted category block in All view (header + continuous left stripe). */
     private record Section(Category cat, int y0, int y1) {}
 
-    private TdtScreen(@Nullable Entity boardTarget, @Nullable BlockPos landPad, int formationAxis) {
+    private TdtScreen(@Nullable Entity boardTarget, @Nullable BlockPos landPad) {
         super(Component.translatable("gui.tacz_sewv.tdt.title"));
         this.boardTarget = boardTarget;
         this.landPad = landPad;
-        this.formationAxis = formationAxis;
     }
 
     public static void open() {
@@ -246,8 +238,7 @@ public class TdtScreen extends Screen {
         BlockPos pad = block instanceof BlockHitResult bhr && block.getType() == HitResult.Type.BLOCK
                 ? bhr.getBlockPos() : null;
 
-        int axis = IFormationMember.axisOf(Direction.fromYRot(mc.player.getYRot()));
-        mc.setScreen(new TdtScreen(target, pad, axis));
+        mc.setScreen(new TdtScreen(target, pad));
     }
 
     @Override
@@ -336,19 +327,6 @@ public class TdtScreen extends Screen {
         add(Category.AIR, "gui.tacz_sewv.tdt.rappel", "gui.tacz_sewv.tdt.rappel.tip", true, HelicopterKeybind::orderRappel);
         add(Category.AIR, "gui.tacz_sewv.tdt.paratroop", "gui.tacz_sewv.tdt.paratroop.tip", true,
                 BoardKeybind::orderParatroop);
-
-        add(Category.FORM, "gui.tacz_sewv.tdt.sem_wedge", null, true, () -> issueSemOrder(OrderType.FORM_WEDGE));
-        add(Category.FORM, "gui.tacz_sewv.tdt.sem_column", null, true, () -> issueSemOrder(OrderType.FORM_COLUMN));
-        add(Category.FORM, "gui.tacz_sewv.tdt.wedge", null, true,
-                () -> BoardKeybind.orderFormation(FormationShape.WEDGE, this.formationAxis, lineRowSize));
-        add(Category.FORM, "gui.tacz_sewv.tdt.column", null, true,
-                () -> BoardKeybind.orderFormation(FormationShape.COLUMN, this.formationAxis, lineRowSize));
-        add(Category.FORM, "gui.tacz_sewv.tdt.line", "gui.tacz_sewv.tdt.line.tip", true,
-                () -> BoardKeybind.orderFormation(FormationShape.LINE, this.formationAxis, lineRowSize), StepperKind.LINE);
-        add(Category.FORM, "gui.tacz_sewv.tdt.echelon_left", null, true,
-                () -> BoardKeybind.orderFormation(FormationShape.ECHELON_LEFT, this.formationAxis, lineRowSize));
-        add(Category.FORM, "gui.tacz_sewv.tdt.echelon_right", null, true,
-                () -> BoardKeybind.orderFormation(FormationShape.ECHELON_RIGHT, this.formationAxis, lineRowSize));
 
         add(Category.PLATOON, "gui.tacz_sewv.tdt.join_platoon", "gui.tacz_sewv.tdt.join_platoon.tip",
                 true, ClientEvents::armJoinPlatoon);
@@ -451,7 +429,7 @@ public class TdtScreen extends Screen {
         int cellW = (innerW - CELL_GAP * (GRID_COLS - 1)) / GRID_COLS;
 
         Category[] order = allView
-                ? new Category[]{Category.ORDERS, Category.CREW, Category.AREA, Category.AIR, Category.FORM,
+                ? new Category[]{Category.ORDERS, Category.CREW, Category.AREA, Category.AIR,
                     Category.PLATOON, Category.IDENTITY}
                 : new Category[]{this.category};
 
@@ -516,7 +494,6 @@ public class TdtScreen extends Screen {
             case CREW -> STRIPE_CREW;
             case AREA -> STRIPE_AREA;
             case AIR -> STRIPE_AIR;
-            case FORM -> STRIPE_FORM;
             case PLATOON -> STRIPE_PLATOON;
             case IDENTITY -> STRIPE_IDENTITY;
             default -> COL_STRIPE;
@@ -919,10 +896,7 @@ public class TdtScreen extends Screen {
 
     private int stepperMinusLeft(Cell cell) {
         StepperSpec spec = stepperSpec(cell.entry().stepper);
-        String suffix = cell.entry().stepper == StepperKind.LINE
-                ? I18n.get("gui.tacz_sewv.tdt.unit.per_row")
-                : I18n.get("gui.tacz_sewv.tdt.unit.blocks");
-        String value = spec.get.getAsInt() + suffix;
+        String value = spec.get.getAsInt() + I18n.get("gui.tacz_sewv.tdt.unit.blocks");
         int plusLeft = cell.w() - STEP_BTN;
         int valueW = this.font.width(value);
         return plusLeft - 4 - valueW - 4 - STEP_BTN;
@@ -1182,7 +1156,6 @@ public class TdtScreen extends Screen {
         g.enableScissor(originX, this.listTop, this.panelLeft + this.panelW - PAD, this.listBottom);
 
         String unitBlocks = I18n.get("gui.tacz_sewv.tdt.unit.blocks");
-        String unitPerRow = I18n.get("gui.tacz_sewv.tdt.unit.per_row");
         boolean allView = this.category == Category.ALL;
         int labelInset = allView ? 6 : STRIPE_W + 4;
 
@@ -1221,8 +1194,7 @@ public class TdtScreen extends Screen {
 
             if (cell.entry().stepper != null) {
                 StepperSpec spec = stepperSpec(cell.entry().stepper);
-                String suffix = cell.entry().stepper == StepperKind.LINE ? unitPerRow : unitBlocks;
-                String value = spec.get.getAsInt() + suffix;
+                String value = spec.get.getAsInt() + unitBlocks;
                 int plusLeft = sx + cell.w() - STEP_BTN;
                 int valueW = this.font.width(value);
                 int minusLeft = plusLeft - 4 - valueW - 4 - STEP_BTN;
@@ -1601,8 +1573,6 @@ public class TdtScreen extends Screen {
                     RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, PacketPatrolVehicle.MIN_RADIUS);
             case ALTITUDE -> new StepperSpec(() -> heliAltitude, v -> heliAltitude = v,
                     PacketHelicopterCommand.MIN_ALTITUDE, PacketHelicopterCommand.MAX_ALTITUDE, ALT_STEP, 0);
-            case LINE -> new StepperSpec(() -> lineRowSize, v -> lineRowSize = v,
-                    PacketVehicleFormation.MIN_ROW_SIZE, PacketVehicleFormation.MAX_ROW_SIZE, 1, 0);
         };
     }
 

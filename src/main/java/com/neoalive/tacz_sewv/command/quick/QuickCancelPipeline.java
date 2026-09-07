@@ -74,6 +74,8 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
         pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_AXIS);
         pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_SHAPE);
         pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_ROWSIZE);
+        pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_WIDTH);
+        pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_LENGTH);
 
         if (pmc instanceof IHelicopterPilot
                 && pmc.getVehicle() instanceof VehicleEntity hull

@@ -104,6 +104,8 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> INTERACT_BEEP = register("interact_beep");
     /** Quick-command wheel: right-click / back (pair with {@link #INTERACT_BEEP} for left-click). */
     public static final RegistryObject<SoundEvent> INTERACT_BEEP_BACK = register("interact_beep_back");
+    /** Quick-wheel formation WIDTH/LENGTH scroll tick. */
+    public static final RegistryObject<SoundEvent> SCALE = register("scale");
 
     /** Vehicle lock / unlock. */
     public static final RegistryObject<SoundEvent> LOCK = register("lock");

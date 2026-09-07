@@ -14,26 +14,22 @@ import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
- * Forms the player's owned crews into one of the {@link FormationShape}s, laid out along the cardinal
- * they were facing when they opened the Tactical Data Terminal. Sent by
- * {@link com.neoalive.tacz_sewv.client.TdtScreen}'s formation buttons.
+ * Forms the player's owned crews into one of the {@link FormationShape}s along a frozen cardinal.
+ * Sent from the Quick Wheel Formation category (WIDTH/LENGTH stretch included).
  *
- * <p>The wire carries no slot index, unlike SEM's own PacketIssueOrder — the server derives the
- * whole numbering in {@link VehicleFormation#assign}. That is not only the safer shape (SEM
- * writes the client's index straight through with no bounds check, so a forged packet could put
- * every hull on slot 0, or on slot 100000 — a point a million blocks out that a hull would drive
- * at forever); it is the only workable one, since the numbering has to group units by the hull
- * they are riding, and passenger data is a server-side question.
+ * <p>The wire carries no slot index — the server derives numbering in
+ * {@link VehicleFormation#assign}.
  */
 public class PacketVehicleFormation {
 
-    /** LINE units-per-row bounds; the TDT stepper and the server clamp both use these. */
+    /** LINE units-per-row bounds; internal default only (no UI stepper). */
     public static final int MIN_ROW_SIZE = 1;
     public static final int MAX_ROW_SIZE = 12;
     public static final int DEFAULT_ROW_SIZE = 4;
@@ -41,13 +37,18 @@ public class PacketVehicleFormation {
     private final List<Integer> unitIds;
     private final int shapeId;
     private final int axis;
-    private final int rowSize; // units per row; only a LINE reads it
+    private final int rowSize;
+    private final float widthStretch;
+    private final float lengthStretch;
 
-    public PacketVehicleFormation(List<Integer> unitIds, FormationShape shape, int axis, int rowSize) {
+    public PacketVehicleFormation(List<Integer> unitIds, FormationShape shape, int axis, int rowSize,
+                                  float widthStretch, float lengthStretch) {
         this.unitIds = unitIds;
         this.shapeId = shape.id();
         this.axis = axis;
         this.rowSize = rowSize;
+        this.widthStretch = widthStretch;
+        this.lengthStretch = lengthStretch;
     }
 
     public PacketVehicleFormation(FriendlyByteBuf buf) {
@@ -55,15 +56,17 @@ public class PacketVehicleFormation {
         this.shapeId = buf.readVarInt();
         this.axis = buf.readVarInt();
         this.rowSize = buf.readVarInt();
+        this.widthStretch = buf.readFloat();
+        this.lengthStretch = buf.readFloat();
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeCollection(this.unitIds, FriendlyByteBuf::writeVarInt);
-        // Our own stable shape/axis ids: SEM's enums are its own business, and the handshake
-        // doesn't check that both ends run the same SEM version.
         buf.writeVarInt(this.shapeId);
         buf.writeVarInt(this.axis);
         buf.writeVarInt(this.rowSize);
+        buf.writeFloat(this.widthStretch);
+        buf.writeFloat(this.lengthStretch);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -73,16 +76,14 @@ public class PacketVehicleFormation {
 
             Direction axis = IFormationMember.directionOf(this.axis);
             if (axis == null) {
-                // Only reachable from a forged packet, but "nothing happened and nothing was said"
-                // is precisely the failure mode this reporting exists to remove.
                 OrderReport.fail(player, OrderFailure.MALFORMED);
                 return;
             }
             FormationShape shape = FormationShape.byId(this.shapeId);
             int rowSize = Mth.clamp(this.rowSize, MIN_ROW_SIZE, MAX_ROW_SIZE);
+            float width = IFormationMember.clampStretch(this.widthStretch);
+            float length = IFormationMember.clampStretch(this.lengthStretch);
 
-            // Ownership-check each unit individually so a spoofed packet can't march another
-            // player's units into formation by id.
             List<PmcUnitEntity> units = new ArrayList<>();
             for (int unitId : this.unitIds) {
                 if (!(player.level().getEntity(unitId) instanceof PmcUnitEntity pmc)) {
@@ -100,10 +101,31 @@ public class PacketVehicleFormation {
                 units.add(pmc);
             }
 
-            int hulls = VehicleFormation.assign(player, units, shape, axis, rowSize);
+            FormationComposition.Kind kind = FormationComposition.resolve(units);
+            if (kind == null) {
+                sp.displayClientMessage(
+                        Component.translatable(FormationComposition.MSG_INVALID)
+                                .withStyle(ChatFormatting.GRAY),
+                        true);
+                return;
+            }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.formation.formed", hulls,
-                    ChatFormatting.GREEN, hulls, Component.translatable(axisKey(axis)));
+            int slots = VehicleFormation.slotCountFor(units);
+            double baseline = FormationComposition.baselineSpacing(kind);
+            if (VehicleFormation.slotsOverlap(player.position(), axis, shape, slots, rowSize,
+                    baseline, width, length)) {
+                sp.displayClientMessage(
+                        Component.translatable(FormationComposition.MSG_OVERLAP)
+                                .withStyle(ChatFormatting.GRAY),
+                        true);
+                return;
+            }
+
+            int formed = VehicleFormation.assign(player, units, shape, axis, rowSize,
+                    width, length, kind);
+
+            NetworkHandler.orderFeedback(player, "message.tacz_sewv.formation.formed", formed,
+                    ChatFormatting.GREEN, formed, Component.translatable(axisKey(axis)));
         });
         ctx.get().setPacketHandled(true);
     }

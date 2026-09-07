@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -19,24 +21,15 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
- * The shape of a vehicle formation and who stands where in it.
+ * The shape of a Combined Arms formation and who stands where in it.
  *
- * <p>The geometry is SEM's own ({@code FormationUtils}), scaled up: a column files directly
- * astern, a wedge puts a point man on the axis and fans the rest to alternating flanks a rank
- * back each time. What changes for hulls is the basis and the scale. SEM lays out against the
- * commander's live yaw, which spins the whole formation when the player looks around — tolerable
- * at 2 blocks, hopeless at 12 — so a hull formation is laid out against a cardinal the player
- * designates once ({@link IFormationMember}).
+ * <p>Geometry is SEM-inspired (column / wedge) plus LINE and echelons, laid out against a frozen
+ * cardinal ({@link IFormationMember}) with hardcoded baseline spacing and WIDTH/LENGTH stretch.
  *
- * <p>The math and the slot assignment live together deliberately: {@link #assign} and
- * {@link VehicleTargeting#resolveDestination} have to agree on the geometry, and letting them
- * drift apart would put a hull's assigned slot somewhere other than where it drives.
- * {@link VehicleTargeting}'s job stays the narrower one — which order, and where does it point?
- *
- * <p>Server-side only. Nothing here is safe to call from the client (see {@link #groundY}).
+ * <p>Server-side only for terrain projection. Preview math ({@link #slotCenter}) is pure vector
+ * work and is safe on the client.
  */
 public final class VehicleFormation {
 
@@ -44,8 +37,8 @@ public final class VehicleFormation {
 
     /**
      * SEM's wedge widens 1.25x as fast as it deepens (FormationUtils: 2.5 lateral against 2.0
-     * back). Keeping it as a ratio rather than a second spacing is what makes one config value
-     * scale the whole shape without changing its proportions.
+     * back). Keeping it as a ratio rather than a second spacing is what makes one baseline scale
+     * the whole shape without changing its proportions.
      */
     private static final double LATERAL_RATIO = 2.5 / 2.0;
 
@@ -59,50 +52,50 @@ public final class VehicleFormation {
 
     /**
      * Where slot {@code index} sits, relative to {@code anchor}, for a {@code shape} pointing along
-     * {@code axis}. Wedge/column reproduce FormationUtils exactly at a spacing of 2.0 — same shape,
-     * bigger; line and the two echelons are ours. {@code rowSize} is the units-per-row cap and only
-     * a LINE reads it.
+     * {@code axis}. {@code rowSize} is the units-per-row cap and only a LINE reads it.
      *
      * <p>Note the sign: every slot lands at {@code anchor + forward * -back}, so the formation
-     * trails BEHIND the anchor. "Wedge on +X" means face east and the wedge forms behind you,
-     * pointing east. {@code perp} points to the formation's right (facing east, right is +Z south).
+     * trails BEHIND the anchor. {@code perp} points to the formation's right.
      */
-    public static Vec3 slotCenter(Vec3 anchor, Direction axis, FormationShape shape, int index, int rowSize) {
-        double spacing = SewvConfig.VEHICLE_FORMATION_SPACING.get();
+    public static Vec3 slotCenter(Vec3 anchor, Direction axis, FormationShape shape, int index,
+                                  int rowSize, double baselineSpacing,
+                                  float widthStretch, float lengthStretch) {
+        double spacing = baselineSpacing;
+        double w = IFormationMember.clampStretch(widthStretch);
+        double l = IFormationMember.clampStretch(lengthStretch);
         Vec3 forward = forward(axis);
-        Vec3 perp = new Vec3(-forward.z, 0.0, forward.x); // right of the heading; also SEM's perpendicular
+        Vec3 perp = new Vec3(-forward.z, 0.0, forward.x);
 
         double back;
         double lateral;
         switch (shape) {
             case COLUMN -> {
-                back = spacing * (1 + index);
+                back = spacing * (1 + index) * l;
                 lateral = 0.0;
             }
             case LINE -> {
-                // Fill a rank abreast up to rowSize, then start the next rank one spacing behind.
                 int cols = Math.max(1, rowSize);
                 int row = index / cols;
                 int col = index % cols;
-                back = spacing * (1 + row);
-                lateral = (col - (cols - 1) / 2.0) * spacing; // centred on the axis
+                back = spacing * (1 + row) * l;
+                lateral = (col - (cols - 1) / 2.0) * spacing * w;
             }
             case ECHELON_RIGHT -> {
-                back = spacing * (1 + index);
-                lateral = spacing * index; // each hull one step back and to the right
+                back = spacing * (1 + index) * l;
+                lateral = spacing * index * w;
             }
             case ECHELON_LEFT -> {
-                back = spacing * (1 + index);
-                lateral = -spacing * index;
+                back = spacing * (1 + index) * l;
+                lateral = -spacing * index * w;
             }
             default -> { // WEDGE
                 if (index == 0) {
-                    back = spacing; // point man, centred on the axis
+                    back = spacing * l;
                     lateral = 0.0;
                 } else {
                     int rank = (index - 1) / 2 + 1;
-                    back = spacing * (1 + rank);
-                    lateral = (index % 2 != 0 ? -1 : 1) * spacing * LATERAL_RATIO * rank; // SEM's signs
+                    back = spacing * (1 + rank) * l;
+                    lateral = (index % 2 != 0 ? -1 : 1) * spacing * LATERAL_RATIO * rank * w;
                 }
             }
         }
@@ -110,34 +103,68 @@ public final class VehicleFormation {
     }
 
     /** Drive-to point for a slot: its centre, dropped onto the terrain underneath it. */
-    public static BlockPos slotPos(Level level, Vec3 anchor, Direction axis, FormationShape shape, int index, int rowSize) {
-        Vec3 center = slotCenter(anchor, axis, shape, index, rowSize);
+    public static BlockPos slotPos(Level level, Vec3 anchor, Direction axis, FormationShape shape,
+                                   int index, int rowSize, double baselineSpacing,
+                                   float widthStretch, float lengthStretch,
+                                   FormationComposition.Kind kind) {
+        Vec3 center = slotCenter(anchor, axis, shape, index, rowSize,
+                baselineSpacing, widthStretch, lengthStretch);
+        BlockPos xz = BlockPos.containing(center.x, anchor.y, center.z);
+        if (kind == FormationComposition.Kind.SHIP) {
+            BlockPos water = WaterSupport.projectToWater(level, xz);
+            if (water != null) return water;
+        }
         return BlockPos.containing(center.x, groundY(level, center.x, center.z, anchor.y), center.z);
     }
 
     /**
-     * Drive-to point that keeps {@code anchor.y}. Helicopter formations use this so
-     * a wedge behind an airborne leader does not snap each slot down to the trees.
+     * True when any pair of intended slot centres is closer than the overlap floor for the
+     * current stretch. Call with the same numbering {@link #assign} will use (drivers then loose).
      */
-    public static BlockPos slotPosAtAltitude(Vec3 anchor, Direction axis, FormationShape shape, int index, int rowSize) {
-        Vec3 center = slotCenter(anchor, axis, shape, index, rowSize);
-        return BlockPos.containing(center.x, center.y, center.z);
+    public static boolean slotsOverlap(Vec3 anchor, Direction axis, FormationShape shape,
+                                       int slotCount, int rowSize, double baselineSpacing,
+                                       float widthStretch, float lengthStretch) {
+        if (slotCount < 2) return false;
+        double minDist = Math.max(1.0,
+                baselineSpacing * Math.min(widthStretch, lengthStretch) * 0.85);
+        double minDistSq = minDist * minDist;
+        Vec3[] centres = new Vec3[slotCount];
+        for (int i = 0; i < slotCount; i++) {
+            centres[i] = slotCenter(anchor, axis, shape, i, rowSize,
+                    baselineSpacing, widthStretch, lengthStretch);
+        }
+        for (int i = 0; i < slotCount; i++) {
+            for (int j = i + 1; j < slotCount; j++) {
+                double dx = centres[i].x - centres[j].x;
+                double dz = centres[i].z - centres[j].z;
+                if (dx * dx + dz * dz < minDistSq) return true;
+            }
+        }
+        return false;
     }
 
     /**
-     * The surface a hull would come to rest on. NO_LEAVES because a canopy is not ground. It
-     * counts fluids, so a slot over water resolves to the water surface — harmless, since
-     * GroundVehicleNodeEvaluator rejects that node anyway and the hull holds short of it.
+     * How many slots {@link #assign} will allocate for this selection (one per hull + each loose
+     * infantry). Riders do not add slots.
+     */
+    public static int slotCountFor(List<PmcUnitEntity> units) {
+        int hulls = 0;
+        int loose = 0;
+        for (PmcUnitEntity pmc : units) {
+            Entity hull = pmc.getVehicle();
+            if (hull instanceof VehicleEntity) {
+                if (hull.getFirstPassenger() == pmc) hulls++;
+            } else {
+                loose++;
+            }
+        }
+        return hulls + loose;
+    }
+
+    /**
+     * The surface a hull would come to rest on. NO_LEAVES because a canopy is not ground.
      *
-     * <p>The clamp is not cosmetic. Level.getHeight answers getMinBuildHeight() for an UNLOADED
-     * chunk, so a slot behind a commander standing at the edge of loaded terrain would resolve to
-     * bedrock — a destination hundreds of blocks down that the hull can never arrive at. It is
-     * also the right answer inside a cave or a building, where the probe reports the roof.
-     * Falling back to the commander's own Y is what this did before there was a probe at all, and
-     * it is the right answer whenever the probe is not.
-     *
-     * <p>SERVER ONLY: ClientLevel chunks carry only MOTION_BLOCKING and WORLD_SURFACE, so this
-     * must never move client-side.
+     * <p>SERVER ONLY: ClientLevel chunks carry only MOTION_BLOCKING and WORLD_SURFACE.
      */
     private static double groundY(Level level, double x, double z, double anchorY) {
         int probed = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(x), Mth.floor(z));
@@ -146,17 +173,14 @@ public final class VehicleFormation {
 
     /**
      * Number a selection into formation slots and issue the order. Returns the count of HULLS
-     * formed, which is what the player is told.
-     *
-     * <p>One hull takes one slot, held by its driver, because only the driver's DriveVehicleGoal
-     * steers — SEM's per-unit numbering would spend three slots on a three-man tank and then fly
-     * the hull to whichever of them the descending-id sort happened to hand the driver. Loose
-     * infantry continue the same numbering rather than getting a sequence of their own, so a
-     * mixed selection forms one coherent shape (MixinCommanderOrderGoal is what walks them to
-     * vehicle-spaced slots instead of SEM's 2-block ones).
+     * formed (infantry-only selections return the infantry count so feedback still works).
      */
-    public static int assign(Player commander, List<PmcUnitEntity> units, FormationShape shape, Direction axis, int rowSize) {
+    public static int assign(Player commander, List<PmcUnitEntity> units, FormationShape shape,
+                             Direction axis, int rowSize, float widthStretch, float lengthStretch,
+                             FormationComposition.Kind kind) {
         OrderType order = shape.semOrder();
+        float width = IFormationMember.clampStretch(widthStretch);
+        float length = IFormationMember.clampStretch(lengthStretch);
         List<PmcUnitEntity> drivers = new ArrayList<>();
         List<PmcUnitEntity> riders = new ArrayList<>();
         List<PmcUnitEntity> loose = new ArrayList<>();
@@ -166,15 +190,10 @@ public final class VehicleFormation {
             if (hull instanceof VehicleEntity) {
                 if (hull.getFirstPassenger() == pmc) drivers.add(pmc); else riders.add(pmc);
             } else {
-                // A mortar crew has no seat to ride, so it lands here by construction — which is
-                // right: it is infantry, working a tube.
                 loose.add(pmc);
             }
         }
 
-        // Nearest-first, so the formation builds with the least driving and the closest hull
-        // leads. Ties break on UUID, never entity id: ids are session-scoped (see CLAUDE.md) and
-        // the slot they would pick gets persisted to NBT.
         Comparator<PmcUnitEntity> byRange = Comparator
                 .comparingDouble((PmcUnitEntity u) -> u.distanceToSqr(commander))
                 .thenComparing(PmcUnitEntity::getUUID);
@@ -185,48 +204,44 @@ public final class VehicleFormation {
         Map<Entity, Integer> hullSlots = new HashMap<>();
         for (PmcUnitEntity driver : drivers) {
             hullSlots.put(driver.getVehicle(), slot);
-            apply(driver, order, axis, slot++, shape, rowSize);
+            apply(driver, order, axis, slot++, shape, rowSize, width, length);
         }
         for (PmcUnitEntity infantry : loose) {
-            apply(infantry, order, axis, slot++, shape, rowSize);
+            apply(infantry, order, axis, slot++, shape, rowSize, width, length);
         }
 
-        // Passengers inherit their driver's slot. Beyond keeping one hull to one slot, this is
-        // what makes a driver dying mid-formation a non-event: the next passenger down becomes
-        // getFirstPassenger(), its own DriveVehicleGoal takes over, and it already holds the
-        // hull's place. A rider whose driver was not selected is skipped — that hull is not ours
-        // to move.
         for (PmcUnitEntity rider : riders) {
             Integer hullSlot = hullSlots.get(rider.getVehicle());
-            if (hullSlot != null) apply(rider, order, axis, hullSlot, shape, rowSize);
+            if (hullSlot != null) apply(rider, order, axis, hullSlot, shape, rowSize, width, length);
         }
-        return hullSlots.size();
+        // Infantry-only: report how many formed; otherwise hull count (legacy feedback keys).
+        return kind == FormationComposition.Kind.INFANTRY ? loose.size() : hullSlots.size();
     }
 
-    /**
-     * Issue one unit its slot. Mirrors SEM's own PacketIssueOrder handler
-     * (releaseMovementLock, setFormationIndex, resetCommanderGoalCooldown, setOrder) with the
-     * axis write slotted in.
-     *
-     * <p>The axis MUST be written after the index: MixinPmcUnitEntity clears the axis on every
-     * live setFormationIndex, which is what stops a stale one from hijacking a plain SEM
-     * infantry wedge.
-     */
     private static void apply(PmcUnitEntity pmc, OrderType order, Direction axis, int slot,
-                              FormationShape shape, int rowSize) {
-        // A formation is an explicit movement order, so it supersedes any standing patrol — which
-        // otherwise wins in resolveDestination (checked before the order queue) and would silently
-        // eat the formation.
-            PatrolSupport.clearSweepMembership(pmc, "VehicleFormation.dismiss");
+                              FormationShape shape, int rowSize, float width, float length) {
+        PatrolSupport.clearSweepMembership(pmc, "VehicleFormation.dismiss");
         pmc.releaseMovementLock();
         pmc.setFormationIndex(slot);
-        // Axis, shape and row size all go in AFTER the index — MixinPmcUnitEntity clears the axis on
-        // every live setFormationIndex, and these ride with it.
         IFormationMember member = (IFormationMember) pmc;
         member.sewv$setFormationDirection(axis);
         member.sewv$setFormationShape(shape.id());
         member.sewv$setFormationRowSize(rowSize);
+        member.sewv$setFormationWidth(width);
+        member.sewv$setFormationLength(length);
         pmc.resetCommanderGoalCooldown();
         pmc.setOrder(order);
+    }
+
+    /** Resolve stretch + baseline for a unit already under a formation order. */
+    public static double baselineForUnit(PmcUnitEntity pmc) {
+        FormationComposition.Kind kind = FormationComposition.classify(pmc);
+        if (kind == null) return FormationComposition.SPACING_VEHICLE;
+        return FormationComposition.baselineSpacing(kind);
+    }
+
+    @Nullable
+    public static FormationComposition.Kind kindForUnit(PmcUnitEntity pmc) {
+        return FormationComposition.classify(pmc);
     }
 }

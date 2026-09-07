@@ -66,6 +66,11 @@ public final class OuterRingAwareness {
         Arrays.fill(this.bandDeadline, Long.MIN_VALUE);
     }
 
+    /** Drop a pending foliage offer for a hull that left the level without {@link #clear()} running. */
+    public static void forget(int hullId) {
+        FOLIAGE_OFFERS.remove(hullId);
+    }
+
     /**
      * Inner-cylinder contact visible only through leaves — not engageable, but something is
      * there. Reuses the {@link AwarenessCues} investigate path.

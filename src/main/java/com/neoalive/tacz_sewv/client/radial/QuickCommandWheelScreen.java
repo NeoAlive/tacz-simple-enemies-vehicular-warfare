@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -17,6 +18,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.BoardKeybind;
 import com.neoalive.tacz_sewv.client.QuickCommandKeybind;
@@ -25,11 +27,15 @@ import com.neoalive.tacz_sewv.client.TdtSelection;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketClearBoarding;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketQuickCommand;
+import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
 
 /**
  * Far Cry–style radial wheel. Cursor is GLFW-disabled (not vanilla {@code grabMouse}, which would
@@ -40,6 +46,10 @@ public final class QuickCommandWheelScreen extends Screen {
     private static final int HUB_FILL = 0xCC0E1218;
     private static final int LABEL = 0xFFE8ECF0;
     private static final int LABEL_HOT = 0xFFFFFFFF;
+
+    private static final float STRETCH_STEP = 0.1f;
+    private static float formationWidth = IFormationMember.DEFAULT_STRETCH;
+    private static float formationLength = IFormationMember.DEFAULT_STRETCH;
 
     /** Per-frame approach rate toward hot/cold (higher = snappier fade). */
     private static final float HOT_FADE_SPEED = 0.28f;
@@ -131,9 +141,13 @@ public final class QuickCommandWheelScreen extends Screen {
     }
 
     private static void playUi(net.minecraft.sounds.SoundEvent sound) {
+        playUi(sound, 1.0F);
+    }
+
+    private static void playUi(net.minecraft.sounds.SoundEvent sound, float pitch) {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null) return;
-        mc.getSoundManager().play(SimpleSoundInstance.forUI(sound, 1.0F));
+        mc.getSoundManager().play(SimpleSoundInstance.forUI(sound, pitch));
     }
 
     @Override
@@ -159,6 +173,26 @@ public final class QuickCommandWheelScreen extends Screen {
     /** Called from {@link com.neoalive.tacz_sewv.mixin.client.MixinMouseHandler}. */
     public void feedRawDelta(double dx, double dy) {
         this.input.feedMouseDelta(dx, dy);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (!inFormationSubmenu() || hotFormationShape() == null) {
+            return super.mouseScrolled(mouseX, mouseY, delta);
+        }
+        float step = delta > 0.0 ? STRETCH_STEP : -STRETCH_STEP;
+        Minecraft mc = this.minecraft;
+        boolean shift = mc != null && (InputConstants.isKeyDown(mc.getWindow().getWindow(),
+                InputConstants.KEY_LSHIFT)
+                || InputConstants.isKeyDown(mc.getWindow().getWindow(), InputConstants.KEY_RSHIFT));
+        if (shift) {
+            formationWidth = IFormationMember.clampStretch(formationWidth + step);
+        } else {
+            formationLength = IFormationMember.clampStretch(formationLength + step);
+        }
+        float pitch = 0.92f + (float) (Math.random() * 0.16);
+        playUi(ModSounds.SCALE.get(), pitch);
+        return true;
     }
 
     private boolean hotEnabled() {
@@ -265,8 +299,73 @@ public final class QuickCommandWheelScreen extends Screen {
             return true;
         }
 
+        // Formation: PacketVehicleFormation with stretch — not PacketQuickCommand.
+        if (QuickCommandRegistry.isFormationPipeline(pipelineId)) {
+            return fireFormation(mc, pipelineId, units);
+        }
+
         NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, units));
         return true;
+    }
+
+    private boolean fireFormation(Minecraft mc, String pipelineId, List<Integer> unitIds) {
+        FormationShape shape = QuickCommandRegistry.formationShapeOf(pipelineId);
+        if (shape == null || mc.player == null || mc.level == null) return false;
+        List<PmcUnitEntity> units = resolvePmcList(mc, unitIds);
+        FormationComposition.Kind kind = FormationComposition.resolve(units);
+        if (kind == null) {
+            mc.player.displayClientMessage(
+                    Component.translatable(FormationComposition.MSG_INVALID)
+                            .withStyle(ChatFormatting.GRAY),
+                    true);
+            return false;
+        }
+        Direction axis = Direction.fromYRot(mc.player.getYRot());
+        int rowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
+        double baseline = FormationComposition.baselineSpacing(kind);
+        int slots = VehicleFormation.slotCountFor(units);
+        if (VehicleFormation.slotsOverlap(mc.player.position(), axis, shape, slots, rowSize,
+                baseline, formationWidth, formationLength)) {
+            mc.player.displayClientMessage(
+                    Component.translatable(FormationComposition.MSG_OVERLAP)
+                            .withStyle(ChatFormatting.GRAY),
+                    true);
+            return false;
+        }
+        BoardKeybind.orderFormation(unitIds, shape, IFormationMember.axisOf(axis), rowSize,
+                formationWidth, formationLength);
+        return true;
+    }
+
+    private static List<PmcUnitEntity> resolvePmcList(Minecraft mc, List<Integer> unitIds) {
+        List<PmcUnitEntity> out = new ArrayList<>();
+        for (int id : unitIds) {
+            Entity e = mc.level.getEntity(id);
+            if (e instanceof PmcUnitEntity pmc) out.add(pmc);
+        }
+        return out;
+    }
+
+    private boolean inFormationSubmenu() {
+        if (this.input.depth() <= 1) return false;
+        for (WedgeEntry e : this.input.currentWedges()) {
+            if (e instanceof WedgeEntry.PipelineEntry leaf
+                    && QuickCommandRegistry.isFormationPipeline(leaf.pipelineId())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @javax.annotation.Nullable
+    private FormationShape hotFormationShape() {
+        int hot = this.input.hotIndex();
+        if (hot < 0) return null;
+        List<WedgeEntry> wedges = this.input.currentWedges();
+        if (hot >= wedges.size()) return null;
+        WedgeEntry e = wedges.get(hot);
+        if (!(e instanceof WedgeEntry.PipelineEntry leaf)) return null;
+        return QuickCommandRegistry.formationShapeOf(leaf.pipelineId());
     }
 
     /**
@@ -381,6 +480,21 @@ public final class QuickCommandWheelScreen extends Screen {
         }
         RadialWheelDraw.renderRing(g, this.font, cx, cy, inner, outer, wedges, this.wedgeHot,
                 this.menuAlpha, HUB_FILL, LABEL, LABEL_HOT, enabled);
+
+        FormationShape previewShape = hotFormationShape();
+        if (inFormationSubmenu() && previewShape != null && this.minecraft != null
+                && this.minecraft.player != null && this.minecraft.level != null) {
+            List<Integer> ids = resolveUnits(this.minecraft, QuickCommandRegistry.ID_FORM_WEDGE);
+            List<PmcUnitEntity> pmcs = resolvePmcList(this.minecraft, ids);
+            FormationComposition.Kind kind = FormationComposition.resolve(pmcs);
+            int slots = kind == null ? 0 : VehicleFormation.slotCountFor(pmcs);
+            if (slots > 0) {
+                double baseline = FormationComposition.baselineSpacing(kind);
+                FormationPreviewDraw.render(g, this.font, cx, cy, outer, this.menuAlpha,
+                        previewShape, slots, baseline, formationWidth, formationLength,
+                        PacketVehicleFormation.DEFAULT_ROW_SIZE, HUB_FILL, LABEL_HOT);
+            }
+        }
 
         super.render(g, mouseX, mouseY, partialTick);
     }

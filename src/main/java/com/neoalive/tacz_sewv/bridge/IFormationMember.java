@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.bridge;
 
 import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 
 /**
@@ -15,11 +16,8 @@ import net.minecraft.world.entity.Entity;
  * is in a plain SEM infantry formation, and no hull should drive anywhere for it.
  *
  * <p>Stored in the entity's Forge persistent data rather than a mixin field, per the rule in
- * CLAUDE.md — an axis is id-free, so nothing stops it persisting, and it <em>must</em> persist:
- * SEM writes both {@code CurrentOrder} and {@code FormationIndex} to NBT, so a hull comes back
- * from a reload already believing it holds slot 3 of a wedge. An axis that reset to NONE there
- * would leave that wedge silently inert with nothing on screen to explain why. All three parts
- * of the order survive together or none of them do.
+ * CLAUDE.md — an axis is id-free, so nothing stops it persisting for the session. Reload
+ * coherence is not required for Combined Arms formations.
  *
  * <p>Only {@link net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity} needs this: formations
  * arrive through SEM's order queue, and only PMC units have one. The unit mixin needs no method
@@ -36,6 +34,10 @@ public interface IFormationMember {
     String TAG_FORMATION_AXIS = "tacz_sewv_formation_axis";
     String TAG_FORMATION_SHAPE = "tacz_sewv_formation_shape";
     String TAG_FORMATION_ROWSIZE = "tacz_sewv_formation_rowsize";
+    String TAG_FORMATION_WIDTH = "tacz_sewv_formation_width";
+    String TAG_FORMATION_LENGTH = "tacz_sewv_formation_length";
+
+    float DEFAULT_STRETCH = 1.0f;
 
     default void sewv$setFormationDirection(Direction axis) {
         ((Entity) this).getPersistentData().putInt(TAG_FORMATION_AXIS, axisOf(axis));
@@ -65,6 +67,24 @@ public interface IFormationMember {
         return ((Entity) this).getPersistentData().getInt(TAG_FORMATION_ROWSIZE);
     }
 
+    default void sewv$setFormationWidth(float width) {
+        ((Entity) this).getPersistentData().putFloat(TAG_FORMATION_WIDTH, width);
+    }
+
+    default float sewv$getFormationWidth() {
+        float w = ((Entity) this).getPersistentData().getFloat(TAG_FORMATION_WIDTH);
+        return w <= 0.0f ? DEFAULT_STRETCH : w;
+    }
+
+    default void sewv$setFormationLength(float length) {
+        ((Entity) this).getPersistentData().putFloat(TAG_FORMATION_LENGTH, length);
+    }
+
+    default float sewv$getFormationLength() {
+        float l = ((Entity) this).getPersistentData().getFloat(TAG_FORMATION_LENGTH);
+        return l <= 0.0f ? DEFAULT_STRETCH : l;
+    }
+
     /** Null and the two vertical faces both mean "no axis" — a formation is a horizontal thing. */
     static int axisOf(Direction axis) {
         if (axis == null) return AXIS_NONE;
@@ -86,5 +106,9 @@ public interface IFormationMember {
             case AXIS_EAST -> Direction.EAST;
             default -> null;
         };
+    }
+
+    static float clampStretch(float stretch) {
+        return Mth.clamp(stretch, 0.5f, 3.0f);
     }
 }

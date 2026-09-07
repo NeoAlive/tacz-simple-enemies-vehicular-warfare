@@ -239,6 +239,7 @@
 
   "interact_beep": { "sounds": ["tacz_sewv:interact_beep"] },
   "interact_beep_back": { "sounds": ["tacz_sewv:interact_beep_back"] },
+  "scale": { "sounds": ["tacz_sewv:scale"] },
 
   "lock": { "sounds": ["tacz_sewv:lock"] }
 }

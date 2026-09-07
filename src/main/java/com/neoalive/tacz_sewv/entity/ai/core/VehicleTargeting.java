@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MarchObjective;
@@ -199,15 +200,15 @@ public final class VehicleTargeting {
                 if (leader == null || axis == null || slot < 0) return null;
                 FormationShape shape = FormationShape.byId(member.sewv$getFormationShape());
                 int rowSize = member.sewv$getFormationRowSize();
-                // Air-to-air: keep the leader's altitude so a heli wedge does not collapse
-                // onto the terrain under the slot. Ground hulls still snap to the surface.
-                VehicleEntity leaderHeli = commanderHelicopter(pmc);
-                if (leaderHeli != null && HullFacts.isHelicopterHull(vehicle)) {
-                    Vec3 anchor = new Vec3(leader.getX(), leaderHeli.getY(), leader.getZ());
-                    return VehicleFormation.slotPosAtAltitude(anchor, axis, shape, slot, rowSize);
-                }
+                if (rowSize < 1) rowSize = 4;
+                float width = member.sewv$getFormationWidth();
+                float length = member.sewv$getFormationLength();
+                double baseline = VehicleFormation.baselineForUnit(pmc);
+                FormationComposition.Kind kind = VehicleFormation.kindForUnit(pmc);
+                if (kind == null) kind = FormationComposition.Kind.GROUND;
                 return VehicleFormation.slotPos(
-                        unit.level(), leader.position(), axis, shape, slot, rowSize);
+                        unit.level(), leader.position(), axis, shape, slot, rowSize,
+                        baseline, width, length, kind);
             }
 
             default:

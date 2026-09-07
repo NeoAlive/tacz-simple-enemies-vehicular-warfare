@@ -54,6 +54,7 @@ public class NetworkHandler {
     // 19: order feedback became a client-gated S->C packet.
     // 20–22: prior bumps.
     // 23: heli firing-run phase sync for hover overlay.
+    // 83: formation packet carries WIDTH/LENGTH stretch floats.
     // 24: PMC rappel order packet.
     // 25: map markers carry optional OpenPAC tint RGB.
     // 26: removed PacketToggleAdvancing (autonomous KotH scrapped).
@@ -103,7 +104,7 @@ public class NetworkHandler {
     // 79: PacketHudNotification carries Components (translatable title/body) instead of raw UTF.
     // 80: PacketPlayerSelfRappel / PacketPlayerCrewRappel / PacketPlayerRappelWires / PacketPlayerSelfRappelLock.
     // 81: PacketPlayerSelfRappelLock carries hover/rope mode + hull id (stale-safe).
-    private static final String PROTOCOL_VERSION = "82";
+    private static final String PROTOCOL_VERSION = "83";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

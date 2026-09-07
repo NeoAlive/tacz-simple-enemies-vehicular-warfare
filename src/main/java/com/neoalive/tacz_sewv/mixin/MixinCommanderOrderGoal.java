@@ -18,6 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.entity.ai.support.FollowLeash;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 
@@ -74,12 +75,15 @@ public abstract class MixinCommanderOrderGoal {
                                              CallbackInfoReturnable<Vec3> cir) {
         Direction axis = tacz_sewv$formationAxis();
         if (axis == null || index < 0) return;
-        // formationAxis() already confirmed this.mob is a PmcUnitEntity in one of our formations, so
-        // the loose infantry carries the same shape/row-size the hulls do — it shares their geometry.
         IFormationMember member = (IFormationMember) this.mob;
         FormationShape shape = FormationShape.byId(member.sewv$getFormationShape());
+        int rowSize = member.sewv$getFormationRowSize();
+        if (rowSize < 1) rowSize = 4;
         cir.setReturnValue(VehicleFormation.slotCenter(
-                owner.position(), axis, shape, index, member.sewv$getFormationRowSize()));
+                owner.position(), axis, shape, index, rowSize,
+                FormationComposition.SPACING_INFANTRY,
+                member.sewv$getFormationWidth(),
+                member.sewv$getFormationLength()));
     }
 
     /**

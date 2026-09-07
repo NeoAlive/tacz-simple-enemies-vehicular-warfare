@@ -434,6 +434,11 @@ public final class HullFacts {
         return computeHelicopter(v);
     }
 
+    /** Wheel/track ground hull (not FIXED / ship / air) for callers with no attached facts. */
+    public static boolean isGroundMobileHull(VehicleEntity v) {
+        return computeGroundMobile(v);
+    }
+
     /**
      * Cached raw {@code EngineType} for callers with no attached {@link HullFacts} and no interest
      * in the derived helicopter/plane/ship/groundMobile booleans above - currently just the

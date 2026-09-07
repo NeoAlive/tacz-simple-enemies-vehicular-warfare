@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.command.quick;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,7 @@ import javax.annotation.Nullable;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 
 import com.neoalive.tacz_sewv.client.radial.WedgeEntry;
+import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 
 /**
@@ -36,6 +38,7 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_ATTACK = "quick_attack";
     public static final String ID_QUICK_CAPTURE_MEDIC = "quick_capture_medic";
     public static final String ID_QUICK_ROUTE_FOB = "quick_route_fob";
+    public static final String ID_REVIVE_CALL = "revive_call";
     public static final String ID_FORM_SEM_WEDGE = "form_sem_wedge";
     public static final String ID_FORM_SEM_COLUMN = "form_sem_column";
     public static final String ID_FORM_WEDGE = "form_wedge";
@@ -65,6 +68,7 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_ATTACK, (issuer, ctx) -> {}); // client-armed; server no-op
         register(ID_QUICK_CAPTURE_MEDIC, new QuickCaptureMedicPipeline());
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());
+        register(ID_REVIVE_CALL, new QuickReviveCallPipeline());
         register(ID_FORM_SEM_WEDGE, new QuickSemOrderPipeline(OrderType.FORM_WEDGE,
                 "message.tacz_sewv.quick_form.started"));
         register(ID_FORM_SEM_COLUMN, new QuickSemOrderPipeline(OrderType.FORM_COLUMN,
@@ -75,14 +79,19 @@ public final class QuickCommandRegistry {
         register(ID_FORM_ECHELON_LEFT, new QuickFormationPipeline(FormationShape.ECHELON_LEFT));
         register(ID_FORM_ECHELON_RIGHT, new QuickFormationPipeline(FormationShape.ECHELON_RIGHT));
 
+        List<WedgeEntry> general = new ArrayList<>();
+        general.add(leaf("Quick Board", "\u2399", ID_QUICK_BOARD, 0xE8B84A));
+        general.add(leaf("Board Queued", "\u21A7", ID_BOARD_QUEUED, 0xE8B84A));
+        general.add(leaf("Quick Follow", "\u21AA", ID_QUICK_FOLLOW, 0xE8B84A));
+        general.add(leaf("Quick Dismount", "\u2193", ID_QUICK_DISMOUNT, 0xE8B84A));
+        general.add(leaf("Quick Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A));
+        general.add(leaf("Attack That", "\u2694", ID_QUICK_ATTACK, 0xE8B84A));
+        if (PlayerReviveCompat.isLoaded()) {
+            general.add(leaf("Revive Call", "\u271A", ID_REVIVE_CALL, 0xE8B84A));
+        }
+
         ROOT = List.of(
-                new WedgeEntry.CategoryEntry("General", "\u2605", 0xE8B84A, List.of(
-                        leaf("Quick Board", "\u2399", ID_QUICK_BOARD, 0xE8B84A),
-                        leaf("Board Queued", "\u21A7", ID_BOARD_QUEUED, 0xE8B84A),
-                        leaf("Quick Follow", "\u21AA", ID_QUICK_FOLLOW, 0xE8B84A),
-                        leaf("Quick Dismount", "\u2193", ID_QUICK_DISMOUNT, 0xE8B84A),
-                        leaf("Quick Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A),
-                        leaf("Attack That", "\u2694", ID_QUICK_ATTACK, 0xE8B84A))),
+                new WedgeEntry.CategoryEntry("General", "\u2605", 0xE8B84A, List.copyOf(general)),
                 new WedgeEntry.CategoryEntry("Land", "\u26F0", 0x6BA84A, List.of(
                         leaf("Quick Entrench", "\u26F0", ID_QUICK_ENTRENCH, 0x6BA84A),
                         leaf("Quick Refill", "\u21BB", ID_QUICK_REFILL, 0x6BA84A),

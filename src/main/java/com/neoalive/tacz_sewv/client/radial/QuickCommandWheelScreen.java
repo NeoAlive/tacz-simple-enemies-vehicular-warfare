@@ -206,6 +206,12 @@ public final class QuickCommandWheelScreen extends Screen {
             return true;
         }
 
+        // Revive Call — server picks one owned PMC for the downed issuer.
+        if (QuickCommandRegistry.ID_REVIVE_CALL.equals(pipelineId)) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, List.of()));
+            return true;
+        }
+
         // Release passenger-only board waiters into the player's current hull.
         if (QuickCommandRegistry.ID_BOARD_QUEUED.equals(pipelineId)) {
             NetworkHandler.CHANNEL.sendToServer(new PacketClearBoarding());

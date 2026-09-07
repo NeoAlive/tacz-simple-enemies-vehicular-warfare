@@ -36,8 +36,8 @@ import com.neoalive.tacz_sewv.notify.HudNotify;
  * downed-player half depending on an unrelated mod's presence.
  *
  * <p>Two ways back up: a player holding attack while looking at a downed PMC
- * ({@link #handleHoldRevive}, fed by {@code PacketHoldRevive}/{@code ReviveHoldInput}), or another
- * PMC's medic channeling one ({@code PmcReviveGoal}, calls {@link #revive} once done) — both funnel
+ * ({@link #handleHoldRevive}), or any allied PMC channeling via {@code PmcReviveGoal}
+ * (calls {@link #revive} once done) — both funnel
  * through the same {@link #revive} so there is exactly one "how does a downed PMC come back"
  * implementation. {@code DownedGoal} is the other half: it freezes a downed unit in place and kills
  * it for real if {@link #onDeath}'s deadline passes unrevived.

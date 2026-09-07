@@ -352,15 +352,12 @@ public abstract class MixinPmcUnitEntity
         // Gated at goal-add time rather than inside canUse() so the goal simply doesn't exist
         // without the mod present. Priority 1, same band as EscortGoal: a downed player is a
         // hard timer, so unlike MedicGoal this one preempts ordinary combat (prio 3) rather than
-        // waiting for it to end — see the class doc.
+        // waiting for it to end — see the class doc. ReviveClaims keeps only one unit on a patient.
         if (PlayerReviveCompat.isLoaded()) {
             ((Mob) self).goalSelector.addGoal(1, new PlayerReviveGoal(self));
         }
-        // This mod's own downed mechanic, the PMC-to-PMC half: only a medic (SupportRole.MEDIC,
-        // stricter than MedicGoal's own "has a spare kit somewhere") revives a downed squadmate.
-        // Gated on the same isLoaded() as DownedGoal above, for the same bundling reason — a
-        // downed squadmate is pointless to revive if nothing can ever go down in the first place.
-        // Same priority-1 "overrides combat" reasoning as PlayerReviveGoal.
+        // PMC-to-PMC downed revive: any on-foot PMC (not medic-gated). Bundled on the same
+        // isLoaded() as DownedGoal — pointless without the downed state. Same priority-1 band.
         if (PlayerReviveCompat.isLoaded()) {
             ((Mob) self).goalSelector.addGoal(1, new PmcReviveGoal(self));
         }

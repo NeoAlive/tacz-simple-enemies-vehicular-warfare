@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 import java.util.Comparator;
 import java.util.EnumSet;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -15,6 +17,7 @@ import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.ReviveClaims;
 import com.neoalive.tacz_sewv.network.PacketReviveProgress;
 
 /**
@@ -27,9 +30,9 @@ import com.neoalive.tacz_sewv.network.PacketReviveProgress;
  * <p>PlayerReviveMod's own multi-helper progress accumulator ({@code IBleeding.revivingPlayers()}) is
  * {@code Player}-typed — its interact flow requires {@code Player instanceof} on both sides — so an
  * NPC cannot join it. This goal instead does its own short in-place channel and calls
- * {@link PlayerReviveCompat#revive} once. Two PMCs racing the same downed player is harmless: whichever
- * finishes first revives them, and the other's {@link #canContinueToUse} fails on its next check
- * because {@link PlayerReviveCompat#isDowned} has gone false, so it stops cleanly with no lock needed.
+ * {@link PlayerReviveCompat#revive} once. {@link ReviveClaims} ensures only one PMC works a given
+ * downed player; others skip that patient until the claim is released (stop / death / Revive Call
+ * reassignment).
  *
  * <p>Because the reviver never joins {@code revivingPlayers()}, PlayerReviveMod's own progress
  * bar / helper HUD never moves — that UI is driven entirely by that list's size, which an NPC
@@ -84,6 +87,12 @@ public class PlayerReviveGoal extends Goal {
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
         if (!SewvConfig.PMC_REVIVE_ENABLED.get()) return false;
+        // Revive Call may force-claim us while we're on the idle rescan cooldown — honour that.
+        Player assigned = resolveAssignedPatient();
+        if (assigned != null) {
+            this.patient = assigned;
+            return true;
+        }
         if (this.cooldown > 0) {
             this.cooldown--;
             return false;
@@ -103,6 +112,11 @@ public class PlayerReviveGoal extends Goal {
             this.cooldown = IDLE_RESCAN;
             return false;
         }
+        if (!ReviveClaims.tryClaim(this.unit.level(), this.patient.getId(), this.unit.getId())) {
+            this.patient = null;
+            this.cooldown = IDLE_RESCAN;
+            return false;
+        }
         return true;
     }
 
@@ -111,6 +125,7 @@ public class PlayerReviveGoal extends Goal {
         return this.patient != null
                 && this.patient.isAlive()
                 && PlayerReviveCompat.isDowned(this.patient)
+                && ReviveClaims.isMine(this.patient.getId(), this.unit.getId())
                 && this.approachTicks < MAX_APPROACH_TICKS;
     }
 
@@ -126,6 +141,9 @@ public class PlayerReviveGoal extends Goal {
     @Override
     public void stop() {
         this.unit.getNavigation().stop();
+        if (this.patient != null) {
+            ReviveClaims.release(this.patient.getId(), this.unit.getId());
+        }
         if (this.patient instanceof ServerPlayer sp) {
             PacketReviveProgress.sendTo(sp, 0.0F, false);
         }
@@ -201,9 +219,27 @@ public class PlayerReviveGoal extends Goal {
                 this.unit.getBoundingBox().inflate(radius),
                 p -> p.isAlive()
                         && PlayerReviveCompat.isDowned(p)
-                        && VehicleTargeting.isFriendlyPlayer(this.unit, p))
+                        && VehicleTargeting.isFriendlyPlayer(this.unit, p)
+                        && ReviveClaims.isFreeOrMine(this.unit.level(), p.getId(), this.unit.getId()))
                 .stream()
                 .min(Comparator.comparingDouble(this.unit::distanceToSqr))
                 .orElse(null);
+    }
+
+    /** Patient already force-claimed onto this unit (Revive Call), if still valid. */
+    @Nullable
+    private Player resolveAssignedPatient() {
+        if (this.unit.isPassenger() || MortarSupport.hasMortarClaim(this.unit)) return null;
+        int patientId = ReviveClaims.patientOf(this.unit.getId());
+        if (patientId < 0) return null;
+        var entity = this.unit.level().getEntity(patientId);
+        if (!(entity instanceof Player p)
+                || !p.isAlive()
+                || !PlayerReviveCompat.isDowned(p)
+                || !VehicleTargeting.isFriendlyPlayer(this.unit, p)) {
+            ReviveClaims.release(patientId, this.unit.getId());
+            return null;
+        }
+        return p;
     }
 }

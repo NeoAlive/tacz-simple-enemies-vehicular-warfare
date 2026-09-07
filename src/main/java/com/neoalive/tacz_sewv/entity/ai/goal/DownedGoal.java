@@ -13,7 +13,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
  * ({@link IPmcDowned#sewv$downedDeadline}) passes unrevived. {@code PmcDownedSupport.onDeath} is
  * what puts a unit into this state (cancels the killing blow, sets {@code isDowned}); this goal is
  * what happens for the rest of its life until either revived (external — a player's interact or
- * {@code PmcReviveGoal}'s medic, both call {@code PmcDownedSupport.revive}) or the clock runs out.
+ * {@code PmcReviveGoal}, both call {@code PmcDownedSupport.revive}) or the clock runs out.
  *
  * <p>Priority 0 — must outrank every other goal on the unit, combat included: it claims MOVE, LOOK
  * and JUMP, and every action goal in this codebase needs at least one of those, so nothing else can

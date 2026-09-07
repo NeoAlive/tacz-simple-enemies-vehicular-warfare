@@ -18,28 +18,16 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
+import com.neoalive.tacz_sewv.entity.ai.support.ReviveClaims;
 import com.neoalive.tacz_sewv.network.PacketReviveProgress;
 
 /**
- * A medic PMC — {@code SupportRole.MEDIC}, i.e. holding a medical kit, the same gate
- * {@link MedicGoal}'s "neutral" ally-in-contact healing uses — automatically revives a downed
- * squadmate. Deliberately stricter than {@code MedicGoal.hasKit()} (which also lets a PMC with a
- * spare kit just sitting in inventory patch allies up): bringing someone back from downed is a
- * dedicated medic's job, not anyone who happens to be carrying a spare kit.
+ * Any friendly PMC automatically revives a downed squadmate — no medical kit / {@code SupportRole}
+ * gate. Structured on {@link PlayerReviveGoal}: one-shot {@link PmcDownedSupport#revive}, priority 1
+ * that does not yield to combat, and {@link ReviveClaims} so only one unit works each patient.
  *
- * <p>Structured on {@link PlayerReviveGoal}, not {@code MedicGoal}: reviving is a one-shot state
- * change ({@link PmcDownedSupport#revive}), not a repeated heal-and-continue, and — like
- * {@code PlayerReviveGoal} — a downed squadmate is a hard bleed-out timer
- * ({@code SewvConfig.PMC_DOWNED_BLEED_TICKS}), so this claims priority 1 and does NOT yield to
- * combat the way {@code MedicGoal}'s own out-of-contact-only healing does.
- *
- * <p>Neither the medic nor the patient is a player, so there is no natural screen to show revive
- * progress on — this sends {@link PacketReviveProgress} (SBW's artillery-indicator ring, reinvoked)
- * to the patient's <b>owning</b> player instead, when it has one and that player is online, same
- * spirit as {@code PlayerReviveGoal} showing it to the downed player directly. Ownerless
- * (FRIENDLY_DEFAULT) crew — village garrisons, berezka structures — simply get no ring; nobody to
- * show it to.
+ * <p>Neither the reviver nor the patient is a player, so progress goes to the patient's owning
+ * player via {@link PacketReviveProgress} when online. Ownerless crew get no ring.
  */
 public class PmcReviveGoal extends Goal {
 
@@ -75,17 +63,17 @@ public class PmcReviveGoal extends Goal {
             return false;
         }
         if (this.unit.isPassenger()) return false;
-        // A downed medic obviously cannot revive anyone.
         if (this.unit instanceof IPmcDowned self && self.sewv$isDowned()) return false;
-        if (SupportRole.of(this.unit) != SupportRole.MEDIC) return false;
-        // A medic committed to a mortar stays committed — see PlayerReviveGoal for why this
-        // guard exists: without it, ManMortarGoal's own beingOverrun window (the one point it
-        // yields MOVE+LOOK while still holding the claim) is enough for this equal-priority
-        // goal to win the tie and carry the medic off the tube for a whole revive channel.
+        // Committed mortar crews stay put — see PlayerReviveGoal for why.
         if (MortarSupport.hasMortarClaim(this.unit)) return false;
 
         this.patient = findDownedAlly();
         if (this.patient == null) {
+            this.cooldown = IDLE_RESCAN;
+            return false;
+        }
+        if (!ReviveClaims.tryClaim(this.unit.level(), this.patient.getId(), this.unit.getId())) {
+            this.patient = null;
             this.cooldown = IDLE_RESCAN;
             return false;
         }
@@ -98,6 +86,7 @@ public class PmcReviveGoal extends Goal {
                 && this.patient.isAlive()
                 && this.patient instanceof IPmcDowned downed
                 && downed.sewv$isDowned()
+                && ReviveClaims.isMine(this.patient.getId(), this.unit.getId())
                 && this.approachTicks < MAX_APPROACH_TICKS;
     }
 
@@ -113,6 +102,9 @@ public class PmcReviveGoal extends Goal {
     @Override
     public void stop() {
         this.unit.getNavigation().stop();
+        if (this.patient != null) {
+            ReviveClaims.release(this.patient.getId(), this.unit.getId());
+        }
         ServerPlayer owner = resolveOwner();
         if (owner != null) {
             PacketReviveProgress.sendTo(owner, 0.0F, false);
@@ -130,25 +122,17 @@ public class PmcReviveGoal extends Goal {
 
         this.unit.getLookControl().setLookAt(this.patient, 30.0F, 30.0F);
         if (this.unit.distanceToSqr(this.patient) > REVIVE_DISTANCE_SQ) {
-            // Only the walk-over counts against the approach budget — see PlayerReviveGoal for
-            // why the channel itself must not also burn it.
             this.approachTicks++;
             MedicControl.setTreating(this.unit, false);
-            // Repath only once the last one has run out — an unreachable patient reports "done"
-            // every tick and would otherwise force a full path search every tick until timeout.
             if (this.unit.getNavigation().isDone()) {
                 this.unit.getNavigation().moveTo(this.patient, 1.0);
             }
             return;
         }
         this.unit.getNavigation().stop();
-        // Hides the held weapon (UnitHolster.hideHeldItems) for the whole in-range session, same
-        // as MedicGoal — a medic administering aid should not be seen with a rifle up.
         MedicControl.setTreating(this.unit, true);
         if (!this.revivingVoiced) {
             this.revivingVoiced = true;
-            // No dedicated "revive" voiceline/audio asset exists; HEALING is the closest existing
-            // fit. Played when the channel STARTS, so it lands while the revive is happening.
             CrewRadio.speakUnit(this.unit, CrewRadio.Line.HEALING);
         }
 
@@ -166,10 +150,9 @@ public class PmcReviveGoal extends Goal {
         if (owner != null) {
             PacketReviveProgress.sendTo(owner, 1.0F, false);
         }
-        this.patient = null; // end the goal now rather than waiting for isDowned() to catch up
+        this.patient = null;
     }
 
-    /** Patient's owning player, if it has one and they're online — nobody for an ownerless crew. */
     @Nullable
     private ServerPlayer resolveOwner() {
         if (this.patient == null) return null;
@@ -179,7 +162,6 @@ public class PmcReviveGoal extends Goal {
         return server != null ? server.getPlayerList().getPlayer(ownerId) : null;
     }
 
-    /** Nearest downed same-faction PMC. {@link VehicleTargeting#isFriendly} is the plain same-class check. */
     private PmcUnitEntity findDownedAlly() {
         double radius = SewvConfig.PMC_REVIVE_SEARCH_RADIUS.get();
         return this.unit.level().getEntitiesOfClass(
@@ -189,7 +171,8 @@ public class PmcReviveGoal extends Goal {
                         && other.isAlive()
                         && other instanceof IPmcDowned downed
                         && downed.sewv$isDowned()
-                        && VehicleTargeting.isFriendly(this.unit, other))
+                        && VehicleTargeting.isFriendly(this.unit, other)
+                        && ReviveClaims.isFreeOrMine(this.unit.level(), other.getId(), this.unit.getId()))
                 .stream()
                 .min(Comparator.comparingDouble(this.unit::distanceToSqr))
                 .orElse(null);

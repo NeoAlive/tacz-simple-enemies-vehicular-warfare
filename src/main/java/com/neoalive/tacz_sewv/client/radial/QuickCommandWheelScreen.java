@@ -17,13 +17,17 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.client.BoardKeybind;
 import com.neoalive.tacz_sewv.client.QuickCommandKeybind;
+import com.neoalive.tacz_sewv.client.TdtScreen;
 import com.neoalive.tacz_sewv.client.TdtSelection;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketQuickCommand;
 
 /**
@@ -198,6 +202,24 @@ public final class QuickCommandWheelScreen extends Screen {
         // Route-to-FOB uses FOB assignment lists, not the radius unit pick.
         if (QuickCommandRegistry.ID_QUICK_ROUTE_FOB.equals(pipelineId)) {
             NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, List.of()));
+            return true;
+        }
+
+        // Patrol / Search & Destroy — same PacketPatrolVehicle path as the TDT (selection + radii).
+        if (QuickCommandRegistry.ID_QUICK_PATROL.equals(pipelineId)
+                || QuickCommandRegistry.ID_QUICK_SEARCH.equals(pipelineId)) {
+            boolean search = QuickCommandRegistry.ID_QUICK_SEARCH.equals(pipelineId);
+            int radius = search ? TdtScreen.searchRadius() : TdtScreen.patrolRadius();
+            if (radius < PacketPatrolVehicle.MIN_RADIUS) {
+                mc.player.displayClientMessage(
+                        Component.translatable("message.tacz_sewv.patrol.min_radius",
+                                        PacketPatrolVehicle.MIN_RADIUS)
+                                .withStyle(ChatFormatting.GRAY),
+                        true);
+                return false;
+            }
+            BoardKeybind.orderAreaTask(radius,
+                    search ? IVehiclePatrol.MODE_SEARCH : IVehiclePatrol.MODE_PATROL);
             return true;
         }
 

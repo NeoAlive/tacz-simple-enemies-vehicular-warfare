@@ -239,8 +239,14 @@ public final class VehicleTargeting {
     }
 
     /**
-     * Mounted MOVE must keep driving the click through contact — same commitment as an area
-     * task / capture approach. Fire assist still runs; only locomotion stays on the order.
+     * Mounted locomotion the player still owns through contact — fire assist runs, the hull does
+     * not peel into {@code fightTick} standoffs / posture scoots.
+     *
+     * <p>Covers a MOVE click and a FOB route (named destination), plus FOLLOW / FORM (stick to the
+     * commander or slot — same doctrine as on-foot
+     * {@link com.neoalive.tacz_sewv.entity.ai.support.FollowLeash#sticksToLeader} and heli order
+     * pinning). Without this, ground crews under FOLLOW drop into combat steering the moment they
+     * acquire a target, and cover/scoot/shield steers (which only yielded to MOVE) make that worse.
      */
     public static boolean holdsOrderedMove(AbstractUnit unit) {
         if (!(unit instanceof PmcUnitEntity pmc)) return false;
@@ -248,7 +254,13 @@ public final class VehicleTargeting {
             Vec3 dest = pmc.getMoveToTarget();
             return dest != null && !dest.equals(Vec3.ZERO);
         }
-        if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) return false;
+        OrderType order = pmc.getOrder();
+        if (order == OrderType.FOLLOW_COMMANDER
+                || order == OrderType.FORM_WEDGE
+                || order == OrderType.FORM_COLUMN) {
+            return true;
+        }
+        if (order != OrderType.MOVE_TO_POSITION) return false;
         Vec3 dest = pmc.getMoveToTarget();
         return dest != null && !dest.equals(Vec3.ZERO);
     }
@@ -947,25 +959,40 @@ public final class VehicleTargeting {
         return false;
     }
 
-    // Safety margin (blocks) added around a friendly hull's hitbox when testing
+    // Safety margin (blocks) added around a friendly hull's or unit's hitbox when testing
     // whether a shot would pass through it — covers near-grazes and shell blast.
     private static final double FRIENDLY_FIRE_MARGIN = 1.0;
 
     /**
-     * True when a same-faction vehicle straddles the muzzle→aimpoint segment, so an
-     * AI crew's shot would punch through friendly armor. SBW's fire path never asks
-     * what allied hulls are in the way, so without this a crew hoses whatever ally
-     * happens to sit between it and its target. Only vehicles crewed by a unit of
-     * {@code shooter}'s faction count — the target's own (enemy) hull, empty hulls
-     * and wrecks are ignored — and the test is the exact vanilla ray-vs-AABB clip
-     * against each candidate, bounded to the shot corridor like {@link SmokeVision}.
+     * True when a same-faction vehicle <b>or</b> on-foot unit straddles the muzzle→aimpoint
+     * segment, so an AI crew's shot would punch through a friend. SBW's fire path never asks
+     * what allies are in the way, so without this a crew hoses whatever ally happens to sit
+     * between it and its target.
+     *
+     * <p>Vehicles count when crewed by a unit of {@code shooter}'s faction — empty hulls,
+     * wrecks, and the target's own ride are ignored. Units count via {@link #isSameFaction};
+     * the shooter, anyone riding {@code self}, and the live target are excluded.
+     *
+     * <p>Cost: one extra {@code getEntitiesOfClass(AbstractUnit)} over the same corridor AABB
+     * as the vehicle scan, only on LOF-cache miss ({@code MixinVehicleFireCooldown}'s 3-tick
+     * window). Per candidate: faction test + inflated AABB clip — no raycasts.
      */
-    public static boolean alliedVehicleInLineOfFire(AbstractUnit shooter, VehicleEntity self, Vec3 from, Vec3 to) {
+    public static boolean alliedInLineOfFire(AbstractUnit shooter, VehicleEntity self, Vec3 from, Vec3 to) {
         AABB corridor = new AABB(from, to).inflate(FRIENDLY_FIRE_MARGIN);
         for (VehicleEntity v : self.level().getEntitiesOfClass(VehicleEntity.class, corridor,
                 veh -> veh != self && !veh.isWreck())) {
             if (!isAlliedVehicle(shooter, v)) continue;
             if (v.getBoundingBox().inflate(FRIENDLY_FIRE_MARGIN).clip(from, to).isPresent()) {
+                return true;
+            }
+        }
+        LivingEntity target = shooter.getTarget();
+        for (AbstractUnit ally : self.level().getEntitiesOfClass(AbstractUnit.class, corridor,
+                u -> u.isAlive() && u != shooter && !self.hasPassenger(u) && u != target)) {
+            if (!isSameFaction(shooter, ally)) continue;
+            // Already covered by the vehicle loop when mounted; on-foot only here.
+            if (ally.getVehicle() instanceof VehicleEntity) continue;
+            if (ally.getBoundingBox().inflate(FRIENDLY_FIRE_MARGIN).clip(from, to).isPresent()) {
                 return true;
             }
         }

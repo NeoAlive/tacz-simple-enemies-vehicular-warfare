@@ -224,9 +224,9 @@ public class DriveVehicleGoal extends Goal {
         this.brain.update(this.unit, this.vehicle, this.posture);
         HudNotify.watchPmcVehicle(this.unit, this.vehicle);
 
-        // SEEK_COVER steers here — not only inside fightTick — so a lost target / idle wander
-        // still drives to the cover point (overworld log: eval found cover, never force RETREAT).
+        // Posture hard steers on the main tick so area-hold / lost-target still honour them.
         if (trySteerSeekCover()) return;
+        if (trySteerPostureManeuvers()) return;
 
         Action plan = idlePlan();
         if (plan == Action.SEARCH_LAST_KNOWN && this.lastIdlePlan != Action.SEARCH_LAST_KNOWN) {
@@ -269,14 +269,13 @@ public class DriveVehicleGoal extends Goal {
         // still wins. (Same shape as the old cruise-only exception; extended so Sweep & Advance
         // / S&D / patrol stop abandoning the area to chase every nearby mob.)
         //
-        // A MOVE_TO_POSITION click and a FOB route are NOT subject to that health exception. They
-        // are a destination the player named, and the whole reason to name one while hurt is to
-        // get the hull out — handing a damaged crew to fightTick made it hold a standoff ring on
-        // the enemy instead, which reads on screen as a hull that keeps backing away rather than
-        // driving home. Retreat is the order; fightTick's version of it goes nowhere.
+        // A MOVE click, FOB route, FOLLOW, and FORM are NOT subject to that health exception. They
+        // are locomotion the player still owns, and the whole reason to keep them while hurt is to
+        // get the hull out with the commander — handing a damaged crew to fightTick made it hold a
+        // standoff ring on the enemy instead. Retreat is the order; fightTick's version goes nowhere.
         //
         // Pure combat steers off the live target inside fightTick — resolveDestination is unused
-        // there, so skip getTargetPos unless a named move / area hold needs the standing dest.
+        // there, so skip getTargetPos unless an ordered move / area hold needs the standing dest.
         if (target != null) {
             boolean captureHold = CaptureOrderSupport.holdsCourseThroughContact(this.unit);
             boolean orderedMove = VehicleTargeting.holdsOrderedMove(this.unit);
@@ -421,10 +420,10 @@ public class DriveVehicleGoal extends Goal {
      * here beyond the geometry each action needs. Adding a behaviour means adding an
      * {@link Action} and a weight block, not another branch in a chain.
      *
-     * <p>Anchored to the TARGET, not the resolved order destination — under FOLLOW/MOVE_TO/
-     * formation orders those differ, and holding a standoff ring around our own commander
-     * (while weapon choice tracks the actual enemy) is exactly the bug this distinction
-     * avoids. Once the fight ends, the next tick resumes driving on the order.
+     * <p>Anchored to the TARGET, not the resolved order destination — FREE_FIRE / ATTACK and
+     * other fight-owning orders must not hold a standoff around a non-enemy point. FOLLOW / FORM /
+     * MOVE never reach here while healthy: {@link VehicleTargeting#holdsOrderedMove} keeps them on
+     * the standing destination with fire assist only.
      *
      * <p>Every branch issues steering input on every tick. SuperbWarfare ramps a tracked hull's
      * turn rate only while a steering input stays held, so an action that simply returned would
@@ -451,38 +450,6 @@ public class DriveVehicleGoal extends Goal {
         // not be able to bring back the park-forever bug this exists to kill. It is skipped
         // while retreating, where silence is success rather than a stall.
         Action plan = this.brain.plan();
-        long now = this.unit.level().getGameTime();
-
-        Vec3 scoot = this.posture.scootOverrideDestination(now);
-        if (scoot != null && plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
-            // Fire-and-maneuver: temporary dest override; fan/ORCA still gate the approach.
-            this.driver.setInfantryPace(false);
-            logPostureSteer(now, "scoot", scoot, plan);
-            this.driver.navigateTo(BlockPos.containing(scoot), this.vehicle.distanceToSqr(scoot));
-            return;
-        }
-
-        Vec3 shield = this.posture.infantryShieldPoint();
-        if (shield != null && this.posture.active().contains(TacticalPosture.Tactic.INFANTRY_COVER)
-                && plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
-            this.driver.setInfantryPace(this.posture.throttleInfantryPace());
-            // Soft bias: when HOLD/ATTACK, prefer shield point over pure standoff stop.
-            if (plan == Action.HOLD || plan == Action.ATTACK) {
-                logPostureSteer(now, "infantryShield", shield, plan);
-                this.driver.navigateTo(BlockPos.containing(shield), this.vehicle.distanceToSqr(shield));
-                return;
-            }
-        } else {
-            this.driver.setInfantryPace(false);
-        }
-
-        Vec3 peek = this.posture.peekOffset();
-        if (peek != null && plan == Action.HOLD
-                && this.posture.active().contains(TacticalPosture.Tactic.CORNER_PEEK)) {
-            logPostureSteer(now, "keyhole", peek, plan);
-            this.driver.navigateTo(BlockPos.containing(peek), this.vehicle.distanceToSqr(peek));
-            return;
-        }
 
         if (plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
             BlockPos orbit = this.breaker.update(target, combatPos, ring);
@@ -575,13 +542,15 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
-     * Manual arm or a live cover waypoint keeps this goal runnable even with no wander dest /
-     * target (so {@code /sewv debug seekCover} works on a parked hull).
+     * Manual arm or a live cover / scoot / peek / shield waypoint keeps this goal runnable
+     * even with no wander dest / target.
      */
     private boolean seekCoverWantsDrive() {
         long now = this.unit.level().getGameTime();
-        if (TacticalPosture.debugSeekCoverArmed(this.unit.getId(), now)) return true;
-        return this.posture.seekCoverDestination(now) != null;
+        if (this.posture.seekCoverDestination(now) != null) return true;
+        if (this.posture.scootOverrideDestination(now) != null) return true;
+        if (this.posture.peekOffset(now) != null) return true;
+        return this.posture.infantryShieldPoint(now) != null;
     }
 
     /**
@@ -594,7 +563,8 @@ public class DriveVehicleGoal extends Goal {
         long now = this.unit.level().getGameTime();
         Vec3 seekCover = this.posture.seekCoverDestination(now);
         if (seekCover == null) return false;
-        // Player-named MOVE / FOB route still wins — SEEK_COVER is break-contact, not an order override.
+        // Player-owned locomotion (MOVE / FOB / FOLLOW / FORM) still wins — SEEK_COVER is
+        // break-contact, not an order override.
         if (VehicleTargeting.holdsOrderedMove(this.unit)) return false;
 
         Action plan = this.brain.plan();
@@ -602,13 +572,6 @@ public class DriveVehicleGoal extends Goal {
                 && this.posture.seekCoverForcesRetreat()) {
             this.brain.force(Action.RETREAT, now);
             plan = Action.RETREAT;
-            SewvDiag.seekCoverTemp(
-                    "force RETREAT unit={}#{} vehicle={}#{} dest={},{},{}",
-                    this.unit.getClass().getSimpleName(), this.unit.getId(),
-                    this.vehicle.getName().getString(), this.vehicle.getId(),
-                    String.format("%.1f", seekCover.x),
-                    String.format("%.1f", seekCover.y),
-                    String.format("%.1f", seekCover.z));
         }
         // Always navigate while the waypoint is live — do not wait for the scorer to agree.
         if (plan == Action.DEPLOY_SMOKE && this.vehicle.hasDecoy()) {
@@ -622,6 +585,47 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
+     * Scoot / infantry shield / corner peek — same main-tick placement as SEEK_COVER so area-hold
+     * and brief target drops do not abort an already-armed maneuver.
+     */
+    private boolean trySteerPostureManeuvers() {
+        if (VehicleTargeting.holdsOrderedMove(this.unit)) return false;
+        Action plan = this.brain.plan();
+        if (plan == Action.RETREAT || plan == Action.DEPLOY_SMOKE) return false;
+        long now = this.unit.level().getGameTime();
+
+        Vec3 scoot = this.posture.scootOverrideDestination(now);
+        if (scoot != null) {
+            this.driver.setInfantryPace(false);
+            logPostureSteer(now, "scoot", scoot, plan);
+            this.driver.navigateTo(BlockPos.containing(scoot), this.vehicle.distanceToSqr(scoot));
+            return true;
+        }
+
+        Vec3 shield = this.posture.infantryShieldPoint(now);
+        if (shield != null
+                && this.posture.active().contains(TacticalPosture.Tactic.INFANTRY_COVER)) {
+            this.driver.setInfantryPace(this.posture.throttleInfantryPace());
+            // Soften plan gate: area-hold often isn't HOLD/ATTACK but the shield point is still valid.
+            logPostureSteer(now, "infantryShield", shield, plan);
+            this.driver.navigateTo(BlockPos.containing(shield), this.vehicle.distanceToSqr(shield));
+            return true;
+        }
+        this.driver.setInfantryPace(false);
+
+        Vec3 peek = this.posture.peekOffset(now);
+        if (peek != null
+                && this.posture.active().contains(TacticalPosture.Tactic.CORNER_PEEK)
+                && (plan == Action.HOLD || plan == Action.ATTACK || plan == Action.PATROL
+                        || plan == Action.IDLE_HOLD)) {
+            logPostureSteer(now, "keyhole", peek, plan);
+            this.driver.navigateTo(BlockPos.containing(peek), this.vehicle.distanceToSqr(peek));
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Which way this crew works around a target. Entity-id parity, matching
      * {@link StalemateBreaker}'s own choice so the breaker's orbit and the scored flank never
      * disagree about the direction and walk the hull back and forth over the same ground.
@@ -629,16 +633,6 @@ public class DriveVehicleGoal extends Goal {
     private void logPostureSteer(long now, String kind, Vec3 dest, Action plan) {
         if (now - this.lastPostureSteerLog < 20L) return;
         this.lastPostureSteerLog = now;
-        if ("seekCover".equals(kind)) {
-            SewvDiag.seekCoverTemp(
-                    "steer unit={}#{} vehicle={}#{} plan={} dest={},{},{}",
-                    this.unit.getClass().getSimpleName(), this.unit.getId(),
-                    this.vehicle.getName().getString(), this.vehicle.getId(),
-                    plan,
-                    String.format("%.1f", dest.x),
-                    String.format("%.1f", dest.y),
-                    String.format("%.1f", dest.z));
-        }
         if (!SewvDiag.individualTacticsVerbose()) return;
         SewvDiag.posture(
                 "steer unit={}#{} vehicle={}#{} kind={} plan={} dest={},{},{}",
@@ -894,7 +888,7 @@ public class DriveVehicleGoal extends Goal {
     }
 
     private BlockPos getTargetPos() {
-        // A named destination — a MOVE click or a FOB route — is not a suggestion the utility
+        // A named destination — MOVE / FOB / FOLLOW / FORM — is not a suggestion the utility
         // layer gets to improve on. The three plans below all substitute a destination of their
         // own (the last place an enemy was seen, an idle hold, an idle leg), and any of them
         // winning while an order stands sends the hull back towards the fight it was told to

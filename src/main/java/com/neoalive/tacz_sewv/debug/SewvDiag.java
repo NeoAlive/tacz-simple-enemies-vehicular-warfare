@@ -129,14 +129,6 @@ public final class SewvDiag {
     }
 
     /**
-     * TEMP always-on SEEK_COVER diagnosis — remove once the retreat-to-cover path is signed off.
-     * Grep {@code [sewv-diag][seekCover][TEMP]}.
-     */
-    public static void seekCoverTemp(String msg, Object... args) {
-        LOG.info("[sewv-diag][seekCover][TEMP] " + msg, args);
-    }
-
-    /**
      * Refused orders, and why. <b>Default on</b>, unlike every other channel here, because it is
      * silent until something actually fails and one line per reason per tick is not a log volume
      * worth opting into. It is the only report a refusal produces in text — the player-facing half

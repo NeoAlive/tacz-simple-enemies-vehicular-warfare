@@ -27,7 +27,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -50,7 +49,6 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.GunCacheProbe;
 import com.neoalive.tacz_sewv.debug.IdleGroupDebug;
 import com.neoalive.tacz_sewv.debug.PerfProbe;
-import com.neoalive.tacz_sewv.debug.SeekCoverDebug;
 import com.neoalive.tacz_sewv.debug.SewvConfigFix;
 import com.neoalive.tacz_sewv.debug.SewvDebugDump;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
@@ -92,10 +90,6 @@ public class SewvCommand {
                         .then(factionSpawn("us", TankFaction.US))
                         .then(factionSpawn("pmc", TankFaction.PMC))
                 )
-                .then(Commands.literal("give")
-                        .requires(source -> source.hasPermission(2))
-                        .then(Commands.literal("fob")
-                                .executes(ctx -> giveFobKit(ctx.getSource()))))
                 // Ungated (unlike spawn, above): any player can check on their own units.
                 .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
                 .then(Commands.literal("configui")
@@ -107,10 +101,7 @@ public class SewvCommand {
                                 .executes(ctx -> openPoolEditor(ctx.getSource())))
                         .then(Commands.literal("misc")
                                 .executes(ctx -> openMiscEditor(ctx.getSource()))))
-                .then(Commands.literal("targetPriority")
-                        .requires(source -> source.hasPermission(2))
-                        .executes(ctx -> openTargetPriority(ctx.getSource())))
-                .then(Commands.literal("targeting")
+                .then(Commands.literal("targetingAllow")
                         .requires(source -> source.hasPermission(2))
                         .executes(ctx -> openTargetPriority(ctx.getSource())))
                 .then(Commands.literal("debug")
@@ -158,8 +149,6 @@ public class SewvCommand {
                                 .then(Commands.argument("value", BoolArgumentType.bool())
                                         .executes(ctx -> debugIndividualTactics(ctx.getSource(),
                                                 BoolArgumentType.getBool(ctx, "value")))))
-                        .then(Commands.literal("seekCover")
-                                .executes(ctx -> SeekCoverDebug.force(ctx.getSource())))
                         .then(Commands.literal("idleStatus")
                                 .executes(ctx -> IdleGroupDebug.status(ctx.getSource(), 64.0))
                                 .then(Commands.argument("radius", DoubleArgumentType.doubleArg(8.0, 128.0))
@@ -758,19 +747,6 @@ public class SewvCommand {
     // AI itself resolves them (see CrewTargetPriorityGoal/VehicleTargeting): escort, then a
     // mortar claim or fire mission, then a patrol/search area task, then formation, else idle.
     // Bounded by the same radius every other TDT order already scans within.
-    private static int giveFobKit(CommandSourceStack source) {
-        ServerPlayer player = source.getPlayer();
-        if (player == null) {
-            source.sendFailure(Component.literal("Must be run by a player"));
-            return 0;
-        }
-        player.getInventory().add(new ItemStack(com.neoalive.tacz_sewv.init.ModItems.QUARTERS_BENCH.get()));
-        player.getInventory().add(new ItemStack(com.neoalive.tacz_sewv.init.ModItems.STOCKPILE_AMMO.get()));
-        player.getInventory().add(new ItemStack(com.neoalive.tacz_sewv.init.ModItems.PARKING_FIELD.get()));
-        source.sendSuccess(() -> Component.translatable("message.tacz_sewv.fob.give"), true);
-        return 1;
-    }
-
     private static int status(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.translatable("command.tacz_sewv.status.player_only"));

@@ -17,7 +17,8 @@ import com.neoalive.tacz_sewv.item.TacticalDataTerminalItem;
 
 /**
  * The bridge's own items. Creative listing lives in {@link ModCreativeTabs} (one tab);
- * {@code trench_x_cross} stays registered for junctions but is omitted from that tab.
+ * {@code trench_x_cross}, {@code spawn_probe}, and the FOB blocks stay registered for
+ * {@code /give} but are omitted from that tab.
  */
 public class ModItems {
 

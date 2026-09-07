@@ -55,7 +55,7 @@ public final class SporeCompat {
      * else excluded"), and {@link com.neoalive.tacz_sewv.entity.ai.goal.SoftEnemyTargetPriorityGoal}
      * would never get a chance to run — {@code categoryAllowed} rejects the target before the
      * tier scorer ever sees it. This only changes what a NEW per-faction list defaults to; a
-     * server that already customised its list via {@code /sewv targetPriority} is untouched.
+     * server that already customised its list via {@code /sewv targetingAllow} is untouched.
      */
     public static boolean defaultAllowsCategory(String categoryName) {
         if (!present()) return false;

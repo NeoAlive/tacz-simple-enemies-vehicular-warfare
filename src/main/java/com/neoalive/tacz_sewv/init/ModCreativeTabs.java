@@ -10,8 +10,9 @@ import net.minecraftforge.registries.RegistryObject;
 import com.neoalive.tacz_sewv.TaczSewv;
 
 /**
- * Dedicated creative inventory tab for every SEWV item (except {@code trench_x_cross} and
- * {@code spawn_probe}, which stay registered but are command-only).
+ * Dedicated creative inventory tab for every SEWV item (except {@code trench_x_cross},
+ * {@code spawn_probe}, and the FOB blocks — those stay registered but are command-only
+ * via {@code /give}).
  */
 public final class ModCreativeTabs {
 
@@ -36,10 +37,8 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.EMPLACEMENT.get());
                         output.accept(ModItems.SANDBAG.get());
                         output.accept(ModItems.RUNWAY.get());
-                        output.accept(ModItems.QUARTERS_BENCH.get());
-                        output.accept(ModItems.PARKING_FIELD.get());
-                        output.accept(ModItems.STOCKPILE_AMMO.get());
-                        // spawn_probe: command-only (/give), not listed in creative.
+                        // quarters_bench / parking_field / stockpile_ammo / spawn_probe:
+                        // command-only (/give), not listed in creative.
                         output.accept(ModItems.RU_MEDIC_SPAWN_EGG.get());
                         output.accept(ModItems.US_MEDIC_SPAWN_EGG.get());
                         output.accept(ModItems.RU_ENGINEER_SPAWN_EGG.get());

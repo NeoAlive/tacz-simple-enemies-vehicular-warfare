@@ -21,7 +21,7 @@ import com.neoalive.tacz_sewv.compat.SporeCompat;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
- * Per-world, per-faction MobCategory exclude lists. Edited via {@code /sewv targetPriority}.
+ * Per-world, per-faction MobCategory exclude lists. Edited via {@code /sewv targetingAllow}.
  * Defaults match the old {@code instanceof Enemy} gate: {@code monster} allowed, everything else
  * excluded. Category names are strings so Forge-extended enum values survive unknown-on-load.
  */
@@ -68,7 +68,7 @@ public class WorldTargetPriority extends SavedData {
      * {@code experiments} categories — see {@link SporeCompat#defaultAllowsCategory}. Without
      * this, a fresh per-faction list would exclude those on the same "everything but monster"
      * default as any other unknown category, and every SEWV unit would refuse to engage Spore's
-     * mobs at all until an admin manually opted them in via {@code /sewv targetPriority}, which
+     * mobs at all until an admin manually opted them in via {@code /sewv targetingAllow}, which
      * would leave {@link com.neoalive.tacz_sewv.entity.ai.goal.SoftEnemyTargetPriorityGoal}'s
      * tier priority with nothing it could ever legally pick.
      */

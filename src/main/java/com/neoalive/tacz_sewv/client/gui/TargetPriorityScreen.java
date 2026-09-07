@@ -19,7 +19,7 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
  * Op-only three-column editor: per-faction MobCategory exclude toggles
- * ({@code /sewv targetPriority}).
+ * ({@code /sewv targetingAllow}).
  */
 public class TargetPriorityScreen extends Screen {
 

@@ -35,13 +35,15 @@ public final class TacticalPosture {
         CORNER_PEEK,
         AMBUSH,
         INFANTRY_COVER,
-        /** Break contact toward hard cover after smoke / low confidence (or debug force). */
+        /** Break contact toward hard cover after smoke / low confidence. */
         SEEK_COVER
     }
 
-    private static final long SCOOT_DURATION = 80;
+    private static final long SCOOT_DURATION = 120;
     /** Hold the cover waypoint ~15s so the hull can path there before re-pick. */
     private static final long SEEK_COVER_DURATION = 300;
+    private static final long PEEK_DURATION = 100;
+    private static final long SHIELD_DURATION = 120;
     /** How long after a smoke volley still counts as "just screened". */
     private static final long SMOKE_FRESH_TICKS = 120;
     /**
@@ -67,9 +69,6 @@ public final class TacticalPosture {
     /** Unit id → fan cover interest (length 7), published each evaluate. */
     private static final ConcurrentHashMap<Integer, float[]> FAN_BIAS = new ConcurrentHashMap<>();
 
-    /** Unit id → game-time deadline for {@code /sewv debug seekCover} (bypasses smoke/conf gates). */
-    private static final ConcurrentHashMap<Integer, Long> MANUAL_SEEK_UNTIL = new ConcurrentHashMap<>();
-
     private final EnumSet<Tactic> active = EnumSet.noneOf(Tactic.class);
     private final float[] coverInterest = new float[GroundMobility.SLOT_COUNT];
 
@@ -79,12 +78,14 @@ public final class TacticalPosture {
     @Nullable
     private Vec3 seekCoverWaypoint;
     private long seekCoverUntil = Long.MIN_VALUE;
-    /** Manual / debug arm — fightTick may force {@link Action#RETREAT} to honour the waypoint. */
+    /** When set, fightTick forces {@link Action#RETREAT} so cover routing is not optional. */
     private boolean seekCoverForceRetreat;
     @Nullable
     private Vec3 peekWaypoint;
+    private long peekUntil = Long.MIN_VALUE;
     @Nullable
     private Vec3 infantryShieldPoint;
+    private long shieldUntil = Long.MIN_VALUE;
     private boolean throttleInfantryPace;
     private boolean coveringAdvance;
 
@@ -96,7 +97,9 @@ public final class TacticalPosture {
         this.seekCoverUntil = Long.MIN_VALUE;
         this.seekCoverForceRetreat = false;
         this.peekWaypoint = null;
+        this.peekUntil = Long.MIN_VALUE;
         this.infantryShieldPoint = null;
+        this.shieldUntil = Long.MIN_VALUE;
         this.throttleInfantryPace = false;
         this.coveringAdvance = false;
         for (int i = 0; i < this.coverInterest.length; i++) this.coverInterest[i] = 0.0F;
@@ -126,51 +129,27 @@ public final class TacticalPosture {
         return this.seekCoverWaypoint;
     }
 
-    /** True while a manual/debug SEEK_COVER arm wants {@link Action#RETREAT} forced. */
+    /** True while SEEK_COVER wants {@link Action#RETREAT} forced. */
     public boolean seekCoverForcesRetreat() {
         return this.seekCoverForceRetreat && this.seekCoverWaypoint != null;
     }
 
     @Nullable
-    public Vec3 peekOffset() {
+    public Vec3 peekOffset(long now) {
+        if (this.peekWaypoint == null || now > this.peekUntil) return null;
         return this.peekWaypoint;
     }
 
-    /**
-     * Op-only: arm SEEK_COVER on {@code unitId} until {@code untilGameTime}, bypassing smoke /
-     * confidence gates. Cleared by {@link #clearUnit} or expiry.
-     */
-    public static void debugArmSeekCover(int unitId, long untilGameTime) {
-        MANUAL_SEEK_UNTIL.put(unitId, untilGameTime);
-        SewvDiag.seekCoverTemp("MANUAL arm unitId={} until={}", unitId, untilGameTime);
-    }
-
-    public static boolean debugSeekCoverArmed(int unitId, long now) {
-        Long until = MANUAL_SEEK_UNTIL.get(unitId);
-        if (until == null) return false;
-        if (now > until) {
-            MANUAL_SEEK_UNTIL.remove(unitId, until);
-            return false;
-        }
-        return true;
-    }
-
     @Nullable
-    public Vec3 infantryShieldPoint() {
+    public Vec3 infantryShieldPoint(long now) {
+        if (this.infantryShieldPoint == null || now > this.shieldUntil) return null;
         return this.infantryShieldPoint;
-    }
-
-    public static boolean ambushHoldsFire(AbstractUnit unit, LivingEntity target) {
-        Double maxDist = AMBUSH_HOLD.get(unit.getId());
-        if (maxDist == null) return false;
-        return unit.distanceTo(target) > maxDist;
     }
 
     public static void clearUnit(int unitId) {
         AMBUSH_HOLD.remove(unitId);
         COVER_THREAT.remove(unitId);
         FAN_BIAS.remove(unitId);
-        MANUAL_SEEK_UNTIL.remove(unitId);
     }
 
     /** Server-stop / full eviction. */
@@ -178,7 +157,12 @@ public final class TacticalPosture {
         AMBUSH_HOLD.clear();
         COVER_THREAT.clear();
         FAN_BIAS.clear();
-        MANUAL_SEEK_UNTIL.clear();
+    }
+
+    public static boolean ambushHoldsFire(AbstractUnit unit, LivingEntity target) {
+        Double maxDist = AMBUSH_HOLD.get(unit.getId());
+        if (maxDist == null) return false;
+        return unit.distanceTo(target) > maxDist;
     }
 
     /** Soft cover path malus toward the published threat, or 0. Never BLOCKED. */
@@ -243,14 +227,6 @@ public final class TacticalPosture {
             hasThreatBearing = false;
         }
 
-        // Manual seekCover with no contact: invent a threat ahead of the bow so cover is rear/lateral.
-        if (!hasThreatBearing && debugSeekCoverArmed(unitId, unit.level().getGameTime())) {
-            var fwd = hull.getForwardDirection();
-            threatX = hull.getX() + fwd.x() * 40.0;
-            threatZ = hull.getZ() + fwd.z() * 40.0;
-            hasThreatBearing = true;
-        }
-
         double exposure = 1.0;
         double inCover = 0.0;
         double keyhole = 0.0;
@@ -283,8 +259,16 @@ public final class TacticalPosture {
             this.seekCoverUntil = Long.MIN_VALUE;
             this.seekCoverForceRetreat = false;
         }
+        if (this.peekWaypoint != null && now > this.peekUntil) {
+            this.peekWaypoint = null;
+            this.peekUntil = Long.MIN_VALUE;
+        }
+        if (this.infantryShieldPoint != null && now > this.shieldUntil) {
+            this.infantryShieldPoint = null;
+            this.shieldUntil = Long.MIN_VALUE;
+            this.throttleInfantryPace = false;
+        }
 
-        boolean manualSeek = debugSeekCoverArmed(unitId, now);
         boolean groundMobile = facts.idleGroundDrivable;
 
         // ---- Covering advance ----
@@ -299,14 +283,14 @@ public final class TacticalPosture {
                     threatX, threatZ, this.coverInterest, GroundMobility.SLOTS_DEG);
         }
 
-        // ---- Seek cover (retreat bias after smoke / low confidence, or debug force) ----
+        // ---- Seek cover (retreat bias after smoke / low confidence) ----
         boolean smokeFresh = Facts.ticksSince(facts.memory.lastSmokeTick, now) <= SMOKE_FRESH_TICKS;
         boolean lowConf = facts.confidence <= SEEK_COVER_CONFIDENCE_MAX;
-        boolean wantSeek = manualSeek || (smokeFresh && lowConf && groundMobile);
+        boolean wantSeek = smokeFresh && lowConf && groundMobile;
         if (wantSeek && hasThreatBearing && groundMobile && this.seekCoverWaypoint == null) {
             Vec3 cover = CoverQuery.suggestRetreatCover(level, hull, threatX, threatZ);
             if (cover == null) {
-                // Open / unbaked ground: still break contact rearwards (natural + manual).
+                // Open / unbaked ground: still break contact rearwards.
                 if (target != null) {
                     cover = CoverQuery.suggestDisplace(level, hull, target, true);
                 }
@@ -315,14 +299,6 @@ public final class TacticalPosture {
                     cover = new Vec3(hull.getX() - fwd.x * 20.0, hull.getY(), hull.getZ() - fwd.z * 20.0);
                 }
             }
-            SewvDiag.seekCoverTemp(
-                    "eval unit={}#{} hull={}#{} manual={} smokeFresh={} conf={} want={} cover={}",
-                    unit.getClass().getSimpleName(), unitId,
-                    hull.getName().getString(), hull.getId(),
-                    manualSeek, smokeFresh,
-                    String.format("%.0f", facts.confidence),
-                    wantSeek,
-                    cover == null ? "none" : String.format("%.1f,%.1f", cover.x, cover.z));
             if (cover != null) {
                 this.active.add(Tactic.SEEK_COVER);
                 this.seekCoverWaypoint = cover;
@@ -363,11 +339,17 @@ public final class TacticalPosture {
 
         // ---- Corner peek ----
         if (target != null && keyhole > 0.45 && this.scootWaypoint == null
-                && this.seekCoverWaypoint == null) {
-            this.active.add(Tactic.CORNER_PEEK);
+                && this.seekCoverWaypoint == null && this.peekWaypoint == null) {
             Vec3 peek = CoverQuery.suggestKeyhole(level, hull, target);
-            this.peekWaypoint = peek;
-            if (peek != null) biasFanToward(hull, peek);
+            if (peek != null) {
+                this.active.add(Tactic.CORNER_PEEK);
+                this.peekWaypoint = peek;
+                this.peekUntil = now + PEEK_DURATION;
+                biasFanToward(hull, peek);
+            }
+        } else if (this.peekWaypoint != null && now <= this.peekUntil) {
+            this.active.add(Tactic.CORNER_PEEK);
+            biasFanToward(hull, this.peekWaypoint);
         }
 
         // ---- Ambush (2A gated) ----
@@ -393,13 +375,22 @@ public final class TacticalPosture {
         // ---- Infantry cover ----
         if (allyInfantry > 0.25
                 && facts.targetCategory == com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory.VEHICLE
-                && target != null) {
-            this.active.add(Tactic.INFANTRY_COVER);
+                && target != null
+                && this.infantryShieldPoint == null) {
             Vec3 shield = infantryShield(unit, hull, target);
-            this.infantryShieldPoint = shield;
-            this.throttleInfantryPace = shield != null
-                    && hull.distanceToSqr(shield) < INFANTRY_PACE_RANGE * INFANTRY_PACE_RANGE;
-            if (shield != null) biasFanToward(hull, shield);
+            if (shield != null) {
+                this.active.add(Tactic.INFANTRY_COVER);
+                this.infantryShieldPoint = shield;
+                this.shieldUntil = now + SHIELD_DURATION;
+                this.throttleInfantryPace =
+                        hull.distanceToSqr(shield) < INFANTRY_PACE_RANGE * INFANTRY_PACE_RANGE;
+                biasFanToward(hull, shield);
+            }
+        } else if (this.infantryShieldPoint != null && now <= this.shieldUntil) {
+            this.active.add(Tactic.INFANTRY_COVER);
+            this.throttleInfantryPace =
+                    hull.distanceToSqr(this.infantryShieldPoint) < INFANTRY_PACE_RANGE * INFANTRY_PACE_RANGE;
+            biasFanToward(hull, this.infantryShieldPoint);
         }
 
         facts.exposure = exposure;
@@ -434,8 +425,7 @@ public final class TacticalPosture {
 
     private void clearActiveOnly() {
         this.active.clear();
-        this.peekWaypoint = null;
-        this.infantryShieldPoint = null;
+        // peek / shield / scoot / seekCover waypoints are timed — do not wipe mid-maneuver.
         this.throttleInfantryPace = false;
         this.coveringAdvance = false;
         for (int i = 0; i < this.coverInterest.length; i++) this.coverInterest[i] = 0.0F;

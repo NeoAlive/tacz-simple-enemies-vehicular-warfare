@@ -46,7 +46,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     // current tick: SBW's AI fire loop consults canShoot at least twice per seat per fire
     // attempt, and for a fast automatic weapon (see tacz_sewv$effectiveCooldown) the AI cooldown
     // gate above stops blocking the call after 1 tick, which would otherwise re-run the full
-    // verdict (occupancy check, allied-vehicle check, 2 block clips, a smoke entity query) every
+    // verdict (occupancy check, allied LOF check, 2 block clips, a smoke entity query) every
     // single tick for as long as the weapon keeps firing. Terrain/smoke occlusion does not change
     // meaningfully within a few ticks, so LOS_CACHE_WINDOW_TICKS trades a small amount of staleness
     // (a target that fully breaks LOS mid-burst can draw up to that many extra ticks of fire) for
@@ -137,12 +137,12 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
                         self.getId(), VehiclePathObstacles.rideId(target))) {
             return true;
         }
-        // Hold fire if a friendly hull is in the way — prevents the crew shelling
-        // an ally that has driven between it and its target (living is always an
-        // AbstractUnit here; the caller gated on it). Extra 1-block margin beyond
-        // the occupancy voxels, for near-grazes and shell blast.
+        // Hold fire if a friendly hull or on-foot unit is in the way — prevents the crew
+        // shelling an ally that has driven/walked between it and its target (living is
+        // always an AbstractUnit here; the caller gated on it). Extra 1-block margin
+        // beyond the occupancy voxels, for near-grazes and shell blast.
         if (living instanceof AbstractUnit unit
-                && VehicleTargeting.alliedVehicleInLineOfFire(unit, self, from, to)) {
+                && VehicleTargeting.alliedInLineOfFire(unit, self, from, to)) {
             return true;
         }
         // Danger-close: enemy next to the owning player / a friendly PMC (TOWs and

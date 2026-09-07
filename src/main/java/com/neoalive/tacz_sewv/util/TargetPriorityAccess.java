@@ -14,7 +14,7 @@ import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenTargetPriority;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
-/** Opens the op-only target-priority editor ({@code /sewv targetPriority}). */
+/** Opens the op-only target-allow editor ({@code /sewv targetingAllow}). */
 public final class TargetPriorityAccess {
 
     private TargetPriorityAccess() {}

@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.List;
 
 import javax.annotation.Nullable;
 
@@ -14,13 +16,28 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 /**
  * Pre-gate for Combined Arms formations: a selection must be entirely infantry, entirely
  * ground vehicles, or entirely ships — never mixed, never air, never FIXED emplacements.
+ * The Quick Wheel filter keeps one kind and drops the rest before assign.
  */
 public final class FormationComposition {
 
     public enum Kind {
         INFANTRY,
         GROUND,
-        SHIP
+        SHIP;
+
+        public static Kind byOrdinal(int ordinal) {
+            Kind[] kinds = values();
+            if (ordinal < 0) return kinds[0];
+            if (ordinal >= kinds.length) return kinds[kinds.length - 1];
+            return kinds[ordinal];
+        }
+
+        /** Cycle with wrap — scroll up advances, scroll down retreats. */
+        public Kind cycle(int delta) {
+            Kind[] kinds = values();
+            int next = Math.floorMod(ordinal() + delta, kinds.length);
+            return kinds[next];
+        }
     }
 
     /** Hardcoded slot baselines — infantry tight, hulls wide. */
@@ -28,6 +45,7 @@ public final class FormationComposition {
     public static final double SPACING_VEHICLE = 12.0;
 
     public static final String MSG_INVALID = "message.tacz_sewv.formation.composition_invalid";
+    public static final String MSG_NONE_MATCH = "message.tacz_sewv.formation.none_match_filter";
     public static final String MSG_OVERLAP = "message.tacz_sewv.formation.slots_overlap";
     public static final String MSG_USE_QUICKWHEEL = "message.tacz_sewv.formation.use_quickwheel";
 
@@ -49,6 +67,16 @@ public final class FormationComposition {
 
     public static double baselineSpacing(Kind kind) {
         return kind == Kind.INFANTRY ? SPACING_INFANTRY : SPACING_VEHICLE;
+    }
+
+    /** Keep only units that match {@code want}; ineligible / other kinds are dropped. */
+    public static List<PmcUnitEntity> filter(Collection<PmcUnitEntity> units, Kind want) {
+        List<PmcUnitEntity> out = new ArrayList<>();
+        if (units == null || want == null) return out;
+        for (PmcUnitEntity pmc : units) {
+            if (classify(pmc) == want) out.add(pmc);
+        }
+        return out;
     }
 
     /**

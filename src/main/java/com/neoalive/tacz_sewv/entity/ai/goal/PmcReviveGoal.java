@@ -16,7 +16,6 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
-import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.ReviveClaims;
 import com.neoalive.tacz_sewv.network.PacketReviveProgress;
@@ -62,10 +61,7 @@ public class PmcReviveGoal extends Goal {
             this.cooldown--;
             return false;
         }
-        if (this.unit.isPassenger()) return false;
-        if (this.unit instanceof IPmcDowned self && self.sewv$isDowned()) return false;
-        // Committed mortar crews stay put — see PlayerReviveGoal for why.
-        if (MortarSupport.hasMortarClaim(this.unit)) return false;
+        if (!ReviveClaims.isEligibleReviver(this.unit)) return false;
 
         this.patient = findDownedAlly();
         if (this.patient == null) {
@@ -86,6 +82,7 @@ public class PmcReviveGoal extends Goal {
                 && this.patient.isAlive()
                 && this.patient instanceof IPmcDowned downed
                 && downed.sewv$isDowned()
+                && ReviveClaims.isEligibleReviver(this.unit)
                 && ReviveClaims.isMine(this.patient.getId(), this.unit.getId())
                 && this.approachTicks < MAX_APPROACH_TICKS;
     }

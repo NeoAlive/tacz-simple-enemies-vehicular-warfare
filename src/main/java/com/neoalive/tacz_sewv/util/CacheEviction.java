@@ -13,7 +13,9 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.BoardVehicleGoal;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
+import com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.ReviveClaims;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.map.PreferredPathwayData;
@@ -36,11 +38,13 @@ public final class CacheEviction {
         if (entity instanceof VehicleEntity) {
             HullLocalScan.invalidate(id);
             VehicleDarknessAccuracy.invalidate(id);
+            OuterRingAwareness.forget(id);
         }
         if (entity instanceof AbstractUnit unit) {
             Facts.unbindIfPresent(id);
             TacticalPosture.clearUnit(id);
             DroneSupport.forgetOwner(unit.getUUID());
+            ReviveClaims.forgetReviver(id);
         }
     }
 

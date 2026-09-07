@@ -16,7 +16,6 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
-import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.ReviveClaims;
 import com.neoalive.tacz_sewv.network.PacketReviveProgress;
 
@@ -97,15 +96,8 @@ public class PlayerReviveGoal extends Goal {
             this.cooldown--;
             return false;
         }
-        // A crew member is busy working the vehicle. Unlike MedicGoal, holding a target does NOT
-        // bail here — see the class doc for why a downed player overrides ordinary combat.
-        if (this.unit.isPassenger()) return false;
-        // A unit committed to a mortar stays committed — same precedence PacketBoardVehicle/
-        // PacketEscort already give mortar duty over a reassignment order. Without this, the
-        // brief window where ManMortarGoal itself yields MOVE+LOOK (beingOverrun) is enough for
-        // this equal-priority goal to win the tie and walk the crew off the tube for the whole
-        // revive channel, well past when the overrun that opened the window has cleared.
-        if (MortarSupport.hasMortarClaim(this.unit)) return false;
+        // On-foot only — seated crew cannot leave the hull to channel a revive.
+        if (!ReviveClaims.isEligibleReviver(this.unit)) return false;
 
         this.patient = findDownedPlayer();
         if (this.patient == null) {
@@ -125,6 +117,7 @@ public class PlayerReviveGoal extends Goal {
         return this.patient != null
                 && this.patient.isAlive()
                 && PlayerReviveCompat.isDowned(this.patient)
+                && ReviveClaims.isEligibleReviver(this.unit)
                 && ReviveClaims.isMine(this.patient.getId(), this.unit.getId())
                 && this.approachTicks < MAX_APPROACH_TICKS;
     }
@@ -229,9 +222,12 @@ public class PlayerReviveGoal extends Goal {
     /** Patient already force-claimed onto this unit (Revive Call), if still valid. */
     @Nullable
     private Player resolveAssignedPatient() {
-        if (this.unit.isPassenger() || MortarSupport.hasMortarClaim(this.unit)) return null;
         int patientId = ReviveClaims.patientOf(this.unit.getId());
         if (patientId < 0) return null;
+        if (!ReviveClaims.isEligibleReviver(this.unit)) {
+            ReviveClaims.release(patientId, this.unit.getId());
+            return null;
+        }
         var entity = this.unit.level().getEntity(patientId);
         if (!(entity instanceof Player p)
                 || !p.isAlive()

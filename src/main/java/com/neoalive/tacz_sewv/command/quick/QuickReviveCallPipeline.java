@@ -8,11 +8,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
-import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.ReviveClaims;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -43,10 +41,7 @@ public final class QuickReviveCallPipeline implements QuickCommandPipeline {
         PmcUnitEntity helper = level.getEntitiesOfClass(
                         PmcUnitEntity.class,
                         issuer.getBoundingBox().inflate(radius),
-                        u -> u.isAlive()
-                                && !u.isPassenger()
-                                && !(u instanceof IPmcDowned d && d.sewv$isDowned())
-                                && !MortarSupport.hasMortarClaim(u)
+                        u -> ReviveClaims.isEligibleReviver(u)
                                 && PmcOwnerSupport.isOwner(issuer, u)
                                 && OrderAuth.check(issuer, u, "ReviveCall"))
                 .stream()

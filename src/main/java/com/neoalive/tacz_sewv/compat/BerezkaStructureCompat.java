@@ -66,9 +66,8 @@ public final class BerezkaStructureCompat {
         BoundingBox bounds = structureBounds(event.getPieces());
 
         // berezka can post this from a worldgen worker; hop to the main thread to spawn.
-        // ponytail: assumes the structure's chunk is loaded by next tick (true when it
-        // generates near a player). If distant pre-gen ever drops spawns, gate the spawn
-        // on level.isLoaded(pos) and retry via berezka's ServerScheduler.
+        // Spawn only runs while the anchor chunk is still loaded — never force-generate
+        // neighbours from the frontier (that cascades into more structure events).
         level.getServer().execute(() -> spawnVehicles(level, anchor, bounds, faction));
     }
 
@@ -82,13 +81,20 @@ public final class BerezkaStructureCompat {
 
     private static void spawnVehicles(ServerLevel level, BlockPos anchor, @Nullable BoundingBox bounds,
                                       TankSpawner.TankFaction faction) {
+        // Structure just finished generating — its own chunk is usually still in memory. If the
+        // player (or pregen) has already moved on, skip rather than sync-loading it back.
+        if (!level.isLoaded(anchor)) return;
+
         int count = rollCount(level);
         for (int i = 0; i < count; i++) {
             BlockPos pos = placement(level, anchor, bounds, i);
-            // Every faction gets a crewed, fuelled, armed hull — a PMC structure fields friendly
-            // PMC crew (ownerId null = FRIENDLY_DEFAULT, ownerless), the same as RU/US and the
-            // village garrisons. See the class doc for why crewed and not a parked bare hull.
-            VehicleEntity hull = TankSpawner.spawnCombatVehicleWithCrew(level, pos, faction, null);
+            // Placement sits just OUTSIDE the footprint, often in a neighbour chunk that has not
+            // generated yet. Spawning there force-loads worldgen → more berezka events → freeze.
+            if (!level.isLoaded(pos)) continue;
+            // Ground only: spawnCombatVehicleWithCrew can roll a heli, which takeoffs with a
+            // ticking Forge chunk ticket and streams terrain forever along its flight path —
+            // the other half of the "chunks permanently freeze loading" report with big packs.
+            VehicleEntity hull = TankSpawner.spawnTankWithCrew(level, pos, faction, null);
             if (hull != null) VehicleDrops.markCrewAndHull(hull);
         }
     }

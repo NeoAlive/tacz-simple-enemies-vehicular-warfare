@@ -93,6 +93,8 @@ public abstract class MixinVillageGarrisonHandler {
             if (new Random(basePos.asLong()).nextInt(100) >= chance) return;
 
             BlockPos spot = TankSpawner.adjustHeight(level, tacz_sewv$offset(level, basePos));
+            // Same frontier rule as BerezkaStructureCompat: never sync-load the offset chunk.
+            if (!level.isLoaded(spot)) return;
             TankSpawner.TankFaction faction = isRu ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
             // Crewed: fuelled by the faction-energy rule and never scavenged. See the class doc.
             TankSpawner.spawnTankWithCrew(level, spot, faction, null);

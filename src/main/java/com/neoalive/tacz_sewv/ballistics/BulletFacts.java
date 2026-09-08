@@ -94,7 +94,12 @@ public final class BulletFacts {
                 if (band != null && !band.isEmpty()) damage = band.getFirst().getDamage();
             }
             float armorIgnore = extra != null ? Mth.clamp(extra.getArmorIgnore(), 0F, 1F) : 0F;
-            boolean explosive = bullet.getExplosionData() != null;
+            // Most TaCZ guns ship a stub `"explosion": { "explode": false, ... }` object. Treating
+            // any non-null ExplosionData as explosive classified Deagles/AWPs as RPG-class and
+            // applied the 17× projectile_hit factor — the "pistol deletes a quarter of a hull" bug.
+            // Only explode:true is a real blast round (rpg7 / m320).
+            var explosion = bullet.getExplosionData();
+            boolean explosive = explosion != null && explosion.isExplode();
 
             String ammoId = gunData.getAmmoId() != null ? gunData.getAmmoId().toString() : "";
             String type = index.get().getType();

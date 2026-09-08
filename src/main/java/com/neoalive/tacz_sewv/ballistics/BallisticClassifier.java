@@ -10,6 +10,11 @@ import java.util.Locale;
  * those thresholds can't tell apart. No gun id is ever hardcoded: every input is a value read off
  * the gun's own datapack data (see {@link BulletFacts}), so an addon's TaCZ gun classifies the same
  * way a stock one does.
+ *
+ * <p>Category → SBW handheld anchor (see {@code translation.json}):
+ * LIGHT ≈ rifle/SMG/pistol (SBW M4/QBZ scale), HEAVY_MACHINE_GUN row ≈ precision bolt/DMR
+ * (SBW M98B scale — stock TaCZ has no true 80-dmg HMG), ANTI_MATERIEL ≈ .50 (SBW NTW-20),
+ * EXPLOSIVE ≈ RPG (only {@code explode:true}).
  */
 public final class BallisticClassifier {
 
@@ -27,18 +32,24 @@ public final class BallisticClassifier {
     private static final double WEIGHT_PELLETS = 3.0;
     private static final double WEIGHT_SPEED = 2.0;
     private static final double WEIGHT_RPM_AUTO = 2.0;
+    private static final double WEIGHT_BOLT = 3.0;
     // Last resort: capped at one hit per category (see scoreKinetic), so it can never outweigh a
     // single decisive numeric signal above — the smallest of which is 2.0.
     private static final double WEIGHT_CUE = 0.5;
 
-    // Bands straddle the shipped translation-table anchors (light~35, HMG~80, anti-materiel~200 -
-    // see data/tacz_sewv/sewv/ballistics/translation.json) with headroom on both sides, so a gun
-    // tuned near an anchor lands solidly inside its band rather than on a boundary.
-    private static final float DAMAGE_LIGHT_MAX = 45.0F;
-    private static final float DAMAGE_ANTI_MATERIEL_MIN = 120.0F;
-    private static final float ARMOR_IGNORE_ANTI_MATERIEL = 0.6F;
-    private static final float SPEED_ANTI_MATERIEL = 10.0F;
-    private static final int RPM_AUTO = 600;
+    // Bands straddle the shipped translation-table anchors (light~9, precision~42, AM~75 —
+    // see data/tacz_sewv/sewv/ballistics/translation.json). Thresholds are TaCZ datapack numbers:
+    // stock rifles sit ~7-12, bolt snipers ~24-45, .50-class ~75+.
+    private static final float DAMAGE_LIGHT_MAX = 20.0F;
+    private static final float DAMAGE_ANTI_MATERIEL_MIN = 70.0F;
+    private static final float ARMOR_IGNORE_ANTI_MATERIEL = 0.7F;
+    // TaCZ bullet.speed is ~170 (pistol) … ~575 (AWP) — NOT SBW Velocity (~5-50). A threshold of
+    // 10 matched every gun and shoved high-AP snipers into ANTI_MATERIEL. Only the fastest
+    // rounds (true magnum / AM class) should get this nudge.
+    private static final float SPEED_ANTI_MATERIEL = 500.0F;
+    private static final int RPM_AUTO = 500;
+    // Bolt / slow semi: pin mid-damage guns onto the precision (HMG row) band instead of light.
+    private static final int RPM_BOLT_MAX = 220;
 
     private record Cue(Category category, String needle) {}
 
@@ -83,9 +94,11 @@ public final class BallisticClassifier {
 
         if (damage < DAMAGE_LIGHT_MAX) {
             scores[Category.LIGHT_AUTOMATIC.ordinal()] += WEIGHT_DAMAGE_BAND;
-        } else if (damage > DAMAGE_ANTI_MATERIEL_MIN) {
+        } else if (damage >= DAMAGE_ANTI_MATERIEL_MIN) {
             scores[Category.ANTI_MATERIEL.ordinal()] += WEIGHT_DAMAGE_BAND;
         } else {
+            // Mid band: bolt snipers / DMRs land here (HEAVY_MACHINE_GUN row = precision kinetic
+            // in the translation table). Automatic mid-damage guns are rare in stock TaCZ.
             scores[Category.HEAVY_MACHINE_GUN.ordinal()] += WEIGHT_DAMAGE_BAND;
         }
 
@@ -100,6 +113,13 @@ public final class BallisticClassifier {
         }
         if (rpm > RPM_AUTO) {
             scores[Category.LIGHT_AUTOMATIC.ordinal()] += WEIGHT_RPM_AUTO;
+        }
+        // Slow single-projectile guns in the mid damage band are precision rifles, not light autos
+        // — without this, an AWP (dmg 42, AP 0.6) could still lose to LIGHT on damage-band alone
+        // when the light threshold was higher. Kept as a nudge so mid-band + bolt stays precise.
+        if (rpm <= RPM_BOLT_MAX && pellets <= 1 && damage >= DAMAGE_LIGHT_MAX
+                && damage < DAMAGE_ANTI_MATERIEL_MIN) {
+            scores[Category.HEAVY_MACHINE_GUN.ordinal()] += WEIGHT_BOLT;
         }
 
         // At most one WEIGHT_CUE per category, however many of its needles hit — several needles

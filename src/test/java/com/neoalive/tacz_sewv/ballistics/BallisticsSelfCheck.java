@@ -40,19 +40,25 @@ public final class BallisticsSelfCheck {
     }
 
     private static void classifierAnchors() {
-        // Rifle-like: moderate damage, no armor ignore, automatic rate of fire -> LIGHT
+        // Rifle-like: TaCZ AK (~9 dmg, auto rpm) -> LIGHT, maps near SBW M4/QBZ (~8.5)
         assertCategory(Category.LIGHT_AUTOMATIC,
-                classify("weapon.example.ak", 30F, 0.0F, 5F, 650, 1, false), "rifle-like");
+                classify("weapon.example.ak", 9F, 0.25F, 300F, 600, 1, false), "rifle-like");
 
-        // General-purpose machine gun: mid-band damage, high rpm but still under the HMG/AM split -> HMG
+        // Deagle-like pistol: mid-low damage, slow semi, must NOT be EXPLOSIVE just because TaCZ
+        // ships a stub explosion block (explode:false) — that was the hull-delete bug.
+        assertCategory(Category.LIGHT_AUTOMATIC,
+                classify("tacz:deagle tacz:50ae pistol", 16F, 0.25F, 170F, 300, 1, false), "deagle-like");
+
+        // AWP-like bolt sniper: mid damage + armor ignore under the AM bar -> precision (HMG row),
+        // maps near SBW M98B (~38). Must not be ANTI_MATERIEL / EXPLOSIVE.
         assertCategory(Category.HEAVY_MACHINE_GUN,
-                classify("weapon.example.m240", 80F, 0.2F, 6F, 550, 1, false), "machine-gun-like");
+                classify("weapon.example.awp", 42F, 0.60F, 575F, 171, 1, false), "AWP-like sniper");
 
-        // NTW-20-like anti-materiel rifle: very high per-shot damage, high armor ignore, slow bolt action -> AM
+        // M95-like .50: high per-shot damage + high AP -> AM, maps toward SBW NTW-20 (~140)
         assertCategory(Category.ANTI_MATERIEL,
-                classify("weapon.example.ntw20", 200F, 0.8F, 15F, 30, 1, false), "NTW-like");
+                classify("weapon.example.m95", 75F, 0.75F, 400F, 151, 1, false), "M95-like AM");
 
-        // Explosive bullet (grenade launcher / underbarrel round) -> EXPLOSIVE outright, regardless
+        // Explosive bullet (grenade launcher / RPG) -> EXPLOSIVE outright, regardless
         // of how small its kinetic damage number is.
         assertCategory(Category.EXPLOSIVE,
                 classify("weapon.example.grenade", 10F, 0F, 3F, 60, 1, true), "explosive round");
@@ -66,11 +72,11 @@ public final class BallisticsSelfCheck {
     }
 
     private static void cueTierNeverBeatsDecisiveSignal() {
-        // Numeric signals decisively pick LIGHT (low damage + automatic rpm = 5.0 + 2.0 = 7.0), but
-        // the name spells out an anti-materiel cue needle. The cue tier (capped at 0.5 per category)
-        // must not be able to flip a decisive numeric verdict.
+        // Numeric signals decisively pick LIGHT (low damage + automatic rpm), but the name spells
+        // out an anti-materiel cue needle. The cue tier (capped at 0.5 per category) must not flip
+        // a decisive numeric verdict.
         assertCategory(Category.LIGHT_AUTOMATIC,
-                classify("weapon.example.barrett_reskin_12_7_lookalike", 20F, 0F, 5F, 700, 1, false),
+                classify("weapon.example.barrett_reskin_12_7_lookalike", 12F, 0F, 300F, 700, 1, false),
                 "cue can't beat decisive numeric signal");
     }
 
@@ -88,14 +94,14 @@ public final class BallisticsSelfCheck {
     private static void factorMathAndClamp() {
         TranslationTable table = TranslationTable.parse(Map.of(
                 new ResourceLocation("tacz_sewv", "test_factor"),
-                category("light_automatic", 35.0, 8.25, null, null)));
+                category("light_automatic", 9.0, 8.5, null, null)));
         double factor = table.factorFor(Category.LIGHT_AUTOMATIC, false, null);
-        assertClose(8.25 / 35.0, factor, 1e-6, "light automatic factor");
+        assertClose(8.5 / 9.0, factor, 1e-6, "light automatic factor");
 
         // A category with taczBaselineDamage <= 0 must not divide by zero - identity instead.
         TranslationTable degenerate = TranslationTable.parse(Map.of(
                 new ResourceLocation("tacz_sewv", "test_degenerate"),
-                category("heavy_machine_gun", 0.0, 40.0, null, null)));
+                category("heavy_machine_gun", 0.0, 38.0, null, null)));
         assertClose(1.0, degenerate.factorFor(Category.HEAVY_MACHINE_GUN, false, null), 1e-9,
                 "zero baseline stays identity");
 
@@ -126,7 +132,7 @@ public final class BallisticsSelfCheck {
     private static void penRemapDistinguishesHalves() {
         TranslationTable table = TranslationTable.parse(Map.of(
                 new ResourceLocation("tacz_sewv", "test_penremap"),
-                category("anti_materiel", 200.0, 140.0, 0.9, null)));
+                category("anti_materiel", 75.0, 140.0, 0.9, null)));
         double normalHalf = table.factorFor(Category.ANTI_MATERIEL, false, null);
         double apHalf = table.factorFor(Category.ANTI_MATERIEL, true, null);
         if (normalHalf == apHalf) {
@@ -137,7 +143,7 @@ public final class BallisticsSelfCheck {
         // Identity: omitting penRemapFactor must make both halves equal.
         TranslationTable noRemap = TranslationTable.parse(Map.of(
                 new ResourceLocation("tacz_sewv", "test_no_penremap"),
-                category("anti_materiel", 200.0, 140.0, null, null)));
+                category("anti_materiel", 75.0, 140.0, null, null)));
         assertClose(noRemap.factorFor(Category.ANTI_MATERIEL, false, null),
                 noRemap.factorFor(Category.ANTI_MATERIEL, true, null), 1e-9,
                 "no penRemapFactor means both halves share the base factor");
@@ -148,7 +154,7 @@ public final class BallisticsSelfCheck {
         overrides.addProperty("SHIP", 1.5);
         TranslationTable table = TranslationTable.parse(Map.of(
                 new ResourceLocation("tacz_sewv", "test_engine_override"),
-                category("light_automatic", 35.0, 8.25, null, overrides)));
+                category("light_automatic", 9.0, 8.5, null, overrides)));
 
         double base = table.factorFor(Category.LIGHT_AUTOMATIC, false, EngineType.TRACK);
         double ship = table.factorFor(Category.LIGHT_AUTOMATIC, false, EngineType.SHIP);
@@ -159,7 +165,7 @@ public final class BallisticsSelfCheck {
         // A file naming only one category must not zero out the others.
         TranslationTable table = TranslationTable.parse(Map.of(
                 new ResourceLocation("tacz_sewv", "test_partial"),
-                category("light_automatic", 35.0, 8.25, null, null)));
+                category("light_automatic", 9.0, 8.5, null, null)));
         assertClose(1.0, table.factorFor(Category.ANTI_MATERIEL, false, null), 1e-9,
                 "category the pack never named stays identity");
     }

@@ -1218,8 +1218,11 @@ public final class SewvConfig {
         builder.push("tacz_ballistics");
         TACZ_BALLISTIC_TRANSLATION_ENABLED = builder.comment(
                         "TaCZ bullet damage against SuperbWarfare vehicles is rescaled to match an",
-                        "equivalent SBW weapon before the hull's own armor tables apply, instead of TaCZ's",
-                        "raw (much smaller) numbers. Off restores TaCZ's native damage against vehicles.")
+                        "equivalent SBW handheld weapon's Damage value, then replayed as SBW gunfire/",
+                        "gunfire_absolute (or projectile_hit/custom_explosion for blast rounds) so the",
+                        "hull's own DamageModifiers apply. Off restores TaCZ's native damage types",
+                        "(tacz:bullet already sits in #superbwarfare:projectile — heavy tanks often",
+                        "zero that tag entirely).")
                 .define("tacZBallisticTranslationEnabled", true);
         TACZ_BALLISTIC_GLOBAL_SCALE = builder.comment(
                         "Extra multiplier applied on top of the per-category translation factor.",

@@ -807,6 +807,10 @@ public final class TankSpawner {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue; // ring perimeter only, nearest-first
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
+                    // Never sync-load: noCollision/getBlockState force-generate an unloaded column,
+                    // and structure-edge spawns (berezka) sit exactly on that frontier — cascading
+                    // worldgen → more structures → more spawns is the "chunks permanently freeze" report.
+                    if (!level.hasChunk(x >> 4, z >> 4)) continue;
                     int gy = groundY(level, x, z, pos.getY()) + 1; // +1 lift: hull drops onto the surface
                     var box = type.getDimensions().makeBoundingBox(x + 0.5, gy, z + 0.5);
                     if (level.noCollision(box)) return new BlockPos(x, gy, z);
@@ -833,6 +837,7 @@ public final class TankSpawner {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
+                    if (!level.hasChunk(x >> 4, z >> 4)) continue; // same sync-load ban as findClearSpawn
                     int rawY = groundY(level, x, z, pos.getY());
                     if (!isWaterSurface(level, x, rawY, z)) continue; // dry column — never fall back to land
                     int gy = rawY + 1;

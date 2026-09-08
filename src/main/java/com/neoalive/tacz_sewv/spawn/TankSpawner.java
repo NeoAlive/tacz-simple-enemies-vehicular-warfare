@@ -169,7 +169,8 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.vehiclePool(level), false, true);
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.vehiclePool(level),
+                false, true);
     }
 
     /**
@@ -182,7 +183,8 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnShipWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(level), true, true);
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(level),
+                true, true);
     }
 
     /**
@@ -198,7 +200,8 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnHeliWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                  @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.heliPool(level), false, true);
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.heliPool(level),
+                false, true);
     }
 
     /**
@@ -807,9 +810,7 @@ public final class TankSpawner {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue; // ring perimeter only, nearest-first
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
-                    // Never sync-load: noCollision/getBlockState force-generate an unloaded column,
-                    // and structure-edge spawns (berezka) sit exactly on that frontier — cascading
-                    // worldgen → more structures → more spawns is the "chunks permanently freeze" report.
+                    // Never sync-load: noCollision/getBlockState force-generate an unloaded column.
                     if (!level.hasChunk(x >> 4, z >> 4)) continue;
                     int gy = groundY(level, x, z, pos.getY()) + 1; // +1 lift: hull drops onto the surface
                     var box = type.getDimensions().makeBoundingBox(x + 0.5, gy, z + 0.5);
@@ -862,9 +863,8 @@ public final class TankSpawner {
     }
 
     // Surface Y at (x,z). Level.getHeight answers getMinBuildHeight() for an UNLOADED chunk,
-    // so a probe during/right after worldgen (berezka structures far from a player) would drop
-    // to bedrock — fall back to the caller's reference Y (e.g. the generator-projected anchor)
-    // instead. See VehicleFormation.groundY for the same sentinel.
+    // so a probe into unloaded terrain would drop to bedrock — fall back to the caller's
+    // reference Y instead. See VehicleFormation.groundY for the same sentinel.
     private static int groundY(ServerLevel level, int x, int z, int fallbackY) {
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         return y <= level.getMinBuildHeight() ? fallbackY : y;

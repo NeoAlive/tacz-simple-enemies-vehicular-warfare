@@ -22,7 +22,6 @@ import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.block.TrenchPathTypes;
 import com.neoalive.tacz_sewv.command.SewvCommand;
-import com.neoalive.tacz_sewv.compat.BerezkaStructureCompat;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.ClientConfig;
@@ -31,6 +30,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.NpcArmor;
 import com.neoalive.tacz_sewv.crew.NpcIdentity;
 import com.neoalive.tacz_sewv.crew.NpcNvg;
+import com.neoalive.tacz_sewv.crew.UnitJoinBudget;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.SemRecruitCost;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
@@ -85,6 +85,7 @@ public class TaczSewv {
         }
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(ChunkTicketSweep.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.crew.UnitJoinBudget.class);
         // Server-side half of the map markers: it only ever SENDS, so it is registered
         // unconditionally — a client with no map mod simply ignores the packet.
         MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
@@ -119,11 +120,6 @@ public class TaczSewv {
         com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry.init();
     });
     ChunkTicketSweep.register(event);
-    // Soft compat: only touch berezka_api's classes when it is actually present, so the
-    // structure-vehicle listener never classloads its event type on a berezka-less install.
-    if (ModList.get().isLoaded(BerezkaStructureCompat.MODID)) {
-        BerezkaStructureCompat.register();
-    }
     // Soft compat: OpenPAC is compileOnly; only the facade may touch xaero.pac.*, and only
     // after isLoaded(). reportAvailability() never classloads Access when the mod is absent.
     OpenPacCompat.reportAvailability();
@@ -175,19 +171,25 @@ public class TaczSewv {
     }
 
     // Every unit reaches the world through here, whichever door it came in by, which is what makes
-    // this the one place that can armor all of them. See NpcArmor.
+    // this the one place that can armor all of them. See NpcArmor. When many units join in one
+    // tick, UnitJoinBudget spreads the kit work so the server keeps ticking.
     @SubscribeEvent
     public void onEntityJoinLevel(EntityJoinLevelEvent event) {
         if (event.getLevel().isClientSide) return;
         if (event.getEntity() instanceof AbstractUnit unit) {
-            NpcArmor.issue(unit);
-            NpcNvg.issue(unit);
-            if (unit instanceof PmcUnitEntity pmc) NpcIdentity.issue(pmc);
-            // Prefer trench floors (TrenchPathTypes.TRENCH malus 0) over open ground.
+            UnitJoinBudget.noteJoin();
+            // Cheap, always — pathfinding array write.
             unit.setPathfindingMalus(BlockPathTypes.WALKABLE, TrenchPathTypes.OPEN_GROUND_MALUS);
-            // Every spawn path surfaces a unit here, so this is also the one place a squad can pick up
-            // a medic/engineer companion regardless of which door it came in by.
-            SupportSpawner.maybeSpawnCompanions(unit);
+            // Companions during a flood would enqueue more joins mid-load; skip them.
+            boolean flood = UnitJoinBudget.isFlooded();
+            UnitJoinBudget.runOrDefer(unit, u -> {
+                NpcArmor.issue(u);
+                NpcNvg.issue(u);
+                if (u instanceof PmcUnitEntity pmc) NpcIdentity.issue(pmc);
+            });
+            if (!flood) {
+                SupportSpawner.maybeSpawnCompanions(unit);
+            }
         }
     }
 }

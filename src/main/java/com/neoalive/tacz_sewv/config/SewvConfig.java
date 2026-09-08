@@ -85,13 +85,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue DARK_SPREAD_SCALE_MAX;
     public static final ForgeConfigSpec.IntValue DARK_BLOCK_LIGHT_MAX;
 
-    public static final ForgeConfigSpec.BooleanValue STRUCTURE_VEHICLES_ENABLED;
-    public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_MAX_COUNT;
-    public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_RAMP_DAYS;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_STRUCTURES;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_STRUCTURES;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_STRUCTURES;
-
     public static final ForgeConfigSpec.IntValue AI_FIRE_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.DoubleValue AI_FIRE_ASSIST_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
@@ -516,21 +509,6 @@ public final class SewvConfig {
                         "During the day, places this dark or darker count as dark for accuracy (0-15 light scale).",
                         "Night always counts as dark. Open daylight is bright from the sky, so outdoors stays accurate.")
                 .defineInRange("darkBlockLightMax", 4, 0, 15);
-        builder.pop();
-
-        builder.push("structure_vehicles");
-        STRUCTURE_VEHICLES_ENABLED = builder.comment("Spawn vehicles at matching Berezka army/PMC bases.")
-                .define("structureVehiclesEnabled", true);
-        STRUCTURE_VEHICLE_MAX_COUNT = builder.comment("Max vehicles one of those bases can have.")
-                .defineInRange("structureVehicleMaxCount", 5, 1, 16);
-        STRUCTURE_VEHICLE_RAMP_DAYS = builder.comment("In-game days until bases go from 1 vehicle up to the max.")
-                .defineInRange("structureVehicleRampDays", 24, 0, 1000);
-        RU_VEHICLE_STRUCTURES = builder.comment("Which structures get RU vehicles (structure ids).")
-                .defineList("ruVehicleStructures", List.of("russian_army_structures:tank"), SewvConfig::isValidResourceId);
-        US_VEHICLE_STRUCTURES = builder.comment("Which structures get US vehicles (structure ids).")
-                .defineList("usVehicleStructures", List.of("us_army_structures:convoy"), SewvConfig::isValidResourceId);
-        PMC_VEHICLE_STRUCTURES = builder.comment("Which structures get PMC vehicles (structure ids).")
-                .defineList("pmcVehicleStructures", List.of("pmc_structures:buggy"), SewvConfig::isValidResourceId);
         builder.pop();
 
         builder.push("crew_ai");

@@ -69,7 +69,7 @@ final class EventSpawns {
                 unit.setRole(UnitRole.DEFAULT);
             }
             default -> {
-                // Ownerless FRIENDLY_DEFAULT — same contract as Berezka PMC structure crews
+                // Ownerless FRIENDLY_DEFAULT — ambient event PMC with no recruiting player.
                 // (TankSpawner.createCrewUnit with a null ownerId).
                 PmcUnitEntity pmc = new PmcUnitEntity(ModEntities.PMCUNIT.get(), level);
                 pmc.setRole(UnitRole.FRIENDLY_DEFAULT);

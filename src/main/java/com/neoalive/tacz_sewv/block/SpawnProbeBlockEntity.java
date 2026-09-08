@@ -16,7 +16,7 @@ import com.neoalive.tacz_sewv.init.ModBlockEntities;
 
 /**
  * Structure-prep spawn marker. Stores the vehicle id pool and whether structure placement
- * should crew the hull (same path as berezka later) or leave it empty.
+ * should crew the hull or leave it empty.
  */
 public class SpawnProbeBlockEntity extends BlockEntity {
 

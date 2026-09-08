@@ -15,7 +15,7 @@ import com.neoalive.tacz_sewv.util.WarnOnce;
 /**
  * A knocked-out vehicle with its surviving crew camped around it on foot. RU/US are the usual
  * hostile find; when {@code sewvPmcAmbientSpawns} is on, the wreck can instead be an unhired PMC
- * camp (ownerless {@code FRIENDLY_DEFAULT}, same contract as Berezka PMC structure crews).
+ * camp (ownerless {@code FRIENDLY_DEFAULT}).
  *
  * <p>The counterpart to {@link ConvoyEvent}: something between "a crewed tank comes at you" and
  * "no vehicle at all". The hull is nearly destroyed, has no energy and holds a couple of rounds,

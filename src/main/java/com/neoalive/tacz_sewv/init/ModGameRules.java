@@ -19,8 +19,8 @@ public final class ModGameRules {
             GameRules.register("sewvRuSpawns", GameRules.Category.SPAWNING, GameRules.BooleanValue.create(true));
 
     /**
-     * Master switch for all automatic spawns: SEM events, village garrisons, berezka structure
-     * vehicles, and SEWV procedural events. Does not block player spawn eggs or {@code /sewv spawn}.
+     * Master switch for all automatic spawns: SEM events, village garrisons,
+     * and SEWV procedural events. Does not block player spawn eggs or {@code /sewv spawn}.
      */
     public static final GameRules.Key<GameRules.BooleanValue> AMBIENT_SPAWNS =
             GameRules.register("sewvAmbientSpawns", GameRules.Category.SPAWNING, GameRules.BooleanValue.create(true));

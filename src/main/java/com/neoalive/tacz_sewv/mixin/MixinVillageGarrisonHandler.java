@@ -80,7 +80,7 @@ public abstract class MixinVillageGarrisonHandler {
         // verified loaded (it guards its own guard-spawns with isLoaded, we don't) — so the block
         // reads/addFreshEntity below can force-load it and surface a stored villager, whose join
         // SEM handles by PENDING_GARRISONS.add(): a ConcurrentModificationException mid-iteration.
-        // Running at end of tick (as BerezkaStructureCompat does) side-steps the re-entrancy; the
+        // Running at end of tick side-steps the re-entrancy; the
         // seeded roll and the "already has one" dedupe still hold across the 2-4 deferred calls.
         level.getServer().execute(() -> {
             // Already has one (or a second villager's garrison put one here) — nothing to add.
@@ -93,7 +93,7 @@ public abstract class MixinVillageGarrisonHandler {
             if (new Random(basePos.asLong()).nextInt(100) >= chance) return;
 
             BlockPos spot = TankSpawner.adjustHeight(level, tacz_sewv$offset(level, basePos));
-            // Same frontier rule as BerezkaStructureCompat: never sync-load the offset chunk.
+            // Never sync-load the offset chunk if it is still unloaded.
             if (!level.isLoaded(spot)) return;
             TankSpawner.TankFaction faction = isRu ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
             // Crewed: fuelled by the faction-energy rule and never scavenged. See the class doc.

@@ -586,7 +586,7 @@ public final class VehicleTargeting {
     /**
      * Whether {@code player} is a player {@code unit} should help — its own owner, or, when OpenPAC
      * diplomacy is consulted, anyone not flagged {@code ENEMY}. Ownerless PMC crew (FRIENDLY_DEFAULT —
-     * village garrisons, berezka structures) default friendly to everyone, same as {@link #isSplashProtected}
+     * village garrisons) default friendly to everyone, same as {@link #isSplashProtected}
      * already treats them.
      *
      * <p>{@link #isNonHostile} is the wrong tool for a PMC asking this: its {@link #friendlyFlagShields}

@@ -307,7 +307,7 @@ public abstract class MixinPmcUnitEntity
     }
 
     /**
-     * NpcIdentity.issue is a no-op for an ownerless unit (a Berezka structure crew, an ambient
+     * NpcIdentity.issue is a no-op for an ownerless unit (an ambient
      * event rifleman) — there is no owner yet to draw a name-pool preference from. SEM's own
      * recruit-by-click (PmcUnitEntity#mobInteract) is what first hands one out, through this exact
      * setter, so that is the moment the unit's identity actually gets rolled.

@@ -507,8 +507,7 @@ dependencies {
     implementation fg.deobf("blank:kotlin:1.0")
     implementation fg.deobf("blank:simpleenemymod:1.0")
     implementation fg.deobf("blank:tacz:1.0")
-    compileOnly fg.deobf("blank:berezka_api:1.0")
-    // Soft: compile against OpenPAC API, keep off the published jar (same pattern as berezka_api).
+    // Soft: compile against OpenPAC API, keep off the published jar.
     // runtimeOnly puts it on every run classpath for local testing with OpenPAC present.
     // Absent-path verification: ./gradlew runServerDev -PnoOpenPac  (skips runtimeOnly;
     // rename/remove libs/openpac.jar is the nuclear alternative if the property is ignored).

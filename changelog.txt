@@ -19,5 +19,5 @@ AI / command
 -----------------
 - Bridge: SEM units crew Superb Warfare vehicles (ground, heli, plane, ship), mortars, TOWs.
 - Faction spawn pools, procedural events, invasion mode, doctrine ledger / TDT / handheld radio.
-- Xaero World Map markers and orders (optional), berezka structure vehicle fields (optional).
+- Xaero World Map markers and orders (optional).
 - Utility-scored ground vehicle doctrine, IFV dismount / tank-rider handling, support roles.

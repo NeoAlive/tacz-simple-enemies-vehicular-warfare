@@ -39,7 +39,7 @@ PLEASE report them on GitHub.**
 ## Dependencies
 
 Hard requirements: Forge 1.20.1, Superb Warfare, TACZ, Simple Enemy Mod (see `mods.toml` for
-version ranges). Soft / optional: Xaero's World Map, berezka_api, Open Parties and Claims,
+version ranges). Soft / optional: Xaero's World Map, Open Parties and Claims,
 Configured, and selected vehicle addons.
 
 ## Credits

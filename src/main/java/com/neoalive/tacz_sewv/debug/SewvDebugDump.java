@@ -35,7 +35,7 @@ public final class SewvDebugDump {
 
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final String[] SOFT_DEPS = {
-            "berezka_api", "xaeroworldmap", "openpartiesandclaims", "fcp", "mcsp", "ashvehicle", "vvp",
+            "xaeroworldmap", "openpartiesandclaims", "fcp", "mcsp", "ashvehicle", "vvp",
             "configured"
     };
 
@@ -239,7 +239,6 @@ public final class SewvDebugDump {
             return;
         }
         sb.append("autoBoardEnabled=").append(SewvConfig.AUTO_BOARD_ENABLED.get()).append('\n');
-        sb.append("structureVehiclesEnabled=").append(SewvConfig.STRUCTURE_VEHICLES_ENABLED.get()).append('\n');
         sb.append("ifvDismountsEnabled=").append(SewvConfig.IFV_DISMOUNTS_ENABLED.get()).append('\n');
         sb.append("tankRiderDismountEnabled=").append(SewvConfig.TANK_RIDER_DISMOUNT_ENABLED.get()).append('\n');
         sb.append("npcArmorEnabled=").append(SewvConfig.NPC_ARMOR_ENABLED.get()).append('\n');

@@ -46,8 +46,7 @@ public class ClientModEvents {
 
     /**
      * Soft compat: only touch Xaero's classes when the map mod is actually present, so its element
-     * framework is never classloaded on an install without it. Same gate as berezka in
-     * {@link com.neoalive.tacz_sewv.TaczSewv}.
+     * framework is never classloaded on an install without it.
      */
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {

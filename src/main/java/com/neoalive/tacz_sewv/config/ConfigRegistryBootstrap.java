@@ -19,7 +19,6 @@ final class ConfigRegistryBootstrap {
         registerEvents(b);
         registerResources(b);
         registerSoldiers(b);
-        registerStructures(b);
         registerCrewAi(b);
         registerCommand(b);
         registerPlatoon(b);
@@ -286,24 +285,6 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.DARK_SPREAD_SCALE_MAX, SewvConfig.DARK_SPREAD_SCALE_MAX::set);
         b.intRange(ConfigScope.SERVER, "soldiers", "darkBlockLightMax", 0, 15,
                 SewvConfig.DARK_BLOCK_LIGHT_MAX, SewvConfig.DARK_BLOCK_LIGHT_MAX::set);
-    }
-
-    private static void registerStructures(ConfigRegistry.Builder b) {
-        b.bool(ConfigScope.SERVER, "structures", "structureVehiclesEnabled",
-                SewvConfig.STRUCTURE_VEHICLES_ENABLED, SewvConfig.STRUCTURE_VEHICLES_ENABLED::set);
-        b.intRange(ConfigScope.SERVER, "structures", "structureVehicleMaxCount", 1, 16,
-                SewvConfig.STRUCTURE_VEHICLE_MAX_COUNT, SewvConfig.STRUCTURE_VEHICLE_MAX_COUNT::set);
-        b.intRange(ConfigScope.SERVER, "structures", "structureVehicleRampDays", 0, 1000,
-                SewvConfig.STRUCTURE_VEHICLE_RAMP_DAYS, SewvConfig.STRUCTURE_VEHICLE_RAMP_DAYS::set);
-        b.multilineIds(ConfigScope.SERVER, "structures", "ruVehicleStructures",
-                () -> List.copyOf(SewvConfig.RU_VEHICLE_STRUCTURES.get()),
-                v -> SewvConfig.RU_VEHICLE_STRUCTURES.set(v));
-        b.multilineIds(ConfigScope.SERVER, "structures", "usVehicleStructures",
-                () -> List.copyOf(SewvConfig.US_VEHICLE_STRUCTURES.get()),
-                v -> SewvConfig.US_VEHICLE_STRUCTURES.set(v));
-        b.multilineIds(ConfigScope.SERVER, "structures", "pmcVehicleStructures",
-                () -> List.copyOf(SewvConfig.PMC_VEHICLE_STRUCTURES.get()),
-                v -> SewvConfig.PMC_VEHICLE_STRUCTURES.set(v));
     }
 
     private static void registerCrewAi(ConfigRegistry.Builder b) {

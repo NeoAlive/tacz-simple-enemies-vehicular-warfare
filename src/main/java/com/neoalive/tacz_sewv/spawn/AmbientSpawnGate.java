@@ -7,7 +7,7 @@ import com.neoalive.tacz_sewv.compat.MineColoniesCompat;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 
 /**
- * Master gate for automatic world spawns: SEM events, village garrisons, berezka structures,
+ * Master gate for automatic world spawns: SEM events, village garrisons,
  * and SEWV procedural events. Player-initiated spawns ({@code /sewv spawn}, spawn eggs, capture
  * conversion) do not consult this.
  */

@@ -17,11 +17,11 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
  * shape as {@link NpcArmor#issue}. PMC only: RU/US units have no owner and no per-player
  * preference to draw a category from.
  *
- * <p>An ownerless unit (a Berezka structure crew, an ambient event rifleman) gets nothing at
- * all — no roll, no cached name, no nameplate — until someone actually owns it. Assigning one
- * early would (a) draw from no meaningful preference, since nobody has claimed it yet, and
- * (b) show a name over a unit nobody has recruited, which reads as every wandering PMC already
- * being "somebody's."
+     * <p>An ownerless unit (an ambient event rifleman, a village garrison crew) gets nothing at
+     * all — no roll, no cached name, no nameplate — until someone actually owns it. Assigning one
+     * early would (a) draw from no meaningful preference, since nobody has claimed it yet, and
+     * (b) show a name over a unit nobody has recruited, which reads as every wandering PMC already
+     * being "somebody's."
  */
 public final class NpcIdentity {
 

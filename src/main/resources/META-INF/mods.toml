@@ -52,12 +52,25 @@ config="tacz_sewv.minecolonies.mixins.json"
     ordering="NONE"
     side="BOTH"
 
-# SBW 0.8.9.1+ only on main — not back-compatible with 0.8.9 (that line: branch hotfix/0.8.9).
+# SBW ${sbw_version_range} only on main — not back-compatible with 0.8.9 (that line: branch hotfix/0.8.9).
+# SbwVersionMixinPlugin skips all mixins when the installed SBW is outside this range so Forge can
+# show the version requirement instead of a mixin inject crash.
 [[dependencies.tacz_sewv]]
     modId="superbwarfare"
     mandatory=true
-    versionRange="[0.8.9.1,)"
+    versionRange="${sbw_version_range}"
     ordering="AFTER"
+    side="BOTH"
+
+# Hard incompatible: berezka_api (if present). Forge 1.20.1 has no type="incompatible"; same
+# pattern SBW uses for geckoanimfix — mandatory=false + a range nothing satisfies. Absent = OK;
+# present = loading error naming this dependency. See build.gradle incompatibleModJars.
+# The range string is the message players see under "Expected range" on the Forge error screen.
+[[dependencies.tacz_sewv]]
+    modId="berezka_api"
+    mandatory=false
+    versionRange="[99999.0.Remove_berezka_api_incompatible_with_tacz_sewv,)"
+    ordering="NONE"
     side="BOTH"
 
 [[dependencies.tacz_sewv]]

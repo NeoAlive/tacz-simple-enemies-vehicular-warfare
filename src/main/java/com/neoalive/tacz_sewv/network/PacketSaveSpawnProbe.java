@@ -13,31 +13,48 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.block.SpawnProbeBlockEntity;
+import com.neoalive.tacz_sewv.block.SpawnProbeCategory;
 import com.neoalive.tacz_sewv.block.SpawnProbeEditor;
+import com.neoalive.tacz_sewv.block.SpawnProbeInfantryEntry;
+import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /** Client → server: write spawn_probe NBT from the editor Apply button. */
 public class PacketSaveSpawnProbe {
 
     private final BlockPos pos;
+    private final SpawnProbeCategory category;
+    private final TankFaction factionType;
     private final List<String> vehicleList;
     private final boolean preCrewedSpawn;
+    private final List<SpawnProbeInfantryEntry> infantryList;
 
-    public PacketSaveSpawnProbe(BlockPos pos, List<String> vehicleList, boolean preCrewedSpawn) {
+    public PacketSaveSpawnProbe(BlockPos pos, SpawnProbeCategory category, TankFaction factionType,
+                                List<String> vehicleList, boolean preCrewedSpawn,
+                                List<SpawnProbeInfantryEntry> infantryList) {
         this.pos = pos;
+        this.category = category;
+        this.factionType = factionType;
         this.vehicleList = vehicleList;
         this.preCrewedSpawn = preCrewedSpawn;
+        this.infantryList = infantryList;
     }
 
     public PacketSaveSpawnProbe(FriendlyByteBuf buf) {
         this.pos = buf.readBlockPos();
+        this.category = SpawnProbeCategory.parse(buf.readUtf(16));
+        this.factionType = PacketOpenSpawnProbeGui.readFaction(buf);
         this.vehicleList = PacketOpenPoolEditor.readStringList(buf);
         this.preCrewedSpawn = buf.readBoolean();
+        this.infantryList = PacketOpenSpawnProbeGui.readInfantryList(buf);
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeBlockPos(this.pos);
+        buf.writeUtf(this.category.name(), 16);
+        buf.writeUtf(this.factionType.name(), 16);
         PacketOpenPoolEditor.writeStringList(buf, this.vehicleList);
         buf.writeBoolean(this.preCrewedSpawn);
+        PacketOpenSpawnProbeGui.writeInfantryList(buf, this.infantryList);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -48,8 +65,8 @@ public class PacketSaveSpawnProbe {
             BlockEntity raw = level.getBlockEntity(this.pos);
             if (!(raw instanceof SpawnProbeBlockEntity be)) return;
 
-            be.setVehicleList(this.vehicleList);
-            be.setPreCrewedSpawn(this.preCrewedSpawn);
+            be.applyEditor(this.category, this.factionType, this.vehicleList, this.preCrewedSpawn,
+                    this.infantryList);
 
             BlockState state = level.getBlockState(this.pos);
             level.sendBlockUpdated(this.pos, state, state, 3);

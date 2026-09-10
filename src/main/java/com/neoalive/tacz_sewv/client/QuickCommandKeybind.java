@@ -81,7 +81,7 @@ public final class QuickCommandKeybind {
         if (!rising) return;
         if (mc.screen != null) return;
 
-        if (!hasTerminal(mc.player)) {
+        if (!canUseQuickWheel(mc.player)) {
             mc.player.displayClientMessage(
                     Component.translatable("message.tacz_sewv.tdt.hold_terminal")
                             .withStyle(ChatFormatting.GRAY),
@@ -111,6 +111,11 @@ public final class QuickCommandKeybind {
     /** TDT anywhere in the player's inventory (including offhand / hotbar), not only held. */
     public static boolean hasTerminal(Player player) {
         return com.neoalive.tacz_sewv.item.TacticalTerminal.hasInInventory(player);
+    }
+
+    /** TDT in inventory, or creative mode. */
+    public static boolean canUseQuickWheel(Player player) {
+        return com.neoalive.tacz_sewv.item.TacticalTerminal.canUseQuickWheel(player);
     }
 
     /** @deprecated use {@link #hasTerminal} */

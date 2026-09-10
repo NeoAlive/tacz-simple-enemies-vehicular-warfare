@@ -146,7 +146,7 @@ public final class ShipTerrainSensor extends TerrainSensor {
         double range = Math.max(reach, orcaReach) + half + 1.0;
         AABB search = this.vehicle.getBoundingBox().inflate(range, 2.0, range);
         this.peers = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
-                        v -> v != this.vehicle && VehiclePeerSpacing.isPeer(this.vehicle, this.unit, v)).stream()
+                        v -> VehiclePeerSpacing.isCollisionPeer(this.vehicle, this.unit, v)).stream()
                 .map(v -> {
                     Vec3 vel = v.getDeltaMovement();
                     return new VehicleOrca.Peer(v.getId(), v.getX(), v.getZ(), vel.x, vel.z, v.getBbWidth() * 0.5);

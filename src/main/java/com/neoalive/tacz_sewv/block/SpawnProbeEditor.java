@@ -31,8 +31,12 @@ public final class SpawnProbeEditor {
         NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                 new PacketOpenSpawnProbeGui(
                         be.getBlockPos(),
+                        be.getCategory(),
+                        be.getFactionType(),
                         new ArrayList<>(be.getVehicleList()),
                         be.isPreCrewedSpawn(),
-                        PoolEditorAccess.catalog()));
+                        new ArrayList<>(be.getInfantryList()),
+                        PoolEditorAccess.catalog(),
+                        SpawnProbeInfantryCatalog.IDS));
     }
 }

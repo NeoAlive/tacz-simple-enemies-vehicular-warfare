@@ -18,4 +18,12 @@ public final class TacticalTerminal {
         }
         return false;
     }
+
+    /**
+     * Quick-command wheel gate: TDT in inventory, or creative mode (builders/testers).
+     * Spectator is not creative and stays blocked.
+     */
+    public static boolean canUseQuickWheel(Player player) {
+        return hasInInventory(player) || player.isCreative();
+    }
 }

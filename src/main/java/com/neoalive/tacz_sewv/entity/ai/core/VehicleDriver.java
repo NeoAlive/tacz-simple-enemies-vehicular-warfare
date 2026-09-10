@@ -43,7 +43,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
  *
  * <p>{@link HullFacts#isWheeled() Wheeled} hulls cannot turn in place. They roll through turns
  * (throttle duty-cycled on hard bends), aim further along the path polyline, and back-and-fill
- * when the bearing is behind the beam — the same manoeuvre ships use, adapted for ground.
+ * when the bearing is behind the beam and the stern is clear. Tracked hulls pivot instead.
  */
 public final class VehicleDriver {
 
@@ -56,10 +56,6 @@ public final class VehicleDriver {
     // How far off a held bearing a parked hull tolerates before correcting. Without a deadband the
     // hull hunts across the exact bearing forever, since it can only turn in discrete held steps.
     private static final double FACING_DEADBAND_RAD = Math.toRadians(8.0);
-
-    // Reversing only opens distance while the target sits inside this frontal cone; beyond it,
-    // backing up moves the hull sideways or INTO the target.
-    private static final double REVERSE_FACING_CONE_RAD = Math.toRadians(75.0);
 
     // Pathfinding throttles: A* over the vehicle's block volume is the most expensive thing this
     // does, so a still-valid path is reused instead of recomputed on a fixed timer. Defaults live
@@ -74,7 +70,7 @@ public final class VehicleDriver {
     private static final double WHEEL_NODE_REACHED_SQ = 16.0;
     private static final double WHEEL_LOOKAHEAD_SQ = 100.0; // ~10 blocks along the path
     // Past this bearing error a wheeled hull backs and fills instead of sweeping a U-turn
-    // (same manoeuvre DriveShipGoal uses — cars also cannot turn in place).
+    // (same manoeuvre DriveShipGoal uses — cars also cannot turn in place). Tracked pivot.
     private static final double WHEEL_REVERSE_ANGLE_RAD = Math.toRadians(110.0);
     private static final int WHEEL_REVERSE_TICKS = 30;
     private static final int WHEEL_REVERSE_MAX_TICKS = 80;
@@ -185,12 +181,7 @@ public final class VehicleDriver {
     // 0 = undecided, >0 = committed left, <0 = committed right — see driveFaceAndReverse.
     private int reverseFaceTurn;
 
-    // 0 = undecided, >0 = committed left, <0 = committed right — see retreatFrom. Separate from
-    // reverseFaceTurn: a live combat retreat and a stuck-recovery reverse are different episodes
-    // and must not share commitment state.
-    private int retreatTurn;
-
-    // Wheeled three-point turn (back and fill). Separate from hull-fan / bank-lip recovery: those
+    // Three-point turn (back and fill). Separate from hull-fan / bank-lip recovery: those
     // reverse straight away from an obstruction; this swings the bow onto a bearing behind the beam.
     private int wheelReverseTicks;
     private int wheelReverseTotal;
@@ -246,6 +237,12 @@ public final class VehicleDriver {
                 this.bankLipFanBlockedTicks = 0;
             } else {
                 this.bankLipReverseTicksLeft--;
+                if (!sternClear()) {
+                    this.bankLipReverseTicksLeft = 0;
+                    this.bankLipFanBlockedTicks = 0;
+                    stop();
+                    return;
+                }
                 driveFaceAndReverse(this.bankLipReverseAway);
                 if (this.bankLipReverseTicksLeft == 0) {
                     this.currentPath = null;
@@ -264,6 +261,11 @@ public final class VehicleDriver {
         // retreat. Separate gate from bank-lip — see armFanReverse.
         if (this.hullFanReverseTicksLeft > 0) {
             this.hullFanReverseTicksLeft--;
+            if (!sternClear()) {
+                this.hullFanReverseTicksLeft = 0;
+                stop();
+                return;
+            }
             driveFaceAndReverse(this.hullFanFaceDesired);
             if (this.hullFanReverseTicksLeft == 0) {
                 this.currentPath = null;
@@ -276,10 +278,16 @@ public final class VehicleDriver {
             return;
         }
 
-        // Wedged on terrain: straight reverse (same shape as bank-lip), then repath. Inputs stay
-        // engaged throughout, so this never stalls the steering ramp.
+        // Wedged on terrain: reverse only when the stern is clear (ORCA + terrain), else hold.
+        // Blind reverse was the reverse→abort→reverse loop when allies packed the stern.
         if (this.unstickTicksLeft > 0) {
             this.unstickTicksLeft--;
+            if (!sternClear()) {
+                this.unstickTicksLeft = 0;
+                this.unstickCooldown = UNSTICK_COOLDOWN;
+                stop();
+                return;
+            }
             this.vehicle.setForwardInputDown(false);
             this.vehicle.setBackInputDown(true);
             this.vehicle.setLeftInputDown(false);
@@ -328,62 +336,15 @@ public final class VehicleDriver {
     }
 
     /**
-     * Open the distance back out to {@code retreatRadius}.
-     *
-     * <p>Only reverses when the target is actually in front, so the gun and the front armor stay on
-     * it while the distance grows. Anywhere else — a target behind the hull after driving past it —
-     * reversing is wrong, so it pathfinds forward to a standoff point instead.
-     *
-     * <p>The left/right choice while reversing carries the same hysteresis as
-     * {@link #driveFaceAndReverse} and for the same reason: this runs during a live combat
-     * break-off, not just stuck recovery, and a bare angle sign test wiggles whenever the target
-     * (which can itself be moving) sits close to dead-ahead — reported as visible wiggling while
-     * reversing even with no terrain obstruction involved. {@link #retreatTurn} is its own field,
-     * separate from {@link #reverseFaceTurn}: a combat retreat and a stuck-recovery reverse are
-     * different episodes and must not share commitment state.
+     * Open the distance back out to {@code retreatRadius} via the normal drive stack
+     * (pathfind + ORCA fan). Blind reverse-while-facing was removed: it skipped mutual
+     * hull avoidance and rocked left/right on a bare angle sign test.
      */
     public void retreatFrom(BlockPos targetPos, double retreatRadius, double distanceSq) {
         if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
         if (checkSubmergedFailsafe()) return;
-        Vec3 toTarget = new Vec3(
-                targetPos.getX() + 0.5 - this.vehicle.getX(),
-                0,
-                targetPos.getZ() + 0.5 - this.vehicle.getZ()
-        ).normalize();
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
-        double angleToTarget = VehicleTargeting.signedAngleTo(forward, toTarget);
-
-        boolean canReverse = Math.abs(angleToTarget) <= REVERSE_FACING_CONE_RAD;
-        // Don't back into water or lava. If the ground behind the hull is a hazard, pathfind
-        // forward to a standoff point instead of reversing blindly.
-        if (canReverse && this.sensor.enabled()) {
-            Vec3 behind = new Vec3(-forward.x, 0, -forward.z).normalize();
-            if (!this.sensor.headingClear(behind, this.sensor.lookahead())) canReverse = false;
-        }
-
-        if (canReverse) {
-            // Keep facing the target so the turret stays on it, but drive in reverse.
-            boolean aligned = Math.abs(angleToTarget) < getRotationStopAngle(distanceSq);
-            boolean left;
-            if (this.retreatTurn > 0) {
-                left = angleToTarget > -REVERSE_FACE_HYSTERESIS_RAD;
-            } else if (this.retreatTurn < 0) {
-                left = angleToTarget > REVERSE_FACE_HYSTERESIS_RAD;
-            } else {
-                left = angleToTarget > 0;
-            }
-            this.retreatTurn = aligned ? 0 : (left ? 1 : -1);
-            this.vehicle.setLeftInputDown(!aligned && left);
-            this.vehicle.setRightInputDown(!aligned && !left);
-            this.vehicle.setForwardInputDown(false);
-            this.vehicle.setBackInputDown(true);
-        } else {
-            this.retreatTurn = 0;
-            // The standoff point is pathfound to via the node evaluator, so it still respects
-            // over-ford-depth water. Ring math is shared with the flight goal.
-            navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, targetPos, retreatRadius),
-                    distanceSq);
-        }
+        navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, targetPos, retreatRadius),
+                distanceSq);
     }
 
     /**
@@ -445,7 +406,6 @@ public final class VehicleDriver {
         this.hullFanReverseTicksLeft = 0;
         this.hullFanFaceDesired = null;
         this.reverseFaceTurn = 0;
-        this.retreatTurn = 0;
         this.submergedStrandedTicks = 0;
         this.lastSubmergedPos = null;
         this.wheelReverseTicks = 0;
@@ -669,12 +629,16 @@ public final class VehicleDriver {
                 if (armFanReverse(desired, "boxedIn")) {
                     return; // reverse armed — inputs already set
                 }
-                // Wheeled last resort: three-point turn instead of holding for a pivot that cannot happen.
+                // Wheeled last resort: three-point when the stern is clear. Tracked hold — they
+                // can pivot next tick; forcing reverse here packed allies into mutual reverse.
                 if (this.hull.isWheeled()) {
                     Vector3f fwd = this.vehicle.getForwardDirection().normalize();
-                    beginWheelReverse(VehicleTargeting.signedAngleTo(fwd, desired));
-                    backAndFillWheeled(targetPos);
-                    return;
+                    Vec3 stern = new Vec3(-fwd.x, 0, -fwd.z);
+                    if (!avoidance || this.sensor.headingClear(stern, this.sensor.lookahead())) {
+                        beginWheelReverse(VehicleTargeting.signedAngleTo(fwd, desired));
+                        backAndFillWheeled(targetPos);
+                        return;
+                    }
                 }
                 // No safe retreat this tick either — hold still and re-probe next tick rather than
                 // pivot blind. updateStuck's own straight-reverse fallback still applies if this
@@ -689,10 +653,21 @@ public final class VehicleDriver {
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, steer);
 
-        // Bearing behind the beam: a wheeled hull cannot sweep a U-turn — back and fill.
-        if (this.hull.isWheeled() && Math.abs(angle) > WHEEL_REVERSE_ANGLE_RAD) {
-            beginWheelReverse(angle);
-            backAndFillWheeled(targetPos);
+        // Bearing behind the beam: wheeled three-point when the stern is clear. Tracked pivot —
+        // opening range asks ~180° behind and forcing reverse there made every tank reverse into
+        // the ally on its stern at once.
+        if (Math.abs(angle) > WHEEL_REVERSE_ANGLE_RAD) {
+            if (this.hull.isWheeled()) {
+                Vec3 stern = new Vec3(-forward.x, 0, -forward.z);
+                if (!avoidance || this.sensor.headingClear(stern, this.sensor.lookahead())) {
+                    beginWheelReverse(angle);
+                    backAndFillWheeled(targetPos);
+                    return;
+                }
+                stop();
+                return;
+            }
+            faceHeading(steer);
             return;
         }
 
@@ -765,6 +740,14 @@ public final class VehicleDriver {
      * same as {@link DriveShipGoal}'s back-and-fill.
      */
     private void backAndFillWheeled(BlockPos dest) {
+        // Abort if the stern fouls mid-episode (ORCA / terrain) — same gate as arming.
+        if (!sternClear()) {
+            this.wheelReverseTicks = 0;
+            this.wheelReverseTotal = 0;
+            stop();
+            return;
+        }
+
         this.wheelReverseTicks--;
         this.wheelReverseTotal++;
         this.vehicle.setForwardInputDown(false);
@@ -919,11 +902,17 @@ public final class VehicleDriver {
         return true;
     }
 
+    /** True when reverse translation is safe (or the sensor is off). */
+    private boolean sternClear() {
+        if (!this.sensor.enabled()) return true;
+        Vector3f fwd = this.vehicle.getForwardDirection().normalize();
+        return this.sensor.headingClear(new Vec3(-fwd.x, 0, -fwd.z), this.sensor.lookahead());
+    }
+
     /**
-     * Turn to face {@code face} while backing up. Same hysteresis shape as {@link #retreatFrom}
-     * and for the same reason: a hull that can't back away cleanly (colliding with terrain while
-     * reversing) will swing past a bare deadband and bounce back, flip-flopping the facing turn
-     * every tick while {@code setBackInputDown} stays held throughout — visibly "wiggling while
+     * Turn to face {@code face} while backing up. Hysteresis on the facing turn stops a hull
+     * that can't back away cleanly (colliding with terrain while reversing) from flip-flopping
+     * left/right every tick while {@code setBackInputDown} stays held — visibly "wiggling while
      * going backwards". {@link #reverseFaceTurn} is reset wherever a reverse is freshly armed
      * (bank-lip, hull-fan), so each episode starts undecided.
      */

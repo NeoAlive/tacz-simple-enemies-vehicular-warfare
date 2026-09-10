@@ -114,7 +114,7 @@ public final class QuickCommandWheelScreen extends Screen {
             closeQuiet();
             return;
         }
-        if (!QuickCommandKeybind.hasTerminal(mc.player)) {
+        if (!QuickCommandKeybind.canUseQuickWheel(mc.player)) {
             closeQuiet();
             return;
         }

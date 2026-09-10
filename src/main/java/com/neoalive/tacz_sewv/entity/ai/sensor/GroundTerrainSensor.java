@@ -536,10 +536,35 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double selfX = this.vehicle.getX();
         double selfZ = this.vehicle.getZ();
         int selfId = this.vehicle.getId();
+        double dirLen = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
+        double ndx = dirLen > 1.0E-8 ? dir.x / dirLen : 0.0;
+        double ndz = dirLen > 1.0E-8 ? dir.z / dirLen : 0.0;
         for (VehicleOrca.Peer peer : this.peers) {
             double radius = VehicleOrca.radius(half, peer.half());
             double px = peer.x() - selfX;
             double pz = peer.z() - selfZ;
+            double distSq = px * px + pz * pz;
+            // Already interpenetrating: hard-block even when relative velocity is not closing
+            // (two hulls hanging on each other's hitbox while both reverse).
+            if (distSq <= radius * radius) {
+                p.hard = 1.0F;
+                p.reason = "hull";
+                return;
+            }
+            // Geometric occupancy on this heading — soft skirt alone never fails headingClear,
+            // so a reverse/translate toward an ally just outside the 8-tick imminent window used
+            // to arm, abort, and re-arm forever.
+            if (ndx != 0.0 || ndz != 0.0) {
+                double along = px * ndx + pz * ndz;
+                if (along > 0.0 && along < VehiclePeerSpacing.SOFT_DISTANCE) {
+                    double cross = px * ndz - pz * ndx;
+                    if (cross * cross < radius * radius) {
+                        p.hard = 1.0F;
+                        p.reason = "hull";
+                        return;
+                    }
+                }
+            }
             if (VehicleOrca.overlappingAndClosing(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius)
                     || VehicleOrca.imminent(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius, ORCA_IMMINENT_TICKS)) {
                 p.hard = 1.0F;
@@ -704,7 +729,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double range = Math.max(reach, orcaReach) + half + 1.0;
         AABB search = this.vehicle.getBoundingBox().inflate(range, 2.0, range);
         this.peers = this.unit.level().getEntitiesOfClass(VehicleEntity.class, search,
-                        v -> v != this.vehicle && VehiclePeerSpacing.isPeer(this.vehicle, this.unit, v)).stream()
+                        v -> VehiclePeerSpacing.isCollisionPeer(this.vehicle, this.unit, v)).stream()
                 .map(v -> {
                     Vec3 vel = v.getDeltaMovement();
                     return new VehicleOrca.Peer(v.getId(), v.getX(), v.getZ(), vel.x, vel.z, v.getBbWidth() * 0.5);

@@ -5,17 +5,19 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import com.neoalive.tacz_sewv.entity.ai.support.EnemyCrewInteractGuard;
 import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
 
+/**
+ * Defense-in-depth for the enemy-crew interact lock on SBW's {@code VehicleEntity.interact}.
+ * Addon short-circuits (FCP shift-hold, etc.) are caught by {@link EnemyCrewInteractGuard}.
+ */
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
 public abstract class MixinVehicleInteractLock {
 
@@ -26,20 +28,15 @@ public abstract class MixinVehicleInteractLock {
 
         VehicleEntity self = (VehicleEntity) (Object) this;
 
-        // If any passenger is an enemy RU/US unit, deny interaction entirely
-        for (Entity passenger : self.getPassengers()) {
-            if (passenger instanceof RUunitEntity || passenger instanceof USunitEntity) {
-                if (!player.level().isClientSide()) {
-                    player.displayClientMessage(
-                            Component.translatable("message.tacz_sewv.interact.enemy_crew")
-                                    .withStyle(ChatFormatting.GRAY), true);
-                }
-                cir.setReturnValue(InteractionResult.FAIL); // enemy vehicle, hands off
-                return;
+        if (EnemyCrewInteractGuard.hasEnemyCrew(self)) {
+            if (!player.level().isClientSide()) {
+                player.displayClientMessage(
+                        Component.translatable("message.tacz_sewv.interact.enemy_crew")
+                                .withStyle(ChatFormatting.GRAY), true);
             }
+            cir.setReturnValue(InteractionResult.FAIL);
+            return;
         }
-        // Unlocked NPC hull — fill EngineType loot into inventory before the player opens it.
         VehicleEngineLoot.tryApplyOnUnlock(self);
-        // No enemy crew → let SW's normal interact run (fall through, no cancel)
     }
 }

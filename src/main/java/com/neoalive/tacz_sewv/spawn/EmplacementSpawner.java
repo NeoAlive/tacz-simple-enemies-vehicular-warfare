@@ -253,15 +253,12 @@ public final class EmplacementSpawner {
             return resolveRocket(id);
         }
         if (weapon instanceof MortarEntity) {
-            // Rolled once, per crew, so a battery's tubes can differ from each other but a given
-            // tube shoots one thing throughout rather than alternating at random.
             String id = random.nextDouble() < LOW_CHANCE_SHELL
                     ? SewvConfig.LOW_CHANCE_MORTAR_SHELL.get()
                     : SewvConfig.HIGH_CHANCE_MORTAR_SHELL.get();
             return resolveShell(id);
         }
         if (weapon instanceof TowEntity) {
-            // VVP AGS uses 30mm grenades; Kornet / SBW TOW use AT missiles.
             String id = ForgeRegistries.ENTITY_TYPES.getKey(weapon.getType()).toString();
             if (id.contains("ags")) {
                 Item ags = ForgeRegistries.ITEMS.getValue(new ResourceLocation("vvp:item_30mm"));
@@ -269,7 +266,28 @@ public final class EmplacementSpawner {
             }
             return ModItems.MEDIUM_ANTI_GROUND_MISSILE.get();
         }
+        // FCP emplacements / other Fixed AT in the tow pool — ask the gun's AmmoConsumer.
+        Item fromGun = firstAmmoItem(weapon);
+        if (fromGun != null) return fromGun;
         return ModItems.MEDIUM_ANTI_GROUND_MISSILE.get();
+    }
+
+    @Nullable
+    private static Item firstAmmoItem(VehicleEntity weapon) {
+        try {
+            var gun = weapon.getGunData(0);
+            if (gun == null) return null;
+            var consumers = gun.get(com.atsuishio.superbwarfare.data.gun.GunProp.AMMO_CONSUMER);
+            if (consumers == null) return null;
+            for (var c : consumers) {
+                if (c == null) continue;
+                ItemStack stack = c.stack();
+                if (!stack.isEmpty()) return stack.getItem();
+            }
+        } catch (Exception ignored) {
+            // unreadable gun data
+        }
+        return null;
     }
 
     /**

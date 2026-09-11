@@ -91,6 +91,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue FRIENDLY_FIRE_VEHICLE_RADIUS;
     public static final ForgeConfigSpec.ConfigValue<String> AI_AIM_ACCURACY;
     public static final ForgeConfigSpec.DoubleValue AI_AIM_SPREAD_DEG;
+    public static final ForgeConfigSpec.ConfigValue<String> GRENADE_THROW_CADENCE;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_SKIN_MOUNT_CHANCE;
     public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
     public static final ForgeConfigSpec.BooleanValue SEM_CREW_DISABLE_INERTIA_ROTATE;
@@ -529,6 +530,11 @@ public final class SewvConfig {
         // Existing configs keep the old value until edited or deleted.
         AI_AIM_SPREAD_DEG = builder.comment("Extra aim wobble in degrees for realistic/scaled modes.")
                 .defineInRange("aiAimSpreadDegrees", 4.0, 0.0, 30.0);
+        GRENADE_THROW_CADENCE = builder.comment(
+                        "How often on-foot units throw grenades: default (8-24 blocks, ~5s),",
+                        "rare (within 16 blocks, ~12s), or aggressive (within 30 blocks, ~2.5s).")
+                .defineInList("grenadeThrowCadence", "default",
+                        Arrays.asList("default", "rare", "aggressive"));
         VEHICLE_SKIN_MOUNT_CHANCE = builder.comment(
                         "Chance a soldier climbing into an empty captured vehicle paints it in their faction colours.",
                         "Vehicles spawned already crewed always get the faction look; this is only for field captures.")

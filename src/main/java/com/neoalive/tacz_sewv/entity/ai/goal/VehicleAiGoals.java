@@ -71,6 +71,8 @@ public final class VehicleAiGoals {
         // PMC a player equipped). Gates on an SBW gun being in the main hand, which is one
         // instanceof for everyone else.
         unit.goalSelector.addGoal(1, new AtWeaponGoal(unit));
+        // On-foot grenade throw (LOOK). Below AT launchers; holsters the rifle for the toss.
+        unit.goalSelector.addGoal(2, new GrenadeThrowGoal(unit));
         // Priority 2: the turret sweep and radio chatter of a crew with nothing to fight. Claims no
         // flags and only runs while the unit holds no target, so it yields to everything above by
         // simply not being applicable. The idle DRIVING half is not here — it is a destination

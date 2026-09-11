@@ -47,12 +47,17 @@ public class WorldVehiclePools extends SavedData {
     /** Indirect-fire emplacements (tube mortar and MLRS). */
     private static final List<String> DEFAULT_MORTAR = List.of(
             "superbwarfare:mortar", "superbwarfare:type_63");
+    /** Hand grenades for on-foot AI throws (item ids, not entity types). */
+    private static final List<String> DEFAULT_GRENADES = List.of(
+            "superbwarfare:hand_grenade",
+            "superbwarfare:rgo_grenade",
+            "superbwarfare:m18_smoke_grenade");
 
     private static Map<TankFaction, Map<Category, List<String>>> legacyPools;
     private static boolean legacyPoolsLoaded;
 
     public enum Category {
-        GROUND, SHIP, PLANE, HELI, TOW, MORTAR
+        GROUND, SHIP, PLANE, HELI, TOW, MORTAR, GRENADE
     }
 
     private final Map<TankFaction, Map<Category, List<String>>> pools = new EnumMap<>(TankFaction.class);
@@ -231,6 +236,7 @@ public class WorldVehiclePools extends SavedData {
             };
             case TOW -> DEFAULT_TOW;
             case MORTAR -> DEFAULT_MORTAR;
+            case GRENADE -> DEFAULT_GRENADES;
         };
     }
 

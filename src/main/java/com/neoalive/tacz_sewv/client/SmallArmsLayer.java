@@ -21,6 +21,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 
+import com.neoalive.tacz_sewv.entity.ai.support.GrenadeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /**
@@ -54,13 +55,14 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
                        float netHeadYaw, float headPitch) {
 
         if (entity.isDeadOrDying()) return;
-        if (UnitHolster.hideHeldItems(entity)) return;
+        if (UnitHolster.hideHeldItems(entity) && !UnitHolster.isThrowingGrenade(entity)) return;
 
         ItemStack stack = entity.getItemInHand(InteractionHand.MAIN_HAND);
         if (!(stack.getItem() instanceof GunItem)
                 && !(stack.getItem() instanceof MedicalKitItem)
                 && !(stack.getItem() instanceof MonitorItem)
-                && !(stack.getItem() instanceof MilitaryShovelItem)) return;
+                && !(stack.getItem() instanceof MilitaryShovelItem)
+                && !GrenadeSupport.isGrenadeItem(stack)) return;
 
         if (!(this.getParentModel() instanceof HierarchicalModel<?> model)) return;
 

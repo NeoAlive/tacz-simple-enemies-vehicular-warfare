@@ -50,11 +50,15 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
         if (UnitHolster.MANNING_MORTAR == null) {
             throw new ExceptionInInitializerError("UnitHolster.MANNING_MORTAR");
         }
+        if (UnitHolster.THROWING_GRENADE == null) {
+            throw new ExceptionInInitializerError("UnitHolster.THROWING_GRENADE");
+        }
     }
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
     private void tacz_sewv$defineManningMortar(CallbackInfo ci) {
         ((Entity) (Object) this).getEntityData().define(UnitHolster.MANNING_MORTAR, false);
+        ((Entity) (Object) this).getEntityData().define(UnitHolster.THROWING_GRENADE, false);
     }
 
     // setTarget is a vanilla Mob method SEM overrides, so the target is remapped

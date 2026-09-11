@@ -301,6 +301,9 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.AI_AIM_ACCURACY, SewvConfig.AI_AIM_ACCURACY::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "aiAimSpreadDegrees", 0.0, 30.0,
                 SewvConfig.AI_AIM_SPREAD_DEG, SewvConfig.AI_AIM_SPREAD_DEG::set);
+        b.enumChoice(ConfigScope.SERVER, "crew_ai", "grenadeThrowCadence",
+                Arrays.asList("default", "rare", "aggressive"),
+                SewvConfig.GRENADE_THROW_CADENCE, SewvConfig.GRENADE_THROW_CADENCE::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "vehicleSkinMountChance", 0.0, 1.0,
                 SewvConfig.VEHICLE_SKIN_MOUNT_CHANCE, SewvConfig.VEHICLE_SKIN_MOUNT_CHANCE::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "ifvDismountsEnabled",

@@ -12,6 +12,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
+import com.neoalive.tacz_sewv.entity.ai.support.GrenadeSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /**
  * Stops a mounted crew member from firing its hand-held gun with SEM's
@@ -39,12 +41,20 @@ public abstract class MixinRangedGunAttackGoal {
     private void tacz_sewv$blockGunWhenCrewingVehicle(CallbackInfoReturnable<Boolean> cir) {
         if (VehicleWeapons.controlsVehicleWeapon(this.mob)) {
             cir.setReturnValue(false);
+            return;
+        }
+        if (UnitHolster.isThrowingGrenade(this.mob) || GrenadeSupport.isGrenadeItem(this.mob.getMainHandItem())) {
+            cir.setReturnValue(false);
         }
     }
 
     @Inject(method = "canContinueToUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$stopGunWhenCrewingVehicle(CallbackInfoReturnable<Boolean> cir) {
         if (VehicleWeapons.controlsVehicleWeapon(this.mob)) {
+            cir.setReturnValue(false);
+            return;
+        }
+        if (UnitHolster.isThrowingGrenade(this.mob) || GrenadeSupport.isGrenadeItem(this.mob.getMainHandItem())) {
             cir.setReturnValue(false);
         }
     }

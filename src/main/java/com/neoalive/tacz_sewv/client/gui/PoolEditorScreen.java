@@ -15,6 +15,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
+import com.neoalive.tacz_sewv.client.editor.GrenadePoolCatalog;
 import com.neoalive.tacz_sewv.client.editor.VehiclePoolCatalog;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketUpdateVehiclePools;
@@ -77,12 +78,17 @@ public class PoolEditorScreen extends Screen {
 
     /** Client scan merged with the server snapshot from the open packet. */
     private void reloadCatalog() {
-        this.activeCatalogList = VehiclePoolCatalog.mergedWith(this.catalog);
+        if (this.category == Category.GRENADE) {
+            this.activeCatalogList = GrenadePoolCatalog.ids();
+        } else {
+            this.activeCatalogList = VehiclePoolCatalog.mergedWith(this.catalog);
+        }
     }
 
     @Override
     protected void init() {
         VehiclePoolCatalog.ensureLoaded();
+        GrenadePoolCatalog.ensureLoaded();
         reloadCatalog();
         int left = (this.width - panelW()) / 2;
         int top = 28;
@@ -109,6 +115,7 @@ public class PoolEditorScreen extends Screen {
                         this.category = cc;
                         this.scroll = 0;
                         this.selected = -1;
+                        reloadCatalog();
                         refreshFilter();
                     }).bounds(x, catY, 72, 20).build());
             x += 76;
@@ -150,6 +157,7 @@ public class PoolEditorScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
+        if (this.category == Category.GRENADE) return;
         if (!this.activeCatalogList.isEmpty()) return;
         if (++this.catalogRetryTicks % 40 != 0) return;
         VehiclePoolCatalog.rebuildIfEmpty();
@@ -169,7 +177,9 @@ public class PoolEditorScreen extends Screen {
         }
         this.filteredCatalog = out;
         String typed = this.filterBox != null ? this.filterBox.getValue() : "";
-        this.autocompleteSuggestion = VehiclePoolCatalog.suggest(typed, catalog, pool);
+        this.autocompleteSuggestion = this.category == Category.GRENADE
+                ? GrenadePoolCatalog.suggest(typed, catalog, pool)
+                : VehiclePoolCatalog.suggest(typed, catalog, pool);
     }
 
     private boolean applyTabCompletion() {
@@ -291,13 +301,17 @@ public class PoolEditorScreen extends Screen {
         graphics.drawString(this.font, hint, left, listTop + LIST_ROWS * 12 + 58, 0xA0A0A0, false);
 
         if (this.activeCatalogList.isEmpty()) {
-            Component msg = this.catalog.isEmpty()
+            Component msg = this.category == Category.GRENADE
                     ? Component.translatable("gui.tacz_sewv.pool.catalog_empty")
-                    : Component.translatable("gui.tacz_sewv.pool.catalog_loading");
+                    : (this.catalog.isEmpty()
+                    ? Component.translatable("gui.tacz_sewv.pool.catalog_empty")
+                    : Component.translatable("gui.tacz_sewv.pool.catalog_loading"));
             graphics.drawString(this.font, msg, left, listTop + LIST_ROWS * 12 + 70, 0xFFAA55, false);
         } else if (this.filterBox != null && this.autocompleteSuggestion != null) {
             String typed = this.filterBox.getValue();
-            String suffix = VehiclePoolCatalog.completionSuffix(typed, this.autocompleteSuggestion);
+            String suffix = this.category == Category.GRENADE
+                    ? GrenadePoolCatalog.completionSuffix(typed, this.autocompleteSuggestion)
+                    : VehiclePoolCatalog.completionSuffix(typed, this.autocompleteSuggestion);
             if (!suffix.isEmpty()) {
                 int boxX = this.filterBox.getX();
                 int boxY = this.filterBox.getY() + (this.filterBox.getHeight() - 8) / 2;

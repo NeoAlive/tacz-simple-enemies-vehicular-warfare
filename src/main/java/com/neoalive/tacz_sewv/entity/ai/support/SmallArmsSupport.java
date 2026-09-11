@@ -125,7 +125,7 @@ public final class SmallArmsSupport {
     }
 
     /** An SBW launcher in either hand — the same test AtWeaponGoal fires under. */
-    private static boolean holdsLauncher(AbstractUnit unit) {
+    public static boolean holdsLauncher(AbstractUnit unit) {
         return isLauncher(unit.getMainHandItem()) || isLauncher(unit.getOffhandItem());
     }
 

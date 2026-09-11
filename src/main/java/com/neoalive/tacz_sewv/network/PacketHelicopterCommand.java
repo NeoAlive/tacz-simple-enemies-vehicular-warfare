@@ -18,7 +18,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal;
@@ -153,9 +152,6 @@ public class PacketHelicopterCommand {
                 IHelicopterPilot pilot = (IHelicopterPilot) pmc;
                 if (this.command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
                     FlightOrders.takeoff(pmc, v, this.altitude);
-                    if (plane) {
-                        CrewRadio.play(v, CrewRadio.Line.TAKEOFF);
-                    }
                     ordered++;
                     continue;
                 }

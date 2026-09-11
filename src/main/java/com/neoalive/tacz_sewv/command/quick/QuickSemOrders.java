@@ -45,7 +45,7 @@ public final class QuickSemOrders {
             clearConflicting(pmc);
             pmc.setOrder(order);
             if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
-                CrewRadio.play(hull, CrewRadio.Line.ORDERS);
+                CrewRadio.play(hull, CrewRadio.Line.ORDER_DISPATCH);
             }
             ok++;
         }

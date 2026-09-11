@@ -343,6 +343,18 @@ public final class VehicleWeapons {
         return UNCLASSIFIED;
     }
 
+    /**
+     * Maps the seat's current physical weapon index back to a role. Used by fire voicelines.
+     */
+    public static int roleOfCurrentWeapon(VehicleEntity vehicle, int seatIndex) {
+        if (seatIndex < 0) return UNCLASSIFIED;
+        SeatInfo seat = vehicle.getSeat(seatIndex);
+        int weaponCount = seat == null ? 0 : seat.weapons().size();
+        if (weaponCount <= 0) return UNCLASSIFIED;
+        int physical = vehicle.getWeaponIndex(seatIndex);
+        return roleOf(resolveRoleSlots(vehicle, seatIndex, weaponCount), physical);
+    }
+
     // Classify each physical slot in the seat and return a role→slot map (values are
     // physical weapon indices, or -1 if the seat has no weapon for that role). The
     // first physical slot matching a role wins. A slot that can't be classified is

@@ -5,7 +5,6 @@ import java.util.List;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
@@ -29,7 +28,6 @@ import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModItems;
-import com.neoalive.tacz_sewv.init.ModSounds;
 
 /**
  * Forward observer's radio: opens a compact fire-mission panel to call mortar, TOW, artillery
@@ -107,9 +105,6 @@ public class HandheldRadioItem extends Item {
             hint(player, "message.tacz_sewv.radio.standdown.none", ChatFormatting.GRAY);
             return;
         }
-
-        player.level().playSound(null, player, ModSounds.PMC_MORTAR.next(),
-                SoundSource.NEUTRAL, 1.0F, 1.0F);
 
         Component msg = Component.translatable(
                 released == 1

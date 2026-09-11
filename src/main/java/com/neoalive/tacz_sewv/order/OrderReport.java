@@ -15,7 +15,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -26,7 +25,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
@@ -43,9 +41,8 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
  * <p><b>Successes and failures leave by different doors, on purpose.</b> Successes go to the
  * player, through {@code PacketOrderFeedback}, so {@code ClientConfig.SHOW_ORDER_FEEDBACK} still
  * turns them off. Failures go to the <b>server console</b> and never to chat: a running commentary
- * of every rejected click was noise, and the answer a player actually wants — that the unit heard
- * and refused — is better given by the crew's own spoken reply, which still plays. The written
- * reason is for whoever is diagnosing why, which is a log's job.
+ * of every rejected click was noise. The written reason is for whoever is diagnosing why, which is
+ * a log's job.
  *
  * <p>That is also why the aggregate "nothing took the order" success line is no longer suppressed
  * when a specific reason is known. It used to be, on the grounds that the reason said more; now the
@@ -72,8 +69,6 @@ public final class OrderReport {
         final List<Component> successes = new ArrayList<>(2);
         final Map<String, Integer> accepted = new LinkedHashMap<>();
         final EnumMap<OrderFailure, Integer> failures = new EnumMap<>(OrderFailure.class);
-        @Nullable AbstractUnit voice;
-        @Nullable SoundEvent clip;
         boolean fromVeto;
     }
 
@@ -104,23 +99,14 @@ public final class OrderReport {
     }
 
     /**
-     * @param speaker the unit doing the refusing, if there is one — it plays the reply, so the
-     *                answer comes from the crew rather than out of the air.
+     * @param speaker retained for call-site compatibility; refusal audio was removed in the
+     *                voiceline overhaul.
      */
     public static void fail(@Nullable Player player, OrderFailure why, @Nullable AbstractUnit speaker) {
         if (!(player instanceof ServerPlayer server)) return;
 
         Pending p = pending(server);
         p.failures.merge(why, 1, Integer::sum);
-        // One clip per flush: a squad refusing in unison should answer once, not eight times over
-        // itself. First audible reason wins, which is also the one the player reads first.
-        if (p.clip == null && speaker != null) {
-            SoundEvent clip = why.sound();
-            if (clip != null) {
-                p.voice = speaker;
-                p.clip = clip;
-            }
-        }
     }
 
     /**
@@ -197,10 +183,6 @@ public final class OrderReport {
             int count = f.getValue();
             SewvDiag.orderFail("{} refused: {}{}", player.getGameProfile().getName(),
                     f.getKey().name(), count == 1 ? "" : " x" + count);
-        }
-
-        if (p.voice != null && p.clip != null && p.voice.isAlive()) {
-            CrewRadio.speakRefusal(p.voice, p.clip);
         }
     }
 

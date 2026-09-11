@@ -117,7 +117,7 @@ public abstract class MixinPacketIssueOrder {
         ((IPathwayInfantry) pmc).sewv$clearPathway();
 
         if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
-            CrewRadio.play(hull, CrewRadio.Line.ORDERS);
+            CrewRadio.play(hull, CrewRadio.Line.ORDER_DISPATCH);
         }
     }
 }

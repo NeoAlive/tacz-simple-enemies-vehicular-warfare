@@ -104,7 +104,7 @@ public class RepairGoal extends Goal {
         this.working = false;
         // Repair outranks drone sit — unlock so LockGoal releases MOVE and holster restores the tool.
         DroneOperatorGoal.unlockEngineer(this.unit);
-        CrewRadio.speakUnit(this.unit, CrewRadio.Line.FIXING);
+        CrewRadio.speakUnit(this.unit, CrewRadio.Line.UNIT_REPAIR);
         this.unit.getNavigation().moveTo(this.target, 1.0);
         applySpeedBoost();
     }

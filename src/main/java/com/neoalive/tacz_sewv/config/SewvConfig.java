@@ -267,6 +267,9 @@ public final class SewvConfig {
 
     public static final ForgeConfigSpec.BooleanValue VEHICLE_VOICELINES_ENABLED;
     public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_DELAY_TICKS;
+    public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_INITIAL_JITTER_TICKS;
+    public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_REPEAT_BASE_TICKS;
+    public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_REPEAT_JITTER_TICKS;
     public static final ForgeConfigSpec.DoubleValue IDLE_VOICELINE_HEALTH_FRACTION;
 
     // orderFailureDebug/targetVetoDebug → ClientConfig (Config UI Client → Debug).
@@ -1081,8 +1084,19 @@ public final class SewvConfig {
         builder.push("voicelines");
         VEHICLE_VOICELINES_ENABLED = builder.comment("Play radio chatter from crews inside vehicles.")
                 .define("vehicleVoicelinesEnabled", true);
-        IDLE_VOICELINE_DELAY_TICKS = builder.comment("Quiet time (game ticks) before idle crew chatter starts.")
-                .defineInRange("idleVoicelineDelayTicks", 320, 20, 12000);
+        IDLE_VOICELINE_DELAY_TICKS = builder.comment(
+                        "Quiet time (game ticks) before the first idle crew chatter attempt.")
+                .defineInRange("idleVoicelineDelayTicks", 200, 20, 12000);
+        IDLE_VOICELINE_INITIAL_JITTER_TICKS = builder.comment(
+                        "Random extra ticks (0..N) added to the first idle chatter deadline",
+                        "so a formation does not all speak at once.")
+                .defineInRange("idleVoicelineInitialJitterTicks", 400, 0, 12000);
+        IDLE_VOICELINE_REPEAT_BASE_TICKS = builder.comment(
+                        "Base gap (game ticks) between successive idle lines on one hull.")
+                .defineInRange("idleVoicelineRepeatBaseTicks", 750, 40, 12000);
+        IDLE_VOICELINE_REPEAT_JITTER_TICKS = builder.comment(
+                        "Random extra ticks (0..N) added to each idle repeat gap.")
+                .defineInRange("idleVoicelineRepeatJitterTicks", 600, 0, 12000);
         IDLE_VOICELINE_HEALTH_FRACTION = builder.comment("No idle chatter when the vehicle is below this health (0.3 = 30%).")
                 .defineInRange("idleVoicelineHealthFraction", 0.3, 0.0, 1.0);
         builder.pop();

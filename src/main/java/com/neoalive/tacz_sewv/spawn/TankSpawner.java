@@ -41,6 +41,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.compat.AshAmmoCompat;
 import com.neoalive.tacz_sewv.compat.McspAmmoCompat;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
+import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.compat.VvpAmmoCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModGameRules;
@@ -568,7 +569,7 @@ public final class TankSpawner {
      */
     public static void stockTokenAmmo(VehicleEntity tank, int count) {
         if (count <= 0) return;
-        if (!tank.hasContainer() || tank.getContainerSize() <= 0) return;
+        if (!VehicleAmmoStorage.hasStorage(tank)) return;
 
         String id = entityId(tank);
         if (AshAmmoCompat.isMissileSystemHull(id)) return;
@@ -576,7 +577,7 @@ public final class TankSpawner {
         List<Item> ammo = resolveWithFallback(tank, id);
         if (ammo.isEmpty()) return;
 
-        tank.setItem(0, new ItemStack(ammo.get(0), count));
+        VehicleAmmoStorage.setStack(tank, 0, new ItemStack(ammo.get(0), count));
     }
 
     private static final String TAG_AMMO_STOCKED = "sewv:ammo_stocked";
@@ -592,21 +593,13 @@ public final class TankSpawner {
         if (!(driver instanceof RUunitEntity) && !(driver instanceof USunitEntity)) return;
         if (!SewvConfig.FACTION_INFINITE_AMMO.get()) return;
         if (hull.getFirstPassenger() != driver) return;
-        if (!hull.hasContainer() || hull.getContainerSize() <= 0) return;
+        if (!VehicleAmmoStorage.hasStorage(hull)) return;
         if (hull.getPersistentData().getBoolean(TAG_AMMO_STOCKED)) return;
-        if (!containerEmpty(hull)) return;
+        if (!VehicleAmmoStorage.isEmpty(hull)) return;
 
         TankFaction faction = driver instanceof RUunitEntity ? TankFaction.RU : TankFaction.US;
         stockAmmo(hull, faction);
         hull.getPersistentData().putBoolean(TAG_AMMO_STOCKED, true);
-    }
-
-    private static boolean containerEmpty(VehicleEntity hull) {
-        int size = hull.getContainerSize();
-        for (int i = 0; i < size; i++) {
-            if (!hull.getItem(i).isEmpty()) return false;
-        }
-        return true;
     }
 
     /**
@@ -614,6 +607,9 @@ public final class TankSpawner {
      * consume, so an AI crew fires finite, lootable rounds instead of a bottomless
      * creative box. The container is divided evenly across the ammo types the hull uses
      * (one full stack per slot, cycled), which SBW's own AI auto-reload then draws from.
+     *
+     * <p>Writes through {@link VehicleAmmoStorage} ({@code ITEM_HANDLER}) so addon holds
+     * that replace SBW's native container (FCP) still receive live ammo.
      *
      * <p>When {@code factionInfiniteAmmo} is on and the faction is RU/US, the hull gets a
      * creative ammo box instead — same unlimited supply ground and air opposition share.
@@ -628,16 +624,14 @@ public final class TankSpawner {
      *
      * <p>ASH Sapsan-style missile systems have no gun ammo and leave the container empty.
      */
-    /**
-     * Stocks a hull for combat (full magazine stacks). Public for emplacement / Fixed AT
-     * spawn paths that do not go through {@link #spawnCrewedVehicle}.
-     */
+    /** Stocks a hull for combat (full magazine stacks). Public for emplacement / Fixed AT
+     * spawn paths that do not go through {@link #spawnCrewedVehicle}. */
     public static void stockCombatAmmo(VehicleEntity tank, TankFaction faction) {
         stockAmmo(tank, faction);
     }
 
     private static void stockAmmo(VehicleEntity tank, TankFaction faction) {
-        if (!tank.hasContainer() || tank.getContainerSize() <= 0) return;
+        if (!VehicleAmmoStorage.hasStorage(tank)) return;
 
         String id = entityId(tank);
         if (AshAmmoCompat.isMissileSystemHull(id)) return; // Sapsan: ballistic spawn, no magazine
@@ -646,21 +640,21 @@ public final class TankSpawner {
                 || VvpAmmoCompat.isVvpHull(id);
 
         if (!addonNative && faction != TankFaction.PMC && SewvConfig.FACTION_INFINITE_AMMO.get()) {
-            tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
+            VehicleAmmoStorage.setStack(tank, 0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
             return;
         }
 
         List<Item> ammo = resolveWithFallback(tank, id);
         if (ammo.isEmpty()) {
             if (!addonNative && SewvConfig.CREATIVE_AMMO_FALLBACK.get()) {
-                tank.setItem(0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
+                VehicleAmmoStorage.setStack(tank, 0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
             }
             return;
         }
-        int size = tank.getContainerSize();
+        int size = VehicleAmmoStorage.slots(tank);
         for (int slot = 0; slot < size; slot++) {
             Item item = ammo.get(slot % ammo.size());
-            tank.setItem(slot, new ItemStack(item, item.getMaxStackSize()));
+            VehicleAmmoStorage.setStack(tank, slot, new ItemStack(item, item.getMaxStackSize()));
         }
     }
 

@@ -26,7 +26,8 @@ import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
  * <p>0.8.9.1 retired the GeckoLib {@code VehicleRenderer}: hulls render through
  * {@code entry.texture} inside {@code render}, with a late {@code getTextureLocation} only for
  * a secondary pass. Both sites are covered. Sewv's sticky paint wins over SBW's native
- * {@code skinId} datapack skins when a faction PNG exists — we do not write {@code skinId}.
+ * {@code skinId} datapack skins when a faction PNG exists. Sticky paint lives in sewv NBT;
+ * {@code skinId} is only written for explicit sewv spray picks (see {@code VehicleSkinSupport}).
  *
  * <p>Wreck darkening multiplies the DynamicTexture locally: SBW's brightener reads via
  * {@code ResourceManager} and would crash on TextureManager-only skins.

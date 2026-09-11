@@ -21,16 +21,22 @@ import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.IItemHandlerModifiable;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Fills an NPC hull's container when it unlocks (no RU/US crew left). Rolls EngineType datapack
  * loot tables into inventory slots; optionally concatenates finite ammo (never drops to the ground).
  * After fill, slots are scrambled so contents look scavenged rather than neatly packed.
+ *
+ * <p>Uses {@link VehicleAmmoStorage} so addon holds that replace SBW's native container (FCP)
+ * receive the loot on the same channel guns read.
  */
 public final class VehicleEngineLoot {
 
@@ -66,7 +72,7 @@ public final class VehicleEngineLoot {
         if (!hull.getPersistentData().getBoolean(TAG_PENDING)) return;
         if (isLockedByEnemyCrew(hull)) return;
 
-        if (!hull.hasContainer() || hull.getContainerSize() <= 0) {
+        if (!VehicleAmmoStorage.hasStorage(hull)) {
             finish(hull);
             return;
         }
@@ -77,7 +83,7 @@ public final class VehicleEngineLoot {
             if (SewvConfig.VEHICLE_AMMO_LOOT.get()) {
                 concatAmmo(hull, level.getRandom());
             }
-            scrambleInventory(hull, level.getRandom());
+            VehicleAmmoStorage.scramble(hull, level.getRandom());
         }
         finish(hull);
     }
@@ -85,11 +91,6 @@ public final class VehicleEngineLoot {
     private static void finish(VehicleEntity hull) {
         hull.getPersistentData().remove(TAG_PENDING);
         hull.getPersistentData().putBoolean(TAG_APPLIED, true);
-    }
-
-    /** Shuffle so loot/ammo are not packed into the first slots. */
-    private static void scrambleInventory(VehicleEntity hull, RandomSource random) {
-        RandomUtil.shuffle(hull.getItems(), random);
     }
 
     private static void insertEngineLoot(VehicleEntity hull, ServerLevel level) {
@@ -112,27 +113,28 @@ public final class VehicleEngineLoot {
 
         for (ItemStack stack : table.getRandomItems(params)) {
             if (stack.isEmpty() || isCreativeAmmoBox(stack)) continue;
-            insertStack(hull, stack);
+            VehicleAmmoStorage.insert(hull, stack);
         }
     }
 
     private static void concatAmmo(VehicleEntity hull, RandomSource random) {
-        List<ItemStack> items = hull.getItems();
+        IItemHandler handler = VehicleAmmoStorage.handler(hull);
+        if (!(handler instanceof IItemHandlerModifiable mod)) return;
+
         boolean hadCreative = false;
-        for (int i = 0; i < items.size(); i++) {
-            ItemStack stack = items.get(i);
+        for (int i = 0; i < mod.getSlots(); i++) {
+            ItemStack stack = mod.getStackInSlot(i);
             if (isCreativeAmmoBox(stack)) {
-                items.set(i, ItemStack.EMPTY);
+                mod.setStackInSlot(i, ItemStack.EMPTY);
                 hadCreative = true;
             }
         }
 
         if (!hadCreative) {
-            // Finite combat ammo stays; only add a light bonus stack per ammo type into free slots.
             List<Item> ammo = resolveAmmoItems(hull);
             for (Item item : ammo) {
                 int count = bonusCount(item, random);
-                if (count > 0) insertStack(hull, new ItemStack(item, count));
+                if (count > 0) VehicleAmmoStorage.insert(hull, new ItemStack(item, count));
             }
             return;
         }
@@ -143,7 +145,7 @@ public final class VehicleEngineLoot {
         if (ammo.isEmpty()) return;
         for (Item item : ammo) {
             int count = synthesizeCount(item, random);
-            if (count > 0) insertStack(hull, new ItemStack(item, count));
+            if (count > 0) VehicleAmmoStorage.insert(hull, new ItemStack(item, count));
         }
     }
 
@@ -160,26 +162,6 @@ public final class VehicleEngineLoot {
         int max = Math.max(1, item.getMaxStackSize());
         int hi = Math.max(1, max / 8);
         return Mth.nextInt(random, 1, hi);
-    }
-
-    private static void insertStack(VehicleEntity hull, ItemStack stack) {
-        if (stack.isEmpty()) return;
-        List<ItemStack> items = hull.getItems();
-        // Merge into existing matching stacks first.
-        for (int i = 0; i < items.size() && !stack.isEmpty(); i++) {
-            ItemStack slot = items.get(i);
-            if (slot.isEmpty() || !ItemStack.isSameItemSameTags(slot, stack)) continue;
-            int space = slot.getMaxStackSize() - slot.getCount();
-            if (space <= 0) continue;
-            int move = Math.min(space, stack.getCount());
-            slot.grow(move);
-            stack.shrink(move);
-        }
-        for (int i = 0; i < items.size() && !stack.isEmpty(); i++) {
-            if (!items.get(i).isEmpty()) continue;
-            int put = Math.min(stack.getCount(), stack.getMaxStackSize());
-            items.set(i, stack.split(put));
-        }
     }
 
     private static boolean isCreativeAmmoBox(ItemStack stack) {

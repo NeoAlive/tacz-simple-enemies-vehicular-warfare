@@ -27,6 +27,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.block.StockpileBlockEntity;
+import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -310,8 +311,8 @@ public final class FobResupplySupport {
 
     @Nullable
     private static IItemHandler hullContainerHandler(VehicleEntity hull) {
-        if (!hull.hasContainer() || hull.getContainerSize() <= 0) return null;
-        return new VehicleContainerView(hull);
+        if (!VehicleAmmoStorage.hasStorage(hull)) return null;
+        return VehicleAmmoStorage.handler(hull);
     }
 
     /** Minimum reserve before an assigned unit walks to the stockpile (per eligible item). */
@@ -371,65 +372,6 @@ public final class FobResupplySupport {
     }
 
     private record ResupplyTarget(List<AmmoKind> eligible, @Nullable IItemHandler handler) {}
-
-    /** Vehicle container as a single {@link IItemHandler} view. */
-    private static final class VehicleContainerView implements IItemHandler {
-
-        private final VehicleEntity hull;
-
-        private VehicleContainerView(VehicleEntity hull) {
-            this.hull = hull;
-        }
-
-        @Override
-        public int getSlots() {
-            return this.hull.getContainerSize();
-        }
-
-        @Override
-        public ItemStack getStackInSlot(int slot) {
-            return this.hull.getItem(slot);
-        }
-
-        @Override
-        public ItemStack insertItem(int slot, ItemStack stack, boolean simulate) {
-            if (stack.isEmpty()) return stack;
-            ItemStack existing = this.hull.getItem(slot);
-            if (!existing.isEmpty() && !ItemStack.isSameItemSameTags(existing, stack)) {
-                return stack;
-            }
-            int max = stack.getMaxStackSize();
-            int room = existing.isEmpty() ? max : max - existing.getCount();
-            if (room <= 0) return stack;
-            int move = Math.min(room, stack.getCount());
-            if (!simulate) {
-                if (existing.isEmpty()) {
-                    this.hull.setItem(slot, stack.copyWithCount(move));
-                } else {
-                    existing.grow(move);
-                    this.hull.setItem(slot, existing);
-                }
-            }
-            ItemStack rem = stack.copy();
-            rem.shrink(move);
-            return rem;
-        }
-
-        @Override
-        public ItemStack extractItem(int slot, int amount, boolean simulate) {
-            return ItemStack.EMPTY;
-        }
-
-        @Override
-        public int getSlotLimit(int slot) {
-            return 64;
-        }
-
-        @Override
-        public boolean isItemValid(int slot, ItemStack stack) {
-            return true;
-        }
-    }
 
     /** PMC pockets (slots 6+) only — keeps rifles and kits in equipment slots untouched. */
     private static final class PmcStorageView implements IItemHandler {

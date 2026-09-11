@@ -7,6 +7,7 @@ import java.util.Set;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -26,6 +27,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.FobClientRoute;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.TdtScreen;
+import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketBailOutVehicle;
@@ -312,6 +314,9 @@ public class UnitOrderOption extends RightClickOption {
                         new PacketIssueOrder(driverId, OrderType.ATTACK_THAT_TARGET, Vec3.ZERO, 0,
                                 this.attackTargetId));
             }
+            Minecraft.getInstance().getSoundManager().play(
+                    SimpleSoundInstance.forUI(ModSounds.ATTACK.get(), 1.0F));
+            hint("message.tacz_sewv.map.attack_that", drivers.size());
             return;
         }
 
@@ -373,13 +378,18 @@ public class UnitOrderOption extends RightClickOption {
         return new BlockPos(this.x, (int) destination(player).y, this.z);
     }
 
-    /** Every order entry, in menu order, for the position the player right-clicked. */
+    /**
+     * Every order entry, in menu order, for the position the player right-clicked.
+     * {@link Action#ATTACK_THAT} is omitted unless {@code attackTargetId >= 0} — it is not a
+     * standing stance entry; it only appears when OWN crews and exactly one HOSTILE are selected.
+     */
     public static List<RightClickOption> allFor(int firstIndex, IRightClickableElement target,
                                                 int x, int y, int z, ResourceKey<Level> dimension,
                                                 int selectedCount, MapTileSelection tileSelection,
                                                 int attackTargetId) {
         List<RightClickOption> options = new ArrayList<>();
         for (Action action : Action.values()) {
+            if (action == Action.ATTACK_THAT && attackTargetId < 0) continue;
             options.add(new UnitOrderOption(firstIndex + options.size(), target, action,
                     x, y, z, dimension, selectedCount, tileSelection, attackTargetId));
         }

@@ -90,7 +90,8 @@ public final class VehicleMarkerElements {
     /**
      * Fill colour = the crew's FACTION colour, the same {@code COLOR_RU}/{@code COLOR_US}/
      * {@code COLOR_PMC} the in-world team overlay uses, so the map and the world agree. The allegiance
-     * (OWN/FRIENDLY/HOSTILE) no longer drives colour — it only decides whether a marker is selectable —
+     * (OWN/FRIENDLY/HOSTILE) no longer drives colour — it only decides whether a marker is selectable
+     * (OWN + HOSTILE designate; FRIENDLY is hover-only) —
      * so an ownerless friendly PMC garrison and your own hull are both green, which is correct: both
      * are your side. Public because the order-preview overlay tints its lines the same way.
      */
@@ -152,7 +153,9 @@ public final class VehicleMarkerElements {
             pose.translate(partialX, partialY, optionalDepth);
             pose.scale(optionalScale, optionalScale, 1.0F);
 
-            boolean selectable = marker.allegiance() == VehicleMarker.Allegiance.OWN;
+            // OWN for orders; HOSTILE for Attack-this-unit designate. FRIENDLY stays hover-only.
+            boolean selectable = marker.allegiance() == VehicleMarker.Allegiance.OWN
+                    || marker.allegiance() == VehicleMarker.Allegiance.HOSTILE;
             if (hovered || (selectable && MapMarkers.isSelected(marker))) {
                 guiGraphics.fill(-HIT_BOX, -HIT_BOX, HIT_BOX, HIT_BOX,
                         MapMarkers.isSelected(marker) ? SELECTION_COLOR : SELECTION_SHADE);

@@ -14,10 +14,11 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.crew.AmmoVoicelines;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -115,8 +116,12 @@ public class DriveVehicleGoal extends Goal {
     private byte standoffPhase;
     /** Throttle for posture override logs (game time of last line). */
     private long lastPostureSteerLog = Long.MIN_VALUE;
-    /** Previous out-of-contact plan — edge-detect SEARCH_LAST_KNOWN for investigating voicelines. */
-    private Action lastIdlePlan = Action.HOLD;
+    /** Previous scored/idle plan — edge-detect RU/US order_dispatch. */
+    private Action lastSpokenPlan = Action.HOLD;
+    /** Plan waiting out the min-hold window before order_dispatch. */
+    @javax.annotation.Nullable private Action pendingDispatchPlan;
+    private long pendingDispatchSince = Long.MIN_VALUE;
+    private static final int PLAN_DISPATCH_HOLD_TICKS = 30;
 
     public DriveVehicleGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -176,7 +181,9 @@ public class DriveVehicleGoal extends Goal {
         // The decoy input is latched vehicle state (releasing the steering inputs doesn't touch
         // it), so a crew leaving mid-retreat must let go of it here or the launcher keeps
         // volleying smoke forever.
-        this.lastIdlePlan = Action.HOLD;
+        this.lastSpokenPlan = Action.HOLD;
+        this.pendingDispatchPlan = null;
+        this.pendingDispatchSince = Long.MIN_VALUE;
         this.driver.stop();
         this.vehicle.setDecoyInputDown(false);
         this.vehicle = null;
@@ -229,10 +236,7 @@ public class DriveVehicleGoal extends Goal {
         if (trySteerPostureManeuvers()) return;
 
         Action plan = idlePlan();
-        if (plan == Action.SEARCH_LAST_KNOWN && this.lastIdlePlan != Action.SEARCH_LAST_KNOWN) {
-            CrewRadio.play(this.vehicle, CrewRadio.Line.INVESTIGATING);
-        }
-        this.lastIdlePlan = plan;
+        maybePlanDispatch(plan);
 
         LivingEntity target = this.unit.getTarget();
 
@@ -396,6 +400,31 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
+     * RU/US order_dispatch on scored plan change. Tier B: requires the new plan to hold
+     * {@link #PLAN_DISPATCH_HOLD_TICKS} before speaking so ATTACK↔FLANK thrash does not spam.
+     */
+    private void maybePlanDispatch(Action plan) {
+        if (!(this.unit instanceof RUunitEntity) && !(this.unit instanceof USunitEntity)) return;
+        if (this.vehicle == null || plan == null) return;
+        long now = this.unit.level().getGameTime();
+        if (plan == this.lastSpokenPlan) {
+            this.pendingDispatchPlan = null;
+            this.pendingDispatchSince = Long.MIN_VALUE;
+            return;
+        }
+        if (plan != this.pendingDispatchPlan) {
+            this.pendingDispatchPlan = plan;
+            this.pendingDispatchSince = now;
+            return;
+        }
+        if (now - this.pendingDispatchSince < PLAN_DISPATCH_HOLD_TICKS) return;
+        CrewRadio.play(this.vehicle, CrewRadio.Line.ORDER_DISPATCH_PLAN);
+        this.lastSpokenPlan = plan;
+        this.pendingDispatchPlan = null;
+        this.pendingDispatchSince = Long.MIN_VALUE;
+    }
+
+    /**
      * Parked at the destination. Under a formation order that means holding the frozen axis, so
      * the wedge points where it was pointed and every hull's frontal armor and gun face the same
      * way; any other order has no heading to hold and simply stops.
@@ -431,6 +460,8 @@ public class DriveVehicleGoal extends Goal {
      * the absence of one.
      */
     private void fightTick(LivingEntity target) {
+        maybePlanDispatch(this.brain.plan());
+
         BlockPos combatPos = target.blockPosition();
         double distanceSq = this.vehicle.distanceToSqr(
                 combatPos.getX() + 0.5, combatPos.getY(), combatPos.getZ() + 0.5);
@@ -701,7 +732,6 @@ public class DriveVehicleGoal extends Goal {
         // Each passenger holds a distinct seat, so "no more passengers than crew seats" is a
         // sound way of saying the squad is already off.
         if (this.vehicle.getPassengers().size() <= crew.size()) return;
-        CrewRadio.play(this.vehicle, CrewRadio.Line.IFV); // a real dismount is happening this call
 
         int armed = 0;
         // Copied because stopRiding() mutates the passenger list underneath us.
@@ -846,9 +876,6 @@ public class DriveVehicleGoal extends Goal {
         VehicleWeapons.WeaponSelection pick = VehicleWeapons.selectWeaponForTarget(
                 this.vehicle, seatIndex, target, this.unit);
         this.selectedRole = pick.role;
-        if (pick.switchedAmmoId != null) {
-            AmmoVoicelines.play(this.vehicle, this.unit, pick.switchedAmmoId);
-        }
         this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
     }
 

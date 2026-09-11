@@ -13,28 +13,21 @@ import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 
 /**
  * What a crew does between fights that isn't driving: sweeps the turret across the horizon and
- * talks on the radio. The driving half is {@link IdleSupport}, fed to the ordinary drive goal.
- *
- * <p>Its own goal rather than a branch in {@link DriveVehicleGoal} because that goal is not running
- * for either case this covers: it stops when there is no destination (every dwell pause), and it
- * never starts on a FIXED emplacement — a parked TOW or naval mount should still scan and chatter.
- *
- * <p>Claims no flags. It writes turret angles (SBW state, not the mob's) and plays a sound; it must
- * never contend with SEM's ladder or with boarding/bailing.
+ * talks on the radio. Idle chatter uses a scheduled deadline + jitter so formations do not chorus.
  */
 public class IdleCrewGoal extends Goal {
 
-    // How long one bearing is held before a new one is rolled. Long enough that the turret is
-    // visibly slewing and settling rather than twitching.
     private static final int SWEEP_TICKS = 60;
     private static final int SWEEP_JITTER = 80;
-    // The sweep stays near level: a turret pointing at the sky reads as broken, not as watchful.
     private static final float SWEEP_PITCH = 5.0F;
+    /** Backoff when local airtime defers a soft line. */
+    private static final int AIRTIME_BACKOFF = 40;
+    private static final int AIRTIME_BACKOFF_JITTER = 60;
 
     private final AbstractUnit unit;
     private VehicleEntity vehicle;
 
-    private long idleSince;
+    private long nextIdleAt;
     private long nextSweep;
     private Vec3 bearing = Vec3.ZERO;
 
@@ -48,8 +41,6 @@ public class IdleCrewGoal extends Goal {
         if (this.unit.level().isClientSide()) return false;
         if (!(this.unit.getVehicle() instanceof VehicleEntity v) || v.isWreck()) return false;
         if (this.unit.getTarget() != null) return false;
-        // One speaker and one turret writer per hull: the driver talks, the turret's own controller
-        // sweeps. On most hulls that is the same seat; on FCP's BMPs it is not.
         if (v.getFirstPassenger() != this.unit && !isTurretController(v)) return false;
         this.vehicle = v;
         return true;
@@ -65,10 +56,11 @@ public class IdleCrewGoal extends Goal {
 
     @Override
     public void start() {
-        // Game time, not a tick counter: goals tick every other game tick, so a counter would make
-        // the configured delay silently 2x.
-        this.idleSince = this.unit.level().getGameTime();
-        this.nextSweep = this.idleSince;
+        long now = this.unit.level().getGameTime();
+        this.nextSweep = now;
+        int delay = SewvConfig.IDLE_VOICELINE_DELAY_TICKS.get();
+        int jitter = SewvConfig.IDLE_VOICELINE_INITIAL_JITTER_TICKS.get();
+        this.nextIdleAt = now + delay + (jitter > 0 ? this.unit.getRandom().nextInt(jitter + 1) : 0);
     }
 
     @Override
@@ -81,32 +73,30 @@ public class IdleCrewGoal extends Goal {
         long now = this.unit.level().getGameTime();
         sweepTurret(now);
 
-        if (now - this.idleSince < SewvConfig.IDLE_VOICELINE_DELAY_TICKS.get()) return;
+        if (now < this.nextIdleAt) return;
         float floor = SewvConfig.IDLE_VOICELINE_HEALTH_FRACTION.get().floatValue();
-        if (this.vehicle.getHealth() < floor * this.vehicle.getMaxHealth()) return;
-        // Safe to call every tick: CrewRadio holds the per-line and per-hull cooldowns that pace it.
-        CrewRadio.play(this.vehicle, CrewRadio.Line.IDLE);
+        if (this.vehicle.getHealth() < floor * this.vehicle.getMaxHealth()) {
+            // Dying hulls: push the deadline out so we don't spin every tick.
+            this.nextIdleAt = now + 40;
+            return;
+        }
+
+        boolean played = CrewRadio.playIdle(this.vehicle);
+        int base = SewvConfig.IDLE_VOICELINE_REPEAT_BASE_TICKS.get();
+        int jitter = SewvConfig.IDLE_VOICELINE_REPEAT_JITTER_TICKS.get();
+        if (played) {
+            this.nextIdleAt = now + base + (jitter > 0 ? this.unit.getRandom().nextInt(jitter + 1) : 0);
+        } else {
+            // Airtime / overlap defer — short backoff so dense packs stagger instead of spinning.
+            this.nextIdleAt = now + AIRTIME_BACKOFF
+                    + this.unit.getRandom().nextInt(AIRTIME_BACKOFF_JITTER + 1);
+        }
     }
 
-    /**
-     * Points the turret somewhere new every few seconds. {@code turretAutoAimFromVector} is SBW's own
-     * slew — it ramps at the hull's turret traverse speeds, clamps to its arcs and plays the traverse
-     * sound — so this only has to keep handing it a bearing.
-     *
-     * <p>Uncontended: SBW's tick aims an AI-crewed turret through {@code turretAutoAimFromUuid}, and
-     * SBW clears that UUID to "undefined" the moment the controller's target goes null (its
-     * {@code LivingChangeTargetEvent} handler), which makes the call return before touching anything.
-     *
-     * <p>Outer-ring glance wins briefly when armed: a fixed bearing from the poll that spotted
-     * something, held for a few dozen ticks so the barrel can settle, then this resumes its
-     * random sweep. Never setTarget — cosmetic only. Skipped while {@code getTarget() != null}
-     * because this goal does not run then (engagement owns the turret via UUID aim).
-     */
     private void sweepTurret(long now) {
         if (!this.vehicle.hasTurret() || !isTurretController(this.vehicle)) return;
 
         Facts facts = null;
-        // Outer ring / Facts live on the driver; on FCP BMPs the turret seat is not seat 0.
         if (this.vehicle.getFirstPassenger() instanceof AbstractUnit driver) {
             facts = Facts.of(driver.getId());
         }
@@ -115,7 +105,6 @@ public class IdleCrewGoal extends Goal {
         }
         if (facts != null && facts.outerGlanceBearing != null && now < facts.outerGlanceUntil) {
             this.vehicle.turretAutoAimFromVector(facts.outerGlanceBearing);
-            // Don't roll a random bearing the tick the glance ends.
             this.nextSweep = Math.max(this.nextSweep, facts.outerGlanceUntil);
             return;
         }

@@ -15,33 +15,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
-import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 
 /**
- * The crew-event radio lines, all on {@code AbstractUnit}. In a hull, SEM's own shouted voicelines
- * are muted (a closed vehicle shouldn't shout like a field of infantry) and the "contact" callout is
- * emitted as radio traffic instead:
- * <ul>
- *   <li>hurt/death shout -- muted via the vanilla sound hooks;
- *   <li>alert shout -- muted via a {@link Redirect} of the bare {@code this.playSound(...)} in
- *       {@code setTarget} (its target owner is <b>AbstractUnit</b>, the receiver's compile-time type);
- *   <li><b>SPOTTED</b> -- played when any crewman's target first becomes an enemy vehicle. This hooks
- *       {@code setTarget} itself, not SEM's alert (capped at one per 200 ticks) nor the target scan
- *       (off under a player's ATTACK_THAT_TARGET order), so it catches every path a vehicle lock
- *       arrives through. Edge-detected against the old target so it fires on acquisition, not while
- *       engaging, and re-checks {@code isFriendly} so it is independent of the friendly-fire cancel's
- *       injection order in {@code MixinAbstractUnit}.
- * </ul>
- * "We're hit" is emitted separately from the hull's health ({@link MixinVehicleVoicelines}). On foot
- * (or with the feature off) SEM's own lines are untouched.
+ * Crew target callouts and SEM shout muting while mounted. Target lines classify the enemy hull
+ * (heli / plane / ship / tank) or fall back to generic for infantry and other cases.
  */
 @Mixin(AbstractUnit.class)
 public abstract class MixinUnitVoicelines {
 
     @Inject(method = "getHurtSound", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$muteHurt(DamageSource source, CallbackInfoReturnable<SoundEvent> cir) {
-        if (tacz_sewv$radio()) cir.setReturnValue(null); // vanilla null-guards the call site
+        if (tacz_sewv$radio()) cir.setReturnValue(null);
     }
 
     @Inject(method = "getDeathSound", at = @At("HEAD"), cancellable = true)
@@ -50,26 +36,43 @@ public abstract class MixinUnitVoicelines {
     }
 
     @Inject(method = "setTarget", at = @At("HEAD"))
-    private void tacz_sewv$spotted(LivingEntity newTarget, CallbackInfo ci) {
+    private void tacz_sewv$targetVoice(LivingEntity newTarget, CallbackInfo ci) {
         if (newTarget == null) return;
         AbstractUnit self = (AbstractUnit) (Object) this;
-        if (!(self.getVehicle() instanceof VehicleEntity hull)) return; // on foot: not our concern
-        if (VehicleTargeting.isFriendly(self, newTarget)) return;       // friendly targets get cancelled anyway
-        if (VehicleWeapons.classifyTarget(newTarget) != VehicleWeapons.TargetCategory.VEHICLE) return;
+        if (VehicleTargeting.isFriendly(self, newTarget)) return;
         LivingEntity old = self.getTarget();
-        if (old != null && VehicleWeapons.classifyTarget(old) == VehicleWeapons.TargetCategory.VEHICLE) return; // already on armour
-        CrewRadio.play(hull, CrewRadio.Line.SPOTTED);
+        if (old == newTarget) return;
+        // Already locked onto something: only re-announce when the previous lock was cleared.
+        if (old != null && old.isAlive()) return;
+
+        CrewRadio.Line line = tacz_sewv$targetLine(newTarget);
+        if (self.getVehicle() instanceof VehicleEntity hull) {
+            CrewRadio.play(hull, line);
+        } else {
+            CrewRadio.speakUnit(self, line);
+        }
     }
 
     @Redirect(method = "setTarget",
             at = @At(value = "INVOKE",
                     target = "Lnet/nekoyuni/SimpleEnemyMod/entity/unit/AbstractUnit;playSound(Lnet/minecraft/sounds/SoundEvent;FF)V"))
     private void tacz_sewv$muteAlert(AbstractUnit self, SoundEvent sound, float volume, float pitch) {
-        // On foot / disabled: SEM's own alert shout. In a hull: muted -- SPOTTED covers "contact".
         if (!tacz_sewv$radio()) self.playSound(sound, volume, pitch);
     }
 
-    /** In a hull with the feature on: mute SEM's line. On foot or disabled: leave it be. */
+    @Unique
+    private static CrewRadio.Line tacz_sewv$targetLine(LivingEntity target) {
+        if (target.getVehicle() instanceof VehicleEntity v) {
+            if (HullFacts.isHelicopterHull(v)) return CrewRadio.Line.TARGET_HELICOPTER;
+            if (HullFacts.isPlaneHull(v)) return CrewRadio.Line.TARGET_PLANE;
+            if (HullFacts.isShipHull(v)) return CrewRadio.Line.TARGET_SHIP;
+            if (HullFacts.isGroundMobileHull(v) && !HullFacts.isIfvHull(v)) {
+                return CrewRadio.Line.TARGET_TANK;
+            }
+        }
+        return CrewRadio.Line.TARGET_GENERIC;
+    }
+
     @Unique
     private boolean tacz_sewv$radio() {
         return SewvConfig.VEHICLE_VOICELINES_ENABLED.get()

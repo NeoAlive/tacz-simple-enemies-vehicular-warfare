@@ -137,7 +137,7 @@ public class DroneOperatorGoal extends Goal {
         DroneEntity drone = DroneSupport.spawnDrone(level, this.unit);
         if (drone != null) {
             this.drones.add(drone);
-            CrewRadio.speakUnit(this.unit, CrewRadio.Line.DRONE);
+            CrewRadio.speakUnit(this.unit, CrewRadio.Line.UNIT_DEPLOY_DRONE);
         }
     }
 

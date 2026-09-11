@@ -130,7 +130,7 @@ public class PmcReviveGoal extends Goal {
         MedicControl.setTreating(this.unit, true);
         if (!this.revivingVoiced) {
             this.revivingVoiced = true;
-            CrewRadio.speakUnit(this.unit, CrewRadio.Line.HEALING);
+            CrewRadio.speakUnit(this.unit, CrewRadio.Line.UNIT_HEAL);
         }
 
         ServerPlayer owner = resolveOwner();

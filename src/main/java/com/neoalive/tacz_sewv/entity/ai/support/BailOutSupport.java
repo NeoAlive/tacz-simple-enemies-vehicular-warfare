@@ -116,7 +116,7 @@ public final class BailOutSupport {
      */
     @Nullable
     public static BlockPos triggerVehicleBail(AbstractUnit unit, VehicleEntity vehicle) {
-        CrewRadio.speak(vehicle, unit, CrewRadio.Line.BAIL);
+        CrewRadio.speak(vehicle, unit, CrewRadio.Line.VEHICLE_BAIL);
 
         BlockPos escape = findEscapePos(unit, vehicle);
         issueParachute(unit);

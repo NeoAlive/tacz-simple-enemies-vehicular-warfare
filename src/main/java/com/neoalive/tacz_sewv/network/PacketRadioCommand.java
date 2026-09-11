@@ -144,7 +144,7 @@ public class PacketRadioCommand {
 
             var ack = FireMissionSupport.ackFor(call.kinds(), settings.planeMode());
             if (ack != null) {
-                player.level().playSound(null, player, ack, net.minecraft.sounds.SoundSource.NEUTRAL, 1.0F, 1.0F);
+                player.level().playSound(null, player, ack, net.minecraft.sounds.SoundSource.VOICE, 1.8F, 1.0F);
             }
 
             Component targetLabel = entityTarget != null

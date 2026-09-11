@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
@@ -273,33 +272,20 @@ public final class FireMissionSupport {
     }
 
     /**
-     * One PMC radio ack for the kinds that answered. Single-kind calls map 1:1
-     * (mortar→pmc_mortar, CAS→pmc_cas, TOW→pmc_tow); a mixed answer picks one of those pools
-     * at random — never a generic line.
-     *
-     * <p>When the call named ordnance, the CAS ack becomes the line for <b>that</b> ordnance —
-     * a substitution, not an addition, because two voice clips played at once are just noise and
-     * "bombing run" already says everything "aircraft inbound" would. {@code AUTO} keeps the plain
-     * CAS line: it picks a weapon per target, so there is no single thing to announce.
+     * PMC radio ack for a fire mission. Only pilot ordnance lines remain (bomb / AGM / cannon).
+     * Mortar / TOW / generic CAS pools were dropped. {@code AUTO} and non-CAS kinds return null
+     * (silent) unless a CAS mode was named.
      */
     @Nullable
     public static SoundEvent ackFor(Set<Kind> triggered, PlaneAttackMode mode) {
-        List<SoundPool> pools = new ArrayList<>(3);
-        if (triggered.contains(Kind.MORTAR)) pools.add(ModSounds.PMC_MORTAR);
-        if (triggered.contains(Kind.TOW)) pools.add(ModSounds.PMC_TOW);
-        if (triggered.contains(Kind.CAS)) pools.add(switch (mode) {
-            case BOMB -> ModSounds.PMC_BOMBING;
-            case CANNON -> ModSounds.PMC_CANNON;
-            case GUIDED -> ModSounds.PMC_ATS;
-            case AUTO -> ModSounds.PMC_CAS;
-        });
-        // Indirect fires share the mortar ack — area fires, not direct-support lines.
-        if ((triggered.contains(Kind.MISSILE_SYSTEM) || triggered.contains(Kind.ARTILLERY))
-                && !triggered.contains(Kind.MORTAR)) {
-            pools.add(ModSounds.PMC_MORTAR);
-        }
-        if (pools.isEmpty()) return null;
-        return pools.get(ThreadLocalRandom.current().nextInt(pools.size())).next();
+        if (!triggered.contains(Kind.CAS)) return null;
+        SoundPool pool = switch (mode) {
+            case BOMB -> ModSounds.PILOT_BOMB;
+            case CANNON -> ModSounds.PILOT_CANNON;
+            case GUIDED -> ModSounds.PILOT_AGM;
+            case AUTO -> null;
+        };
+        return pool == null ? null : pool.next();
     }
 
     /** How many crews took the mission, and which support kinds they were. */

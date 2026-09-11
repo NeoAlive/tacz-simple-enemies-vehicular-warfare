@@ -92,7 +92,7 @@ public class RadioObserverGoal extends Goal {
             var ack = FireMissionSupport.ackFor(call.kinds(), PlaneAttackMode.AUTO);
             if (ack != null) {
                 this.unit.level().playSound(null, this.unit, ack,
-                        SoundSource.NEUTRAL, 1.0F, 1.0F);
+                        SoundSource.VOICE, 1.8F, 1.0F);
             }
         }
     }

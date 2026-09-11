@@ -183,7 +183,7 @@ public class MedicGoal extends Goal {
     private void playTreatSound() {
         if (!this.healingVoiced) {
             this.healingVoiced = true;
-            CrewRadio.speakUnit(this.unit, CrewRadio.Line.HEALING);
+            CrewRadio.speakUnit(this.unit, CrewRadio.Line.UNIT_HEAL);
         }
         SoundEvent sound = TREAT_SOUNDS[this.unit.getRandom().nextInt(TREAT_SOUNDS.length)];
         // Entity-bound overload so the clip follows the patient rather than being left behind.

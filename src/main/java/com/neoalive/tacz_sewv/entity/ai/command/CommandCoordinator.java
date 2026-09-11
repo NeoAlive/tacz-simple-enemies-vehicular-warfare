@@ -26,7 +26,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.crew.CommandVoicelines;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
@@ -355,7 +354,6 @@ public final class CommandCoordinator {
             LOGGER.debug("[sewv-command] play group={} {} play={}",
                     group.groupId(), result.reason(), result.play().key);
             group.commitPlay(result.play(), roles, nowTick);
-            CommandVoicelines.onPlayCommitted(level, group, true);
         } else {
             // Keep start tick; refresh roles for moving geometry.
             long started = group.playStartedTick() == Long.MIN_VALUE ? nowTick : group.playStartedTick();

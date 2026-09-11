@@ -643,6 +643,12 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.VEHICLE_VOICELINES_ENABLED, SewvConfig.VEHICLE_VOICELINES_ENABLED::set);
         b.intRange(ConfigScope.SERVER, "voicelines", "idleVoicelineDelayTicks", 20, 12000,
                 SewvConfig.IDLE_VOICELINE_DELAY_TICKS, SewvConfig.IDLE_VOICELINE_DELAY_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "voicelines", "idleVoicelineInitialJitterTicks", 0, 12000,
+                SewvConfig.IDLE_VOICELINE_INITIAL_JITTER_TICKS, SewvConfig.IDLE_VOICELINE_INITIAL_JITTER_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "voicelines", "idleVoicelineRepeatBaseTicks", 40, 12000,
+                SewvConfig.IDLE_VOICELINE_REPEAT_BASE_TICKS, SewvConfig.IDLE_VOICELINE_REPEAT_BASE_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "voicelines", "idleVoicelineRepeatJitterTicks", 0, 12000,
+                SewvConfig.IDLE_VOICELINE_REPEAT_JITTER_TICKS, SewvConfig.IDLE_VOICELINE_REPEAT_JITTER_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "voicelines", "idleVoicelineHealthFraction", 0.0, 1.0,
                 SewvConfig.IDLE_VOICELINE_HEALTH_FRACTION, SewvConfig.IDLE_VOICELINE_HEALTH_FRACTION::set);
     }

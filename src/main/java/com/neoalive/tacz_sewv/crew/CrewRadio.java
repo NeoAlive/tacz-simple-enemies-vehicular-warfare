@@ -2,47 +2,77 @@ package com.neoalive.tacz_sewv.crew;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 
 /**
  * One radio voice per hull (mounted crew) or per unit (on-foot support lines). The driver
- * ({@code getFirstPassenger}) speaks for the whole crew, picking a non-repeating clip from its
- * faction's pool and holding a shared cooldown so nothing overlaps -- damaged, spotted and orders
- * all share the one channel. BAIL bypasses that overlap gate so a dying hull's "we're out" is not
- * starved by DAMAGED spam. Off-foot support lines (fixing / healing / drone) use
- * {@link #speakUnit}.
+ * ({@code getFirstPassenger}) speaks for the whole crew. Tier A lines use per-hull overlap +
+ * per-line cooldown; Tier B (idle / plan-dispatch / shoot) also pass a local airtime gate so
+ * dense packs do not chorus.
  */
 public final class CrewRadio {
 
     private static final float VOICELINE_VOLUME = 1.8F;
-    /**
-     * Per-line minimum gap (ticks) between two of the SAME line on one hull, on top of the shared
-     * anti-overlap. DAMAGED is throttled hard because it fires on every hit -- without this it would
-     * hold the one channel and starve spotted/bail/decoy, which is what made lines feel rare.
-     * IDLE is longer so chatter stays frequent but not constant.
-     */
+    /** Hull health fraction below which low-health / panicked shoot pools apply (&lt; 60%). */
+    public static final float LOW_HEALTH_FRACTION = 0.6F;
+
     public enum Line {
-        DAMAGED(160), SPOTTED(90), ORDERS(60), TAKEOFF(60), BAIL(40), DECOY(60), IFV(90), IDLE(900),
-        TOW(100), FIXING(80), HEALING(80), DRONE(80), INVESTIGATING(90), AMMO(60);
+        ORDER_DISPATCH(60),
+        /** RU/US scored plan change — heavier safety net; airtime also applies. */
+        ORDER_DISPATCH_PLAN(240),
+        TARGET_GENERIC(90),
+        TARGET_HELICOPTER(90),
+        TARGET_PLANE(90),
+        TARGET_SHIP(90),
+        TARGET_TANK(90),
+        UNIT_DEPLOY_DRONE(80),
+        UNIT_DIG(80),
+        UNIT_HEAL(80),
+        UNIT_REPAIR(80),
+        VEHICLE_BAIL(40),
+        VEHICLE_IDLE(600),
+        VEHICLE_LOW_HEALTH(200),
+        VEHICLE_MG_SHOOT(140),
+        VEHICLE_CANNON_SHOOT(140);
+
         final int cooldown;
         Line(int cooldown) { this.cooldown = cooldown; }
+
+        boolean soft() {
+            return this == VEHICLE_IDLE || this == ORDER_DISPATCH_PLAN
+                    || this == VEHICLE_MG_SHOOT || this == VEHICLE_CANNON_SHOOT;
+        }
+
+        boolean bypassOverlap() {
+            return this == VEHICLE_BAIL;
+        }
+
+        boolean registersAwareness() {
+            return this != VEHICLE_IDLE && this != UNIT_HEAL && this != UNIT_REPAIR && this != UNIT_DIG;
+        }
     }
 
-    // ponytail: ~longest typical clip; a rare 6.6s line can tail-overlap. Per-hull, from getPersistentData.
     private static final int OVERLAP_TICKS = 90;
-
     private static final String OVERLAP_KEY = "tacz_sewv:radio_cd";
     private static final String TYPE_KEY = "tacz_sewv:radio_";
+    static final String LOW_HEALTH_SPOKEN_KEY = "tacz_sewv:radio_low_hp";
+
+    /** Recent soft-line speak positions for the local airtime gate (per dimension). */
+    private static final int AIRTIME_HISTORY = 32;
+    private static final double AIRTIME_RANGE_SQ = 48.0 * 48.0;
+    private static final int AIRTIME_WINDOW_TICKS = 50;
+    private static final java.util.WeakHashMap<ServerLevel, AirtimeRing> AIRTIME = new java.util.WeakHashMap<>();
 
     private CrewRadio() {}
 
@@ -57,105 +87,224 @@ public final class CrewRadio {
 
     public static void speak(VehicleEntity hull, AbstractUnit speaker, Line line) {
         if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return;
-        SoundPool pool = poolFor(speaker, line, HullFacts.isShipHull(hull));
+        SoundPool pool = poolFor(speaker, line, panicked(hull));
         if (pool == null) return;
         playPool(hull, speaker, line, pool, hull.getPersistentData(), true);
-    }
-
-    /** Ammo lines use a pool chosen by {@link AmmoVoicelines}, not {@link #poolFor}. */
-    public static void playAmmo(VehicleEntity hull, AbstractUnit speaker, SoundPool pool) {
-        if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return;
-        playPool(hull, speaker, Line.AMMO, pool, hull.getPersistentData(), false);
     }
 
     public static void speakUnit(AbstractUnit speaker, Line line) {
         if (speaker.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return;
         SoundPool pool = poolFor(speaker, line, false);
         if (pool == null) return;
-        playPool(speaker, speaker, line, pool, speaker.getPersistentData(), registersAwareness(line));
+        playPool(speaker, speaker, line, pool, speaker.getPersistentData(), line.registersAwareness());
     }
 
-    public static void speakRefusal(AbstractUnit speaker, net.minecraft.sounds.SoundEvent clip) {
-        if (speaker.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return;
-        speaker.level().playSound(null, speaker, clip, SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
+    /**
+     * MG / cannon fire callout. Tier B. Panicked pools while hull health &lt; {@link #LOW_HEALTH_FRACTION}.
+     *
+     * @param weaponRole {@code VehicleWeapons.WEAPON_CANNON} (0) or {@code WEAPON_MG} (1)
+     * @return true if a clip actually played
+     */
+    public static boolean playShoot(VehicleEntity hull, int weaponRole) {
+        // Literals avoid a CrewRadio ↔ VehicleWeapons import cycle; keep in sync with WEAPON_*.
+        if (weaponRole != 0 && weaponRole != 1) return false;
+        Line line = weaponRole == 1 ? Line.VEHICLE_MG_SHOOT : Line.VEHICLE_CANNON_SHOOT;
+        for (Entity passenger : hull.getPassengers()) {
+            if (passenger instanceof AbstractUnit crew) {
+                if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return false;
+                SoundPool pool = poolFor(crew, line, panicked(hull));
+                if (pool == null) return false;
+                return playPool(hull, crew, line, pool, hull.getPersistentData(), true);
+            }
+        }
+        return false;
     }
 
-    private static void playPool(VehicleEntity hull, AbstractUnit speaker, Line line, SoundPool pool,
+    /** @return true if the clip played */
+    public static boolean playIdle(VehicleEntity hull) {
+        for (Entity passenger : hull.getPassengers()) {
+            if (passenger instanceof AbstractUnit crew) {
+                if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return false;
+                SoundPool pool = poolFor(crew, Line.VEHICLE_IDLE, false);
+                if (pool == null) return false;
+                return playPool(hull, crew, Line.VEHICLE_IDLE, pool, hull.getPersistentData(), true);
+            }
+        }
+        return false;
+    }
+
+    public static boolean panicked(VehicleEntity hull) {
+        return hull.getHealth() < LOW_HEALTH_FRACTION * hull.getMaxHealth();
+    }
+
+    /**
+     * Rising-edge low-health line. Clears the spoken flag when health recovers above the band so a
+     * later dip can speak again. Retries while low if overlap blocked the first attempt.
+     */
+    public static void maybeLowHealth(VehicleEntity hull) {
+        CompoundTag data = hull.getPersistentData();
+        boolean low = panicked(hull);
+        if (!low) {
+            data.putBoolean(LOW_HEALTH_SPOKEN_KEY, false);
+            return;
+        }
+        if (data.getBoolean(LOW_HEALTH_SPOKEN_KEY)) return;
+        for (Entity passenger : hull.getPassengers()) {
+            if (!(passenger instanceof AbstractUnit crew)) continue;
+            if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) {
+                data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
+                return;
+            }
+            SoundPool pool = poolFor(crew, Line.VEHICLE_LOW_HEALTH, false);
+            if (pool == null) {
+                data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
+                return;
+            }
+            if (playPool(hull, crew, Line.VEHICLE_LOW_HEALTH, pool, data, true)) {
+                data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
+            }
+            return;
+        }
+    }
+
+    private static boolean playPool(VehicleEntity hull, AbstractUnit speaker, Line line, SoundPool pool,
             CompoundTag data, boolean boundToHull) {
         long now = hull.level().getGameTime();
         String typeKey = TYPE_KEY + line.name();
-        if (line != Line.BAIL && now < data.getLong(OVERLAP_KEY)) return;
-        if (now < data.getLong(typeKey)) return;
+        if (!line.bypassOverlap() && now < data.getLong(OVERLAP_KEY)) return false;
+        if (now < data.getLong(typeKey)) return false;
+        if (line.soft() && hull.level() instanceof ServerLevel sl
+                && !airtimeFree(sl, hull.position(), now)) {
+            return false;
+        }
         data.putLong(OVERLAP_KEY, now + OVERLAP_TICKS);
         data.putLong(typeKey, now + line.cooldown);
         Entity soundEntity = boundToHull ? hull : speaker;
         soundEntity.level().playSound(null, soundEntity, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
-        if (registersAwareness(line) && hull.level() instanceof net.minecraft.server.level.ServerLevel sl) {
+        if (line.soft() && hull.level() instanceof ServerLevel sl) {
+            recordAirtime(sl, hull.position(), now);
+        }
+        if (line.registersAwareness() && hull.level() instanceof ServerLevel sl) {
             AwarenessCues.registerCrewVoice(sl, speaker, hull.blockPosition());
         }
+        return true;
     }
 
-    private static void playPool(AbstractUnit speaker, AbstractUnit voiceEntity, Line line, SoundPool pool,
+    private static boolean playPool(AbstractUnit speaker, AbstractUnit voiceEntity, Line line, SoundPool pool,
             CompoundTag data, boolean registerAwareness) {
         long now = speaker.level().getGameTime();
         String typeKey = TYPE_KEY + line.name();
-        if (now < data.getLong(OVERLAP_KEY)) return;
-        if (now < data.getLong(typeKey)) return;
+        if (now < data.getLong(OVERLAP_KEY)) return false;
+        if (now < data.getLong(typeKey)) return false;
+        if (line.soft() && speaker.level() instanceof ServerLevel sl
+                && !airtimeFree(sl, speaker.position(), now)) {
+            return false;
+        }
         data.putLong(OVERLAP_KEY, now + OVERLAP_TICKS);
         data.putLong(typeKey, now + line.cooldown);
         speaker.level().playSound(null, voiceEntity, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
-        if (registerAwareness && speaker.level() instanceof net.minecraft.server.level.ServerLevel sl) {
+        if (line.soft() && speaker.level() instanceof ServerLevel sl) {
+            recordAirtime(sl, speaker.position(), now);
+        }
+        if (registerAwareness && speaker.level() instanceof ServerLevel sl) {
             AwarenessCues.registerCrewVoice(sl, speaker, speaker.blockPosition());
         }
+        return true;
     }
 
-    private static boolean registersAwareness(Line line) {
-        return line != Line.INVESTIGATING && line != Line.AMMO;
+    private static boolean airtimeFree(ServerLevel level, Vec3 pos, long now) {
+        AirtimeRing ring = AIRTIME.get(level);
+        if (ring == null) return true;
+        return ring.free(pos, now);
     }
 
-    private static SoundPool poolFor(AbstractUnit unit, Line line, boolean navy) {
+    private static void recordAirtime(ServerLevel level, Vec3 pos, long now) {
+        AIRTIME.computeIfAbsent(level, l -> new AirtimeRing()).record(pos, now);
+    }
+
+    private static SoundPool poolFor(AbstractUnit unit, Line line, boolean panicked) {
         if (unit instanceof RUunitEntity) return switch (line) {
-            case DAMAGED -> ModSounds.RU_DAMAGED;
-            case SPOTTED -> navy ? ModSounds.RU_NAVY_TARGET : ModSounds.RU_SPOTTED;
-            case ORDERS -> ModSounds.RU_ORDERS;
-            case INVESTIGATING -> ModSounds.RU_INVESTIGATING;
-            case BAIL -> ModSounds.RU_BAIL;
-            case DECOY -> ModSounds.RU_DECOY;
-            case IFV -> ModSounds.RU_IFV;
-            case IDLE -> navy ? ModSounds.RU_NAVY_IDLE : ModSounds.RU_IDLE;
-            case TOW -> ModSounds.RU_TOW;
-            case FIXING -> ModSounds.RU_FIXING;
-            case HEALING -> ModSounds.RU_HEALING;
-            case DRONE -> ModSounds.RU_DRONE;
-            case TAKEOFF, AMMO -> null;
+            case ORDER_DISPATCH, ORDER_DISPATCH_PLAN -> ModSounds.ORDER_DISPATCH_RU;
+            case TARGET_GENERIC -> ModSounds.TARGET_GENERIC_RU;
+            case TARGET_HELICOPTER -> ModSounds.TARGET_HELICOPTER_RU;
+            case TARGET_PLANE -> ModSounds.TARGET_PLANE_RU;
+            case TARGET_SHIP -> ModSounds.TARGET_SHIP_RU;
+            case TARGET_TANK -> ModSounds.TARGET_TANK_RU;
+            case UNIT_DEPLOY_DRONE -> ModSounds.UNIT_DEPLOY_DRONE_RU;
+            case UNIT_DIG -> ModSounds.UNIT_DIG_RU;
+            case UNIT_HEAL -> ModSounds.UNIT_HEAL_RU;
+            case UNIT_REPAIR -> ModSounds.UNIT_REPAIR_RU;
+            case VEHICLE_BAIL -> ModSounds.VEHICLE_BAIL_RU;
+            case VEHICLE_IDLE -> ModSounds.VEHICLE_IDLE_RU;
+            case VEHICLE_LOW_HEALTH -> ModSounds.VEHICLE_LOW_HEALTH_RU;
+            case VEHICLE_MG_SHOOT -> panicked
+                    ? ModSounds.VEHICLE_MG_SHOOT_RU_PANICKED : ModSounds.VEHICLE_MG_SHOOT_RU;
+            case VEHICLE_CANNON_SHOOT -> panicked
+                    ? ModSounds.VEHICLE_CANNON_SHOOT_RU_PANICKED : ModSounds.VEHICLE_CANNON_SHOOT_RU;
         };
         if (unit instanceof USunitEntity) return switch (line) {
-            case DAMAGED -> ModSounds.US_DAMAGED;
-            case SPOTTED -> navy ? ModSounds.US_NAVY_TARGET : ModSounds.US_SPOTTED;
-            case ORDERS -> ModSounds.US_ORDERS;
-            case INVESTIGATING -> ModSounds.US_INVESTIGATING;
-            case BAIL -> ModSounds.US_BAIL;
-            case DECOY -> ModSounds.US_DECOY;
-            case IFV -> ModSounds.US_IFV;
-            case IDLE -> navy ? ModSounds.US_NAVY_IDLE : ModSounds.US_IDLE;
-            case TOW -> ModSounds.US_TOW;
-            case FIXING -> ModSounds.US_FIXING;
-            case HEALING -> ModSounds.US_HEALING;
-            case DRONE -> ModSounds.US_DRONE;
-            case TAKEOFF, AMMO -> null;
+            case ORDER_DISPATCH, ORDER_DISPATCH_PLAN -> ModSounds.ORDER_DISPATCH_US;
+            case TARGET_GENERIC -> ModSounds.TARGET_GENERIC_US;
+            case TARGET_HELICOPTER -> ModSounds.TARGET_HELICOPTER_US;
+            case TARGET_PLANE -> ModSounds.TARGET_PLANE_US;
+            case TARGET_SHIP -> ModSounds.TARGET_SHIP_US;
+            case TARGET_TANK -> ModSounds.TARGET_TANK_US;
+            case UNIT_DEPLOY_DRONE -> ModSounds.UNIT_DEPLOY_DRONE_US;
+            case UNIT_DIG -> ModSounds.UNIT_DIG_US;
+            case UNIT_HEAL -> ModSounds.UNIT_HEAL_US;
+            case UNIT_REPAIR -> ModSounds.UNIT_REPAIR_US;
+            case VEHICLE_BAIL -> ModSounds.VEHICLE_BAIL_US;
+            case VEHICLE_IDLE -> ModSounds.VEHICLE_IDLE_US;
+            case VEHICLE_LOW_HEALTH -> ModSounds.VEHICLE_LOW_HEALTH_US;
+            case VEHICLE_MG_SHOOT -> panicked
+                    ? ModSounds.VEHICLE_MG_SHOOT_US_PANICKED : ModSounds.VEHICLE_MG_SHOOT_US;
+            case VEHICLE_CANNON_SHOOT -> panicked
+                    ? ModSounds.VEHICLE_CANNON_SHOOT_US_PANICKED : ModSounds.VEHICLE_CANNON_SHOOT_US;
         };
+        // PMC (and any other AbstractUnit)
         return switch (line) {
-            case DAMAGED -> ModSounds.PMC_DAMAGED;
-            case SPOTTED -> navy ? ModSounds.PMC_NAVY_TARGET : ModSounds.PMC_SPOTTED;
-            case ORDERS -> ModSounds.PMC_ORDERS;
-            case TAKEOFF -> ModSounds.PMC_TAKEOFF;
-            case BAIL -> ModSounds.PMC_BAIL;
-            case DECOY -> ModSounds.PMC_DECOY;
-            case IDLE -> navy ? ModSounds.PMC_NAVY_IDLE : ModSounds.PMC_IDLE;
-            case TOW -> ModSounds.PMC_TOW;
-            case FIXING -> ModSounds.PMC_FIXING;
-            case HEALING -> ModSounds.PMC_HEALING;
-            case IFV, DRONE, INVESTIGATING, AMMO -> null;
+            case ORDER_DISPATCH, ORDER_DISPATCH_PLAN -> ModSounds.ORDER_DISPATCH_PMC;
+            case TARGET_GENERIC -> ModSounds.TARGET_GENERIC_PMC;
+            case TARGET_HELICOPTER -> ModSounds.TARGET_HELICOPTER_PMC;
+            case TARGET_PLANE -> ModSounds.TARGET_PLANE_PMC;
+            case TARGET_SHIP -> ModSounds.TARGET_SHIP_PMC;
+            case TARGET_TANK -> ModSounds.TARGET_TANK_PMC;
+            case UNIT_DEPLOY_DRONE -> ModSounds.UNIT_DEPLOY_DRONE_PMC;
+            case UNIT_DIG -> null;
+            case UNIT_HEAL -> ModSounds.UNIT_HEAL_PMC;
+            case UNIT_REPAIR -> ModSounds.UNIT_REPAIR_PMC;
+            case VEHICLE_BAIL -> ModSounds.VEHICLE_BAIL_PMC;
+            case VEHICLE_IDLE -> ModSounds.VEHICLE_IDLE_PMC;
+            case VEHICLE_LOW_HEALTH -> ModSounds.VEHICLE_LOW_HEALTH_PMC;
+            case VEHICLE_MG_SHOOT -> panicked
+                    ? ModSounds.VEHICLE_MG_SHOOT_PMC_PANICKED : ModSounds.VEHICLE_MG_SHOOT_PMC;
+            case VEHICLE_CANNON_SHOOT -> panicked
+                    ? ModSounds.VEHICLE_CANNON_SHOOT_PMC_PANICKED : ModSounds.VEHICLE_CANNON_SHOOT_PMC;
         };
+    }
+
+    private static final class AirtimeRing {
+        private final long[] times = new long[AIRTIME_HISTORY];
+        private final double[] x = new double[AIRTIME_HISTORY];
+        private final double[] z = new double[AIRTIME_HISTORY];
+        private int cursor;
+
+        synchronized boolean free(Vec3 pos, long now) {
+            for (int i = 0; i < AIRTIME_HISTORY; i++) {
+                if (times[i] == 0L) continue;
+                if (now - times[i] > AIRTIME_WINDOW_TICKS) continue;
+                double dx = pos.x - x[i];
+                double dz = pos.z - z[i];
+                if (dx * dx + dz * dz <= AIRTIME_RANGE_SQ) return false;
+            }
+            return true;
+        }
+
+        synchronized void record(Vec3 pos, long now) {
+            times[cursor] = now;
+            x[cursor] = pos.x;
+            z[cursor] = pos.z;
+            cursor = (cursor + 1) % AIRTIME_HISTORY;
+        }
     }
 }

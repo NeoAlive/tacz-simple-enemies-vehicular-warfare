@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.support.DigFoxholeSupport;
 
 /**
@@ -43,6 +44,7 @@ public class DigFoxholeGoal extends Goal {
         }
 
         DigFoxholeSupport.place(level, this.unit);
+        CrewRadio.speakUnit(this.unit, CrewRadio.Line.UNIT_DIG);
         // Work done inside canUse (SeekAbandoned pattern) — never claim the selector.
         return false;
     }

@@ -175,7 +175,7 @@ public class PlayerReviveGoal extends Goal {
             this.revivingVoiced = true;
             // No dedicated "revive" voiceline/audio asset exists; HEALING is the closest existing
             // fit. Played when the channel STARTS, so it lands while the revive is happening.
-            CrewRadio.speakUnit(this.unit, CrewRadio.Line.HEALING);
+            CrewRadio.speakUnit(this.unit, CrewRadio.Line.UNIT_HEAL);
         }
 
         sendRingProgress();

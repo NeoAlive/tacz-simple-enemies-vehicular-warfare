@@ -240,8 +240,7 @@ public abstract class MixinGuiMap extends Screen {
 
         if (button != 0 || this.viewed == null) return;
         if (!(this.viewed.getElement() instanceof VehicleMarker marker)) return;
-        // Only swallow the click if it selected something — a click on an enemy symbol should still
-        // do whatever the map would have done with it.
+        // OWN orders + HOSTILE designate (Attack this unit). FRIENDLY clicks fall through.
         if (MapMarkers.toggleSelected(marker)) ci.cancel();
     }
 
@@ -341,15 +340,13 @@ public abstract class MixinGuiMap extends Screen {
         ArrayList<RightClickOption> options = cir.getReturnValue();
         if (options == null) return;
 
-        int attackTargetId = -1;
-        if (this.viewed != null && this.viewed.getElement() instanceof VehicleMarker marker
-                && marker.allegiance() != VehicleMarker.Allegiance.OWN) {
-            attackTargetId = marker.driverId();
-        }
+        int selectedCount = MapMarkers.selected().size();
+        // Attack-this-unit: only when OWN crews are selected AND exactly one HOSTILE is designated.
+        int attackTargetId = selectedCount > 0 ? MapMarkers.selectedHostileTargetId() : -1;
 
         options.addAll(UnitOrderOption.allFor(options.size(), (GuiMap) (Object) this,
                 this.rightClickX, this.rightClickY, this.rightClickZ, this.rightClickDim,
-                MapMarkers.selected().size(), this.mapTileSelection, attackTargetId));
+                selectedCount, this.mapTileSelection, attackTargetId));
         ResourceKey<Level> dim = this.rightClickDim;
         if (dim == null && Minecraft.getInstance().player != null) {
             dim = Minecraft.getInstance().player.level().dimension();

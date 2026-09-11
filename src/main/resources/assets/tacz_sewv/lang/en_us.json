@@ -107,7 +107,7 @@
   "gui.tacz_sewv.map.hold": "■ Hold position (%s)",
   "gui.tacz_sewv.map.free_fire": "⚡ Free fire (%s)",
   "gui.tacz_sewv.map.cease_fire": "⊘ Cease fire (%s)",
-  "gui.tacz_sewv.map.attack_that": "⚔ Attack that (%s)",
+  "gui.tacz_sewv.map.attack_that": "⌖ Attack this unit (%s)",
   "gui.tacz_sewv.map.takeoff": "▲ Take off (%s)",
   "gui.tacz_sewv.map.land_airport": "▼ Land at nearest airport (%s)",
   "gui.tacz_sewv.map.emergency_land": "⚠ Emergency land (%s)",

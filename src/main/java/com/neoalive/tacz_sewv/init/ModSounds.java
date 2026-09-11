@@ -110,6 +110,9 @@ public final class ModSounds {
     /** Vehicle lock / unlock. */
     public static final RegistryObject<SoundEvent> LOCK = register("lock");
 
+    /** World-map Attack-this-unit confirm. */
+    public static final RegistryObject<SoundEvent> ATTACK = register("attack");
+
     private ModSounds() {}
 
     private static RegistryObject<SoundEvent> register(String name) {

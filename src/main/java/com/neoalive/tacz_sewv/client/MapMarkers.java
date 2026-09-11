@@ -126,12 +126,13 @@ public final class MapMarkers {
     }
 
     /**
-     * Selection is for units you can actually order, so an enemy or an allied NPC hull is inert to
-     * a click. Answers whether the click did anything, which is what lets the caller decide whether
-     * to swallow it.
+     * Selection is for units you can order (OWN) and for a single HOSTILE designate (Attack this
+     * unit). FRIENDLY stays inert. Answers whether the click did anything, which is what lets the
+     * caller decide whether to swallow it.
      */
     public static boolean toggleSelected(VehicleMarker marker) {
-        if (marker.allegiance() != VehicleMarker.Allegiance.OWN) return false;
+        VehicleMarker.Allegiance a = marker.allegiance();
+        if (a != VehicleMarker.Allegiance.OWN && a != VehicleMarker.Allegiance.HOSTILE) return false;
         if (!SELECTED.remove(marker.vehicleId())) SELECTED.add(marker.vehicleId());
         return true;
     }
@@ -140,6 +141,7 @@ public final class MapMarkers {
      * Adds an OWN marker to the selection (a no-op for one already in, or one you cannot command).
      * Used by the map's box-select, which ADDS to the current set rather than toggling. Answers
      * whether it is now selected and ownable, so a caller can count what a box actually caught.
+     * Hostiles are never box-added — designate them with a click.
      */
     public static boolean addSelected(VehicleMarker marker) {
         if (marker.allegiance() != VehicleMarker.Allegiance.OWN) return false;
@@ -153,18 +155,35 @@ public final class MapMarkers {
     }
 
     /**
-     * The drivers to order, as a snapshot — only hulls with a live crew driver; empty assigned
-     * hulls stay selected on the map but are skipped here.
+     * The drivers to order, as a snapshot — only OWN hulls with a live crew driver. Empty assigned
+     * hulls and any selected HOSTILE designate stay on the map but are skipped here.
      */
     public static Set<Integer> selected() {
         Set<Integer> drivers = new HashSet<>();
         for (int vehicleId : SELECTED) {
             VehicleMarker marker = BY_VEHICLE_ID.get(vehicleId);
-            if (marker != null && marker.driverId() != NO_DRIVER) {
-                drivers.add(marker.driverId());
-            }
+            if (marker == null || marker.allegiance() != VehicleMarker.Allegiance.OWN) continue;
+            if (marker.driverId() != NO_DRIVER) drivers.add(marker.driverId());
         }
         return Set.copyOf(drivers);
+    }
+
+    /**
+     * SEM entity id of the designated HOSTILE when exactly one is selected (and has a live driver);
+     * {@code -1} otherwise. Used only for map Attack-this-unit.
+     */
+    public static int selectedHostileTargetId() {
+        int id = -1;
+        int count = 0;
+        for (int vehicleId : SELECTED) {
+            VehicleMarker marker = BY_VEHICLE_ID.get(vehicleId);
+            if (marker == null || marker.allegiance() != VehicleMarker.Allegiance.HOSTILE) continue;
+            if (marker.driverId() == NO_DRIVER) continue;
+            count++;
+            id = marker.driverId();
+            if (count > 1) return -1;
+        }
+        return count == 1 ? id : -1;
     }
 
     public static void clearSelection() {

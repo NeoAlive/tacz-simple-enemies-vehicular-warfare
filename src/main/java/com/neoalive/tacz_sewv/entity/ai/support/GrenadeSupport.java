@@ -41,7 +41,8 @@ import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
  * spawns the projectile entities directly.
  *
  * <p><b>Pick rule:</b> mounted target → M18 then RGO; infantry/monster → hand grenade, then RGO,
- * then M18. RU/US always may spend any id in their faction GRENADE pool; PMC must have the item
+ * then M18. M18 is further gated to a 1-in-50 lottery per retry window so smoke cannot blanket
+ * the map. RU/US always may spend any id in their faction GRENADE pool; PMC must have the item
  * in inventory.
  */
 public final class GrenadeSupport {
@@ -52,11 +53,19 @@ public final class GrenadeSupport {
     public static final String TAG_STASH_PRESENT = "sewv:grenade_stash";
     public static final String TAG_STASH_MAIN = "sewv:grenade_stash_main";
     public static final String TAG_STASH_OFF = "sewv:grenade_stash_off";
+    /** After a failed M18 lottery, skip re-rolling until this game time. */
+    public static final String TAG_SMOKE_DENY_UNTIL = "sewv:smoke_deny";
+    /** Result of the current smoke lottery window (stable across canUse/start). */
+    private static final String TAG_SMOKE_OK = "sewv:smoke_ok";
     /** Cached PMC inventory probe (game time + bitset of known kinds). */
     private static final String TAG_INV_SCAN_AT = "sewv:grenade_inv_at";
     private static final String TAG_INV_SCAN_MASK = "sewv:grenade_inv_mask";
 
     private static final int INV_SCAN_TTL = 20;
+    /** M18 only — 1-in-N so the map does not fill with smoke. */
+    private static final int SMOKE_CHANCE_ONE_IN = 50;
+    /** Game ticks between M18 lottery attempts (failed rolls must not retry every goal tick). */
+    private static final int SMOKE_RETRY_TICKS = 200;
 
     public static final String ID_HAND = "superbwarfare:hand_grenade";
     public static final String ID_RGO = "superbwarfare:rgo_grenade";
@@ -159,6 +168,10 @@ public final class GrenadeSupport {
 
     /**
      * Preferred grenade id for this target that the unit can currently spend, or null.
+     *
+     * <p>M18 smoke is gated to {@value #SMOKE_CHANCE_ONE_IN}-in-1 and, on a miss, is locked
+     * out for {@value #SMOKE_RETRY_TICKS} ticks so {@code canUse} cannot re-roll every goal
+     * tick and fog the map. A denied M18 falls through to the next preference (RGO vs armour).
      */
     @Nullable
     public static String pick(AbstractUnit unit, LivingEntity target) {
@@ -170,9 +183,28 @@ public final class GrenadeSupport {
 
         String[] order = targetMounted(target) ? MOUNTED_PREF : INFANTRY_PREF;
         for (String id : order) {
-            if (available.contains(id)) return id;
+            if (!available.contains(id)) continue;
+            if (ID_M18.equals(id) && !allowSmokeThrow(unit)) continue;
+            return id;
         }
         return null;
+    }
+
+    /**
+     * Extremely rare M18 permission. One lottery per {@value #SMOKE_RETRY_TICKS} ticks
+     * (1-in-{@value #SMOKE_CHANCE_ONE_IN}); the result is latched so {@code canUse} and
+     * {@code start} agree and goal ticks cannot burn the odds down.
+     */
+    private static boolean allowSmokeThrow(AbstractUnit unit) {
+        long now = unit.level().getGameTime();
+        var data = unit.getPersistentData();
+        if (now < data.getLong(TAG_SMOKE_DENY_UNTIL)) {
+            return data.getBoolean(TAG_SMOKE_OK);
+        }
+        boolean ok = unit.getRandom().nextInt(SMOKE_CHANCE_ONE_IN) == 0;
+        data.putBoolean(TAG_SMOKE_OK, ok);
+        data.putLong(TAG_SMOKE_DENY_UNTIL, now + SMOKE_RETRY_TICKS);
+        return ok;
     }
 
     /** Pool ∩ spendable, only known throwable mappings. */
@@ -299,6 +331,10 @@ public final class GrenadeSupport {
             grenade.setColor(1.0f, 1.0f, 1.0f);
             grenade.shootFromRotation(unit, unit.getXRot(), unit.getYRot(), 0.0f, THROW_POWER, 0.0f);
             level.addFreshEntity(grenade);
+            // Spend the lottery win so the same window cannot produce another M18.
+            var data = unit.getPersistentData();
+            data.putBoolean(TAG_SMOKE_OK, false);
+            data.putLong(TAG_SMOKE_DENY_UNTIL, level.getGameTime() + SMOKE_RETRY_TICKS);
         } else {
             return false;
         }

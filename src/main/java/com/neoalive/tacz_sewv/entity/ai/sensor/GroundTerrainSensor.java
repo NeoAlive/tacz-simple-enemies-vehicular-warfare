@@ -541,28 +541,29 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double ndz = dirLen > 1.0E-8 ? dir.z / dirLen : 0.0;
         for (VehicleOrca.Peer peer : this.peers) {
             double radius = VehicleOrca.radius(half, peer.half());
+            // Contact disc without CLEARANCE_SCALE — hard occupancy only at real clip range.
+            // The inflated ORCA disc was hard-blocking every heading when two hulls sat inside
+            // ~6 blocks of each other, which locked packed allies until a player shoved them.
+            double contactR = (half + peer.half()) * VehicleOrca.RADIUS_PAD;
             double px = peer.x() - selfX;
             double pz = peer.z() - selfZ;
             double distSq = px * px + pz * pz;
-            // Already interpenetrating: hard-block even when relative velocity is not closing
-            // (two hulls hanging on each other's hitbox while both reverse).
-            if (distSq <= radius * radius) {
-                p.hard = 1.0F;
-                p.reason = "hull";
-                return;
-            }
-            // Geometric occupancy on this heading — soft skirt alone never fails headingClear,
-            // so a reverse/translate toward an ally just outside the 8-tick imminent window used
-            // to arm, abort, and re-arm forever.
-            if (ndx != 0.0 || ndz != 0.0) {
-                double along = px * ndx + pz * ndz;
-                if (along > 0.0 && along < VehiclePeerSpacing.SOFT_DISTANCE) {
-                    double cross = px * ndz - pz * ndx;
-                    if (cross * cross < radius * radius) {
-                        p.hard = 1.0F;
-                        p.reason = "hull";
-                        return;
-                    }
+            double along = (ndx != 0.0 || ndz != 0.0) ? px * ndx + pz * ndz : 0.0;
+            if (distSq <= contactR * contactR) {
+                // Clipping: veto only headings that deepen the overlap. Escape / tangent stay open.
+                if (along > 0.0) {
+                    p.hard = 1.0F;
+                    p.reason = "hull";
+                    return;
+                }
+            } else if (along > 0.0 && along < LOOKAHEAD_DISTANCE + contactR) {
+                // Geometric occupancy on this heading within whisker reach (not the 16-block soft
+                // bubble — that also turned nearby allies into a total fan veto).
+                double cross = px * ndz - pz * ndx;
+                if (cross * cross < contactR * contactR) {
+                    p.hard = 1.0F;
+                    p.reason = "hull";
+                    return;
                 }
             }
             if (VehicleOrca.overlappingAndClosing(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius)

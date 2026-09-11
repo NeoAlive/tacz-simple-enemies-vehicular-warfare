@@ -16,10 +16,12 @@ import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 
 /**
- * One radio voice per hull (mounted crew) or per unit (on-foot support lines). The driver
- * ({@code getFirstPassenger}) speaks for the whole crew. Tier A lines use per-hull overlap +
- * per-line cooldown; Tier B (idle / plan-dispatch / shoot) also pass a local airtime gate so
- * dense packs do not chorus.
+ * One radio voice per hull for <b>mounted</b> SEM crews. On-foot infantry keep SEM's own lines —
+ * this class must not speak for them. The driver ({@code getFirstPassenger}) speaks for the whole
+ * crew. Gated by {@link SewvConfig#VEHICLE_VOICELINES_ENABLED} on every entry point.
+ *
+ * <p>Tier A lines use per-hull overlap + per-line cooldown; Tier B (idle / plan-dispatch / shoot)
+ * also pass a local airtime gate so dense packs do not chorus.
  */
 public final class CrewRadio {
 
@@ -76,7 +78,13 @@ public final class CrewRadio {
 
     private CrewRadio() {}
 
+    /** Master switch — every public entry point must honour this. */
+    public static boolean enabled() {
+        return SewvConfig.VEHICLE_VOICELINES_ENABLED.get();
+    }
+
     public static void play(VehicleEntity hull, Line line) {
+        if (!enabled() || hull.level().isClientSide) return;
         for (Entity passenger : hull.getPassengers()) {
             if (passenger instanceof AbstractUnit crew) {
                 speak(hull, crew, line);
@@ -86,17 +94,22 @@ public final class CrewRadio {
     }
 
     public static void speak(VehicleEntity hull, AbstractUnit speaker, Line line) {
-        if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return;
+        if (!enabled() || hull.level().isClientSide) return;
+        // Speaker must still be riding this hull — bail mid-dismount must not orphan a line on foot.
+        if (speaker.getVehicle() != hull) return;
         SoundPool pool = poolFor(speaker, line, panicked(hull));
         if (pool == null) return;
-        playPool(hull, speaker, line, pool, hull.getPersistentData(), true);
+        playPool(hull, speaker, line, pool, hull.getPersistentData());
     }
 
+    /**
+     * Support-role callout (heal / repair / dig / drone). Only when the unit is mounted — on foot
+     * SEM owns the voice. Routes through the hull radio channel.
+     */
     public static void speakUnit(AbstractUnit speaker, Line line) {
-        if (speaker.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return;
-        SoundPool pool = poolFor(speaker, line, false);
-        if (pool == null) return;
-        playPool(speaker, speaker, line, pool, speaker.getPersistentData(), line.registersAwareness());
+        if (!enabled() || speaker.level().isClientSide) return;
+        if (!(speaker.getVehicle() instanceof VehicleEntity hull) || hull.isWreck()) return;
+        speak(hull, speaker, line);
     }
 
     /**
@@ -106,15 +119,15 @@ public final class CrewRadio {
      * @return true if a clip actually played
      */
     public static boolean playShoot(VehicleEntity hull, int weaponRole) {
+        if (!enabled() || hull.level().isClientSide) return false;
         // Literals avoid a CrewRadio ↔ VehicleWeapons import cycle; keep in sync with WEAPON_*.
         if (weaponRole != 0 && weaponRole != 1) return false;
         Line line = weaponRole == 1 ? Line.VEHICLE_MG_SHOOT : Line.VEHICLE_CANNON_SHOOT;
         for (Entity passenger : hull.getPassengers()) {
             if (passenger instanceof AbstractUnit crew) {
-                if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return false;
                 SoundPool pool = poolFor(crew, line, panicked(hull));
                 if (pool == null) return false;
-                return playPool(hull, crew, line, pool, hull.getPersistentData(), true);
+                return playPool(hull, crew, line, pool, hull.getPersistentData());
             }
         }
         return false;
@@ -122,12 +135,12 @@ public final class CrewRadio {
 
     /** @return true if the clip played */
     public static boolean playIdle(VehicleEntity hull) {
+        if (!enabled() || hull.level().isClientSide) return false;
         for (Entity passenger : hull.getPassengers()) {
             if (passenger instanceof AbstractUnit crew) {
-                if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) return false;
                 SoundPool pool = poolFor(crew, Line.VEHICLE_IDLE, false);
                 if (pool == null) return false;
-                return playPool(hull, crew, Line.VEHICLE_IDLE, pool, hull.getPersistentData(), true);
+                return playPool(hull, crew, Line.VEHICLE_IDLE, pool, hull.getPersistentData());
             }
         }
         return false;
@@ -142,6 +155,7 @@ public final class CrewRadio {
      * later dip can speak again. Retries while low if overlap blocked the first attempt.
      */
     public static void maybeLowHealth(VehicleEntity hull) {
+        if (!enabled() || hull.level().isClientSide) return;
         CompoundTag data = hull.getPersistentData();
         boolean low = panicked(hull);
         if (!low) {
@@ -149,26 +163,27 @@ public final class CrewRadio {
             return;
         }
         if (data.getBoolean(LOW_HEALTH_SPOKEN_KEY)) return;
+        // Empty hull: nothing to say (and no crew to attribute).
+        AbstractUnit crew = null;
         for (Entity passenger : hull.getPassengers()) {
-            if (!(passenger instanceof AbstractUnit crew)) continue;
-            if (hull.level().isClientSide || !SewvConfig.VEHICLE_VOICELINES_ENABLED.get()) {
-                data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
-                return;
+            if (passenger instanceof AbstractUnit u) {
+                crew = u;
+                break;
             }
-            SoundPool pool = poolFor(crew, Line.VEHICLE_LOW_HEALTH, false);
-            if (pool == null) {
-                data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
-                return;
-            }
-            if (playPool(hull, crew, Line.VEHICLE_LOW_HEALTH, pool, data, true)) {
-                data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
-            }
+        }
+        if (crew == null) return;
+        SoundPool pool = poolFor(crew, Line.VEHICLE_LOW_HEALTH, false);
+        if (pool == null) {
+            data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
             return;
+        }
+        if (playPool(hull, crew, Line.VEHICLE_LOW_HEALTH, pool, data)) {
+            data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
         }
     }
 
     private static boolean playPool(VehicleEntity hull, AbstractUnit speaker, Line line, SoundPool pool,
-            CompoundTag data, boolean boundToHull) {
+            CompoundTag data) {
         long now = hull.level().getGameTime();
         String typeKey = TYPE_KEY + line.name();
         if (!line.bypassOverlap() && now < data.getLong(OVERLAP_KEY)) return false;
@@ -179,35 +194,12 @@ public final class CrewRadio {
         }
         data.putLong(OVERLAP_KEY, now + OVERLAP_TICKS);
         data.putLong(typeKey, now + line.cooldown);
-        Entity soundEntity = boundToHull ? hull : speaker;
-        soundEntity.level().playSound(null, soundEntity, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
+        hull.level().playSound(null, hull, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
         if (line.soft() && hull.level() instanceof ServerLevel sl) {
             recordAirtime(sl, hull.position(), now);
         }
         if (line.registersAwareness() && hull.level() instanceof ServerLevel sl) {
             AwarenessCues.registerCrewVoice(sl, speaker, hull.blockPosition());
-        }
-        return true;
-    }
-
-    private static boolean playPool(AbstractUnit speaker, AbstractUnit voiceEntity, Line line, SoundPool pool,
-            CompoundTag data, boolean registerAwareness) {
-        long now = speaker.level().getGameTime();
-        String typeKey = TYPE_KEY + line.name();
-        if (now < data.getLong(OVERLAP_KEY)) return false;
-        if (now < data.getLong(typeKey)) return false;
-        if (line.soft() && speaker.level() instanceof ServerLevel sl
-                && !airtimeFree(sl, speaker.position(), now)) {
-            return false;
-        }
-        data.putLong(OVERLAP_KEY, now + OVERLAP_TICKS);
-        data.putLong(typeKey, now + line.cooldown);
-        speaker.level().playSound(null, voiceEntity, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
-        if (line.soft() && speaker.level() instanceof ServerLevel sl) {
-            recordAirtime(sl, speaker.position(), now);
-        }
-        if (registerAwareness && speaker.level() instanceof ServerLevel sl) {
-            AwarenessCues.registerCrewVoice(sl, speaker, speaker.blockPosition());
         }
         return true;
     }

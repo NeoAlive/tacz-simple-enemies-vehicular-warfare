@@ -23,6 +23,7 @@ public abstract class MixinVehicleVoicelines {
 
     @Inject(method = "onHurt", at = @At("TAIL"), remap = false)
     private void tacz_sewv$lowHealthVoice(float amount, Entity attacker, boolean bl, CallbackInfo ci) {
+        if (!CrewRadio.enabled()) return;
         CrewRadio.maybeLowHealth((VehicleEntity) (Object) this);
     }
 
@@ -35,8 +36,10 @@ public abstract class MixinVehicleVoicelines {
             method = "vehicleShoot(Lnet/minecraft/world/entity/LivingEntity;Ljava/util/UUID;Lnet/minecraft/world/phys/Vec3;)V",
             at = @At("TAIL"), remap = false)
     private void tacz_sewv$shootVoice(LivingEntity shooter, UUID uuid, Vec3 targetPos, CallbackInfo ci) {
+        if (!CrewRadio.enabled()) return;
         if (!(shooter instanceof AbstractUnit unit)) return;
         VehicleEntity hull = (VehicleEntity) (Object) this;
+        if (unit.getVehicle() != hull) return;
         int seat = hull.getSeatIndex(unit);
         if (seat < 0) return;
         int role = VehicleWeapons.roleOfCurrentWeapon(hull, seat);

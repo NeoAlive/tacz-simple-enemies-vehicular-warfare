@@ -531,8 +531,10 @@ public final class SewvConfig {
         AI_AIM_SPREAD_DEG = builder.comment("Extra aim wobble in degrees for realistic/scaled modes.")
                 .defineInRange("aiAimSpreadDegrees", 4.0, 0.0, 30.0);
         GRENADE_THROW_CADENCE = builder.comment(
-                        "How often on-foot units throw grenades: default (8-24 blocks, ~5s),",
-                        "rare (within 16 blocks, ~12s), or aggressive (within 30 blocks, ~2.5s).")
+                        "How often on-foot units throw grenades.",
+                        "HE uses a closer band; M18 smoke may be thrown farther (no min range) to screen LOS.",
+                        "default: HE 8-24 / smoke 0-40, ~5s; rare: HE 0-16 / smoke 0-32, ~12s;",
+                        "aggressive: HE 0-30 / smoke 0-48, ~2.5s.")
                 .defineInList("grenadeThrowCadence", "default",
                         Arrays.asList("default", "rare", "aggressive"));
         VEHICLE_SKIN_MOUNT_CHANCE = builder.comment(

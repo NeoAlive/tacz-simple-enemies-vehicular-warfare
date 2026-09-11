@@ -76,18 +76,25 @@ public final class GrenadeSupport {
     private GrenadeSupport() {}
 
     public enum Cadence {
-        DEFAULT(8.0, 24.0, 100),
-        RARE(0.0, 16.0, 240),
-        AGGRESSIVE(0.0, 30.0, 50);
+        // HE needs to land near the target; smoke only screens LOS, so it may be lobbed
+        // from farther with no minimum standoff.
+        DEFAULT(8.0, 24.0, 0.0, 40.0, 100),
+        RARE(0.0, 16.0, 0.0, 32.0, 240),
+        AGGRESSIVE(0.0, 30.0, 0.0, 48.0, 50);
 
-        public final double minRange;
-        public final double maxRange;
+        public final double heMinRange;
+        public final double heMaxRange;
+        public final double smokeMinRange;
+        public final double smokeMaxRange;
         /** Game ticks between throws. */
         public final int cooldownTicks;
 
-        Cadence(double minRange, double maxRange, int cooldownTicks) {
-            this.minRange = minRange;
-            this.maxRange = maxRange;
+        Cadence(double heMinRange, double heMaxRange, double smokeMinRange, double smokeMaxRange,
+                int cooldownTicks) {
+            this.heMinRange = heMinRange;
+            this.heMaxRange = heMaxRange;
+            this.smokeMinRange = smokeMinRange;
+            this.smokeMaxRange = smokeMaxRange;
             this.cooldownTicks = cooldownTicks;
         }
 
@@ -131,11 +138,17 @@ public final class GrenadeSupport {
                 unit.level().getGameTime() + c.cooldownTicks);
     }
 
-    public static boolean inThrowRange(AbstractUnit unit, LivingEntity target) {
+    /**
+     * Range gate for a specific grenade id. M18 smoke uses a longer band with no close-in
+     * requirement — it screens LOS, it does not need to land on the hull. HE keeps the
+     * tighter cadence envelope.
+     */
+    public static boolean inThrowRange(AbstractUnit unit, LivingEntity target, String id) {
         Cadence c = Cadence.fromConfig();
         double dSq = unit.distanceToSqr(target);
-        double min = c.minRange;
-        double max = c.maxRange;
+        boolean smoke = ID_M18.equals(id);
+        double min = smoke ? c.smokeMinRange : c.heMinRange;
+        double max = smoke ? c.smokeMaxRange : c.heMaxRange;
         if (dSq < min * min) return false;
         return dSq <= max * max;
     }

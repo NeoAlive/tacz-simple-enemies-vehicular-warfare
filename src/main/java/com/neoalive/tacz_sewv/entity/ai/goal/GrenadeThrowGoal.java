@@ -51,10 +51,12 @@ public class GrenadeThrowGoal extends Goal {
 
         LivingEntity target = this.unit.getTarget();
         if (target == null || !target.isAlive()) return false;
-        if (!GrenadeSupport.inThrowRange(this.unit, target)) return false;
         if (!this.unit.getSensing().hasLineOfSight(target)) return false;
 
-        return GrenadeSupport.pick(this.unit, target) != null;
+        String id = GrenadeSupport.pick(this.unit, target);
+        if (id == null) return false;
+        // Pick first so M18 vs armour uses the longer smoke band (no close-in required).
+        return GrenadeSupport.inThrowRange(this.unit, target, id);
     }
 
     @Override

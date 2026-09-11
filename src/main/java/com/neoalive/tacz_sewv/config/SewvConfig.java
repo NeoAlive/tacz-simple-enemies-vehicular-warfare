@@ -1082,7 +1082,9 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("voicelines");
-        VEHICLE_VOICELINES_ENABLED = builder.comment("Play radio chatter from crews inside vehicles.")
+        VEHICLE_VOICELINES_ENABLED = builder.comment(
+                        "Play radio chatter from SEM crews inside vehicles.",
+                        "Off: on-foot SEM voicelines stay as SEM ships them; mounted crews are silent.")
                 .define("vehicleVoicelinesEnabled", true);
         IDLE_VOICELINE_DELAY_TICKS = builder.comment(
                         "Quiet time (game ticks) before the first idle crew chatter attempt.")

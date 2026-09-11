@@ -21,8 +21,8 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner;
  * numbered RNG pool) from {@link com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry}.
  *
  * <p>Spray-GUI ids are {@code ru}/{@code us}/{@code pmc} for a plain file, or {@code ru_0} for a
- * numbered pool member. The synched SBW {@code skinId} carries that string for the GUI highlight;
- * salt holds either a spawn RNG value or the explicit variant index.
+ * numbered pool member. SBW {@code skinId} is only written for those sewv catalog picks — spawn /
+ * mount sticky paint stays in NBT (+ packet) so datapack skins from other mods are not overwritten.
  */
 public final class VehicleSkinSupport {
 
@@ -30,6 +30,11 @@ public final class VehicleSkinSupport {
     public static final String TAG_SALT = "sewv:vehicle_skin_salt";
 
     private VehicleSkinSupport() {
+    }
+
+    /** {@code ru} / {@code us} / {@code pmc}, or a numbered pool member ({@code ru_0}). */
+    public static boolean isSewvSkinId(@Nullable String skinId) {
+        return parseSkinId(skinId) != null;
     }
 
     @Nullable
@@ -44,12 +49,14 @@ public final class VehicleSkinSupport {
         return data.contains(TAG_SALT) ? data.getInt(TAG_SALT) : 0;
     }
 
-    /** Idempotent: re-applying the same faction keeps the sticky salt (no re-roll). */
+    /**
+     * Idempotent sticky paint. Does <b>not</b> write SBW {@code skinId} — that field is shared with
+     * other mods' datapack skins; clients resolve faction art from sticky NBT / packet instead.
+     */
     public static void apply(VehicleEntity hull, @Nullable CrewFacts.Faction faction) {
         if (faction == null) return;
         String id = faction.name().toLowerCase(Locale.ROOT);
         if (faction == get(hull)) {
-            hull.setSkinId(id);
             if (faction == CrewFacts.Faction.PMC) {
                 PmcVehicleLogoSupport.applyIfPmcCaptured(hull, CrewFacts.pmcOwner(hull));
             }
@@ -58,11 +65,10 @@ public final class VehicleSkinSupport {
         int salt = hull.getRandom().nextInt();
         hull.getPersistentData().putString(TAG, id);
         hull.getPersistentData().putInt(TAG_SALT, salt);
-        hull.setSkinId(id);
         sync(hull, faction, salt);
     }
 
-    /** Spray-GUI / repair-tool pick: full catalog id ({@code ru}, {@code ru_0}, …). */
+    /** Spray-GUI pick of a sewv catalog id ({@code ru}, {@code ru_0}, …). */
     public static void setFromSkinId(VehicleEntity hull, @Nullable String skinId) {
         if (skinId == null || skinId.isBlank()) {
             clear(hull);
@@ -70,7 +76,6 @@ public final class VehicleSkinSupport {
         }
         Parsed parsed = parseSkinId(skinId);
         if (parsed == null) {
-            clear(hull);
             return;
         }
         int salt = parsed.variant >= 0 ? parsed.variant : hull.getRandom().nextInt();
@@ -108,14 +113,25 @@ public final class VehicleSkinSupport {
         }
     }
 
+    /** Drop sticky paint only — leave SBW {@code skinId} alone (foreign datapack cams). */
+    public static void clearSticky(VehicleEntity hull) {
+        CompoundTag data = hull.getPersistentData();
+        if (!data.contains(TAG) && !data.contains(TAG_SALT)) return;
+        data.remove(TAG);
+        data.remove(TAG_SALT);
+        sync(hull, null, 0);
+    }
+
     public static void clear(VehicleEntity hull) {
         CompoundTag data = hull.getPersistentData();
         boolean hadSticky = data.contains(TAG) || data.contains(TAG_SALT);
-        boolean hadSkinId = hull.getSkinId() != null && !hull.getSkinId().isBlank();
-        if (!hadSticky && !hadSkinId) return;
+        boolean hadSewvSkinId = isSewvSkinId(hull.getSkinId());
+        if (!hadSticky && !hadSewvSkinId) return;
         data.remove(TAG);
         data.remove(TAG_SALT);
-        hull.setSkinId("");
+        if (hadSewvSkinId) {
+            hull.setSkinId("");
+        }
         sync(hull, null, 0);
     }
 
@@ -145,7 +161,8 @@ public final class VehicleSkinSupport {
 
     /** Server-side mirror of {@code VehicleSkinRegistry.parseSkinId} (no client classpath). */
     @Nullable
-    private static Parsed parseSkinId(String skinId) {
+    private static Parsed parseSkinId(@Nullable String skinId) {
+        if (skinId == null || skinId.isBlank()) return null;
         String raw = skinId.toLowerCase(Locale.ROOT);
         int under = raw.lastIndexOf('_');
         if (under > 0 && under < raw.length() - 1) {

@@ -62,6 +62,10 @@ public final class VehicleDrops {
     /**
      * Spill the hull container per config, then empty it so SBW's own {@code remove} loop
      * finds nothing.
+     *
+     * <p>Stays on SBW {@code getItems()} on purpose: addon holds (FCP) already spill in their
+     * own {@code remove} override before {@code super.remove} reaches this mixin. Walking
+     * {@code ITEM_HANDLER} here would drop the same stacks twice.
      */
     public static void spillAndClear(VehicleEntity vehicle) {
         List<ItemStack> items = vehicle.getItems();

@@ -16,8 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
 
 /**
- * Spray-GUI selection writes sewv sticky paint from the full catalog id ({@code ru_0}, …)
- * instead of SBW's datapack skin id.
+ * Spray-GUI: claim only sewv catalog ids ({@code ru}, {@code ru_0}, …). Anything else is left
+ * to SBW so datapack skins from other mods keep working.
  */
 @Mixin(value = SetVehicleSkinMessage.class, remap = false)
 public abstract class MixinSetVehicleSkinMessage {
@@ -30,6 +30,20 @@ public abstract class MixinSetVehicleSkinMessage {
 
     @Inject(method = "handler", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$applySewvSkin(Supplier<NetworkEvent.Context> ctxSupplier, CallbackInfo ci) {
+        String skinId = this.getSkinId();
+        if (!VehicleSkinSupport.isSewvSkinId(skinId)) {
+            // Datapack / blank pick — drop sticky paint so it cannot override the foreign skin.
+            NetworkEvent.Context ctx = ctxSupplier.get();
+            ServerPlayer sender = ctx.getSender();
+            if (sender != null) {
+                Entity target = sender.level().getEntity(this.getEntityId());
+                if (target instanceof VehicleEntity vehicle) {
+                    VehicleSkinSupport.clearSticky(vehicle);
+                }
+            }
+            return;
+        }
+
         NetworkEvent.Context ctx = ctxSupplier.get();
         ServerPlayer sender = ctx.getSender();
         if (sender == null) {
@@ -41,7 +55,7 @@ public abstract class MixinSetVehicleSkinMessage {
             ci.cancel();
             return;
         }
-        VehicleSkinSupport.setFromSkinId(vehicle, this.getSkinId());
+        VehicleSkinSupport.setFromSkinId(vehicle, skinId);
         ci.cancel();
     }
 }

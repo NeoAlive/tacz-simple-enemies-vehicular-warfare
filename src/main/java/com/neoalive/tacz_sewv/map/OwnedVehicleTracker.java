@@ -257,9 +257,10 @@ public final class OwnedVehicleTracker {
             }
 
             CrewFacts.Faction faction = CrewFacts.factionOf(hull);
-            if (faction == CrewFacts.Faction.RU || faction == CrewFacts.Faction.US) continue;
-
-            if (faction == CrewFacts.Faction.PMC) {
+            // Unanimous SEM crew (RU / US / PMC): mark now. pmcOwner is non-null only for PMC;
+            // RU/US go through markersFor spotting like infantry. Null faction falls through to
+            // player-occupied / empty-FOB paths below.
+            if (faction != null) {
                 Entity driver = hull.getFirstPassenger();
                 if (!(driver instanceof AbstractUnit crew)) continue;
 

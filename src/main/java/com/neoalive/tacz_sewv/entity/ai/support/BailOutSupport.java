@@ -15,7 +15,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -47,9 +46,12 @@ public final class BailOutSupport {
     private static final String PARACHUTE_SLOT = "back";
     private static final int PARACHUTE_MIN_HEIGHT = 8;
 
-    private static final double MIN_CLEARANCE = 2.0;
-    private static final double MAX_CLEARANCE = 6.0;
-    private static final int ESCAPE_CANDIDATES = 12;
+    /** Blocks past the hull half-extent — obvious clear of the wreck, still a short scramble. */
+    private static final double FLEE_CLEARANCE = 14.0;
+    /** Angle offsets (radians) tried when the primary flee column is not standable. */
+    private static final float[] FLEE_ANGLE_FALLBACKS = {
+            0.0F, Mth.PI / 4.0F, -Mth.PI / 4.0F, Mth.HALF_PI, -Mth.HALF_PI
+    };
     private static final int MAX_ESCAPE_ELEVATION = 8;
 
     private BailOutSupport() {}
@@ -155,56 +157,46 @@ public final class BailOutSupport {
         });
     }
 
+    /**
+     * Radial flee: one point along {@code unit - hull} at {@code halfW + FLEE_CLEARANCE},
+     * snapped to standable ground. Angle fallbacks only when that column fails.
+     */
     @Nullable
     private static BlockPos findEscapePos(AbstractUnit unit, VehicleEntity vehicle) {
         AABB hullBox = VehicleMotionUtils.INSTANCE.calculateCombinedAABBOptimized(vehicle);
         double halfW = Math.max(hullBox.getXsize(), hullBox.getZsize()) * 0.5;
-        return findEscapePosNear(unit, vehicle.getX(), vehicle.getY(), vehicle.getZ(), hullBox,
-                halfW + MIN_CLEARANCE, halfW + MAX_CLEARANCE);
-    }
+        double radius = halfW + FLEE_CLEARANCE;
 
-    @Nullable
-    private static BlockPos findEscapePosNear(AbstractUnit unit, double cx, double cy, double cz,
-                                              @Nullable AABB hullBox, double minR, double maxR) {
+        double cx = vehicle.getX();
+        double cy = vehicle.getY();
+        double cz = vehicle.getZ();
+        double dx = unit.getX() - cx;
+        double dz = unit.getZ() - cz;
+        if (dx * dx + dz * dz < 1.0e-4) {
+            float yaw = unit.getRandom().nextFloat() * Mth.TWO_PI;
+            dx = Mth.cos(yaw);
+            dz = Mth.sin(yaw);
+        }
+        double len = Math.sqrt(dx * dx + dz * dz);
+        dx /= len;
+        dz /= len;
+
         Level level = unit.level();
-        RandomSource random = unit.getRandom();
-
-        double exitX = unit.getX() - cx;
-        double exitZ = unit.getZ() - cz;
-        boolean hasExitDir = exitX * exitX + exitZ * exitZ > 1.0e-4;
-
-        BlockPos bestSame = null;
-        double bestSameDistSq = Double.MAX_VALUE;
-        BlockPos bestAny = null;
-        double bestAnyDistSq = Double.MAX_VALUE;
         int refY = Mth.floor(cy);
-
-        for (int i = 0; i < ESCAPE_CANDIDATES; i++) {
-            double angle = random.nextDouble() * Mth.TWO_PI;
-            double radius = minR + random.nextDouble() * (maxR - minR);
-            double dx = Math.cos(angle) * radius;
-            double dz = Math.sin(angle) * radius;
-            int x = Mth.floor(cx + dx);
-            int z = Mth.floor(cz + dz);
-
+        float base = (float) Math.atan2(dz, dx);
+        for (float offset : FLEE_ANGLE_FALLBACKS) {
+            float angle = base + offset;
+            int x = Mth.floor(cx + Mth.cos(angle) * radius);
+            int z = Mth.floor(cz + Mth.sin(angle) * radius);
             BlockPos candidate = standableGroundAt(level, x, z, refY);
             if (candidate == null) continue;
-            if (hullBox != null && hullBox.intersects(candidate.getX(), candidate.getY(), candidate.getZ(),
+            if (hullBox.intersects(candidate.getX(), candidate.getY(), candidate.getZ(),
                     candidate.getX() + 1.0, candidate.getY() + 2.0, candidate.getZ() + 1.0)) {
                 continue;
             }
-
-            double distSq = unit.distanceToSqr(Vec3.atBottomCenterOf(candidate));
-            if (distSq < bestAnyDistSq) {
-                bestAny = candidate;
-                bestAnyDistSq = distSq;
-            }
-            if (hasExitDir && dx * exitX + dz * exitZ > 0.0 && distSq < bestSameDistSq) {
-                bestSame = candidate;
-                bestSameDistSq = distSq;
-            }
+            return candidate;
         }
-        return bestSame != null ? bestSame : bestAny;
+        return null;
     }
 
     @Nullable

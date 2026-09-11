@@ -1,9 +1,14 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
+import java.lang.reflect.Method;
+
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.data.gun.AmmoConsumer;
 import com.atsuishio.superbwarfare.data.gun.GunData;
 import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.entity.vehicle.TowEntity;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModSounds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
@@ -14,76 +19,52 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.block.EmplacementSupport;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
+import com.neoalive.tacz_sewv.compat.FcpEmplacementCompat;
 
 /**
- * TOW launcher reload logic used by {@link ManTowGoal}.
+ * TOW / FCP-emplacement reload logic used by {@link com.neoalive.tacz_sewv.entity.ai.goal.ManTowGoal}.
  *
- * <p>Unlike a mortar, a TOW is an ordinary crewed vehicle: it has a seat, so a unit rides
- * it and the normal board flow reaches it with no special order. What it does NOT have is
- * anything that loads it for a mob — see {@link #reload}. Aim for its wire-guide missile
- * (and other vehicle ATGMs) is handled by {@link VehicleMissileAim}, not here.
+ * <p>SBW {@link TowEntity} and FCP emplacements share the same gap: nothing loads them for a mob.
+ * SBW's player {@code interact} / FCP's player-only reload timer never run for SEM crews.
  */
 public final class TowSupport {
 
-    /**
-     * The TOW's only seat, which is also its gunner and its turret controller. The seat
-     * index is all that's needed to reach the launcher's one weapon ("Missile"): the
-     * single-int {@code getGunData}/{@code modifyGunData} overloads resolve a SEAT to the
-     * weapon it currently has selected, which is what SBW's own fire path and
-     * {@code TowEntity.interact} both use.
-     */
     public static final int GUNNER_SEAT = 0;
 
     private TowSupport() {}
 
-    /** Whether this unit is sitting in a TOW, and so is a launcher crew rather than infantry. */
+    /**
+     * AT / single-shot launcher crew (SBW TOW, FCP TOW / Kornet / ZiS-3) — used for fire-mission
+     * kind and target priority. Magazine MGs are excluded on purpose.
+     */
     public static boolean isCrewing(Entity unit) {
-        return unit.getVehicle() instanceof TowEntity;
+        Entity vehicle = unit.getVehicle();
+        if (vehicle instanceof TowEntity) return true;
+        return vehicle instanceof VehicleEntity hull && FcpEmplacementCompat.isManual(hull);
+    }
+
+    /** Anything {@link ManTowGoal} should keep loaded (AT launchers + FCP magazine emplacements). */
+    public static boolean needsAiReload(Entity unit) {
+        Entity vehicle = unit.getVehicle();
+        if (vehicle instanceof TowEntity) return true;
+        return vehicle instanceof VehicleEntity hull && FcpEmplacementCompat.needsAiReload(hull);
     }
 
     /**
-     * Puts a missile on the rail from the crew's own inventory, and reports whether one
-     * went on.
-     *
-     * <p>Nothing in SBW does this for a mob. A TOW is loaded exclusively by a player
-     * right-clicking it with a missile in hand ({@code TowEntity.interact}); the per-seat
-     * loop in {@code VehicleEntity.tick} only ever warns a <em>Player</em> that it is out
-     * of ammo, and never loads anything. An AI-crewed launcher therefore fires once — the
-     * round it was deployed with — and is then dead weight forever. This is the whole
-     * reason the goal exists.
-     *
-     * <p>The gates are SBW's own:
-     * <ul>
-     *   <li>{@code hasEnoughAmmoToShoot} — the magazine holds 1, so this is simply "already
-     *       loaded". It is what {@code interact} reads to decide the same thing.
-     *   <li>{@code getReloadCooldown()} — the launcher cycles for {@code ceil(20 / (RPM/60))}
-     *       ticks after a shot (7.5 s at the TOW's RPM 8). Set by {@code vehicleShoot}, ticked
-     *       down by {@code TowEntity.tick}, and NOT checked by {@code canShoot} — it gates the
-     *       reload, not the shot.
-     *   <li>a round to load — an issued supply ({@link IIssuedAmmo}, unlimited) or, failing
-     *       that, {@code countBackupAmmo} against the crew's actual inventory. Deliberately
-     *       not a hardcoded {@code MEDIUM_ANTI_GROUND_MISSILE} test: both routes ask the
-     *       weapon's own AmmoConsumer whether the item fits, so they follow the datapack if a
-     *       pack repoints the TOW's AmmoType.
-     * </ul>
-     *
-     * <p>The load goes through {@code GunData.reloadAmmo} either way — {@code reloadAmmo(Entity)}
-     * is byte-for-byte the call {@code TowEntity.interact} makes for a player. An issued supply
-     * feeds it through {@code virtualAmmo}, SBW's own "ammo not backed by an item" channel:
-     * {@code countBackupAmmo} adds it in and {@code consumeBackupAmmo} spends it first, so the
-     * round is conjured and consumed entirely inside SBW's normal path and the crew's (possibly
-     * nonexistent) inventory is never consulted. That indirection is the point — an RU/US unit
-     * has no inventory at all, and every lookup against it silently answers 0.
-     *
-     * <p>{@code LOADED} is display state: {@code TowModel} reads it to put the missile on
-     * the rail, and {@code getRetrieveItems} hands the round back when the launcher is
-     * picked up. Nothing in the fire path reads it — which is exactly why it has to be
-     * reconciled here. {@code vehicleShoot} empties the magazine but never clears LOADED;
-     * SBW gets away with that because {@code interact} fixes it up the next time a player
-     * touches the launcher, and for an AI crew that moment never comes. Left alone, the
-     * rail would show a missile that flew 7 seconds ago.
+     * Loads the weapon the unit is riding. SBW TOW and FCP emplacements both go through
+     * {@link GunData#reloadAmmo(Entity)} + {@code virtualAmmo} for issued / pad supply.
      */
-    public static boolean reload(TowEntity tow, AbstractUnit unit) {
+    public static boolean reload(VehicleEntity hull, AbstractUnit unit) {
+        if (hull instanceof TowEntity tow) {
+            return reloadTow(tow, unit);
+        }
+        if (FcpEmplacementCompat.needsAiReload(hull)) {
+            return reloadGeneric(hull, unit, FcpEmplacementCompat.isManual(hull));
+        }
+        return false;
+    }
+
+    private static boolean reloadTow(TowEntity tow, AbstractUnit unit) {
         try {
             GunData gun = tow.getGunData(GUNNER_SEAT);
             if (gun == null) return false;
@@ -94,18 +75,12 @@ public final class TowSupport {
             if (loaded) return false;
             if (tow.getReloadCooldown() != 0) return false;
 
-            boolean issued = hasIssuedMissile(gun, unit);
+            boolean issued = hasIssuedAmmo(gun, unit);
             boolean fromPad = false;
             if (!issued && gun.countBackupAmmo(unit) <= 0) {
-                // PMC pad: spend one missile from the emplacement into virtualAmmo — same channel
-                // as issued ammo, no inventory hop (TOW crew is seated; pockets are the wrong model).
                 fromPad = EmplacementSupport.tryFeedTowVirtualAmmo(tow, gun);
                 if (!fromPad) {
-                    if (unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity pmc) {
-                        com.neoalive.tacz_sewv.notify.HudNotify.pmcAmmoOut(pmc, tow,
-                                net.minecraft.network.chat.Component.translatable(
-                                        "notification.tacz_sewv.kind.tow"));
-                    }
+                    notifyDry(unit, tow);
                     return false;
                 }
             }
@@ -116,30 +91,110 @@ public final class TowSupport {
                 data.reloadAmmo(unit);
             });
             tow.setLoaded(true);
-
-            if (tow.level() instanceof ServerLevel serverLevel) {
-                serverLevel.playSound(null, tow.blockPosition(), ModSounds.TYPE_63_RELOAD.get(),
-                        SoundSource.NEUTRAL, 1.0F, tow.getRandom().nextFloat() * 0.1F + 0.9F);
-            }
+            playReload(tow);
             return true;
         } catch (Exception e) {
-            return false; // unreadable gun data must never crash the AI tick
+            return false;
         }
     }
 
     /**
-     * Whether this crew was issued an unlimited supply of something this launcher will take.
-     *
-     * <p>Asks the weapon's own AmmoConsumer rather than comparing against a hardcoded missile
-     * item, so a crew issued mortar shells can't load a TOW with them, and a datapack that
-     * repoints the TOW's AmmoType keeps working.
+     * FCP emplacement reload. Manual guns honour {@code getReloadCooldown}/{@code setLoaded} when
+     * present (ZiS-3 / FCP TOW / Kornet); magazine guns just refill via virtualAmmo.
      */
-    private static boolean hasIssuedMissile(GunData gun, AbstractUnit unit) {
+    private static boolean reloadGeneric(VehicleEntity hull, AbstractUnit unit, boolean manual) {
+        try {
+            GunData gun = hull.getGunData(GUNNER_SEAT);
+            if (gun == null) return false;
+
+            boolean loaded = gun.hasEnoughAmmoToShoot(unit);
+            syncLoaded(hull, loaded);
+            if (loaded) return false;
+            if (manual && reloadCooldown(hull) != 0) return false;
+
+            boolean issued = hasIssuedAmmo(gun, unit);
+            if (!issued && gun.countBackupAmmo(unit) <= 0) {
+                notifyDry(unit, hull);
+                return false;
+            }
+
+            hull.modifyGunData(GUNNER_SEAT, data -> {
+                if (issued) data.virtualAmmo.set(data.get(GunProp.MAGAZINE));
+                data.reloadAmmo(unit);
+            });
+            syncLoaded(hull, true);
+            playReload(hull);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static void notifyDry(AbstractUnit unit, VehicleEntity weapon) {
+        if (unit instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity pmc) {
+            com.neoalive.tacz_sewv.notify.HudNotify.pmcAmmoOut(pmc, weapon,
+                    net.minecraft.network.chat.Component.translatable(
+                            "notification.tacz_sewv.kind.tow"));
+        }
+    }
+
+    private static void playReload(VehicleEntity hull) {
+        if (hull.level() instanceof ServerLevel serverLevel) {
+            serverLevel.playSound(null, hull.blockPosition(), ModSounds.TYPE_63_RELOAD.get(),
+                    SoundSource.NEUTRAL, 1.0F, hull.getRandom().nextFloat() * 0.1F + 0.9F);
+        }
+    }
+
+    private static boolean hasIssuedAmmo(GunData gun, AbstractUnit unit) {
         if (!(unit instanceof IIssuedAmmo crew)) return false;
         Item issued = crew.sewv$getIssuedAmmo();
         if (issued == null) return false;
-
         AmmoConsumer consumer = gun.selectedAmmoConsumer();
         return consumer != null && consumer.isAmmoItem(new ItemStack(issued));
+    }
+
+    /** Reflect {@code setLoaded} when the hull exposes it (FCP EmplacementEntity / SBW Tow). */
+    private static void syncLoaded(VehicleEntity hull, boolean loaded) {
+        try {
+            Method get = findMethod(hull.getClass(), "isLoaded");
+            Method set = findMethod(hull.getClass(), "setLoaded", boolean.class);
+            if (get == null || set == null) {
+                get = findMethod(hull.getClass(), "getLoaded");
+            }
+            if (set == null) return;
+            if (get != null) {
+                Object cur = get.invoke(hull);
+                if (cur instanceof Boolean b && b == loaded) return;
+            }
+            set.invoke(hull, loaded);
+        } catch (Exception ignored) {
+            // display-only; fire path does not need LOADED
+        }
+    }
+
+    private static int reloadCooldown(VehicleEntity hull) {
+        try {
+            Method m = findMethod(hull.getClass(), "getReloadCooldown");
+            if (m == null) return 0;
+            Object v = m.invoke(hull);
+            return v instanceof Number n ? n.intValue() : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    @Nullable
+    private static Method findMethod(Class<?> type, String name, Class<?>... params) {
+        Class<?> c = type;
+        while (c != null && c != Object.class) {
+            try {
+                Method m = c.getDeclaredMethod(name, params);
+                m.setAccessible(true);
+                return m;
+            } catch (NoSuchMethodException e) {
+                c = c.getSuperclass();
+            }
+        }
+        return null;
     }
 }

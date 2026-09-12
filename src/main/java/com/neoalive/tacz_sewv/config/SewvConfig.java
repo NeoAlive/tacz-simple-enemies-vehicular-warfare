@@ -86,6 +86,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue DARK_BLOCK_LIGHT_MAX;
 
     public static final ForgeConfigSpec.IntValue AI_FIRE_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.IntValue AI_LOS_CACHE_TICKS;
     public static final ForgeConfigSpec.DoubleValue AI_FIRE_ASSIST_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
     public static final ForgeConfigSpec.DoubleValue FRIENDLY_FIRE_VEHICLE_RADIUS;
@@ -201,6 +202,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
     public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_TACTICS_ENABLED;
 
+    public static final ForgeConfigSpec.BooleanValue COMMAND_SYSTEM_ENABLED;
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_JOIN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_LEAVE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_MAX_DIAMETER;
@@ -208,6 +210,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue COMMAND_MAX_UNITS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_ENGAGEMENT_RADIUS;
     public static final ForgeConfigSpec.DoubleValue COMMAND_MARGIN;
+    public static final ForgeConfigSpec.BooleanValue PLATOON_ENABLED;
     public static final ForgeConfigSpec.DoubleValue PLATOON_COHESION_RADIUS;
     public static final ForgeConfigSpec.IntValue PLATOON_MAX_SIZE;
     public static final ForgeConfigSpec.IntValue PLATOON_MIN_SIZE;
@@ -521,6 +524,11 @@ public final class SewvConfig {
         builder.push("crew_ai");
         AI_FIRE_COOLDOWN_TICKS = builder.comment("Minimum wait between AI vehicle shots, in game ticks (20 = 1 second).")
                 .defineInRange("aiFireCooldownTicks", 5, 1, 200);
+        AI_LOS_CACHE_TICKS = builder.comment(
+                        "How long (game ticks) an AI crew reuses its last line-of-fire verdict.",
+                        "Higher = fewer raycasts on automatic weapons; a target that breaks LOS mid-burst",
+                        "may draw a few extra ticks of fire.")
+                .defineInRange("aiLosCacheTicks", 8, 1, 40);
         AI_FIRE_ASSIST_CONE_DEG = builder.comment(
                         "How many degrees off-target an AI crew may still pull the trigger.",
                         "Wider = more missed shots but less sitting silent. Existing configs keep their old value until you edit them.")
@@ -785,8 +793,9 @@ public final class SewvConfig {
                 .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
         OUTER_RING_ENABLED = builder.comment(
                         "Let crews notice enemies farther out than their normal scan range.",
-                        "Awareness only — they will not open fire at that distance by themselves.")
-                .define("outerRingEnabled", true);
+                        "Awareness only — they will not open fire at that distance by themselves.",
+                        "Default off: wide LivingEntity scans on idle hulls; enable when you want long-range awareness.")
+                .define("outerRingEnabled", false);
         OUTER_RING_MAX_BLOCKS = builder.comment(
                         "Max distance (blocks) for that long-range awareness. Also limited by the server's view/simulation distance.")
                 .defineInRange("outerRingMaxBlocks", 192.0, 96.0, 512.0);
@@ -808,6 +817,10 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("command");
+        COMMAND_SYSTEM_ENABLED = builder.comment(
+                        "Battle groups, influence maps, and doctrine plays for vehicle crews.",
+                        "When false, local drive/gun AI still runs; only coordinated plays stop.")
+                .define("commandSystemEnabled", true);
         COMMAND_GROUP_JOIN_RADIUS = builder.comment("How close (blocks) a vehicle must be to a battle group's centre to join it.")
                 .defineInRange("commandGroupJoinRadius", 48.0, 8.0, 256.0);
         COMMAND_GROUP_LEAVE_RADIUS = builder.comment("How far (blocks) before a member leaves the group. Must be larger than join radius.")
@@ -834,6 +847,10 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("platoon");
+        PLATOON_ENABLED = builder.comment(
+                        "PMC platoon formation around commanders (auto-scan + manual join).",
+                        "When false, whole-level platoon scans stop; join packets refuse cleanly.")
+                .define("platoonEnabled", true);
         PLATOON_COHESION_RADIUS = builder.comment("Platoons try to stay within this many blocks of each other, unless tasked into a doctrine play.")
                 .defineInRange("platoonCohesionRadius", 30.0, 8.0, 128.0);
         PLATOON_MAX_SIZE = builder.comment("Max members in one platoon (PMC infantry, or ground-vehicle crews — never mixed).")

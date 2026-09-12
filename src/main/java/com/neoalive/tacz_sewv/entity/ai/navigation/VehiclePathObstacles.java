@@ -54,7 +54,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID)
 public final class VehiclePathObstacles {
 
-    private static final int REFRESH_INTERVAL = 15;
+    private static final int REFRESH_INTERVAL = 40;
     private static final double INFLATE = 0.35;
     /** Half-block samples along a LOS ray — enough to not skip a 1-block cell. */
     private static final double SAMPLE_PER_BLOCK = 2.0;

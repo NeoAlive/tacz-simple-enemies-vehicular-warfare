@@ -33,6 +33,15 @@ Forge `client` / `server` config files remain for modpack defaults and dev-only 
 Komodo render fix, armor list data edited via the misc editor). Delete a config file to pick up code
 defaults on next launch.
 
+**Busy-server MSPT checklist** (Existing installs keep old toml values until edited/deleted):
+
+- `outerRingEnabled=false` (new default) — idle long-range entity bands
+- `commandSystemEnabled=false` / `platoonEnabled=false` — coordinated plays / PMC platoon scans
+- `individualTacticsEnabled=false`, `idleHybridEnabled=false`
+- `mapInfantryEnabled=false`, raise `mapSyncIntervalTicks`
+- Raise `vehicleTargetScanIntervalTicks` / `utilityRefreshIntervalTicks` / `aiLosCacheTicks`
+- Chunk tickets: `mortarChunkLoading` / `heliChunkLoading` / `planeChunkLoading` as needed
+
 **WARNING: The project is in its early stages. If you encounter bugs during your playthrough,
 PLEASE report them on GitHub.**
 

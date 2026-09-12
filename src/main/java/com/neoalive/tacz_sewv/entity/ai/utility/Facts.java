@@ -366,7 +366,9 @@ public final class Facts {
         GunData selected = seat >= 0 ? VehicleWeapons.gunData(hull, seat) : null;
         this.ammoCount = readAmmoCount(hull, seat, selected);
         this.ammo = classifyAmmo(this.ammoCount, readMagazine(selected));
-        this.canShoot = seat >= 0 && safeCanShoot(hull, unit);
+        // Weapon-ready only — never call hull.canShoot here. That re-enters the fire LoF stack
+        // (clips + ally corridors + smoke) every utility refresh; real LoF stays on the fire gate.
+        this.canShoot = this.ammoCount > 0;
         this.smokeReady = this.hasDecoy && safeDecoyReady(hull);
         this.speed = hull.getLastTickSpeed();
     }
@@ -402,14 +404,6 @@ public final class Facts {
                 ? Math.max(1, (int) Math.floor(magazine * LOW_AMMO_FRACTION))
                 : LOW_AMMO_ROUNDS;
         return count <= low ? Ammo.LOW : Ammo.OK;
-    }
-
-    private static boolean safeCanShoot(VehicleEntity hull, AbstractUnit unit) {
-        try {
-            return hull.canShoot(unit);
-        } catch (Throwable ignored) {
-            return true;
-        }
     }
 
     private static boolean safeDecoyReady(VehicleEntity hull) {

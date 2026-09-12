@@ -5,7 +5,8 @@ import java.util.List;
 import net.minecraft.util.RandomSource;
 
 /**
- * Shared Fisher–Yates shuffle. Used by {@link VehicleEngineLoot} (loot slot scrambling) and by
+ * Shared Fisher–Yates shuffle. Used by {@link VehicleEngineLoot} (loot slot scrambling),
+ * {@link UnitCorpseLoot} (RU/US corpse main-inventory fill), and by
  * {@link com.neoalive.tacz_sewv.crew.NamePools} (draw-without-replacement name pools).
  */
 public final class RandomUtil {

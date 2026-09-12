@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.block.TrenchPathTypes;
 import com.neoalive.tacz_sewv.command.SewvCommand;
+import com.neoalive.tacz_sewv.compat.CorpseCompat;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.ClientConfig;
@@ -126,6 +127,9 @@ public class TaczSewv {
     // Soft compat: PlayerReviveMod is compileOnly; only PlayerReviveCompat may touch
     // team.creative.playerrevive.*, and only after isLoaded().
     PlayerReviveCompat.reportAvailability();
+    // Soft compat: Corpse is compileOnly; only CorpseCompat.Access may touch
+    // de.maxhenkel.corpse.*, and only after isLoaded().
+    CorpseCompat.reportAvailability();
     LOGGER.info("SEM<->SW vehicle bridge loading");
     }
 

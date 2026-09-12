@@ -412,6 +412,8 @@ mixin {
     // classpath unless -PwithPlayerRevive) and compileOnly like Xaero, so the mixin targets its
     // class directly.
     config "tacz_sewv.playerrevive.mixins.json"
+    // Separate config + CorpseMixinPlugin gate — Corpse is optional and compileOnly.
+    config "tacz_sewv.corpse.mixins.json"
     // Separate config + MineColoniesMixinPlugin gate — MineColonies is optional and compileOnly.
     config "tacz_sewv.minecolonies.mixins.json"
 }
@@ -570,6 +572,15 @@ dependencies {
     if (project.hasProperty('withPlayerRevive')) {
         runtimeOnly fg.deobf("blank:playerrevive:1.0")
         runtimeOnly fg.deobf("blank:creativecore:1.0")
+    }
+    // Soft: compile against Corpse (henkelmax). libs/corpse.jar is the Forge 1.20.1 release
+    // (Modrinth corpse-forge-1.20.1-*). CoreLib is relocated inside the jar to
+    // de.maxhenkel.corpse.corelib — only CorpseCompat.Access may touch those types, and only
+    // after isLoaded(). Off the run classpath by default; opt in with:
+    //   ./gradlew runClient -PwithCorpse
+    compileOnly fg.deobf("blank:corpse:1.0")
+    if (project.hasProperty('withCorpse')) {
+        runtimeOnly fg.deobf("blank:corpse:1.0")
     }
     // Soft: compile against Enhanced Falling Trees (MC 1.20/Forge 46, github.com/addavriance/
     // EnhancedFallingTrees). libs/efallingtrees.jar is its Forge release jar, same flatDir

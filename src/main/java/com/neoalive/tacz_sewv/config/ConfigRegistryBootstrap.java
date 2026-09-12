@@ -263,6 +263,14 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.VEHICLE_DEATH_DROPS, SewvConfig.VEHICLE_DEATH_DROPS::set);
         b.bool(ConfigScope.SERVER, "resources", "vehicleAmmoLoot",
                 SewvConfig.VEHICLE_AMMO_LOOT, SewvConfig.VEHICLE_AMMO_LOOT::set);
+        b.bool(ConfigScope.SERVER, "resources", "unitCorpseCompat",
+                SewvConfig.UNIT_CORPSE_COMPAT, SewvConfig.UNIT_CORPSE_COMPAT::set);
+        b.bool(ConfigScope.SERVER, "resources", "unitCorpseRu",
+                SewvConfig.UNIT_CORPSE_RU, SewvConfig.UNIT_CORPSE_RU::set);
+        b.bool(ConfigScope.SERVER, "resources", "unitCorpseUs",
+                SewvConfig.UNIT_CORPSE_US, SewvConfig.UNIT_CORPSE_US::set);
+        b.bool(ConfigScope.SERVER, "resources", "unitCorpsePmc",
+                SewvConfig.UNIT_CORPSE_PMC, SewvConfig.UNIT_CORPSE_PMC::set);
     }
 
     private static void registerSoldiers(ConfigRegistry.Builder b) {

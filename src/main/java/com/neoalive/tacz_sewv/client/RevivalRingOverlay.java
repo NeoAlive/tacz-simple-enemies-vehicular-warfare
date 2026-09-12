@@ -14,10 +14,10 @@ import com.neoalive.tacz_sewv.TaczSewv;
 
 /**
  * Reinvokes SBW's own artillery-indicator ring widget ({@code RenderHelper.renderCircularRing}) for
- * this mod's revival channels — {@code PlayerReviveGoal} (a PMC reviving a downed player),
- * {@code PmcReviveGoal} (a medic PMC reviving a downed squadmate — shown to that squadmate's owning
- * player), and {@code PmcDownedSupport}'s own hold-to-revive channel (a player reviving a downed
- * PMC). SBW's own overlay, {@code SpyglassRangeOverlay}, is hard-gated at the bytecode level to only
+ * this mod's revival channels — only when the local player is involved:
+ * {@code PlayerReviveGoal} (a PMC reviving a downed player) and {@code PmcDownedSupport}'s
+ * hold-to-revive (player reviving a downed PMC). PMC→PMC revives do not drive this overlay.
+ * SBW's own overlay, {@code SpyglassRangeOverlay}, is hard-gated at the bytecode level to only
  * draw while holding the literal Artillery Indicator item and using/scoping it — reusing that class
  * would need a mixin to relax that guard. {@code RenderHelper.renderCircularRing} itself is a plain,
  * unbound public static utility with no such coupling, so this calls it directly instead, driven by

@@ -13,9 +13,9 @@ import com.neoalive.tacz_sewv.client.RevivalRingOverlay;
 
 /**
  * Server→client: drives {@link RevivalRingOverlay}'s progress ring on one specific player's
- * screen — the downed player during {@code PlayerReviveGoal}'s channel, the owning player during
- * {@code PmcReviveGoal}'s (their downed PMC being worked on), and the reviving player during
- * {@code PmcDownedSupport}'s own channel. {@code active=false} clears the ring (goal/channel
+ * screen — only when that player is involved: the downed player during {@code PlayerReviveGoal},
+ * or the reviving player during {@code PmcDownedSupport}'s hold-to-revive. PMC→PMC channels
+ * ({@code PmcReviveGoal}) do not send this. {@code active=false} clears the ring (goal/channel
  * stopped, revived, or cancelled) regardless of whatever {@code progress} carries.
  */
 public class PacketReviveProgress {

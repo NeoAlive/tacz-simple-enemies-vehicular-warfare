@@ -21,7 +21,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 
 /**
  * AI kamikaze drones: skip warhead unless dive-armed; never entity-crash the owner/friendlies
- * (or anyone during spawn grace).
+ * (or anyone during spawn grace); run mortar_shell explosion without a player CONTROLLER.
  */
 @Mixin(value = DroneEntity.class, remap = false)
 public abstract class MixinDroneKamikaze {
@@ -39,6 +39,20 @@ public abstract class MixinDroneKamikaze {
             return false;
         }
         return data.isKamikaze;
+    }
+
+    /**
+     * SBW {@code kamikazeExplosion} returns immediately when {@code CONTROLLER} is not a live
+     * player — always true for AI ("undefined"). Run the attachment warhead ourselves instead.
+     */
+    @Inject(method = "kamikazeExplosion", at = @At("HEAD"), cancellable = true)
+    private void tacz_sewv$aiWarhead(CallbackInfo ci) {
+        DroneEntity self = (DroneEntity) (Object) this;
+        if (!DroneControl.isAiOwned(self)) return;
+        ci.cancel();
+        if (DroneControl.isDiveArmed(self)) {
+            DroneSupport.detonateWarhead(self);
+        }
     }
 
     @Inject(method = "hitEntityCrash", at = @At("HEAD"), cancellable = true)

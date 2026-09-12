@@ -412,6 +412,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.DRONE_SCAN_INTERVAL_TICKS, SewvConfig.DRONE_SCAN_INTERVAL_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "droneLeashRadius", 16.0, 512.0,
                 SewvConfig.DRONE_LEASH_RADIUS, SewvConfig.DRONE_LEASH_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "droneTargetRadius", 32.0, 384.0,
+                SewvConfig.DRONE_TARGET_RADIUS, SewvConfig.DRONE_TARGET_RADIUS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "autoBoardEnabled",
                 SewvConfig.AUTO_BOARD_ENABLED, SewvConfig.AUTO_BOARD_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "autoBoardScanRadius", 4.0, 128.0,

@@ -5,7 +5,6 @@ import java.util.EnumSet;
 import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
-import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -28,6 +27,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
  * enter/exit. Close-range threats (and recent hostile hits) drop the lock and park the drone
  * with zero inputs; once clear, the engineer re-locks and resumes control. A live SEM target at
  * any range is <em>not</em> an unlock — that left every combat-zone drone parked forever.
+ * Operator death is {@link DroneSupport#onOperatorKilled} (crash-dive), not this goal.
  *
  * <p>SBW drone {@code travel()} ignores forward/strafe while {@code onGround()}, and a held
  * {@code up} input grows {@code holdTickY} unboundedly (~0.05×ticks vertical impulse — ~18
@@ -61,7 +61,7 @@ public class DroneOperatorGoal extends Goal {
     /** Sticky between rescans — returning false mid-window used to re-lock every tick (sit flicker). */
     private boolean holdUnlock;
     @javax.annotation.Nullable
-    private VehicleEntity diveTarget;
+    private LivingEntity diveTarget;
 
     public DroneOperatorGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -76,6 +76,12 @@ public class DroneOperatorGoal extends Goal {
     @Override
     public boolean requiresUpdateEveryTick() {
         return true;
+    }
+
+    @Override
+    public void stop() {
+        // Goal torn down while the engineer still lives — park, do not crash-dive.
+        unlock();
     }
 
     @Override
@@ -208,11 +214,10 @@ public class DroneOperatorGoal extends Goal {
         if (this.scanCooldown > 0) this.scanCooldown--;
         if (this.scanCooldown <= 0) {
             this.scanCooldown = SewvConfig.DRONE_SCAN_INTERVAL_TICKS.get();
-            this.diveTarget = DroneSupport.findHostileVehicle(drone, this.unit);
+            this.diveTarget = DroneSupport.findDiveTarget(drone, this.unit);
         }
 
-        if (this.diveTarget != null && this.diveTarget.isAlive() && !this.diveTarget.isWreck()
-                && DroneSupport.hasHostilePassenger(this.unit, this.diveTarget)) {
+        if (this.diveTarget != null && DroneSupport.isValidDiveTarget(this.unit, this.diveTarget)) {
             DroneControl.setDiveArmed(drone, true);
             diveAt(drone, this.diveTarget);
             return;
@@ -260,7 +265,7 @@ public class DroneOperatorGoal extends Goal {
         pulseAltitude(drone, cruiseAlt(drone), 4);
     }
 
-    private void diveAt(DroneEntity drone, VehicleEntity target) {
+    private void diveAt(DroneEntity drone, LivingEntity target) {
         double dx = target.getX() - drone.getX();
         double dy = target.getY() + target.getBbHeight() * 0.5 - drone.getY();
         double dz = target.getZ() - drone.getZ();

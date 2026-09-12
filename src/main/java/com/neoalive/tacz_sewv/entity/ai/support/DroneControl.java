@@ -114,4 +114,20 @@ public final class DroneControl {
         drone.setUpInputDown(false);
         drone.setDownInputDown(false);
     }
+
+    /**
+     * Operator-death dive: arm the warhead and latch down + forward + yaw so SBW carries the
+     * hull into terrain/entity crash without a living writer. Inputs stay set (latched) until
+     * impact; {@link #isDiveArmed} lets {@code destroy()} run kamikaze.
+     */
+    public static void crashDive(DroneEntity drone) {
+        setDiveArmed(drone, true);
+        boolean left = (drone.getId() & 1) == 0;
+        drone.setForwardInputDown(true);
+        drone.setBackInputDown(false);
+        drone.setLeftInputDown(left);
+        drone.setRightInputDown(!left);
+        drone.setUpInputDown(false);
+        drone.setDownInputDown(true);
+    }
 }

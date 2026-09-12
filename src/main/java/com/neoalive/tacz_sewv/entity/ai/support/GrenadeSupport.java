@@ -42,8 +42,9 @@ import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
  *
  * <p><b>Pick rule:</b> mounted target → M18 then RGO; infantry/monster → hand grenade, then RGO,
  * then M18. M18 is further gated to a 1-in-50 lottery per retry window so smoke cannot blanket
- * the map. RU/US always may spend any id in their faction GRENADE pool; PMC must have the item
- * in inventory.
+ * the map. Lifetime NBT caps ({@code sewv:grenade_used_*}) further bound how many of each type
+ * a unit may ever throw (Combined Arms config). RU/US always may spend any id in their faction
+ * GRENADE pool; PMC must have the item in inventory.
  */
 public final class GrenadeSupport {
 
@@ -53,6 +54,10 @@ public final class GrenadeSupport {
     public static final String TAG_STASH_PRESENT = "sewv:grenade_stash";
     public static final String TAG_STASH_MAIN = "sewv:grenade_stash_main";
     public static final String TAG_STASH_OFF = "sewv:grenade_stash_off";
+    /** Lifetime throws of each type (persistent NBT on the unit). */
+    public static final String TAG_USED_HAND = "sewv:grenade_used_hand";
+    public static final String TAG_USED_RGO = "sewv:grenade_used_rgo";
+    public static final String TAG_USED_M18 = "sewv:grenade_used_m18";
     /** After a failed M18 lottery, skip re-rolling until this game time. */
     public static final String TAG_SMOKE_DENY_UNTIL = "sewv:smoke_deny";
     /** Result of the current smoke lottery window (stable across canUse/start). */
@@ -147,6 +152,47 @@ public final class GrenadeSupport {
                 unit.level().getGameTime() + c.cooldownTicks);
     }
 
+    /** True when every known type is at its lifetime NBT ceiling (or capped at 0). Cheap. */
+    public static boolean allCapsExhausted(AbstractUnit unit) {
+        return !hasThrowsRemaining(unit, ID_HAND)
+                && !hasThrowsRemaining(unit, ID_RGO)
+                && !hasThrowsRemaining(unit, ID_M18);
+    }
+
+    public static boolean hasThrowsRemaining(AbstractUnit unit, String id) {
+        int max = maxFor(id);
+        if (max <= 0) return false;
+        return usedFor(unit, id) < max;
+    }
+
+    public static int usedFor(AbstractUnit unit, String id) {
+        String tag = usedTagFor(id);
+        if (tag == null) return Integer.MAX_VALUE;
+        return unit.getPersistentData().getInt(tag);
+    }
+
+    public static void recordThrow(AbstractUnit unit, String id) {
+        String tag = usedTagFor(id);
+        if (tag == null) return;
+        var data = unit.getPersistentData();
+        data.putInt(tag, data.getInt(tag) + 1);
+    }
+
+    private static int maxFor(String id) {
+        if (ID_HAND.equals(id)) return SewvConfig.GRENADE_MAX_HAND.get();
+        if (ID_RGO.equals(id)) return SewvConfig.GRENADE_MAX_RGO.get();
+        if (ID_M18.equals(id)) return SewvConfig.GRENADE_MAX_SMOKE.get();
+        return 0;
+    }
+
+    @Nullable
+    private static String usedTagFor(String id) {
+        if (ID_HAND.equals(id)) return TAG_USED_HAND;
+        if (ID_RGO.equals(id)) return TAG_USED_RGO;
+        if (ID_M18.equals(id)) return TAG_USED_M18;
+        return null;
+    }
+
     /**
      * Range gate for a specific grenade id. M18 smoke uses a longer band with no close-in
      * requirement — it screens LOS, it does not need to land on the hull. HE keeps the
@@ -184,6 +230,7 @@ public final class GrenadeSupport {
         String[] order = targetMounted(target) ? MOUNTED_PREF : INFANTRY_PREF;
         for (String id : order) {
             if (!available.contains(id)) continue;
+            if (!hasThrowsRemaining(unit, id)) continue;
             if (ID_M18.equals(id) && !allowSmokeThrow(unit)) continue;
             return id;
         }
@@ -339,6 +386,7 @@ public final class GrenadeSupport {
             return false;
         }
 
+        recordThrow(unit, id);
         level.playSound(null, unit.getX(), unit.getY(), unit.getZ(),
                 com.atsuishio.superbwarfare.init.ModSounds.GRENADE_THROW.get(),
                 SoundSource.NEUTRAL, 1.0f, 1.0f);

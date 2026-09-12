@@ -304,6 +304,12 @@ final class ConfigRegistryBootstrap {
         b.enumChoice(ConfigScope.SERVER, "crew_ai", "grenadeThrowCadence",
                 Arrays.asList("default", "rare", "aggressive"),
                 SewvConfig.GRENADE_THROW_CADENCE, SewvConfig.GRENADE_THROW_CADENCE::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "grenadeMaxHand", 0, 64,
+                SewvConfig.GRENADE_MAX_HAND, SewvConfig.GRENADE_MAX_HAND::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "grenadeMaxRgo", 0, 64,
+                SewvConfig.GRENADE_MAX_RGO, SewvConfig.GRENADE_MAX_RGO::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "grenadeMaxSmoke", 0, 64,
+                SewvConfig.GRENADE_MAX_SMOKE, SewvConfig.GRENADE_MAX_SMOKE::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "vehicleSkinMountChance", 0.0, 1.0,
                 SewvConfig.VEHICLE_SKIN_MOUNT_CHANCE, SewvConfig.VEHICLE_SKIN_MOUNT_CHANCE::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "ifvDismountsEnabled",

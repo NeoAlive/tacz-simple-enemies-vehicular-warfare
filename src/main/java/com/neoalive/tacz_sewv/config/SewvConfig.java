@@ -69,6 +69,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue FACTION_INFINITE_AMMO;
     public static final ForgeConfigSpec.ConfigValue<String> VEHICLE_DEATH_DROPS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_AMMO_LOOT;
+    public static final ForgeConfigSpec.BooleanValue UNIT_CORPSE_COMPAT;
+    public static final ForgeConfigSpec.BooleanValue UNIT_CORPSE_RU;
+    public static final ForgeConfigSpec.BooleanValue UNIT_CORPSE_US;
+    public static final ForgeConfigSpec.BooleanValue UNIT_CORPSE_PMC;
 
     public static final ForgeConfigSpec.BooleanValue NPC_ARMOR_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_ARMOR;
@@ -470,6 +474,19 @@ public final class SewvConfig {
                         "box and creativeAmmoFallback is on, that box is replaced with real ammo stacks.",
                         "Ammo already being used in a fight is left alone.")
                 .define("vehicleAmmoLoot", true);
+        UNIT_CORPSE_COMPAT = builder.comment(
+                        "When Corpse (mod id corpse) is installed, spawn a lootable corpse for SEM unit deaths",
+                        "instead of ground item drops. No effect when Corpse is absent.",
+                        "RU/US fill uses datapack tables data/tacz_sewv/loot_tables/units/corpses/<faction>.json",
+                        "and vehicleDeathDrops for stack intensity (disable / reduced / everything).",
+                        "PMC corpses transfer the unit's real inventory.")
+                .define("unitCorpseCompat", true);
+        UNIT_CORPSE_RU = builder.comment("Spawn CorpseMod corpses for RU unit deaths when unitCorpseCompat is on.")
+                .define("unitCorpseRu", true);
+        UNIT_CORPSE_US = builder.comment("Spawn CorpseMod corpses for US unit deaths when unitCorpseCompat is on.")
+                .define("unitCorpseUs", true);
+        UNIT_CORPSE_PMC = builder.comment("Spawn CorpseMod corpses for PMC unit deaths when unitCorpseCompat is on.")
+                .define("unitCorpsePmc", true);
         builder.pop();
 
         builder.push("npc_armor");

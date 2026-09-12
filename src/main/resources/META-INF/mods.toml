@@ -31,6 +31,12 @@ config="tacz_sewv.komodo.mixins.json"
 [[mixins]]
 config="tacz_sewv.playerrevive.mixins.json"
 
+# Corpse (henkelmax) compat. Separate config ("required": false) + CorpseMixinPlugin
+# (LoadingModList gate on mod id corpse) so an absent Corpse never queues MixinCorpseEntity /
+# skin render mixins. Compiled against libs/corpse.jar (compileOnly).
+[[mixins]]
+config="tacz_sewv.corpse.mixins.json"
+
 # MineColonies compat. Separate config ("required": false) + MineColoniesMixinPlugin
 # (LoadingModList gate on mod id minecolonies) so an absent MineColonies never queues
 # MixinGuardTargeting / MixinRaidManager. Compiled against libs/minecolonies.jar (compileOnly),
@@ -168,6 +174,15 @@ config="tacz_sewv.minecolonies.mixins.json"
     mandatory=false
     versionRange="[2.0.31,)"
     ordering="AFTER"
+    side="BOTH"
+
+# Soft compat: Corpse (henkelmax). Optional — RU/US/PMC unit deaths spawn lootable corpses when
+# present (see CorpseCompat). Absent installs keep SEM ground drops unchanged.
+[[dependencies.tacz_sewv]]
+    modId="corpse"
+    mandatory=false
+    versionRange="[1.0,)"
+    ordering="NONE"
     side="BOTH"
 
 # Soft compat: Configured (in-game ForgeConfigSpec GUI). Optional — no SEWV Java references;

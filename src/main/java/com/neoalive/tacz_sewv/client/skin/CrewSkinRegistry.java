@@ -24,6 +24,7 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
@@ -381,6 +382,34 @@ public final class CrewSkinRegistry {
         if (variant != null) return variant;
 
         return roleDefault(category, faction);
+    }
+
+    /**
+     * CorpseMod DummyPlayer skin: resolve from synced faction / role / SEM variant without a
+     * live unit entity. Prefers config skins, then role defaults, then SEM variant arrays.
+     */
+    @Nullable
+    public static ResourceLocation bodySkinForCorpse(String factionKey, String roleFolder, int variant) {
+        CrewFacts.Faction faction = switch (factionKey == null ? "" : factionKey.toLowerCase(Locale.ROOT)) {
+            case "ru" -> CrewFacts.Faction.RU;
+            case "us" -> CrewFacts.Faction.US;
+            case "pmc" -> CrewFacts.Faction.PMC;
+            default -> null;
+        };
+        if (faction == null) return null;
+
+        if (roleFolder != null && !roleFolder.isEmpty()) {
+            ResourceLocation role = ROLE_DEFAULTS.get(roleFolder);
+            if (role != null) return role;
+        }
+
+        String folderKey = faction.name().toLowerCase(Locale.ROOT) + "_unit";
+        ResourceLocation[] variants = VARIANT_SKINS.get(folderKey);
+        if (variants != null && variants.length > 0) {
+            int index = Mth.clamp(variant, 0, variants.length - 1);
+            return variants[index];
+        }
+        return null;
     }
 
     /** Beret tint mask for a role folder (e.g. {@code pmc_commander}), or null. */

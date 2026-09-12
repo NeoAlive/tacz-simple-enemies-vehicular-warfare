@@ -150,6 +150,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue DRONE_BROADCAST_RADIUS;
     public static final ForgeConfigSpec.IntValue DRONE_SCAN_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue DRONE_LEASH_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue DRONE_TARGET_RADIUS;
     public static final ForgeConfigSpec.BooleanValue AUTO_BOARD_ENABLED;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue AUTO_BOARD_MIN_HEALTH_FRACTION;
@@ -692,6 +693,9 @@ public final class SewvConfig {
                 .defineInRange("droneScanIntervalTicks", 20, 5, 200);
         DRONE_LEASH_RADIUS = builder.comment("Max distance (blocks) a wandering drone may stray from its engineer.")
                 .defineInRange("droneLeashRadius", 200.0, 16.0, 512.0);
+        DRONE_TARGET_RADIUS = builder.comment(
+                        "How far (blocks) an AI drone looks for RU/US/PMC dive targets. AbstractUnit-only scan.")
+                .defineInRange("droneTargetRadius", 160.0, 32.0, 384.0);
         AUTO_BOARD_ENABLED = builder.comment("Idle RU/US soldiers may climb into empty abandoned vehicles.")
                 .define("autoBoardEnabled", true);
         AUTO_BOARD_SCAN_RADIUS = builder.comment("How far (blocks) they look for empty vehicles.")

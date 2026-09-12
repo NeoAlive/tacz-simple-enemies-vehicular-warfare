@@ -1,7 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +32,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 
 /**
  * Deployment, ownership and targeting plumbing for RU/US engineer kamikaze drones.
- * Flight/lock logic lives in {@link DroneOperatorGoal}.
+ * Flight/lock logic lives in {@link com.neoalive.tacz_sewv.entity.ai.goal.DroneOperatorGoal}.
  */
 public final class DroneSupport {
 
@@ -74,14 +73,12 @@ public final class DroneSupport {
                 rememberNetworkId(ownerId, drone);
                 return List.of(drone);
             }
-            // Claimed but not loaded (or dead elsewhere) — do not AABB-spawn a second hull.
-            if (entity == null) {
-                return Collections.emptyList();
-            }
-            // Entity exists but is wrong/dead — drop stale claim.
-            if (!(entity instanceof DroneEntity) || !entity.isAlive()) {
+            // Live entity under the claim UUID but wrong type / dead — drop stale claim and fall through.
+            if (entity != null && (!(entity instanceof DroneEntity) || !entity.isAlive())) {
                 DroneControl.clearDroneClaim(owner);
             }
+            // entity == null: unloaded OR already removed. Fall through to soft cache / AABB; if
+            // nothing resolves, keep the claim so hasUnloadedClaim still blocks a second spawn.
         }
 
         List<Integer> ids = OWNED_DRONE_IDS.computeIfAbsent(ownerId, ignored -> new ArrayList<>());
@@ -189,6 +186,48 @@ public final class DroneSupport {
         OWNED_DRONE_IDS.clear();
     }
 
+    /**
+     * Engineer died: unlock without parking, crash-dive every owned hull, drop the claim so a
+     * respawn/replacement is not blocked by a dead UUID treated as "unloaded".
+     */
+    public static void onOperatorKilled(AbstractUnit owner) {
+        if (!DroneControl.isEngineer(owner)) return;
+        if (!(owner.level() instanceof ServerLevel level)) return;
+
+        List<DroneEntity> owned = findOwnedDrones(level, owner);
+        DroneControl.setLocked(owner, false);
+        for (DroneEntity drone : owned) {
+            DroneControl.crashDive(drone);
+        }
+        DroneControl.clearDroneClaim(owner);
+        forgetOwner(owner.getUUID());
+    }
+
+    /**
+     * AI drone permanently removed (killed/discarded). Clears the engineer's claim when it still
+     * points at this hull — {@link #findOwnedDrones} otherwise treats a missing UUID as unload
+     * and blocks redeploy forever.
+     */
+    public static void onAiDroneRemoved(DroneEntity drone, Entity.RemovalReason reason) {
+        if (!DroneControl.isAiOwned(drone)) return;
+        if (reason != Entity.RemovalReason.KILLED && reason != Entity.RemovalReason.DISCARDED) return;
+        if (!(drone.level() instanceof ServerLevel level)) return;
+
+        UUID ownerId = readOwner(drone);
+        if (ownerId == null) return;
+        forgetOwner(ownerId);
+
+        Entity owner = level.getEntity(ownerId);
+        if (!(owner instanceof AbstractUnit unit)) return;
+        UUID claimed = DroneControl.readDroneClaim(unit);
+        if (claimed != null && claimed.equals(drone.getUUID())) {
+            DroneControl.clearDroneClaim(unit);
+        }
+        if (DroneControl.isLocked(unit) && findOwnedDrones(level, unit).isEmpty()) {
+            DroneControl.setLocked(unit, false);
+        }
+    }
+
     @Nullable
     public static UUID readOwner(DroneEntity drone) {
         CompoundTag tag = drone.getPersistentData();
@@ -196,33 +235,93 @@ public final class DroneSupport {
     }
 
     /**
-     * Nearest hostile-crewed vehicle with a real {@link EngineType} (not {@code EMPTY}).
-     * Dedicated aerial AABB — does not reuse {@link HullLocalScan}'s LivingEntity fill.
-     * Vertical reach includes AGL slack so a drone at cruise altitude still sees ground hulls.
+     * Nearest hostile SEM unit for a kamikaze dive. {@link AbstractUnit}-only (RU/US/PMC) — no
+     * monster LivingEntity fill. Prefers riders of real hulls over on-foot troops (armor doctrine).
+     * Cheap enough for many drones: one class filter, sticky caller cadence, flat-ish AABB.
      */
     @Nullable
-    public static VehicleEntity findHostileVehicle(DroneEntity drone, AbstractUnit owner) {
-        double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
-        double halfH = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
+    public static LivingEntity findDiveTarget(DroneEntity drone, AbstractUnit owner) {
+        double radius = SewvConfig.DRONE_TARGET_RADIUS.get();
+        double halfH = Math.max(SewvConfig.DRONE_SCAN_ALTITUDE.get() + 24.0, 48.0);
         int surface = drone.level().getHeight(Heightmap.Types.WORLD_SURFACE, drone.getBlockX(), drone.getBlockZ());
         double slack = Math.max(0.0, drone.getY() - surface);
         AABB bounds = new AABB(
                 drone.getX() - radius, drone.getY() - halfH - slack, drone.getZ() - radius,
                 drone.getX() + radius, drone.getY() + halfH, drone.getZ() + radius);
 
-        VehicleEntity best = null;
-        double bestDist = Double.MAX_VALUE;
-        for (VehicleEntity hull : drone.level().getEntitiesOfClass(VehicleEntity.class, bounds)) {
-            if (hull == drone || !hull.isAlive() || hull.isWreck()) continue;
-            if (!hasRealEngine(hull)) continue;
-            if (!hasHostilePassenger(owner, hull)) continue;
-            double d = hull.distanceToSqr(drone);
-            if (d < bestDist) {
-                bestDist = d;
-                best = hull;
+        LivingEntity bestArmor = null;
+        LivingEntity bestSoft = null;
+        double bestArmorDist = Double.MAX_VALUE;
+        double bestSoftDist = Double.MAX_VALUE;
+
+        for (AbstractUnit candidate : drone.level().getEntitiesOfClass(AbstractUnit.class, bounds,
+                u -> isValidDiveTarget(owner, u))) {
+            double d = candidate.distanceToSqr(drone);
+            if (candidate.getVehicle() instanceof VehicleEntity hull
+                    && hull.isAlive() && !hull.isWreck() && hasRealEngine(hull)) {
+                if (d < bestArmorDist) {
+                    bestArmorDist = d;
+                    bestArmor = candidate;
+                }
+            } else if (!candidate.isPassenger()) {
+                if (d < bestSoftDist) {
+                    bestSoftDist = d;
+                    bestSoft = candidate;
+                }
             }
         }
-        return best;
+        return bestArmor != null ? bestArmor : bestSoft;
+    }
+
+    /** Hostile SEM unit the drone may dive on (no monsters, no friendlies, not the operator). */
+    public static boolean isValidDiveTarget(AbstractUnit owner, LivingEntity target) {
+        if (target == null || !target.isAlive() || !target.isAttackable()) return false;
+        if (!(target instanceof AbstractUnit)) return false;
+        if (target == owner || target.getUUID().equals(owner.getUUID())) return false;
+        return !VehicleTargeting.isNonHostile(owner, target);
+    }
+
+    /**
+     * AI kamikaze warhead. SBW's {@code kamikazeExplosion} returns immediately when
+     * {@code CONTROLLER} is not a player ("undefined" for AI), so mortar_shell damage/radius
+     * never ran — only the hull's empty destroy puff.
+     */
+    public static void detonateWarhead(DroneEntity drone) {
+        if (drone.level().isClientSide()) return;
+        String itemId = DroneEntity.getItemId(drone.getCurrentItem());
+        if (itemId == null || itemId.isEmpty()) itemId = MORTAR_SHELL_ID;
+        DroneAttachmentData data = CustomData.DRONE_ATTACHMENT.get(itemId);
+        if (data == null) data = CustomData.DRONE_ATTACHMENT.get(MORTAR_SHELL_ID);
+        if (data == null || data.explosionDamage <= 0.0f || data.explosionRadius <= 0.0f) return;
+
+        Entity attacker = crewOf(drone);
+        if (attacker == null) {
+            UUID ownerId = readOwner(drone);
+            if (ownerId != null && drone.level() instanceof ServerLevel level) {
+                Entity entity = level.getEntity(ownerId);
+                if (entity != null) attacker = entity;
+            }
+        }
+        if (attacker == null) attacker = drone;
+
+        drone.createCustomExplosion()
+                .source(drone)
+                .attacker(attacker)
+                .damage(data.explosionDamage)
+                .radius(data.explosionRadius)
+                .explode();
+    }
+
+    /**
+     * Nearest hostile-crewed vehicle with a real {@link EngineType} (not {@code EMPTY}).
+     * @deprecated use {@link #findDiveTarget} — kept for any external callers.
+     */
+    @Nullable
+    @Deprecated
+    public static VehicleEntity findHostileVehicle(DroneEntity drone, AbstractUnit owner) {
+        LivingEntity dive = findDiveTarget(drone, owner);
+        if (dive != null && dive.getVehicle() instanceof VehicleEntity hull) return hull;
+        return null;
     }
 
     /** {@code EngineType != EMPTY} — excludes Type:Drone hulls (default EMPTY) and bare placeholders. */
@@ -251,7 +350,7 @@ public final class DroneSupport {
 
     /**
      * Hands {@code target} to same-faction units with no target of their own. Kept for
-     * {@link DriveVehicleGoal} delegate; kamikaze AI no longer broadcasts.
+     * {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveVehicleGoal} delegate; kamikaze AI no longer broadcasts.
      */
     public static void broadcastTarget(ServerLevel level, AbstractUnit owner, LivingEntity target, Vec3 from, double radius) {
         AABB box = AABB.ofSize(from, radius * 2, radius * 2, radius * 2);

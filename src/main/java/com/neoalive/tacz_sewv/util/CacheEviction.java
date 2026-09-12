@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.util;
 
+import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
@@ -35,6 +36,12 @@ public final class CacheEviction {
         if (event.getLevel().isClientSide()) return;
         Entity entity = event.getEntity();
         int id = entity.getId();
+        if (entity instanceof DroneEntity drone) {
+            Entity.RemovalReason reason = drone.getRemovalReason();
+            if (reason != null) {
+                DroneSupport.onAiDroneRemoved(drone, reason);
+            }
+        }
         if (entity instanceof VehicleEntity) {
             HullLocalScan.invalidate(id);
             VehicleDarknessAccuracy.invalidate(id);

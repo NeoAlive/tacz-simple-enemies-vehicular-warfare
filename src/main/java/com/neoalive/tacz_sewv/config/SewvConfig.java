@@ -92,6 +92,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<String> AI_AIM_ACCURACY;
     public static final ForgeConfigSpec.DoubleValue AI_AIM_SPREAD_DEG;
     public static final ForgeConfigSpec.ConfigValue<String> GRENADE_THROW_CADENCE;
+    public static final ForgeConfigSpec.IntValue GRENADE_MAX_HAND;
+    public static final ForgeConfigSpec.IntValue GRENADE_MAX_RGO;
+    public static final ForgeConfigSpec.IntValue GRENADE_MAX_SMOKE;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_SKIN_MOUNT_CHANCE;
     public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
     public static final ForgeConfigSpec.BooleanValue SEM_CREW_DISABLE_INERTIA_ROTATE;
@@ -540,6 +543,15 @@ public final class SewvConfig {
                         "aggressive: HE 0-30 / smoke 0-48, ~2.5s.")
                 .defineInList("grenadeThrowCadence", "default",
                         Arrays.asList("default", "rare", "aggressive"));
+        GRENADE_MAX_HAND = builder.comment(
+                        "Lifetime NBT cap: how many hand grenades (M67) one unit may throw in its life. 0 disables.")
+                .defineInRange("grenadeMaxHand", 3, 0, 64);
+        GRENADE_MAX_RGO = builder.comment(
+                        "Lifetime NBT cap: how many RGO grenades one unit may throw in its life. 0 disables.")
+                .defineInRange("grenadeMaxRgo", 2, 0, 64);
+        GRENADE_MAX_SMOKE = builder.comment(
+                        "Lifetime NBT cap: how many M18 smoke grenades one unit may throw in its life. 0 disables.")
+                .defineInRange("grenadeMaxSmoke", 1, 0, 64);
         VEHICLE_SKIN_MOUNT_CHANCE = builder.comment(
                         "Chance a soldier climbing into an empty captured vehicle paints it in their faction colours.",
                         "Vehicles spawned already crewed always get the faction look; this is only for field captures.")

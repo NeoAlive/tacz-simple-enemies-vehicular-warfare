@@ -2,12 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.UUID;
 
-import javax.annotation.Nullable;
-
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -18,15 +13,14 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.ReviveClaims;
-import com.neoalive.tacz_sewv.network.PacketReviveProgress;
 
 /**
  * Any friendly PMC automatically revives a downed squadmate — no medical kit / {@code SupportRole}
  * gate. Structured on {@link PlayerReviveGoal}: one-shot {@link PmcDownedSupport#revive}, priority 1
  * that does not yield to combat, and {@link ReviveClaims} so only one unit works each patient.
  *
- * <p>Neither the reviver nor the patient is a player, so progress goes to the patient's owning
- * player via {@link PacketReviveProgress} when online. Ownerless crew get no ring.
+ * <p>Neither party is a player, so this goal never drives {@code PacketReviveProgress} — the revival
+ * ring is only for channels the player is in ({@link PlayerReviveGoal}, player hold-to-revive).
  */
 public class PmcReviveGoal extends Goal {
 
@@ -43,7 +37,7 @@ public class PmcReviveGoal extends Goal {
     private int approachTicks;
     /** Ticks left in the in-place revive channel once in range. */
     private int channelTicksLeft;
-    /** Total channel length for this session, fixed at {@link #start()} — the ring's denominator. */
+    /** Total channel length for this session, fixed at {@link #start()}. */
     private int channelTicksTotal;
     /** One "reviving" voiceline per session, played when the channel starts, not when it ends. */
     private boolean revivingVoiced;
@@ -102,10 +96,6 @@ public class PmcReviveGoal extends Goal {
         if (this.patient != null) {
             ReviveClaims.release(this.patient.getId(), this.unit.getId());
         }
-        ServerPlayer owner = resolveOwner();
-        if (owner != null) {
-            PacketReviveProgress.sendTo(owner, 0.0F, false);
-        }
         this.patient = null;
         this.approachTicks = 0;
         this.channelTicksLeft = 0;
@@ -133,30 +123,11 @@ public class PmcReviveGoal extends Goal {
             CrewRadio.speakUnit(this.unit, CrewRadio.Line.UNIT_HEAL);
         }
 
-        ServerPlayer owner = resolveOwner();
-        if (owner != null) {
-            float fraction = this.channelTicksTotal <= 0 ? 1.0F
-                    : 1.0F - (float) this.channelTicksLeft / this.channelTicksTotal;
-            PacketReviveProgress.sendTo(owner, fraction, true);
-        }
-
         this.channelTicksLeft--;
         if (this.channelTicksLeft > 0) return;
 
         PmcDownedSupport.revive(this.patient);
-        if (owner != null) {
-            PacketReviveProgress.sendTo(owner, 1.0F, false);
-        }
         this.patient = null;
-    }
-
-    @Nullable
-    private ServerPlayer resolveOwner() {
-        if (this.patient == null) return null;
-        UUID ownerId = this.patient.getOwnerUUID();
-        if (ownerId == null) return null;
-        MinecraftServer server = this.patient.getServer();
-        return server != null ? server.getPlayerList().getPlayer(ownerId) : null;
     }
 
     private PmcUnitEntity findDownedAlly() {

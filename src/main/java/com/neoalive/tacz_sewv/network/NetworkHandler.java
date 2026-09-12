@@ -91,7 +91,7 @@ public class NetworkHandler {
     // 57: team_base enemyTeams list on open+save packets.
     // 58: team_base open packet carries per-faction GROUND (armor) pools for autofill.
     // 59: PacketPlaneLandingDebug + PacketClearPlaneLandingDebug (sewvPlaneCombatDebug Dubins wireframe).
-    // 60: PacketReviveProgress (S->C revival ring, PlayerReviveGoal/PmcReviveGoal/PmcDownedSupport).
+    // 60: PacketReviveProgress (S->C revival ring, PlayerReviveGoal/PmcDownedSupport — player-involved only).
     // 61: PacketHoldRevive (C->S hold-left-click-to-revive a downed PMC).
     // 62: PacketCaptureMedic (TDT "Capture Medic" order).
     // 67: PacketSetNameCategory (TDT "Identity" category, "Full Names" preference).

@@ -135,6 +135,9 @@ public final class GroundTerrainSensor extends TerrainSensor {
 
     private List<AABB> allyFootObstacles = List.of();
     private List<VehicleOrca.Peer> peers = List.of();
+    /** Peer/ally entity scan cadence — block probes stay per whisker; this only gates AABB fills. */
+    private static final int PEER_SCAN_INTERVAL = 5;
+    private long peerScanTick = Long.MIN_VALUE;
 
     public GroundTerrainSensor(AbstractUnit unit) {
         super(unit);
@@ -160,6 +163,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
         this.lastFanResult = null;
         this.allyFootObstacles = List.of();
         this.peers = List.of();
+        this.peerScanTick = Long.MIN_VALUE;
         for (int i = 0; i < N; i++) this.slotCenterProbes[i] = null;
     }
 
@@ -717,6 +721,12 @@ public final class GroundTerrainSensor extends TerrainSensor {
 
     @Override
     protected List<AABB> buildObstacles(double reach) {
+        long now = this.unit.level().getGameTime();
+        if (this.peerScanTick != Long.MIN_VALUE && now - this.peerScanTick < PEER_SCAN_INTERVAL) {
+            return List.of();
+        }
+        this.peerScanTick = now;
+
         double half = halfWidth();
         // ORCA's own culling guidance (paper §5.1): a peer farther than (selfSpeed+peerSpeed)*tau
         // can never collide within the horizon, so it's safe to leave out of the search — but

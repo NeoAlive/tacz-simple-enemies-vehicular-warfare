@@ -86,6 +86,18 @@ public final class PlatoonRegistry {
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+        try {
+            if (!SewvConfig.PLATOON_ENABLED.get()) {
+                if (!GROUPS_BY_LEVEL.isEmpty() || !MEMBER_INDEX.isEmpty()) {
+                    GROUPS_BY_LEVEL.clear();
+                    MEMBER_INDEX.clear();
+                    CommanderOrderDispatch.clearDeadlines();
+                }
+                return;
+            }
+        } catch (Throwable ignored) {
+            return;
+        }
         int now = event.getServer().getTickCount();
         if (now < nextScan) return;
         int interval;
@@ -505,6 +517,11 @@ public final class PlatoonRegistry {
      * a unit that would have auto-joined anyway succeeds immediately rather than waiting a scan.
      */
     public static JoinResult joinPlatoon(ServerLevel level, int commanderId, int unitId) {
+        try {
+            if (!SewvConfig.PLATOON_ENABLED.get()) return JoinResult.NO_PLATOON;
+        } catch (Throwable ignored) {
+            return JoinResult.NO_PLATOON;
+        }
         Platoon platoon = platoonOf(level, commanderId);
         if (platoon == null || !platoon.hasCommander() || platoon.commanderId() != commanderId) {
             return JoinResult.NO_PLATOON;

@@ -48,12 +48,10 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     // gate above stops blocking the call after 1 tick, which would otherwise re-run the full
     // verdict (occupancy check, allied LOF check, 2 block clips, a smoke entity query) every
     // single tick for as long as the weapon keeps firing. Terrain/smoke occlusion does not change
-    // meaningfully within a few ticks, so LOS_CACHE_WINDOW_TICKS trades a small amount of staleness
+    // meaningfully within a few ticks, so aiLosCacheTicks trades a small amount of staleness
     // (a target that fully breaks LOS mid-burst can draw up to that many extra ticks of fire) for
     // a large cut in raycast frequency on high-RPM weapons. Keyed on the shooter too — different
     // seats track different targets.
-    @Unique
-    private static final int LOS_CACHE_WINDOW_TICKS = 3;
     @Unique
     private long tacz_sewv$lineCacheTick = Long.MIN_VALUE;
     @Unique
@@ -111,8 +109,14 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         LivingEntity target = unit.getTarget();
         if (target == null) return;
 
+        int losCacheTicks;
+        try {
+            losCacheTicks = SewvConfig.AI_LOS_CACHE_TICKS.get();
+        } catch (Throwable ignored) {
+            losCacheTicks = 8;
+        }
         boolean lineCacheExpired = this.tacz_sewv$lineCacheTick == Long.MIN_VALUE
-                || now - this.tacz_sewv$lineCacheTick >= LOS_CACHE_WINDOW_TICKS;
+                || now - this.tacz_sewv$lineCacheTick >= losCacheTicks;
         if (lineCacheExpired || living.getId() != this.tacz_sewv$lineCacheShooterId) {
             this.tacz_sewv$lineCacheTick = now;
             this.tacz_sewv$lineCacheShooterId = living.getId();
@@ -255,6 +259,8 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     // a target peeking over low cover (sandbags, fences) has an exposed head a
     // direct-fire shot can genuinely reach, so the second raycast keeps those
     // engagements alive instead of silencing the guns against half cover.
+    // Skip the eyes ray when the center is already clear and the target is not
+    // meaningfully elevated — center clear already means a shot path exists.
     @Unique
     private static boolean tacz_sewv$terrainBlocksLine(
             VehicleEntity self, Vec3 from, LivingEntity target, Vec3 center) {
@@ -262,6 +268,9 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, self))
                 .getType() == HitResult.Type.MISS) {
             return false;
+        }
+        if (Math.abs(target.getEyeY() - center.y) < 2.0) {
+            return true;
         }
         return self.level().clip(new ClipContext(from, target.getEyePosition(),
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, self))

@@ -79,6 +79,19 @@ public final class CommandCoordinator {
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+        try {
+            if (!SewvConfig.COMMAND_SYSTEM_ENABLED.get()) {
+                if (!GROUPS_BY_LEVEL.isEmpty()) {
+                    GROUPS_BY_LEVEL.clear();
+                    CommandEligibility.clearCache();
+                    CrewAssignment.clearAll();
+                    IDLE_TASKED_KEEP.clear();
+                }
+                return;
+            }
+        } catch (Throwable ignored) {
+            return;
+        }
         int now = event.getServer().getTickCount();
         if (now < nextScan) return;
         int interval;

@@ -290,6 +290,8 @@ final class ConfigRegistryBootstrap {
     private static void registerCrewAi(ConfigRegistry.Builder b) {
         b.intRange(ConfigScope.SERVER, "crew_ai", "aiFireCooldownTicks", 1, 200,
                 SewvConfig.AI_FIRE_COOLDOWN_TICKS, SewvConfig.AI_FIRE_COOLDOWN_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "aiLosCacheTicks", 1, 40,
+                SewvConfig.AI_LOS_CACHE_TICKS, SewvConfig.AI_LOS_CACHE_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "aiFireAssistConeDeg", 4.0, 90.0,
                 SewvConfig.AI_FIRE_ASSIST_CONE_DEG, SewvConfig.AI_FIRE_ASSIST_CONE_DEG::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "smokeBlockRadius", 1.0, 16.0,
@@ -507,6 +509,8 @@ final class ConfigRegistryBootstrap {
     }
 
     private static void registerCommand(ConfigRegistry.Builder b) {
+        b.bool(ConfigScope.SERVER, "command", "commandSystemEnabled",
+                SewvConfig.COMMAND_SYSTEM_ENABLED, SewvConfig.COMMAND_SYSTEM_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "command", "commandGroupJoinRadius", 8.0, 256.0,
                 SewvConfig.COMMAND_GROUP_JOIN_RADIUS, SewvConfig.COMMAND_GROUP_JOIN_RADIUS::set);
         b.doubleRange(ConfigScope.SERVER, "command", "commandGroupLeaveRadius", 8.0, 256.0,
@@ -532,6 +536,8 @@ final class ConfigRegistryBootstrap {
     }
 
     private static void registerPlatoon(ConfigRegistry.Builder b) {
+        b.bool(ConfigScope.SERVER, "platoon", "platoonEnabled",
+                SewvConfig.PLATOON_ENABLED, SewvConfig.PLATOON_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "platoon", "platoonCohesionRadius", 8.0, 128.0,
                 SewvConfig.PLATOON_COHESION_RADIUS, SewvConfig.PLATOON_COHESION_RADIUS::set);
         b.intRange(ConfigScope.SERVER, "platoon", "platoonMaxSize", 2, 12,

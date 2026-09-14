@@ -21,7 +21,11 @@ import com.neoalive.tacz_sewv.client.skin.VehicleSkinClient;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 
 /**
- * Swap in a filesystem faction skin on SBW's SBM vehicle path ({@link GeoVehicleRenderer}).
+ * <p>Swap in a filesystem faction skin on SBW's SBM vehicle path ({@link GeoVehicleRenderer}).
+ *
+ * <p>When <b>Coltan + GemRender</b> bridge a hull, {@code skipVanillaRender} bypasses this mixin —
+ * sticky paint is re-bound via {@code ColtanSkinBridge} → {@code ColtanVehicleSkins} instead.
+ * DogTag icon force and wreck darkening on this path still do not run under Coltan (known v1 gap).
  *
  * <p>0.8.9.1 retired the GeckoLib {@code VehicleRenderer}: hulls render through
  * {@code entry.texture} inside {@code render}, with a late {@code getTextureLocation} only for

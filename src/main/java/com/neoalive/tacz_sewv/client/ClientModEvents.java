@@ -125,7 +125,6 @@ public class ClientModEvents {
         if (renderer != null) {
             renderer.addLayer(new BedrockArmorLayer<>(renderer));
             renderer.addLayer(new SmallArmsLayer<>(renderer));
-            renderer.addLayer(new TaczGemHeldLayer<>(renderer));
             renderer.addLayer(new HolsterLayer<>(renderer));
             renderer.addLayer(new CuriosHeadLayer<>(renderer));
         }

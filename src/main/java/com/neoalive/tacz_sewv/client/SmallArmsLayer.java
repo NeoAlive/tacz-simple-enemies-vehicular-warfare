@@ -27,15 +27,8 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 /**
  * Draws a SuperbWarfare gun / monitor / medical kit / military shovel in a unit's right hand.
  *
- * <p>SimpleEnemyMod's own {@code GunLayerRenderer} is the only held-item layer its unit renderers
- * have, and its second statement is
- * {@code if (!(stack.getItem() instanceof AbstractGunItem)) return;} — a <b>TACZ</b> gun item. An
- * SBW {@code GunItem} is an unrelated class, so an issued launcher was equipped, fired, and
- * completely invisible. The military shovel is likewise Geo/bedrock-rendered via its own
- * {@code BlockEntityWithoutLevelRenderer} — {@code renderStatic} picks that up once we let the
- * stack through this gate.
- *
- * <p>Placement matches SEM {@code GunLayerRenderer.renderStandardGun}.
+ * <p>Placement matches SEM {@code GunLayerRenderer.renderStandardGun} (arm-local). TACZ held
+ * guns stay on SEM's own {@code GunLayerRenderer}.
  */
 public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> extends RenderLayer<T, M> {
 
@@ -79,7 +72,6 @@ public class SmallArmsLayer<T extends LivingEntity, M extends EntityModel<T>> ex
         poseStack.pushPose();
         this.rightArm.translateAndRotate(poseStack);
 
-        // SEM GunLayerRenderer.renderStandardGun constants (TACZ parity).
         poseStack.translate(-0.06D, 0.73D, 0.3D);
         poseStack.mulPose(Axis.YP.rotationDegrees(-180));
         poseStack.mulPose(Axis.XP.rotationDegrees(-90));

@@ -5,13 +5,14 @@ import java.util.function.BiFunction;
 
 import javax.annotation.Nullable;
 
-import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
-import com.neoalive.tacz_sewv.crew.CrewFacts;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
+import com.neoalive.tacz_sewv.crew.CrewFacts;
 
 /**
  * Registers SEWV faction crew armor paint on Coltan's {@code ColtanArmorSkins} resolver.

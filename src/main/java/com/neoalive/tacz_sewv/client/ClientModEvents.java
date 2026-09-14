@@ -21,6 +21,9 @@ import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.client.skin.LogoPoolRegistry;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
+import com.neoalive.tacz_sewv.compat.ColtanArmorBridge;
+import com.neoalive.tacz_sewv.compat.ColtanCompat;
+import com.neoalive.tacz_sewv.compat.ColtanSkinBridge;
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModel;
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModelLayers;
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderRenderer;
@@ -53,6 +56,10 @@ public class ClientModEvents {
         ConfigUIMenuHook.register();
         if (ModList.get().isLoaded(XaeroMapCompat.MODID)) {
             XaeroMapCompat.register();
+        }
+        if (ColtanCompat.bridgeActive()) {
+            ColtanSkinBridge.register();
+            ColtanArmorBridge.register();
         }
         event.enqueueWork(() -> MenuScreens.register(ModMenus.STOCKPILE.get(), StockpileScreen::new));
     }
@@ -118,6 +125,7 @@ public class ClientModEvents {
         if (renderer != null) {
             renderer.addLayer(new BedrockArmorLayer<>(renderer));
             renderer.addLayer(new SmallArmsLayer<>(renderer));
+            renderer.addLayer(new TaczGemHeldLayer<>(renderer));
             renderer.addLayer(new HolsterLayer<>(renderer));
             renderer.addLayer(new CuriosHeadLayer<>(renderer));
         }

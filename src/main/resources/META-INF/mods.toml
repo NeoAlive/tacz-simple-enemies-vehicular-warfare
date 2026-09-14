@@ -110,6 +110,23 @@ config="tacz_sewv.minecolonies.mixins.json"
     ordering="AFTER"
     side="CLIENT"
 
+# Soft compat: Coltan + GemRender — SBW vehicles drawn via GemRender's rigid-parts path. Sticky
+# faction paint is re-bound through ColtanVehicleSkins (see ColtanSkinBridge). Prefer one vehicle
+# accelerator stack (Coltan+GemRender OR Komodo) until coexistence is playtested. Client-only.
+[[dependencies.tacz_sewv]]
+    modId="coltan"
+    mandatory=false
+    versionRange="[0.1,)"
+    ordering="AFTER"
+    side="CLIENT"
+
+[[dependencies.tacz_sewv]]
+    modId="gemrender"
+    mandatory=false
+    versionRange="[0.1,)"
+    ordering="AFTER"
+    side="CLIENT"
+
 # Soft compat: Open Parties and Claims (chunk claims / parties). Optional — absent on installs
 # without it; present on local runs via runtimeOnly blank:openpac.
 [[dependencies.tacz_sewv]]

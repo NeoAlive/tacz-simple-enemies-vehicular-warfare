@@ -110,9 +110,10 @@ config="tacz_sewv.minecolonies.mixins.json"
     ordering="AFTER"
     side="CLIENT"
 
-# Soft compat: Coltan + GemRender — SBW vehicles drawn via GemRender's rigid-parts path. Sticky
-# faction paint is re-bound through ColtanVehicleSkins (see ColtanSkinBridge). Prefer one vehicle
-# accelerator stack (Coltan+GemRender OR Komodo) until coexistence is playtested. Client-only.
+# Soft compat: Coltan + GemRender — SBW vehicles/armor via GemRender. Sticky faction paint and
+# crew armor skins re-bound through ColtanVehicleSkins / ColtanArmorSkins (see ColtanSkinBridge /
+# ColtanArmorBridge). SEM-held TACZ stays on stock GunLayer. Prefer one vehicle accelerator stack
+# (Coltan+GemRender OR Komodo) until coexistence is playtested. Client-only.
 [[dependencies.tacz_sewv]]
     modId="coltan"
     mandatory=false

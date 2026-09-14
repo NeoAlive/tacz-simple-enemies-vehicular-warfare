@@ -7,9 +7,12 @@ import net.minecraftforge.fml.ModList;
  * from {@code com.neoalive.coltan.*} — only {@link ModList}.
  *
  * <p>Callers must check {@link #bridgeActive()} before touching {@link ColtanSkinBridge} /
- * {@link ColtanArmorBridge} / held-gun draw; those classes load Coltan types reflectively, and
- * linking them when Coltan or GemRender is absent would be pointless noise even though reflection
- * itself would not crash the class verifier the way a hard import would.
+ * {@link ColtanArmorBridge}; those classes load Coltan types reflectively, and linking them when
+ * Coltan or GemRender is absent would be pointless noise even though reflection itself would not
+ * crash the class verifier the way a hard import would.
+ *
+ * <p>Coltan does <strong>not</strong> claim SEM-held TACZ guns — stock {@code GunLayerRenderer}
+ * draws those.
  */
 public final class ColtanCompat {
 

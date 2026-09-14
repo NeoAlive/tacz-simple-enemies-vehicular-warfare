@@ -48,9 +48,9 @@ PLEASE report them on GitHub.**
 ## Dependencies
 
 Hard requirements: Forge 1.20.1, Superb Warfare, TACZ, Simple Enemy Mod (see `mods.toml` for
-version ranges). Soft / optional: Xaero's World Map, Komodo, Coltan + GemRender (vehicle draw;
-prefer one accelerator stack with Komodo until coexistence is tested), Open Parties and Claims,
-Configured, and selected vehicle addons.
+version ranges). Soft / optional: Xaero's World Map, Komodo, Coltan + GemRender (SBW vehicle/armor
+draw + sticky skins; prefer one accelerator stack with Komodo until coexistence is tested), Open
+Parties and Claims, Configured, and selected vehicle addons.
 
 ## Credits
 

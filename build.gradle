@@ -548,10 +548,10 @@ dependencies {
     if (!project.hasProperty('noKomodo')) {
         runtimeOnly fg.deobf("blank:komodo:1.0")
     }
-    // Soft: Coltan (SBW→GemRender bridge) + GemRender. Sticky paint / armor / SEM TACZ held
-    // guns register through reflection (ColtanSkinBridge, ColtanArmorBridge, TaczGemHeldLayer)
-    // so a clean checkout without libs/coltan.jar still compiles; jars are compileOnly for
-    // IDE/nav when present. Runtime gates use ColtanCompat.bridgeActive() (coltan+gemrender).
+    // Soft: Coltan (SBW→GemRender bridge) + GemRender. Sticky paint / armor register through
+    // reflection (ColtanSkinBridge, ColtanArmorBridge) so a clean checkout without libs/coltan.jar
+    // still compiles; jars are compileOnly for IDE/nav when present. Runtime gates use
+    // ColtanCompat.bridgeActive() (coltan+gemrender). SEM-held TACZ stays on SEM GunLayer.
     // Opt into the run classpath with: ./gradlew runClient -PwithColtan
     // Prefer Coltan+GemRender OR Komodo for vehicle draw acceleration until coexistence is tested.
     // Sync a built Coltan jar to libs/coltan.jar after `./gradlew build` in the Coltan repo.

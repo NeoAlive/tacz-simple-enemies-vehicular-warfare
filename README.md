@@ -47,10 +47,13 @@ PLEASE report them on GitHub.**
 
 ## Dependencies
 
-Hard requirements: Forge 1.20.1, Superb Warfare, TACZ, Simple Enemy Mod (see `mods.toml` for
-version ranges). Soft / optional: Xaero's World Map, Komodo, Coltan + GemRender (SBW vehicle/armor
-draw + sticky skins; prefer one accelerator stack with Komodo until coexistence is tested), Open
-Parties and Claims, Configured, and selected vehicle addons.
+Hard requirements: Forge 1.20.1, Superb Warfare, TACZ, and Simple Enemy Mod (see `mods.toml`
+for version ranges). On this branch SEM is **vendored** as the Gradle subproject
+`simpleenemymod/` (sources decompiled from `1.20.1-0.1.6-beta`); Combined Arms talks to it through
+`UnitHooks` instead of SEM-targeting mixins. Soft / optional: Xaero's World Map, Komodo,
+Coltan + GemRender (SBW vehicle/armor draw + sticky skins; prefer one accelerator stack with
+Komodo until coexistence is tested), Open Parties and Claims, Configured, and selected vehicle
+addons.
 
 ## Credits
 

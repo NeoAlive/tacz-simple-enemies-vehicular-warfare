@@ -15,11 +15,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
+import net.nekoyuni.SimpleEnemyMod.bridge.IIssuedAmmo;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
@@ -67,7 +67,7 @@ public final class MortarSupport {
         for (AbstractUnit unit : mortar.level().getEntitiesOfClass(
                 AbstractUnit.class, mortar.getBoundingBox().inflate(radius))) {
             if (unit == except || !unit.isAlive()) continue;
-            if (unit instanceof IMortarCrew crew && crew.sewv$getMortarTargetId() == mortar.getId()) return unit;
+            if (unit.sewv$getMortarTargetId() == mortar.getId()) return unit;
         }
         return null;
     }
@@ -81,8 +81,8 @@ public final class MortarSupport {
     }
 
     public static void releaseClaim(Entity unit) {
-        if (unit instanceof IMortarCrew crew) crew.sewv$setMortarTargetId(IMortarCrew.NO_MORTAR);
         if (unit instanceof AbstractUnit u) {
+            u.sewv$setMortarTargetId(IMortarCrew.NO_MORTAR);
             UnitHolster.setManningMortar(u, false);
         }
     }
@@ -182,7 +182,7 @@ public final class MortarSupport {
         // from conjuring it into a tube that would refuse it, and it accepts MORTAR_SHELL_WP
         // (a plain MortarShellItem, like the plain shell) and POTION_MORTAR_SHELL
         // (PotionMortarShellItem extends it) with no extra cases.
-        if (unit instanceof IIssuedAmmo crew) {
+        { IIssuedAmmo crew = unit;
             Item issued = crew.sewv$getIssuedAmmo();
             if (issued instanceof MortarShellItem) return new ItemStack(issued);
         }

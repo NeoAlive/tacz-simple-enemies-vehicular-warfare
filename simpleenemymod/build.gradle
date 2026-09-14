@@ -1,0 +1,103 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+// Align with the root SEWV toolchain (gradle.properties on the root project).
+def rootMc = rootProject.findProperty('minecraft_version') ?: '1.20.1'
+def rootForge = rootProject.findProperty('forge_version') ?: '47.2.0'
+def rootMappingsChannel = rootProject.findProperty('mapping_channel') ?: 'parchment'
+def rootMappingsVersion = rootProject.findProperty('mapping_version') ?: '2023.08.13-1.20.1'
+
+minecraft {
+    mappings channel: rootMappingsChannel, version: rootMappingsVersion
+    copyIdeResources = true
+    // Runs live on the root project (both mods registered there).
+    runs {
+        configureEach {
+            enabled = false
+        }
+    }
+}
+
+repositories {
+    flatDir {
+        dirs rootProject.file('libs')
+    }
+    maven {
+        name = 'Cloth Config'
+        url = 'https://maven.shedaniel.me/'
+    }
+    maven {
+        name = 'Curios'
+        url = 'https://maven.theillusivec4.top/'
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${rootMc}-${rootForge}"
+
+    implementation fg.deobf('blank:tacz:1.0')
+    implementation fg.deobf('blank:geckolib:1.0')
+    implementation fg.deobf('blank:curios:1.0')
+
+    // Soft: Cloth Config GUI (SEM compiles the helpers; LOADED-gated at runtime).
+    // Use the parchment-mapped version already present in the local FG cache (11.1.106).
+    compileOnly fg.deobf('me.shedaniel.cloth:cloth-config-forge:11.1.106')
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version       : rootMc,
+            minecraft_version_range : rootProject.findProperty('minecraft_version_range') ?: '[1.20.1,1.21)',
+            forge_version           : rootForge,
+            forge_version_range     : rootProject.findProperty('forge_version_range') ?: '[47.2,)',
+            loader_version_range    : rootProject.findProperty('loader_version_range') ?: '[47,)',
+            mod_id                  : mod_id,
+            mod_name                : mod_name,
+            mod_license             : mod_license,
+            mod_version             : mod_version,
+            mod_authors             : mod_authors,
+            mod_description         : mod_description,
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+    // Do NOT finalizedBy reobfJar — the root project compiles against this jar in userdev
+    // (Mojmap/Parchment). Reobf is only for the published artifact.
+}
+
+tasks.named('build').configure {
+    dependsOn 'reobfJar'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

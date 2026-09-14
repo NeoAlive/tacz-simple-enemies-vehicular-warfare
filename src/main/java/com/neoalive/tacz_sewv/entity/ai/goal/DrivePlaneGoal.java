@@ -17,6 +17,9 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
+import net.nekoyuni.SimpleEnemyMod.bridge.FireMission;
+import net.nekoyuni.SimpleEnemyMod.bridge.IHelicopterPilot;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -25,9 +28,6 @@ import org.jetbrains.annotations.Nullable;
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
 import com.neoalive.tacz_sewv.airport.RunwaySlots;
 import com.neoalive.tacz_sewv.airport.RunwayTraffic;
-import com.neoalive.tacz_sewv.bridge.FireMission;
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -534,9 +534,8 @@ public class DrivePlaneGoal extends Goal {
         // A freshly boarded plane on the ground stays parked until an explicit takeoff order.
         if (this.vehicle != null && this.vehicle.onGround()
                 && this.unit instanceof PmcUnitEntity
-                && this.unit instanceof IHelicopterPilot pilot
-                && pilot.sewv$getHeliCommand() == IHelicopterPilot.HELI_CMD_NONE) {
-            pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
+                && this.unit.sewv$getHeliCommand() == IHelicopterPilot.HELI_CMD_NONE) {
+            this.unit.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
         }
         this.mode = PlaneMode.GROUNDED;
     }
@@ -617,11 +616,13 @@ public class DrivePlaneGoal extends Goal {
             return;
         }
 
-        IHelicopterPilot pilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
+        IHelicopterPilot pilot = (IHelicopterPilot) this.unit;
         maybeEmergencyLand(pilot, max, now);
         // A standing radio order, re-read rather than latched: the player may change it mid-sortie
         // and the next run should honour the new one.
-        this.weapons.setMode(pilot != null ? pilot.sewv$getPlaneAttackMode() : PlaneAttackMode.AUTO);
+        this.weapons.setMode(pilot != null
+                ? PlaneAttackMode.byOrdinal(pilot.sewv$getPlaneAttackModeOrdinal())
+                : PlaneAttackMode.AUTO);
 
         LivingEntity target = resolveCombatTarget();
         Vec3 mark = target == null ? resolveStrikeMark() : null;
@@ -989,7 +990,7 @@ public class DrivePlaneGoal extends Goal {
      */
     @Nullable
     private Vec3 resolveStrikeMark() {
-        if (!(this.unit instanceof IMortarCrew crew)) return null;
+        IMortarCrew crew = this.unit;
         FireMission mission = crew.sewv$getFireMission();
         if (mission == null) return null;
         if (mission.isExpired(this.unit.level().getGameTime())) {
@@ -2701,8 +2702,7 @@ public class DrivePlaneGoal extends Goal {
     }
 
     private double flightAltitude() {
-        int alt = (this.unit instanceof IHelicopterPilot pilot)
-                ? pilot.sewv$getCruiseAltitude() : IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
+        int alt = this.unit.sewv$getCruiseAltitude();
         return Mth.clamp(alt * ALT_SCALE, MIN_FLIGHT_ALT, MAX_FLIGHT_ALT);
     }
 }

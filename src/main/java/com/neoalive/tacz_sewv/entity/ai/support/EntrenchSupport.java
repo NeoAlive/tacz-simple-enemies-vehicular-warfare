@@ -15,15 +15,15 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.bridge.IEntrenched;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehicleBoarder;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.block.EmplacementSupport;
 import com.neoalive.tacz_sewv.block.TrenchNetworks;
-import com.neoalive.tacz_sewv.bridge.IEntrenched;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.goal.BailOutVehicleGoal;
 
 /**
@@ -53,7 +53,7 @@ public final class EntrenchSupport {
     private EntrenchSupport() {}
 
     public static void clear(AbstractUnit unit) {
-        if (!(unit instanceof IEntrenched entrenched)) return;
+        IEntrenched entrenched = unit;
         if (!entrenched.sewv$isEntrenched()) return;
         boolean leavingSandbag = wasSandbagTask(unit, entrenched);
         BlockPos cell = entrenched.sewv$getEntrenchCell();
@@ -61,9 +61,9 @@ public final class EntrenchSupport {
             SandbagSupport.clearClaimantIf(level, cell, unit);
         }
         MortarSupport.releaseClaim(unit);
-        if (unit instanceof IVehicleBoarder boarder && boarder.tacz_sewv$isBoarding()) {
-            boarder.tacz_sewv$setBoarding(false);
-            boarder.tacz_sewv$setMountTargetId(-1);
+        if (unit.tacz_sewv$isBoarding()) {
+            unit.tacz_sewv$setBoarding(false);
+            unit.tacz_sewv$setMountTargetId(-1);
         }
         SandbagSupport.dismountIfSeated(unit);
         entrenched.sewv$clearEntrenched();
@@ -77,7 +77,7 @@ public final class EntrenchSupport {
     /** RU/US only — PMC has no SeekEntrenchmentGoal. */
     private static void armSeekCooldown(AbstractUnit unit) {
         if (unit instanceof PmcUnitEntity) return;
-        if (!(unit instanceof IEntrenched entrenched)) return;
+        IEntrenched entrenched = unit;
         if (!(unit.level() instanceof ServerLevel level)) return;
         entrenched.sewv$setEntrenchSeekCooldownUntil(level.getGameTime() + AUTO_SEEK_COOLDOWN_TICKS);
     }
@@ -232,18 +232,18 @@ public final class EntrenchSupport {
             GuardSupport.clearReach(pmc);
         }
         // Drop prior entrench / mortar / board without full clear recursion on the new assign.
-        if (unit instanceof IEntrenched entrenched && entrenched.sewv$isEntrenched()) {
-            BlockPos oldCell = entrenched.sewv$getEntrenchCell();
+        if (unit.sewv$isEntrenched()) {
+            BlockPos oldCell = unit.sewv$getEntrenchCell();
             if (oldCell != null && unit.level() instanceof ServerLevel level) {
                 SandbagSupport.clearClaimantIf(level, oldCell, unit);
             }
             MortarSupport.releaseClaim(unit);
-            if (unit instanceof IVehicleBoarder boarder && boarder.tacz_sewv$isBoarding()) {
-                boarder.tacz_sewv$setBoarding(false);
-                boarder.tacz_sewv$setMountTargetId(-1);
+            if (unit.tacz_sewv$isBoarding()) {
+                unit.tacz_sewv$setBoarding(false);
+                unit.tacz_sewv$setMountTargetId(-1);
             }
             SandbagSupport.dismountIfSeated(unit);
-            entrenched.sewv$clearEntrenched();
+            unit.sewv$clearEntrenched();
         }
     }
 
@@ -266,10 +266,10 @@ public final class EntrenchSupport {
     /** Destination for mounted crews under ENTRENCHED, or null. */
     @Nullable
     public static BlockPos currentCell(AbstractUnit unit) {
-        if (!(unit instanceof IEntrenched entrenched) || !entrenched.sewv$isEntrenched()) {
+        if (!unit.sewv$isEntrenched()) {
             return null;
         }
-        return entrenched.sewv$getEntrenchCell();
+        return unit.sewv$getEntrenchCell();
     }
 
     /**
@@ -277,21 +277,21 @@ public final class EntrenchSupport {
      * {@link com.neoalive.tacz_sewv.entity.ai.goal.EntrenchGoal}.
      */
     public static void tick(AbstractUnit unit) {
-        if (!(unit instanceof IEntrenched entrenched) || !entrenched.sewv$isEntrenched()) return;
+        if (!unit.sewv$isEntrenched()) return;
         if (!(unit.level() instanceof ServerLevel level)) return;
 
         long now = level.getGameTime();
-        if (now < entrenched.sewv$getEntrenchRerollAt()) return;
-        entrenched.sewv$setEntrenchRerollAt(now + REROLL_INTERVAL_TICKS);
+        if (now < unit.sewv$getEntrenchRerollAt()) return;
+        unit.sewv$setEntrenchRerollAt(now + REROLL_INTERVAL_TICKS);
 
         // RU/US auto-dwell expired — leave and arm seek cooldown (PMC player orders have leaveAt=0).
-        long leaveAt = entrenched.sewv$getEntrenchLeaveAt();
+        long leaveAt = unit.sewv$getEntrenchLeaveAt();
         if (leaveAt > 0L && now >= leaveAt) {
             leaveAutoEntrench(unit);
             return;
         }
 
-        BlockPos cell = entrenched.sewv$getEntrenchCell();
+        BlockPos cell = unit.sewv$getEntrenchCell();
         if (cell == null) {
             clear(unit);
             return;
@@ -299,40 +299,37 @@ public final class EntrenchSupport {
 
         // Sandbag cell: walk in, mount, hold. Invalid / stolen bag → clear (or remount self).
         if (SandbagSupport.isSandbag(level, cell)) {
-            tickSandbag(level, unit, entrenched, cell);
+            tickSandbag(level, unit, unit, cell);
             return;
         }
 
         TrenchNetworks data = TrenchNetworks.get(level);
-        BlockPos emp = entrenched.sewv$getEntrenchEmplacement();
+        BlockPos emp = unit.sewv$getEntrenchEmplacement();
         if (emp != null && !emplacementSlotValid(level, data, unit, emp)) {
-            entrenched.sewv$clearEntrenchEmplacement();
+            unit.sewv$clearEntrenchEmplacement();
             MortarSupport.releaseClaim(unit);
-            if (unit instanceof IVehicleBoarder boarder) {
-                boarder.tacz_sewv$setBoarding(false);
-                boarder.tacz_sewv$setMountTargetId(-1);
-            }
-            rerollCell(level, data, unit, entrenched);
+            unit.tacz_sewv$setBoarding(false);
+            unit.tacz_sewv$setMountTargetId(-1);
+            rerollCell(level, data, unit, unit);
             return;
         }
 
         if (emp == null && !cellValid(level, data, cell)) {
-            rerollCell(level, data, unit, entrenched);
+            rerollCell(level, data, unit, unit);
             return;
         }
 
         // Emplacement crews: boarding / mortar goals own locomotion.
         if (emp != null) return;
-        if (unit instanceof IMortarCrew mortarCrew
-                && mortarCrew.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
+        if (unit.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
             return;
         }
-        if (unit instanceof IVehicleBoarder boarder && boarder.tacz_sewv$isBoarding()) {
+        if (unit.tacz_sewv$isBoarding()) {
             return;
         }
         if (unit.isPassenger()) return;
 
-        cell = entrenched.sewv$getEntrenchCell();
+        cell = unit.sewv$getEntrenchCell();
         if (cell == null) return;
         double distSq = unit.distanceToSqr(Vec3.atBottomCenterOf(cell));
         if (distSq <= ARRIVE_DIST_SQ) {
@@ -444,7 +441,7 @@ public final class EntrenchSupport {
 
     /** Schedule a random dwell for an RU/US unit that just auto-entrenched. */
     public static void scheduleAutoLeave(AbstractUnit unit, long gameTime) {
-        if (!(unit instanceof IEntrenched entrenched)) return;
+        IEntrenched entrenched = unit;
         int span = AUTO_STAY_MAX_TICKS - AUTO_STAY_MIN_TICKS + 1;
         int stay = AUTO_STAY_MIN_TICKS + ThreadLocalRandom.current().nextInt(span);
         entrenched.sewv$setEntrenchLeaveAt(gameTime + stay);

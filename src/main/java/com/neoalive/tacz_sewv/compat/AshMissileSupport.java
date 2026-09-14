@@ -8,11 +8,11 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.fml.ModList;
+import net.nekoyuni.SimpleEnemyMod.bridge.FireMission;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.bridge.FireMission;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
 /**
@@ -67,7 +67,7 @@ public final class AshMissileSupport {
 
     @Nullable
     public static FireMission fireMissionOf(AbstractUnit unit) {
-        if (!(unit instanceof IMortarCrew crew)) return null;
+        IMortarCrew crew = unit;
         FireMission mission = crew.sewv$getFireMission();
         if (mission == null) return null;
         if (mission.isExpired(unit.level().getGameTime())) {

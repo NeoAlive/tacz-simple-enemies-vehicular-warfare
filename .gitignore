@@ -34,6 +34,11 @@ run-modded/
 # Accidental decompiled / extracted classes
 net/
 
+# Vineflower / local tooling
+tools/
+simpleenemymod/build/
+simpleenemymod/.gradle/
+
 # Generated files
 out/
 classes/

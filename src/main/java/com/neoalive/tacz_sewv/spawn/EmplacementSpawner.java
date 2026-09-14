@@ -28,12 +28,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.nekoyuni.SimpleEnemyMod.bridge.FireMission;
+import net.nekoyuni.SimpleEnemyMod.bridge.IIssuedAmmo;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
-import com.neoalive.tacz_sewv.bridge.FireMission;
-import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
@@ -239,7 +239,7 @@ public final class EmplacementSpawner {
         Item ammo = ammoFor(weapon, random);
         if (faction == TankSpawner.TankFaction.PMC) {
             fillInventory(crew, ammo);
-        } else if (crew instanceof IIssuedAmmo issued) {
+        } else { IIssuedAmmo issued = crew;
             issued.sewv$setIssuedAmmo(ammo);
         }
     }

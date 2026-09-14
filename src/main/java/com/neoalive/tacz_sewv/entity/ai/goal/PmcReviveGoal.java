@@ -6,7 +6,6 @@ import java.util.EnumSet;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -74,8 +73,7 @@ public class PmcReviveGoal extends Goal {
     public boolean canContinueToUse() {
         return this.patient != null
                 && this.patient.isAlive()
-                && this.patient instanceof IPmcDowned downed
-                && downed.sewv$isDowned()
+                && this.patient.sewv$isDowned()
                 && ReviveClaims.isEligibleReviver(this.unit)
                 && ReviveClaims.isMine(this.patient.getId(), this.unit.getId())
                 && this.approachTicks < MAX_APPROACH_TICKS;
@@ -137,8 +135,7 @@ public class PmcReviveGoal extends Goal {
                 this.unit.getBoundingBox().inflate(radius),
                 other -> other != this.unit
                         && other.isAlive()
-                        && other instanceof IPmcDowned downed
-                        && downed.sewv$isDowned()
+                        && other.sewv$isDowned()
                         && VehicleTargeting.isFriendly(this.unit, other)
                         && ReviveClaims.isFreeOrMine(this.unit.level(), other.getId(), this.unit.getId()))
                 .stream()

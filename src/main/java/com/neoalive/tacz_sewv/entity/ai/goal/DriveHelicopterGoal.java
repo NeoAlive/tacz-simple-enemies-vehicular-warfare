@@ -16,6 +16,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
+import net.nekoyuni.SimpleEnemyMod.bridge.IHelicopterPilot;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -23,7 +24,6 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 import org.slf4j.Logger;
 
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -466,9 +466,8 @@ public class DriveHelicopterGoal extends Goal {
         // before their first AI tick, so their command is never NONE here.
         if (this.vehicle != null && this.vehicle.onGround()
                 && this.unit instanceof PmcUnitEntity
-                && this.unit instanceof IHelicopterPilot pilot
-                && pilot.sewv$getHeliCommand() == IHelicopterPilot.HELI_CMD_NONE) {
-            pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
+                && this.unit.sewv$getHeliCommand() == IHelicopterPilot.HELI_CMD_NONE) {
+            this.unit.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
         }
     }
 
@@ -628,7 +627,7 @@ public class DriveHelicopterGoal extends Goal {
     @Override
     public void tick() {
         HudNotify.watchPmcVehicle(this.unit, this.vehicle);
-        IHelicopterPilot earlyPilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
+        IHelicopterPilot earlyPilot = (IHelicopterPilot) this.unit;
         int earlyCommand = earlyPilot != null
                 ? earlyPilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
         // Sticky LANDED on the deck: no ticket. Airborne / takeoff / landing keep the follow.
@@ -653,7 +652,7 @@ public class DriveHelicopterGoal extends Goal {
             return;
         }
 
-        IHelicopterPilot pilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
+        IHelicopterPilot pilot = (IHelicopterPilot) this.unit;
         int command = pilot != null ? pilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
 
         // Hostile RU/US crews take no player flight orders and never idle parked:
@@ -2267,8 +2266,7 @@ public class DriveHelicopterGoal extends Goal {
     // band the flight model is designed around. Read fresh every tick, so retrimming it airborne
     // takes effect immediately.
     private double flightAltitude() {
-        int alt = (this.unit instanceof IHelicopterPilot pilot)
-                ? pilot.sewv$getCruiseAltitude() : IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
+        int alt = this.unit.sewv$getCruiseAltitude();
         return Mth.clamp(alt, MIN_FLIGHT_ALT, MAX_FLIGHT_ALT);
     }
 

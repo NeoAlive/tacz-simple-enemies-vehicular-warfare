@@ -9,9 +9,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMedicCaptured;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
-import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 

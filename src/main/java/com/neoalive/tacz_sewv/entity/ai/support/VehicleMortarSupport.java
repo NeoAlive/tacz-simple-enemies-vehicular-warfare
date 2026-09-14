@@ -14,12 +14,10 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.bridge.FireMission;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.bridge.FireMission;
-import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
 
 /**
@@ -67,11 +65,10 @@ public final class VehicleMortarSupport {
 
     @Nullable
     public static FireMission fireMissionOf(AbstractUnit unit) {
-        if (!(unit instanceof IMortarCrew crew)) return null;
-        FireMission mission = crew.sewv$getFireMission();
+        FireMission mission = unit.sewv$getFireMission();
         if (mission == null) return null;
         if (mission.isExpired(unit.level().getGameTime())) {
-            crew.sewv$setFireMission(null);
+            unit.sewv$setFireMission(null);
             return null;
         }
         return mission;
@@ -217,8 +214,7 @@ public final class VehicleMortarSupport {
     }
 
     private static boolean hasIssuedShell(GunData gun, AbstractUnit unit) {
-        if (!(unit instanceof IIssuedAmmo crew)) return false;
-        Item issued = crew.sewv$getIssuedAmmo();
+        Item issued = unit.sewv$getIssuedAmmo();
         if (issued == null) return false;
         AmmoConsumer consumer = gun.selectedAmmoConsumer();
         return consumer != null && consumer.isAmmoItem(new ItemStack(issued));

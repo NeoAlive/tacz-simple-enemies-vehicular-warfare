@@ -8,14 +8,13 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.nekoyuni.SimpleEnemyMod.bridge.IEntrenched;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.block.TrenchNetworks;
-import com.neoalive.tacz_sewv.bridge.IEntrenched;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SandbagSupport;
@@ -64,14 +63,13 @@ public class SeekEntrenchmentGoal extends Goal {
         if (!(this.unit instanceof RUunitEntity || this.unit instanceof USunitEntity)) return false;
         if (this.unit.isPassenger()) return false;
         if (this.unit.getTarget() != null) return false;
-        if (this.unit instanceof IEntrenched e) {
+        { IEntrenched e = this.unit;
             if (e.sewv$isEntrenched()) return false;
             // Post-leave gate: absolute game-time NBT — one long compare, survives clear/chunk unload.
             if (e.sewv$isEntrenchSeekCooling(this.unit.level().getGameTime())) return false;
         }
-        if (this.unit instanceof IVehicleBoarder boarder && boarder.tacz_sewv$isBoarding()) return false;
-        if (this.unit instanceof IMortarCrew mortar
-                && mortar.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
+        if (this.unit.tacz_sewv$isBoarding()) return false;
+        if (this.unit.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
             return false;
         }
         return true;

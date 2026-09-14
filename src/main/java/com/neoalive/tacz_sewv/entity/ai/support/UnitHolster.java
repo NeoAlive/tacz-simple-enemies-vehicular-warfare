@@ -10,8 +10,6 @@ import com.tacz.guns.api.item.builder.GunItemBuilder;
 import com.tacz.guns.api.item.gun.FireMode;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.network.syncher.EntityDataSerializers;
-import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
@@ -19,10 +17,11 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMedicCaptured;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPmcDowned;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 
@@ -37,13 +36,11 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
  */
 public final class UnitHolster {
 
-    /** Synched from {@code MixinAbstractUnit}; false until a mortar crew is at the tube. */
-    public static final EntityDataAccessor<Boolean> MANNING_MORTAR =
-            SynchedEntityData.defineId(AbstractUnit.class, EntityDataSerializers.BOOLEAN);
+    /** Alias of {@link AbstractUnit#SEWV_MANNING_MORTAR} — defined on the unit class so ids stay parent-before-child. */
+    public static final EntityDataAccessor<Boolean> MANNING_MORTAR = AbstractUnit.SEWV_MANNING_MORTAR;
 
-    /** Synched: main hand is a grenade mid-throw; rifle is stashed for body-holster draw. */
-    public static final EntityDataAccessor<Boolean> THROWING_GRENADE =
-            SynchedEntityData.defineId(AbstractUnit.class, EntityDataSerializers.BOOLEAN);
+    /** Alias of {@link AbstractUnit#SEWV_THROWING_GRENADE}. */
+    public static final EntityDataAccessor<Boolean> THROWING_GRENADE = AbstractUnit.SEWV_THROWING_GRENADE;
 
     private static final String TAG_THROW_DEADLINE = "sewv:grenade_throw_deadline";
     private static final int THROW_STALE_TICKS = 80;
@@ -75,7 +72,7 @@ public final class UnitHolster {
         }
         if (!(entity instanceof AbstractUnit unit)) return false;
         if (MedicControl.isTreating(unit)) return true;
-        if (unit instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) return true;
+        if (unit instanceof PmcUnitEntity pmc && pmc.sewv$isDownedSynced()) return true;
         if (unit instanceof IMedicCaptured captured && captured.sewv$isCapturedSynced()) return true;
         return entity.getEntityData().get(MANNING_MORTAR);
     }

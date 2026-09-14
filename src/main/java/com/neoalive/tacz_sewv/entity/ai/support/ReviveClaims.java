@@ -7,7 +7,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 
 /**
  * One reviver per downed patient (player or PMC). Without this every nearby unit's
@@ -30,7 +29,7 @@ public final class ReviveClaims {
     public static boolean isEligibleReviver(Entity entity) {
         if (!(entity instanceof PmcUnitEntity unit) || !unit.isAlive()) return false;
         if (unit.isPassenger()) return false;
-        if (unit instanceof IPmcDowned downed && downed.sewv$isDowned()) return false;
+        if (unit.sewv$isDowned()) return false;
         return !MortarSupport.hasMortarClaim(unit);
     }
 

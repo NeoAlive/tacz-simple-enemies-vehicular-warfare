@@ -12,11 +12,11 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkEvent;
+import net.nekoyuni.SimpleEnemyMod.bridge.IEscort;
+import net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehiclePatrol;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;

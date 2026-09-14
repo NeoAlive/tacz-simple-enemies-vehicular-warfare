@@ -18,15 +18,14 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.bridge.FireMission;
+import net.nekoyuni.SimpleEnemyMod.bridge.IDelayedFire;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.bridge.FireMission;
-import com.neoalive.tacz_sewv.bridge.IDelayedFire;
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
@@ -171,8 +170,8 @@ public final class FireMissionSupport {
             // is a standing instruction that lasts the rest of the sortie, so a plane last told
             // BOMB by hand would answer an automatic call with a bombing run at whatever the
             // observer happened to see, including infantry twenty blocks from the observer.
-            if (support.kind == Kind.CAS && crew instanceof IHelicopterPilot pilot) {
-                pilot.sewv$setPlaneAttackMode(PlaneAttackMode.AUTO);
+            if (support.kind == Kind.CAS) {
+                crew.sewv$setPlaneAttackModeOrdinal(PlaneAttackMode.AUTO.ordinal());
             }
             if (crew instanceof PmcUnitEntity pmc) {
                 pmc.setAttackTargetId(target.getId());
@@ -213,8 +212,8 @@ public final class FireMissionSupport {
         // that instruction for the rest of the sortie, which is what makes the button mean
         // anything. Only CAS crews carry it; a mortar has one thing to shoot.
         for (SupportCrew support : crews) {
-            if (support.kind == Kind.CAS && support.unit instanceof IHelicopterPilot pilot) {
-                pilot.sewv$setPlaneAttackMode(planeMode);
+            if (support.kind == Kind.CAS) {
+                support.unit.sewv$setPlaneAttackModeOrdinal(planeMode.ordinal());
             }
         }
 
@@ -228,11 +227,11 @@ public final class FireMissionSupport {
             for (SupportCrew support : crews) {
                 // Mortars and CAS both take a standing grid mark; TOW/artillery need a live lock.
                 if (support.kind != Kind.MORTAR && support.kind != Kind.CAS) continue;
-                if (!(support.unit instanceof IMortarCrew crew)) continue;
+                AbstractUnit crew = support.unit;
                 triggered.add(support.kind);
                 ordered++;
                 crew.sewv$setFireMission(FireMission.standing(posTarget));
-                if (support.unit instanceof PmcUnitEntity pmc) {
+                if (crew instanceof PmcUnitEntity pmc) {
                     pmc.setOrder(OrderType.FREE_FIRE);
                     pmc.setAttackTargetId(-1);
                 } else {
@@ -243,7 +242,7 @@ public final class FireMissionSupport {
             for (SupportCrew support : crews) {
                 AbstractUnit crew = support.unit;
                 // A fresh entity designation replaces any standing grid mark.
-                if (crew instanceof IMortarCrew mortar) {
+                { IMortarCrew mortar = crew;
                     mortar.sewv$setFireMission(null);
                 }
                 triggered.add(support.kind);
@@ -265,9 +264,7 @@ public final class FireMissionSupport {
         long deadline = level.getGameTime() + (long) effective * 20L;
         for (SupportCrew support : crews) {
             if (support.kind != Kind.MORTAR) continue;
-            if (support.unit instanceof IDelayedFire delayed) {
-                delayed.sewv$setFireDelayUntil(deadline);
-            }
+            support.unit.sewv$setFireDelayUntil(deadline);
         }
     }
 
@@ -307,18 +304,17 @@ public final class FireMissionSupport {
         for (AbstractUnit crew : crewsInRange(level, CrewFacts.Faction.PMC, owner, origin, range, ANY)) {
             boolean hadOrder = crew instanceof PmcUnitEntity pmc
                     && pmc.getOrder() == OrderType.ATTACK_THAT_TARGET;
-            boolean hadMark = crew instanceof IMortarCrew mortar
-                    && mortar.sewv$getFireMission() != null;
+            boolean hadMark = crew.sewv$getFireMission() != null;
             if (!hadOrder && !hadMark) continue;
 
             if (crew instanceof PmcUnitEntity pmc) {
                 pmc.setOrder(OrderType.FREE_FIRE);
                 pmc.setAttackTargetId(-1);
             }
-            if (crew instanceof IMortarCrew mortar) {
+            { IMortarCrew mortar = crew;
                 mortar.sewv$setFireMission(null);
             }
-            if (crew instanceof IDelayedFire delayed) {
+            { IDelayedFire delayed = crew;
                 delayed.sewv$setFireDelayUntil(0L);
             }
             released++;

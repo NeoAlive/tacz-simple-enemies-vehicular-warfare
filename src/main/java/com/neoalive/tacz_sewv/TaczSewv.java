@@ -25,6 +25,7 @@ import com.neoalive.tacz_sewv.command.SewvCommand;
 import com.neoalive.tacz_sewv.compat.CorpseCompat;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
+import com.neoalive.tacz_sewv.compat.SewvUnitIntegration;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.ConfigMigration;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -67,6 +68,9 @@ public class TaczSewv {
         // Before any Mob.<init>: custom BlockPathTypes must already exist or pathfindingMalus[]
         // is short and getPathfindingMalus(TRENCH) AIOOBEs mid-tick (seen on crewed TOWs).
         TrenchPathTypes.bootstrap();
+
+        // SEM UnitHooks — replaces former SEM-targeting mixins.
+        net.nekoyuni.SimpleEnemyMod.integration.UnitHooks.setListener(new SewvUnitIntegration());
 
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::commonSetup);

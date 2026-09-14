@@ -3,9 +3,9 @@ package com.neoalive.tacz_sewv.procedural.events;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.nekoyuni.SimpleEnemyMod.bridge.FireMission;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 
-import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.compat.MineColoniesCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
@@ -19,7 +19,7 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner;
  * someone to have <em>seen</em> it — which is what the radio is for. A standing fire mission
  * on a BlockPos needs nobody to see anything, so an attacker can shell a place off a map
  * reference. That is exactly what artillery is, and it is why
- * {@link com.neoalive.tacz_sewv.bridge.FireMission} exists.
+ * {@link net.nekoyuni.SimpleEnemyMod.bridge.FireMission} exists.
  *
  * <p>The shape of the encounter: shells start landing on your base from somewhere you can't
  * see. The battery works its mission for a rolled 30-60 s and then stands down off its tubes

@@ -12,11 +12,11 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.nekoyuni.SimpleEnemyMod.bridge.ICaptureMedic;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMedicCaptured;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
-import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicCaptureSupport;
@@ -75,14 +75,14 @@ public class PmcCaptureMedicGoal extends Goal {
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
         if (!SewvConfig.MEDIC_CAPTURE_ENABLED.get()) return false;
-        if (!(this.unit instanceof ICaptureMedic order) || !order.tacz_sewv$isCaptureMedicOrdered()) return false;
+        if (!this.unit.tacz_sewv$isCaptureMedicOrdered()) return false;
         if (this.unit.isPassenger() || this.unit.getTarget() != null) return false;
 
         this.targetMedic = findNearestMedic();
         if (this.targetMedic == null) {
             // Nothing to chase right now — drop the order rather than leaving it silently armed
             // forever waiting for a medic that may never appear again.
-            order.tacz_sewv$setCaptureMedicOrdered(false);
+            this.unit.tacz_sewv$setCaptureMedicOrdered(false);
             return false;
         }
         return true;
@@ -90,7 +90,7 @@ public class PmcCaptureMedicGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        if (!(this.unit instanceof ICaptureMedic order) || !order.tacz_sewv$isCaptureMedicOrdered()) return false;
+        if (!this.unit.tacz_sewv$isCaptureMedicOrdered()) return false;
         if (this.unit.isPassenger() || this.unit.getTarget() != null) return false;
         if (this.targetMedic == null || !this.targetMedic.isAlive()) return false;
         return this.approachTicks < MAX_APPROACH_TICKS;
@@ -108,7 +108,7 @@ public class PmcCaptureMedicGoal extends Goal {
     public void stop() {
         this.unit.getNavigation().stop();
         clearSpeedBoost();
-        if (this.unit instanceof ICaptureMedic order) {
+        { ICaptureMedic order = this.unit;
             order.tacz_sewv$setCaptureMedicOrdered(false);
         }
         this.targetMedic = null;

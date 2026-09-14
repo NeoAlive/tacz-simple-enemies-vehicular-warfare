@@ -18,6 +18,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.bridge.ITowRecovery;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
@@ -25,7 +26,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
-import com.neoalive.tacz_sewv.bridge.ITowRecovery;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
@@ -72,7 +72,7 @@ public final class TowRecoverySupport {
     private TowRecoverySupport() {}
 
     public static boolean hasTowOrder(AbstractUnit unit) {
-        return unit instanceof ITowRecovery tow && tow.tacz_sewv$getTowVictimId() != -1;
+        return unit.tacz_sewv$getTowVictimId() != -1;
     }
 
     public static boolean isTowering(AbstractUnit unit, VehicleEntity vehicle) {
@@ -88,10 +88,8 @@ public final class TowRecoverySupport {
     }
 
     public static void clearOrder(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
-        if (unit instanceof ITowRecovery tow) {
-            tow.tacz_sewv$setTowVictimId(-1);
-            tow.tacz_sewv$setTowVictimGraceTicks(0);
-        }
+        unit.tacz_sewv$setTowVictimId(-1);
+        unit.tacz_sewv$setTowVictimGraceTicks(0);
         if (vehicle != null && !vehicle.level().isClientSide) {
             vehicle.clearTowingInfo();
             vehicle.getPersistentData().remove(TAG_HEALTHY_TICKS);
@@ -99,10 +97,8 @@ public final class TowRecoverySupport {
     }
 
     public static void assignVictim(AbstractUnit driver, int victimEntityId) {
-        if (driver instanceof ITowRecovery tow) {
-            tow.tacz_sewv$setTowVictimId(victimEntityId);
-            tow.tacz_sewv$setTowVictimGraceTicks(0);
-        }
+        driver.tacz_sewv$setTowVictimId(victimEntityId);
+        driver.tacz_sewv$setTowVictimGraceTicks(0);
     }
 
     // --- needs_tow detection (victim hull NBT) ---

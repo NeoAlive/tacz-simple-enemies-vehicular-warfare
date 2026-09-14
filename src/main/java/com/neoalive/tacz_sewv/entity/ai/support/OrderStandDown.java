@@ -1,14 +1,11 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
+import net.nekoyuni.SimpleEnemyMod.bridge.IEscort;
+import net.nekoyuni.SimpleEnemyMod.bridge.IHelicopterPilot;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPathwayInfantry;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehicleBoarder;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-
-import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
-import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 
 /**
  * One place to drop every player-issued order state on a PMC — downed lock, dismiss, bail, dismount.
@@ -31,11 +28,11 @@ public final class OrderStandDown {
         boarder.tacz_sewv$setBoarding(false);
         boarder.tacz_sewv$setMountTargetId(-1);
 
-        if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) {
-            capture.sewv$clearCaptureOrder();
+        if (pmc.sewv$hasCaptureOrder()) {
+            pmc.sewv$clearCaptureOrder();
         }
-        if (pmc instanceof ICaptureMedic medic && medic.tacz_sewv$isCaptureMedicOrdered()) {
-            medic.tacz_sewv$setCaptureMedicOrdered(false);
+        if (pmc.tacz_sewv$isCaptureMedicOrdered()) {
+            pmc.tacz_sewv$setCaptureMedicOrdered(false);
         }
 
         MortarSupport.releaseClaim(pmc);
@@ -67,8 +64,8 @@ public final class OrderStandDown {
     /** Clears escort, sweep, patrol, and pathway before assigning a new pathway funnel. */
     public static void clearForPathwayAssign(PmcUnitEntity pmc) {
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
-        if (((com.neoalive.tacz_sewv.bridge.IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
-                || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
+        if (((net.nekoyuni.SimpleEnemyMod.bridge.IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
+                || ((net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
             PatrolSupport.clearSweepMembership(pmc, "PathwayAssign");
         }
         ((IPathwayInfantry) pmc).sewv$clearPathway();

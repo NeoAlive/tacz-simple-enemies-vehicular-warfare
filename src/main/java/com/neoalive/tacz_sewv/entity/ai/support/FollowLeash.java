@@ -2,11 +2,11 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPathwayInfantry;
+import net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 
 /**

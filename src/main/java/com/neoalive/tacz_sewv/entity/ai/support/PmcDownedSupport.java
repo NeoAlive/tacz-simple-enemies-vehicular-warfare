@@ -12,10 +12,10 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPmcDowned;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -85,17 +85,16 @@ public final class PmcDownedSupport {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onDeath(LivingDeathEvent event) {
         if (!(event.getEntity() instanceof PmcUnitEntity pmc)) return;
-        if (!(pmc instanceof IPmcDowned downed)) return;
         if (!SewvConfig.PMC_DOWNED_ENABLED.get()) return;
         // Optional dependency: see the class doc for why this bundles under PlayerReviveMod's
         // presence even though it never calls into that mod's own API.
         if (!PlayerReviveCompat.isLoaded()) return;
         // Already downed once: this hit is what finishes them for real — let the death proceed.
-        if (downed.sewv$isDowned()) return;
+        if (pmc.sewv$isDowned()) return;
 
         event.setCanceled(true);
-        downed.sewv$setDowned(true, pmc.level().getGameTime() + SewvConfig.PMC_DOWNED_BLEED_TICKS.get());
-        downed.sewv$setDownedSynced(true);
+        pmc.sewv$setDowned(true, pmc.level().getGameTime() + SewvConfig.PMC_DOWNED_BLEED_TICKS.get());
+        pmc.sewv$setDownedSynced(true);
         pmc.setHealth((float) Math.max(1.0, SewvConfig.PMC_DOWNED_HEALTH.get()));
         OrderStandDown.clearAll(pmc, "PmcDownedSupport.onDeath");
         HudNotify.pmcDowned(pmc, event.getSource());
@@ -109,7 +108,7 @@ public final class PmcDownedSupport {
     @SubscribeEvent
     public static void onAttack(AttackEntityEvent event) {
         if (!(event.getTarget() instanceof PmcUnitEntity pmc)) return;
-        if (!(pmc instanceof IPmcDowned downed) || !downed.sewv$isDowned()) return;
+        if (!pmc.sewv$isDowned()) return;
         if (!VehicleTargeting.isFriendlyPlayer(pmc, event.getEntity())) return;
         event.setCanceled(true);
     }
@@ -129,8 +128,7 @@ public final class PmcDownedSupport {
 
         Entity targetEntity = player.level().getEntity(targetId);
         if (!(targetEntity instanceof PmcUnitEntity pmc)
-                || !(pmc instanceof IPmcDowned downed)
-                || !downed.sewv$isDowned()
+                || !pmc.sewv$isDowned()
                 || !pmc.isAlive()
                 || player.distanceToSqr(pmc) > CHANNEL_MAX_DISTANCE_SQ
                 || !VehicleTargeting.isFriendlyPlayer(pmc, player)) {
@@ -160,9 +158,9 @@ public final class PmcDownedSupport {
 
     /** Clears the downed state and restores a fraction of health. Idempotent past the first call. */
     public static void revive(PmcUnitEntity pmc) {
-        if (!(pmc instanceof IPmcDowned downed) || !downed.sewv$isDowned()) return;
-        downed.sewv$setDowned(false, 0L);
-        downed.sewv$setDownedSynced(false);
+        if (!pmc.sewv$isDowned()) return;
+        pmc.sewv$setDowned(false, 0L);
+        pmc.sewv$setDownedSynced(false);
         pmc.setHealth((float) Math.min(pmc.getMaxHealth(), SewvConfig.PMC_DOWNED_REVIVE_HEALTH.get()));
     }
 }

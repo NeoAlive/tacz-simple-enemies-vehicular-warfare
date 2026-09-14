@@ -9,13 +9,13 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.nekoyuni.SimpleEnemyMod.bridge.ICaptureOrder;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
-import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
@@ -49,9 +49,7 @@ public final class CaptureOrderSupport {
     }
 
     public static boolean holdsCourseThroughContact(AbstractUnit unit) {
-        return unit instanceof ICaptureOrder order
-                && order.sewv$hasCaptureOrder()
-                && isCaptureCrew(unit);
+        return unit.sewv$hasCaptureOrder() && isCaptureCrew(unit);
     }
 
     /**
@@ -63,29 +61,27 @@ public final class CaptureOrderSupport {
         for (Entity entity : level.getAllEntities()) {
             if (!(entity instanceof AbstractUnit unit)) continue;
             if (!isCaptureCrew(unit)) continue;
-            if (!(unit instanceof ICaptureOrder order)) continue;
-            order.sewv$beginCaptureOrder();
-            pickObjective(level, unit, order);
+            unit.sewv$beginCaptureOrder();
+            pickObjective(level, unit, unit);
             n++;
         }
         SewvDiag.invasion("captureOrder beginAll n={}", n);
     }
 
     public static void beginUnit(AbstractUnit unit) {
-        if (!(unit instanceof ICaptureOrder order)) return;
         if (!isCaptureCrew(unit)) return;
-        order.sewv$beginCaptureOrder();
+        unit.sewv$beginCaptureOrder();
         if (unit.level() instanceof ServerLevel level) {
-            pickObjective(level, unit, order);
+            pickObjective(level, unit, unit);
         }
     }
 
     public static void clearAll(ServerLevel level) {
         int n = 0;
         for (Entity entity : level.getAllEntities()) {
-            if (!(entity instanceof ICaptureOrder order)) continue;
-            if (!order.sewv$hasCaptureOrder()) continue;
-            order.sewv$clearCaptureOrder();
+            if (!(entity instanceof AbstractUnit unit)) continue;
+            if (!unit.sewv$hasCaptureOrder()) continue;
+            unit.sewv$clearCaptureOrder();
             n++;
         }
         SewvDiag.invasion("captureOrder clearAll n={}", n);
@@ -96,17 +92,17 @@ public final class CaptureOrderSupport {
      */
     @Nullable
     public static BlockPos currentDestination(AbstractUnit unit, VehicleEntity vehicle) {
-        if (!(unit instanceof ICaptureOrder order) || !order.sewv$hasCaptureOrder()) return null;
+        if (!unit.sewv$hasCaptureOrder()) return null;
         if (!isCaptureCrew(unit)) return null;
         if (!(unit.level() instanceof ServerLevel level)) return null;
         if (!InvasionSession.isActive(level)) return null;
         if (!isEligibleHull(vehicle)) return null;
 
-        advanceIfOwned(level, unit, order);
-        BlockPos target = order.sewv$getCaptureTarget();
+        advanceIfOwned(level, unit, unit);
+        BlockPos target = unit.sewv$getCaptureTarget();
         if (target == null) {
-            pickObjective(level, unit, order);
-            target = order.sewv$getCaptureTarget();
+            pickObjective(level, unit, unit);
+            target = unit.sewv$getCaptureTarget();
         }
         return target;
     }

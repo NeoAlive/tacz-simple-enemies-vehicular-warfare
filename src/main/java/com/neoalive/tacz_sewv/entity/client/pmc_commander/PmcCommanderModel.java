@@ -6,13 +6,13 @@ import net.minecraft.client.model.HierarchicalModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
 import net.minecraft.world.entity.Entity;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPmcDowned;
 import net.nekoyuni.SimpleEnemyMod.entity.client.animation.ModAnimationsDefinitions;
 import net.nekoyuni.SimpleEnemyMod.entity.client.animation.config.UnitAnimationConfig;
 import net.nekoyuni.SimpleEnemyMod.entity.client.util.IArmorBoneProvider;
 import net.nekoyuni.SimpleEnemyMod.entity.client.util.UnitModelDefinitions;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.client.DownedUnitPose;
 
 /**
@@ -106,6 +106,7 @@ public class PmcCommanderModel<T extends Entity> extends HierarchicalModel<T> im
         }
 
         unitEntity.getAnimationManager().applyProceduralLayers(this.root(), unitEntity, ageInTicks);
+        net.nekoyuni.SimpleEnemyMod.integration.UnitHooks.get().applySeatPose(this.root(), entity);
     }
 
     @Override

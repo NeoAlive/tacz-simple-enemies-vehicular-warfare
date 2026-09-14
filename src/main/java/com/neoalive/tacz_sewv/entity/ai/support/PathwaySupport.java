@@ -12,13 +12,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPathwayInfantry;
+import net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehiclePatrol;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.map.PreferredPathwayData;
 
@@ -148,7 +147,7 @@ public final class PathwaySupport {
 
     public static boolean canPassiveTrigger(PmcUnitEntity pmc) {
         if (pmc.getVehicle() != null) return false;
-        if (pmc instanceof IPmcDowned d && d.sewv$isDowned()) return false;
+        if (pmc.sewv$isDowned()) return false;
         OrderType order = pmc.getOrder();
         if (order == OrderType.FREE_FIRE) {
             if (pmc.getTarget() != null && pmc.getTarget().isAlive()) return false;
@@ -207,7 +206,7 @@ public final class PathwaySupport {
      * On-foot infantry or the driver of a non-air, non-ship ground hull — what manual funnel targets.
      */
     public static boolean isGroundFunnelUnit(PmcUnitEntity pmc) {
-        if (pmc instanceof IPmcDowned d && d.sewv$isDowned()) return false;
+        if (pmc.sewv$isDowned()) return false;
         Entity vehicle = pmc.getVehicle();
         if (vehicle == null) return true;
         if (!(vehicle instanceof VehicleEntity hull)) return false;

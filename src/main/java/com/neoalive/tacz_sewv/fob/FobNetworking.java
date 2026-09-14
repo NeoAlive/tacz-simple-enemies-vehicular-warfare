@@ -208,10 +208,8 @@ public final class FobNetworking {
         if (pmc.isPassenger()) {
             pmc.stopRiding();
         }
-        if (pmc instanceof com.neoalive.tacz_sewv.bridge.IVehicleBoarder boarder) {
-            boarder.tacz_sewv$setBoarding(false);
-            boarder.tacz_sewv$setMountTargetId(-1);
-        }
+        pmc.tacz_sewv$setBoarding(false);
+        pmc.tacz_sewv$setMountTargetId(-1);
     }
 
     @Nullable

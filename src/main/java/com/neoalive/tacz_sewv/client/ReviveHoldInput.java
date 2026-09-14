@@ -9,7 +9,6 @@ import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHoldRevive;
 
@@ -50,8 +49,7 @@ public final class ReviveHoldInput {
         if (mc.options.keyAttack.isDown()) {
             Entity looking = mc.crosshairPickEntity;
             if (looking instanceof PmcUnitEntity pmc
-                    && pmc instanceof IPmcDowned downed
-                    && downed.sewv$isDownedSynced()) {
+                    && pmc.sewv$isDownedSynced()) {
                 targetId = pmc.getId();
             }
         }

@@ -882,17 +882,16 @@ public class DriveVehicleGoal extends Goal {
     // Destination resolution — SEM order queue for PMC, current target / ally-assist for
     // RU/US — is shared with DriveHelicopterGoal. See VehicleTargeting.
     private void towRecoveryTick() {
-        if (!(this.unit instanceof com.neoalive.tacz_sewv.bridge.ITowRecovery tow)) return;
-        if (tow.tacz_sewv$getTowVictimId() == -1) return;
+        if (this.unit.tacz_sewv$getTowVictimId() == -1) return;
         // Stale order on a FIXED / plane / mortar / SPH — drop it rather than steering inert inputs.
         if (!TowRecoverySupport.isTowTowerCandidate(this.vehicle)) {
             TowRecoverySupport.clearOrder(this.unit, this.vehicle);
             return;
         }
 
-        VehicleEntity victim = TowRecoverySupport.resolveTowVictim(this.unit, tow);
+        VehicleEntity victim = TowRecoverySupport.resolveTowVictim(this.unit, this.unit);
         if (victim == null) {
-            if (TowRecoverySupport.towVictimGraceActive(tow)) {
+            if (TowRecoverySupport.towVictimGraceActive(this.unit)) {
                 this.driver.stop();
                 return;
             }

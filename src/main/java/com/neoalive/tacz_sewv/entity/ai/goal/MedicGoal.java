@@ -12,9 +12,9 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
+import net.nekoyuni.SimpleEnemyMod.bridge.IIssuedAmmo;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
-import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -236,12 +236,11 @@ public class MedicGoal extends Goal {
      * issued-NBT tag alone left egg-spawned medics silently unable to treat anyone.
      */
     private MedicalKitItem issuedKit() {
-        if (VehicleTargeting.isMedic(this.unit)
-                && this.unit.getMainHandItem().getItem() instanceof MedicalKitItem handKit) {
+        if (this.unit.getMainHandItem().getItem() instanceof MedicalKitItem handKit
+                && VehicleTargeting.isMedic(this.unit)) {
             return handKit;
         }
-        if (this.unit instanceof IIssuedAmmo issued
-                && issued.sewv$getIssuedAmmo() instanceof MedicalKitItem kit) {
+        if (this.unit.sewv$getIssuedAmmo() instanceof MedicalKitItem kit) {
             return kit;
         }
         return null;

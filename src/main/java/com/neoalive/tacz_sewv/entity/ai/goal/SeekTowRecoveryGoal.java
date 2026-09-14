@@ -4,13 +4,12 @@ import java.util.EnumSet;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehicleBoarder;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.bridge.ITowRecovery;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 
@@ -47,8 +46,7 @@ public class SeekTowRecoveryGoal extends Goal {
         this.scanCooldown = this.scanInterval;
         if (victim != null && !victim.getTowedByUUID().isBlank()) return false;
         if (victim != null) {
-            if (this.unit instanceof ITowRecovery tow
-                    && tow.tacz_sewv$getTowVictimId() == victim.getId()) {
+            if (this.unit.tacz_sewv$getTowVictimId() == victim.getId()) {
                 return false;
             }
             TowRecoverySupport.assignVictim(this.unit, victim.getId());
@@ -66,12 +64,11 @@ public class SeekTowRecoveryGoal extends Goal {
         if (tower.isTowingAny()) return false;
         if (!TowRecoverySupport.isTowTowerCandidate(tower)) return false;
 
-        if (this.unit instanceof IMortarCrew mortarCrew
-                && mortarCrew.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
+        if (this.unit.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
             return false;
         }
         if (((IVehicleBoarder) this.unit).tacz_sewv$isBoarding()) return false;
-        if (this.unit instanceof ITowRecovery tow && tow.tacz_sewv$isTowingRecovery()) return false;
+        if (this.unit.tacz_sewv$isTowingRecovery()) return false;
         return true;
     }
 }

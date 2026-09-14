@@ -13,7 +13,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
@@ -59,8 +58,8 @@ public final class SupportSpawner {
         unit.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null, null);
         // Medics carry an unlimited issued supply of kits (RU/US units have no inventory to hold one),
         // the same channel mortar/TOW crews get their ammo through.
-        if (role == SupportRole.MEDIC && unit instanceof IIssuedAmmo issued) {
-            issued.sewv$setIssuedAmmo(com.atsuishio.superbwarfare.init.ModItems.MEDICAL_KIT.get());
+        if (role == SupportRole.MEDIC) {
+            unit.sewv$setIssuedAmmo(com.atsuishio.superbwarfare.init.ModItems.MEDICAL_KIT.get());
         }
         level.addFreshEntity(unit);
         return unit;

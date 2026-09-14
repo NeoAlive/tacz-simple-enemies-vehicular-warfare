@@ -1,9 +1,8 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
+import net.nekoyuni.SimpleEnemyMod.bridge.IEscort;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehicleBoarder;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 
 /**
  * Shared writer for standing board orders. {@link com.neoalive.tacz_sewv.entity.ai.goal.BoardVehicleGoal}

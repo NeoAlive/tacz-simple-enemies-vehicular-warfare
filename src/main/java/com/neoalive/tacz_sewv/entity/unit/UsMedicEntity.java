@@ -13,10 +13,10 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMedicCaptured;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMedicTreat;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
-import com.neoalive.tacz_sewv.bridge.IMedicTreat;
 import com.neoalive.tacz_sewv.entity.ai.goal.SupportUnitGoals;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicCaptureSupport;
 

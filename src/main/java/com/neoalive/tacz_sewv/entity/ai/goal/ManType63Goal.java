@@ -10,12 +10,11 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.bridge.FireMission;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
-import com.neoalive.tacz_sewv.bridge.FireMission;
-import com.neoalive.tacz_sewv.bridge.IDelayedFire;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -211,8 +210,7 @@ public class ManType63Goal extends Goal {
             hold("launcher still slewing onto the aimpoint");
             return;
         }
-        if (this.unit instanceof IDelayedFire delayed
-                && delayed.sewv$hasActiveFireDelay(this.unit.level().getGameTime())) {
+        if (this.unit.sewv$hasActiveFireDelay(this.unit.level().getGameTime())) {
             hold("holding for coordinated fire delay");
             return;
         }

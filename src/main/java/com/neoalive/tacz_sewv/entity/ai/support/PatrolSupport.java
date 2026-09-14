@@ -11,11 +11,11 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehiclePatrol;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -266,8 +266,8 @@ public final class PatrolSupport {
      * should refuse the lock. Cruise is unbounded (route, not a disk); returns false there.
      */
     public static boolean refusesOutOfAreaTarget(PmcUnitEntity pmc, LivingEntity target) {
-        if (((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
-            var sweep = (com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc;
+        if (((net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
+            var sweep = (net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry) pmc;
             int minX = sweep.sewv$getInfSweepLeft() << 4;
             int maxX = (sweep.sewv$getInfSweepRight() << 4) + 16;
             int minZ = sweep.sewv$getInfSweepTop() << 4;
@@ -302,14 +302,14 @@ public final class PatrolSupport {
     public static void clearSweepMembership(PmcUnitEntity pmc, String reason) {
         boolean hadMounted = ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
                 || ((IVehiclePatrol) pmc).sewv$hasSweepRect();
-        boolean hadInf = ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep();
+        boolean hadInf = ((net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep();
         SewvDiag.sweep(
                 "clearSweepMembership reason={} unit={}#{} hadMountedTask={} hadInfSweep={} "
                         + "→ unregisterUnit (cancel op if last assignee; NO claim)",
                 reason, pmc.getClass().getSimpleName(), pmc.getId(), hadMounted, hadInf);
         clear(pmc);
         if (hadInf) {
-            ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$clearInfantrySweep();
+            ((net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry) pmc).sewv$clearInfantrySweep();
         }
         com.neoalive.tacz_sewv.invasion.SweepAdvancement.unregisterUnit(pmc, reason);
     }

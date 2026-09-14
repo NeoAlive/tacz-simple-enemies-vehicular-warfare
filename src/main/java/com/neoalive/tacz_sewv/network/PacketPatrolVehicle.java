@@ -15,11 +15,11 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehiclePatrol;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
@@ -196,9 +196,8 @@ public class PacketPatrolVehicle {
             return null;
         }
         if (OrderGuard.rejectIfDowned(player, pmc)) return null;
-        if (pmc instanceof com.neoalive.tacz_sewv.bridge.ICaptureOrder capture
-                && capture.sewv$hasCaptureOrder()) {
-            capture.sewv$clearCaptureOrder();
+        if (pmc.sewv$hasCaptureOrder()) {
+            pmc.sewv$clearCaptureOrder();
         }
         if (!(pmc.getVehicle() instanceof VehicleEntity v)) {
             OrderReport.fail(player, OrderFailure.NOT_MOUNTED, pmc);
@@ -226,7 +225,7 @@ public class PacketPatrolVehicle {
 
         Set<Integer> targets = new LinkedHashSet<>(this.unitIds);
         for (PmcUnitEntity pmc : PathwaySupport.funnelCandidates(sp)) {
-            if (((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$hasPathway()) {
+            if (((net.nekoyuni.SimpleEnemyMod.bridge.IPathwayInfantry) pmc).sewv$hasPathway()) {
                 targets.add(pmc.getId());
             }
         }
@@ -236,14 +235,14 @@ public class PacketPatrolVehicle {
             if (!(player.level().getEntity(unitId) instanceof PmcUnitEntity pmc)
                     || !OrderAuth.check(sp, pmc, "PacketPatrolVehicle.dismiss")) continue;
             boolean had = ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
-                    || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()
-                    || ((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$hasPathway()
+                    || ((net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()
+                    || ((net.nekoyuni.SimpleEnemyMod.bridge.IPathwayInfantry) pmc).sewv$hasPathway()
                     || EntrenchSupport.isEntrenched(pmc);
             if (had) {
                 PatrolSupport.clearSweepMembership(pmc, "PacketPatrolVehicle");
                 EntrenchSupport.clear(pmc);
                 TowRecoverySupport.clearIfTowering(pmc);
-                ((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$clearPathway();
+                ((net.nekoyuni.SimpleEnemyMod.bridge.IPathwayInfantry) pmc).sewv$clearPathway();
                 if (pmc.getVehicle() == null) {
                     pmc.getNavigation().stop();
                 }

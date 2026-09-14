@@ -10,12 +10,12 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehicleBoarder;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -98,8 +98,7 @@ public class SeekAbandonedVehicleGoal extends Goal {
         // unit a second, flag-conflicting order. See SeekAbandonedMortarGoal's class doc: both
         // ManMortarGoal and BoardVehicleGoal sit at priority 1 holding MOVE, so without this a
         // mortar crew's board order would simply never get its turn at the flag.
-        if (this.unit instanceof IMortarCrew mortarCrew
-                && mortarCrew.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
+        if (this.unit.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR) {
             return false;
         }
         // An order already stands; let BoardVehicleGoal finish (or time out) before re-scanning.

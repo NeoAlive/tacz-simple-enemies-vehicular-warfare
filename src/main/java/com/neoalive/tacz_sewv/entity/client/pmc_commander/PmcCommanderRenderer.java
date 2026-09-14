@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.nekoyuni.SimpleEnemyMod.config.ClientConfig;
 import net.nekoyuni.SimpleEnemyMod.entity.client.GunLayerRenderer;
+import net.nekoyuni.SimpleEnemyMod.integration.UnitHooks;
 import org.joml.Quaternionf;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -42,6 +43,9 @@ public class PmcCommanderRenderer extends MobRenderer<PmcCommanderEntity, PmcCom
 
     @Override
     public boolean shouldRender(PmcCommanderEntity entity, Frustum frustum, double camX, double camY, double camZ) {
+        if (UnitHooks.get().hideMountedUnit(entity)) {
+            return false;
+        }
         int configDist = ClientConfig.RENDER_DISTANCE.get();
         double maxDistance = (double) configDist * configDist;
 

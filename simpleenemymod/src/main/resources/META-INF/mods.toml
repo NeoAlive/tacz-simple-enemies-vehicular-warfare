@@ -1,0 +1,64 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="GPLv3"
+
+[[mods]]
+modId="simpleenemymod"
+version="1.20.1-0.1.6-beta"
+displayName="[SEM] Simple Enemy Mod"
+
+# A URL to query for updates for this mod. See the JSON update specification https://docs.minecraftforge.net/en/latest/misc/updatechecker/
+#updateJSONURL="https://change.me.example.invalid/updates.json" #optional
+# A URL for the "homepage" for this mod, displayed in the mod UI
+#displayURL="https://change.me.to.your.mods.homepage.example.invalid/" #optional
+# A file name (in the root of the mod JAR) containing a logo for display
+logoFile="logo.png"
+# A text field displayed in the mod UI
+credits="Guns by TaCZ Team, Skins by Default642172, Tactical AI and Tests by Aleksandr Iagofarov"
+# A text field displayed in the mod UI
+
+authors="NekoYuni"
+description='''An addon for TaCZ that adds NPCs to the game'''
+
+[[dependencies.simpleenemymod]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.simpleenemymod]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.simpleenemymod]]
+    modId="tacz"
+    mandatory=true
+    versionRange="[1.1.4,)"
+    ordering="BEFORE"
+    side="BOTH"
+
+[[dependencies.simpleenemymod]]
+    modId="geckolib"
+    mandatory=false
+    versionRange="[4.4,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.simpleenemymod]]
+    modId="curios"
+    mandatory=false
+    versionRange="[5.9,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.simpleenemymod]]
+modId="cloth_config"
+mandatory=false
+versionRange="[11,)"
+ordering="NONE"
+side="BOTH"
+

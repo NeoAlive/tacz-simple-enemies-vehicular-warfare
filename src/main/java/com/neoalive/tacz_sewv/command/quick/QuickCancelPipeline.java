@@ -4,15 +4,14 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.nekoyuni.SimpleEnemyMod.bridge.IEscort;
+import net.nekoyuni.SimpleEnemyMod.bridge.IFormationMember;
+import net.nekoyuni.SimpleEnemyMod.bridge.IHelicopterPilot;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPathwayInfantry;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehicleBoarder;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.IFormationMember;
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
@@ -62,8 +61,8 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
         ((IPathwayInfantry) pmc).sewv$clearPathway();
         FobSupport.clearRoutePending(pmc);
 
-        if (pmc instanceof ICaptureMedic medic && medic.tacz_sewv$isCaptureMedicOrdered()) {
-            medic.tacz_sewv$setCaptureMedicOrdered(false);
+        if (pmc.tacz_sewv$isCaptureMedicOrdered()) {
+            pmc.tacz_sewv$setCaptureMedicOrdered(false);
         }
 
         IVehicleBoarder boarder = (IVehicleBoarder) pmc;

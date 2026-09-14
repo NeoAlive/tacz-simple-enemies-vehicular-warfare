@@ -7,10 +7,10 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMedicCaptured;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.entity.ai.support.GrenadeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
@@ -43,7 +43,7 @@ public class GrenadeThrowGoal extends Goal {
         if (this.unit.getVehicle() instanceof VehicleEntity) return false;
         if (this.unit.isPassenger()) return false;
         if (MedicControl.isTreating(this.unit)) return false;
-        if (this.unit instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) return false;
+        if (this.unit instanceof PmcUnitEntity pmc && pmc.sewv$isDownedSynced()) return false;
         if (this.unit instanceof IMedicCaptured captured && captured.sewv$isCapturedSynced()) return false;
         if (SmallArmsSupport.holdsLauncher(this.unit)) return false;
         if (UnitHolster.isThrowingGrenade(this.unit)) return false;

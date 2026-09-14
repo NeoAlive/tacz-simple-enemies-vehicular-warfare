@@ -14,11 +14,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
@@ -42,7 +41,7 @@ public final class Type63Support {
         for (AbstractUnit unit : launcher.level().getEntitiesOfClass(
                 AbstractUnit.class, launcher.getBoundingBox().inflate(radius))) {
             if (unit == except || !unit.isAlive()) continue;
-            if (unit instanceof IMortarCrew crew && crew.sewv$getMortarTargetId() == launcher.getId()) {
+            if (unit.sewv$getMortarTargetId() == launcher.getId()) {
                 return unit;
             }
         }
@@ -165,11 +164,9 @@ public final class Type63Support {
             return new ItemStack(ModItems.MEDIUM_ROCKET_HE.get());
         }
 
-        if (unit instanceof IIssuedAmmo crew) {
-            Item issued = crew.sewv$getIssuedAmmo();
-            if (issued instanceof MediumRocketItem) {
-                return new ItemStack(issued);
-            }
+        Item issued = unit.sewv$getIssuedAmmo();
+        if (issued instanceof MediumRocketItem) {
+            return new ItemStack(issued);
         }
 
         IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);

@@ -7,9 +7,8 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 
 /**
  * On-foot Sweep &amp; Advance: wander walkable points inside the assigned chunk rectangle.

@@ -16,10 +16,10 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
+import net.nekoyuni.SimpleEnemyMod.bridge.IFormationMember;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehiclePatrol;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IFormationMember;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.BoardKeybind;
 import com.neoalive.tacz_sewv.client.QuickCommandKeybind;
 import com.neoalive.tacz_sewv.client.TdtScreen;

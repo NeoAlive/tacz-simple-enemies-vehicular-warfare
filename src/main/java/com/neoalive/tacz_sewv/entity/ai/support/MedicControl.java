@@ -1,9 +1,8 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
 import net.minecraft.world.entity.Entity;
+import net.nekoyuni.SimpleEnemyMod.bridge.IMedicTreat;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-
-import com.neoalive.tacz_sewv.bridge.IMedicTreat;
 
 /** Synched treating flag for {@link com.neoalive.tacz_sewv.entity.ai.goal.MedicGoal}. */
 public final class MedicControl {

@@ -18,7 +18,6 @@ import net.minecraft.world.item.ItemStack;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.block.EmplacementSupport;
-import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.compat.FcpEmplacementCompat;
 
 /**
@@ -146,8 +145,7 @@ public final class TowSupport {
     }
 
     private static boolean hasIssuedAmmo(GunData gun, AbstractUnit unit) {
-        if (!(unit instanceof IIssuedAmmo crew)) return false;
-        Item issued = crew.sewv$getIssuedAmmo();
+        Item issued = unit.sewv$getIssuedAmmo();
         if (issued == null) return false;
         AmmoConsumer consumer = gun.selectedAmmoConsumer();
         return consumer != null && consumer.isAmmoItem(new ItemStack(issued));

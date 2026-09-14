@@ -3,9 +3,9 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 import java.util.EnumSet;
 
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPmcDowned;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 
 /**
@@ -43,7 +43,7 @@ public class DownedGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return this.unit instanceof IPmcDowned downed && downed.sewv$isDowned();
+        return this.unit.sewv$isDowned();
     }
 
     @Override
@@ -64,7 +64,7 @@ public class DownedGoal extends Goal {
     @Override
     public void tick() {
         this.unit.setTarget(null);
-        if (!(this.unit instanceof IPmcDowned downed)) return;
+        IPmcDowned downed = this.unit;
         downed.sewv$setDownedSynced(true);
         if (this.unit.level().getGameTime() >= downed.sewv$downedDeadline()) {
             this.unit.kill();

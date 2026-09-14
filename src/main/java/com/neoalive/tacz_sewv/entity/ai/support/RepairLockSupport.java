@@ -8,7 +8,7 @@ import net.minecraft.nbt.CompoundTag;
  * com.neoalive.tacz_sewv.entity.ai.core.VehicleDriver} to hold the hull still while under repair.
  *
  * <p>Stored as a rolling absolute-game-time deadline rather than a bare marker — the same shape
- * {@link com.neoalive.tacz_sewv.bridge.IMortarCrew}'s fire-mission expiry uses — so the lock is
+ * {@link net.nekoyuni.SimpleEnemyMod.bridge.IMortarCrew}'s fire-mission expiry uses — so the lock is
  * self-healing: {@link com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal} refreshes it every tick
  * it is actually in range and working, and if the engineer dies, despawns, or the chunk unloads
  * before its own {@code stop()} can clear it, the lock simply expires a few seconds later with no

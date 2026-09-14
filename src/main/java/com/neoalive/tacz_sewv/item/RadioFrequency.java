@@ -28,7 +28,7 @@ public enum RadioFrequency {
 
     /**
      * Grid designation rather than a live entity. Mortars shell the mark; aircraft bomb it
-     * ({@link com.neoalive.tacz_sewv.bridge.FireMission} on the pilot). TOW / artillery stay
+     * ({@link net.nekoyuni.SimpleEnemyMod.bridge.FireMission} on the pilot). TOW / artillery stay
      * entity-only — they need a lock, not a grid square.
      */
     public boolean supportsPositionTarget() {

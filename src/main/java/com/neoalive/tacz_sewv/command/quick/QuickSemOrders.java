@@ -5,15 +5,13 @@ import java.util.List;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.nekoyuni.SimpleEnemyMod.bridge.IEscort;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPathwayInfantry;
+import net.nekoyuni.SimpleEnemyMod.bridge.ISweepInfantry;
+import net.nekoyuni.SimpleEnemyMod.bridge.IVehiclePatrol;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
-import com.neoalive.tacz_sewv.bridge.IPmcDowned;
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
@@ -38,7 +36,7 @@ public final class QuickSemOrders {
         int ok = 0;
         for (PmcUnitEntity pmc : QuickCommandUnits.owned(issuer, level, unitIds, radius)) {
             if (QuickCommandUnits.refuseFobOrRoute(issuer, pmc)) continue;
-            if (pmc instanceof IPmcDowned d && d.sewv$isDowned()) {
+            if (pmc.sewv$isDowned()) {
                 OrderReport.fail(issuer, OrderFailure.UNIT_DOWNED, pmc);
                 continue;
             }
@@ -61,8 +59,8 @@ public final class QuickSemOrders {
         GuardSupport.clearReach(pmc);
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
         TowRecoverySupport.clearIfTowering(pmc);
-        if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) {
-            capture.sewv$clearCaptureOrder();
+        if (pmc.sewv$hasCaptureOrder()) {
+            pmc.sewv$clearCaptureOrder();
         }
         ((IPathwayInfantry) pmc).sewv$clearPathway();
     }

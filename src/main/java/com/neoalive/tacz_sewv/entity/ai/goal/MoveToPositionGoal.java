@@ -5,11 +5,10 @@ import java.util.EnumSet;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.bridge.IPathwayInfantry;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-
-import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 
 /**
  * Hard MOVE_TO_POSITION stick. SEM's {@code CommanderOrderGoal} (prio 3) loses MOVE to SeekCover

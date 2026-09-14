@@ -13,7 +13,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
@@ -62,7 +61,7 @@ public class SeekAbandonedMortarGoal extends Goal {
         if (!(this.unit instanceof RUunitEntity || this.unit instanceof USunitEntity)) return false;
         if (this.unit.isPassenger()) return false;
         if (this.unit.getTarget() != null) return false;
-        if (this.unit instanceof IVehicleBoarder boarder && boarder.tacz_sewv$isBoarding()) return false;
+        if (this.unit.tacz_sewv$isBoarding()) return false;
         return !MortarSupport.hasMortarClaim(this.unit);
     }
 

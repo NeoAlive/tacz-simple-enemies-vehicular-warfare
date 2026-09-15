@@ -14,6 +14,7 @@ import com.neoalive.tacz_sewv.item.LockItem;
 import com.neoalive.tacz_sewv.item.MedalOfHonorItem;
 import com.neoalive.tacz_sewv.item.PoolClipboardItem;
 import com.neoalive.tacz_sewv.item.TacticalDataTerminalItem;
+import com.neoalive.tacz_sewv.item.armor.PmcHelmetMichItem;
 
 /**
  * The bridge's own items. Creative listing lives in {@link ModCreativeTabs} (one tab);
@@ -27,6 +28,10 @@ public class ModItems {
 
     public static final RegistryObject<Item> HANDHELD_RADIO =
             ITEMS.register("handheld_radio", HandheldRadioItem::new);
+
+    /** PMC default helmet — PASGT-equivalent stats, own MICH bedrock model. */
+    public static final RegistryObject<Item> PMC_HELMET_MICH =
+            ITEMS.register("pmc_helmet_mich", PmcHelmetMichItem::new);
 
     public static final RegistryObject<Item> TACTICAL_DATA_TERMINAL =
             ITEMS.register("tactical_data_terminal", TacticalDataTerminalItem::new);

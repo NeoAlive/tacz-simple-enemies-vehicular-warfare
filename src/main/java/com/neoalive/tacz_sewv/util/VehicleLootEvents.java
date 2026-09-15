@@ -25,7 +25,7 @@ public final class VehicleLootEvents {
         if (!(event.getEntityBeingMounted() instanceof VehicleEntity hull)) return;
         // Defer one tick so the dismounting passenger is already off the list.
         if (hull.level().getServer() != null) {
-            hull.level().getServer().execute(() -> VehicleEngineLoot.tryApplyOnUnlock(hull));
+            hull.level().getServer().execute(() -> applySafe(hull));
         }
     }
 
@@ -36,7 +36,16 @@ public final class VehicleLootEvents {
     public static void onInteract(PlayerInteractEvent.EntityInteract event) {
         if (event.getLevel().isClientSide()) return;
         if (!(event.getTarget() instanceof VehicleEntity hull)) return;
-        if (VehicleEngineLoot.isLockedByEnemyCrew(hull)) return;
-        VehicleEngineLoot.tryApplyOnUnlock(hull);
+        applySafe(hull);
+    }
+
+    private static void applySafe(VehicleEntity hull) {
+        try {
+            if (VehicleEngineLoot.isLockedByEnemyCrew(hull)) return;
+            VehicleEngineLoot.tryApplyOnUnlock(hull);
+        } catch (Throwable t) {
+            // Same hot-recompile pitfall as ConfigUI — don't crash the server tick.
+            TaczSewv.LOGGER.error("[sewv] Vehicle engine loot failed", t);
+        }
     }
 }

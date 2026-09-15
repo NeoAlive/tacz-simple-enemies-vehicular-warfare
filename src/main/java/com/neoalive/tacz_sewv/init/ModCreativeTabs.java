@@ -25,6 +25,7 @@ public final class ModCreativeTabs {
                     .icon(() -> new ItemStack(ModItems.HANDHELD_RADIO.get()))
                     .displayItems((params, output) -> {
                         output.accept(ModItems.HANDHELD_RADIO.get());
+                        output.accept(ModItems.PMC_HELMET_MICH.get());
                         output.accept(ModItems.TACTICAL_DATA_TERMINAL.get());
                         output.accept(ModItems.DOCTRINE_LEDGER.get());
                         output.accept(ModItems.MEDAL_OF_HONOR.get());

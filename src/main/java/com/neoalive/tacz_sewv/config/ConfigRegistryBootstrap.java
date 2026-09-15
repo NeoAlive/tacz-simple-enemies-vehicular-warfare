@@ -78,6 +78,8 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.NOTIFICATIONS_ENABLED, ClientConfig.NOTIFICATIONS_ENABLED::set);
         b.intRange(ConfigScope.CLIENT, "overlay", "notificationScreenSeconds", 1, 30,
                 ClientConfig.NOTIFICATION_SCREEN_SECONDS, ClientConfig.NOTIFICATION_SCREEN_SECONDS::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "helmetGrayscale",
+                ClientConfig.HELMET_GRAYSCALE, ClientConfig.HELMET_GRAYSCALE::set);
 
         b.bool(ConfigScope.CLIENT, "map", "mapMarkersEnabled",
                 ClientConfig.MAP_MARKERS_ENABLED, ClientConfig.MAP_MARKERS_ENABLED::set);

@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
+import com.neoalive.tacz_sewv.client.skin.HelmetLogoTextures;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 
 /**
@@ -60,10 +61,12 @@ public abstract class MixinGeoArmorRenderer {
             return fallback;
         }
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(wearer);
-        if (faction == null) {
-            return fallback;
+        ResourceLocation base = fallback;
+        if (faction != null) {
+            ResourceLocation skin = CrewSkinRegistry.textureFor(wearer, stack, faction);
+            if (skin != null) base = skin;
         }
-        ResourceLocation skin = CrewSkinRegistry.textureFor(wearer, stack, faction);
-        return skin != null ? skin : fallback;
+        ResourceLocation stamped = HelmetLogoTextures.apply(base != null ? base : fallback, wearer, stack);
+        return stamped != null ? stamped : (base != null ? base : fallback);
     }
 }

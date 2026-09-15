@@ -498,7 +498,7 @@ public final class SewvConfig {
         US_ARMOR = builder.comment("Armor pieces for US units (item ids).")
                 .defineList("usArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
         PMC_ARMOR = builder.comment("Armor pieces for PMC units (item ids).")
-                .defineList("pmcArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
+                .defineList("pmcArmor", List.of("tacz_sewv:pmc_helmet_mich", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
         builder.pop();
 
         builder.push("identity");

@@ -19,6 +19,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
+import com.neoalive.tacz_sewv.init.ModItems;
+import com.neoalive.tacz_sewv.skin.HelmetLogoSupport;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
 
@@ -63,7 +65,11 @@ public final class NpcArmor {
             if (helmetOnly && slot != EquipmentSlot.HEAD) continue;
             if (!unit.getItemBySlot(slot).isEmpty()) continue;
 
-            wear(unit, slot, new ItemStack(item));
+            ItemStack stack = new ItemStack(item);
+            if (item == ModItems.PMC_HELMET_MICH.get() && unit instanceof PmcUnitEntity pmc) {
+                stampMichLogo(pmc, stack);
+            }
+            wear(unit, slot, stack);
             anyEquipped = true;
         }
 
@@ -104,6 +110,10 @@ public final class NpcArmor {
         } else {
             unit.setItemSlot(slot, stack);
         }
+    }
+
+    private static void stampMichLogo(PmcUnitEntity unit, ItemStack stack) {
+        HelmetLogoSupport.stampForUnitStack(unit, stack);
     }
 
     private static Item resolve(String id) {

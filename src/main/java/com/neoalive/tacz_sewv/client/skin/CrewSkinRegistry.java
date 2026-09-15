@@ -286,13 +286,14 @@ public final class CrewSkinRegistry {
     }
 
     /**
-     * Item registry path → armor kind key. Strips a leading {@code us_}/{@code ru_} so PMC and US
-     * share {@code chest_iotv} for {@code us_chest_iotv}.
+     * Item registry path → armor kind key. Strips a leading {@code us_}/{@code ru_}/{@code pmc_}
+     * so faction skins share the same kind ({@code us_chest_iotv} / {@code pmc_helmet_mich} →
+     * {@code chest_iotv} / {@code helmet_mich}).
      */
     public static String armorKind(String itemPath) {
         if (itemPath == null || itemPath.isEmpty()) return itemPath;
-        if (itemPath.startsWith("us_") || itemPath.startsWith("ru_")) {
-            return itemPath.substring(3);
+        if (itemPath.startsWith("us_") || itemPath.startsWith("ru_") || itemPath.startsWith("pmc_")) {
+            return itemPath.substring(itemPath.indexOf('_') + 1);
         }
         return itemPath;
     }

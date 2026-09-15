@@ -69,6 +69,10 @@ public final class CrewSkinSelfCheck {
         assert alnum.kind().equals("helmet_6b47") : alnum.kind();
         assert alnum.camo() == 4 && alnum.rng() == 1 : alnum.camo() + "/" + alnum.rng();
 
+        assert CrewSkinRegistry.armorKind("pmc_helmet_mich").equals("helmet_mich");
+        assert CrewSkinRegistry.armorKind("us_helmet_pasgt").equals("helmet_pasgt");
+        assert CrewSkinRegistry.armorKind("ru_helmet_6b47").equals("helmet_6b47");
+
         CrewSkinRegistry.Parsed category = parse("pmc_mechanical_engineer_1_2.png");
         assert category.faction() == CrewFacts.Faction.PMC : category.faction();
         assert category.kind().equals("mechanical_engineer") : category.kind();

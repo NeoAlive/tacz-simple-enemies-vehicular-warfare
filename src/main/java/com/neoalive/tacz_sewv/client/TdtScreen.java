@@ -153,6 +153,16 @@ public class TdtScreen extends Screen {
         return heliAltitude;
     }
 
+    /** Last server-synced logo pool — used by helmet DogTag compositing. */
+    public static String savedLogoPool() {
+        return savedLogoPool;
+    }
+
+    /** Last server-synced logo id — used by helmet DogTag compositing. */
+    public static String savedLogoId() {
+        return savedLogoId;
+    }
+
     private Category category = Category.ALL;
     private int scroll;
     private boolean draggingScroll;
@@ -603,12 +613,10 @@ public class TdtScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         repositionCompanyField();
-        if (this.companyField != null && this.companyField.mouseClicked(mouseX, mouseY, button)) {
-            setFocused(this.companyField);
-            return true;
-        }
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
 
+        // Float menus sit above the identity EditBox — handle them first or the company
+        // field steals clicks through the popup.
         boolean floatOpen = this.floatKind != null || this.floatPlatoonColor != null || this.floatLogoPool != null;
         if (floatOpen && this.floatLogoPool != null && clickLogoFloat(mouseX, mouseY)) {
             clickSound();
@@ -620,6 +628,12 @@ public class TdtScreen extends Screen {
         }
         if (floatOpen) {
             clearFloat();
+            return true;
+        }
+
+        if (this.companyField != null && this.companyField.mouseClicked(mouseX, mouseY, button)) {
+            setFocused(this.companyField);
+            return true;
         }
 
         // Clicks outside the docked panel are swallowed (world stays non-interactive).
@@ -833,6 +847,10 @@ public class TdtScreen extends Screen {
             this.floatLogoPool = draftLogoPool;
             this.floatKind = null;
             this.floatPlatoonColor = null;
+            setFocused(null);
+            if (this.companyField != null) {
+                this.companyField.setFocused(false);
+            }
             this.floatX = (int) mx;
             this.floatY = (int) my;
             this.floatAnim = 0.0F;
@@ -1119,14 +1137,16 @@ public class TdtScreen extends Screen {
         renderTabs(g);
         renderList(g, mouseX, mouseY);
         renderRibbon(g);
-        if (this.floatLogoPool != null) {
+
+        boolean logoFloat = this.floatLogoPool != null;
+        if (this.companyField != null && !logoFloat) {
+            this.companyField.render(g, mouseX, mouseY, partialTick);
+        }
+        // Floats last so identity chrome (EditBox, steppers) cannot paint over them.
+        if (logoFloat) {
             renderLogoFloat(g, mouseX, mouseY);
         } else if (this.floatKind != null || this.floatPlatoonColor != null) {
             renderFloat(g, mouseX, mouseY);
-        }
-
-        if (this.companyField != null) {
-            this.companyField.render(g, mouseX, mouseY, partialTick);
         }
 
         if (this.pendingTip != null) {
@@ -1351,9 +1371,13 @@ public class TdtScreen extends Screen {
         int fh = (1 + rows) * (FLOAT_ICON + 4) + pad * 2;
         int fx = Mth.clamp(this.floatX - fw / 2, 4, this.width - fw - 4);
         int fy = Mth.clamp(this.floatY - fh - (int) ((1.0F - this.floatAnim) * 12.0F), 4, this.height - fh - 4);
-        int alpha = (int) (this.floatAnim * 220) << 24;
-        g.fill(fx, fy, fx + fw, fy + fh, alpha | 0x101820);
-        g.fill(fx, fy, fx + fw, fy + 1, COL_BORDER);
+        // Opaque — a translucent plate let the identity row (RANDOM / pmc_default / EditBox)
+        // read through the picker and look like clipping.
+        g.fill(fx, fy, fx + fw, fy + fh, COL_BASE);
+        g.fill(fx, fy, fx + fw, fy + 1, COL_ACCENT);
+        g.fill(fx, fy, fx + 1, fy + fh, COL_BORDER);
+        g.fill(fx + fw - 1, fy, fx + fw, fy + fh, COL_BORDER);
+        g.fill(fx, fy + fh - 1, fx + fw, fy + fh, COL_BORDER);
         g.drawString(this.font, I18n.get("gui.tacz_sewv.tdt.logo_pick"), fx + pad, fy + pad, COL_ACCENT, false);
 
         int ix = fx + pad;
@@ -1387,7 +1411,8 @@ public class TdtScreen extends Screen {
         this.companyField.setX(fieldX);
         this.companyField.setY(rowY + (CELL_H - 16) / 2);
         this.companyField.setWidth(fieldW);
-        this.companyField.setVisible(rowY + CELL_H >= this.listTop && rowY <= this.listBottom);
+        boolean rowVisible = rowY + CELL_H >= this.listTop && rowY <= this.listBottom;
+        this.companyField.setVisible(rowVisible && this.floatLogoPool == null);
     }
 
     @Override

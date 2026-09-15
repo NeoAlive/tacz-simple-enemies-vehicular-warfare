@@ -10,6 +10,7 @@ import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.skin.HelmetLogoSupport;
 
 /**
  * Rolls a Name+Surname for a PMC unit once it has an owner, and caches it in the unit's own
@@ -58,6 +59,7 @@ public final class NpcIdentity {
         data.putString(TAG_CATEGORY, id.category());
         unit.setCustomName(formatDisplayName(id.name(), id.surname(), company));
         data.putBoolean(ISSUED, true);
+        HelmetLogoSupport.stampForUnit(unit);
     }
 
     /** Forces a fresh roll, e.g. if a unit already has a cached identity and gains a NEW owner
@@ -80,6 +82,7 @@ public final class NpcIdentity {
             if (!data.getBoolean(ISSUED)) continue;
             unit.setCustomName(formatDisplayName(data.getString(TAG_NAME), data.getString(TAG_SURNAME), company));
         }
+        HelmetLogoSupport.restampOwned(owner);
     }
 
     public static Component formatDisplayName(String name, String surname, String companyName) {

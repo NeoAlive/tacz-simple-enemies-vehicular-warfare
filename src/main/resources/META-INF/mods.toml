@@ -139,6 +139,13 @@ config="tacz_sewv.minecolonies.mixins.json"
 
 # Softcompat vehicle addons — optional; pools and softcompat helpers activate when present.
 [[dependencies.tacz_sewv]]
+    modId="neoarms"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.tacz_sewv]]
     modId="fcp"
     mandatory=false
     versionRange="[0,)"

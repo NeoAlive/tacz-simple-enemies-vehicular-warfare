@@ -130,6 +130,7 @@ public class TaczSewv {
     // Soft compat: Corpse is compileOnly; only CorpseCompat.Access may touch
     // de.maxhenkel.corpse.*, and only after isLoaded().
     CorpseCompat.reportAvailability();
+    com.neoalive.tacz_sewv.compat.NeoArmsCompat.bootstrap();
     LOGGER.info("SEM<->SW vehicle bridge loading");
     }
 

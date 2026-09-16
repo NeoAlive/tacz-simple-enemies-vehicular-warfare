@@ -16,6 +16,7 @@ import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
+import com.neoalive.tacz_sewv.airport.StaticCarrierAirports;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -205,10 +206,9 @@ public class PacketHelicopterCommand {
     @Nullable
     private AirportRegistry.Airport nearestAirport(ServerLevel level, VehicleEntity v) {
         double radius = SewvConfig.AIRPORT_LANDING_SEARCH_RADIUS.get();
-        AirportRegistry registry = AirportRegistry.get(level);
-        AirportRegistry.Airport airport = registry.nearest(v.blockPosition(), radius);
+        AirportRegistry.Airport airport = StaticCarrierAirports.nearest(level, v.blockPosition(), radius);
         if (airport == null && this.landPos != null) {
-            airport = registry.nearest(this.landPos, radius);
+            airport = StaticCarrierAirports.nearest(level, this.landPos, radius);
         }
         return airport;
     }

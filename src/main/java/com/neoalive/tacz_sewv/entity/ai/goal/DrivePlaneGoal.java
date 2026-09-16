@@ -25,9 +25,11 @@ import org.jetbrains.annotations.Nullable;
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
 import com.neoalive.tacz_sewv.airport.RunwaySlots;
 import com.neoalive.tacz_sewv.airport.RunwayTraffic;
+import com.neoalive.tacz_sewv.airport.StaticCarrierAirports;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.compat.NeoArmsCarrierAccess;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -930,12 +932,14 @@ public class DrivePlaneGoal extends Goal {
             // only on takeoff is what stops the worst version of this — a hull that is sent away,
             // lands in a field, and gets yanked back to its old parking spot across the map.
             clearPark(this.vehicle);
+            NeoArmsCarrierAccess.markCarrierParked(this.vehicle, false);
         }
         if (to == PlaneMode.TAKEOFF) {
             this.takeoffDirX = Double.NaN;
             this.takeoffDirZ = Double.NaN;
             // Leaving for good: give the parking slot back, so a later arrival can be sent to it.
             RunwayTraffic.release(this.vehicle);
+            NeoArmsCarrierAccess.markCarrierParked(this.vehicle, false);
         }
         if (to == PlaneMode.HOLD) {
             // Anchor the circle where the hold began, not wherever the aircraft drifts to.
@@ -2293,7 +2297,7 @@ public class DrivePlaneGoal extends Goal {
     @Nullable
     private AirportRegistry.Airport airportOf(BlockPos pad) {
         if (!(this.unit.level() instanceof ServerLevel level)) return null;
-        return AirportRegistry.get(level).nearest(pad, AIRPORT_PAD_MATCH_RADIUS);
+        return StaticCarrierAirports.nearest(level, pad, AIRPORT_PAD_MATCH_RADIUS);
     }
 
     /**
@@ -2322,7 +2326,15 @@ public class DrivePlaneGoal extends Goal {
         }
 
         Vec3 spot = slots.nearestCentreline(this.vehicle.getX(), this.vehicle.getZ());
-        placeOnStrip(spot.x, slots.threshold().getY(), spot.z, slots.headingDeg());
+        double deckY = slots.threshold().getY();
+        if (this.unit.level() instanceof ServerLevel level) {
+            NeoArmsCarrierAccess.Strip strip =
+                    StaticCarrierAirports.nearestCarrierStrip(level, pad, AIRPORT_PAD_MATCH_RADIUS);
+            if (strip != null) {
+                deckY = strip.threshold().y;
+            }
+        }
+        placeOnStrip(spot.x, deckY, spot.z, slots.headingDeg());
 
         int index = RunwayTraffic.claim(this.unit.level(), slots, this.vehicle);
         this.vehicle.getPersistentData().putLong(TAG_TAXI_DEADLINE,
@@ -2369,6 +2381,13 @@ public class DrivePlaneGoal extends Goal {
         this.control.commandPitch(0.0F);
 
         double y = slots.threshold().getY();
+        if (this.unit.level() instanceof ServerLevel level && pad != null) {
+            NeoArmsCarrierAccess.Strip strip =
+                    StaticCarrierAirports.nearestCarrierStrip(level, pad, AIRPORT_PAD_MATCH_RADIUS);
+            if (strip != null) {
+                y = strip.threshold().y;
+            }
+        }
         double tx = slot.center().getX() + 0.5;
         double tz = slot.center().getZ() + 0.5;
         double dx = tx - this.vehicle.getX();
@@ -2407,6 +2426,11 @@ public class DrivePlaneGoal extends Goal {
     private void holdPark() {
         CompoundTag tag = this.vehicle.getPersistentData();
         if (!tag.contains(TAG_PARKED)) return;
+        // Carrier deck pin owns parked aircraft — a world-space park lock fights minY snaps.
+        if (NeoArmsCarrierAccess.isCarrierParked(this.vehicle)) {
+            clearPark(this.vehicle);
+            return;
+        }
         CompoundTag park = tag.getCompound(TAG_PARKED);
         standAt(park.getDouble("X"), park.getDouble("Y"), park.getDouble("Z"),
                 park.getFloat("Yaw"));
@@ -2470,6 +2494,13 @@ public class DrivePlaneGoal extends Goal {
     /** Does the glideslope along this axis clear the ground the whole way in to the pad? */
     private boolean approachCorridorClear(double padX, double padZ, Vec3 axis) {
         Level level = this.unit.level();
+        // Carrier decks sit over ocean — WORLD_SURFACE is water and would false-reject every approach.
+        if (level instanceof ServerLevel serverLevel
+                && StaticCarrierAirports.nearestCarrierStrip(serverLevel,
+                BlockPos.containing(padX, this.vehicle.getY(), padZ),
+                AIRPORT_PAD_MATCH_RADIUS) != null) {
+            return true;
+        }
         int padY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 Mth.floor(padX), Mth.floor(padZ));
         for (double d = APPROACH_SAMPLE_STEP; d <= FINAL_LEG_LENGTH; d += APPROACH_SAMPLE_STEP) {
@@ -2484,6 +2515,13 @@ public class DrivePlaneGoal extends Goal {
 
     /** Feet-level surface the hull can actually sit on at the pad's column. */
     private double touchdownSurface(BlockPos pad) {
+        if (this.unit.level() instanceof ServerLevel level) {
+            NeoArmsCarrierAccess.Strip strip =
+                    StaticCarrierAirports.nearestCarrierStrip(level, pad, AIRPORT_PAD_MATCH_RADIUS);
+            if (strip != null) {
+                return strip.threshold().y;
+            }
+        }
         return this.unit.level().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 pad.getX(), pad.getZ());
     }

@@ -46,6 +46,7 @@
     "MixinWalkNodeEvaluator",
     "MixinDroneKamikaze",
     "MixinVehicleCrushAllies",
+    "MixinVehicleCarrierDeckStacking",
     "MixinSetVehicleSkinMessage",
     "AccessorM18SmokeGrenade"
   ],

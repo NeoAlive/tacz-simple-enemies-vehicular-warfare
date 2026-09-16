@@ -561,6 +561,15 @@ dependencies {
     if (file('libs/gemrender.jar').exists()) {
         compileOnly fg.deobf("blank:gemrender:1.0")
     }
+    // Soft: Neo Arms aircraft carrier. Reflection facade (NeoArmsCarrierAccess) so a checkout
+    // without libs/neoarms.jar still compiles; jar is compileOnly for IDE/nav when present.
+    // Opt into run classpath with: ./gradlew runClient -PwithNeoArms
+    if (file('libs/neoarms.jar').exists()) {
+        compileOnly fg.deobf("blank:neoarms:1.0")
+    }
+    if (project.hasProperty('withNeoArms')) {
+        runtimeOnly fg.deobf("blank:neoarms:1.0")
+    }
     if (project.hasProperty('withColtan')) {
         runtimeOnly fg.deobf("blank:coltan:1.0")
         runtimeOnly fg.deobf("blank:gemrender:1.0")

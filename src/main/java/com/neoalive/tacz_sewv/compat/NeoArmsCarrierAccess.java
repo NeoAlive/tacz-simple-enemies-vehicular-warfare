@@ -12,13 +12,14 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 
 /**
- * Reflective bridge onto Neo Arms {@code AircraftCarrierEntity} / {@code DeckStrip}.
+ * Reflective bridge onto Neo Arms {@code AircraftCarrierEntity} / {@code DeckStrip} / {@code DeckPark}.
  * Safe to call when Neo Arms is absent — every entry returns null/false.
  */
 public final class NeoArmsCarrierAccess {
 
     private static final String CARRIER_CLASS = "tech.neoarms.addon.entity.AircraftCarrierEntity";
     private static final String STRIP_CLASS = "tech.neoarms.addon.entity.DeckStrip";
+    private static final String DECK_PARK_CLASS = "tech.neoarms.addon.deck.DeckPark";
 
     public static final String TAG_CARRIER_DECK = "sewv:carrier_deck";
 
@@ -28,6 +29,8 @@ public final class NeoArmsCarrierAccess {
     @Nullable private static Method mDeckStrip;
     @Nullable private static Method mPlaceOnDeck;
     @Nullable private static Method mIsNearAny;
+    @Nullable private static Method mIsDeckParked;
+    @Nullable private static Method mSetDeckParked;
     @Nullable private static Method mThreshold;
     @Nullable private static Method mHeadingDeg;
     @Nullable private static Method mLength;
@@ -56,6 +59,37 @@ public final class NeoArmsCarrierAccess {
         if (!NeoArmsCompat.present()) return false;
         ResourceLocation id = ForgeRegistries.ENTITY_TYPES.getKey(type);
         return id != null && NeoArmsCompat.CARRIER_ID.equals(id.toString());
+    }
+
+    /** Neo Arms synced deck-park flag (planes/heli on the carrier pad). */
+    public static boolean isDeckParked(@Nullable Entity entity) {
+        if (entity == null || !NeoArmsCompat.present()) return false;
+        resolve();
+        if (mIsDeckParked == null) {
+            return entity.getPersistentData().getBoolean("neoarms:deck_parked");
+        }
+        try {
+            return Boolean.TRUE.equals(mIsDeckParked.invoke(null, entity));
+        } catch (Throwable t) {
+            return entity.getPersistentData().getBoolean("neoarms:deck_parked");
+        }
+    }
+
+    public static void setDeckParked(@Nullable Entity entity, boolean parked) {
+        if (entity == null || !NeoArmsCompat.present()) return;
+        resolve();
+        if (mSetDeckParked != null) {
+            try {
+                mSetDeckParked.invoke(null, entity, parked);
+                return;
+            } catch (Throwable ignored) {
+            }
+        }
+        if (parked) {
+            entity.getPersistentData().putBoolean("neoarms:deck_parked", true);
+        } else {
+            entity.getPersistentData().remove("neoarms:deck_parked");
+        }
     }
 
     /** True if any loaded Neo Arms carrier is within {@code range} (no entity-section scan). */
@@ -105,7 +139,7 @@ public final class NeoArmsCarrierAccess {
         }
     }
 
-    /** Seat an entity on the deck with its bounding-box floor on a Body OBB. */
+    /** Seat an entity on the deck with its bounding-box floor sits on a Body OBB. */
     public static boolean placeOnDeck(@Nullable Entity carrier, @Nullable Entity entity,
                                       double x, double z, float yaw) {
         if (!isCarrier(carrier) || entity == null || mPlaceOnDeck == null) return false;
@@ -116,7 +150,7 @@ public final class NeoArmsCarrierAccess {
         }
     }
 
-    /** True when this hull was deployed/parked on a Neo Arms carrier deck. */
+    /** True when this hull was deployed/parked on a Neo Arms carrier deck (SEWV ops tag). */
     public static boolean isCarrierParked(@Nullable Entity entity) {
         return entity != null && entity.getPersistentData().getBoolean(TAG_CARRIER_DECK);
     }
@@ -125,8 +159,10 @@ public final class NeoArmsCarrierAccess {
         if (entity == null) return;
         if (parked) {
             entity.getPersistentData().putBoolean(TAG_CARRIER_DECK, true);
+            setDeckParked(entity, true);
         } else {
             entity.getPersistentData().remove(TAG_CARRIER_DECK);
+            setDeckParked(entity, false);
         }
     }
 
@@ -137,10 +173,13 @@ public final class NeoArmsCarrierAccess {
         try {
             carrierClass = Class.forName(CARRIER_CLASS);
             Class<?> stripClass = Class.forName(STRIP_CLASS);
+            Class<?> deckPark = Class.forName(DECK_PARK_CLASS);
             mIsStaticMode = carrierClass.getMethod("isStaticMode");
             mDeckStrip = carrierClass.getMethod("deckStrip");
             mPlaceOnDeck = carrierClass.getMethod("placeOnDeck", Entity.class, double.class, double.class, float.class);
             mIsNearAny = carrierClass.getMethod("isNearAny", Entity.class, double.class);
+            mIsDeckParked = deckPark.getMethod("isParked", Entity.class);
+            mSetDeckParked = deckPark.getMethod("setParked", Entity.class, boolean.class);
             mThreshold = stripClass.getMethod("threshold");
             mHeadingDeg = stripClass.getMethod("headingDeg");
             mLength = stripClass.getMethod("length");
@@ -151,6 +190,8 @@ public final class NeoArmsCarrierAccess {
             mDeckStrip = null;
             mPlaceOnDeck = null;
             mIsNearAny = null;
+            mIsDeckParked = null;
+            mSetDeckParked = null;
             mThreshold = null;
             mHeadingDeg = null;
             mLength = null;

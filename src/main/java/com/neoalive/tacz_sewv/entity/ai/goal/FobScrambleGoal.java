@@ -64,7 +64,14 @@ public class FobScrambleGoal extends Goal {
         this.nextEval = now + EVAL_INTERVAL + (this.unit.getId() % EVAL_INTERVAL);
 
         FobInstance fob = fob(level);
-        if (fob == null || !fob.scrambleActive) return false;
+        if (fob == null) return false;
+        // Manual Route-to-FOB recall finished during this alarm: stay on the pad until the
+        // threat hysteresis clears, otherwise arrival immediately remounts them.
+        if (!fob.scrambleActive) {
+            FobSupport.clearScrambleStoodDown(this.unit);
+            return false;
+        }
+        if (FobSupport.isScrambleStoodDown(this.unit)) return false;
 
         scramble(level, fob);
         return false;

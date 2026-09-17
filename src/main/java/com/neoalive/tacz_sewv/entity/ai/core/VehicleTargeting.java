@@ -7,6 +7,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.IronGolem;
@@ -41,6 +42,8 @@ import com.neoalive.tacz_sewv.entity.unit.RuMedicEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
+import com.neoalive.tacz_sewv.fob.FobInstance;
+import com.neoalive.tacz_sewv.fob.FobManager;
 import com.neoalive.tacz_sewv.fob.FobResupplySupport;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
@@ -101,6 +104,13 @@ public final class VehicleTargeting {
             Vec3 moveTarget = routePmc.getMoveToTarget();
             if (moveTarget != null && !moveTarget.equals(Vec3.ZERO)) {
                 return BlockPos.containing(moveTarget);
+            }
+            BlockPos routeCmd = FobSupport.routeCommandPos(routePmc);
+            if (routeCmd != null && routePmc.level() instanceof ServerLevel routeLevel) {
+                FobInstance fob = FobManager.get(routeLevel).getFob(routeCmd);
+                if (fob != null && fob.parkingPos != null) {
+                    return fob.parkingPos;
+                }
             }
         }
 
@@ -251,9 +261,10 @@ public final class VehicleTargeting {
      */
     public static boolean holdsOrderedMove(AbstractUnit unit) {
         if (!(unit instanceof PmcUnitEntity pmc)) return false;
+        // Route tag alone is enough: a missing MOVE vector must not drop the crew into fightTick
+        // mid-recall (resolveDestination falls back to the FOB parking pad).
         if (FobSupport.holdsRouteThroughContact(pmc)) {
-            Vec3 dest = pmc.getMoveToTarget();
-            return dest != null && !dest.equals(Vec3.ZERO);
+            return true;
         }
         OrderType order = pmc.getOrder();
         if (order == OrderType.FOLLOW_COMMANDER

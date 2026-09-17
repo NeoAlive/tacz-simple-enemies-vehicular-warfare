@@ -200,6 +200,7 @@ public final class FobNetworking {
     private static void orderRouteMove(PmcUnitEntity pmc, Vec3 dest, BlockPos commandPos) {
         pmc.setOrder(net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType.MOVE_TO_POSITION);
         pmc.setMoveToTarget(dest);
+        clearBoarding(pmc);
         FobSupport.markRoutePending(pmc, commandPos);
         FobDebug.logEntity(pmc, "route started -> parking at {}", dest);
     }
@@ -208,6 +209,10 @@ public final class FobNetworking {
         if (pmc.isPassenger()) {
             pmc.stopRiding();
         }
+        clearBoarding(pmc);
+    }
+
+    private static void clearBoarding(PmcUnitEntity pmc) {
         if (pmc instanceof com.neoalive.tacz_sewv.bridge.IVehicleBoarder boarder) {
             boarder.tacz_sewv$setBoarding(false);
             boarder.tacz_sewv$setMountTargetId(-1);

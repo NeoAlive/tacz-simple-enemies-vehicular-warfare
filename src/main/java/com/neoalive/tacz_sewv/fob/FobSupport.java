@@ -27,6 +27,11 @@ public final class FobSupport {
     public static final String TAG_CMD = "sewv:fob_cmd";
     public static final String TAG_ROUTE = "sewv:fob_route";
     public static final String TAG_ROUTE_DEADLINE = "sewv:fob_route_until";
+    /**
+     * Set when a Route-to-FOB recall finishes during scramble. Stops {@code FobScrambleGoal}
+     * remounting that unit until the alarm hysteresis clears.
+     */
+    public static final String TAG_SCRAMBLE_STOOD_DOWN = "sewv:fob_scramble_stood_down";
 
     private FobSupport() {}
 
@@ -82,10 +87,23 @@ public final class FobSupport {
 
     public static void clearStamp(Entity entity) {
         entity.getPersistentData().remove(TAG_CMD);
+        clearScrambleStoodDown(entity);
     }
 
     public static boolean isStamped(Entity entity) {
         return entity.getPersistentData().contains(TAG_CMD);
+    }
+
+    public static void markScrambleStoodDown(Entity entity) {
+        entity.getPersistentData().putBoolean(TAG_SCRAMBLE_STOOD_DOWN, true);
+    }
+
+    public static void clearScrambleStoodDown(Entity entity) {
+        entity.getPersistentData().remove(TAG_SCRAMBLE_STOOD_DOWN);
+    }
+
+    public static boolean isScrambleStoodDown(Entity entity) {
+        return entity.getPersistentData().getBoolean(TAG_SCRAMBLE_STOOD_DOWN);
     }
 
     /**

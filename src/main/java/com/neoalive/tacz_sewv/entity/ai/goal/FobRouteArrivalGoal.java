@@ -78,14 +78,14 @@ public class FobRouteArrivalGoal extends Goal {
 
         if (this.unit.getVehicle() instanceof VehicleEntity hull) {
             if (atParkingStandoff(hull, fob, level)) {
-                disembark(hull);
+                disembark(hull, fob);
             }
             return;
         }
 
         if (atParkingStandoff(this.unit, fob, level)) {
             FobDebug.logEntity(this.unit, "route arrival — infantry at parking standoff");
-            finishRoute();
+            finishRoute(fob);
         }
     }
 
@@ -103,7 +103,7 @@ public class FobRouteArrivalGoal extends Goal {
      * surface would then never dismount and its route would hang until the timeout.
      * Players aboard are never ejected.
      */
-    private void disembark(VehicleEntity hull) {
+    private void disembark(VehicleEntity hull, FobInstance fob) {
         boolean aircraft = HullFacts.isHelicopterHull(hull) || HullFacts.isPlaneHull(hull);
         if (aircraft && !hull.onGround()) return;
         FobDebug.logEntity(this.unit, "route arrival — crew dismount at parking standoff");
@@ -114,8 +114,9 @@ public class FobRouteArrivalGoal extends Goal {
             if (passenger instanceof PmcUnitEntity crew) {
                 crew.setOrder(OrderType.FREE_FIRE);
             }
+            markStoodDownIfScrambling(passenger, fob);
         }
-        finishRoute();
+        finishRoute(fob);
     }
 
     private boolean readyToFinish(ServerLevel level, FobInstance fob) {
@@ -131,10 +132,18 @@ public class FobRouteArrivalGoal extends Goal {
         return FobSupport.withinParkingPad(fob, entity, level);
     }
 
-    private void finishRoute() {
+    private void finishRoute(FobInstance fob) {
         FobSupport.clearRoutePending(this.unit);
+        markStoodDownIfScrambling(this.unit, fob);
         this.unit.setOrder(OrderType.FREE_FIRE);
         FobDebug.logEntity(this.unit, "route finished — order reset to FREE_FIRE");
+    }
+
+    /** Only latch during an active alarm — a peacetime arrival must not skip the next scramble. */
+    private static void markStoodDownIfScrambling(Entity entity, FobInstance fob) {
+        if (fob.scrambleActive) {
+            FobSupport.markScrambleStoodDown(entity);
+        }
     }
 
     @Nullable

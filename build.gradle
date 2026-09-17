@@ -725,6 +725,36 @@ tasks.register('verifyMixinRefmap') {
 tasks.named('jar').configure { finalizedBy 'verifyMixinRefmap' }
 tasks.named('build').configure { dependsOn 'verifyMixinRefmap' }
 
+// Opt-in push of the built jar into the average-modpack Prism instance.
+// Usage: ./gradlew build -Pprofilesync
+def profileModsDefault = System.getProperty('os.name').toLowerCase().contains('windows')
+        ? "${System.getProperty('user.home')}/AppData/Roaming/PrismLauncher/instances/1.20.1/minecraft/mods"
+        : "${System.getProperty('user.home')}/.local/share/PrismLauncher/instances/1.20.1/minecraft/mods"
+def profileMods = file(findProperty('profile_mods') ?: profileModsDefault)
+
+tasks.register('syncToProfile') {
+    group = 'forge'
+    description = "Copies the reobfuscated jar into ${profileMods} (opt-in via -Pprofilesync)."
+    dependsOn 'reobfJar', 'verifyMixinRefmap'
+    onlyIf { project.hasProperty('profilesync') }
+    doLast {
+        def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        if (!profileMods.directory) {
+            throw new GradleException("Profile mods folder missing: ${profileMods}")
+        }
+        // Version bumps must not leave two tacz_sewv jars loaded.
+        profileMods.eachFileMatch(~/tacz_sewv.*\.jar/) { it.delete() }
+        copy {
+            from jarFile
+            into profileMods
+        }
+        println "Synced ${jarFile.name} → ${profileMods}"
+    }
+}
+if (project.hasProperty('profilesync')) {
+    tasks.named('build').configure { finalizedBy 'syncToProfile' }
+}
+
 // However if you are in a multi-project build, dev time needs unobfed jar files, so you can delay the obfuscation until publishing by doing:
 // tasks.named('publish').configure {
 //     dependsOn 'reobfJar'

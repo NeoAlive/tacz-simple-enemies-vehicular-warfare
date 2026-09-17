@@ -107,6 +107,7 @@ public class FobManager extends SavedData {
             if (e != null) {
                 FobSupport.clearStamp(e);
                 FobSupport.clearRoutePending(e);
+                FobSupport.clearScrambleStoodDown(e);
                 FobDebug.logEntity(e, "cleared stamp — FOB removed at {}", fob.commandPos);
             }
         }
@@ -115,6 +116,7 @@ public class FobManager extends SavedData {
             if (e != null) {
                 FobSupport.clearStamp(e);
                 FobSupport.clearRoutePending(e);
+                FobSupport.clearScrambleStoodDown(e);
                 FobDebug.logEntity(e, "cleared vehicle stamp — FOB removed at {}", fob.commandPos);
             }
         }
@@ -228,6 +230,7 @@ public class FobManager extends SavedData {
         if (e != null) {
             FobSupport.clearStamp(e);
             FobSupport.clearRoutePending(e);
+            FobSupport.clearScrambleStoodDown(e);
             FobDebug.logEntity(e, "unassigned from FOB at {}", commandPos);
         }
         setDirty();
@@ -255,6 +258,7 @@ public class FobManager extends SavedData {
         if (e != null) {
             FobSupport.clearStamp(e);
             FobSupport.clearRoutePending(e);
+            FobSupport.clearScrambleStoodDown(e);
             FobDebug.logEntity(e, "unassigned from FOB at {}", commandPos);
         }
         setDirty();

@@ -25,6 +25,9 @@ import com.neoalive.tacz_sewv.TaczSewv;
 /**
  * PMC MICH helmet — same cemented-carbide / bullet-resistance profile as SBW's US PASGT,
  * with this mod's own bedrock model (loaded through SBW's {@link ArmorModelReloadListener}).
+ *
+ * <p>Item perspectives (GUI / third-person / first-person / ground / fixed) inherit from
+ * {@code superbwarfare:item/us_helmet_pasgt} via {@code models/item/pmc_helmet_mich.json}.
  */
 public class PmcHelmetMichItem extends ArmorItem {
 

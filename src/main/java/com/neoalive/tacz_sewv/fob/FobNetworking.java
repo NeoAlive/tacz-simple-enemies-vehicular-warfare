@@ -98,11 +98,10 @@ public final class FobNetworking {
     }
 
     /**
-     * The FOB's own AABB, or null when the layout has not resolved one. Both list scans are box
-     * queries against the FOB's <b>own</b> level: they used to walk {@code getAllEntities()} of
-     * every dimension and then test the position against the home dimension's box, which both
-     * cost a full entity sweep per GUI refresh and listed anything sitting at the same X/Z in the
-     * Nether.
+     * The FOB's own AABB, or null when the layout has not resolved one. The parking-field vehicle
+     * list is a box query against the FOB's <b>own</b> level (not a cross-dimension sweep). The
+     * command GUI living list is deliberately dimension-wide — owned PMCs may be anywhere in the
+     * home world, not only inside the master fence.
      */
     @Nullable
     private static AABB masterBox(FobInstance fob, ServerLevel home) {
@@ -113,9 +112,8 @@ public final class FobNetworking {
     private static List<FobGuiSnapshot.LivingRow> collectLiving(ServerPlayer player, FobInstance fob) {
         List<FobGuiSnapshot.LivingRow> living = new ArrayList<>();
         ServerLevel home = player.serverLevel();
-        AABB box = masterBox(fob, home);
-        if (box == null) return living;
-        for (PmcUnitEntity pmc : home.getEntitiesOfClass(PmcUnitEntity.class, box)) {
+        for (Entity e : home.getAllEntities()) {
+            if (!(e instanceof PmcUnitEntity pmc) || !pmc.isAlive()) continue;
             if (!PmcOwnerSupport.isOwner(player, pmc)) continue;
             living.add(new FobGuiSnapshot.LivingRow(
                     pmc.getUUID(),
@@ -134,8 +132,8 @@ public final class FobNetworking {
         for (VehicleEntity hull : home.getEntitiesOfClass(VehicleEntity.class, box)) {
             if (!hull.isAlive() || hull.isWreck()) continue;
             // Anything standing in the FOB that is not somebody else's. An uncrewed hull carries
-            // no ownership signal at all, so the perimeter is what makes it yours; an RU/US crew
-            // is what makes it theirs.
+            // no ownership signal at all, so the perimeter is what makes it yours; an RU/US crew,
+            // another player's PMC, or another player riding is what makes it theirs.
             if (!FobSupport.vehicleClaimableBy(hull, player.getUUID())) continue;
             String registryId = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
                     .getKey(hull.getType()).toString();
@@ -154,8 +152,24 @@ public final class FobNetworking {
     public static int routeToFob(ServerPlayer player, BlockPos commandPos) {
         ServerLevel level = player.serverLevel();
         FobInstance fob = resolveFob(level, commandPos, player.getUUID());
-        if (fob == null || fob.parkingPos == null) return 0;
+        if (fob == null) return 0;
+        int total = routeToFob(level, fob);
+        if (total == 0) {
+            com.neoalive.tacz_sewv.order.OrderReport.fail(player,
+                    com.neoalive.tacz_sewv.order.OrderFailure.UNREACHABLE);
+        }
+        return total;
+    }
+
+    /**
+     * Server-side recall: every assigned crewed hull and assigned on-foot PMC returns to the
+     * parking pad. Same orders as the GUI / quick-command path; no player click required.
+     * Order feedback to the owner is best-effort when they are online.
+     */
+    public static int routeToFob(ServerLevel level, FobInstance fob) {
+        if (fob.parkingPos == null) return 0;
         Vec3 parkDest = Vec3.atBottomCenterOf(fob.parkingPos);
+        BlockPos commandPos = fob.commandPos;
 
         // Everyone aboard a hull that is driving itself home, driver included. Only the driver
         // takes the order, but the rest of the crew must be left alone: the infantry pass below
@@ -168,7 +182,7 @@ public final class FobNetworking {
             if (!(hull.getFirstPassenger() instanceof PmcUnitEntity driver)) continue;
             // The hull's assignment is the authority here, not the driver's — a crew the player
             // never stamped still drives an assigned tank home.
-            if (!player.getUUID().equals(driver.getOwnerUUID())) continue;
+            if (!fob.owner.equals(driver.getOwnerUUID())) continue;
             orderRouteMove(driver, parkDest, commandPos);
             vehicles++;
             for (Entity passenger : hull.getPassengers()) {
@@ -181,6 +195,7 @@ public final class FobNetworking {
             if (riding.contains(livingId)) continue;
             Entity e = findEntity(level, livingId);
             if (!(e instanceof PmcUnitEntity pmc)) continue;
+            if (!fob.owner.equals(pmc.getOwnerUUID())) continue;
             dismountForRoute(pmc);
             orderRouteMove(pmc, parkDest, commandPos);
             infantry++;
@@ -188,16 +203,21 @@ public final class FobNetworking {
 
         int total = vehicles + infantry;
         if (total > 0) {
-            com.neoalive.tacz_sewv.order.OrderReport.ok(player,
-                    Component.translatable("message.tacz_sewv.fob.route_sent", vehicles, infantry));
-        } else {
-            com.neoalive.tacz_sewv.order.OrderReport.fail(player,
-                    com.neoalive.tacz_sewv.order.OrderFailure.UNREACHABLE);
+            ServerPlayer owner = level.getServer().getPlayerList().getPlayer(fob.owner);
+            if (owner != null) {
+                com.neoalive.tacz_sewv.order.OrderReport.ok(owner,
+                        Component.translatable("message.tacz_sewv.fob.route_sent", vehicles, infantry));
+            }
+            FobDebug.log("route-to-FOB at {} — {} vehicles, {} infantry",
+                    commandPos, vehicles, infantry);
         }
         return total;
     }
 
     private static void orderRouteMove(PmcUnitEntity pmc, Vec3 dest, BlockPos commandPos) {
+        // A fresh recall supersedes the scramble stand-down latch (that latch only blocks remount
+        // while the alarm is still up; issuing a route clears it so recall is never gated on it).
+        FobSupport.clearScrambleStoodDown(pmc);
         pmc.setOrder(net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType.MOVE_TO_POSITION);
         pmc.setMoveToTarget(dest);
         clearBoarding(pmc);

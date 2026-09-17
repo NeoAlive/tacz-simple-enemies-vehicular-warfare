@@ -302,15 +302,24 @@ public final class FobSupport {
      * the FOB</b>, and a hull that has never been driven has no ownership signal at all (SBW has
      * no owner field — only {@code lastDriver}, which is why a freshly spawned tank parked on the
      * pad used not to appear in the list at all). The master-AABB test at the call site is what
-     * makes "anything here" a safe rule, so this only has to reject what is somebody else's:
-     * enemy-crewed hulls, another player's PMC crew, and another player riding it.
+     * makes "anything here" a safe rule, so this only has to reject what is somebody else's.
+     *
+     * <p>Checked <b>per passenger</b>, not via {@link CrewFacts#pmcOwner}: that helper needs a
+     * unanimous all-PMC crew and would otherwise miss a mixed boarding (other-player PMC + empty
+     * seat noise, or another player sharing a seat with anything) and let the hull through.
+     * Empty hulls, own-PMC crews, and hulls the player themselves are riding stay claimable.
      */
     public static boolean vehicleClaimableBy(VehicleEntity hull, UUID playerId) {
         if (isVehicleLocked(hull)) return false;
-        UUID pmcOwner = CrewFacts.pmcOwner(hull);
-        if (pmcOwner != null) return pmcOwner.equals(playerId);
         for (Entity passenger : hull.getPassengers()) {
-            if (passenger instanceof Player rider) return rider.getUUID().equals(playerId);
+            if (passenger instanceof Player rider) {
+                if (!rider.getUUID().equals(playerId)) return false;
+                continue;
+            }
+            if (passenger instanceof PmcUnitEntity pmc) {
+                UUID owner = pmc.getOwnerUUID();
+                if (owner != null && !owner.equals(playerId)) return false;
+            }
         }
         return true;
     }

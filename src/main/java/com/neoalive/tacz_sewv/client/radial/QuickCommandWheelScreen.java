@@ -21,6 +21,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.BoardKeybind;
+import com.neoalive.tacz_sewv.client.ClientEvents;
 import com.neoalive.tacz_sewv.client.QuickCommandKeybind;
 import com.neoalive.tacz_sewv.client.TdtScreen;
 import com.neoalive.tacz_sewv.client.TdtSelection;
@@ -30,11 +31,14 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
+import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketClearBoarding;
+import com.neoalive.tacz_sewv.network.PacketExitPlatoon;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketQuickCommand;
+import com.neoalive.tacz_sewv.network.PacketToggleAutoOrders;
 import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
 
 /**
@@ -282,6 +286,23 @@ public final class QuickCommandWheelScreen extends Screen {
             return true;
         }
 
+        // Platoon: the TDT's own actions (selection first, else nearby owned units).
+        if (QuickCommandRegistry.ID_PLATOON_JOIN.equals(pipelineId)) {
+            ClientEvents.armJoinPlatoon();
+            return true;
+        }
+        if (QuickCommandRegistry.ID_PLATOON_EXIT.equals(pipelineId)) {
+            BoardKeybind.withOwnedUnits(pmc -> true, "message.tacz_sewv.platoon.exit.none",
+                    (player, ids) -> NetworkHandler.CHANNEL.sendToServer(new PacketExitPlatoon(ids)));
+            return true;
+        }
+        if (QuickCommandRegistry.ID_PLATOON_AUTO_ORDERS.equals(pipelineId)) {
+            BoardKeybind.withOwnedUnits(pmc -> pmc instanceof PmcCommanderEntity,
+                    "message.tacz_sewv.platoon.auto_orders.none",
+                    (player, ids) -> NetworkHandler.CHANNEL.sendToServer(new PacketToggleAutoOrders(ids)));
+            return true;
+        }
+
         // Air client actions: player rappel + radius takeoff/landing (no PacketQuickCommand).
         if (QuickAirClient.isAirClientAction(pipelineId)) {
             return QuickAirClient.fire(pipelineId);
@@ -306,6 +327,17 @@ public final class QuickCommandWheelScreen extends Screen {
             net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer.isSelectingTarget = true;
             mc.player.displayClientMessage(
                     Component.translatable("message.tacz_sewv.tdt.select_target")
+                            .withStyle(ChatFormatting.GREEN),
+                    true);
+            return true;
+        }
+
+        // Move To: arm SEM's position pick with the radius units, same shape as Attack That.
+        if (QuickCommandRegistry.ID_QUICK_MOVE.equals(pipelineId)) {
+            TdtSelection.writeSnapshotIds(units);
+            net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer.isSelectingPosition = true;
+            mc.player.displayClientMessage(
+                    Component.translatable("message.tacz_sewv.tdt.select_position")
                             .withStyle(ChatFormatting.GREEN),
                     true);
             return true;

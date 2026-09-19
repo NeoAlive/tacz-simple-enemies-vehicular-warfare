@@ -10,6 +10,7 @@ import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketAssignFobLiving;
 import com.neoalive.tacz_sewv.network.PacketPlayFobAlarm;
 import com.neoalive.tacz_sewv.network.PacketRouteToFob;
+import com.neoalive.tacz_sewv.network.PacketSetFobRefillInterval;
 import com.neoalive.tacz_sewv.network.PacketToggleFobCommand;
 
 public class QuartersBenchScreen extends FobPoolScreen {
@@ -41,6 +42,27 @@ public class QuartersBenchScreen extends FobPoolScreen {
                         () -> NetworkHandler.CHANNEL.sendToServer(
                                 new PacketRouteToFob(this.snapshot.commandPos(), this.snapshot.anchorPos(),
                                         guiKind()))));
+    }
+
+    @Override
+    protected boolean hasIntField() {
+        return true;
+    }
+
+    @Override
+    protected Component intFieldLabel() {
+        return Component.translatable("gui.tacz_sewv.fob.periodic_refill");
+    }
+
+    @Override
+    protected int intFieldInitialValue() {
+        return this.snapshot.periodicRefillTicks();
+    }
+
+    @Override
+    protected void onIntFieldChanged(int value) {
+        NetworkHandler.CHANNEL.sendToServer(
+                new PacketSetFobRefillInterval(this.snapshot.commandPos(), value));
     }
 
     @Override

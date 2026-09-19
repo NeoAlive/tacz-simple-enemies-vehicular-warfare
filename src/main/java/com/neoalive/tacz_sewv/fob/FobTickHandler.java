@@ -26,6 +26,7 @@ public final class FobTickHandler {
             if (fob.scrambleActive) {
                 ThreatEvaluator.playAlarm(level, fob, gameTime);
             }
+            FobResupplySupport.tickPeriodic(level, fob, gameTime);
             if (fob.scrambleActive != wasScramble || fob.threatScore != wasScore) {
                 mgr.setDirty();
             }

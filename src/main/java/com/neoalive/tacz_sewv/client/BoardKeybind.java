@@ -127,7 +127,7 @@ public class BoardKeybind {
      * none. The server re-checks ownership per unit before acting on whatever the order sends,
      * so a stale client list can never command another player's units.
      */
-    static void withOwnedUnits(Predicate<PmcUnitEntity> filter, String emptyKey,
+    public static void withOwnedUnits(Predicate<PmcUnitEntity> filter, String emptyKey,
                                BiConsumer<Player, List<Integer>> order) {
         withOwnedUnits(CLIENT_DISCOVERY_RADIUS, filter, emptyKey, order);
     }

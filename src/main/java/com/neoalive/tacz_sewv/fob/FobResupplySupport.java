@@ -42,8 +42,45 @@ public final class FobResupplySupport {
 
     private FobResupplySupport() {}
 
+    /** How long a periodic trip to the stockpile may run before it is abandoned (60 s). */
+    private static final long REQUEST_TTL_TICKS = 1200L;
+    /** Horizontal reach of the stockpile block: the pad AABB is not the only place to draw from. */
+    private static final double STOCKPILE_REACH_SQ = 3.5D * 3.5D;
+
+    /**
+     * Where an on-foot unit should walk to draw ammo, or null. Stale-safe by construction: an
+     * on-foot trip only exists while the periodic dispatch has a live request for the unit, and the
+     * request is dropped the moment the stockpile cannot serve it (or after the pull, or on expiry).
+     */
     @Nullable
     public static BlockPos resupplyDestination(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
+        FobInstance fob = tripFob(unit, vehicle);
+        if (fob == null) return null;
+        ServerLevel level = (ServerLevel) unit.level();
+        if (servable(unit, vehicle, fob, level) == null) return null;
+        if (withinStockpile(fob, unit, level)) return null;
+        return fob.stockpilePos;
+    }
+
+    public static boolean shouldResupply(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
+        FobInstance fob = tripFob(unit, vehicle);
+        if (fob == null) return false;
+        ServerLevel level = (ServerLevel) unit.level();
+        if (servable(unit, vehicle, fob, level) == null) return false;
+        return withinStockpile(fob, unit, level);
+    }
+
+    /** True while a unit is at the stockpile and still has room for eligible ammo. */
+    public static boolean holdingForResupply(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
+        return shouldResupply(unit, vehicle);
+    }
+
+    /**
+     * Common gate for a resupply trip: the FOB this unit may draw from, or null. An on-foot unit
+     * additionally needs a live periodic request; a hull keeps its own park-and-top-up behaviour.
+     */
+    @Nullable
+    private static FobInstance tripFob(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
         if (!(unit.level() instanceof ServerLevel level)) return null;
         if (PmcDownedSupport.isDowned(unit)) return null;
         if (FobSupport.hasRoutePending(unit)) return null;
@@ -54,39 +91,41 @@ public final class FobResupplySupport {
 
         FobInstance fob = activeFob(unit, level);
         if (fob == null || fob.scrambleActive || fob.stockpilePos == null) return null;
+        if (isOnFoot(unit, vehicle) && !hasRequest(fob, unit, level.getGameTime())) return null;
+        return fob;
+    }
 
+    private static boolean isOnFoot(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
+        return vehicle == null && !unit.isPassenger();
+    }
+
+    private static boolean hasRequest(FobInstance fob, AbstractUnit unit, long now) {
+        Long until = fob.refillRequests.get(unit.getUUID());
+        if (until == null) return false;
+        if (now >= until) {
+            fob.refillRequests.remove(unit.getUUID());
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * The unit's resupply target if it still wants ammo the stockpile actually holds. Otherwise
+     * null, and an on-foot unit's request is dropped so the trip ends instead of camping the pad.
+     */
+    @Nullable
+    private static ResupplyTarget servable(AbstractUnit unit, @Nullable VehicleEntity vehicle,
+                                           FobInstance fob, ServerLevel level) {
         ResupplyTarget target = resolveTarget(unit, vehicle, fob, level);
-        if (target == null || target.eligible().isEmpty()) return null;
-        if (!needsResupply(target)) return null;
-        if (!stockpileHasEligible(fob, level, target.eligible())) return null;
-        if (withinStockpile(fob, unit, level)) return null;
-
-        return fob.stockpilePos;
+        if (target != null && stockpileHasEligible(fob, level, needy(target))) return target;
+        if (isOnFoot(unit, vehicle)) fob.refillRequests.remove(unit.getUUID());
+        return null;
     }
 
-    public static boolean shouldResupply(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
-        if (!(unit.level() instanceof ServerLevel level)) return false;
-        if (PmcDownedSupport.isDowned(unit)) return false;
-        if (FobSupport.hasRoutePending(unit)) return false;
-        if (FobSupport.underPlayerMoveOrder(unit)) return false;
-        if (unit.getTarget() != null) return false;
-
-        FobInstance fob = activeFob(unit, level);
-        if (fob == null || fob.scrambleActive || fob.stockpilePos == null) return false;
-
-        ResupplyTarget target = resolveTarget(unit, vehicle, fob, level);
-        if (target == null || target.eligible().isEmpty()) return false;
-        if (!needsResupply(target)) return false;
-        if (!stockpileHasEligible(fob, level, target.eligible())) return false;
-        return withinStockpile(fob, unit, level);
-    }
-
-    /** True while a unit is at the stockpile and still has room for eligible ammo. */
-    public static boolean holdingForResupply(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
-        return shouldResupply(unit, vehicle);
-    }
-
-    /** Transfers eligible stacks from the stockpile while the unit holds still in range. */
+    /**
+     * Draws ammo while the unit holds still in range, then ends the trip: an on-foot unit's request
+     * is consumed whether or not anything moved, so it walks away rather than waiting for more.
+     */
     public static boolean tickResupply(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
         if (!(unit.level() instanceof ServerLevel level)) return false;
 
@@ -94,6 +133,13 @@ public final class FobResupplySupport {
         if (fob == null || fob.stockpilePos == null) return false;
         if (!withinStockpile(fob, unit, level)) return false;
 
+        boolean moved = transferFromStockpile(unit, vehicle, fob, level);
+        if (isOnFoot(unit, vehicle)) fob.refillRequests.remove(unit.getUUID());
+        return moved;
+    }
+
+    private static boolean transferFromStockpile(AbstractUnit unit, @Nullable VehicleEntity vehicle,
+                                                 FobInstance fob, ServerLevel level) {
         StockpileBlockEntity stockpile = stockpileAt(fob, level);
         if (stockpile == null) return false;
 
@@ -104,13 +150,13 @@ public final class FobResupplySupport {
         IItemHandler dest = target.handler();
         if (dest == null) return false;
 
-        List<AmmoKind> eligible = target.eligible();
-        ItemStackHandlerLoop:
         for (int slot = 0; slot < StockpileBlockEntity.SIZE; slot++) {
+            // Re-evaluated per slot: a kind stops being wanted the moment it is topped up, and a
+            // kind the unit cannot hold is never pulled just because the stockpile has it.
+            List<AmmoKind> needy = needy(target);
+            if (needy.isEmpty()) break;
             ItemStack stack = stockpile.getItems().getStackInSlot(slot);
-            AmmoKind kind = match(eligible, stack);
-            if (kind == null) continue;
-            if (!canAcceptMore(dest, kind)) continue;
+            if (match(needy, stack) == null) continue;
 
             ItemStack extracted = stockpile.getItems().extractItem(slot, stack.getMaxStackSize(), false);
             if (extracted.isEmpty()) continue;
@@ -125,9 +171,43 @@ public final class FobResupplySupport {
             }
             moved = true;
             FobDebug.logEntity(unit, "resupplied {} x{}", extracted.getItem(), took - remainder.getCount());
-            if (!needsResupply(target)) break ItemStackHandlerLoop;
         }
         return moved;
+    }
+
+    /**
+     * Periodic Refill: once per {@link FobInstance#periodicRefillTicks}, send every assigned
+     * on-foot PMC that wants ammo the stockpile holds. Nobody is sent when the stockpile has
+     * nothing for them, so an empty stockpile never draws a crowd.
+     */
+    public static void tickPeriodic(ServerLevel level, FobInstance fob, long now) {
+        if (fob.periodicRefillTicks <= 0) {
+            fob.refillRequests.clear();
+            return;
+        }
+        if (now < fob.nextPeriodicRefill) return;
+        fob.nextPeriodicRefill = now + fob.periodicRefillTicks;
+        fob.refillRequests.values().removeIf(until -> now >= until);
+        if (!fob.fobCommandActive || fob.scrambleActive || fob.stockpilePos == null) return;
+        if (!level.isLoaded(fob.stockpilePos)) return;
+
+        for (UUID id : fob.assignedLiving) {
+            if (!(level.getEntity(id) instanceof PmcUnitEntity pmc) || !pmc.isAlive()) continue;
+            if (pmc.isPassenger() || PmcDownedSupport.isDowned(pmc)) continue;
+            if (FobSupport.hasRoutePending(pmc) || pmc.getTarget() != null) continue;
+            ResupplyTarget target = resolveTarget(pmc, null, fob, level);
+            if (target == null || !stockpileHasEligible(fob, level, needy(target))) continue;
+            fob.refillRequests.put(id, now + REQUEST_TTL_TICKS);
+        }
+    }
+
+    /** True when the FOB stockpile holds ammo matching this PMC's own guns (Quick Refill's test). */
+    public static boolean stockpileHasAmmoFor(PmcUnitEntity pmc) {
+        if (!(pmc.level() instanceof ServerLevel level)) return false;
+        FobInstance fob = activeFob(pmc, level);
+        if (fob == null) return false;
+        StockpileBlockEntity stockpile = stockpileAt(fob, level);
+        return stockpile != null && handlerHasEligible(pmc, stockpile.getItems());
     }
 
     public static boolean withinStockpile(FobInstance fob, Entity entity, ServerLevel level) {
@@ -136,8 +216,14 @@ public final class FobResupplySupport {
             FobSupport.refreshCachedAabbs(fob, level);
             box = fob.cachedStockpileAabb;
         }
-        if (box == null) return false;
-        return box.inflate(0.5).contains(entity.getX(), entity.getY(), entity.getZ());
+        if (box != null && box.inflate(0.5).contains(entity.getX(), entity.getY(), entity.getZ())) return true;
+        // The pad can be smaller than a crowd standing round a solid block, so being beside the
+        // block counts too - otherwise a unit that cannot squeeze into the pad waits there forever.
+        BlockPos pos = fob.stockpilePos;
+        if (pos == null) return false;
+        double dx = entity.getX() - (pos.getX() + 0.5);
+        double dz = entity.getZ() - (pos.getZ() + 0.5);
+        return dx * dx + dz * dz <= STOCKPILE_REACH_SQ && Math.abs(entity.getY() - pos.getY()) <= 3.0;
     }
 
     /**
@@ -159,7 +245,12 @@ public final class FobResupplySupport {
      * (Quick Refill). Same path as the auto resupply goal.
      */
     public static boolean forceStockpileRefill(PmcUnitEntity pmc) {
-        return tickResupply(pmc, null);
+        if (!(pmc.level() instanceof ServerLevel level)) return false;
+        FobInstance fob = activeFob(pmc, level);
+        if (fob == null || fob.stockpilePos == null) return false;
+        boolean moved = transferFromStockpile(pmc, null, fob, level);
+        fob.refillRequests.remove(pmc.getUUID());
+        return moved;
     }
 
     /**
@@ -191,7 +282,7 @@ public final class FobResupplySupport {
                 }
             }
             moved = true;
-            if (!needsResupply(new ResupplyTarget(eligible, dest))) break;
+            if (needy(new ResupplyTarget(eligible, dest)).isEmpty()) break;
         }
         return moved;
     }
@@ -321,14 +412,16 @@ public final class FobResupplySupport {
     /** Minimum reserve before an assigned unit walks to the stockpile (per eligible item). */
     private static final int RESUPPLY_MIN_STACKS = 2;
 
-    private static boolean needsResupply(ResupplyTarget target) {
+    /** Kinds this unit is below the reserve on and still has room for. */
+    private static List<AmmoKind> needy(ResupplyTarget target) {
+        List<AmmoKind> out = new ArrayList<>();
         IItemHandler dest = target.handler();
-        if (dest == null) return false;
+        if (dest == null) return out;
         for (AmmoKind kind : target.eligible()) {
             int want = kind.prototype().getMaxStackSize() * RESUPPLY_MIN_STACKS;
-            if (countOf(dest, kind) < want && canAcceptMore(dest, kind)) return true;
+            if (countOf(dest, kind) < want && canAcceptMore(dest, kind)) out.add(kind);
         }
-        return false;
+        return out;
     }
 
     private static int countOf(IItemHandler handler, AmmoKind kind) {

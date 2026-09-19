@@ -137,7 +137,7 @@ public final class QuickRefillTracker {
             }
 
             if (!chestStillEligible(level, pmc, chest, leg.fobStockpile)) {
-                // Chest emptied / wrong stock — abort the walk instead of camping an empty box.
+                // Chest / stockpile emptied or wrong stock — abort the walk instead of camping it.
                 dropRefillWalk(pmc);
                 leg.done = true;
                 continue;
@@ -162,11 +162,10 @@ public final class QuickRefillTracker {
                         : be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
                 moved = FobResupplySupport.refillFromHandler(pmc, handler);
             }
-            if (moved) {
-                HudNotify.clearAmmoOut(pmc);
-            } else {
-                dropRefillWalk(pmc);
-            }
+            if (moved) HudNotify.clearAmmoOut(pmc);
+            // Always release the unit. The MOVE order used to be left standing after a successful
+            // pull, which is what parked a crowd at the stockpile with nothing left to do.
+            dropRefillWalk(pmc);
             leg.done = true;
         }
 
@@ -180,9 +179,11 @@ public final class QuickRefillTracker {
     @Nullable
     public static BlockPos findRefillTarget(ServerLevel level, PmcUnitEntity pmc, double radius,
                                             boolean preferFobStockpile) {
-        if (preferFobStockpile) {
+        // Only when the stockpile actually holds ammo this unit can use; an empty stockpile falls
+        // through to the chest scan instead of drawing everyone to it.
+        if (preferFobStockpile && FobResupplySupport.stockpileHasAmmoFor(pmc)) {
             FobInstance fob = FobSupport.fobForEntity(pmc, level);
-            if (fob != null && fob.fobCommandActive && fob.stockpilePos != null) {
+            if (fob != null && fob.stockpilePos != null) {
                 return fob.stockpilePos.immutable();
             }
         }
@@ -217,10 +218,7 @@ public final class QuickRefillTracker {
 
     private static boolean chestStillEligible(ServerLevel level, PmcUnitEntity pmc, BlockPos chest,
                                               boolean fobStockpile) {
-        if (fobStockpile) {
-            // Stockpile transfer gates itself inside forceStockpileRefill; keep walking until reach.
-            return true;
-        }
+        if (fobStockpile) return FobResupplySupport.stockpileHasAmmoFor(pmc);
         BlockEntity be = level.getBlockEntity(chest);
         IItemHandler handler = be == null ? null
                 : be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);

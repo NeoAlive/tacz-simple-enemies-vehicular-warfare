@@ -48,12 +48,22 @@ public final class QuickCommandUnits {
 
     public static List<PmcUnitEntity> onFootOwned(ServerPlayer issuer, ServerLevel level,
                                                   List<Integer> unitIds, double radius) {
+        return onFootOwned(issuer, level, unitIds, radius, false);
+    }
+
+    /**
+     * @param allowFobCommand true for orders that are part of the FOB's own logistics (Quick Refill):
+     *        a unit under FOB command is still accepted. A pending route is always refused.
+     */
+    public static List<PmcUnitEntity> onFootOwned(ServerPlayer issuer, ServerLevel level,
+                                                  List<Integer> unitIds, double radius,
+                                                  boolean allowFobCommand) {
         List<PmcUnitEntity> out = new ArrayList<>();
         for (PmcUnitEntity pmc : owned(issuer, level, unitIds, radius)) {
             if (pmc.getVehicle() != null) continue;
             if (OrderGuard.rejectIfDowned(issuer, pmc)) continue;
             if (MortarSupport.hasMortarClaim(pmc)) continue;
-            if (refuseFobOrRoute(issuer, pmc)) continue;
+            if (refuseFobOrRoute(issuer, pmc, allowFobCommand)) continue;
             out.add(pmc);
         }
         return out;
@@ -70,7 +80,12 @@ public final class QuickCommandUnits {
      * Cancel / dismount skip this — stand-down must always win.
      */
     public static boolean refuseFobOrRoute(ServerPlayer issuer, PmcUnitEntity pmc) {
-        if (FobSupport.blocksOrders(pmc)) {
+        return refuseFobOrRoute(issuer, pmc, false);
+    }
+
+    public static boolean refuseFobOrRoute(ServerPlayer issuer, PmcUnitEntity pmc,
+                                           boolean allowFobCommand) {
+        if (!allowFobCommand && FobSupport.blocksOrders(pmc)) {
             OrderReport.fail(issuer, OrderFailure.FOB_COMMAND, pmc);
             return true;
         }

@@ -36,6 +36,10 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_DISMOUNT = "quick_dismount";
     public static final String ID_QUICK_HOLD = "quick_hold";
     public static final String ID_QUICK_ATTACK = "quick_attack";
+    public static final String ID_QUICK_MOVE = "quick_move";
+    public static final String ID_PLATOON_JOIN = "platoon_join";
+    public static final String ID_PLATOON_EXIT = "platoon_exit";
+    public static final String ID_PLATOON_AUTO_ORDERS = "platoon_auto_orders";
     public static final String ID_QUICK_CAPTURE_MEDIC = "quick_capture_medic";
     public static final String ID_QUICK_ROUTE_FOB = "quick_route_fob";
     public static final String ID_REVIVE_CALL = "revive_call";
@@ -75,6 +79,7 @@ public final class QuickCommandRegistry {
         general.add(leaf("Quick Follow", "\u21AA", ID_QUICK_FOLLOW, 0xE8B84A));
         general.add(leaf("Quick Dismount", "\u2193", ID_QUICK_DISMOUNT, 0xE8B84A));
         general.add(leaf("Quick Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A));
+        general.add(leaf("Move To", "\u27A4", ID_QUICK_MOVE, 0xE8B84A));
         general.add(leaf("Attack That", "\u2694", ID_QUICK_ATTACK, 0xE8B84A));
         if (PlayerReviveCompat.isLoaded()) {
             general.add(leaf("Revive Call", "\u271A", ID_REVIVE_CALL, 0xE8B84A));
@@ -103,6 +108,10 @@ public final class QuickCommandRegistry {
                         leaf("Line", "\u2501", ID_FORM_LINE, 0xA06BD4),
                         leaf("Echelon L", "\u25E2", ID_FORM_ECHELON_LEFT, 0xA06BD4),
                         leaf("Echelon R", "\u25E3", ID_FORM_ECHELON_RIGHT, 0xA06BD4))),
+                new WedgeEntry.CategoryEntry("Platoon", "\u2691", 0xE07AA6, List.of(
+                        leaf("Join Platoon", "\u2295", ID_PLATOON_JOIN, 0xE07AA6),
+                        leaf("Exit Platoon", "\u2296", ID_PLATOON_EXIT, 0xE07AA6),
+                        leaf("Toggle Orders", "\u21C4", ID_PLATOON_AUTO_ORDERS, 0xE07AA6))),
                 leaf("Cancel", "\u2715", ID_QUICK_CANCEL, 0xE85A4A));
     }
 

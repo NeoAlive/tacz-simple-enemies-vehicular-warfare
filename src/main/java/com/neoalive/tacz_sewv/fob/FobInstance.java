@@ -1,6 +1,8 @@
 package com.neoalive.tacz_sewv.fob;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -11,6 +13,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.phys.AABB;
+
+import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * One player-owned Forward Operating Base keyed on the quarters_bench position.
@@ -32,6 +36,16 @@ public final class FobInstance {
     public long lastThreatEvalTime;
     public boolean scrambleActive;
     public int threatScore;
+    /** Periodic Refill interval in ticks; 0 = off. Set at the quarters bench. */
+    public int periodicRefillTicks = SewvConfig.FOB_PERIODIC_REFILL_TICKS.get();
+
+    /** Game time of the next periodic dispatch. Not serialized: a reload dispatches straight away. */
+    public transient long nextPeriodicRefill;
+    /**
+     * Units sent to the stockpile by the periodic dispatch, mapped to the game time the trip is
+     * abandoned. Not serialized, and every entry expires, so nothing can be stranded on it.
+     */
+    public final transient Map<UUID, Long> refillRequests = new HashMap<>();
 
     /** Rebuilt on validate — not serialized. */
     @Nullable
@@ -64,6 +78,7 @@ public final class FobInstance {
         tag.putLong("lastThreatEval", this.lastThreatEvalTime);
         tag.putBoolean("scramble", this.scrambleActive);
         tag.putInt("threatScore", this.threatScore);
+        tag.putInt("periodicRefill", this.periodicRefillTicks);
     }
 
     public static FobInstance read(CompoundTag tag) {
@@ -81,6 +96,7 @@ public final class FobInstance {
         fob.lastThreatEvalTime = tag.getLong("lastThreatEval");
         fob.scrambleActive = tag.getBoolean("scramble");
         fob.threatScore = tag.getInt("threatScore");
+        if (tag.contains("periodicRefill")) fob.periodicRefillTicks = tag.getInt("periodicRefill");
         return fob;
     }
 

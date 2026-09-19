@@ -9,6 +9,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlock;
 import com.neoalive.tacz_sewv.block.EmplacementBlock;
 import com.neoalive.tacz_sewv.block.FoxholeBlock;
+import com.neoalive.tacz_sewv.block.HelipadBlock;
 import com.neoalive.tacz_sewv.block.ParkingFieldBlock;
 import com.neoalive.tacz_sewv.block.QuartersBenchBlock;
 import com.neoalive.tacz_sewv.block.RunwayBlock;
@@ -65,4 +66,8 @@ public class ModBlocks {
 
     public static final RegistryObject<Block> STOCKPILE_AMMO =
             BLOCKS.register("stockpile_ammo", StockpileAmmoBlock::new);
+
+    /** Decorative helipad decal. */
+    public static final RegistryObject<Block> HELIPAD =
+            BLOCKS.register("helipad", HelipadBlock::new);
 }

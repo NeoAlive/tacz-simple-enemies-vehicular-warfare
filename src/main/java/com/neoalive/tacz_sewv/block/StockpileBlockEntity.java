@@ -23,7 +23,7 @@ import com.neoalive.tacz_sewv.inventory.StockpileMenu;
 
 public class StockpileBlockEntity extends BlockEntity implements MenuProvider {
 
-    public static final int SIZE = 81;
+    public static final int SIZE = 72;
 
     private final ItemStackHandler items = new ItemStackHandler(SIZE) {
         @Override

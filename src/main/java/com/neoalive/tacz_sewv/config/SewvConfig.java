@@ -334,7 +334,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue FOB_PARKING_SIZE;
     public static final ForgeConfigSpec.DoubleValue FOB_BUFFER_FACTOR;
     public static final ForgeConfigSpec.IntValue FOB_THREAT_THRESHOLD;
-    public static final ForgeConfigSpec.IntValue FOB_ALARM_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.IntValue FOB_THREAT_EVAL_INTERVAL_TICKS;
 
     public static final ForgeConfigSpec.BooleanValue MINECOLONIES_COMPAT_ENABLED;
@@ -1327,8 +1326,6 @@ public final class SewvConfig {
                 .defineInRange("fobBufferFactor", 2.0, 1.0, 8.0);
         FOB_THREAT_THRESHOLD = builder.comment("Threat score at or above this triggers scramble.")
                 .defineInRange("fobThreatThreshold", 100, 1, 10000);
-        FOB_ALARM_COOLDOWN_TICKS = builder.comment("Minimum ticks between FOB alarm sounds (20 = 1 second).")
-                .defineInRange("fobAlarmCooldownTicks", 400, 1, 72000);
         FOB_THREAT_EVAL_INTERVAL_TICKS = builder.comment("Ticks between threat scans per FOB.")
                 .defineInRange("fobThreatEvalIntervalTicks", 20, 1, 200);
         builder.pop();

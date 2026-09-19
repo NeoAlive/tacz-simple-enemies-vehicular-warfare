@@ -89,6 +89,9 @@ public final class ModSounds {
     /** Vehicle lock / unlock. */
     public static final RegistryObject<SoundEvent> LOCK = register("lock");
 
+    /** FOB scramble siren; one ~0.9 s clip, re-triggered every {@code ThreatEvaluator.ALARM_TICKS}. */
+    public static final RegistryObject<SoundEvent> FOB_ALARM = register("fob_alarm");
+
     /** World-map Attack-this-unit confirm. */
     public static final RegistryObject<SoundEvent> ATTACK = register("attack");
 

@@ -8,7 +8,7 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -18,6 +18,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.init.ModSounds;
 
 /**
  * Score-based threat evaluation inside the FOB master (buffer) AABB.
@@ -28,6 +29,9 @@ public final class ThreatEvaluator {
     private static final double NEAR_WEIGHT = 2.5;
     /** Extra weight for a contact already shooting at the garrison. See {@link #urgency}. */
     private static final double ENGAGED_WEIGHT = 2.0;
+
+    /** Length of {@code alarm.ogg} (0.897 s) rounded up to whole ticks: the loop period. */
+    public static final int ALARM_TICKS = 18;
 
     private ThreatEvaluator() {}
 
@@ -82,7 +86,6 @@ public final class ThreatEvaluator {
         }
         score += hostiles.size();
 
-        boolean wasScramble = fob.scrambleActive;
         int threshold = Math.max(1, SewvConfig.FOB_THREAT_THRESHOLD.get());
         fob.threatScore = (int) Math.round(score);
         if (fob.threatScore >= threshold) {
@@ -93,10 +96,6 @@ public final class ThreatEvaluator {
             // scramble only ever ended when the buffer was completely clear. Over a buffer this
             // wide that is close to "never".
             fob.scrambleActive = false;
-        }
-
-        if (fob.scrambleActive && !wasScramble) {
-            playAlarm(level, fob, gameTime);
         }
     }
 
@@ -168,10 +167,13 @@ public final class ThreatEvaluator {
         return best;
     }
 
+    /**
+     * Plays one cycle of the siren unless one is still sounding. Called every tick while the FOB
+     * is scrambled ({@link FobTickHandler}), so the clip loops until the scramble ends.
+     */
     public static void playAlarm(ServerLevel level, FobInstance fob, long gameTime) {
-        long cooldown = Math.max(1, SewvConfig.FOB_ALARM_COOLDOWN_TICKS.get());
-        if (gameTime - fob.lastAlarmTime < cooldown) return;
+        if (gameTime - fob.lastAlarmTime < ALARM_TICKS) return;
         fob.lastAlarmTime = gameTime;
-        level.playSound(null, fob.commandPos, SoundEvents.BELL_BLOCK, net.minecraft.sounds.SoundSource.BLOCKS, 2.0f, 0.8f);
+        level.playSound(null, fob.commandPos, ModSounds.FOB_ALARM.get(), SoundSource.BLOCKS, 3.0f, 1.0f);
     }
 }

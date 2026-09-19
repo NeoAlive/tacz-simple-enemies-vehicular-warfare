@@ -42,6 +42,7 @@ public final class FobBlockClient {
     }
 
     private static final Map<Kind, BakedBedrockModel> baked = new EnumMap<>(Kind.class);
+    private static final Map<Kind, BakedModelInstance> itemInstances = new EnumMap<>(Kind.class);
     private static final Map<BlockEntity, BakedModelInstance> instances = new java.util.WeakHashMap<>();
 
     private FobBlockClient() {}
@@ -64,6 +65,13 @@ public final class FobBlockClient {
         return instances.computeIfAbsent(be, key -> model.createInstance());
     }
 
+    /** One shared instance per kind for item rendering; items are static so they never diverge. */
+    @Nullable
+    public static BakedModelInstance itemInstance(Kind kind) {
+        BakedBedrockModel model = baked.get(kind);
+        return model == null ? null : itemInstances.computeIfAbsent(kind, k -> model.createInstance());
+    }
+
     public static ResourceLocation texture(Kind kind) {
         return kind.texture;
     }
@@ -71,6 +79,7 @@ public final class FobBlockClient {
     public static void rebake(ResourceManager manager) {
         baked.clear();
         instances.clear();
+        itemInstances.clear();
         for (Kind kind : Kind.values()) {
             try (InputStreamReader reader = new InputStreamReader(
                     manager.open(kind.geo), StandardCharsets.UTF_8)) {

@@ -40,9 +40,17 @@ public final class VehicleOrca {
 
     private VehicleOrca() {}
 
-    /** Combined disc radius for two hulls, including mutual clearance. */
+    /** Combined disc radius for two hulls, including mutual clearance. Skirt / half-plane only —
+     * never feed this into {@link #imminent} / {@link #overlappingAndClosing}: those short-circuit
+     * to TTC=0 whenever {@code dist ≤ radius}, which with clearance locked every heading for a
+     * packed pair until a player shoved them apart. Hard vetoes use {@link #contactRadius}. */
     public static double radius(double halfA, double halfB) {
         return (halfA + halfB) * RADIUS_PAD * CLEARANCE_SCALE;
+    }
+
+    /** Real clip disc (pad only). Hard occupancy / TTC vetoes. */
+    public static double contactRadius(double halfA, double halfB) {
+        return (halfA + halfB) * RADIUS_PAD;
     }
 
     /** One hull to steer around: position, current velocity, half-width, entity id. The id is

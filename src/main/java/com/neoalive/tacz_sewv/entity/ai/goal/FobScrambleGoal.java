@@ -13,6 +13,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.fob.FobDebug;
 import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobManager;
@@ -50,6 +51,9 @@ public class FobScrambleGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        // BoardVehicleGoal claims no MOVE flag, so a board order here would walk a downed unit
+        // even while DownedGoal holds MOVE+LOOK+JUMP.
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         if (FobSupport.hasRoutePending(this.unit)) return false;
         // A MOVE click outranks mounting up: BoardVehicleGoal navigates without claiming MOVE, so
         // a board order issued here would fight MoveToPositionGoal for the navigation every tick

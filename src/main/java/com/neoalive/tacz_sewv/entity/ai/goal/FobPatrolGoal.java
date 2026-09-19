@@ -10,6 +10,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobManager;
 import com.neoalive.tacz_sewv.fob.FobSupport;
@@ -34,6 +35,7 @@ public class FobPatrolGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         if (this.unit.isPassenger()) return false;
         if (!FobSupport.isStamped(this.unit)) return false;
         if (this.unit.getTarget() != null) return false;
@@ -48,6 +50,7 @@ public class FobPatrolGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         if (this.unit.isPassenger()) return false;
         if (this.unit.getTarget() != null) return false;
         if (VehicleTargeting.underStandingOrder(this.unit)) return false;

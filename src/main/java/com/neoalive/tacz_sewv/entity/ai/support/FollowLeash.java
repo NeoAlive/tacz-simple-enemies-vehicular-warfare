@@ -44,6 +44,7 @@ public final class FollowLeash {
 
     public static boolean leashed(Mob mob) {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
+        if (PmcDownedSupport.isDowned(pmc)) return false;
         if (pmc.getVehicle() != null) return false; // mounted: driven by the vehicle AI, not these goals
         // Route to FOB is a forced MOVE: fire from where you stand, never chase off the route.
         if (FobSupport.hasRoutePending(pmc)) return true;

@@ -10,6 +10,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 
 /**
  * Hard MOVE_TO_POSITION stick. SEM's {@code CommanderOrderGoal} (prio 3) loses MOVE to SeekCover
@@ -37,6 +38,7 @@ public class MoveToPositionGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         if (this.unit.isPassenger()) return false;
         if (((IPathwayInfantry) this.unit).sewv$hasPathway()) return false;
         if (this.unit.getOrder() != OrderType.MOVE_TO_POSITION) return false;
@@ -51,6 +53,7 @@ public class MoveToPositionGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         if (((IPathwayInfantry) this.unit).sewv$hasPathway()) return false;
         if (this.unit.getOrder() != OrderType.MOVE_TO_POSITION) return false;
         if (this.unit.isPassenger()) return false;

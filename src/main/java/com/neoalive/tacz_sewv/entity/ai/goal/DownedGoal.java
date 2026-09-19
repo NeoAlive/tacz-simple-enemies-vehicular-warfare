@@ -64,6 +64,7 @@ public class DownedGoal extends Goal {
     @Override
     public void tick() {
         this.unit.setTarget(null);
+        this.unit.getNavigation().stop();
         if (!(this.unit instanceof IPmcDowned downed)) return;
         downed.sewv$setDownedSynced(true);
         if (this.unit.level().getGameTime() >= downed.sewv$downedDeadline()) {

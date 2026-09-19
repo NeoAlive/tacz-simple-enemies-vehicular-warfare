@@ -30,22 +30,26 @@ import net.minecraftforge.fml.common.Mod;
 import com.neoalive.tacz_sewv.TaczSewv;
 
 /**
- * Occupancy index of vehicle <em>hull</em> hitboxes for SEM infantry pathfinding and LOS.
+ * Occupancy index of vehicle hull hitboxes for SEM infantry pathfinding and LOS.
  *
  * <p>SBW OBB hulls return {@code canBeCollidedWith() == false}, so vanilla
  * {@code WalkNodeEvaluator} treats their volume as open air, and SEM / vanilla
  * line-of-sight is {@code Level.clip} (blocks only). This cache rasterizes each
- * loaded hull's chassis volume into packed block cells;
+ * loaded hull into packed block cells;
  * {@link com.neoalive.tacz_sewv.mixin.MixinWalkNodeEvaluator} overlays
- * {@code BLOCKED} on those cells for on-foot {@code AbstractUnit}s, and
- * {@link #occludes} is the same map walked as a ray so infantry stop dumping
- * rounds into a hull that sits between them and their target.
+ * {@code BLOCKED} on path cells for on-foot {@code AbstractUnit}s, and
+ * {@link #occludes} walks the LoS map as a ray so infantry stop dumping rounds
+ * into a hull that sits between them and their target.
  *
- * <p>Only {@link OBB.Part#BODY} / {@link OBB.Part#COLLISION} are stamped — never the
- * turret or interactive parts. The old combined-AABB path inflated a continuously
- * mutating cube that included the turret sweep and blocked shots through empty air
- * under the barrel. Entity {@code getBoundingBox()} is the fallback when a hull
- * publishes no body OBBs.
+ * <p>Path and LoS use <em>separate</em> stamps on purpose:
+ * <ul>
+ *   <li><b>Path</b> — every solid chassis part (Collision, Body, wheels, engines).
+ *       Turret / interactive parts are skipped so a barrel does not invent a wall
+ *       of blocked air, but wheels and engines stay so infantry cannot slip through
+ *       gaps between sparse Body panels. Falls back to the entity BB.</li>
+ *   <li><b>LoS</b> — Body / Collision only. Turret sweep must not occlude shots
+ *       through empty air under the barrel (the bug the old combined-AABB path had).</li>
+ * </ul>
  *
  * <p>MCSP / ASH / FCP hulls subclass SBW {@link VehicleEntity}, so one scan covers all of them.
  * {@link TurretWreckEntity} is a separate type (the blown-off turret), indexed from the
@@ -67,7 +71,7 @@ public final class VehiclePathObstacles {
     public static boolean blocks(ServerLevel level, int x, int y, int z, int excludeEntityId) {
         Cache cache = CACHES.get(level);
         if (cache == null) return false;
-        int id = cache.cells.get(BlockPos.asLong(x, y, z));
+        int id = cache.pathCells.get(BlockPos.asLong(x, y, z));
         return id != 0 && id != excludeEntityId;
     }
 
@@ -94,8 +98,8 @@ public final class VehiclePathObstacles {
      */
     public static boolean occludes(ServerLevel level, Vec3 from, Vec3 to, int excludeA, int excludeB) {
         Cache cache = CACHES.get(level);
-        if (cache == null || cache.cells.isEmpty()) return false;
-        return occludesRay(cache.cells, from, to, excludeA, excludeB);
+        if (cache == null || cache.losCells.isEmpty()) return false;
+        return occludesRay(cache.losCells, from, to, excludeA, excludeB);
     }
 
     /** Package-visible for the headless self-check. */
@@ -144,41 +148,52 @@ public final class VehiclePathObstacles {
     }
 
     private static void rebuild(ServerLevel level, Cache cache) {
-        cache.cells.clear();
+        cache.pathCells.clear();
+        cache.losCells.clear();
         for (VehicleEntity hull : level.getEntities(EntityTypeTest.forClass(VehicleEntity.class), h -> true)) {
             if (!include(hull)) continue;
             stampHull(cache, hull);
         }
         for (TurretWreckEntity wreck : level.getEntities(EntityTypeTest.forClass(TurretWreckEntity.class), w -> true)) {
             if (!wreck.isAlive()) continue;
-            stamp(cache, wreck.getBoundingBox().inflate(INFLATE, 0.0, INFLATE), wreck.getId());
+            AABB box = wreck.getBoundingBox().inflate(INFLATE, 0.0, INFLATE);
+            stamp(cache.pathCells, box, wreck.getId());
+            stamp(cache.losCells, box, wreck.getId());
         }
     }
 
-    /**
-     * Chassis only: {@code BODY}/{@code COLLISION} world AABBs. Turret / interactive /
-     * empty parts are skipped so a barrel sweeping overhead does not paint empty air
-     * as solid for infantry LoS and pathing.
-     */
     private static void stampHull(Cache cache, VehicleEntity hull) {
         int id = hull.getId();
         List<OBB> obbs = hull.getOBBs();
-        boolean stamped = false;
+        boolean pathStamped = false;
+        boolean losStamped = false;
         if (obbs != null) {
             for (OBB obb : obbs) {
                 OBB.Part part = obb.part;
-                if (part != OBB.Part.BODY && part != OBB.Part.COLLISION) continue;
-                stamp(cache, OBB.getWorldAABB(obb).inflate(INFLATE, 0.0, INFLATE), id);
-                stamped = true;
+                if (part == null || part == OBB.Part.TURRET || part == OBB.Part.INTERACTIVE
+                        || part == OBB.Part.EMPTY) {
+                    continue;
+                }
+                AABB box = OBB.getWorldAABB(obb).inflate(INFLATE, 0.0, INFLATE);
+                // Path: Collision / Body / wheels / engines — the volume infantry must walk around.
+                stamp(cache.pathCells, box, id);
+                pathStamped = true;
+                if (part == OBB.Part.BODY || part == OBB.Part.COLLISION) {
+                    stamp(cache.losCells, box, id);
+                    losStamped = true;
+                }
             }
         }
-        if (!stamped) {
-            // No body OBBs published (rare / addon) — entity BB is the chassis, not the turret.
-            stamp(cache, hull.getBoundingBox().inflate(INFLATE, 0.0, INFLATE), id);
+        if (!pathStamped) {
+            // No chassis OBBs published (rare / addon) — entity BB is the chassis envelope.
+            stamp(cache.pathCells, hull.getBoundingBox().inflate(INFLATE, 0.0, INFLATE), id);
+        }
+        if (!losStamped) {
+            stamp(cache.losCells, hull.getBoundingBox().inflate(INFLATE, 0.0, INFLATE), id);
         }
     }
 
-    private static void stamp(Cache cache, AABB box, int id) {
+    private static void stamp(Long2IntMap cells, AABB box, int id) {
         int minX = Mth.floor(box.minX);
         int maxX = Mth.floor(box.maxX);
         int minY = Mth.floor(box.minY);
@@ -188,7 +203,7 @@ public final class VehiclePathObstacles {
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
-                    cache.cells.put(BlockPos.asLong(x, y, z), id);
+                    cells.put(BlockPos.asLong(x, y, z), id);
                 }
             }
         }
@@ -226,14 +241,35 @@ public final class VehiclePathObstacles {
         Vec3 hug = new Vec3(4.4, 64.5, 11.5);
         Vec3 away = new Vec3(-4.5, 64.5, 11.5);
         assert !occludesRay(cells, hug, away, -1, -1) : "hugging a wreck looking away must not self-block";
+
+        // Path stamp includes wheels; LoS does not — a wheel-only cell must block path, not LoS.
+        assert pathPartBlocks(OBB.Part.WHEEL_LEFT) : "wheels must block infantry path";
+        assert !losPartBlocks(OBB.Part.WHEEL_LEFT) : "wheels must not occlude LoS";
+        assert pathPartBlocks(OBB.Part.COLLISION) : "collision must block path";
+        assert losPartBlocks(OBB.Part.COLLISION) : "collision must occlude LoS";
+        assert !pathPartBlocks(OBB.Part.TURRET) : "turret must not invent path walls";
+        assert !losPartBlocks(OBB.Part.TURRET) : "turret must not occlude LoS";
+    }
+
+    /** Whether {@link #stampHull}'s path filter accepts this part. */
+    static boolean pathPartBlocks(OBB.Part part) {
+        return part != null && part != OBB.Part.TURRET && part != OBB.Part.INTERACTIVE
+                && part != OBB.Part.EMPTY;
+    }
+
+    /** Whether {@link #stampHull}'s LoS filter accepts this part. */
+    static boolean losPartBlocks(OBB.Part part) {
+        return part == OBB.Part.BODY || part == OBB.Part.COLLISION;
     }
 
     private static final class Cache {
-        final Long2IntMap cells = new Long2IntOpenHashMap();
+        final Long2IntMap pathCells = new Long2IntOpenHashMap();
+        final Long2IntMap losCells = new Long2IntOpenHashMap();
         int nextRefresh;
 
         Cache() {
-            this.cells.defaultReturnValue(0);
+            this.pathCells.defaultReturnValue(0);
+            this.losCells.defaultReturnValue(0);
         }
     }
 }

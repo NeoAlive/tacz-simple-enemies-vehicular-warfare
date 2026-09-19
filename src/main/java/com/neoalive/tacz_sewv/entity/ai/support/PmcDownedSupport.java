@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
@@ -81,6 +83,11 @@ public final class PmcDownedSupport {
     private record Channel(int targetId, int ticksElapsed) {}
 
     private PmcDownedSupport() {}
+
+    /** Server-authoritative downed check for locomotion / order gates. */
+    public static boolean isDowned(@Nullable Entity entity) {
+        return entity instanceof IPmcDowned downed && downed.sewv$isDowned();
+    }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onDeath(LivingDeathEvent event) {

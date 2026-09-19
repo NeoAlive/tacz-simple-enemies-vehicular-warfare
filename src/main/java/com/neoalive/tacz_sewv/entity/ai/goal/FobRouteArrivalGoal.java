@@ -16,6 +16,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.fob.FobDebug;
 import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobManager;
@@ -42,6 +43,7 @@ public class FobRouteArrivalGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         if (!FobSupport.hasRoutePending(this.unit)) return false;
         if (!(this.unit.level() instanceof ServerLevel level)) return false;
 
@@ -128,6 +130,10 @@ public class FobRouteArrivalGoal extends Goal {
         return !this.unit.isPassenger() && atParkingStandoff(this.unit, fob, level);
     }
 
+    /**
+     * Close enough to finish: the widened parking volume in {@link FobSupport#withinParkingPad},
+     * so a crowded pad still dismounts / stands down instead of waiting on the exact center.
+     */
     private static boolean atParkingStandoff(Entity entity, FobInstance fob, Level level) {
         return FobSupport.withinParkingPad(fob, entity, level);
     }

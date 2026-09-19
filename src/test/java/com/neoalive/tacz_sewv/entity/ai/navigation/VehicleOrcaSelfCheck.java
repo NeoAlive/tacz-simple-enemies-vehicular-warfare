@@ -23,6 +23,7 @@ package com.neoalive.tacz_sewv.entity.ai.navigation;
 public final class VehicleOrcaSelfCheck {
 
     private static final double R = VehicleOrca.radius(2.0, 2.0); // 8.8 at CLEARANCE_SCALE=2
+    private static final double CONTACT_R = VehicleOrca.contactRadius(2.0, 2.0); // 4.4
     private static final double TAU = 30.0;
     /** Head-on peer distance used when RADIUS_PAD alone was calibrated (10 vs R≈4.4). Scales
      * with clearance so the same geometry (outside the disc, inside τ) still holds. */
@@ -47,22 +48,24 @@ public final class VehicleOrcaSelfCheck {
         imminentFiresForCloseStationaryWreck();
         imminentStaysClearForMundaneParallelTraffic();
         imminentDivergesUnlikeMargin();
+        packedSoftClearanceEscapeStaysOpen();
 
         System.out.println("ORCA geometry self-check: OK");
     }
 
     private static void radiusUnchanged() {
         assertClose(8.8, VehicleOrca.radius(2.0, 2.0), "combined radius");
+        assertClose(4.4, VehicleOrca.contactRadius(2.0, 2.0), "contact radius");
     }
 
     /** Bodies already touching and still closing under the candidate's implied RVO velocity. */
     private static void overlapClosingIsHard() {
-        boolean closing = VehicleOrca.overlappingAndClosing(0, 2, 0, 0.4, 0, 0.4, 0, -0.4, R);
+        boolean closing = VehicleOrca.overlappingAndClosing(0, 2, 0, 0.4, 0, 0.4, 0, -0.4, CONTACT_R);
         assert closing : "overlapping and closing must be hard";
     }
 
     private static void overlapSeparatingIsClear() {
-        boolean separating = VehicleOrca.overlappingAndClosing(0, 2, 0, -0.4, 0, -0.4, 0, 0.4, R);
+        boolean separating = VehicleOrca.overlappingAndClosing(0, 2, 0, -0.4, 0, -0.4, 0, 0.4, CONTACT_R);
         assert !separating : "overlapping but separating must not be hard";
     }
 
@@ -155,29 +158,25 @@ public final class VehicleOrcaSelfCheck {
 
     /**
      * The actual regression this restores: continuing straight at a STATIONARY wreck close enough
-     * that only ~1 real hull's clearance remains must be an imminent hard stop. Distance scales
-     * with {@link VehicleOrca#CLEARANCE_SCALE} so the "barely past contact" geometry stays the
-     * same when the disc grows. Confirmed live-tested behavior before this test existed — a smoke
-     * test showed peers/wrecks not being avoided at all under margin-only hard-blocking; this is
-     * the concrete case that was silently passing through.
+     * that only ~1 real hull's clearance remains must be an imminent hard stop. Hard vetoes use
+     * {@link VehicleOrca#contactRadius}; soft clearance is skirt-only.
      */
     private static void imminentFiresForCloseStationaryWreck() {
-        double near = 6.0 * VehicleOrca.CLEARANCE_SCALE;
-        boolean imminent = VehicleOrca.imminent(0, near, 0, 0.6, 0, 0.6, 0, 0, R, 8.0);
+        double near = CONTACT_R + 1.5; // barely past contact
+        boolean imminent = VehicleOrca.imminent(0, near, 0, 0.6, 0, 0.6, 0, 0, CONTACT_R, 8.0);
         assert imminent : "continuing straight at a near-touching stationary wreck must be imminent";
     }
 
     /** Mundane, non-threatening traffic (near-identical heading and speed) must never read as
      * imminent, however close, because the reciprocal relative velocity is ~zero — there is
-     * nothing to converge on. Peer offset scales with clearance so the pair stays outside the
-     * disc (overlap short-circuits TTC to 0 and would false-fail this). */
+     * nothing to converge on. Peer offset stays outside the contact disc (overlap short-circuits
+     * TTC to 0 and would false-fail this). */
     private static void imminentStaysClearForMundaneParallelTraffic() {
         double s = 0.6;
         double selfHead = Math.toRadians(3.0), peerHead = Math.toRadians(-1.0);
         double avx = s * Math.sin(selfHead), avz = s * Math.cos(selfHead);
         double bvx = s * Math.sin(peerHead), bvz = s * Math.cos(peerHead);
-        double scale = VehicleOrca.CLEARANCE_SCALE;
-        boolean imminent = VehicleOrca.imminent(-3 * scale, 8 * scale, avx, avz, avx, avz, bvx, bvz, R, 8.0);
+        boolean imminent = VehicleOrca.imminent(-3, 8, avx, avz, avx, avz, bvx, bvz, CONTACT_R, 8.0);
         assert !imminent : "near-identical parallel headings must not read as imminent";
     }
 
@@ -191,8 +190,27 @@ public final class VehicleOrcaSelfCheck {
     private static void imminentDivergesUnlikeMargin() {
         double s = 0.6;
         double candX = s * Math.sin(Math.toRadians(75.0)), candZ = s * Math.cos(Math.toRadians(75.0));
-        boolean imminent = VehicleOrca.imminent(0, 40, candX, candZ, 0, s, 0, 0, R, 8.0);
+        boolean imminent = VehicleOrca.imminent(0, 40, candX, candZ, 0, s, 0, 0, CONTACT_R, 8.0);
         assert !imminent : "a sharp turn away from a distant wreck must not be imminent, whatever margin says";
+    }
+
+    /**
+     * Packed-ally lock: two hulls inside the soft clearance disc but outside contact. Feeding the
+     * soft radius into imminent short-circuits TTC=0 for EVERY heading (including backs). Contact
+     * disc must leave escape open and still veto closing in.
+     */
+    private static void packedSoftClearanceEscapeStaysOpen() {
+        double dist = (CONTACT_R + R) * 0.5;
+        assert dist > CONTACT_R && dist < R : "fixture must sit in the soft-only band";
+        boolean softEscapeBug = VehicleOrca.imminent(0, dist, 0, -0.4, 0, 0, 0, 0, R, 8.0);
+        assert softEscapeBug : "sanity: soft disc marks escape imminent (why sensors must not use it)";
+        boolean escape = VehicleOrca.imminent(0, dist, 0, -0.4, 0, 0, 0, 0, CONTACT_R, 8.0);
+        assert !escape : "escape from soft-clearance packing must not be imminent on contact disc";
+        boolean approach = VehicleOrca.imminent(0, dist, 0, 0.4, 0, 0, 0, 0, CONTACT_R, 8.0);
+        assert approach : "closing on a soft-packed peer must still be imminent on contact disc";
+        boolean overlapEscape = VehicleOrca.overlappingAndClosing(
+                0, 2, 0, -0.4, 0, 0, 0, 0, CONTACT_R);
+        assert !overlapEscape : "backing out of real clip must not read as closing";
     }
 
     private static void assertClose(double expected, double actual, String label) {

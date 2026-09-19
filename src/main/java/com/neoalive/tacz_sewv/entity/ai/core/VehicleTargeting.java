@@ -35,6 +35,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MarchObjective;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
@@ -100,7 +101,9 @@ public final class VehicleTargeting {
     // the stateful ally scan and may be null to opt out of mutual support.
     public static BlockPos resolveDestination(AbstractUnit unit, VehicleEntity vehicle, AllyAssist assist) {
         // FOB route beats every other destination — capture, scramble, patrol, SEM orders included.
-        if (unit instanceof PmcUnitEntity routePmc && FobSupport.hasRoutePending(routePmc)) {
+        if (unit instanceof PmcUnitEntity routePmc
+                && FobSupport.hasRoutePending(routePmc)
+                && !PmcDownedSupport.isDowned(routePmc)) {
             Vec3 moveTarget = routePmc.getMoveToTarget();
             if (moveTarget != null && !moveTarget.equals(Vec3.ZERO)) {
                 return BlockPos.containing(moveTarget);
@@ -238,6 +241,12 @@ public final class VehicleTargeting {
      */
     public static double arrivalDistance(AbstractUnit unit, VehicleEntity vehicle) {
         if (unit instanceof PmcUnitEntity pmc) {
+            // Route-to-FOB is MOVE_TO_POSITION aimed at the parking-block center. The tight MOVE
+            // stop would leave every hull past the first grinding into an occupied pad forever;
+            // use the generic band so "near the pad" stands the hull down and arrival can finish.
+            if (FobSupport.hasRoutePending(pmc)) {
+                return vehicle.getBbWidth() - 1.0 + STOP_DISTANCE;
+            }
             OrderType order = pmc.getOrder();
             if (order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN) {
                 return FORMATION_ARRIVE_RADIUS;

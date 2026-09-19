@@ -9,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.fob.FobResupplySupport;
 
 /**
@@ -32,6 +33,7 @@ public class FobResupplyGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         VehicleEntity hull = this.unit.getVehicle() instanceof VehicleEntity v ? v : null;
         if (FobResupplySupport.shouldResupply(this.unit, hull)) return true;
         this.destination = FobResupplySupport.resupplyDestination(this.unit, hull);
@@ -41,6 +43,7 @@ public class FobResupplyGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         if (this.unit.level().isClientSide()) return false;
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         VehicleEntity hull = this.unit.getVehicle() instanceof VehicleEntity v ? v : null;
         if (FobResupplySupport.shouldResupply(this.unit, hull)) return true;
         if (hull != null || this.unit.isPassenger()) return false;

@@ -9,6 +9,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.block.EmplacementBlockEntity;
 import com.neoalive.tacz_sewv.block.FobDecorBlockEntity;
+import com.neoalive.tacz_sewv.block.HelipadBlockEntity;
 import com.neoalive.tacz_sewv.block.RunwayBlockEntity;
 import com.neoalive.tacz_sewv.block.SandbagBlockEntity;
 import com.neoalive.tacz_sewv.block.SpawnProbeBlockEntity;
@@ -43,6 +44,11 @@ public class ModBlockEntities {
     public static final RegistryObject<BlockEntityType<RunwayBlockEntity>> RUNWAY =
             BLOCK_ENTITIES.register("runway_block",
                     () -> BlockEntityType.Builder.of(RunwayBlockEntity::new, ModBlocks.RUNWAY.get())
+                            .build(null));
+
+    public static final RegistryObject<BlockEntityType<HelipadBlockEntity>> HELIPAD =
+            BLOCK_ENTITIES.register("helipad",
+                    () -> BlockEntityType.Builder.of(HelipadBlockEntity::new, ModBlocks.HELIPAD.get())
                             .build(null));
 
     public static final RegistryObject<BlockEntityType<SpawnProbeBlockEntity>> SPAWN_PROBE =

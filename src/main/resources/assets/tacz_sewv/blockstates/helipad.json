@@ -1,7 +1,31 @@
 {
   "variants": {
-    "": {
+    "part=center": {
       "model": "tacz_sewv:block/helipad"
+    },
+    "part=n": {
+      "model": "tacz_sewv:block/helipad_part"
+    },
+    "part=ne": {
+      "model": "tacz_sewv:block/helipad_part"
+    },
+    "part=e": {
+      "model": "tacz_sewv:block/helipad_part"
+    },
+    "part=se": {
+      "model": "tacz_sewv:block/helipad_part"
+    },
+    "part=s": {
+      "model": "tacz_sewv:block/helipad_part"
+    },
+    "part=sw": {
+      "model": "tacz_sewv:block/helipad_part"
+    },
+    "part=w": {
+      "model": "tacz_sewv:block/helipad_part"
+    },
+    "part=nw": {
+      "model": "tacz_sewv:block/helipad_part"
     }
   }
 }

@@ -11,6 +11,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 import com.neoalive.tacz_sewv.map.FobMarker;
+import com.neoalive.tacz_sewv.map.HelipadMarker;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
@@ -48,6 +49,7 @@ public final class MapMarkers {
     private static SweepOverlayState sweepOverlay;
     @Nullable
     private static FobMarker fobMarker;
+    private static List<HelipadMarker> helipads = List.of();
     /** Selected hull network ids — survives driver dismount and sync refreshes. */
     private static final Set<Integer> SELECTED = new HashSet<>();
 
@@ -87,7 +89,16 @@ public final class MapMarkers {
         battleFields = List.of();
         sweepOverlay = null;
         fobMarker = null;
+        helipads = List.of();
         SELECTED.clear();
+    }
+
+    public static void acceptHelipads(List<HelipadMarker> incoming) {
+        helipads = List.copyOf(incoming);
+    }
+
+    public static List<HelipadMarker> helipads() {
+        return helipads;
     }
 
     @Nullable

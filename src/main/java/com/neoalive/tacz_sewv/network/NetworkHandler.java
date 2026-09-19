@@ -107,7 +107,8 @@ public class NetworkHandler {
     // 85: WorldVehiclePools.Category.GRENADE in pool editor packets.
     // 86: PacketCarrierOpsAction (Neo Arms carrier flight-ops deploy).
     // 87: PacketSetFobRefillInterval + periodicRefillTicks in FobGuiSnapshot.
-    private static final String PROTOCOL_VERSION = "87";
+    // 88: helipad packets + helipad markers in PacketOwnedVehicles.
+    private static final String PROTOCOL_VERSION = "88";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -673,6 +674,27 @@ public class NetworkHandler {
                 PacketSetFobRefillInterval::encode,
                 PacketSetFobRefillInterval::new,
                 PacketSetFobRefillInterval::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenHelipadGui.class,
+                PacketOpenHelipadGui::encode,
+                PacketOpenHelipadGui::new,
+                PacketOpenHelipadGui::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketHelipadAction.class,
+                PacketHelipadAction::encode,
+                PacketHelipadAction::new,
+                PacketHelipadAction::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketHelipadMarkers.class,
+                PacketHelipadMarkers::encode,
+                PacketHelipadMarkers::new,
+                PacketHelipadMarkers::handle
         );
     }
 }

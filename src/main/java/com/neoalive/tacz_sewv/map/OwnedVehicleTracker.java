@@ -36,6 +36,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
+import com.neoalive.tacz_sewv.airport.HelipadRegistry;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.MapMarkers;
@@ -65,6 +66,7 @@ import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
 import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
 import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketHelipadMarkers;
 import com.neoalive.tacz_sewv.network.PacketOwnedVehicles;
 
 /**
@@ -164,7 +166,15 @@ public final class OwnedVehicleTracker {
         double spotRadius = SewvConfig.MAP_SPOT_RADIUS.get();
         double spotRadiusSq = spotRadius * spotRadius;
         List<CommandCoordinator.BattleFieldDebug> allFields = CommandCoordinator.battleFieldsDebug();
+        List<HelipadMarker> helipads = new ArrayList<>();
+        for (ServerLevel level : event.getServer().getAllLevels()) {
+            for (BlockPos pad : HelipadRegistry.get(level).pads()) {
+                helipads.add(new HelipadMarker(pad, level.dimension()));
+            }
+        }
         for (ServerPlayer player : players) {
+            NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
+                    new PacketHelipadMarkers(helipads));
             List<VehicleMarker> markers = markersFor(player, candidates, spotRadiusSq);
             SweepOverlayState sweep = sweepOverlayFor(player);
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),

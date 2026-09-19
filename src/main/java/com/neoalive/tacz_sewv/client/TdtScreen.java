@@ -332,6 +332,8 @@ public class TdtScreen extends Screen {
                 () -> HelicopterKeybind.orderTakeoff(heliAltitude), StepperKind.ALTITUDE);
         add(Category.AIR, "gui.tacz_sewv.tdt.land", "gui.tacz_sewv.tdt.land.tip", true,
                 () -> HelicopterKeybind.orderLand(liveLandPad()));
+        add(Category.AIR, "gui.tacz_sewv.tdt.land_helipad", "gui.tacz_sewv.tdt.land_helipad.tip", true,
+                HelicopterKeybind::orderLandHelipad);
         add(Category.AIR, "gui.tacz_sewv.tdt.emergency_land", "gui.tacz_sewv.tdt.emergency_land.tip",
                 true, HelicopterKeybind::orderEmergencyLand);
         add(Category.AIR, "gui.tacz_sewv.tdt.rappel", "gui.tacz_sewv.tdt.rappel.tip", true, HelicopterKeybind::orderRappel);

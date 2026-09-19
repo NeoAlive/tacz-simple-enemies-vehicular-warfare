@@ -40,6 +40,11 @@ public interface IHelicopterPilot {
      * arrived at differently" would give every landing branch a second case that behaves identically.
      */
     int HELI_CMD_EMERGENCY_LAND = 4;
+    /**
+     * Wire-only, like {@link #HELI_CMD_EMERGENCY_LAND}: "land on the nearest free helipad". The
+     * server picks the pad and writes it down as an ordinary {@link #HELI_CMD_LANDING}.
+     */
+    int HELI_CMD_LAND_HELIPAD = 5;
 
     // Terrain-relative cruise offset a pilot holds, set live by the takeoff order and read by
     // DriveHelicopterGoal (which clamps it to its own 30-50 flight band). This replaced the old

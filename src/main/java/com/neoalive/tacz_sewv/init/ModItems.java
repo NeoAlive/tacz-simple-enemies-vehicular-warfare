@@ -11,6 +11,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
 import com.neoalive.tacz_sewv.item.FobBlockItem;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.item.HelipadBlockItem;
 import com.neoalive.tacz_sewv.item.LockItem;
 import com.neoalive.tacz_sewv.item.MedalOfHonorItem;
 import com.neoalive.tacz_sewv.item.PoolClipboardItem;
@@ -91,7 +92,7 @@ public class ModItems {
             () -> new FobBlockItem(ModBlocks.STOCKPILE_AMMO.get(), new Item.Properties()));
 
     public static final RegistryObject<Item> HELIPAD = ITEMS.register("helipad",
-            () -> new BlockItem(ModBlocks.HELIPAD.get(), new Item.Properties()));
+            () -> new HelipadBlockItem(ModBlocks.HELIPAD.get(), new Item.Properties()));
 
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer, brown combat engineer).

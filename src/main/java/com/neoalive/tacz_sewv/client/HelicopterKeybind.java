@@ -42,9 +42,16 @@ public class HelicopterKeybind {
      * for anything with no strip in range.
      */
     public static void orderLand(@Nullable BlockPos pad) {
-        withPilots("message.tacz_sewv.heli.land.none", HelicopterKeybind::isAircraftPilot,
+        withPilots("message.tacz_sewv.heli.land.none", HelicopterKeybind::isPlanePilot,
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
                         new PacketHelicopterCommand(unitIds, IHelicopterPilot.HELI_CMD_LANDING, pad, 0)));
+    }
+
+    /** Order owned helicopter pilots to the nearest free, cleared helipad. Runways are for planes. */
+    public static void orderLandHelipad() {
+        withPilots("message.tacz_sewv.heli.land_helipad.none", HelicopterKeybind::isHelicopterPilot,
+                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
+                        unitIds, IHelicopterPilot.HELI_CMD_LAND_HELIPAD, null, 0)));
     }
 
     /**
@@ -125,6 +132,13 @@ public class HelicopterKeybind {
         return pilot.getVehicle() instanceof VehicleEntity v
                 && v.getFirstPassenger() == pilot
                 && (HullFacts.isHelicopterHull(v) || HullFacts.isPlaneHull(v));
+    }
+
+    // Runway landing is fixed-wing only; helicopters use helipads.
+    private static boolean isPlanePilot(PmcUnitEntity pilot) {
+        return pilot.getVehicle() instanceof VehicleEntity v
+                && v.getFirstPassenger() == pilot
+                && HullFacts.isPlaneHull(v);
     }
 
     // Rappel is rotary-wing only: a fixed-wing hull has no hover to drop a stick of infantry from.

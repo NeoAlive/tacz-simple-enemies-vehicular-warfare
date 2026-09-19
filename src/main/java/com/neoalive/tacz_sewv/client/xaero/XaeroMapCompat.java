@@ -53,6 +53,7 @@ public final class XaeroMapCompat {
         WorldMap.mapElementRenderHandler.add(TrenchMarkerElements.INSTANCE);
         WorldMap.mapElementRenderHandler.add(InvasionZoneMarkerElements.INSTANCE);
         WorldMap.mapElementRenderHandler.add(FobMarkerElements.INSTANCE);
+        WorldMap.mapElementRenderHandler.add(HelipadMarkerElements.INSTANCE);
         hungOn = WorldMap.mapElementRenderHandler;
     }
 

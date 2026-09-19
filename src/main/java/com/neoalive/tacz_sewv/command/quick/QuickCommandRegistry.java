@@ -25,6 +25,7 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_TAKEOFF = "quick_takeoff";
     public static final String ID_QUICK_LANDING = "quick_landing";
     public static final String ID_QUICK_EMERGENCY_LAND = "quick_emergency_land";
+    public static final String ID_QUICK_LAND_HELIPAD = "quick_land_helipad";
     public static final String ID_RAPPEL_SELF = "rappel_self";
     public static final String ID_RAPPEL_CREW = "rappel_crew";
     public static final String ID_QUICK_BOARD = "quick_board";
@@ -95,6 +96,7 @@ public final class QuickCommandRegistry {
                 new WedgeEntry.CategoryEntry("Air", "\u2708", 0x4AB8E8, List.of(
                         leaf("Quick Takeoff", "\u2191", ID_QUICK_TAKEOFF, 0x4AB8E8),
                         leaf("Quick Landing", "\u2193", ID_QUICK_LANDING, 0x4AB8E8),
+                        leaf("Land at Helipad", "▣", ID_QUICK_LAND_HELIPAD, 0x4AB8E8),
                         leaf("Emergency Land", "\u26A0", ID_QUICK_EMERGENCY_LAND, 0x4AB8E8),
                         leaf("Rappel Crew", "\u21CA", ID_RAPPEL_CREW, 0x4AB8E8),
                         leaf("Rappel Self", "\u21F3", ID_RAPPEL_SELF, 0x4AB8E8))),

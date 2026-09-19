@@ -36,6 +36,7 @@ public final class QuickAirClient {
                 || QuickCommandRegistry.ID_RAPPEL_CREW.equals(pipelineId)
                 || QuickCommandRegistry.ID_QUICK_TAKEOFF.equals(pipelineId)
                 || QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)
+                || QuickCommandRegistry.ID_QUICK_LAND_HELIPAD.equals(pipelineId)
                 || QuickCommandRegistry.ID_QUICK_EMERGENCY_LAND.equals(pipelineId);
     }
 
@@ -49,9 +50,15 @@ public final class QuickAirClient {
             return canCrewRappel(mc);
         }
         if (QuickCommandRegistry.ID_QUICK_TAKEOFF.equals(pipelineId)
-                || QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)
                 || QuickCommandRegistry.ID_QUICK_EMERGENCY_LAND.equals(pipelineId)) {
             return !findAircraftPilots(mc).isEmpty();
+        }
+        // Runway landing is fixed-wing only, helipad landing rotary-wing only.
+        if (QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)) {
+            return !findPilots(mc, true).isEmpty();
+        }
+        if (QuickCommandRegistry.ID_QUICK_LAND_HELIPAD.equals(pipelineId)) {
+            return !findPilots(mc, false).isEmpty();
         }
         return true;
     }
@@ -70,16 +77,25 @@ public final class QuickAirClient {
             NetworkHandler.CHANNEL.sendToServer(new PacketPlayerCrewRappel());
             return true;
         }
+        if (QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)) {
+            List<Integer> planes = findPilots(mc, true);
+            if (planes.isEmpty()) return false;
+            NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
+                    planes, IHelicopterPilot.HELI_CMD_LANDING, mc.player.blockPosition(), 0));
+            return true;
+        }
+        if (QuickCommandRegistry.ID_QUICK_LAND_HELIPAD.equals(pipelineId)) {
+            List<Integer> helis = findPilots(mc, false);
+            if (helis.isEmpty()) return false;
+            NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
+                    helis, IHelicopterPilot.HELI_CMD_LAND_HELIPAD, null, 0));
+            return true;
+        }
         List<Integer> pilots = findAircraftPilots(mc);
         if (pilots.isEmpty()) return false;
         if (QuickCommandRegistry.ID_QUICK_TAKEOFF.equals(pipelineId)) {
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
                     pilots, IHelicopterPilot.HELI_CMD_TAKEOFF, null, TdtScreen.heliAltitude()));
-            return true;
-        }
-        if (QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)) {
-            NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
-                    pilots, IHelicopterPilot.HELI_CMD_LANDING, mc.player.blockPosition(), 0));
             return true;
         }
         // Same as TDT: no pad — server picks flat ground next to each aircraft.
@@ -107,8 +123,16 @@ public final class QuickAirClient {
         return hull.getFirstPassenger() == mc.player;
     }
 
-    /** Owned aircraft drivers within the Quick Evac heli search radius. */
     private static List<Integer> findAircraftPilots(Minecraft mc) {
+        return findPilots(mc, null);
+    }
+
+    /**
+     * Owned aircraft drivers within the Quick Evac heli search radius.
+     *
+     * @param planes {@code true} for fixed-wing only, {@code false} for rotary-wing only, null for both
+     */
+    private static List<Integer> findPilots(Minecraft mc, @javax.annotation.Nullable Boolean planes) {
         Player player = mc.player;
         double radius = SewvConfig.QUICK_EVAC_HELI_SEARCH_RADIUS.get();
         double r2 = radius * radius;
@@ -119,7 +143,9 @@ public final class QuickAirClient {
             if (pmc.distanceToSqr(player) > r2) continue;
             if (!(pmc.getVehicle() instanceof VehicleEntity hull)) continue;
             if (hull.getFirstPassenger() != pmc) continue;
-            if (!HullFacts.isHelicopterHull(hull) && !HullFacts.isPlaneHull(hull)) continue;
+            boolean plane = HullFacts.isPlaneHull(hull);
+            if (!plane && !HullFacts.isHelicopterHull(hull)) continue;
+            if (planes != null && planes != plane) continue;
             out.add(pmc.getId());
         }
         return new ArrayList<>(out);

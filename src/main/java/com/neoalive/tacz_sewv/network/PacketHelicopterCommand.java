@@ -9,6 +9,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -16,6 +17,7 @@ import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
+import com.neoalive.tacz_sewv.airport.HelipadTraffic;
 import com.neoalive.tacz_sewv.airport.StaticCarrierAirports;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -81,9 +83,16 @@ public class PacketHelicopterCommand {
             if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
 
             boolean emergency = this.command == IHelicopterPilot.HELI_CMD_EMERGENCY_LAND;
-            boolean landing = emergency || this.command == IHelicopterPilot.HELI_CMD_LANDING;
-            // Emergency land never reaches an entity as itself — see IHelicopterPilot.
-            int stored = emergency ? IHelicopterPilot.HELI_CMD_LANDING : this.command;
+            boolean helipadLand = this.command == IHelicopterPilot.HELI_CMD_LAND_HELIPAD;
+            boolean landing = emergency || helipadLand || this.command == IHelicopterPilot.HELI_CMD_LANDING;
+            // Emergency and helipad land never reach an entity as themselves — see IHelicopterPilot.
+            int stored = emergency || helipadLand ? IHelicopterPilot.HELI_CMD_LANDING : this.command;
+
+            // Pads given out during this order, so a batch of helicopters gets a pad each.
+            java.util.Set<BlockPos> claimed = new java.util.HashSet<>();
+            boolean noneInRange = false;
+            boolean allOccupied = false;
+            boolean helicopterRefused = false;
 
             int ordered = 0;
             for (int unitId : this.unitIds) {
@@ -123,6 +132,34 @@ public class PacketHelicopterCommand {
                 }
                 if (!withinCommandRange(player, v, plane)) {
                     OrderReport.fail(player, OrderFailure.OUT_OF_RANGE, pmc);
+                    continue;
+                }
+
+                // Helipads are for rotary-wing only, runways for fixed-wing only.
+                if (helipadLand && plane) {
+                    OrderReport.fail(player, OrderFailure.WRONG_HULL, pmc);
+                    continue;
+                }
+                if (landing && !emergency && !helipadLand && !plane) {
+                    OrderReport.fail(player, OrderFailure.WRONG_HULL, pmc);
+                    helicopterRefused = true;
+                    continue;
+                }
+                if (helipadLand) {
+                    HelipadTraffic.Pick pick = HelipadTraffic.nearest(sp.serverLevel(), v.blockPosition(),
+                            SewvConfig.AIRPORT_LANDING_SEARCH_RADIUS.get(), claimed);
+                    switch (pick.availability()) {
+                        case NONE_IN_RANGE -> noneInRange = true;
+                        case ALL_OCCUPIED -> allOccupied = true;
+                        case FOUND -> {
+                            claimed.add(pick.pad());
+                            IHelicopterPilot heliPilot = (IHelicopterPilot) pmc;
+                            heliPilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDING);
+                            heliPilot.sewv$setHeliLandPos(pick.pad());
+                            DriveHelicopterGoal.setForcedLand(v, pick.pad());
+                            ordered++;
+                        }
+                    }
                     continue;
                 }
 
@@ -183,6 +220,26 @@ public class PacketHelicopterCommand {
                 ordered++;
             }
 
+            if (helipadLand) {
+                // Nothing is allowed to fail silently: say which of the two reasons it was. Occupied
+                // wins when both happened, since that is the one the player can do something about.
+                if (allOccupied) {
+                    sp.displayClientMessage(Component.translatable("message.tacz_sewv.helipad.all_occupied")
+                            .withStyle(ChatFormatting.RED), true);
+                } else if (noneInRange) {
+                    sp.displayClientMessage(Component.translatable("message.tacz_sewv.helipad.none_found")
+                            .withStyle(ChatFormatting.RED), true);
+                }
+                if (ordered > 0) {
+                    NetworkHandler.orderFeedback(player, "message.tacz_sewv.heli.land_helipad", ordered,
+                            ChatFormatting.GREEN, ordered);
+                }
+                return;
+            }
+            if (helicopterRefused) {
+                sp.displayClientMessage(Component.translatable("message.tacz_sewv.heli.land.helicopter")
+                        .withStyle(ChatFormatting.RED), true);
+            }
             String base = emergency ? "message.tacz_sewv.heli.emergency_land"
                     : landing ? "message.tacz_sewv.heli.land" : "message.tacz_sewv.heli.takeoff";
             NetworkHandler.orderFeedback(player, base, ordered, ChatFormatting.GREEN, ordered);
@@ -198,10 +255,8 @@ public class PacketHelicopterCommand {
      * <p>The ordered point is still consulted as a fallback, so clicking near a distant strip on the
      * map sends the aircraft to <i>that</i> one rather than to the one nearest its current position.
      *
-     * <p>Helicopters go through this too. They cannot use a runway's slots or its glideslope, but a
-     * cleared strip is still the one piece of guaranteed-flat, guaranteed-empty ground the player
-     * has told the game about, so it is the right answer to "land at the nearest airport" for
-     * anything that flies.
+     * <p>Fixed-wing only. Helicopters have their own surveyed site, the helipad
+     * ({@link HelipadTraffic}), reached by {@code HELI_CMD_LAND_HELIPAD}.
      */
     @Nullable
     private AirportRegistry.Airport nearestAirport(ServerLevel level, VehicleEntity v) {

@@ -268,5 +268,6 @@
   "interact_beep_back": { "sounds": ["tacz_sewv:interact_beep_back"] },
   "scale": { "sounds": ["tacz_sewv:scale"] },
   "lock": { "sounds": ["tacz_sewv:lock"] },
-  "attack": { "sounds": ["tacz_sewv:attack"] }
+  "attack": { "sounds": ["tacz_sewv:attack"] },
+  "fob_alarm": { "sounds": ["tacz_sewv:alarm"] }
 }

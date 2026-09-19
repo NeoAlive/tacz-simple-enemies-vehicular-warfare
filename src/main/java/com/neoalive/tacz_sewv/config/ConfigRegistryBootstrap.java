@@ -46,8 +46,6 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.FOB_BUFFER_FACTOR, SewvConfig.FOB_BUFFER_FACTOR::set);
         b.intRange(ConfigScope.SERVER, "fob", "fobThreatThreshold", 1, 10000,
                 SewvConfig.FOB_THREAT_THRESHOLD, SewvConfig.FOB_THREAT_THRESHOLD::set);
-        b.intRange(ConfigScope.SERVER, "fob", "fobAlarmCooldownTicks", 1, 72000,
-                SewvConfig.FOB_ALARM_COOLDOWN_TICKS, SewvConfig.FOB_ALARM_COOLDOWN_TICKS::set);
         b.intRange(ConfigScope.SERVER, "fob", "fobThreatEvalIntervalTicks", 1, 200,
                 SewvConfig.FOB_THREAT_EVAL_INTERVAL_TICKS, SewvConfig.FOB_THREAT_EVAL_INTERVAL_TICKS::set);
     }

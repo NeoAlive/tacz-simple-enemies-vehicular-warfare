@@ -32,19 +32,20 @@ public class StockpileMenu extends AbstractContainerMenu {
         this.access = ContainerLevelAccess.create(this.stockpile.getLevel(), this.stockpile.getBlockPos());
         IItemHandler handler = this.stockpile.getItems();
         int slot = 0;
-        for (int row = 0; row < 9; row++) {
+        // Coordinates are the slot grid of textures/gui/stockpile_inventory.png (172 x 238) —
+        // keep them in step with that art.
+        for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 9; col++) {
-                this.addSlot(new SlotItemHandler(handler, slot++, 8 + col * 18, 18 + row * 18));
+                this.addSlot(new SlotItemHandler(handler, slot++, 5 + col * 18, 8 + row * 18));
             }
         }
-        int playerInvY = 18 + 9 * 18 + 14;
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                this.addSlot(new Slot(playerInv, col + row * 9 + 9, 8 + col * 18, playerInvY + row * 18));
+                this.addSlot(new Slot(playerInv, col + row * 9 + 9, 6 + col * 18, 157 + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            this.addSlot(new Slot(playerInv, col, 8 + col * 18, playerInvY + 58));
+            this.addSlot(new Slot(playerInv, col, 6 + col * 18, 215));
         }
     }
 

@@ -9,6 +9,7 @@ import net.minecraftforge.registries.RegistryObject;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
+import com.neoalive.tacz_sewv.item.FobBlockItem;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.LockItem;
 import com.neoalive.tacz_sewv.item.MedalOfHonorItem;
@@ -81,13 +82,16 @@ public class ModItems {
             () -> new BlockItem(ModBlocks.SPAWN_PROBE.get(), new Item.Properties()));
 
     public static final RegistryObject<Item> QUARTERS_BENCH = ITEMS.register("quarters_bench",
-            () -> new BlockItem(ModBlocks.QUARTERS_BENCH.get(), new Item.Properties()));
+            () -> new FobBlockItem(ModBlocks.QUARTERS_BENCH.get(), new Item.Properties()));
 
     public static final RegistryObject<Item> PARKING_FIELD = ITEMS.register("parking_field",
-            () -> new BlockItem(ModBlocks.PARKING_FIELD.get(), new Item.Properties()));
+            () -> new FobBlockItem(ModBlocks.PARKING_FIELD.get(), new Item.Properties()));
 
     public static final RegistryObject<Item> STOCKPILE_AMMO = ITEMS.register("stockpile_ammo",
-            () -> new BlockItem(ModBlocks.STOCKPILE_AMMO.get(), new Item.Properties()));
+            () -> new FobBlockItem(ModBlocks.STOCKPILE_AMMO.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> HELIPAD = ITEMS.register("helipad",
+            () -> new BlockItem(ModBlocks.HELIPAD.get(), new Item.Properties()));
 
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer, brown combat engineer).

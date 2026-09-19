@@ -18,10 +18,13 @@ public final class FobTickHandler {
             int wasScore = fob.threatScore;
             ThreatEvaluator.evaluate(level, fob, gameTime);
             // Falling edge: threat dropped under hysteresis (or perspective lost) and cleared the
-            // alarm — auto Route-to-FOB, same path as the GUI button. Rising edge still only
-            // rings the bell inside ThreatEvaluator.
+            // alarm — auto Route-to-FOB, same path as the GUI button. The siren loops from
+            // the rising edge until here.
             if (wasScramble && !fob.scrambleActive) {
                 FobNetworking.routeToFob(level, fob);
+            }
+            if (fob.scrambleActive) {
+                ThreatEvaluator.playAlarm(level, fob, gameTime);
             }
             if (fob.scrambleActive != wasScramble || fob.threatScore != wasScore) {
                 mgr.setDirty();

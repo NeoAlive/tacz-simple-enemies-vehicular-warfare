@@ -6,6 +6,7 @@ import java.util.function.BooleanSupplier;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -61,6 +62,10 @@ abstract class FobPoolScreen extends Screen {
     private int footerY;
     private int closeY;
 
+    /** Optional numeric field row under the footer buttons (see {@link #hasIntField()}). */
+    private EditBox intField;
+    private String intFieldText;
+
     protected FobPoolScreen(Component title, FobGuiSnapshot snapshot) {
         super(title);
         this.snapshot = snapshot;
@@ -86,6 +91,22 @@ abstract class FobPoolScreen extends Screen {
         return List.of();
     }
 
+    /** A labelled integer field row below the footer buttons; off by default. */
+    protected boolean hasIntField() {
+        return false;
+    }
+
+    protected Component intFieldLabel() {
+        return Component.empty();
+    }
+
+    protected int intFieldInitialValue() {
+        return 0;
+    }
+
+    /** Called with each valid value as it is typed. */
+    protected void onIntFieldChanged(int value) {}
+
     protected record FobButton(Component label, Runnable action, BooleanSupplier enabled) {
         FobButton(Component label, Runnable action) {
             this(label, action, () -> true);
@@ -105,6 +126,36 @@ abstract class FobPoolScreen extends Screen {
         this.clearWidgets();
         refreshRows();
         computeLayout();
+        this.intField = null;
+        if (hasIntField()) {
+            // The typed text outlives a snapshot refresh, which rebuilds the widgets.
+            if (this.intFieldText == null) this.intFieldText = Integer.toString(intFieldInitialValue());
+            int fieldW = 90;
+            int x = this.panelLeft + PAD + this.innerW - fieldW;
+            this.intField = new EditBox(this.font, x, intFieldY(), fieldW, BTN_H, intFieldLabel());
+            this.intField.setMaxLength(6);
+            this.intField.setFilter(t -> t.chars().allMatch(Character::isDigit));
+            this.intField.setValue(this.intFieldText);
+            this.intField.setResponder(text -> {
+                this.intFieldText = text;
+                if (text.isEmpty()) return;
+                try {
+                    onIntFieldChanged(Integer.parseInt(text));
+                } catch (NumberFormatException ignored) {
+                    // filtered to digits and 6 long, so unreachable; keep the last value
+                }
+            });
+            this.addWidget(this.intField);
+        }
+    }
+
+    private int intFieldY() {
+        return this.footerY + buttonRows() * (BTN_H + ROW_GAP);
+    }
+
+    private int buttonRows() {
+        int count = extraFooterButtons().size();
+        return count == 0 ? 0 : (count + 1) / 2;
     }
 
     private int statusStripH() {
@@ -134,9 +185,7 @@ abstract class FobPoolScreen extends Screen {
     }
 
     private int extraFooterRows() {
-        int count = extraFooterButtons().size();
-        if (count == 0) return 0;
-        return (count + 1) / 2;
+        return buttonRows() + (hasIntField() ? 1 : 0);
     }
 
     private static void click() {
@@ -288,6 +337,12 @@ abstract class FobPoolScreen extends Screen {
                 renderButtonRow(g, left, mouseX, mouseY, y, 2, a, b);
             }
             frow++;
+        }
+
+        if (this.intField != null) {
+            g.drawString(this.font, intFieldLabel().getString(), left,
+                    intFieldY() + (BTN_H - this.font.lineHeight) / 2, COL_MUTED, false);
+            this.intField.render(g, mouseX, mouseY, partialTick);
         }
 
         int closeW = 100;

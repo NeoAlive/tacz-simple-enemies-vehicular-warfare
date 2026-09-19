@@ -106,7 +106,8 @@ public class NetworkHandler {
     // 81: PacketPlayerSelfRappelLock carries hover/rope mode + hull id (stale-safe).
     // 85: WorldVehiclePools.Category.GRENADE in pool editor packets.
     // 86: PacketCarrierOpsAction (Neo Arms carrier flight-ops deploy).
-    private static final String PROTOCOL_VERSION = "86";
+    // 87: PacketSetFobRefillInterval + periodicRefillTicks in FobGuiSnapshot.
+    private static final String PROTOCOL_VERSION = "87";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -665,6 +666,13 @@ public class NetworkHandler {
                 PacketCarrierOpsAction::encode,
                 PacketCarrierOpsAction::new,
                 PacketCarrierOpsAction::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSetFobRefillInterval.class,
+                PacketSetFobRefillInterval::encode,
+                PacketSetFobRefillInterval::new,
+                PacketSetFobRefillInterval::handle
         );
     }
 }

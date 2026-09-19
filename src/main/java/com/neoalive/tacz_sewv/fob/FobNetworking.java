@@ -92,6 +92,7 @@ public final class FobNetworking {
                 fob.fobCommandActive,
                 fob.scrambleActive,
                 fob.threatScore,
+                fob.periodicRefillTicks,
                 fob.stockpilePos,
                 fob.parkingPos,
                 living,

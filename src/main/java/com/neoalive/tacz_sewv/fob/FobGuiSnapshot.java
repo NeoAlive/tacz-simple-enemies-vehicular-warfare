@@ -16,6 +16,7 @@ public record FobGuiSnapshot(
         boolean fobCommandActive,
         boolean scrambleActive,
         int threatScore,
+        int periodicRefillTicks,
         BlockPos stockpilePos,
         BlockPos parkingPos,
         List<LivingRow> living,
@@ -47,6 +48,7 @@ public record FobGuiSnapshot(
         buf.writeBoolean(snap.fobCommandActive);
         buf.writeBoolean(snap.scrambleActive);
         buf.writeVarInt(snap.threatScore);
+        buf.writeVarInt(snap.periodicRefillTicks);
         buf.writeBlockPos(snap.stockpilePos == null ? BlockPos.ZERO : snap.stockpilePos);
         buf.writeBlockPos(snap.parkingPos == null ? BlockPos.ZERO : snap.parkingPos);
         buf.writeVarInt(snap.living.size());
@@ -73,6 +75,7 @@ public record FobGuiSnapshot(
         boolean commandActive = buf.readBoolean();
         boolean scramble = buf.readBoolean();
         int threat = buf.readVarInt();
+        int refillTicks = buf.readVarInt();
         BlockPos stockpile = buf.readBlockPos();
         BlockPos parking = buf.readBlockPos();
         int livingCount = buf.readVarInt();
@@ -85,7 +88,7 @@ public record FobGuiSnapshot(
         for (int i = 0; i < vehicleCount; i++) {
             vehicles.add(new VehicleRow(buf.readUUID(), buf.readUtf(), buf.readBoolean(), buf.readUtf()));
         }
-        return new FobGuiSnapshot(kind, commandPos, anchorPos, valid, invalidReason, commandActive, scramble, threat,
+        return new FobGuiSnapshot(kind, commandPos, anchorPos, valid, invalidReason, commandActive, scramble, threat, refillTicks,
                 stockpile.equals(BlockPos.ZERO) ? null : stockpile,
                 parking.equals(BlockPos.ZERO) ? null : parking,
                 living, vehicles);

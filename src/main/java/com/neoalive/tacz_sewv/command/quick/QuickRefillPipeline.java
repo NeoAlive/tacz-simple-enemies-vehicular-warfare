@@ -25,7 +25,10 @@ public final class QuickRefillPipeline implements QuickCommandPipeline {
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
         if (!(issuer.level() instanceof ServerLevel level)) return;
 
-        List<PmcUnitEntity> units = QuickCommandUnits.onFootOwned(issuer, level, context.unitIds());
+        // FOB-commanded units are accepted: refilling from the stockpile is the FOB's own job, and
+        // the walk is dropped when it ends, so command resumes afterwards.
+        List<PmcUnitEntity> units = QuickCommandUnits.onFootOwned(issuer, level, context.unitIds(),
+                SewvConfig.QUICK_LAND_RADIUS.get(), true);
         if (units.isEmpty()) {
             NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_refill.no_units", 0,
                     ChatFormatting.RED);

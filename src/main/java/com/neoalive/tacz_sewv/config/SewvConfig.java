@@ -335,6 +335,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue FOB_BUFFER_FACTOR;
     public static final ForgeConfigSpec.IntValue FOB_THREAT_THRESHOLD;
     public static final ForgeConfigSpec.IntValue FOB_THREAT_EVAL_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.IntValue FOB_PERIODIC_REFILL_TICKS;
 
     public static final ForgeConfigSpec.BooleanValue MINECOLONIES_COMPAT_ENABLED;
     public static final ForgeConfigSpec.BooleanValue MINECOLONIES_PROTECT_PMC;
@@ -1328,6 +1329,11 @@ public final class SewvConfig {
                 .defineInRange("fobThreatThreshold", 100, 1, 10000);
         FOB_THREAT_EVAL_INTERVAL_TICKS = builder.comment("Ticks between threat scans per FOB.")
                 .defineInRange("fobThreatEvalIntervalTicks", 20, 1, 200);
+        FOB_PERIODIC_REFILL_TICKS = builder.comment(
+                        "Default Periodic Refill interval for a new FOB (ticks, 20 = 1 second; 0 = off).",
+                        "Every interval the FOB sends its assigned on-foot PMCs that are low on ammo to the",
+                        "stockpile, if it holds ammo they can use. Editable per FOB at the quarters bench.")
+                .defineInRange("fobPeriodicRefillTicks", 1200, 0, 999999);
         builder.pop();
 
         builder.push("minecolonies");

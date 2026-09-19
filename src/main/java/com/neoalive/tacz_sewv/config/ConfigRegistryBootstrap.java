@@ -48,6 +48,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.FOB_THREAT_THRESHOLD, SewvConfig.FOB_THREAT_THRESHOLD::set);
         b.intRange(ConfigScope.SERVER, "fob", "fobThreatEvalIntervalTicks", 1, 200,
                 SewvConfig.FOB_THREAT_EVAL_INTERVAL_TICKS, SewvConfig.FOB_THREAT_EVAL_INTERVAL_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "fob", "fobPeriodicRefillTicks", 0, 999999,
+                SewvConfig.FOB_PERIODIC_REFILL_TICKS, SewvConfig.FOB_PERIODIC_REFILL_TICKS::set);
     }
 
     private static boolean isExterminationLoaded() {

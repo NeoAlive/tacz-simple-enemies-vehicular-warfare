@@ -1,6 +1,6 @@
 {
-  "parent": "superbwarfare:item/us_helmet_pasgt",
+  "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "tacz_sewv:item/pmc_helmet_mich"
+    "layer0": "tacz_sewv:item/mich_helmet"
   }
 }

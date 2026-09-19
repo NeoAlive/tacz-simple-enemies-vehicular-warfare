@@ -30,7 +30,10 @@ public final class ThreatEvaluator {
     /** Extra weight for a contact already shooting at the garrison. See {@link #urgency}. */
     private static final double ENGAGED_WEIGHT = 2.0;
 
-    /** Length of {@code alarm.ogg} (0.897 s) rounded up to whole ticks: the loop period. */
+    /**
+     * Loop period: {@code alarm.ogg} is exactly 0.9 s (18 ticks) with its reverb tail wrapped onto
+     * its head, so re-triggering on this period is seamless. Re-render the clip if this changes.
+     */
     public static final int ALARM_TICKS = 18;
 
     private ThreatEvaluator() {}

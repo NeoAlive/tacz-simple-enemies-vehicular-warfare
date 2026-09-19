@@ -17,6 +17,9 @@ final class RadialWheelDraw {
     /** Unicode icon scale relative to the default font size. */
     private static final float ICON_SCALE = 1.85f;
 
+    /** How far the hot wedge's outer edge pushes out, as a fraction of the wheel radius. */
+    private static final double HOT_GROW = 0.05;
+
     private RadialWheelDraw() {}
 
     /**
@@ -39,7 +42,6 @@ final class RadialWheelDraw {
         int denom = Math.max(n, 3);
         double rad = (Math.PI * 2.0) / denom;
         double innerGap = Math.PI * 0.007;
-        double outerGap = innerGap * (double) innerR / (double) outerR;
         double categoryOuter = innerR + Math.max(2.0, (outerR - innerR) * 0.12);
 
         for (int i = 0; i < n; i++) {
@@ -53,6 +55,15 @@ final class RadialWheelDraw {
             int coldLabel = on ? labelArgb : 0xFF888888;
             int hotLabel = on ? labelHotArgb : 0xFFAAAAAA;
 
+            // The hot wedge pushes its outer edge outward, eased off the same lerped strength that
+            // colours it, so it grows and settles back with the fade. The angular gap is rescaled
+            // to keep the same pixel gap, so the sides stay parallel to the neighbours' and nothing
+            // overlaps: growth is purely radial and never enters a neighbour's sector.
+            float hotNow = i < hotStrengths.length ? Mth.clamp(hotStrengths[i], 0.0f, 1.0f) : 0.0f;
+            double grow = outerR * HOT_GROW * (hotNow * hotNow * (3.0f - 2.0f * hotNow));
+            double wedgeOuter = outerR + grow;
+            double outerGap = innerGap * (double) innerR / wedgeOuter;
+
             double lRad = (i - 0.5) * rad - Math.PI / 2.0;
             double rRad = (i + 0.5) * rad - Math.PI / 2.0;
 
@@ -60,10 +71,10 @@ final class RadialWheelDraw {
             double x2m1 = Math.cos(rRad - innerGap) * innerR;
             double y1m1 = Math.sin(lRad + innerGap) * innerR;
             double y2m1 = Math.sin(rRad - innerGap) * innerR;
-            double x1m2 = Math.cos(lRad + outerGap) * outerR;
-            double x2m2 = Math.cos(rRad - outerGap) * outerR;
-            double y1m2 = Math.sin(lRad + outerGap) * outerR;
-            double y2m2 = Math.sin(rRad - outerGap) * outerR;
+            double x1m2 = Math.cos(lRad + outerGap) * wedgeOuter;
+            double x2m2 = Math.cos(rRad - outerGap) * wedgeOuter;
+            double y1m2 = Math.sin(lRad + outerGap) * wedgeOuter;
+            double y2m2 = Math.sin(rRad - outerGap) * wedgeOuter;
 
             float hot = i < hotStrengths.length ? Mth.clamp(hotStrengths[i], 0.0f, 1.0f) : 0.0f;
             int color = scaleAlpha(lerpArgb(fillArgb, hotArgb, hot), ringA);
@@ -90,7 +101,7 @@ final class RadialWheelDraw {
             double x2 = Math.cos(rRad);
             double y1 = Math.sin(lRad);
             double y2 = Math.sin(rRad);
-            double iconR = outerR * 0.55 + innerR * 0.45;
+            double iconR = wedgeOuter * 0.55 + innerR * 0.45;
             double iconX = (x1 + x2) * 0.5 * iconR;
             double iconY = (y1 + y2) * 0.5 * iconR;
             int ix = cx + (int) Math.round(iconX);
@@ -101,7 +112,7 @@ final class RadialWheelDraw {
 
             double bx = (x1 + x2) * 0.5;
             double by = (y1 + y2) * 0.5;
-            double textR = outerR + Math.max(10, outerR * 0.22);
+            double textR = wedgeOuter + Math.max(10, outerR * 0.22);
             double avgLen = Math.hypot(bx, by);
             double txOff = avgLen > 1.0e-6 ? (bx / avgLen) * textR : 0;
             double tyOff = avgLen > 1.0e-6 ? (by / avgLen) * textR : -textR;

@@ -124,11 +124,24 @@ public final class ShipTerrainSensor extends TerrainSensor {
         double selfX = this.vehicle.getX();
         double selfZ = this.vehicle.getZ();
         for (VehicleOrca.Peer peer : this.peers) {
-            double radius = VehicleOrca.radius(half, peer.half());
+            // Contact disc only — same packed-pair lock as GroundTerrainSensor when CLEARANCE
+            // fed imminent (TTC=0 for every heading while soft-overlapping).
+            double contactR = VehicleOrca.contactRadius(half, peer.half());
             double px = peer.x() - selfX;
             double pz = peer.z() - selfZ;
-            if (VehicleOrca.overlappingAndClosing(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius)
-                    || VehicleOrca.imminent(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius, ORCA_IMMINENT_TICKS)) {
+            double distSq = px * px + pz * pz;
+            if (distSq <= contactR * contactR) {
+                if (VehicleOrca.overlappingAndClosing(
+                        px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), contactR)) {
+                    return false;
+                }
+                continue;
+            }
+            if (VehicleOrca.overlappingAndClosing(
+                            px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), contactR)
+                    || VehicleOrca.imminent(
+                            px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), contactR,
+                            ORCA_IMMINENT_TICKS)) {
                 return false;
             }
         }

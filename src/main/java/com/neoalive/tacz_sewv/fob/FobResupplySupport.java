@@ -28,6 +28,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.block.StockpileBlockEntity;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -44,6 +45,7 @@ public final class FobResupplySupport {
     @Nullable
     public static BlockPos resupplyDestination(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
         if (!(unit.level() instanceof ServerLevel level)) return null;
+        if (PmcDownedSupport.isDowned(unit)) return null;
         if (FobSupport.hasRoutePending(unit)) return null;
         // This goal holds MOVE, so without yielding here a unit that decided it wanted ammo simply
         // ignored the player's click for as long as the stockpile had stock.
@@ -64,6 +66,7 @@ public final class FobResupplySupport {
 
     public static boolean shouldResupply(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
         if (!(unit.level() instanceof ServerLevel level)) return false;
+        if (PmcDownedSupport.isDowned(unit)) return false;
         if (FobSupport.hasRoutePending(unit)) return false;
         if (FobSupport.underPlayerMoveOrder(unit)) return false;
         if (unit.getTarget() != null) return false;

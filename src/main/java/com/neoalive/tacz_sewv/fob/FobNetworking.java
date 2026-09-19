@@ -17,6 +17,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketFobData;
@@ -215,6 +216,7 @@ public final class FobNetworking {
     }
 
     private static void orderRouteMove(PmcUnitEntity pmc, Vec3 dest, BlockPos commandPos) {
+        if (PmcDownedSupport.isDowned(pmc)) return;
         // A fresh recall supersedes the scramble stand-down latch (that latch only blocks remount
         // while the alarm is still up; issuing a route clears it so recall is never gated on it).
         FobSupport.clearScrambleStoodDown(pmc);

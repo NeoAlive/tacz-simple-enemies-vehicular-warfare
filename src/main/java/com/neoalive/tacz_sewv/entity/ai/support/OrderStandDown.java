@@ -9,6 +9,7 @@ import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.fob.FobSupport;
 
 /**
  * One place to drop every player-issued order state on a PMC — downed lock, dismiss, bail, dismount.
@@ -46,6 +47,10 @@ public final class OrderStandDown {
         pilot.sewv$setHeliLandPos(null);
 
         ((IPathwayInfantry) pmc).sewv$clearPathway();
+
+        // Route-to-FOB otherwise keeps FollowLeash / arrival logic live after a downed lock.
+        FobSupport.clearRoutePending(pmc);
+        FobSupport.clearScrambleStoodDown(pmc);
 
         if (pmc.getVehicle() != null) {
             pmc.stopRiding();

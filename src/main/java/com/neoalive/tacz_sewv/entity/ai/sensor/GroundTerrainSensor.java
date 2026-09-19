@@ -38,8 +38,8 @@ import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
  *
  * <p>Peer hulls use Optimal Reciprocal Collision Avoidance (not a frozen AABB along the heading):
  * each crew's half-plane construction assumes the other takes half the dodge, which is what
- * stops two tanks swapping sides every tick. Infantry on foot stay an AABB. Terrain stays on the
- * maps.
+ * stops two tanks swapping sides every tick. Hard vetoes use the contact disc only; soft
+ * clearance is graded skirt. Infantry on foot stay an AABB. Terrain stays on the maps.
  *
  * <p>Any water at all is a hard cap for a non-amphibious hull, unconditionally — no grading, no
  * already-wet exception. SBW gives a zero-buoyancy hull no way to recover once it loses ground
@@ -544,41 +544,47 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double ndx = dirLen > 1.0E-8 ? dir.x / dirLen : 0.0;
         double ndz = dirLen > 1.0E-8 ? dir.z / dirLen : 0.0;
         for (VehicleOrca.Peer peer : this.peers) {
-            double radius = VehicleOrca.radius(half, peer.half());
-            // Contact disc without CLEARANCE_SCALE — hard occupancy only at real clip range.
-            // The inflated ORCA disc was hard-blocking every heading when two hulls sat inside
-            // ~6 blocks of each other, which locked packed allies until a player shoved them.
-            double contactR = (half + peer.half()) * VehicleOrca.RADIUS_PAD;
+            // Soft disc → skirt only. Hard vetoes → contact disc. imminent/overlappingAndClosing
+            // short-circuit to TTC=0 whenever dist≤radius, so feeding CLEARANCE_SCALE there locked
+            // every heading for a packed pair (verified: only a player shove freed them).
+            double softR = VehicleOrca.radius(half, peer.half());
+            double contactR = VehicleOrca.contactRadius(half, peer.half());
             double px = peer.x() - selfX;
             double pz = peer.z() - selfZ;
             double distSq = px * px + pz * pz;
             double along = (ndx != 0.0 || ndz != 0.0) ? px * ndx + pz * ndz : 0.0;
             if (distSq <= contactR * contactR) {
-                // Clipping: veto only headings that deepen the overlap. Escape / tangent stay open.
-                if (along > 0.0) {
+                // Already clipping: veto only candidates that deepen it. Do NOT call imminent here
+                // — TTC is 0 for every heading while overlapping, including backs/tangents.
+                if (VehicleOrca.overlappingAndClosing(
+                        px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), contactR)) {
                     p.hard = 1.0F;
                     p.reason = "hull";
                     return;
                 }
-            } else if (along > 0.0 && along < LOOKAHEAD_DISTANCE + contactR) {
-                // Geometric occupancy on this heading within whisker reach (not the 16-block soft
-                // bubble — that also turned nearby allies into a total fan veto).
-                double cross = px * ndz - pz * ndx;
-                if (cross * cross < contactR * contactR) {
+            } else {
+                if (along > 0.0 && along < LOOKAHEAD_DISTANCE + contactR) {
+                    // Geometric occupancy on this heading within whisker reach.
+                    double cross = px * ndz - pz * ndx;
+                    if (cross * cross < contactR * contactR) {
+                        p.hard = 1.0F;
+                        p.reason = "hull";
+                        return;
+                    }
+                }
+                if (VehicleOrca.overlappingAndClosing(
+                                px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), contactR)
+                        || VehicleOrca.imminent(
+                                px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), contactR,
+                                ORCA_IMMINENT_TICKS)) {
                     p.hard = 1.0F;
                     p.reason = "hull";
                     return;
                 }
-            }
-            if (VehicleOrca.overlappingAndClosing(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius)
-                    || VehicleOrca.imminent(px, pz, candX, candZ, ax, az, peer.vx(), peer.vz(), radius, ORCA_IMMINENT_TICKS)) {
-                p.hard = 1.0F;
-                p.reason = "hull";
-                return;
             }
             double sideBias = ORCA_TIE_EPS * Integer.signum(selfId - peer.id());
             VehicleOrca.HalfPlane hp = VehicleOrca.halfPlane(
-                    px, pz, ax, az, peer.vx(), peer.vz(), radius, ORCA_TAU, sideBias);
+                    px, pz, ax, az, peer.vx(), peer.vz(), softR, ORCA_TAU, sideBias);
             double margin = VehicleOrca.margin(candX, candZ, ax, az, hp);
             if (margin < 0.0) {
                 float skirt = Math.min(0.99F, (float) (-margin / ORCA_SKIRT_SCALE));

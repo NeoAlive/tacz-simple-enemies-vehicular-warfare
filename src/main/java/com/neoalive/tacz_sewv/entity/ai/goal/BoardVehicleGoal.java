@@ -14,6 +14,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.CommanderSeating;
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.item.LockItem;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
@@ -79,6 +80,8 @@ public class BoardVehicleGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        // Flagless navigator — DownedGoal's MOVE lock does not stop this goal from walking.
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         if (!boarder().tacz_sewv$isBoarding()) return false;
         if (this.unit.getVehicle() != null) return false;
 
@@ -114,6 +117,7 @@ public class BoardVehicleGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
+        if (PmcDownedSupport.isDowned(this.unit)) return false;
         if (!boarder().tacz_sewv$isBoarding()) return false; // order cancelled
         if (this.unit.getVehicle() != null) return false;    // mounted — success
         if (this.targetVehicle == null) return false;

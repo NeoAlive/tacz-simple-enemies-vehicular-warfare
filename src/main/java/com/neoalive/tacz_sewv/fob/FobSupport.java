@@ -21,6 +21,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 
 public final class FobSupport {
 
@@ -188,11 +189,25 @@ public final class FobSupport {
         return fob.cachedParkingAabb;
     }
 
-    /** True when {@code entity} is inside the parking pad (not the center block). */
+    /**
+     * Horizontal slack beyond the configured pad AABB for "FOB / parking reached" tests.
+     * Matches {@code VehicleTargeting}'s generic stop band so a hull blocked by others already
+     * on the pad still counts as arrived instead of grinding at the contested center forever.
+     */
+    private static final double PARKING_ARRIVAL_INFLATE = 8.0;
+
+    /**
+     * True when {@code entity} is on or near the parking pad — not the center block alone.
+     * Inflated on purpose: Route-to-FOB and peacetime park must finish when the pad is crowded.
+     */
     public static boolean withinParkingPad(FobInstance fob, Entity entity, Level level) {
         AABB pad = parkingPad(fob, level);
         if (pad == null) return false;
-        return pad.inflate(0.5).contains(entity.getX(), entity.getY(), entity.getZ());
+        double inflate = PARKING_ARRIVAL_INFLATE;
+        if (entity instanceof VehicleEntity hull) {
+            inflate = Math.max(inflate, hull.getBbWidth());
+        }
+        return pad.inflate(inflate).contains(entity.getX(), entity.getY(), entity.getZ());
     }
 
     /**
@@ -250,6 +265,7 @@ public final class FobSupport {
     @Nullable
     public static BlockPos parkDestination(AbstractUnit unit, @Nullable VehicleEntity vehicle) {
         if (vehicle == null) return null;
+        if (PmcDownedSupport.isDowned(unit)) return null;
         if (hasRoutePending(unit)) return null;
         if (FobResupplySupport.holdingForResupply(unit, vehicle)) return null;
         FobInstance fob = fobForEntity(vehicle, vehicle.level());
@@ -258,6 +274,9 @@ public final class FobSupport {
         if (unit.getTarget() != null) return null;
         BlockPos park = fob.parkingPos;
         if (park == null) return null;
+        // Already near the pad — do not keep steering into a contested center. Peacetime park
+        // stays "hold nearby"; scramble / Route-to-FOB use withinParkingPad to dismount instead.
+        if (withinParkingPad(fob, vehicle, vehicle.level())) return null;
         return park;
     }
 

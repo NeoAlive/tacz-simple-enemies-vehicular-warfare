@@ -297,7 +297,7 @@ abstract class FobPoolScreen extends Screen {
                 Component.translatable("gui.done").getString(), true, false);
 
         g.drawString(this.font, listHint().getString(), left,
-                this.closeY - ROW_H, COL_MUTED, false);
+                this.closeY + (BTN_H - this.font.lineHeight) / 2, COL_MUTED, false);
     }
 
     private void renderStatusStrip(GuiGraphics g, int left) {

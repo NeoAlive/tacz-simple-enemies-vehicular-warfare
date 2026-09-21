@@ -81,7 +81,7 @@ public class StockpileAmmoBlock extends AbstractFobDecorBlock {
     public float getDestroyProgress(BlockState state, Player player, BlockGetter level, BlockPos pos) {
         if (level instanceof ServerLevel server) {
             FobInstance fob = FobManager.get(server).getFobAt(pos, server);
-            if (fob != null && !player.getUUID().equals(fob.owner)) {
+            if (fob != null && !player.getUUID().equals(fob.owner) && !StructureTag.has(level, pos)) {
                 return 0.0f;
             }
         }
@@ -132,7 +132,8 @@ public class StockpileAmmoBlock extends AbstractFobDecorBlock {
         if (!(event.getState().getBlock() instanceof StockpileAmmoBlock)) return;
         if (!(event.getLevel() instanceof ServerLevel level)) return;
         FobInstance fob = FobManager.get(level).getFobAt(event.getPos(), level);
-        if (fob != null && !event.getPlayer().getUUID().equals(fob.owner)) {
+        if (fob != null && !event.getPlayer().getUUID().equals(fob.owner)
+                && !StructureTag.has(level, event.getPos())) {
             event.setCanceled(true);
         }
     }

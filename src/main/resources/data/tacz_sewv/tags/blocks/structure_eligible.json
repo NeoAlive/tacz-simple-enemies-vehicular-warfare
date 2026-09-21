@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "tacz_sewv:helipad",
+    "tacz_sewv:quarters_bench",
+    "tacz_sewv:stockpile_ammo",
+    "tacz_sewv:parking_field",
+    "tacz_sewv:runway_block"
+  ]
+}

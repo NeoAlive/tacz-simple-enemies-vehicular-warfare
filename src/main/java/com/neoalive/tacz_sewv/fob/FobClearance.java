@@ -10,6 +10,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 import com.neoalive.tacz_sewv.airport.AirportClearance;
+import com.neoalive.tacz_sewv.block.StructureTag;
 import com.neoalive.tacz_sewv.init.ModBlocks;
 
 /**
@@ -65,6 +66,10 @@ public final class FobClearance {
                 for (int y = minY; y <= maxY; y++) {
                     BlockPos pos = new BlockPos(x, y, z);
                     BlockState state = level.getBlockState(pos);
+                    if (!state.is(ModBlocks.STOCKPILE_AMMO.get()) && !state.is(ModBlocks.PARKING_FIELD.get())
+                            || StructureTag.has(level, pos)) {
+                        continue; // not ours, or an unowned structure block
+                    }
                     if (state.is(ModBlocks.STOCKPILE_AMMO.get())) {
                         double d = pos.distSqr(cmd);
                         if (d < bestStock) {

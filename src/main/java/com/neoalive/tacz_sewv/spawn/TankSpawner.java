@@ -328,12 +328,23 @@ public final class TankSpawner {
                                                      @Nullable UUID ownerId, @Nullable String vehicleId,
                                                      List<? extends String> pool, boolean water,
                                                      boolean requireSpawnsEnabled) {
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, pool, water,
+                requireSpawnsEnabled, false);
+    }
+
+    /** {@code exact}: place at {@code requestedPos}'s own height (see {@link #findClearSpawnAt}). */
+    @Nullable
+    private static VehicleEntity spawnCrewedVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                     @Nullable UUID ownerId, @Nullable String vehicleId,
+                                                     List<? extends String> pool, boolean water,
+                                                     boolean requireSpawnsEnabled, boolean exact) {
         if (requireSpawnsEnabled && !spawnsEnabled(level, faction)) return null;
         EntityType<?> tankType = selectVehicleType(pool, vehicleId, level.random);
         if (tankType == null) return null; // nothing valid configured/requested — bail safely
 
         BlockPos pos = water
                 ? findClearWaterSpawn(level, requestedPos, tankType)
+                : exact ? findClearSpawnAt(level, requestedPos, tankType)
                 : findClearSpawn(level, requestedPos, tankType);
         if (pos == null) return null; // no room (or no water) within snap radius — bail safely
 
@@ -425,6 +436,19 @@ public final class TankSpawner {
     }
 
     /**
+     * {@link #spawnTankWithCrewFromPool} placed at {@code exactPos}'s own height rather than on the
+     * heightmap surface. For structure spawn probes, which sit inside buildings and on towers where
+     * the surface is the roof.
+     */
+    @Nullable
+    public static VehicleEntity spawnTankWithCrewFromPoolAt(ServerLevel level, BlockPos exactPos,
+                                                            TankFaction faction, @Nullable UUID ownerId,
+                                                            @Nullable String vehicleId,
+                                                            List<? extends String> pool) {
+        return spawnCrewedVehicle(level, exactPos, faction, ownerId, vehicleId, pool, false, false, true);
+    }
+
+    /**
      * Spawns a fuelled/armed hull from {@code pool}, mounts {@code player} in seat 0, and optionally
      * fills remaining seats with PMC owned by that player. Returns the hull, or null on failure.
      */
@@ -500,9 +524,19 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnBareVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction) {
         if (!spawnsEnabled(level, faction)) return null;
-        EntityType<?> type = selectVehicleType(faction.vehiclePool(level), null, level.random);
+        return spawnBareVehicleFromPool(level, requestedPos, faction.vehiclePool(level), false);
+    }
+
+    /**
+     * {@link #spawnBareVehicle} from an explicit pool, with no faction gate. {@code exact} places it
+     * at {@code requestedPos}'s own height ({@link #findClearSpawnAt}) instead of on the surface.
+     */
+    @Nullable
+    public static VehicleEntity spawnBareVehicleFromPool(ServerLevel level, BlockPos requestedPos,
+                                                         List<? extends String> pool, boolean exact) {
+        EntityType<?> type = selectVehicleType(pool, null, level.random);
         if (type == null) return null;
-        BlockPos pos = findClearSpawn(level, requestedPos, type);
+        BlockPos pos = exact ? findClearSpawnAt(level, requestedPos, type) : findClearSpawn(level, requestedPos, type);
         if (pos == null) return null;
 
         Entity entity = type.create(level);
@@ -809,6 +843,29 @@ public final class TankSpawner {
                     int gy = groundY(level, x, z, pos.getY()) + 1; // +1 lift: hull drops onto the surface
                     var box = type.getDimensions().makeBoundingBox(x + 0.5, gy, z + 0.5);
                     if (level.noCollision(box)) return new BlockPos(x, gy, z);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * {@link #findClearSpawn} without the heightmap: the first collision-free spot at or just above
+     * {@code pos}'s own Y, spiralling out to {@link #SNAP_RADIUS}. A structure probe marks exactly
+     * where the entity belongs, and inside a building or on a tower the heightmap answers the roof.
+     */
+    @Nullable
+    public static BlockPos findClearSpawnAt(ServerLevel level, BlockPos pos, EntityType<?> type) {
+        for (int r = 0; r <= SNAP_RADIUS; r++) {
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    int x = pos.getX() + dx, z = pos.getZ() + dz;
+                    if (!level.hasChunk(x >> 4, z >> 4)) continue;
+                    for (int dy = 0; dy <= 3; dy++) {
+                        var box = type.getDimensions().makeBoundingBox(x + 0.5, pos.getY() + dy, z + 0.5);
+                        if (level.noCollision(box)) return new BlockPos(x, pos.getY() + dy, z);
+                    }
                 }
             }
         }

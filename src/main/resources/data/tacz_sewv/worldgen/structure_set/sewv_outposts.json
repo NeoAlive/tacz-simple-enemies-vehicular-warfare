@@ -1,0 +1,31 @@
+{
+  "structures": [
+    {
+      "structure": "tacz_sewv:forest_watchtower",
+      "weight": 4
+    },
+    {
+      "structure": "tacz_sewv:desert_watchtower",
+      "weight": 3
+    },
+    {
+      "structure": "tacz_sewv:forest_helipad",
+      "weight": 3
+    },
+    {
+      "structure": "tacz_sewv:desert_helipad",
+      "weight": 2
+    },
+    {
+      "structure": "tacz_sewv:sniper_structure",
+      "weight": 3
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 40,
+    "separation": 16,
+    "salt": 1470101,
+    "frequency": 0.6
+  }
+}

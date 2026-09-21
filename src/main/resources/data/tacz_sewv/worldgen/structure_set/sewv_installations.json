@@ -1,0 +1,27 @@
+{
+  "structures": [
+    {
+      "structure": "tacz_sewv:forest_ru_comms",
+      "weight": 1
+    },
+    {
+      "structure": "tacz_sewv:forest_us_comms",
+      "weight": 1
+    },
+    {
+      "structure": "tacz_sewv:desert_ru_comms",
+      "weight": 1
+    },
+    {
+      "structure": "tacz_sewv:desert_us_comms",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 96,
+    "separation": 40,
+    "salt": 1470102,
+    "frequency": 0.35
+  }
+}

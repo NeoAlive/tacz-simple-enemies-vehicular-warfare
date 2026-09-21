@@ -165,6 +165,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.PLANE_SPAWN_CHANCE_RU, SewvConfig.PLANE_SPAWN_CHANCE_RU::set);
         b.doubleRange(ConfigScope.SERVER, "events", "planeSpawnChanceUs", 0.0, 1.0,
                 SewvConfig.PLANE_SPAWN_CHANCE_US, SewvConfig.PLANE_SPAWN_CHANCE_US::set);
+        b.bool(ConfigScope.SERVER, "events", "nativeStructuresEnabled",
+                SewvConfig.NATIVE_STRUCTURES_ENABLED, SewvConfig.NATIVE_STRUCTURES_ENABLED::set);
         b.bool(ConfigScope.SERVER, "events", "convoyEventsEnabled",
                 SewvConfig.CONVOY_EVENTS_ENABLED, SewvConfig.CONVOY_EVENTS_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "events", "convoyBaseChance", 0.0, 1.0,

@@ -1,0 +1,19 @@
+{
+  "structures": [
+    {
+      "structure": "tacz_sewv:forest_pmc_airdrop",
+      "weight": 1
+    },
+    {
+      "structure": "tacz_sewv:desert_pmc_airdrop",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 96,
+    "separation": 40,
+    "salt": 1470103,
+    "frequency": 0.3
+  }
+}

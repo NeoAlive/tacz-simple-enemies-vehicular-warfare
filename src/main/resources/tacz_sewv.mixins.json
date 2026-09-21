@@ -11,6 +11,8 @@
     "MixinUnitVoicelines",
     "MixinVehicleVoicelines",
     "AccessorPacketIssueOrder",
+    "AccessorSinglePoolElement",
+    "AccessorTemplateStructurePiece",
     "MixinPacketIssueOrder",
     "MixinPmcUnitEntity",
     "MixinFactionUnitEntity",

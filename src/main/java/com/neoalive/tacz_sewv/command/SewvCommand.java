@@ -28,13 +28,16 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
+import com.neoalive.tacz_sewv.block.StructureTag;
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IEscort;
@@ -131,6 +134,8 @@ public class SewvCommand {
                                 .executes(ctx -> debugPerf(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
                                 .executes(ctx -> debugStartConfigFix(ctx.getSource())))
+                        .then(Commands.literal("applyStructureTag")
+                                .executes(ctx -> debugApplyStructureTag(ctx.getSource())))
                         .then(Commands.literal("digFoxhole")
                                 .executes(ctx -> debugDigFoxhole(ctx.getSource())))
                         .then(Commands.literal("seatSandbag")
@@ -492,6 +497,32 @@ public class SewvCommand {
      * Force a nearby Combat Engineer to place {@code grass_trench_1}, bypassing autonomous
      * age / ground-eligibility / hasDug gates. Still marks {@code sewv:hasDugFoxhole} on success.
      */
+    /** Flag the eligible block under the crosshair as a native-structure block (see StructureTag). */
+    private static int debugApplyStructureTag(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.structureTag.no_target"));
+            return 0;
+        }
+        if (!(player.pick(player.getBlockReach(), 1.0f, false) instanceof BlockHitResult hit)
+                || hit.getType() != HitResult.Type.BLOCK) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.structureTag.no_target"));
+            return 0;
+        }
+        ServerLevel level = source.getLevel();
+        BlockPos pos = hit.getBlockPos();
+        Component name = level.getBlockState(pos).getBlock().getName();
+        if (StructureTag.has(level, pos)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.structureTag.already", name));
+            return 0;
+        }
+        if (!StructureTag.apply(level, pos)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.structureTag.not_eligible", name));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.structureTag.ok", name), true);
+        return 1;
+    }
+
     private static int debugDigFoxhole(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
         BlockPos near = source.getEntity() != null

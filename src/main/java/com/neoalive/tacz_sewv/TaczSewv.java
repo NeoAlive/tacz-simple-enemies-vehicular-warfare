@@ -151,6 +151,8 @@ public class TaczSewv {
         // See com.neoalive.tacz_sewv.crew.NamePools.
         event.addListener(new com.neoalive.tacz_sewv.crew.NamePools.Loader());
         event.addListener(new com.neoalive.tacz_sewv.crew.LogoPoolIndex.Loader());
+        // Which structure templates carry spawn probes; see com.neoalive.tacz_sewv.worldgen.ProbeCatalog.
+        event.addListener(new com.neoalive.tacz_sewv.worldgen.ProbeCatalog());
     }
 
     /**

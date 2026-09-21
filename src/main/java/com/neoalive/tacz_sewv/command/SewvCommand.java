@@ -134,6 +134,8 @@ public class SewvCommand {
                                 .executes(ctx -> debugPerf(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
                                 .executes(ctx -> debugStartConfigFix(ctx.getSource())))
+                        .then(Commands.literal("structureCatalog")
+                                .executes(ctx -> debugStructureCatalog(ctx.getSource())))
                         .then(Commands.literal("applyStructureTag")
                                 .executes(ctx -> debugApplyStructureTag(ctx.getSource())))
                         .then(Commands.literal("digFoxhole")
@@ -497,6 +499,17 @@ public class SewvCommand {
      * Force a nearby Combat Engineer to place {@code grass_trench_1}, bypassing autonomous
      * age / ground-eligibility / hasDug gates. Still marks {@code sewv:hasDugFoxhole} on success.
      */
+    /** One line per structure template that carries spawn probes (see worldgen.ProbeCatalog). */
+    private static int debugStructureCatalog(CommandSourceStack source) {
+        var all = com.neoalive.tacz_sewv.worldgen.ProbeCatalog.all();
+        source.sendSuccess(() -> Component.literal("Spawn-probe structure templates: " + all.size()), false);
+        all.values().stream().sorted(java.util.Comparator.comparing(t -> t.id().toString())).forEach(t ->
+                source.sendSuccess(() -> Component.literal(t.id() + ": " + t.probes() + " probes ("
+                        + t.vehicleProbes() + " vehicle), " + t.chests() + " loot chests, factions " + t.factions()
+                        + (t.explicitOwner() == null ? "" : ", owner " + t.explicitOwner())), false));
+        return all.size();
+    }
+
     /** Flag the eligible block under the crosshair as a native-structure block (see StructureTag). */
     private static int debugApplyStructureTag(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {

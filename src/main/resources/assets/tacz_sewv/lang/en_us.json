@@ -1263,6 +1263,8 @@
   "config.tacz_sewv.shellingDurationMaxTicks.tooltip": "Longest shelling lasts, in game ticks (20 ticks = 1 second).",
   "config.tacz_sewv.shellingDurationMinTicks": "Shelling Duration Min Ticks",
   "config.tacz_sewv.shellingDurationMinTicks.tooltip": "Shortest shelling lasts, in game ticks (20 ticks = 1 second).",
+  "config.tacz_sewv.nativeStructuresEnabled": "Structure Spawn Probes",
+  "config.tacz_sewv.nativeStructuresEnabled.tooltip": "Turn spawn probes in freshly generated structures into spawns. Off leaves them in place, inert.",
   "config.tacz_sewv.shellingEventsEnabled": "Shelling Events Enabled",
   "config.tacz_sewv.shellingEventsEnabled.tooltip": "Allow mortar batteries to shell a player's base.",
   "config.tacz_sewv.shellingFailureMultiplier": "Shelling Failure Multiplier",

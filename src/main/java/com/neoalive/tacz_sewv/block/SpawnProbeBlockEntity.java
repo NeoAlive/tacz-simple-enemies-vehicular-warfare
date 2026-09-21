@@ -17,7 +17,7 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
  * Structure-prep spawn marker. Exclusive Vehicle XOR Infantry payload, plus a Faction Type
- * tag for downstream spawn scope. Editor + NBT only — no consumer yet.
+ * tag for downstream spawn scope. Consumed into real spawns by {@code worldgen.ProbeConsumer}.
  */
 public class SpawnProbeBlockEntity extends BlockEntity {
 
@@ -26,9 +26,26 @@ public class SpawnProbeBlockEntity extends BlockEntity {
     private final List<String> vehicleList = new ArrayList<>();
     private boolean preCrewedSpawn;
     private final List<SpawnProbeInfantryEntry> infantryList = new ArrayList<>();
+    /**
+     * Set when world generation placed this probe (see {@code worldgen.ProbeConsumer}). Only a live
+     * probe is ever consumed into spawns; probes an op placed by hand while building a structure
+     * never carry it, so authoring is not eaten. Persisted, so a probe still pending at shutdown is
+     * consumed on the next load.
+     */
+    private boolean live;
 
     public SpawnProbeBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.SPAWN_PROBE.get(), pos, state);
+    }
+
+    public boolean isLive() {
+        return live;
+    }
+
+    public void markLive() {
+        if (live) return;
+        live = true;
+        setChanged();
     }
 
     public SpawnProbeCategory getCategory() {
@@ -167,6 +184,7 @@ public class SpawnProbeBlockEntity extends BlockEntity {
             }
         }
         preCrewedSpawn = tag.getBoolean("PreCrewedSpawn");
+        live = tag.getBoolean("Live");
         infantryList.clear();
         if (tag.contains("InfantryList", Tag.TAG_LIST)) {
             ListTag list = tag.getList("InfantryList", Tag.TAG_COMPOUND);

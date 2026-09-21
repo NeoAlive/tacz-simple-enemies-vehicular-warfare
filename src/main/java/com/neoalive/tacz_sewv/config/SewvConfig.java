@@ -75,6 +75,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue UNIT_CORPSE_PMC;
 
     public static final ForgeConfigSpec.BooleanValue NPC_ARMOR_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue NATIVE_STRUCTURES_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_ARMOR;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_ARMOR;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_ARMOR;
@@ -499,6 +500,14 @@ public final class SewvConfig {
                 .defineList("usArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
         PMC_ARMOR = builder.comment("Armor pieces for PMC units (item ids).")
                 .defineList("pmcArmor", List.of("tacz_sewv:pmc_helmet_mich", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
+        builder.pop();
+
+        builder.push("structures");
+        NATIVE_STRUCTURES_ENABLED = builder.comment(
+                        "Turn spawn probes in freshly generated structures (this mod's and any other's) into",
+                        "spawns and delete them. Off leaves the probes in place, inert. The structures still",
+                        "generate: remove them with a datapack.")
+                .define("nativeStructuresEnabled", true);
         builder.pop();
 
         builder.push("identity");

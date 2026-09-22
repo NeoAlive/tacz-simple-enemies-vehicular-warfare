@@ -685,7 +685,7 @@ public final class TankSpawner {
             }
             return;
         }
-        int size = VehicleAmmoStorage.slots(tank);
+        int size = VehicleAmmoStorage.containerSlots(tank);
         for (int slot = 0; slot < size; slot++) {
             Item item = ammo.get(slot % ammo.size());
             VehicleAmmoStorage.setStack(tank, slot, new ItemStack(item, item.getMaxStackSize()));

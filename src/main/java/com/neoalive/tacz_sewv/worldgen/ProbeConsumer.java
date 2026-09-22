@@ -45,7 +45,17 @@ public final class ProbeConsumer {
     private record Job(ResourceKey<Level> dimension, long chunk, boolean isNew) {}
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final int CHUNKS_PER_TICK = 2;
+    /**
+     * A fixed "N chunks per tick" cap made the queue FIFO-ordered against ordinary chunk loading:
+     * on join (or any fast approach) the render-distance flood of plain terrain chunks queues ahead
+     * of a structure's own chunks, and at a handful per tick that backlog took tens of seconds to
+     * drain — read by players as "the probe doesn't fire until I'm standing on it", when it was
+     * really "the probe fired ages ago, in queue order, and I only just arrived at where it was".
+     * A chunk with no probe and no faction loot chest costs one cheap block-entity scan, so the
+     * queue can drain far faster; a time budget bounds the rare chunk that IS a structure (which
+     * pays for {@link StructureLocator#ownershipAt}) without needing a second, arbitrary count.
+     */
+    private static final long BUDGET_NANOS = 2_000_000L; // 2ms of a 50ms tick
     private static final Queue<Job> QUEUE = new ConcurrentLinkedQueue<>();
 
     private ProbeConsumer() {}
@@ -60,14 +70,15 @@ public final class ProbeConsumer {
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || QUEUE.isEmpty()) return;
         MinecraftServer server = event.getServer();
-        for (int i = 0; i < CHUNKS_PER_TICK; i++) {
-            Job job = QUEUE.poll();
-            if (job == null) return;
+        long deadline = System.nanoTime() + BUDGET_NANOS;
+        Job job;
+        while ((job = QUEUE.poll()) != null) {
             try {
                 process(server, job);
             } catch (Throwable t) {
                 LOGGER.warn("[tacz_sewv] structure probe pass failed for chunk {}", new ChunkPos(job.chunk()), t);
             }
+            if (System.nanoTime() >= deadline) break;
         }
     }
 

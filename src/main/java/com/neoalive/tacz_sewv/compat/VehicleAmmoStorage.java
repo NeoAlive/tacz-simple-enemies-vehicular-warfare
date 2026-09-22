@@ -37,13 +37,26 @@ public final class VehicleAmmoStorage {
     }
 
     public static boolean hasStorage(VehicleEntity hull) {
-        IItemHandler handler = handler(hull);
-        return handler != null && handler.getSlots() > 0;
+        return containerSlots(hull) > 0;
     }
 
-    public static int slots(VehicleEntity hull) {
+    /**
+     * The vehicle's REAL, savable slot count — never the raw {@code getSlots()} of the underlying
+     * handler. SBW builds every hull's container at a fixed max (102 slots, {@code 6 * 17}) and
+     * only shrinks it to the hull's actual {@code getContainerSize()} the first time the entity is
+     * written to NBT ({@code VehicleEntity.resizeItems()}, called from both
+     * {@code add}/{@code readAdditionalSaveData} — i.e. on the next world autosave or chunk
+     * unload, not at spawn). Anything sitting past the real size at that point is dropped on the
+     * ground by SBW itself. A freshly spawned/crewed hull's handler still reports the full 102
+     * until then, so filling "every slot the handler has" silently overstocked hulls whose real
+     * container is far smaller (a helicopter's few ammo slots, say) and dumped the rest the moment
+     * the world next saved — independent of anything this mod tracks, FOB included.
+     */
+    public static int containerSlots(VehicleEntity hull) {
+        if (hull == null) return 0;
         IItemHandler handler = handler(hull);
-        return handler == null ? 0 : handler.getSlots();
+        if (handler == null) return 0;
+        return Math.max(0, Math.min(handler.getSlots(), hull.getContainerSize()));
     }
 
     public static boolean isEmpty(VehicleEntity hull) {
@@ -63,12 +76,13 @@ public final class VehicleAmmoStorage {
         mod.setStackInSlot(slot, stack == null ? ItemStack.EMPTY : stack);
     }
 
-    /** Insert with stacking; returns the remainder. */
+    /** Insert with stacking; returns the remainder. Never touches a slot past {@link #containerSlots}. */
     public static ItemStack insert(VehicleEntity hull, ItemStack stack) {
         if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
         IItemHandler handler = handler(hull);
-        if (handler == null) return stack;
-        return ItemHandlerHelper.insertItemStacked(handler, stack, false);
+        int usable = containerSlots(hull);
+        if (handler == null || usable <= 0) return stack;
+        return ItemHandlerHelper.insertItemStacked(new BoundedView(handler, usable), stack, false);
     }
 
     public static void clear(VehicleEntity hull) {
@@ -94,7 +108,9 @@ public final class VehicleAmmoStorage {
     public static void scramble(VehicleEntity hull, RandomSource random) {
         IItemHandler handler = handler(hull);
         if (!(handler instanceof IItemHandlerModifiable mod)) return;
-        int n = mod.getSlots();
+        // Bounded, not mod.getSlots(): shuffling across the raw 102 could carry a stack that is
+        // sitting in a real, savable slot out into one the next save wipes.
+        int n = containerSlots(hull);
         if (n <= 1) return;
         ItemStack[] slots = new ItemStack[n];
         for (int i = 0; i < n; i++) {
@@ -103,6 +119,47 @@ public final class VehicleAmmoStorage {
         RandomUtil.shuffle(java.util.Arrays.asList(slots), random);
         for (int i = 0; i < n; i++) {
             mod.setStackInSlot(i, slots[i] == null ? ItemStack.EMPTY : slots[i]);
+        }
+    }
+
+    /** {@code backing} with its slot count capped — keeps {@link ItemHandlerHelper} off the tail. */
+    private static final class BoundedView implements IItemHandler {
+        private final IItemHandler backing;
+        private final int slots;
+
+        BoundedView(IItemHandler backing, int slots) {
+            this.backing = backing;
+            this.slots = slots;
+        }
+
+        @Override
+        public int getSlots() {
+            return this.slots;
+        }
+
+        @Override
+        public ItemStack getStackInSlot(int slot) {
+            return this.backing.getStackInSlot(slot);
+        }
+
+        @Override
+        public ItemStack insertItem(int slot, ItemStack stack, boolean simulate) {
+            return this.backing.insertItem(slot, stack, simulate);
+        }
+
+        @Override
+        public ItemStack extractItem(int slot, int amount, boolean simulate) {
+            return this.backing.extractItem(slot, amount, simulate);
+        }
+
+        @Override
+        public int getSlotLimit(int slot) {
+            return this.backing.getSlotLimit(slot);
+        }
+
+        @Override
+        public boolean isItemValid(int slot, ItemStack stack) {
+            return this.backing.isItemValid(slot, stack);
         }
     }
 }

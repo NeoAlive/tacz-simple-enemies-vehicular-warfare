@@ -34,8 +34,14 @@ public final class HelipadTraffic {
     private static final double UNMANNED_REACH = 2.0;
     /** A manned hull only snaps once landed, and only within one block of the 3x3. */
     private static final double MANNED_REACH = 1.0;
-    /** The decal is 0.5 px thick; the hull sits on top of it. */
-    private static final double DECAL_TOP = 1.0 / 32.0;
+    /**
+     * The decal is 0.5 px thick and sits on TOP of the pad block, at {@code pad.getY() + 1} — same
+     * convention {@link com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal#touchdownY} uses
+     * (it starts its open-column walk one block above the pad). Snapping to {@code pad.getY()}
+     * instead put the hull inside the pad block and the ground under it, and physics shoved it
+     * sideways trying to resolve that — the "pad pushes helicopters off" report.
+     */
+    private static final double DECAL_TOP = 1.0 + 1.0 / 32.0;
     /** How far above the pad layer a hull may be and still count as being at the pad. */
     private static final double BAND_ABOVE = 4.0;
 

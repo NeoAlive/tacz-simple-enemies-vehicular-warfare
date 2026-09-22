@@ -311,6 +311,8 @@ public class DriveHelicopterGoal extends Goal {
     private static final double ARRIVE_RADIUS = 4.0;
     private static final double LAND_DESCENT_RADIUS = 2.5;
     private static final double LAND_SETTLE_RADIUS = 6.5;
+    /** Settle radius for a helipad specifically — see the {@code helipad} check in landingTick. */
+    private static final double HELIPAD_SETTLE_RADIUS = 2.25;
     // --- Landing run (see landingTick) ---
     /** Height above the highest ground on the leg that the straight-line run is flown at. */
     private static final double TRANSIT_AGL = 24.0;
@@ -326,6 +328,10 @@ public class DriveHelicopterGoal extends Goal {
     private static final double CAPTURE_BLEND = 0.35;
     private static final double CAPTURE_ALT = 9.0;
     private static final double CAPTURE_MAX_SINK = 0.12;
+    /** Altitude deficit (blocks) over which forward speed tapers back in as the hull climbs to transitY. */
+    private static final double CLIMB_TAPER_RANGE = 8.0;
+    /** Forward speed never drops below this fraction, even far under transitY — no full stop. */
+    private static final double MIN_CLIMB_SPEED_FRACTION = 0.25;
 
     private static final float DECOY_HEALTH_FRACTION = 0.5F;
     private static final float PRESERVE_DECOY_CHANCE = 0.5F;
@@ -575,7 +581,14 @@ public class DriveHelicopterGoal extends Goal {
         double dist = Math.sqrt(dx * dx + dz * dz);
         boolean grounded = this.vehicle.onGround() || this.vehicle.getY() <= surfaceY + 0.35;
 
-        if (grounded && dist <= LAND_SETTLE_RADIUS) {
+        // A helipad is a precise ~2-block-radius target, not the wide strip LAND_SETTLE_RADIUS
+        // (6.5) was tuned for — that radius let a hull graze a tree well short of the actual pad,
+        // read the graze as "landed", and settle there instead of continuing in.
+        boolean helipad = this.unit.level() instanceof ServerLevel sl
+                && com.neoalive.tacz_sewv.airport.HelipadRegistry.get(sl).contains(pad);
+        double settleRadius = helipad ? HELIPAD_SETTLE_RADIUS : LAND_SETTLE_RADIUS;
+
+        if (grounded && dist <= settleRadius) {
             settleLanded(pilot);
             return;
         }
@@ -601,11 +614,16 @@ public class DriveHelicopterGoal extends Goal {
             speedCap = CAPTURE_MAX_SPEED;
         }
 
-        // Climb before translating when the leg is not yet clear — otherwise a low hull would
-        // drive horizontally into terrain that the collective is still climbing over.
-        boolean climbFirst = dist > LAND_DESCEND_RADIUS
-                && this.vehicle.getY() < transitY - ALT_DEADBAND;
-        double speed = climbFirst ? 0.0 : Math.min(speedCap, dist * CAPTURE_GAIN + LAND_MIN_SPEED);
+        // Ease off forward speed while the leg is not yet clear, rather than gating it to a hard
+        // 0 — otherwise a low hull would drive horizontally into terrain the collective is still
+        // climbing over. This used to be a flat 0/1 gate on that altitude test, and transitY steps
+        // every AirframeSupport.CACHE_TTL_TICKS as the terrain lookahead refreshes; the combination
+        // was a visible forward / stop / forward stutter on the approach. Tapering instead of
+        // cutting keeps some progress through every step instead of snapping to a dead stop.
+        double altDeficit = dist > LAND_DESCEND_RADIUS
+                ? Math.max(0.0, transitY - ALT_DEADBAND - this.vehicle.getY()) : 0.0;
+        double climbTaper = 1.0 - Mth.clamp(altDeficit / CLIMB_TAPER_RANGE, 0.0, 1.0 - MIN_CLIMB_SPEED_FRACTION);
+        double speed = Math.min(speedCap, dist * CAPTURE_GAIN + LAND_MIN_SPEED) * climbTaper;
 
         applyCollective(targetY);
 
@@ -622,7 +640,7 @@ public class DriveHelicopterGoal extends Goal {
                 nvy,
                 Mth.lerp(CAPTURE_BLEND, v.z, desZ));
 
-        logLandingPhase(climbFirst ? "LAND_CLIMB" : "LAND_RUN", dist, surfaceY);
+        logLandingPhase(climbTaper < 1.0 ? "LAND_CLIMB" : "LAND_RUN", dist, surfaceY);
     }
 
     @Override

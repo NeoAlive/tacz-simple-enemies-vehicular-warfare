@@ -24,7 +24,6 @@ import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.network.PacketDistributor;
 
@@ -45,13 +44,13 @@ public class HelipadBlock extends BaseEntityBlock {
 
     public static final EnumProperty<Part> PART = EnumProperty.create("part", Part.class);
 
-    /** Model elements in master-cell pixels: {x0, x1, z0, z1}. Height is 0.5 px throughout. */
-    private static final double[][] MODEL_BOXES = {
-            {-11, -6, -16, 32},
-            {-6, 22, 6, 10},
-            {22, 27, -16, 32},
-    };
-    private static final VoxelShape[] SHAPES = buildShapes();
+    /**
+     * Collision/outline is a plain flat 16x16x0.5px plate, the same for all nine cells — NOT the
+     * decal's H shape. The model's three elements leave the north/south cells (and most of the
+     * centre/west/east ones) completely uncovered, and a helicopter resting across that mix of
+     * slivers and gaps slid off. A landing pad is a solid platform; the decal is cosmetic.
+     */
+    private static final VoxelShape PAD_SHAPE = net.minecraft.world.level.block.Block.box(0, 0, 0, 16, 0.5, 16);
 
     /** North is -Z, east is +X. The master is the centre of the 3x3. */
     public enum Part implements StringRepresentable {
@@ -97,26 +96,6 @@ public class HelipadBlock extends BaseEntityBlock {
         builder.add(PART);
     }
 
-    /** Each part's shape is the model clipped to its own cell; a cell the model misses is empty. */
-    private static VoxelShape[] buildShapes() {
-        Part[] parts = Part.values();
-        VoxelShape[] out = new VoxelShape[parts.length];
-        for (Part part : parts) {
-            VoxelShape shape = Shapes.empty();
-            for (double[] b : MODEL_BOXES) {
-                double x0 = Math.max(0, b[0] - part.dx * 16);
-                double x1 = Math.min(16, b[1] - part.dx * 16);
-                double z0 = Math.max(0, b[2] - part.dz * 16);
-                double z1 = Math.min(16, b[3] - part.dz * 16);
-                if (x1 > x0 && z1 > z0) {
-                    shape = Shapes.or(shape, net.minecraft.world.level.block.Block.box(x0, 0, z0, x1, 0.5, z1));
-                }
-            }
-            out[part.ordinal()] = shape;
-        }
-        return out;
-    }
-
     public static BlockPos masterOf(BlockPos pos, BlockState state) {
         Part part = state.getValue(PART);
         return pos.offset(-part.dx, 0, -part.dz);
@@ -125,7 +104,7 @@ public class HelipadBlock extends BaseEntityBlock {
     @Override
     @SuppressWarnings("deprecation")
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext ctx) {
-        return SHAPES[state.getValue(PART).ordinal()];
+        return PAD_SHAPE;
     }
 
     @Override

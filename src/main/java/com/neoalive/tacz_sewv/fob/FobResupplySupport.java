@@ -339,7 +339,12 @@ public final class FobResupplySupport {
             return new ResupplyTarget(eligible, hullContainerHandler(hull));
         }
         if (unit instanceof PmcUnitEntity pmc) {
-            List<AmmoKind> eligible = eligibleForInfantry(pmc, fob, level);
+            // Own rifle ammo only. An on-foot PMC's backpack has no use for a vehicle's shells —
+            // nothing reads ammo out of an infantryman's pockets to load a cannon — and handing
+            // every assigned vehicle's ammo kind to every idle PMC filled backpacks (and then the
+            // stockpile) with items nobody could ever consume, which is what was landing on the
+            // ground once both were full. A mounted crew still gets its hull's ammo, above.
+            List<AmmoKind> eligible = resolveEligibleTaczAmmo(pmc);
             IItemHandler inv = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
             if (inv == null || eligible.isEmpty()) return null;
             return new ResupplyTarget(eligible, new PmcStorageView(inv));
@@ -378,16 +383,6 @@ public final class FobResupplySupport {
         ItemStack prototype = AmmoItemBuilder.create().setId(ammoId).setCount(1).build();
         if (prototype.isEmpty()) return;
         add(out, new AmmoKind(prototype, ammoId));
-    }
-
-    private static List<AmmoKind> eligibleForInfantry(PmcUnitEntity pmc, FobInstance fob, ServerLevel level) {
-        List<AmmoKind> out = new ArrayList<>(resolveEligibleTaczAmmo(pmc));
-        for (UUID id : fob.assignedVehicles) {
-            if (level.getEntity(id) instanceof VehicleEntity hull) {
-                addItems(out, TankSpawner.resolveEligibleAmmo(hull));
-            }
-        }
-        return out;
     }
 
     private static void addItems(List<AmmoKind> out, List<Item> items) {

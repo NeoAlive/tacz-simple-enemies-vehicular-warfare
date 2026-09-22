@@ -50,6 +50,11 @@ public class HelipadRegistry extends SavedData {
         if (this.pads.remove(pad.asLong())) setDirty();
     }
 
+    /** Cheap membership test — prefer this over {@link #pads()} when the caller wants one answer. */
+    public boolean contains(BlockPos pad) {
+        return this.pads.contains(pad.asLong());
+    }
+
     /** A copy, so callers can act on pads (and drop stale ones) while iterating. */
     public Set<BlockPos> pads() {
         Set<BlockPos> out = new HashSet<>(this.pads.size());

@@ -10,13 +10,13 @@ import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenSpawnProbeGui;
 import com.neoalive.tacz_sewv.util.PoolEditorAccess;
 
-/** Op-only open path for spawn_probe config. */
+/** Op + creative-only open path for spawn_probe config — a live probe is authoring, not gameplay. */
 public final class SpawnProbeEditor {
 
     private SpawnProbeEditor() {}
 
     public static boolean mayEdit(ServerPlayer player) {
-        return player.hasPermissions(2);
+        return player.hasPermissions(2) && player.isCreative();
     }
 
     public static void deny(ServerPlayer player) {

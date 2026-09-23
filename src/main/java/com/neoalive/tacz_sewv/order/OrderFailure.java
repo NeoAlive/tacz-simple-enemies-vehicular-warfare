@@ -61,6 +61,7 @@ public enum OrderFailure {
     ORDERS_LOCKED,
     FOB_COMMAND,
     ROUTE_ACTIVE,
+    TERRITORY_POST,
     NOT_OPERATOR,
     NO_RADIO,
 

@@ -109,7 +109,8 @@ public class NetworkHandler {
     // 87: PacketSetFobRefillInterval + periodicRefillTicks in FobGuiSnapshot.
     // 88: helipad packets + helipad markers in PacketOwnedVehicles.
     // 89: PacketVehicleFormation carries an anchor mode (PLAYER/POSITION — FormationAnchorMode).
-    private static final String PROTOCOL_VERSION = "89";
+    // 90: PacketTerritoryCommand (C->S) + PacketTerritoryState (S->C) — RTS panel / Territory Mode.
+    private static final String PROTOCOL_VERSION = "90";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -696,6 +697,20 @@ public class NetworkHandler {
                 PacketHelipadMarkers::encode,
                 PacketHelipadMarkers::new,
                 PacketHelipadMarkers::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketTerritoryCommand.class,
+                PacketTerritoryCommand::encode,
+                PacketTerritoryCommand::new,
+                PacketTerritoryCommand::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketTerritoryState.class,
+                PacketTerritoryState::encode,
+                PacketTerritoryState::new,
+                PacketTerritoryState::handle
         );
     }
 }

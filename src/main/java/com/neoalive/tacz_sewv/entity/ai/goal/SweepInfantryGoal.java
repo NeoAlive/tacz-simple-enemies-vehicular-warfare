@@ -10,6 +10,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
+import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 
 /**
  * On-foot Sweep &amp; Advance: wander walkable points inside the assigned chunk rectangle.
@@ -31,7 +32,9 @@ public class SweepInfantryGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return !unit.isPassenger() && ((ISweepInfantry) unit).sewv$hasInfantrySweep();
+        // A Territory post owns MOVE at the same priority; posting clears the sweep, this is the backstop.
+        return !unit.isPassenger() && ((ISweepInfantry) unit).sewv$hasInfantrySweep()
+                && !((ITerritoryPost) unit).sewv$hasTerritoryPost();
     }
 
     @Override

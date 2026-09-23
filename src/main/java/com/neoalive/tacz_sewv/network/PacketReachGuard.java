@@ -62,6 +62,7 @@ public class PacketReachGuard {
                     continue;
                 }
                 if (OrderGuard.rejectIfDowned(sp, pmc)) continue;
+                if (OrderGuard.rejectIfTerritory(sp, pmc, "reach_guard")) continue;
                 if (!(pmc.getVehicle() instanceof VehicleEntity hull)) {
                     OrderReport.fail(sp, OrderFailure.NOT_MOUNTED, pmc);
                     continue;

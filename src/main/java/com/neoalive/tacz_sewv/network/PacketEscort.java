@@ -67,6 +67,7 @@ public class PacketEscort {
                     continue;
                 }
                 if (OrderGuard.rejectIfDowned(player, pmc)) continue;
+                if (OrderGuard.rejectIfTerritory(player, pmc, "escort")) continue;
                 // Leave a crew committed to a mortar on its tube, exactly as the board order does.
                 if (MortarSupport.hasMortarClaim(pmc)) {
                     OrderReport.fail(player, OrderFailure.BUSY_MORTAR, pmc);

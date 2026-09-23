@@ -448,6 +448,8 @@ public final class QuickCommandWheelScreen extends Screen {
         for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class, box,
                 u -> u.isAlive()
                         && com.neoalive.tacz_sewv.invasion.PmcOwnerSupport.isOwner(player, u)
+                        // Territory Mode units are not in the wheel at all (not greyed, not listed).
+                        && !com.neoalive.tacz_sewv.client.territory.TerritoryClient.inTerritory(u.getId())
                         && (!onFootOnly || u.getVehicle() == null))) {
             nearby.add(pmc.getId());
         }
@@ -462,6 +464,7 @@ public final class QuickCommandWheelScreen extends Screen {
             if (!(e instanceof PmcUnitEntity pmc)) continue;
             if (!com.neoalive.tacz_sewv.invasion.PmcOwnerSupport.isOwner(player, pmc)) continue;
             if (onFootOnly && pmc.getVehicle() != null) continue;
+            if (com.neoalive.tacz_sewv.client.territory.TerritoryClient.inTerritory(id)) continue;
             out.add(id);
         }
         return out;

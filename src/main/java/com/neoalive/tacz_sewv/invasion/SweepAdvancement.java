@@ -102,6 +102,13 @@ public final class SweepAdvancement {
         return ACTIVE.containsKey(commanderId);
     }
 
+    /** True while {@code pmc} is a registered assignee of its owner's running operation (not just carrying a stale area task). */
+    public static boolean isAssignee(PmcUnitEntity pmc) {
+        UUID owner = pmc.getOwnerUUID();
+        Operation op = owner == null ? null : ACTIVE.get(owner);
+        return op != null && op.assigneeIds.contains(pmc.getId());
+    }
+
     @Nullable
     public static ChunkRect rectOf(UUID commanderId) {
         Operation op = ACTIVE.get(commanderId);

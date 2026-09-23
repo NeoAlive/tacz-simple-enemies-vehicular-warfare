@@ -23,6 +23,7 @@ public final class OrderStandDown {
         pmc.setOrder(OrderType.CEASE_FIRE);
 
         PatrolSupport.clearSweepMembership(pmc, reason);
+        TerritorySupport.dropPost(pmc); // stand-down always wins over a Territory post
         EntrenchSupport.clear(pmc);
         GuardSupport.clearReach(pmc);
 
@@ -65,6 +66,7 @@ public final class OrderStandDown {
         pmc.setTarget(null);
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
         PatrolSupport.clearSweepMembership(pmc, "BailOutSupport");
+        TerritorySupport.dropPost(pmc);
         GuardSupport.clearReach(pmc);
         ((IPathwayInfantry) pmc).sewv$clearPathway();
     }

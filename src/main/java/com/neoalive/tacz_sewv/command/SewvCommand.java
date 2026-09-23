@@ -95,6 +95,12 @@ public class SewvCommand {
                 )
                 // Ungated (unlike spawn, above): any player can check on their own units.
                 .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
+                // Territory Mode debugging without the RTS panel (see TerritoryDebug).
+                .then(Commands.literal("territory")
+                        .requires(source -> source.hasPermission(2))
+                        .then(Commands.literal("post").executes(ctx -> territory(ctx.getSource(), 0)))
+                        .then(Commands.literal("clear").executes(ctx -> territory(ctx.getSource(), 1)))
+                        .then(Commands.literal("dump").executes(ctx -> territory(ctx.getSource(), 2))))
                 .then(Commands.literal("configui")
                         .executes(ctx -> openConfigUI(ctx.getSource())))
                 .then(Commands.literal("pool")
@@ -791,6 +797,33 @@ public class SewvCommand {
     // AI itself resolves them (see CrewTargetPriorityGoal/VehicleTargeting): escort, then a
     // mortar claim or fire mission, then a patrol/search area task, then formation, else idle.
     // Bounded by the same radius every other TDT order already scans within.
+    private static int territory(CommandSourceStack source, int action) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal("Territory debug is player-only."));
+            return 0;
+        }
+        if (!com.neoalive.tacz_sewv.compat.OpenPacCompat.isLoaded()) {
+            source.sendFailure(Component.literal("Territory Mode needs OpenPAC."));
+            return 0;
+        }
+        switch (action) {
+            case 0 -> {
+                int n = com.neoalive.tacz_sewv.territory.TerritoryDebug.post(player);
+                source.sendSuccess(() -> Component.literal("Territory: posted " + n + " unit(s) on your chunk."), false);
+            }
+            case 1 -> {
+                int n = com.neoalive.tacz_sewv.territory.TerritoryDebug.clear(player);
+                source.sendSuccess(() -> Component.literal("Territory: released " + n + " unit(s), mode off."), false);
+            }
+            default -> {
+                for (String line : com.neoalive.tacz_sewv.territory.TerritoryDebug.dump(player)) {
+                    source.sendSuccess(() -> Component.literal(line), false);
+                }
+            }
+        }
+        return 1;
+    }
+
     private static int status(CommandSourceStack source) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.translatable("command.tacz_sewv.status.player_only"));

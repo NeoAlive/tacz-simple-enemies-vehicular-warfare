@@ -198,6 +198,7 @@ public class PacketPatrolVehicle {
             return null;
         }
         if (OrderGuard.rejectIfDowned(player, pmc)) return null;
+        if (OrderGuard.rejectIfTerritory(player, pmc, "patrol")) return null;
         if (pmc instanceof com.neoalive.tacz_sewv.bridge.ICaptureOrder capture
                 && capture.sewv$hasCaptureOrder()) {
             capture.sewv$clearCaptureOrder();

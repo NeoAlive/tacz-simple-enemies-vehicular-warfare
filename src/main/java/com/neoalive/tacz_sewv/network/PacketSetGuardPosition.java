@@ -57,6 +57,7 @@ public class PacketSetGuardPosition {
                     OrderReport.fail(sp, OrderFailure.NOT_OWNED);
                     continue;
                 }
+                if (com.neoalive.tacz_sewv.order.OrderGuard.rejectIfTerritory(sp, pmc, "set_guard")) continue;
                 if (!(pmc.getVehicle() instanceof VehicleEntity hull)) {
                     OrderReport.fail(sp, OrderFailure.NOT_MOUNTED, pmc);
                     continue;

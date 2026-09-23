@@ -782,6 +782,7 @@ public class ClientEvents {
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         MapMarkers.clear();
+        com.neoalive.tacz_sewv.client.territory.TerritoryClient.clear();
         MapTrenchMarkers.clear();
         AirportPlots.clear();
         InvasionHudClient.clear();

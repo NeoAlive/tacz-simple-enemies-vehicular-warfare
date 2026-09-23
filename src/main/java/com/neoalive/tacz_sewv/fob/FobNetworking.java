@@ -117,6 +117,8 @@ public final class FobNetworking {
         for (Entity e : home.getAllEntities()) {
             if (!(e instanceof PmcUnitEntity pmc) || !pmc.isAlive()) continue;
             if (!PmcOwnerSupport.isOwner(player, pmc)) continue;
+            // Territory Mode units are excluded from the FOB list.
+            if (((com.neoalive.tacz_sewv.bridge.ITerritoryPost) pmc).sewv$hasTerritoryPost()) continue;
             living.add(new FobGuiSnapshot.LivingRow(
                     pmc.getUUID(),
                     pmc.getName().getString(),

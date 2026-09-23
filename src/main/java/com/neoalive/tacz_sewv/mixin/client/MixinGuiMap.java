@@ -6,7 +6,9 @@ import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -28,6 +30,7 @@ import xaero.map.gui.dropdown.rightclick.RightClickOption;
 
 import com.neoalive.tacz_sewv.client.AirportPlots;
 import com.neoalive.tacz_sewv.client.MapMarkers;
+import com.neoalive.tacz_sewv.client.NotificationHudOverlay;
 import com.neoalive.tacz_sewv.client.PreferredPathwaysClient;
 import com.neoalive.tacz_sewv.client.xaero.CruisePlot;
 import com.neoalive.tacz_sewv.client.xaero.GuardPlot;
@@ -35,6 +38,7 @@ import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
 import com.neoalive.tacz_sewv.client.xaero.PathwayMapRender;
 import com.neoalive.tacz_sewv.client.xaero.PathwayPathMenuOptions;
 import com.neoalive.tacz_sewv.client.xaero.PathwayPlot;
+import com.neoalive.tacz_sewv.client.xaero.RtsPanel;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
 import com.neoalive.tacz_sewv.client.xaero.VehicleMarkerElements;
 import com.neoalive.tacz_sewv.config.ClientConfig;
@@ -193,6 +197,7 @@ public abstract class MixinGuiMap extends Screen {
     // would simply never be found.
     @Inject(method = "init", at = @At("RETURN"), remap = true)
     private void tacz_sewv$addPlotButtons(CallbackInfo ci) {
+        RtsPanel.onOpened();
         int y = this.height - 28;
         this.tacz_sewv$confirmButton = this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.tacz_sewv.map.cruise.confirm"),
@@ -233,7 +238,7 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mapClicked", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$mapClicked(int button, int x, int y, CallbackInfo ci) {
         // Plot clicks are handled in mouseClicked (screen-space node pick + RMB swallow).
-        if (CruisePlot.armed() || PathwayPlot.armed() || GuardPlot.armed()) {
+        if (CruisePlot.armed() || PathwayPlot.armed() || GuardPlot.armed() || RtsPanel.toolArmed()) {
             ci.cancel();
             return;
         }
@@ -257,6 +262,21 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapPress(double mouseX, double mouseY, int button,
                                       CallbackInfoReturnable<Boolean> cir) {
+        // RTS panel (only when Xaero + OpenPAC are both present): a press on the panel is the panel's, and an
+        // armed Frontline Tool takes the map's clicks: left fires at the chunk under the cursor, right cancels.
+        if (RtsPanel.enabled()) {
+            tacz_sewv$syncRtsColumn();
+            if (RtsPanel.mouseClicked(mouseX, mouseY, button, this.width, this.height)) {
+                cir.setReturnValue(true);
+                return;
+            }
+            if (RtsPanel.toolArmed() && !CruisePlot.armed() && !GuardPlot.armed() && !PathwayPlot.armed()
+                    && this.getChildAt(mouseX, mouseY).isEmpty()) {
+                RtsPanel.toolClick(button, this.mouseBlockPosX >> 4, this.mouseBlockPosZ >> 4);
+                cir.setReturnValue(true);
+                return;
+            }
+        }
         if (CruisePlot.armed() || GuardPlot.armed() || PathwayPlot.armed()) {
             if (this.getChildAt(mouseX, mouseY).isPresent()) return;
             tacz_sewv$handlePlotClick(button, mouseX, mouseY, cir);
@@ -298,6 +318,10 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapRelease(double mouseX, double mouseY, int button,
                                         CallbackInfoReturnable<Boolean> cir) {
+        if (RtsPanel.consumeRelease()) {
+            cir.setReturnValue(true);
+            return;
+        }
         // A menu opened between our press and this release (e.g. the right-click order menu): the
         // release belongs to it. Drop any half-started gesture without acting on it.
         if (tacz_sewv$dropdownOpen()) {
@@ -332,6 +356,58 @@ public abstract class MixinGuiMap extends Screen {
             OrderPreview.dispatchMoveLine(a, b);
         }
         cir.setReturnValue(true); // swallow: this left press/release pair was ours end to end
+    }
+
+    /** The wheel over the RTS panel scrolls its roster instead of zooming the map beneath it. */
+    @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true, remap = true)
+    private void tacz_sewv$rtsScroll(double mouseX, double mouseY, double delta, CallbackInfoReturnable<Boolean> cir) {
+        if (!RtsPanel.enabled()) return;
+        tacz_sewv$syncRtsColumn();
+        if (RtsPanel.mouseScrolled(mouseX, mouseY, delta, this.width, this.height)) cir.setReturnValue(true);
+    }
+
+    /**
+     * Measures Xaero's right-edge button column (visible widgets flush with the right edge) so the panel can sit
+     * flush with the screen and step in only where it would actually overlap them.
+     */
+    @Unique
+    private void tacz_sewv$syncRtsColumn() {
+        int top = Integer.MAX_VALUE;
+        int width = 0;
+        for (var child : this.children()) {
+            if (child instanceof AbstractWidget widget && widget.visible
+                    && widget.getX() + widget.getWidth() >= this.width - 1
+                    && widget.getX() >= this.width - 60) {
+                top = Math.min(top, widget.getY());
+                width = Math.max(width, this.width - widget.getX());
+            }
+        }
+        RtsPanel.setRightColumn(top, width);
+    }
+
+    /** Panel toggle / Frontline keys. Never while a text box (Xaero's hop field) has focus. */
+    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true, remap = true)
+    private void tacz_sewv$rtsKey(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (!RtsPanel.enabled() || this.getFocused() instanceof EditBox) return;
+        if (RtsPanel.keyPressed(keyCode, scanCode)) cir.setReturnValue(true);
+    }
+
+    /** Map closed: let the server stop pushing Territory state. */
+    @Inject(method = "removed", at = @At("HEAD"), remap = true)
+    private void tacz_sewv$rtsClosed(CallbackInfo ci) {
+        RtsPanel.onClosed();
+    }
+
+    @Inject(method = "render", at = @At("TAIL"), remap = true)
+    private void tacz_sewv$drawRts(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
+        if (!RtsPanel.enabled()) return;
+        if (CruisePlot.armed() || GuardPlot.armed() || PathwayPlot.armed()) RtsPanel.cancelTool();
+        tacz_sewv$syncRtsColumn();
+        RtsPanel.drawOverlay(guiGraphics, this::tacz_sewv$toScreenXZ, this.width, this.height,
+                this.mouseBlockPosX, this.mouseBlockPosZ);
+        RtsPanel.render(guiGraphics, this.font, this.width, this.height, mouseX, mouseY);
+        // The HUD banner is drawn beneath a fullscreen screen; repeat it here so Territory toasts are visible.
+        NotificationHudOverlay.drawOver(guiGraphics);
     }
 
     @Inject(method = "getRightClickOptions", at = @At("RETURN"))

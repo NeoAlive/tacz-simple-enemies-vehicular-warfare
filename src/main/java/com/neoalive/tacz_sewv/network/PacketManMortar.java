@@ -97,6 +97,7 @@ public class PacketManMortar {
                 continue;
             }
             if (OrderGuard.rejectIfDowned(player, pmc)) continue;
+            if (OrderGuard.rejectIfTerritory(player, pmc, "man_mortar")) continue;
             if (!pmc.isAlive()) {
                 OrderReport.fail(player, OrderFailure.UNIT_DEAD);
                 continue;

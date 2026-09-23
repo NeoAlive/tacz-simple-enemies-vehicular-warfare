@@ -86,6 +86,11 @@ public abstract class MixinPacketIssueOrder {
             ci.cancel();
             return;
         }
+        // A posted unit is commandable only through the RTS panel (stances included).
+        if (com.neoalive.tacz_sewv.order.OrderGuard.rejectIfTerritory(sender, pmc, "sem_order")) {
+            ci.cancel();
+            return;
+        }
         // SEM's packet is one unit per send, so a section arrives as several packets in one tick;
         // okEach counts them and the flush prints the total once.
         if (pmc instanceof IPmcDowned d && d.sewv$isDowned()) {

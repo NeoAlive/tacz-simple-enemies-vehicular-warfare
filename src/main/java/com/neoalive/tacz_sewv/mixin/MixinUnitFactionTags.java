@@ -21,6 +21,23 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 @Mixin(value = UnitFactionTags.class, remap = false)
 public abstract class MixinUnitFactionTags {
 
+    /**
+     * SEM 0.1.6-beta-hotfix routes its "is this target off-limits" answer through this one call:
+     * RU/US {@code setTarget} (early return, before our {@code MixinAbstractUnit} bypass can run),
+     * bullet-impact alerts, combat-sound alerts and suppression. A diplomacy / invasion ENEMY pair
+     * is a war, so it must read as not friendly on every one of those paths. PMC's own
+     * {@code setTarget} calls the one-argument {@code isFriendlyToPmc} instead — see
+     * {@code MixinPmcUnitEntity}.
+     */
+    @Inject(method = "isFriendlyToNpcFaction", at = @At("HEAD"), cancellable = true)
+    private static void tacz_sewv$enemyIsNotFriendly(LivingEntity self, LivingEntity other,
+                                                     CallbackInfoReturnable<Boolean> cir) {
+        if (self instanceof AbstractUnit unit && other != null
+                && VehicleTargeting.isDiplomacyEnemy(unit, other)) {
+            cir.setReturnValue(false);
+        }
+    }
+
     @Inject(method = "isFriendlyFire", at = @At("HEAD"), cancellable = true)
     private static void tacz_sewv$diplomacyEnemy(Entity victim, Entity attacker,
                                                  CallbackInfoReturnable<Boolean> cir) {

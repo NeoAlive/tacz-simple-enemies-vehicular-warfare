@@ -11,11 +11,12 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.goals.NoPlayerHurtByTargetGoal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.util.UnitFactionTags;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
@@ -125,14 +126,6 @@ public abstract class MixinPmcUnitEntity
     // interrupted.
     @Unique
     private boolean tacz_sewv$captureMedicOrdered = false;
-
-    /**
-     * Stash for {@link #tacz_sewv$keepDiplomacyPlayerTarget}: SEM 0.1.6's PmcUnitEntity.setTarget
-     * hard-clears any Player to null before AbstractUnit runs, which would kill OpenPAC ENEMY
-     * locks on opposing players. We only need the original argument on the Player→null branch.
-     */
-    @Unique
-    private LivingEntity tacz_sewv$pendingSetTarget;
 
     @Override
     public void tacz_sewv$setMountTargetId(int id) {
@@ -250,37 +243,31 @@ public abstract class MixinPmcUnitEntity
         ((Entity) (Object) this).getEntityData().define(tacz_sewv$DOWNED, false);
     }
 
-    @Inject(method = "setTarget", at = @At("HEAD"))
-    private void tacz_sewv$stashSetTarget(LivingEntity target, CallbackInfo ci) {
-        this.tacz_sewv$pendingSetTarget = target;
+    /**
+     * SEM 0.1.6-beta-hotfix's {@code PmcUnitEntity.setTarget} is
+     * {@code if (target instanceof Player || (target != null && isFriendlyToPmc(target))) return;
+     * super.setTarget(target);} — an early return, so nothing downstream (MixinAbstractUnit's
+     * diplomacy bypass included) ever sees a Player or another PMC. A diplomacy / invasion ENEMY
+     * must beat both halves of that veto, so each is redirected. Non-enemies keep SEM's answer.
+     * (Before the hotfix this was a stash + {@code @ModifyArg} on the Player→null branch, which no
+     * longer exists.)
+     */
+    @Redirect(
+            method = "setTarget",
+            at = @At(value = "CONSTANT", args = "classValue=net/minecraft/world/entity/player/Player"))
+    private boolean tacz_sewv$playerVetoUnlessEnemy(Object target, Class<?> playerClass) {
+        return target instanceof Player p
+                && !VehicleTargeting.isDiplomacyEnemy((PmcUnitEntity) (Object) this, p);
     }
 
-    /**
-     * SEM clears {@code setTarget(Player)} to null. Ordinal 0 is that branch's
-     * {@code super.setTarget(null)}; when the stashed target is a diplomacy ENEMY player, pass
-     * them through so {@code MixinAbstractUnit} and the rest of the ladder still see them.
-     * Non-diplomacy Players stay nulled.
-     */
-    @ModifyArg(
+    @Redirect(
             method = "setTarget",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/nekoyuni/SimpleEnemyMod/entity/unit/AbstractUnit;setTarget(Lnet/minecraft/world/entity/LivingEntity;)V",
-                    ordinal = 0))
-    private LivingEntity tacz_sewv$keepDiplomacyPlayerTarget(LivingEntity cleared) {
-        LivingEntity pending = this.tacz_sewv$pendingSetTarget;
-        if (!(pending instanceof Player)) return cleared;
-        PmcUnitEntity self = (PmcUnitEntity) (Object) this;
-        // Invasion enemy list (or OpenPAC ENEMY) — the only cases SEM's hard Player null-out must lose.
-        if (VehicleTargeting.isDiplomacyEnemy(self, pending)) {
-            return pending;
-        }
-        return cleared;
-    }
-
-    @Inject(method = "setTarget", at = @At("TAIL"))
-    private void tacz_sewv$clearSetTargetStash(LivingEntity target, CallbackInfo ci) {
-        this.tacz_sewv$pendingSetTarget = null;
+                    target = "Lnet/nekoyuni/SimpleEnemyMod/entity/unit/util/UnitFactionTags;isFriendlyToPmc(Lnet/minecraft/world/entity/LivingEntity;)Z"))
+    private boolean tacz_sewv$friendlyVetoUnlessEnemy(LivingEntity target) {
+        return UnitFactionTags.isFriendlyToPmc(target)
+                && !VehicleTargeting.isDiplomacyEnemy((PmcUnitEntity) (Object) this, target);
     }
 
     /**

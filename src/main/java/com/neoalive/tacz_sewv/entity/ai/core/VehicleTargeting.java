@@ -1051,7 +1051,7 @@ public final class VehicleTargeting {
      * players when OpenPAC resolves), non-hostile PMC units, and — for RU/US when SEM's
      * friendly toggle is on — Player/PMC via {@link #friendlyFlagShields}.
      */
-    private static boolean isSplashProtected(AbstractUnit shooter, LivingEntity ally) {
+    public static boolean isSplashProtected(AbstractUnit shooter, LivingEntity ally) {
         if (ally instanceof Player player) {
             if (player.isSpectator()) return false;
             if (shooter instanceof PmcUnitEntity pmc) {

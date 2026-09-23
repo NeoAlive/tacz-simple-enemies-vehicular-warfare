@@ -25,6 +25,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.ItemHandlerHelper;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
@@ -162,7 +163,8 @@ public final class GrenadeSupport {
     public static boolean hasThrowsRemaining(AbstractUnit unit, String id) {
         int max = maxFor(id);
         if (max <= 0) return false;
-        return usedFor(unit, id) < max;
+        // A PMC's real ceiling is what the player put in its inventory, not a lifetime count.
+        return unit instanceof PmcUnitEntity || usedFor(unit, id) < max;
     }
 
     public static int usedFor(AbstractUnit unit, String id) {
@@ -356,6 +358,17 @@ public final class GrenadeSupport {
         }
         invalidateInventoryCache(unit);
         return ItemStack.EMPTY;
+    }
+
+    /** Give back a grenade {@link #takeForThrow} pulled but never thrown (aborted aim). PMC only. */
+    public static void refund(AbstractUnit unit, String id) {
+        Item item = itemFor(id);
+        if (item == null || !(unit instanceof PmcUnitEntity)) return;
+        ItemStack rest = new ItemStack(item, 1);
+        IItemHandler inv = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        if (inv != null) rest = ItemHandlerHelper.insertItem(inv, rest, false);
+        if (!rest.isEmpty()) unit.spawnAtLocation(rest);
+        invalidateInventoryCache(unit);
     }
 
     /** Spawn and launch. Caller owns aiming and holster restore. */

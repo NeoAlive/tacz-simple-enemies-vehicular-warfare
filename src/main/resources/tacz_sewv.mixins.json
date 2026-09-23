@@ -51,7 +51,8 @@
     "MixinVehicleCarrierDeckStacking",
     "MixinVehicleDeckParkPhysics",
     "MixinSetVehicleSkinMessage",
-    "AccessorM18SmokeGrenade"
+    "AccessorM18SmokeGrenade",
+    "MixinChunkGeneratorStructures"
   ],
     "client": [
     "client.MixinClientGlowManager",

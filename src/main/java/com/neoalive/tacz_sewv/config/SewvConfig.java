@@ -75,6 +75,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue UNIT_CORPSE_PMC;
 
     public static final ForgeConfigSpec.BooleanValue NPC_ARMOR_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue STRUCTURES_GENERATE;
     public static final ForgeConfigSpec.BooleanValue NATIVE_STRUCTURES_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_ARMOR;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_ARMOR;
@@ -503,10 +504,15 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("structures");
+        STRUCTURES_GENERATE = builder.comment(
+                        "Generate this mod's own structures (outposts, comms, helipads, watchtowers, sniper",
+                        "nests, PMC airdrops) in newly generated chunks. Off stops new ones; ones already",
+                        "in the world stay. Other mods' structures are unaffected.")
+                .define("structuresGenerate", true);
         NATIVE_STRUCTURES_ENABLED = builder.comment(
                         "Turn spawn probes in freshly generated structures (this mod's and any other's) into",
-                        "spawns and delete them. Off leaves the probes in place, inert. The structures still",
-                        "generate: remove them with a datapack.")
+                        "spawns and delete them. Off leaves the probes in place, inert. This does not stop",
+                        "structures generating; see structuresGenerate for this mod's own.")
                 .define("nativeStructuresEnabled", true);
         builder.pop();
 

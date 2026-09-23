@@ -1263,6 +1263,8 @@
   "config.tacz_sewv.shellingDurationMaxTicks.tooltip": "Longest shelling lasts, in game ticks (20 ticks = 1 second).",
   "config.tacz_sewv.shellingDurationMinTicks": "Shelling Duration Min Ticks",
   "config.tacz_sewv.shellingDurationMinTicks.tooltip": "Shortest shelling lasts, in game ticks (20 ticks = 1 second).",
+  "config.tacz_sewv.structuresGenerate": "Generate Structures",
+  "config.tacz_sewv.structuresGenerate.tooltip": "Generate this mod's structures in newly generated chunks. Off stops new ones; existing ones stay.",
   "config.tacz_sewv.nativeStructuresEnabled": "Structure Spawn Probes",
   "config.tacz_sewv.nativeStructuresEnabled.tooltip": "Turn spawn probes in freshly generated structures into spawns. Off leaves them in place, inert.",
   "config.tacz_sewv.shellingEventsEnabled": "Shelling Events Enabled",

@@ -27,28 +27,42 @@ public final class ConfigUIMenuHook {
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         if (!(event.getScreen() instanceof PauseScreen pause)) return;
 
-        // Vanilla/Forge already filled the grid (Options, Mods, Save & Quit, …).
-        // Drop in a new row just above the bottom-most button so we never overlap.
-        int bottomY = Integer.MIN_VALUE;
+        // Slot in right under "Back to Game" — the one full-width button at the very top of the
+        // grid — rather than at the bottom, so it reads as a primary action instead of getting
+        // lost below Options/Save & Quit. Matched by label rather than "topmost widget": another
+        // mod's pause-menu hook could run first and add something above it.
+        String backToGame = Component.translatable("menu.returnToGame").getString();
+        int insertY = Integer.MAX_VALUE;
+        int buttonWidth = 204;
+        int x = pause.width / 2 - buttonWidth / 2;
         for (GuiEventListener listener : event.getListenersList()) {
-            if (listener instanceof AbstractWidget w) {
-                bottomY = Math.max(bottomY, w.getY());
+            if (listener instanceof AbstractWidget w && backToGame.equals(w.getMessage().getString())) {
+                insertY = w.getY() + ROW;
+                x = w.getX();
+                buttonWidth = w.getWidth();
+                break;
             }
         }
-        if (bottomY == Integer.MIN_VALUE) return;
+        if (insertY == Integer.MAX_VALUE) {
+            // Fallback: label didn't match (locale/version drift) — just above the bottom-most
+            // button, the old placement, rather than not showing the entry at all.
+            insertY = Integer.MIN_VALUE;
+            for (GuiEventListener listener : event.getListenersList()) {
+                if (listener instanceof AbstractWidget w) insertY = Math.max(insertY, w.getY());
+            }
+            if (insertY == Integer.MIN_VALUE) return;
+        }
 
         for (GuiEventListener listener : event.getListenersList()) {
-            if (listener instanceof AbstractWidget w && w.getY() >= bottomY) {
+            if (listener instanceof AbstractWidget w && w.getY() >= insertY) {
                 w.setY(w.getY() + ROW);
             }
         }
 
-        int buttonWidth = 204;
-        int x = pause.width / 2 - buttonWidth / 2;
         event.addListener(Button.builder(
                         Component.translatable("gui.tacz_sewv.config.title"),
                         b -> openSafe())
-                .bounds(x, bottomY, buttonWidth, 20)
+                .bounds(x, insertY, buttonWidth, 20)
                 .build());
     }
 

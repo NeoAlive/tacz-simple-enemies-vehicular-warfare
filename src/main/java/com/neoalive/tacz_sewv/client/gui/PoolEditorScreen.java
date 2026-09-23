@@ -45,6 +45,13 @@ public class PoolEditorScreen extends Screen {
     @Nullable
     private String autocompleteSuggestion = null;
     private int catalogRetryTicks = 0;
+    /**
+     * Top of the list box, in screen space. Set once in {@link #init()} — where it depends on how
+     * many rows the category buttons wrapped to — and read everywhere else that needs it, rather
+     * than each caller re-deriving its own copy of that layout math and drifting out of sync with
+     * a wrap {@code init()} didn't have.
+     */
+    private int listTop;
 
     public PoolEditorScreen(Map<TankFaction, Map<Category, List<String>>> pools,
                             Map<TankFaction, Map<Category, List<String>>> defaults,
@@ -107,8 +114,15 @@ public class PoolEditorScreen extends Screen {
 
         x = left;
         int catY = top + 24;
+        int catRight = left + panelW();
         for (Category c : Category.values()) {
             final Category cc = c;
+            if (x + 72 > catRight) {
+                // Wrap rather than run off the panel — Category has grown past what fits on one
+                // row at the default width (7 entries * 76 = 532, well over panelW's ~360).
+                x = left;
+                catY += 24;
+            }
             addRenderableWidget(Button.builder(
                     Component.translatable("gui.tacz_sewv.pool.cat." + c.name().toLowerCase(Locale.ROOT)),
                     b -> {
@@ -121,7 +135,8 @@ public class PoolEditorScreen extends Screen {
             x += 76;
         }
 
-        int listTop = catY + 28;
+        this.listTop = catY + 28;
+        int listTop = this.listTop;
         int listBottom = listTop + LIST_ROWS * 12;
 
         this.filterBox = new PoolVehicleIdEditBox(this.font, left, listBottom + 8, panelW() - 90, 20,
@@ -253,7 +268,7 @@ public class PoolEditorScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         int left = (this.width - panelW()) / 2;
-        int listTop = 28 + 24 + 28;
+        int listTop = this.listTop;
         if (mouseX >= left && mouseX < left + panelW() - 24
                 && mouseY >= listTop && mouseY < listTop + LIST_ROWS * 12) {
             int row = (int) ((mouseY - listTop) / 12) + this.scroll;
@@ -282,7 +297,7 @@ public class PoolEditorScreen extends Screen {
         int left = (this.width - panelW()) / 2;
         graphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
 
-        int listTop = 28 + 24 + 28;
+        int listTop = this.listTop;
         List<String> pool = currentPool();
         graphics.fill(left - 2, listTop - 2, left + panelW() - 22, listTop + LIST_ROWS * 12 + 2, 0x88000000);
 

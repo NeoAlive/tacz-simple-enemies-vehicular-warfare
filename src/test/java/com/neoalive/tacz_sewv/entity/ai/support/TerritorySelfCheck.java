@@ -34,6 +34,7 @@ public final class TerritorySelfCheck {
         deterministic();
         holdBand();
         yieldNeedsArrival();
+        manualDrawOrder();
         System.out.println("TerritorySelfCheck OK");
     }
 
@@ -170,6 +171,34 @@ public final class TerritorySelfCheck {
         assert TerritorySupport.yields(true, true, true) : "arrived, target in leash: pursue";
         assert !TerritorySupport.yields(true, false, true) : "arrived, target outside the leash: hold";
         assert !TerritorySupport.yields(true, true, false) : "arrived but drifted out of the leash: walk back, no chase";
+    }
+
+    /** Manual mode: the drag path IS the fill order, fed to the same assign() the auto path uses. */
+    private static void manualDrawOrder() {
+        List<Long> along = FrontlineMath.chunksAlong(8, 8, 56, 8);
+        assert along.equals(List.of(FrontlineMath.pack(0, 0), FrontlineMath.pack(1, 0), FrontlineMath.pack(2, 0), FrontlineMath.pack(3, 0)))
+                : "a straight segment crosses each chunk once, in order, got " + along;
+        assert FrontlineMath.chunksAlong(8, 8, 8, 8).equals(List.of(FrontlineMath.pack(0, 0))) : "a point is its own chunk";
+        assert FrontlineMath.chunksAlong(56, 8, 8, 8).get(0) == FrontlineMath.pack(3, 0) : "direction is start to end";
+
+        Set<Long> front = strip(); // chunks x=0..4, z=0
+        List<Long> visited = List.of(FrontlineMath.pack(4, 0), FrontlineMath.pack(9, 9), FrontlineMath.pack(3, 0),
+                FrontlineMath.pack(4, 0), FrontlineMath.pack(0, 0));
+        List<Chunk> drawn = FrontlineMath.drawnOrder(front, visited);
+        assert drawn.equals(List.of(new Chunk(4, 0), new Chunk(3, 0), new Chunk(0, 0)))
+                : "non-front dropped, duplicates collapsed, first visit wins, gaps allowed; got " + drawn;
+        assert FrontlineMath.drawnOrder(front, List.of(FrontlineMath.pack(9, 9))).isEmpty() : "an empty drag captures nothing";
+
+        // Drag runs east to west across the whole strip; two units take the FIRST and LAST drawn chunk (x=4 and x=0).
+        List<Chunk> line = List.of(new Chunk(4, 0), new Chunk(3, 0), new Chunk(2, 0), new Chunk(1, 0), new Chunk(0, 0));
+        Unit east = new Unit(1, 4 * 16 + 8, 8, true);
+        Unit west = new Unit(2, 8, 8, true);
+        int eastGot = -1, westGot = -1;
+        for (Assignment a : FrontlineMath.assign(line, List.of(west, east), line.get(0), Map.of())) {
+            if (a.unitId() == 1) eastGot = a.chunk().x();
+            if (a.unitId() == 2) westGot = a.chunk().x();
+        }
+        assert eastGot == 4 && westGot == 0 : "spread follows drawn order, anchored on the first chunk; got " + eastGot + "," + westGot;
     }
 
     private static void deterministic() {

@@ -32,12 +32,15 @@ public class PacketTerritoryState {
     /** Front chunks packed like {@code ChunkPos.asLong}, and the live units posted on each (parallel arrays). */
     private final long[] front;
     private final int[] coverage;
+    /** The drawn manual line (chunks in drag order) for the player's current dimension; empty = none. */
+    private final long[] manualLine;
 
-    public PacketTerritoryState(boolean modeOn, List<Row> roster, long[] front, int[] coverage) {
+    public PacketTerritoryState(boolean modeOn, List<Row> roster, long[] front, int[] coverage, long[] manualLine) {
         this.modeOn = modeOn;
         this.roster = roster;
         this.front = front;
         this.coverage = coverage;
+        this.manualLine = manualLine;
     }
 
     public PacketTerritoryState(FriendlyByteBuf buf) {
@@ -55,6 +58,9 @@ public class PacketTerritoryState {
             front[i] = buf.readLong();
             coverage[i] = buf.readVarInt();
         }
+        int lineLen = buf.readVarInt();
+        this.manualLine = new long[lineLen];
+        for (int i = 0; i < lineLen; i++) manualLine[i] = buf.readLong();
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -76,12 +82,15 @@ public class PacketTerritoryState {
             buf.writeLong(front[i]);
             buf.writeVarInt(coverage[i]);
         }
+        buf.writeVarInt(manualLine.length);
+        for (long key : manualLine) buf.writeLong(key);
     }
 
     public boolean modeOn() { return modeOn; }
     public List<Row> roster() { return roster; }
     public long[] front() { return front; }
     public int[] coverage() { return coverage; }
+    public long[] manualLine() { return manualLine; }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() ->

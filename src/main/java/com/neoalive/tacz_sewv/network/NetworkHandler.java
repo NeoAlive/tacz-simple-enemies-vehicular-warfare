@@ -110,7 +110,8 @@ public class NetworkHandler {
     // 88: helipad packets + helipad markers in PacketOwnedVehicles.
     // 89: PacketVehicleFormation carries an anchor mode (PLAYER/POSITION — FormationAnchorMode).
     // 90: PacketTerritoryCommand (C->S) + PacketTerritoryState (S->C) — RTS panel / Territory Mode.
-    private static final String PROTOCOL_VERSION = "90";
+    // 91: Territory manual Frontline — MANUAL_FRONTLINE / CLEAR_LINE actions + drawn line in PacketTerritoryState.
+    private static final String PROTOCOL_VERSION = "91";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

@@ -122,6 +122,11 @@ public final class TerritoryManager {
             case SET_MODE -> setMode(player, cmd.flag());
             case FRONTLINE -> frontline(player, cmd.chunkX(), cmd.chunkZ(), cmd.ids());
             case RELEASE -> release(player, cmd.ids().isEmpty() ? -1 : cmd.ids().get(0));
+            case MANUAL_FRONTLINE -> manualFrontline(player, cmd.chunks(), cmd.ids());
+            case CLEAR_LINE -> {
+                TerritoryData.get(player.server).clearLine(player.getUUID(), dimKey(player.serverLevel()));
+                pass(player);
+            }
         }
     }
 
@@ -143,6 +148,7 @@ public final class TerritoryManager {
             }
         } else {
             data.set(player.getUUID(), false);
+            data.clearLines(player.getUUID()); // the drawn line goes with the mode
             // Every loaded posted unit of theirs, in every dimension, holds where it stands. Units in
             // unloaded chunks are cleaned as they load (onJoin), because the mode is now off.
             for (ServerLevel level : server.getAllLevels()) {
@@ -165,15 +171,14 @@ public final class TerritoryManager {
         pass(player);
     }
 
-    /**
-     * The Frontline Tool. Additive: only the selected, eligible units are (re)assigned; units posted earlier
-     * and not selected keep their chunks, and count toward each chunk's prior coverage so leftovers stack on
-     * real coverage.
-     */
-    private static void frontline(ServerPlayer player, int originX, int originZ, List<Integer> ids) {
-        ServerLevel level = player.serverLevel();
-        if (!TerritoryData.get(player.server).isOn(player.getUUID())) return;
+    /** A Frontline run's selected, eligible, owned units. */
+    private record Selection(List<PmcUnitEntity> units, Set<Integer> ids) {}
 
+    /**
+     * The selected units that can be posted. Returns null after telling the player why (rate-limited) when there are
+     * none, so the auto and manual paths fail identically.
+     */
+    private static Selection selectEligible(ServerPlayer player, ServerLevel level, List<Integer> ids) {
         List<PmcUnitEntity> selected = new ArrayList<>();
         int inSweep = 0;
         Set<Integer> selectedIds = new HashSet<>();
@@ -190,8 +195,61 @@ public final class TerritoryManager {
             } else {
                 notify(player, "select_units", "", Component.translatable("notification.tacz_sewv.territory.select_units"));
             }
-            return;
+            return null;
         }
+        return new Selection(selected, selectedIds);
+    }
+
+    /**
+     * The assignment both Frontline paths share, so auto and manual can never disagree about spread and density.
+     * {@code orderedFront} is already in fill order (nearest the origin for auto, drag order for manual) and
+     * {@code origin} anchors the unit ordering. Additive: units posted earlier and not selected keep their chunks
+     * and count toward each chunk's prior coverage, so leftovers stack on real coverage. Returns units posted.
+     */
+    private static int assignAndPost(ServerPlayer player, ServerLevel level, Selection sel, Set<Long> claims,
+                                     List<Chunk> orderedFront, Chunk origin) {
+        Map<Chunk, Integer> prior = new HashMap<>();
+        for (PmcUnitEntity u : ownedLoaded(level, player)) {
+            ITerritoryPost p = (ITerritoryPost) u;
+            if (p.sewv$hasTerritoryPost() && !sel.ids().contains(u.getId())) {
+                prior.merge(new Chunk(p.sewv$getTerritoryChunkX(), p.sewv$getTerritoryChunkZ()), 1, Integer::sum);
+            }
+        }
+
+        List<FrontlineMath.Unit> units = new ArrayList<>();
+        Map<Integer, PmcUnitEntity> byId = new HashMap<>();
+        for (PmcUnitEntity u : sel.units()) {
+            byId.put(u.getId(), u);
+            boolean inside = claims.contains(FrontlineMath.pack(u.getBlockX() >> 4, u.getBlockZ() >> 4));
+            units.add(new FrontlineMath.Unit(u.getId(), u.getX(), u.getZ(), inside));
+        }
+        int posted = 0;
+        for (Assignment a : FrontlineMath.assign(orderedFront, units, origin, prior)) {
+            PmcUnitEntity u = byId.get(a.unitId());
+            if (u != null && TerritorySupport.post(u, a.chunk().x(), a.chunk().z())) {
+                u.getPersistentData().putUUID(ITerritoryPost.TAG_BY, player.getUUID());
+                posted++;
+            }
+        }
+        return posted;
+    }
+
+    private static String dimKey(ServerLevel level) {
+        return level.dimension().location().toString();
+    }
+
+    /**
+     * Auto Frontline: the clicked chunk is the origin and the front is filled nearest-first. Any successful run
+     * replaces the display state, so it clears a drawn manual line (which would otherwise claim to describe
+     * assignments it no longer does).
+     */
+    private static void frontline(ServerPlayer player, int originX, int originZ, List<Integer> ids) {
+        ServerLevel level = player.serverLevel();
+        TerritoryData data = TerritoryData.get(player.server);
+        if (!data.isOn(player.getUUID())) return;
+
+        Selection sel = selectEligible(player, level, ids);
+        if (sel == null) return;
 
         Set<Long> claims = OpenPacCompat.selfClaimedChunks(level, player.getUUID());
         if (!claims.contains(FrontlineMath.pack(originX, originZ))) {
@@ -205,28 +263,41 @@ public final class TerritoryManager {
             return;
         }
 
-        Map<Chunk, Integer> prior = new HashMap<>();
-        for (PmcUnitEntity u : ownedLoaded(level, player)) {
-            ITerritoryPost p = (ITerritoryPost) u;
-            if (p.sewv$hasTerritoryPost() && !selectedIds.contains(u.getId())) {
-                prior.merge(new Chunk(p.sewv$getTerritoryChunkX(), p.sewv$getTerritoryChunkZ()), 1, Integer::sum);
-            }
-        }
-
-        List<FrontlineMath.Unit> units = new ArrayList<>();
-        Map<Integer, PmcUnitEntity> byId = new HashMap<>();
-        for (PmcUnitEntity u : selected) {
-            byId.put(u.getId(), u);
-            boolean inside = claims.contains(FrontlineMath.pack(u.getBlockX() >> 4, u.getBlockZ() >> 4));
-            units.add(new FrontlineMath.Unit(u.getId(), u.getX(), u.getZ(), inside));
-        }
-        for (Assignment a : FrontlineMath.assign(front, units, origin, prior)) {
-            PmcUnitEntity u = byId.get(a.unitId());
-            if (u != null && TerritorySupport.post(u, a.chunk().x(), a.chunk().z())) {
-                u.getPersistentData().putUUID(ITerritoryPost.TAG_BY, player.getUUID());
-            }
+        if (assignAndPost(player, level, sel, claims, front, origin) > 0) {
+            data.clearLine(player.getUUID(), dimKey(level));
         }
         LAST_COVERED.remove(player.getUUID()); // the player reshuffled the front; not a chunk going uncovered
+        pass(player);
+    }
+
+    /**
+     * Manual Frontline: the drag path IS the ordering. Only front chunks count, the origin is ignored (the first
+     * drawn chunk anchors unit ordering), and an empty result changes nothing at all — the existing line and every
+     * post stay as they were. A successful run stores the drawn order, replacing any previous line.
+     */
+    private static void manualFrontline(ServerPlayer player, List<Long> visited, List<Integer> ids) {
+        ServerLevel level = player.serverLevel();
+        TerritoryData data = TerritoryData.get(player.server);
+        if (!data.isOn(player.getUUID())) return;
+
+        Selection sel = selectEligible(player, level, ids);
+        if (sel == null) return;
+
+        Set<Long> claims = OpenPacCompat.selfClaimedChunks(level, player.getUUID());
+        Set<Long> frontKeys = new HashSet<>();
+        for (Chunk c : FrontlineMath.frontChunks(claims)) frontKeys.add(FrontlineMath.pack(c.x(), c.z()));
+        List<Chunk> drawn = FrontlineMath.drawnOrder(frontKeys, visited);
+        if (drawn.isEmpty()) {
+            notify(player, "manual_empty", "", Component.translatable("notification.tacz_sewv.territory.manual_empty"));
+            return;
+        }
+
+        if (assignAndPost(player, level, sel, claims, drawn, drawn.get(0)) > 0) {
+            long[] line = new long[drawn.size()];
+            for (int i = 0; i < line.length; i++) line[i] = FrontlineMath.pack(drawn.get(i).x(), drawn.get(i).z());
+            data.setLine(player.getUUID(), dimKey(level), line);
+        }
+        LAST_COVERED.remove(player.getUUID());
         pass(player);
     }
 
@@ -256,7 +327,7 @@ public final class TerritoryManager {
                 if (((ITerritoryPost) u).sewv$hasTerritoryPost()) TerritorySupport.release(u);
             }
             LAST_COVERED.remove(id);
-            PacketTerritoryState.sendTo(player, new PacketTerritoryState(false, rows(owned), new long[0], new int[0]));
+            PacketTerritoryState.sendTo(player, new PacketTerritoryState(false, rows(owned), new long[0], new int[0], new long[0]));
             return;
         }
 
@@ -339,7 +410,8 @@ public final class TerritoryManager {
         notifyChanges(player, lostNow, nowCovered, frontSet);
 
         // 7. push.
-        PacketTerritoryState.sendTo(player, new PacketTerritoryState(true, rows(owned), frontKeys, coverage));
+        PacketTerritoryState.sendTo(player, new PacketTerritoryState(true, rows(owned), frontKeys, coverage,
+                data.getLine(id, dimKey(level))));
     }
 
     /** One toast per kind per pass: a chunk lost / a chunk that lost its last unit, aggregated if several. */

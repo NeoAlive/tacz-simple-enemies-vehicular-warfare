@@ -2,7 +2,11 @@ package com.neoalive.tacz_sewv.client.xaero;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import net.minecraft.client.Minecraft;
@@ -45,7 +49,11 @@ public final class RtsPanel {
     private static final int COLUMN_GAP = 2;
     private static final int ROW_H = 12;
     private static final int HELP_ENTRY_H = 22;
-    private static final int HELP_ENTRIES = 4;
+    private static final int HELP_ENTRIES = 5;
+    /** Overlay fade-in: front chunks appearing, a chunk becoming covered, and the manual line appearing. */
+    private static final long FADE_MS = 450L;
+    /** A drag can capture at most this many chunks (the wire cap); past it further chunks are ignored. */
+    private static final int MAX_CAPTURED = 1024;
 
     private static final int BG = 0xD0121820;
     private static final int BORDER = 0xFF3A4A5A;
@@ -65,6 +73,23 @@ public final class RtsPanel {
     private static boolean swallowRelease;
     /** The map is open. init() re-runs on a window resize and must not collapse the panel or drop the tool. */
     private static boolean open;
+
+    // Manual mode: a right-drag across front chunks. Transient client state; the server owns the result.
+    private static boolean dragging;
+    private static double dragLastX;
+    private static double dragLastZ;
+    private static final LinkedHashSet<Long> captured = new LinkedHashSet<>();
+    private static long[] frontSetSource;
+    private static Set<Long> frontSet = Set.of();
+
+    // Fade-in bookkeeping, keyed by packed chunk. Rebuilt only when a state push swaps the arrays.
+    private static long[] fadeFront;
+    private static int[] fadeCover;
+    private static long[] fadeLine;
+    private static final Map<Long, Long> appeared = new HashMap<>();
+    private static final Map<Long, Boolean> covered = new HashMap<>();
+    private static final Map<Long, Long> coveredAt = new HashMap<>();
+    private static final Map<Long, Long> lineAppeared = new HashMap<>();
 
     private static List<Row> sortedSource;
     private static List<Row> sorted = List.of();
@@ -92,6 +117,7 @@ public final class RtsPanel {
         scroll = 0;
         helpScroll = 0;
         swallowRelease = false;
+        resetTransient();
     }
 
     /** Map closed: tell the server nobody is looking, so it can stop pushing state. */
@@ -101,11 +127,25 @@ public final class RtsPanel {
         expanded = false;
         toolArmed = false;
         swallowRelease = false;
+        resetTransient();
+    }
+
+    /** Drops the drag and the fade bookkeeping, so a reopened map fades its overlay in afresh. */
+    private static void resetTransient() {
+        dragging = false;
+        captured.clear();
+        appeared.clear();
+        covered.clear();
+        coveredAt.clear();
+        lineAppeared.clear();
+        fadeFront = null;
+        fadeCover = null;
+        fadeLine = null;
     }
 
     private static void toggle() {
         expanded = !expanded;
-        if (!expanded) toolArmed = false;
+        if (!expanded) cancelTool();
         send(PacketTerritoryCommand.panelOpen(expanded));
     }
 
@@ -140,6 +180,8 @@ public final class RtsPanel {
 
     public static void cancelTool() {
         toolArmed = false;
+        dragging = false;
+        captured.clear();
     }
 
     private static void armTool() {
@@ -153,11 +195,15 @@ public final class RtsPanel {
         toolArmed = true;
     }
 
-    /** A click while the tool is armed: left fires at the chunk, right cancels, anything else is swallowed. */
-    public static void toolClick(int button, int chunkX, int chunkZ) {
+    /**
+     * A press while the tool is armed, at the world position under the cursor: left fires the auto Frontline at that
+     * chunk, right begins the manual drag. Anything else is swallowed. (Right-click no longer cancels the tool; a
+     * right-press with no front chunk under it is just an empty drag. Esc, the panel and the tool key disarm.)
+     */
+    public static void toolClick(int button, double worldX, double worldZ) {
         swallowRelease = true;
-        if (button == 0) fire(chunkX, chunkZ);
-        else if (button == 1) toolArmed = false;
+        if (button == 0) fire(Mth.floor(worldX) >> 4, Mth.floor(worldZ) >> 4);
+        else if (button == 1) beginDrag(worldX, worldZ);
     }
 
     /** The armed tool's left-click: the clicked chunk is the origin. One-shot — the tool disarms. */
@@ -169,6 +215,60 @@ public final class RtsPanel {
             return;
         }
         send(PacketTerritoryCommand.frontline(chunkX, chunkZ, ids));
+    }
+
+    private static void beginDrag(double worldX, double worldZ) {
+        dragging = true;
+        captured.clear();
+        dragLastX = worldX;
+        dragLastZ = worldZ;
+        capture(worldX, worldZ, worldX, worldZ);
+    }
+
+    /** Called every frame with the cursor's world position; while a drag runs it captures the front chunks crossed. */
+    public static void sampleDrag(double worldX, double worldZ) {
+        if (!dragging) return;
+        capture(dragLastX, dragLastZ, worldX, worldZ);
+        dragLastX = worldX;
+        dragLastZ = worldZ;
+    }
+
+    /** Only FRONT chunks are draggable (interior ones crossed on the way are ignored); order = first visit. */
+    private static void capture(double x0, double z0, double x1, double z1) {
+        Set<Long> front = frontSet();
+        for (long key : FrontlineMath.chunksAlong(x0, z0, x1, z1)) {
+            if (captured.size() >= MAX_CAPTURED) return;
+            if (front.contains(key)) captured.add(key);
+        }
+    }
+
+    private static Set<Long> frontSet() {
+        long[] front = TerritoryClient.front();
+        if (front != frontSetSource) {
+            Set<Long> set = new HashSet<>(front.length * 2);
+            for (long key : front) set.add(key);
+            frontSet = set;
+            frontSetSource = front;
+        }
+        return frontSet;
+    }
+
+    /**
+     * The release of a right-drag: send what was drawn. A non-empty drag is a completed operation, so the tool
+     * disarms (which also hands Xaero's panning back). An empty one is not: it is still sent, so the server says
+     * so, but the tool stays armed to retry.
+     */
+    private static void endDrag() {
+        dragging = false;
+        List<Long> chunks = new ArrayList<>(captured);
+        captured.clear();
+        List<Integer> ids = eligibleSelected();
+        if (ids.isEmpty()) {
+            hint("gui.tacz_sewv.rts.need_selection");
+            return;
+        }
+        send(PacketTerritoryCommand.manualFrontline(chunks, ids));
+        if (!chunks.isEmpty()) toolArmed = false;
     }
 
     private static void hint(String key) {
@@ -270,8 +370,13 @@ public final class RtsPanel {
             return true;
         }
         if (my >= l.toolY && my < l.toolY + 16) {
-            if (toolArmed) toolArmed = false;
-            else armTool();
+            if (TerritoryClient.manualLine().length > 0 && mx >= l.x1 - 20) {
+                send(PacketTerritoryCommand.clearLine()); // "Manual line - clear"
+            } else if (toolArmed) {
+                cancelTool();
+            } else {
+                armTool();
+            }
             return true;
         }
         if (my >= l.rosterY && my < l.rosterY + ROW_H) {
@@ -314,8 +419,15 @@ public final class RtsPanel {
         }
     }
 
-    /** True exactly once after a press the panel consumed: the release is ours too. */
-    public static boolean consumeRelease() {
+    /**
+     * The release side of a press we consumed. Completes a right-drag first (at the cursor's final position), then
+     * answers true exactly once so Xaero never sees the release.
+     */
+    public static boolean consumeRelease(int button, double worldX, double worldZ) {
+        if (dragging && button == 1) {
+            sampleDrag(worldX, worldZ);
+            endDrag();
+        }
         boolean was = swallowRelease;
         swallowRelease = false;
         return was;
@@ -338,8 +450,15 @@ public final class RtsPanel {
     /** A key on the map screen. Returns true when it was ours. */
     public static boolean keyPressed(int keyCode, int scanCode) {
         if (!enabled()) return false;
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE && dragging) {
+            // Cancel is not complete: discard the drag, apply nothing, keep the tool armed. The release that follows
+            // is still swallowed (the press was ours) and, with no drag running, does nothing.
+            dragging = false;
+            captured.clear();
+            return true;
+        }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE && toolArmed) {
-            toolArmed = false; // Esc cancels the tool first; the next Esc closes the map
+            toolArmed = false; // Esc cancels the tool next; the one after closes the map
             return true;
         }
         if (RtsKeybind.Keys.TOGGLE_PANEL.matches(keyCode, scanCode)) {
@@ -348,7 +467,7 @@ public final class RtsPanel {
         }
         if (RtsKeybind.Keys.FRONTLINE_TOOL.matches(keyCode, scanCode)) {
             if (!expanded) toggle();
-            if (toolArmed) toolArmed = false;
+            if (toolArmed) cancelTool();
             else armTool();
             return true;
         }
@@ -357,17 +476,40 @@ public final class RtsPanel {
 
     // ---- drawing ------------------------------------------------------------------------------------------
 
-    /** Front, coverage, leashes of selected posted units, and the chunk under the cursor while the tool is armed. */
+    /**
+     * Front, coverage, the stored manual line, the drag in progress, leashes of selected posted units, and the chunk
+     * under the cursor while the tool is armed. Front chunks fade in when they appear, an uncovered chunk blends
+     * amber to green when it becomes covered, and the manual line fades in — the same treatment for an auto run and a
+     * manual one, since both just change what the server pushes.
+     */
     public static void drawOverlay(GuiGraphics g, Project p, int w, int h, int hoverBlockX, int hoverBlockZ) {
         if (!enabled() || !TerritoryClient.modeOn()) return;
+        long now = System.currentTimeMillis();
         long[] front = TerritoryClient.front();
         int[] cover = TerritoryClient.coverage();
+        long[] line = TerritoryClient.manualLine();
+        trackFade(front, cover, line, now);
+
         for (int i = 0; i < front.length; i++) {
-            Chunk c = FrontlineMath.unpack(front[i]);
-            boolean covered = cover[i] > 0;
+            long key = front[i];
+            Chunk c = FrontlineMath.unpack(key);
+            float appear = fade(appeared.get(key), now);
+            float cov = cover[i] > 0 ? (coveredAt.containsKey(key) ? fade(coveredAt.get(key), now) : 1f) : 0f;
             box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1,
-                    covered ? 0x3355DD55 : 0x66FFAA00, covered ? ACCENT : AMBER);
+                    scaleAlpha(blend(0x66FFAA00, 0x3355DD55, cov), appear), scaleAlpha(blend(AMBER, ACCENT, cov), appear));
         }
+
+        // The stored manual line: only the chunks that are still front (a lost one drops out of it).
+        if (line.length > 0) {
+            Set<Long> frontKeys = frontSet();
+            List<Long> keep = new ArrayList<>(line.length);
+            for (long key : line) if (frontKeys.contains(key)) keep.add(key);
+            drawPath(g, p, w, h, keep, key -> fade(lineAppeared.get(key), now), 0x22FFFFFF, 0xFFFFFFFF);
+        }
+        if (dragging && !captured.isEmpty()) {
+            drawPath(g, p, w, h, new ArrayList<>(captured), key -> 1f, 0x5066CCFF, 0xFF66CCFF);
+        }
+
         Set<Integer> selected = selection();
         for (Row r : TerritoryClient.roster()) {
             if (!r.posted()) continue;
@@ -376,9 +518,97 @@ public final class RtsPanel {
             }
             if (r.lost()) box(g, p, w, h, r.chunkX(), r.chunkZ(), r.chunkX() + 1, r.chunkZ() + 1, 0x33FF4444, 0xFFFF4444);
         }
-        if (toolArmed) {
+        if (toolArmed && !dragging) {
             int cx = hoverBlockX >> 4, cz = hoverBlockZ >> 4;
             box(g, p, w, h, cx, cz, cx + 1, cz + 1, 0x5566CCFF, 0xFF66CCFF);
+        }
+    }
+
+    /** Refreshes the fade timestamps, only when a state push has swapped the arrays (about once a second). */
+    private static void trackFade(long[] front, int[] cover, long[] line, long now) {
+        if (front != fadeFront || cover != fadeCover) {
+            Set<Long> present = new HashSet<>();
+            for (int i = 0; i < front.length; i++) {
+                long key = front[i];
+                present.add(key);
+                appeared.putIfAbsent(key, now);
+                boolean cov = cover[i] > 0;
+                Boolean was = covered.put(key, cov);
+                if (was != null && was != cov) {
+                    if (cov) coveredAt.put(key, now);
+                    else coveredAt.remove(key);
+                }
+            }
+            appeared.keySet().retainAll(present);
+            covered.keySet().retainAll(present);
+            coveredAt.keySet().retainAll(present);
+            fadeFront = front;
+            fadeCover = cover;
+        }
+        if (line != fadeLine) {
+            Set<Long> present = new HashSet<>();
+            for (long key : line) {
+                present.add(key);
+                lineAppeared.putIfAbsent(key, now);
+            }
+            lineAppeared.keySet().retainAll(present);
+            fadeLine = line;
+        }
+    }
+
+    private static float fade(Long startedAt, long now) {
+        if (startedAt == null) return 1f;
+        return Mth.clamp((now - startedAt) / (float) FADE_MS, 0f, 1f);
+    }
+
+    private static int scaleAlpha(int argb, float f) {
+        int a = Math.round(((argb >>> 24) & 0xFF) * f);
+        return (a << 24) | (argb & 0x00FFFFFF);
+    }
+
+    private static int blend(int from, int to, float t) {
+        int out = 0;
+        for (int shift = 0; shift <= 24; shift += 8) {
+            int a = (from >>> shift) & 0xFF;
+            int b = (to >>> shift) & 0xFF;
+            out |= (Math.round(a + (b - a) * t) & 0xFF) << shift;
+        }
+        return out;
+    }
+
+    /**
+     * Chunks in order, each boxed and joined by a line through the chunk centres. No index numbers (a line reads its
+     * own order), and each chunk / segment takes its own fade so a fresh line appears smoothly.
+     */
+    private static void drawPath(GuiGraphics g, Project p, int w, int h, List<Long> keys,
+                                 java.util.function.ToDoubleFunction<Long> alpha, int fill, int border) {
+        int[] prev = null;
+        float prevAlpha = 1f;
+        for (long key : keys) {
+            Chunk c = FrontlineMath.unpack(key);
+            float a = (float) alpha.applyAsDouble(key);
+            box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1, scaleAlpha(fill, a), scaleAlpha(border, a));
+            int[] centre = p.toScreen(c.x() * 16.0 + 8, c.z() * 16.0 + 8);
+            if (prev != null) line(g, prev[0], prev[1], centre[0], centre[1], scaleAlpha(border, Math.min(a, prevAlpha)), w, h);
+            prev = centre;
+            prevAlpha = a;
+        }
+    }
+
+    /** A 2 px line by stepping; long lines are subsampled and fully-offscreen ones skipped. */
+    private static void line(GuiGraphics g, int x0, int y0, int x1, int y1, int color, int w, int h) {
+        if (Math.max(x0, x1) < 0 || Math.min(x0, x1) > w || Math.max(y0, y1) < 0 || Math.min(y0, y1) > h) return;
+        int dx = x1 - x0, dy = y1 - y0;
+        int steps = Math.max(Math.abs(dx), Math.abs(dy));
+        if (steps == 0) {
+            g.fill(x0 - 1, y0 - 1, x0 + 1, y0 + 1, color);
+            return;
+        }
+        int stride = Math.max(1, steps / 1500);
+        for (int i = 0; i <= steps; i += stride) {
+            int x = x0 + dx * i / steps;
+            int y = y0 + dy * i / steps;
+            g.fill(x - 1, y - 1, x + 1, y + 1, color);
         }
     }
 
@@ -431,6 +661,11 @@ public final class RtsPanel {
         g.fill(l.x0 + 4, l.toolY, l.x1 - 4, l.toolY + 16, toolFill);
         g.drawString(font, Component.translatable("gui.tacz_sewv.rts.tool"), l.x0 + 8, l.toolY + 4,
                 enabled ? TEXT : DIM, false);
+        boolean hasLine = TerritoryClient.manualLine().length > 0;
+        if (hasLine) {
+            boolean hot = mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + 16;
+            g.drawString(font, "x", l.x1 - 14, l.toolY + 4, hot ? 0xFFFF6666 : DIM, false);
+        }
         if (!enabled) {
             Component reason = Component.translatable(on ? "gui.tacz_sewv.rts.need_selection" : "gui.tacz_sewv.rts.need_mode");
             g.drawString(font, reason, l.x0 + 8, l.reasonY, DIM, false);
@@ -471,7 +706,9 @@ public final class RtsPanel {
         if (toolArmed) {
             g.drawCenteredString(font, Component.translatable("gui.tacz_sewv.rts.tool_hint"), w / 2, h - 42, 0xFFFFFFFF);
         }
-        if (mx >= l.x0 + 4 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + 16) {
+        if (hasLine && mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + 16) {
+            g.renderComponentTooltip(font, List.of(Component.translatable("gui.tacz_sewv.rts.clear_line")), mx, my);
+        } else if (mx >= l.x0 + 4 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + 16) {
             g.renderComponentTooltip(font, List.of(
                     Component.translatable("gui.tacz_sewv.rts.tool_tip1"),
                     Component.translatable("gui.tacz_sewv.rts.tool_tip2")), mx, my);
@@ -520,9 +757,10 @@ public final class RtsPanel {
         String[] glyph = {
                 RtsKeybind.Keys.TOGGLE_PANEL.getTranslatedKeyMessage().getString(),
                 RtsKeybind.Keys.FRONTLINE_TOOL.getTranslatedKeyMessage().getString(),
-                "RMB / Esc",
+                "RMB drag",
+                "Esc",
                 "Shift+Click"};
-        String[] name = {"toggle", "frontline", "cancel", "add"};
+        String[] name = {"toggle", "frontline", "draw", "cancel", "add"};
         int y = l.helpY + 14;
         int first = helpScroll;
         int fit = Math.max(1, l.helpBodyH / HELP_ENTRY_H);

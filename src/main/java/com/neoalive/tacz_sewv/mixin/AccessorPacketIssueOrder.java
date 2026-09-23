@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,4 +14,7 @@ public interface AccessorPacketIssueOrder {
 
     @Accessor(value = "order", remap = false)
     OrderType tacz_sewv$order();
+
+    @Accessor(value = "targetPos", remap = false)
+    Vec3 tacz_sewv$targetPos();
 }

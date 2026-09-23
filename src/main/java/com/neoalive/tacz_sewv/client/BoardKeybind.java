@@ -17,6 +17,7 @@ import net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketBailOutVehicle;
@@ -101,24 +102,28 @@ public class BoardKeybind {
 
     /**
      * Form owned crews into {@code shape} along {@code axisInt} with WIDTH/LENGTH stretch.
-     * {@code rowSize} is the LINE units-per-row (internal default). The server numbers the slots
-     * and re-checks ownership / composition.
+     * {@code rowSize} is the LINE units-per-row (internal default). {@code anchorMode} picks
+     * whether the slots re-centre on the commander every tick or hold a frozen world point — see
+     * {@link com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode}. The server numbers
+     * the slots and re-checks ownership / composition.
      */
     public static void orderFormation(FormationShape shape, int axisInt, int rowSize,
-                                      float widthStretch, float lengthStretch) {
+                                      float widthStretch, float lengthStretch,
+                                      FormationAnchorMode anchorMode) {
         withOwnedUnits(pmc -> true, "message.tacz_sewv.board.no_units",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
                         new PacketVehicleFormation(unitIds, shape, axisInt, rowSize,
-                                widthStretch, lengthStretch)));
+                                widthStretch, lengthStretch, anchorMode)));
     }
 
     /** Quick-wheel path: explicit unit ids already resolved by the wheel. */
     public static void orderFormation(List<Integer> unitIds, FormationShape shape, int axisInt,
-                                      int rowSize, float widthStretch, float lengthStretch) {
+                                      int rowSize, float widthStretch, float lengthStretch,
+                                      FormationAnchorMode anchorMode) {
         if (unitIds.isEmpty()) return;
         NetworkHandler.CHANNEL.sendToServer(
                 new PacketVehicleFormation(unitIds, shape, axisInt, rowSize,
-                        widthStretch, lengthStretch));
+                        widthStretch, lengthStretch, anchorMode));
     }
 
     /**

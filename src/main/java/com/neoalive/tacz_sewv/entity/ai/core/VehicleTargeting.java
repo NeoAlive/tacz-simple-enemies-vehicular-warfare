@@ -30,8 +30,6 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
-import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MarchObjective;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
@@ -175,10 +173,17 @@ public final class VehicleTargeting {
                 // MixinVehicleFireCooldown so the crew simply sits and doesn't shoot.
                 return null;
 
-            case MOVE_TO_POSITION:
+            case MOVE_TO_POSITION: {
                 Vec3 moveTarget = pmc.getMoveToTarget();
-                return (moveTarget != null && !moveTarget.equals(Vec3.ZERO))
-                        ? BlockPos.containing(moveTarget) : null;
+                if (moveTarget == null || moveTarget.equals(Vec3.ZERO)) return null;
+                // Inherits the standing formation the same way FOLLOW_COMMANDER does, but always
+                // anchored on the destination itself, never the commander — PLAYER/POSITION anchor
+                // mode is a FOLLOW_COMMANDER distinction only. Anchoring a MOVE order on the
+                // commander instead pulls every hull toward the player rather than the clicked
+                // point, and jitters at the arrival radius as the live commander position drifts.
+                BlockPos slot = VehicleFormation.formationSlotPos(unit.level(), pmc, moveTarget);
+                return slot != null ? slot : BlockPos.containing(moveTarget);
+            }
 
             case ATTACK_THAT_TARGET:
                 // Player designated the target — no freelancing off to help allies.
@@ -197,31 +202,23 @@ public final class VehicleTargeting {
                         : null;
                 return support != null ? support : IdleSupport.wanderPos(unit, vehicle);
 
-            case FOLLOW_COMMANDER:
+            case FOLLOW_COMMANDER: {
                 Player follows = commander(pmc);
-                return follows != null ? follows.blockPosition() : null;
+                if (follows == null) return null;
+                // Inherits the formation a Quick Wheel order set, if any — same slot math as
+                // FORM_WEDGE/FORM_COLUMN below, honouring PLAYER/POSITION anchor mode.
+                BlockPos slot = VehicleFormation.formationSlotPos(unit.level(), pmc, follows.position());
+                return slot != null ? slot : follows.blockPosition();
+            }
 
             case FORM_WEDGE:
             case FORM_COLUMN: {
                 Player leader = commander(pmc);
-                IFormationMember member = (IFormationMember) pmc;
-                Direction axis = member.sewv$getFormationDirection();
-                int slot = pmc.getFormationIndex();
                 // No axis means this order did not come through our gate — it is a plain SEM
                 // infantry formation that happens to have caught a mounted crew. There is no
                 // hull geometry to drive to, so hold.
-                if (leader == null || axis == null || slot < 0) return null;
-                FormationShape shape = FormationShape.byId(member.sewv$getFormationShape());
-                int rowSize = member.sewv$getFormationRowSize();
-                if (rowSize < 1) rowSize = 4;
-                float width = member.sewv$getFormationWidth();
-                float length = member.sewv$getFormationLength();
-                double baseline = VehicleFormation.baselineForUnit(pmc);
-                FormationComposition.Kind kind = VehicleFormation.kindForUnit(pmc);
-                if (kind == null) kind = FormationComposition.Kind.GROUND;
-                return VehicleFormation.slotPos(
-                        unit.level(), leader.position(), axis, shape, slot, rowSize,
-                        baseline, width, length, kind);
+                if (leader == null) return null;
+                return VehicleFormation.formationSlotPos(unit.level(), pmc, leader.position());
             }
 
             default:
@@ -249,6 +246,13 @@ public final class VehicleTargeting {
             }
             OrderType order = pmc.getOrder();
             if (order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN) {
+                return FORMATION_ARRIVE_RADIUS;
+            }
+            // Same collapse risk as FORM_WEDGE/FORM_COLUMN once FOLLOW/MOVE inherit formation
+            // geometry: the generic/MOVE bands are wider than a slot is deep, so every hull would
+            // read "arrived" long before it reached its own slot and the shape would collapse.
+            if ((order == OrderType.FOLLOW_COMMANDER || order == OrderType.MOVE_TO_POSITION)
+                    && ((IFormationMember) pmc).sewv$getFormationDirection() != null) {
                 return FORMATION_ARRIVE_RADIUS;
             }
             if (order == OrderType.MOVE_TO_POSITION) {
@@ -288,12 +292,16 @@ public final class VehicleTargeting {
 
     /**
      * The heading a parked crew holds, or null when this order has no heading to hold (which is
-     * every order but a formation — there is nothing else to face).
+     * every order but a formation — there is nothing else to face). FOLLOW_COMMANDER and
+     * MOVE_TO_POSITION count too whenever they've inherited a standing formation, so a hull that
+     * arrives at its slot via one of those orders squares up the same as it would under FORM_WEDGE.
      */
     public static Vec3 formationForward(AbstractUnit unit) {
         if (!(unit instanceof PmcUnitEntity pmc)) return null;
         OrderType order = pmc.getOrder();
-        if (order != OrderType.FORM_WEDGE && order != OrderType.FORM_COLUMN) return null;
+        boolean formationOrder = order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN
+                || order == OrderType.FOLLOW_COMMANDER || order == OrderType.MOVE_TO_POSITION;
+        if (!formationOrder) return null;
         Direction axis = ((IFormationMember) pmc).sewv$getFormationDirection();
         return axis == null ? null : VehicleFormation.forward(axis);
     }

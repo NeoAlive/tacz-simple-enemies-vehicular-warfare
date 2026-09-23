@@ -9,8 +9,10 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 
 /**
  * Hard MOVE_TO_POSITION stick. SEM's {@code CommanderOrderGoal} (prio 3) loses MOVE to SeekCover
@@ -18,6 +20,10 @@ import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
  * instead of the clicked point. Same shape as {@link FollowCommanderGoal}: priority 1, MOVE, runs
  * through combat, paths every ordered unit to {@code getMoveToTarget()}. Releases once arrived
  * (SEM's {@code distSqr < 2.5} gate) so local cover can take over at the destination.
+ *
+ * <p>A unit carrying a standing formation (Quick Wheel, or inherited across a prior FOLLOW/MOVE
+ * order — see {@code MixinPacketIssueOrder}) paths to its formation slot around the destination
+ * instead of the exact clicked point, so a multi-unit MOVE order still keeps its shape.
  */
 public class MoveToPositionGoal extends Goal {
 
@@ -45,9 +51,10 @@ public class MoveToPositionGoal extends Goal {
 
         Vec3 dest = this.unit.getMoveToTarget();
         if (dest == null || dest.equals(Vec3.ZERO)) return false;
-        if (this.unit.distanceToSqr(dest) < ARRIVE_SQ) return false;
+        Vec3 target = resolveTarget(dest);
+        if (this.unit.distanceToSqr(target) < ARRIVE_SQ) return false;
 
-        this.destination = dest;
+        this.destination = target;
         return true;
     }
 
@@ -59,8 +66,23 @@ public class MoveToPositionGoal extends Goal {
         if (this.unit.isPassenger()) return false;
         Vec3 dest = this.unit.getMoveToTarget();
         if (dest == null || dest.equals(Vec3.ZERO)) return false;
-        this.destination = dest;
-        return this.unit.distanceToSqr(dest) >= ARRIVE_SQ;
+        this.destination = resolveTarget(dest);
+        return this.unit.distanceToSqr(this.destination) >= ARRIVE_SQ;
+    }
+
+    /**
+     * The raw move-to point, or this unit's formation slot around it when it's carrying a
+     * standing formation. Always anchored on {@code dest}, never the commander — a MOVE order is
+     * "go here," and anchoring on a live, wobbling commander position instead would both walk the
+     * unit toward the player rather than the clicked point and, since the arrival check has no
+     * hysteresis band, jitter it as the anchor drifts back and forth across the arrival threshold.
+     * PLAYER vs POSITION anchor mode is a FOLLOW_COMMANDER distinction only; a move order supplies
+     * its own anchor.
+     */
+    private Vec3 resolveTarget(Vec3 dest) {
+        if (((IFormationMember) this.unit).sewv$getFormationDirection() == null) return dest;
+        Vec3 slot = VehicleFormation.formationSlotCenter(this.unit, dest);
+        return slot != null ? slot : dest;
     }
 
     @Override

@@ -14,6 +14,7 @@ import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
@@ -40,15 +41,17 @@ public class PacketVehicleFormation {
     private final int rowSize;
     private final float widthStretch;
     private final float lengthStretch;
+    private final int anchorModeId;
 
     public PacketVehicleFormation(List<Integer> unitIds, FormationShape shape, int axis, int rowSize,
-                                  float widthStretch, float lengthStretch) {
+                                  float widthStretch, float lengthStretch, FormationAnchorMode anchorMode) {
         this.unitIds = unitIds;
         this.shapeId = shape.id();
         this.axis = axis;
         this.rowSize = rowSize;
         this.widthStretch = widthStretch;
         this.lengthStretch = lengthStretch;
+        this.anchorModeId = anchorMode.id();
     }
 
     public PacketVehicleFormation(FriendlyByteBuf buf) {
@@ -58,6 +61,7 @@ public class PacketVehicleFormation {
         this.rowSize = buf.readVarInt();
         this.widthStretch = buf.readFloat();
         this.lengthStretch = buf.readFloat();
+        this.anchorModeId = buf.readVarInt();
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -67,6 +71,7 @@ public class PacketVehicleFormation {
         buf.writeVarInt(this.rowSize);
         buf.writeFloat(this.widthStretch);
         buf.writeFloat(this.lengthStretch);
+        buf.writeVarInt(this.anchorModeId);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -83,6 +88,7 @@ public class PacketVehicleFormation {
             int rowSize = Mth.clamp(this.rowSize, MIN_ROW_SIZE, MAX_ROW_SIZE);
             float width = IFormationMember.clampStretch(this.widthStretch);
             float length = IFormationMember.clampStretch(this.lengthStretch);
+            FormationAnchorMode anchorMode = FormationAnchorMode.byId(this.anchorModeId);
 
             List<PmcUnitEntity> units = new ArrayList<>();
             for (int unitId : this.unitIds) {
@@ -122,7 +128,7 @@ public class PacketVehicleFormation {
             }
 
             int formed = VehicleFormation.assign(player, units, shape, axis, rowSize,
-                    width, length, kind);
+                    width, length, kind, anchorMode);
 
             NetworkHandler.orderFeedback(player, "message.tacz_sewv.formation.formed", formed,
                     ChatFormatting.GREEN, formed, Component.translatable(axisKey(axis)));

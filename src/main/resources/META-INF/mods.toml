@@ -89,7 +89,7 @@ config="tacz_sewv.minecolonies.mixins.json"
 [[dependencies.tacz_sewv]]
     modId="simpleenemymod"
     mandatory=true
-    versionRange="[1.20.1-0.1.6-beta,)"
+    versionRange="${sem_version_range}"
     ordering="AFTER"
     side="BOTH"
 

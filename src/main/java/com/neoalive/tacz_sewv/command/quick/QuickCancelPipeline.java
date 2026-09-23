@@ -9,7 +9,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
 import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
@@ -20,6 +19,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 
@@ -70,12 +70,8 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
         boarder.tacz_sewv$setBoarding(false);
         boarder.tacz_sewv$setMountTargetId(-1);
 
-        // Clear vehicle-formation NBT so FREE_FIRE doesn't leave a stale slot axis.
-        pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_AXIS);
-        pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_SHAPE);
-        pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_ROWSIZE);
-        pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_WIDTH);
-        pmc.getPersistentData().remove(IFormationMember.TAG_FORMATION_LENGTH);
+        // Clear vehicle-formation NBT so FREE_FIRE doesn't leave a stale slot axis/anchor.
+        VehicleFormation.clear(pmc);
 
         if (pmc instanceof IHelicopterPilot
                 && pmc.getVehicle() instanceof VehicleEntity hull

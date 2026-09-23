@@ -108,7 +108,8 @@ public class NetworkHandler {
     // 86: PacketCarrierOpsAction (Neo Arms carrier flight-ops deploy).
     // 87: PacketSetFobRefillInterval + periodicRefillTicks in FobGuiSnapshot.
     // 88: helipad packets + helipad markers in PacketOwnedVehicles.
-    private static final String PROTOCOL_VERSION = "88";
+    // 89: PacketVehicleFormation carries an anchor mode (PLAYER/POSITION — FormationAnchorMode).
+    private static final String PROTOCOL_VERSION = "89";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

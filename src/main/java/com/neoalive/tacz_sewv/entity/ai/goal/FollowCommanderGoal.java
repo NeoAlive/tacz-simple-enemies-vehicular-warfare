@@ -6,9 +6,13 @@ import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 
 /**
  * Hard FOLLOW_ME stick. SEM's {@code CommanderOrderGoal} sits at priority 3 and bails the moment
@@ -19,6 +23,10 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
  * <p>Same shape as {@link EscortGoal}: priority 1, MOVE, does not yield to combat. The rifle goal
  * (LOOK) still fires concurrently. Only {@link OrderType#FOLLOW_COMMANDER} — FORM / HOLD keep
  * SEM's own goal (and the softer {@link com.neoalive.tacz_sewv.entity.ai.support.FollowLeash}).
+ *
+ * <p>A unit that already carries a standing formation (set via the Quick Wheel, or inherited
+ * across a prior FOLLOW/MOVE order — see {@code MixinPacketIssueOrder}) paths to its formation
+ * slot instead of the commander's exact position, same as it would under FORM_WEDGE/FORM_COLUMN.
  */
 public class FollowCommanderGoal extends Goal {
 
@@ -88,7 +96,11 @@ public class FollowCommanderGoal extends Goal {
             this.unit.getLookControl().setLookAt(this.commander, 30.0F, 30.0F);
         }
 
-        double distSq = this.unit.distanceToSqr(this.commander);
+        Vec3 slot = ((IFormationMember) this.unit).sewv$getFormationDirection() != null
+                ? VehicleFormation.formationSlotCenter(this.unit, this.commander.position())
+                : null;
+
+        double distSq = slot != null ? this.unit.distanceToSqr(slot) : this.unit.distanceToSqr(this.commander);
         if (distSq <= STOP_FOLLOW_DISTANCE * STOP_FOLLOW_DISTANCE) {
             this.unit.getNavigation().stop();
             return;
@@ -99,7 +111,11 @@ public class FollowCommanderGoal extends Goal {
 
         if (--this.repathCooldown <= 0) {
             this.repathCooldown = REPATH_INTERVAL;
-            this.unit.getNavigation().moveTo(this.commander, SPEED);
+            if (slot != null) {
+                this.unit.getNavigation().moveTo(slot.x, slot.y, slot.z, SPEED);
+            } else {
+                this.unit.getNavigation().moveTo(this.commander, SPEED);
+            }
         }
     }
 

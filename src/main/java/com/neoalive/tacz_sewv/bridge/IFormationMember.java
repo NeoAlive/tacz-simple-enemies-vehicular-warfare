@@ -1,8 +1,11 @@
 package com.neoalive.tacz_sewv.bridge;
 
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The frozen cardinal a vehicle formation is laid out along, carried on a unit entity and
@@ -36,6 +39,13 @@ public interface IFormationMember {
     String TAG_FORMATION_ROWSIZE = "tacz_sewv_formation_rowsize";
     String TAG_FORMATION_WIDTH = "tacz_sewv_formation_width";
     String TAG_FORMATION_LENGTH = "tacz_sewv_formation_length";
+    String TAG_FORMATION_ANCHOR_MODE = "tacz_sewv_formation_anchor_mode";
+    String TAG_FORMATION_ANCHOR_SET = "tacz_sewv_formation_anchor_set";
+    String TAG_FORMATION_ANCHOR_X = "tacz_sewv_formation_anchor_x";
+    String TAG_FORMATION_ANCHOR_Y = "tacz_sewv_formation_anchor_y";
+    String TAG_FORMATION_ANCHOR_Z = "tacz_sewv_formation_anchor_z";
+    /** One-shot: armed by {@code MixinPacketIssueOrder}, consumed by {@code MixinPmcUnitEntity}. */
+    String TAG_FORMATION_CARRY = "tacz_sewv_formation_carry";
 
     float DEFAULT_STRETCH = 1.0f;
 
@@ -83,6 +93,54 @@ public interface IFormationMember {
     default float sewv$getFormationLength() {
         float l = ((Entity) this).getPersistentData().getFloat(TAG_FORMATION_LENGTH);
         return l <= 0.0f ? DEFAULT_STRETCH : l;
+    }
+
+    // Anchor mode (id from FormationAnchorMode — kept as a raw int here the same way the shape
+    // id is, so this interface stays independent of the entity.ai.support package) plus the
+    // frozen world point POSITION mode holds. A missing/absent anchor pos means "not frozen yet";
+    // resolveAnchor's caller supplies the live commander position to fall back on.
+    default void sewv$setFormationAnchorMode(int mode) {
+        ((Entity) this).getPersistentData().putInt(TAG_FORMATION_ANCHOR_MODE, mode);
+    }
+
+    default int sewv$getFormationAnchorMode() {
+        return ((Entity) this).getPersistentData().getInt(TAG_FORMATION_ANCHOR_MODE);
+    }
+
+    default void sewv$setFormationAnchorPos(@Nullable Vec3 pos) {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        tag.putBoolean(TAG_FORMATION_ANCHOR_SET, pos != null);
+        if (pos != null) {
+            tag.putDouble(TAG_FORMATION_ANCHOR_X, pos.x);
+            tag.putDouble(TAG_FORMATION_ANCHOR_Y, pos.y);
+            tag.putDouble(TAG_FORMATION_ANCHOR_Z, pos.z);
+        }
+    }
+
+    @Nullable
+    default Vec3 sewv$getFormationAnchorPos() {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        if (!tag.getBoolean(TAG_FORMATION_ANCHOR_SET)) return null;
+        return new Vec3(tag.getDouble(TAG_FORMATION_ANCHOR_X), tag.getDouble(TAG_FORMATION_ANCHOR_Y),
+                tag.getDouble(TAG_FORMATION_ANCHOR_Z));
+    }
+
+    /**
+     * Arms a one-shot skip so the very next native {@code setFormationIndex} call — SEM sends one
+     * with every order packet — does not wipe this unit's formation. Set by
+     * {@code MixinPacketIssueOrder} right before a FOLLOW_COMMANDER/MOVE_TO_POSITION order it wants
+     * to carry the standing formation across; consumed by {@code MixinPmcUnitEntity}'s wipe guard.
+     */
+    default void sewv$armFormationCarry() {
+        ((Entity) this).getPersistentData().putBoolean(TAG_FORMATION_CARRY, true);
+    }
+
+    /** Consumes (clears) the one-shot flag and reports whether it was armed. */
+    default boolean sewv$consumeFormationCarry() {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        boolean armed = tag.getBoolean(TAG_FORMATION_CARRY);
+        tag.remove(TAG_FORMATION_CARRY);
+        return armed;
     }
 
     /** Null and the two vertical faces both mean "no axis" — a formation is a horizontal thing. */

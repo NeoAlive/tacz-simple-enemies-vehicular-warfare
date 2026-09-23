@@ -19,6 +19,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -26,6 +27,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PathwaySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
@@ -213,9 +215,9 @@ public class PacketPatrolVehicle {
     }
 
     /**
-     * Cancel the area task on every owned unit that has one. No driver/hull filter: clearing is
-     * harmless on a unit that was never tasked, and only units that actually stood down are counted
-     * back to the player.
+     * Cancel the area task — and any standing formation — on every owned unit that has one. No
+     * driver/hull filter: clearing is harmless on a unit that was never tasked, and only units
+     * that actually stood down are counted back to the player.
      *
      * <p>Units on a preferred pathway are also included when they are in funnel range but were not
      * in the selection — "funnel all" never puts infantry on the map marker list, so dismiss must
@@ -238,12 +240,14 @@ public class PacketPatrolVehicle {
             boolean had = ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
                     || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()
                     || ((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$hasPathway()
-                    || EntrenchSupport.isEntrenched(pmc);
+                    || EntrenchSupport.isEntrenched(pmc)
+                    || ((IFormationMember) pmc).sewv$getFormationDirection() != null;
             if (had) {
                 PatrolSupport.clearSweepMembership(pmc, "PacketPatrolVehicle");
                 EntrenchSupport.clear(pmc);
                 TowRecoverySupport.clearIfTowering(pmc);
                 ((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$clearPathway();
+                VehicleFormation.clear(pmc);
                 if (pmc.getVehicle() == null) {
                     pmc.getNavigation().stop();
                 }

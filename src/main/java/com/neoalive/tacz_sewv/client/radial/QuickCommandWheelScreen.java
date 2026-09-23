@@ -28,6 +28,7 @@ import com.neoalive.tacz_sewv.client.TdtSelection;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
@@ -388,7 +389,7 @@ public final class QuickCommandWheelScreen extends Screen {
         List<Integer> filteredIds = new ArrayList<>(units.size());
         for (PmcUnitEntity pmc : units) filteredIds.add(pmc.getId());
         BoardKeybind.orderFormation(filteredIds, shape, IFormationMember.axisOf(axis), rowSize,
-                formationWidth, formationLength);
+                formationWidth, formationLength, FormationAnchorMode.PLAYER);
         return true;
     }
 

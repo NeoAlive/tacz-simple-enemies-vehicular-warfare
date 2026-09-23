@@ -61,6 +61,7 @@ import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.SweepInfantryGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 
 // IHelicopterPilot, IFormationMember and IVehiclePatrol need no method bodies here — their
 // default methods store the flight state, the formation axis and the patrol order in the
@@ -295,15 +296,17 @@ public abstract class MixinPmcUnitEntity
      * wipe the axis it had just read back and the whole formation would return inert. An entity
      * read from disk is not added to the world until after load() returns, which makes the flag
      * say exactly what we mean: a LIVE order clears the axis; loading one is not an order.
+     *
+     * <p>The carry flag is the one deliberate exception: {@code MixinPacketIssueOrder} arms it
+     * right before a FOLLOW_COMMANDER/MOVE_TO_POSITION order that should inherit the unit's
+     * standing formation instead of dropping it — those two orders are meant to keep the shape
+     * and axis a Quick Wheel formation set, not just FORM_WEDGE/FORM_COLUMN.
      */
     @Inject(method = "setFormationIndex", at = @At("HEAD"), remap = false)
     private void tacz_sewv$dropFormationAxisOnReorder(int index, CallbackInfo ci) {
         if (!((Entity) (Object) this).isAddedToWorld()) return;
-        this.sewv$setFormationDirection(null);
-        ((Entity) (Object) this).getPersistentData().remove(IFormationMember.TAG_FORMATION_SHAPE);
-        ((Entity) (Object) this).getPersistentData().remove(IFormationMember.TAG_FORMATION_ROWSIZE);
-        ((Entity) (Object) this).getPersistentData().remove(IFormationMember.TAG_FORMATION_WIDTH);
-        ((Entity) (Object) this).getPersistentData().remove(IFormationMember.TAG_FORMATION_LENGTH);
+        if (((IFormationMember) this).sewv$consumeFormationCarry()) return;
+        VehicleFormation.clear((PmcUnitEntity) (Object) this);
     }
 
     /**

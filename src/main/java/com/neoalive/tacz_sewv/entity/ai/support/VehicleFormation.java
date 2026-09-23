@@ -30,6 +30,14 @@ import com.neoalive.tacz_sewv.bridge.IFormationMember;
  *
  * <p>Server-side only for terrain projection. Preview math ({@link #slotCenter}) is pure vector
  * work and is safe on the client.
+ *
+ * <p><b>Anchor mode</b> ({@link FormationAnchorMode}): {@link #resolveAnchor} is the one place
+ * that turns PLAYER into the live commander position and POSITION into the frozen point stored
+ * in {@link IFormationMember#sewv$getFormationAnchorPos}, so every call site — the
+ * FORM_WEDGE/FORM_COLUMN case, FOLLOW_COMMANDER, MOVE_TO_POSITION, on-foot and mounted alike —
+ * reads the same answer. {@link #formationSlotCenter}/{@link #formationSlotPos} bundle "is this
+ * unit even formed up" with that anchor resolution so callers get one null check instead of five
+ * field reads.
  */
 public final class VehicleFormation {
 
@@ -44,6 +52,9 @@ public final class VehicleFormation {
 
     /** A terrain probe further than this from the commander's own level is not believable. */
     private static final int MAX_SLOT_RISE = 16;
+
+    /** LINE units-per-row fallback for a unit whose stored row size predates that field. */
+    private static final int DEFAULT_ROW_SIZE = 4;
 
     /** The heading the formation points along. Cardinal step vectors are already unit length. */
     public static Vec3 forward(Direction axis) {
@@ -174,10 +185,13 @@ public final class VehicleFormation {
     /**
      * Number a selection into formation slots and issue the order. Returns the count of HULLS
      * formed (infantry-only selections return the infantry count so feedback still works).
+     *
+     * <p>{@code anchorMode} is stored per-unit and, for POSITION, frozen at {@code commander}'s
+     * current position right now — see {@link #resolveAnchor}.
      */
     public static int assign(Player commander, List<PmcUnitEntity> units, FormationShape shape,
                              Direction axis, int rowSize, float widthStretch, float lengthStretch,
-                             FormationComposition.Kind kind) {
+                             FormationComposition.Kind kind, FormationAnchorMode anchorMode) {
         OrderType order = shape.semOrder();
         float width = IFormationMember.clampStretch(widthStretch);
         float length = IFormationMember.clampStretch(lengthStretch);
@@ -200,26 +214,31 @@ public final class VehicleFormation {
         drivers.sort(byRange);
         loose.sort(byRange);
 
+        Vec3 frozenAnchor = anchorMode == FormationAnchorMode.POSITION ? commander.position() : null;
+
         int slot = 0;
         Map<Entity, Integer> hullSlots = new HashMap<>();
         for (PmcUnitEntity driver : drivers) {
             hullSlots.put(driver.getVehicle(), slot);
-            apply(driver, order, axis, slot++, shape, rowSize, width, length);
+            apply(driver, order, axis, slot++, shape, rowSize, width, length, anchorMode, frozenAnchor);
         }
         for (PmcUnitEntity infantry : loose) {
-            apply(infantry, order, axis, slot++, shape, rowSize, width, length);
+            apply(infantry, order, axis, slot++, shape, rowSize, width, length, anchorMode, frozenAnchor);
         }
 
         for (PmcUnitEntity rider : riders) {
             Integer hullSlot = hullSlots.get(rider.getVehicle());
-            if (hullSlot != null) apply(rider, order, axis, hullSlot, shape, rowSize, width, length);
+            if (hullSlot != null) {
+                apply(rider, order, axis, hullSlot, shape, rowSize, width, length, anchorMode, frozenAnchor);
+            }
         }
         // Infantry-only: report how many formed; otherwise hull count (legacy feedback keys).
         return kind == FormationComposition.Kind.INFANTRY ? loose.size() : hullSlots.size();
     }
 
     private static void apply(PmcUnitEntity pmc, OrderType order, Direction axis, int slot,
-                              FormationShape shape, int rowSize, float width, float length) {
+                              FormationShape shape, int rowSize, float width, float length,
+                              FormationAnchorMode anchorMode, @Nullable Vec3 frozenAnchor) {
         PatrolSupport.clearSweepMembership(pmc, "VehicleFormation.dismiss");
         pmc.releaseMovementLock();
         pmc.setFormationIndex(slot);
@@ -229,6 +248,10 @@ public final class VehicleFormation {
         member.sewv$setFormationRowSize(rowSize);
         member.sewv$setFormationWidth(width);
         member.sewv$setFormationLength(length);
+        member.sewv$setFormationAnchorMode(anchorMode.id());
+        // Re-forming always re-freezes (or drops) the anchor fresh rather than keeping a stale
+        // point from whatever formation this unit was previously in.
+        member.sewv$setFormationAnchorPos(frozenAnchor);
         pmc.resetCommanderGoalCooldown();
         pmc.setOrder(order);
     }
@@ -243,5 +266,81 @@ public final class VehicleFormation {
     @Nullable
     public static FormationComposition.Kind kindForUnit(PmcUnitEntity pmc) {
         return FormationComposition.classify(pmc);
+    }
+
+    /**
+     * The anchor a formed-up unit's slot math should use: the live commander position for
+     * PLAYER, or the frozen point for POSITION (falling back to {@code commanderPos} if nothing
+     * has been frozen yet — should not normally happen, since {@link #assign} and
+     * {@link #freezeAnchor} both set it whenever POSITION mode is engaged).
+     */
+    public static Vec3 resolveAnchor(PmcUnitEntity pmc, Vec3 commanderPos) {
+        IFormationMember member = (IFormationMember) pmc;
+        if (FormationAnchorMode.byId(member.sewv$getFormationAnchorMode()) != FormationAnchorMode.POSITION) {
+            return commanderPos;
+        }
+        Vec3 frozen = member.sewv$getFormationAnchorPos();
+        return frozen != null ? frozen : commanderPos;
+    }
+
+    /** Re-freezes a POSITION-anchored unit's slot point — MOVE_TO_POSITION moves the anchor. */
+    public static void freezeAnchor(PmcUnitEntity pmc, Vec3 point) {
+        ((IFormationMember) pmc).sewv$setFormationAnchorPos(point);
+    }
+
+    /** Formation parameters read off a unit, or null when it isn't formed up (no frozen axis). */
+    @Nullable
+    private static Layout layoutFor(PmcUnitEntity pmc) {
+        IFormationMember member = (IFormationMember) pmc;
+        Direction axis = member.sewv$getFormationDirection();
+        int slot = pmc.getFormationIndex();
+        if (axis == null || slot < 0) return null;
+        int rowSize = member.sewv$getFormationRowSize();
+        if (rowSize < 1) rowSize = DEFAULT_ROW_SIZE;
+        return new Layout(axis, FormationShape.byId(member.sewv$getFormationShape()), slot, rowSize,
+                member.sewv$getFormationWidth(), member.sewv$getFormationLength());
+    }
+
+    private record Layout(Direction axis, FormationShape shape, int slot, int rowSize,
+                          float width, float length) {}
+
+    /**
+     * The slot centre a unit under FOLLOW_COMMANDER/MOVE_TO_POSITION/FORM_* should path to, or
+     * null when it isn't in a formation — callers fall back to their own plain-order behaviour.
+     * Infantry-scale: no terrain projection, matching how {@code MixinCommanderOrderGoal} already
+     * fed SEM's own on-foot navigation.
+     */
+    @Nullable
+    public static Vec3 formationSlotCenter(PmcUnitEntity pmc, Vec3 commanderPos) {
+        Layout l = layoutFor(pmc);
+        if (l == null) return null;
+        return slotCenter(resolveAnchor(pmc, commanderPos), l.axis(), l.shape(), l.slot(), l.rowSize(),
+                baselineForUnit(pmc), l.width(), l.length());
+    }
+
+    /** Hull-scale equivalent of {@link #formationSlotCenter}, terrain/water-projected. */
+    @Nullable
+    public static BlockPos formationSlotPos(Level level, PmcUnitEntity pmc, Vec3 commanderPos) {
+        Layout l = layoutFor(pmc);
+        if (l == null) return null;
+        FormationComposition.Kind kind = kindForUnit(pmc);
+        if (kind == null) kind = FormationComposition.Kind.GROUND;
+        return slotPos(level, resolveAnchor(pmc, commanderPos), l.axis(), l.shape(), l.slot(), l.rowSize(),
+                baselineForUnit(pmc), l.width(), l.length(), kind);
+    }
+
+    /** Drops every formation tag — DISMISS / Quick Wheel CANCEL, or a fresh non-formation order. */
+    public static void clear(PmcUnitEntity pmc) {
+        var data = pmc.getPersistentData();
+        data.remove(IFormationMember.TAG_FORMATION_AXIS);
+        data.remove(IFormationMember.TAG_FORMATION_SHAPE);
+        data.remove(IFormationMember.TAG_FORMATION_ROWSIZE);
+        data.remove(IFormationMember.TAG_FORMATION_WIDTH);
+        data.remove(IFormationMember.TAG_FORMATION_LENGTH);
+        data.remove(IFormationMember.TAG_FORMATION_ANCHOR_MODE);
+        data.remove(IFormationMember.TAG_FORMATION_ANCHOR_SET);
+        data.remove(IFormationMember.TAG_FORMATION_ANCHOR_X);
+        data.remove(IFormationMember.TAG_FORMATION_ANCHOR_Y);
+        data.remove(IFormationMember.TAG_FORMATION_ANCHOR_Z);
     }
 }

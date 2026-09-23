@@ -7,6 +7,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -18,6 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEscort;
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
@@ -25,17 +27,22 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
- * Two things that both hang off a <b>player-given</b> order, which is exactly what SEM's order
+ * Three things that all hang off a <b>player-given</b> order, which is exactly what SEM's order
  * packet is -- RU/US units are autonomous and never receive one, so this is naturally PMC-only:
- * the "orders acknowledged" radio line, and standing the crew down off any area task.
+ * the "orders acknowledged" radio line, standing the crew down off any area task, and arming the
+ * formation-carry flag so FOLLOW_COMMANDER/MOVE_TO_POSITION can inherit a standing formation
+ * instead of losing it to SEM's own setFormationIndex wipe (see the carry-flag block below and
+ * {@code MixinPmcUnitEntity}'s wipe guard).
  *
  * <p><b>The stand-down is what makes an order the player just gave actually happen.</b> A patrol or
  * search area task outranks the SEM order queue in {@code VehicleTargeting.resolveDestination} --
@@ -95,6 +102,25 @@ public abstract class MixinPacketIssueOrder {
             ci.cancel();
             return;
         }
+        // FOLLOW_COMMANDER and MOVE_TO_POSITION inherit a standing formation (Quick Wheel shape +
+        // axis + anchor mode) instead of dropping it: arm the one-shot carry flag now, BEFORE SEM's
+        // own handler runs and calls setFormationIndex — that call is what MixinPmcUnitEntity
+        // wipes the formation on, and this is the one case it shouldn't. A POSITION-anchored MOVE
+        // also re-freezes the anchor to the new destination, so a fresh order actually relocates a
+        // parked formation instead of leaving it sitting at wherever it last formed up.
+        if ((order == OrderType.FOLLOW_COMMANDER || order == OrderType.MOVE_TO_POSITION)
+                && ((IFormationMember) pmc).sewv$getFormationDirection() != null) {
+            ((IFormationMember) pmc).sewv$armFormationCarry();
+            if (order == OrderType.MOVE_TO_POSITION
+                    && FormationAnchorMode.byId(((IFormationMember) pmc).sewv$getFormationAnchorMode())
+                            == FormationAnchorMode.POSITION) {
+                Vec3 dest = ((AccessorPacketIssueOrder) packet).tacz_sewv$targetPos();
+                if (dest != null && !dest.equals(Vec3.ZERO)) {
+                    VehicleFormation.freezeAnchor(pmc, dest);
+                }
+            }
+        }
+
         OrderReport.okEach(sender, "message.tacz_sewv.tdt.order", ChatFormatting.GREEN);
 
         // Cleared for any ordered unit, mounted or not: an area task only means anything to a

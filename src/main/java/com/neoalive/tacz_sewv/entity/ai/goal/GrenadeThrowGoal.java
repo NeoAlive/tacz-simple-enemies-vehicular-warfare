@@ -92,6 +92,8 @@ public class GrenadeThrowGoal extends Goal {
 
     @Override
     public void stop() {
+        // Aborted before the throw (target died / LOS lost): the PMC's grenade is not spent.
+        if (!this.thrown && this.pendingId != null) GrenadeSupport.refund(this.unit, this.pendingId);
         UnitHolster.endGrenadeThrow(this.unit);
         this.pendingId = null;
         this.aimTicks = 0;

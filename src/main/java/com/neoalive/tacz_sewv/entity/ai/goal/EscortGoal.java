@@ -8,6 +8,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IEscort;
+import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -64,6 +65,7 @@ public class EscortGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        if (((ITerritoryPost) this.unit).sewv$hasTerritoryPost()) return false; // a post owns MOVE at this priority
         if (this.unit.isPassenger()) return false; // riding something itself — not on foot to escort
         if (escortId() == -1) return false;
 
@@ -82,7 +84,8 @@ public class EscortGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return escortId() != -1
+        return !((ITerritoryPost) this.unit).sewv$hasTerritoryPost()
+                && escortId() != -1
                 && this.escortTarget != null
                 && this.escortTarget.isAlive()
                 && !this.unit.isPassenger();

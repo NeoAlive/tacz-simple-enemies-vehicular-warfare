@@ -7,6 +7,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
+import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.entity.ai.support.PathwaySupport;
 
 /**
@@ -28,7 +29,8 @@ public class PathwayGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return !this.unit.isPassenger() && ((IPathwayInfantry) this.unit).sewv$hasPathway();
+        return !this.unit.isPassenger() && ((IPathwayInfantry) this.unit).sewv$hasPathway()
+                && !((ITerritoryPost) this.unit).sewv$hasTerritoryPost(); // a post owns MOVE at this priority
     }
 
     @Override

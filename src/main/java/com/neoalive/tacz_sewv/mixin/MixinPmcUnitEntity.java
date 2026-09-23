@@ -32,6 +32,7 @@ import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
+import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.bridge.ITowRecovery;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
@@ -60,6 +61,7 @@ import com.neoalive.tacz_sewv.entity.ai.goal.PmcReviveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.SweepInfantryGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.TerritoryPostGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
@@ -77,7 +79,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 public abstract class MixinPmcUnitEntity
         implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember,
         IVehiclePatrol, IEscort, ITowRecovery, ISweepInfantry, IPathwayInfantry, ICaptureOrder, IMedicTreat, IEntrenched,
-        IPmcDowned, ICaptureMedic, IFobAssigned {
+        IPmcDowned, ICaptureMedic, IFobAssigned, ITerritoryPost {
 
     @Unique
     private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING;
@@ -93,6 +95,17 @@ public abstract class MixinPmcUnitEntity
         tacz_sewv$TREATING = SynchedEntityData.defineId(PmcUnitEntity.class, EntityDataSerializers.BOOLEAN);
         tacz_sewv$DOWNED = SynchedEntityData.defineId(PmcUnitEntity.class, EntityDataSerializers.BOOLEAN);
     }
+
+    // Territory post, cached: -1 = not read yet, 0 = none, 1 = posted. The persistent NBT stays the
+    // source of truth (survives reload); this only exists so the setTarget veto and every MOVE goal
+    // pay one field read per unit per tick instead of an NBT map lookup. First read happens on the
+    // first AI tick, well after Entity.load has swapped in the saved ForgeData.
+    @Unique
+    private byte tacz_sewv$territoryPost = -1;
+
+    // Transient: reached the post since being posted (see ITerritoryPost#sewv$hasReachedTerritoryPost).
+    @Unique
+    private boolean tacz_sewv$territoryReached;
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
@@ -376,6 +389,9 @@ public abstract class MixinPmcUnitEntity
         // Sweep & Advance on-foot: same priority band as escort so MoveToAttackRange cannot yank
         // infantry out of the selected rectangle while the sweep is active.
         ((Mob) self).goalSelector.addGoal(1, new SweepInfantryGoal(self));
+        // Territory Mode post (Frontline Tool). Same priority band as sweep; SweepInfantryGoal is gated
+        // on the post so the two can never both claim MOVE, and posting clears every competing state.
+        ((Mob) self).goalSelector.addGoal(1, new TerritoryPostGoal(self));
         ((Mob) self).goalSelector.addGoal(1, new PathwayGoal(self));
         ((Mob) self).goalSelector.addGoal(4, new PathwayPassiveGoal(self));
         // Platoon regroup: same priority band — it only ever engages when idle (no target, no
@@ -418,5 +434,46 @@ public abstract class MixinPmcUnitEntity
     @Override
     public Entity asEntity() {
         return (Entity) (Object) this;
+    }
+
+    @Override
+    public boolean sewv$hasTerritoryPost() {
+        byte cached = this.tacz_sewv$territoryPost;
+        if (cached < 0) {
+            cached = (byte) (((Entity) (Object) this).getPersistentData().contains(ITerritoryPost.TAG_X) ? 1 : 0);
+            this.tacz_sewv$territoryPost = cached;
+        }
+        return cached == 1;
+    }
+
+    @Override
+    public void sewv$setTerritoryPost(int chunkX, int chunkZ) {
+        net.minecraft.nbt.CompoundTag tag = ((Entity) (Object) this).getPersistentData();
+        tag.putInt(ITerritoryPost.TAG_X, chunkX);
+        tag.putInt(ITerritoryPost.TAG_Z, chunkZ);
+        tag.remove(ITerritoryPost.TAG_LOST);
+        this.tacz_sewv$territoryPost = 1;
+        this.tacz_sewv$territoryReached = false; // a (re)post always starts with the walk there
+    }
+
+    @Override
+    public boolean sewv$hasReachedTerritoryPost() {
+        return this.tacz_sewv$territoryReached;
+    }
+
+    @Override
+    public void sewv$setReachedTerritoryPost(boolean reached) {
+        this.tacz_sewv$territoryReached = reached;
+    }
+
+    @Override
+    public void sewv$clearTerritoryPost() {
+        net.minecraft.nbt.CompoundTag tag = ((Entity) (Object) this).getPersistentData();
+        tag.remove(ITerritoryPost.TAG_X);
+        tag.remove(ITerritoryPost.TAG_Z);
+        tag.remove(ITerritoryPost.TAG_LOST);
+        tag.remove(ITerritoryPost.TAG_BY);
+        this.tacz_sewv$territoryPost = 0;
+        this.tacz_sewv$territoryReached = false;
     }
 }

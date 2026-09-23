@@ -64,6 +64,7 @@ public class PacketBoardVehicle {
                 continue;
             }
             if (OrderGuard.rejectIfDowned(player, pmc)) continue;
+            if (OrderGuard.rejectIfTerritory(player, pmc, "board")) continue;
             // A board order goes out to every owned unit in range, so leave crews that
             // are already committed to a mortar out of it — otherwise pressing this at
             // a vehicle silently pulls a working mortar team off its tube, including

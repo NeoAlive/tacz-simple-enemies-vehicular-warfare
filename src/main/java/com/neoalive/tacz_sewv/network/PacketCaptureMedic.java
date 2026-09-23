@@ -61,6 +61,7 @@ public class PacketCaptureMedic {
                     continue;
                 }
                 if (OrderGuard.rejectIfDowned(sp, pmc)) continue;
+                if (OrderGuard.rejectIfTerritory(sp, pmc, "capture_medic")) continue;
                 if (!hasMedicInRange(pmc, radius)) {
                     OrderReport.fail(sp, OrderFailure.NO_MEDIC_IN_RANGE, pmc);
                     continue;

@@ -154,6 +154,8 @@ public class BoardKeybind {
         for (int id : TdtSelection.resolve(radius)) {
             if (!(mc.level.getEntity(id) instanceof PmcUnitEntity pmc)) continue;
             if (!pmc.isOwnedBy(player) || !filter.test(pmc)) continue;
+            // A posted unit is commandable only through the RTS panel (the server refuses it anyway).
+            if (com.neoalive.tacz_sewv.client.territory.TerritoryClient.inTerritory(id)) continue;
             unitIds.add(id);
         }
 

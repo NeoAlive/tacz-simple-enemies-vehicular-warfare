@@ -115,6 +115,16 @@ public final class OpenPacCompat {
         return Access.partyOwnerIdByFactionName(server, factionName);
     }
 
+    /**
+     * Chunks in {@code level} claimed by {@code playerId} or any member of their party, packed like
+     * {@code ChunkPos.asLong}. Allies are deliberately excluded (Territory Mode V1: ally = not self).
+     * Empty when OpenPAC is absent. Walks every claim, so callers cache it per sync, not per tick.
+     */
+    public static Set<Long> selfClaimedChunks(ServerLevel level, UUID playerId) {
+        if (!isLoaded() || level == null || playerId == null) return Set.of();
+        return Access.selfClaimedChunks(level, playerId);
+    }
+
     /** Stage 5: claim chunk for {@code ownerId}. No-op when OpenPAC absent. */
     public static boolean claim(ServerLevel level, UUID ownerId, int chunkX, int chunkZ) {
         if (!isLoaded() || level == null || ownerId == null) {
@@ -165,6 +175,25 @@ public final class OpenPacCompat {
                     .getServerClaimsManager()
                     .get(dimension, chunkX, chunkZ);
             return claim != null ? claim.getPlayerId() : null;
+        }
+
+        static Set<Long> selfClaimedChunks(ServerLevel level, UUID playerId) {
+            var api = xaero.pac.common.server.api.OpenPACServerAPI.get(level.getServer());
+            var claims = api.getServerClaimsManager();
+            ResourceLocation dim = level.dimension().location();
+            Set<UUID> ids = new LinkedHashSet<>();
+            ids.add(playerId);
+            var party = api.getPartyManager().getPartyByMember(playerId);
+            if (party != null) party.getMemberInfoStream().forEach(m -> ids.add(m.getUUID()));
+
+            Set<Long> out = new java.util.HashSet<>();
+            for (UUID id : ids) {
+                if (!claims.hasPlayerInfo(id)) continue;
+                var perDim = claims.getPlayerInfo(id).getDimension(dim);
+                if (perDim == null) continue;
+                perDim.getStream().forEach(list -> list.getStream().forEach(p -> out.add(p.toLong())));
+            }
+            return out;
         }
 
         @Nullable

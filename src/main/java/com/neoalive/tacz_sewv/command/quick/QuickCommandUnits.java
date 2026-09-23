@@ -85,6 +85,8 @@ public final class QuickCommandUnits {
 
     public static boolean refuseFobOrRoute(ServerPlayer issuer, PmcUnitEntity pmc,
                                            boolean allowFobCommand) {
+        // Territory posts refuse regardless of allowFobCommand: a posted unit is never FOB-garrisoned.
+        if (OrderGuard.rejectIfTerritory(issuer, pmc, "quick_wheel")) return true;
         if (!allowFobCommand && FobSupport.blocksOrders(pmc)) {
             OrderReport.fail(issuer, OrderFailure.FOB_COMMAND, pmc);
             return true;

@@ -214,6 +214,8 @@ public class FobManager extends SavedData {
         if (!(e instanceof PmcUnitEntity pmc)) return false;
         UUID owner = pmc.getOwnerUUID();
         if (owner == null || !owner.equals(fob.owner)) return false;
+        // A unit on a Territory Mode post is commandable only through the RTS panel, never garrisoned.
+        if (((com.neoalive.tacz_sewv.bridge.ITerritoryPost) pmc).sewv$hasTerritoryPost()) return false;
         fob.assignedLiving.add(entityId);
         FobSupport.stamp(pmc, commandPos);
         FobDebug.logEntity(pmc, "assigned to FOB at {}", commandPos);
@@ -243,6 +245,10 @@ public class FobManager extends SavedData {
         Entity e = findEntity(level, vehicleId);
         if (!(e instanceof VehicleEntity hull)) return false;
         if (!FobSupport.vehicleClaimableBy(hull, fob.owner)) return false;
+        // The FOB park destination outranks a Territory post, so a hull with a posted crewman is refused.
+        for (Entity passenger : hull.getPassengers()) {
+            if (passenger instanceof com.neoalive.tacz_sewv.bridge.ITerritoryPost post && post.sewv$hasTerritoryPost()) return false;
+        }
         fob.assignedVehicles.add(vehicleId);
         FobSupport.stamp(hull, commandPos);
         pruneDeadAssignments(fob, level);

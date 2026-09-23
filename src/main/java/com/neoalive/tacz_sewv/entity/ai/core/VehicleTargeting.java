@@ -24,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -34,6 +35,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.IdleSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MarchObjective;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TerritorySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.entity.unit.RuCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.RuEngineerEntity;
@@ -150,6 +152,11 @@ public final class VehicleTargeting {
             if (aid != null) return aid;
             return IdleSupport.wanderPos(unit, vehicle);
         }
+
+        // A Territory Mode post outranks the area task: posting clears any patrol / cruise / sweep, so
+        // this is precedence only if one is somehow set later. A lost post falls through and holds.
+        BlockPos territory = TerritorySupport.mountedDestination(pmc);
+        if (territory != null) return territory;
 
         // An area task (patrol / search & destroy / sweep) is a standing TDT order that outranks
         // the SEM order queue: while it is set the hull works its area. Contact no longer yields
@@ -983,6 +990,7 @@ public final class VehicleTargeting {
         if (unit instanceof PmcUnitEntity pmc) {
             if (FobSupport.holdsRouteThroughContact(pmc)) return true;
             if (FobSupport.blocksOrders(pmc)) return true;
+            if (((ITerritoryPost) pmc).sewv$hasTerritoryPost()) return true;
             return ((IVehiclePatrol) pmc).sewv$isPatrolling() || pmc.getOrder() != OrderType.FREE_FIRE;
         }
         return false;

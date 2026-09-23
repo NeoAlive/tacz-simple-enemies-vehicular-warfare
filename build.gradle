@@ -403,10 +403,19 @@ tasks.register('selfCheckStructures', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckTerritory', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Territory Mode frontline-assignment self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.support.TerritorySelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures'
+    dependsOn 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory'
 }
 
 mixin {

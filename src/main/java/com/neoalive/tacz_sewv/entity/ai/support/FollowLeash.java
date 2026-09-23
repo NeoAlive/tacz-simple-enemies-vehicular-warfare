@@ -7,6 +7,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
+import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 
 /**
@@ -35,7 +36,8 @@ import com.neoalive.tacz_sewv.fob.FobSupport;
  * <p>Scoped to the positional orders CommanderOrderGoal governs (the same set SEM treats as
  * "isFollowOrder"): FOLLOW / HOLD / MOVE_TO_POSITION / the two FORM orders — plus a live
  * on-foot Sweep &amp; Advance ({@link ISweepInfantry}), which must not chase off its rectangle
- * either. FREE_FIRE and ATTACK_THAT_TARGET alone keep the full chase. Mounted crews are
+ * either, and a Territory Mode post ({@link ITerritoryPost}, which alone allows the chase while target
+ * and unit are both inside its 3x3 leash). FREE_FIRE and ATTACK_THAT_TARGET alone keep the full chase. Mounted crews are
  * excluded: their movement is the vehicle's ({@link PatrolSupport#holdsCourseThroughContact}).
  */
 public final class FollowLeash {
@@ -46,6 +48,10 @@ public final class FollowLeash {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
         if (PmcDownedSupport.isDowned(pmc)) return false;
         if (pmc.getVehicle() != null) return false; // mounted: driven by the vehicle AI, not these goals
+        // Territory post: a definitive answer, decided BEFORE the order switch below — the post takes the
+        // HOLD stance, which would otherwise read as "always suppress" and forbid the in-leash pursuit.
+        ITerritoryPost territory = (ITerritoryPost) pmc;
+        if (territory.sewv$hasTerritoryPost()) return TerritorySupport.suppressesChase(pmc, territory);
         // Route to FOB is a forced MOVE: fire from where you stand, never chase off the route.
         if (FobSupport.hasRoutePending(pmc)) return true;
         if (((ISweepInfantry) pmc).sewv$hasInfantrySweep()) return true;
@@ -83,6 +89,8 @@ public final class FollowLeash {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
         if (pmc.getVehicle() != null) return false;
         if (FobSupport.hasRoutePending(pmc)) return true;
+        ITerritoryPost territory = (ITerritoryPost) pmc;
+        if (territory.sewv$hasTerritoryPost()) return TerritorySupport.enRoute(pmc, territory);
         if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) return false;
         Vec3 dest = pmc.getMoveToTarget();
         if (dest == null || dest.equals(Vec3.ZERO)) return false;

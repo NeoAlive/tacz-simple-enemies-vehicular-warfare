@@ -23,12 +23,20 @@ public final class NotificationHudOverlay {
         if (mc.player == null) return;
 
         NotificationHud.tick(mc.isPaused(), System.currentTimeMillis());
-        if (mc.options.hideGui || !NotificationHud.visible()) return;
+        drawOver(event.getGuiGraphics());
+    }
+
+    /**
+     * Draws the current banner, if any. Split from the event so a fullscreen screen that hides the HUD (the world
+     * map) can repeat it on top; the timer is only advanced from the GUI event, never here.
+     */
+    public static void drawOver(GuiGraphics g) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.options.hideGui || !NotificationHud.visible()) return;
 
         NotificationHud.Item item = NotificationHud.front();
         if (item == null) return;
 
-        GuiGraphics g = event.getGuiGraphics();
         Font font = mc.font;
         int screenW = mc.getWindow().getGuiScaledWidth();
         float scale = GuiFit.fitScale(NotificationHud.TEX_W, screenW);

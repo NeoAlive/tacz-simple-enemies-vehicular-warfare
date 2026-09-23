@@ -228,8 +228,12 @@ public final class PatrolSupport {
      * {@code DriveVehicleGoal}'s low-health path.
      */
     public static boolean holdsCourseThroughContact(AbstractUnit unit) {
+        // A posted driver (Territory Mode) fights from its post: same commitment. holder() also answers true for the
+        // hull's other crew, which the scan goal uses to apply the leash to gunners' own scans (the drive goals
+        // that read this only ever run on the driver).
         return unit instanceof PmcUnitEntity pmc
-                && ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null;
+                && (TerritorySupport.holder(pmc) != null
+                        || ((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null);
     }
 
     /**
@@ -239,6 +243,8 @@ public final class PatrolSupport {
      * zombie on the horizon.
      */
     public static boolean isInsideAreaTask(PmcUnitEntity pmc, double x, double z) {
+        com.neoalive.tacz_sewv.bridge.ITerritoryPost territory = TerritorySupport.holder(pmc);
+        if (territory != null) return TerritorySupport.inLeash(territory, x, z);
         IVehiclePatrol task = (IVehiclePatrol) pmc;
         if (task.sewv$getPatrolOrigin() == null) return true;
         int mode = task.sewv$getPatrolMode();
@@ -266,6 +272,10 @@ public final class PatrolSupport {
      * should refuse the lock. Cruise is unbounded (route, not a disk); returns false there.
      */
     public static boolean refusesOutOfAreaTarget(PmcUnitEntity pmc, LivingEntity target) {
+        // Cold branch first. holder() covers every crewman of a posted hull, not just the posted driver:
+        // each seat has its own target, so a gunner would otherwise still lock beyond the leash.
+        com.neoalive.tacz_sewv.bridge.ITerritoryPost territory = TerritorySupport.holder(pmc);
+        if (territory != null) return TerritorySupport.refusesTarget(territory, target);
         if (((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
             var sweep = (com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc;
             int minX = sweep.sewv$getInfSweepLeft() << 4;

@@ -74,6 +74,7 @@ public class PacketEntrench {
                     continue;
                 }
                 if (OrderGuard.rejectIfDowned(sp, pmc)) continue;
+                if (OrderGuard.rejectIfTerritory(sp, pmc, "entrench")) continue;
                 units.add(pmc);
             }
             if (units.isEmpty()) {

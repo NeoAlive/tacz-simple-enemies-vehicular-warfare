@@ -109,6 +109,8 @@ public class PacketSweepAndAdvance {
                     OrderReport.fail(player, OrderFailure.NOT_OWNED);
                     continue;
                 }
+                // Excluded here, before the lists (and so the sector count) are final — never filtered per tick.
+                if (com.neoalive.tacz_sewv.order.OrderGuard.rejectIfTerritory(player, pmc, "sweep")) continue;
 
                 if (pmc.getVehicle() instanceof VehicleEntity v
                         && v.getFirstPassenger() == pmc

@@ -58,6 +58,7 @@ public class PacketFunnelPreferredPathway {
             if (this.unitIds.isEmpty()) {
                 for (PmcUnitEntity pmc : PathwaySupport.funnelCandidates(player)) {
                     if (OrderGuard.rejectIfDowned(player, pmc)) continue;
+                    if (OrderGuard.rejectIfTerritory(player, pmc, "funnel")) continue;
                     funnelOne(pmc, route, this.pathId);
                     funneled++;
                 }
@@ -73,6 +74,7 @@ public class PacketFunnelPreferredPathway {
                         continue;
                     }
                     if (OrderGuard.rejectIfDowned(player, pmc)) continue;
+                    if (OrderGuard.rejectIfTerritory(player, pmc, "funnel")) continue;
                     if (!PathwaySupport.isGroundFunnelUnit(pmc)) continue;
                     funnelOne(pmc, route, this.pathId);
                     funneled++;

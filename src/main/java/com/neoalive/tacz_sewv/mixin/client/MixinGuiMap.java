@@ -272,7 +272,7 @@ public abstract class MixinGuiMap extends Screen {
             }
             if (RtsPanel.toolArmed() && !CruisePlot.armed() && !GuardPlot.armed() && !PathwayPlot.armed()
                     && this.getChildAt(mouseX, mouseY).isEmpty()) {
-                RtsPanel.toolClick(button, this.mouseBlockPosX >> 4, this.mouseBlockPosZ >> 4);
+                RtsPanel.toolClick(button, tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
                 cir.setReturnValue(true);
                 return;
             }
@@ -318,7 +318,7 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapRelease(double mouseX, double mouseY, int button,
                                         CallbackInfoReturnable<Boolean> cir) {
-        if (RtsPanel.consumeRelease()) {
+        if (RtsPanel.consumeRelease(button, tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY))) {
             cir.setReturnValue(true);
             return;
         }
@@ -366,6 +366,17 @@ public abstract class MixinGuiMap extends Screen {
         if (RtsPanel.mouseScrolled(mouseX, mouseY, delta, this.width, this.height)) cir.setReturnValue(true);
     }
 
+    /** Screen pixel to world X / Z: the exact inverse of {@link #tacz_sewv$toScreenXZ}, so a drag follows what is drawn. */
+    @Unique
+    private double tacz_sewv$worldX(double screenX) {
+        return this.cameraX + (screenX - this.width / 2.0) * this.screenScale / this.scale;
+    }
+
+    @Unique
+    private double tacz_sewv$worldZ(double screenY) {
+        return this.cameraZ + (screenY - this.height / 2.0) * this.screenScale / this.scale;
+    }
+
     /**
      * Measures Xaero's right-edge button column (visible widgets flush with the right edge) so the panel can sit
      * flush with the screen and step in only where it would actually overlap them.
@@ -403,6 +414,7 @@ public abstract class MixinGuiMap extends Screen {
         if (!RtsPanel.enabled()) return;
         if (CruisePlot.armed() || GuardPlot.armed() || PathwayPlot.armed()) RtsPanel.cancelTool();
         tacz_sewv$syncRtsColumn();
+        RtsPanel.sampleDrag(tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
         RtsPanel.drawOverlay(guiGraphics, this::tacz_sewv$toScreenXZ, this.width, this.height,
                 this.mouseBlockPosX, this.mouseBlockPosZ);
         RtsPanel.render(guiGraphics, this.font, this.width, this.height, mouseX, mouseY);

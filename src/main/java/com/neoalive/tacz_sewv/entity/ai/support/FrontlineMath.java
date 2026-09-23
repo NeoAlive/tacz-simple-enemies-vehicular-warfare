@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,6 +35,43 @@ public final class FrontlineMath {
 
     public static Chunk unpack(long packed) {
         return new Chunk((int) packed, (int) (packed >> 32));
+    }
+
+    /**
+     * Chunks a segment crosses, in order from start to end (a chunk equal to the previous one is collapsed). Stepping is
+     * 4 blocks, far inside a 16-block chunk, so a fast mouse move between two frames cannot skip a chunk it crossed.
+     */
+    public static List<Long> chunksAlong(double x0, double z0, double x1, double z1) {
+        double dx = x1 - x0;
+        double dz = z1 - z0;
+        int steps = Math.max(1, (int) Math.ceil(Math.max(Math.abs(dx), Math.abs(dz)) / 4.0));
+        List<Long> out = new ArrayList<>();
+        long last = Long.MIN_VALUE;
+        for (int i = 0; i <= steps; i++) {
+            double x = x0 + dx * i / steps;
+            double z = z0 + dz * i / steps;
+            long key = pack((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4);
+            if (key != last) {
+                out.add(key);
+                last = key;
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A drag's visited chunks reduced to the manual fill order: front chunks only, each once, first visit wins.
+     * Non-contiguous drags are fine; a front chunk the drag never touched is simply absent (and stays uncovered).
+     * The result goes to {@link #assign} exactly as the auto path's origin-sorted front does.
+     */
+    public static List<Chunk> drawnOrder(Set<Long> front, Collection<Long> visited) {
+        LinkedHashSet<Long> keep = new LinkedHashSet<>();
+        for (long key : visited) {
+            if (front.contains(key)) keep.add(key);
+        }
+        List<Chunk> out = new ArrayList<>(keep.size());
+        for (long key : keep) out.add(unpack(key));
+        return out;
     }
 
     /** Front chunks in no particular order (for rendering / coverage; no origin needed). */

@@ -1,6 +1,8 @@
 package com.neoalive.tacz_sewv.territory;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -27,12 +29,19 @@ public class TerritoryData extends SavedData {
      * "had claims, now none" has to survive a restart to stay distinguishable from "OpenPAC not readable yet".
      */
     private final Set<UUID> seenClaims = new HashSet<>();
+    /** Drawn manual line per player, per dimension (chunks in drag order). Display state, not a saved preset. */
+    private final Map<UUID, Map<String, long[]>> lines = new HashMap<>();
 
     public static TerritoryData load(CompoundTag nbt) {
         TerritoryData data = new TerritoryData();
         ListTag list = nbt.getList("modeOn", Tag.TAG_INT_ARRAY);
         for (Tag t : list) data.modeOn.add(NbtUtils.loadUUID(t));
         for (Tag t : nbt.getList("seenClaims", Tag.TAG_INT_ARRAY)) data.seenClaims.add(NbtUtils.loadUUID(t));
+        for (Tag t : nbt.getList("lines", Tag.TAG_COMPOUND)) {
+            CompoundTag entry = (CompoundTag) t;
+            data.lines.computeIfAbsent(entry.getUUID("player"), u -> new HashMap<>())
+                    .put(entry.getString("dim"), entry.getLongArray("chunks"));
+        }
         return data;
     }
 
@@ -44,6 +53,17 @@ public class TerritoryData extends SavedData {
         ListTag seen = new ListTag();
         for (UUID id : seenClaims) seen.add(NbtUtils.createUUID(id));
         nbt.put("seenClaims", seen);
+        ListTag drawn = new ListTag();
+        for (Map.Entry<UUID, Map<String, long[]>> player : lines.entrySet()) {
+            for (Map.Entry<String, long[]> dim : player.getValue().entrySet()) {
+                CompoundTag entry = new CompoundTag();
+                entry.putUUID("player", player.getKey());
+                entry.putString("dim", dim.getKey());
+                entry.putLongArray("chunks", dim.getValue());
+                drawn.add(entry);
+            }
+        }
+        nbt.put("lines", drawn);
         return nbt;
     }
 
@@ -55,6 +75,28 @@ public class TerritoryData extends SavedData {
 
     public boolean isOn(UUID player) {
         return modeOn.contains(player);
+    }
+
+    /** The drawn line for {@code player} in {@code dim}; empty when none. */
+    public long[] getLine(UUID player, String dim) {
+        Map<String, long[]> perDim = lines.get(player);
+        long[] line = perDim == null ? null : perDim.get(dim);
+        return line == null ? new long[0] : line;
+    }
+
+    public void setLine(UUID player, String dim, long[] chunks) {
+        lines.computeIfAbsent(player, u -> new HashMap<>()).put(dim, chunks);
+        setDirty();
+    }
+
+    public void clearLine(UUID player, String dim) {
+        Map<String, long[]> perDim = lines.get(player);
+        if (perDim != null && perDim.remove(dim) != null) setDirty();
+    }
+
+    /** Mode off: every dimension's line goes with it. */
+    public void clearLines(UUID player) {
+        if (lines.remove(player) != null) setDirty();
     }
 
     public boolean hasSeenClaims(UUID player) {

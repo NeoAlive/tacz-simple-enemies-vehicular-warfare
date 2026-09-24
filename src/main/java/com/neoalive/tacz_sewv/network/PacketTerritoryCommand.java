@@ -13,7 +13,7 @@ import com.neoalive.tacz_sewv.territory.TerritoryManager;
 /** Client→server: everything the RTS panel can ask of Territory Mode. Validated entirely server-side. */
 public class PacketTerritoryCommand {
 
-    public enum Action { SET_MODE, PANEL_OPEN, FRONTLINE, RELEASE, MANUAL_FRONTLINE, CLEAR_LINE }
+    public enum Action { SET_MODE, PANEL_OPEN, FRONTLINE, RELEASE, MANUAL_FRONTLINE, CLEAR_LINE, PLAN_BAKE, PLAN_START, PLAN_STOP, PLAN_CLEAR }
 
     /** Selection sent with a Frontline order; a generous cap so a forged packet cannot allocate freely. */
     private static final int MAX_IDS = 256;
@@ -61,6 +61,24 @@ public class PacketTerritoryCommand {
 
     public static PacketTerritoryCommand clearLine() {
         return new PacketTerritoryCommand(Action.CLEAR_LINE, false, 0, 0, List.of(), List.of());
+    }
+
+    /** Advance Plan: bake the painted region (an unordered chunk set; the server validates everything). */
+    public static PacketTerritoryCommand planBake(List<Long> chunks) {
+        return new PacketTerritoryCommand(Action.PLAN_BAKE, false, 0, 0, List.of(), chunks);
+    }
+
+    /** Start the baked plan with the selected posted units. */
+    public static PacketTerritoryCommand planStart(List<Integer> unitIds) {
+        return new PacketTerritoryCommand(Action.PLAN_START, false, 0, 0, unitIds, List.of());
+    }
+
+    public static PacketTerritoryCommand planStop() {
+        return new PacketTerritoryCommand(Action.PLAN_STOP, false, 0, 0, List.of(), List.of());
+    }
+
+    public static PacketTerritoryCommand planClear() {
+        return new PacketTerritoryCommand(Action.PLAN_CLEAR, false, 0, 0, List.of(), List.of());
     }
 
     public PacketTerritoryCommand(FriendlyByteBuf buf) {

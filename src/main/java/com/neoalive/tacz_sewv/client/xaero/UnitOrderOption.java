@@ -19,7 +19,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.network.ModNetworking;
 import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
 import xaero.map.gui.IRightClickableElement;
-import xaero.map.gui.MapTileSelection;
 import xaero.map.gui.dropdown.rightclick.RightClickOption;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
@@ -36,7 +35,6 @@ import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketParatroop;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketReachGuard;
-import com.neoalive.tacz_sewv.network.PacketSweepAndAdvance;
 
 /**
  * One order in the world map's right-click menu, issued to every marker the player has selected.
@@ -113,7 +111,6 @@ public class UnitOrderOption extends RightClickOption {
         EMERGENCY_LAND("emergency_land", false, Category.AIR),
         PATROL_HERE("patrol_here", true, Category.AREA_TASK),
         SAD_HERE("sad_here", true, Category.AREA_TASK),
-        SWEEP_AND_ADVANCE("sweep_and_advance", true, Category.AREA_TASK),
         ENTRENCH_HERE("entrench_here", true, Category.AREA_TASK),
         CRUISE("cruise", false, Category.MOVEMENT),
         SET_GUARD("set_guard", false, Category.MOVEMENT),
@@ -140,17 +137,12 @@ public class UnitOrderOption extends RightClickOption {
     private final int y;
     private final int z;
     private final ResourceKey<Level> dimension;
-    private final int selLeft;
-    private final int selTop;
-    private final int selRight;
-    private final int selBottom;
-    private final boolean hasTileSelection;
     /** SEM target entity id for ATTACK_THAT; -1 when unused / inactive. */
     private final int attackTargetId;
 
     public UnitOrderOption(int index, IRightClickableElement target, Action action,
                            int x, int y, int z, ResourceKey<Level> dimension, int selectedCount,
-                           MapTileSelection tileSelection, int attackTargetId) {
+                           int attackTargetId) {
         super(action.labelKey, action.category.style, index, target);
         this.action = action;
         this.x = x;
@@ -158,20 +150,7 @@ public class UnitOrderOption extends RightClickOption {
         this.z = z;
         this.dimension = dimension;
         this.attackTargetId = attackTargetId;
-        if (tileSelection != null) {
-            this.hasTileSelection = true;
-            this.selLeft = tileSelection.getLeft();
-            this.selTop = tileSelection.getTop();
-            this.selRight = tileSelection.getRight();
-            this.selBottom = tileSelection.getBottom();
-        } else {
-            this.hasTileSelection = false;
-            this.selLeft = this.selTop = this.selRight = this.selBottom = 0;
-        }
         boolean active = selectedCount > 0;
-        if (action == Action.SWEEP_AND_ADVANCE) {
-            active = active && hasTileSelection;
-        }
         if (action == Action.REACH_GUARD) {
             active = active && selectedHaveGuard();
         }
@@ -268,18 +247,6 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
-        if (this.action == Action.SWEEP_AND_ADVANCE) {
-            if (!this.hasTileSelection) {
-                hint("message.tacz_sewv.sweep.need_selection");
-                return;
-            }
-            ResourceKey<Level> dim = this.dimension != null ? this.dimension : player.level().dimension();
-            NetworkHandler.CHANNEL.sendToServer(new PacketSweepAndAdvance(
-                    new ArrayList<>(drivers), dim.location(),
-                    this.selLeft, this.selTop, this.selRight, this.selBottom));
-            return;
-        }
-
         if (this.action == Action.TAKEOFF) {
             // This mod's own channel: flight state is IHelicopterPilot, not a SEM order. The server
             // filters the selection down to actual aircraft pilots and reports the count itself.
@@ -336,7 +303,7 @@ public class UnitOrderOption extends RightClickOption {
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
             case ATTACK_THAT -> OrderType.ATTACK_THAT_TARGET;
-            case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE, SWEEP_AND_ADVANCE,
+            case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE,
                     ENTRENCH_HERE, CRUISE, SET_GUARD, REACH_GUARD, ROUTE_TO_FOB, DISMISS, BAIL_OUT,
                     PARATROOP, PREFERRED_PATHWAYS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");
@@ -385,13 +352,12 @@ public class UnitOrderOption extends RightClickOption {
      */
     public static List<RightClickOption> allFor(int firstIndex, IRightClickableElement target,
                                                 int x, int y, int z, ResourceKey<Level> dimension,
-                                                int selectedCount, MapTileSelection tileSelection,
-                                                int attackTargetId) {
+                                                int selectedCount, int attackTargetId) {
         List<RightClickOption> options = new ArrayList<>();
         for (Action action : Action.values()) {
             if (action == Action.ATTACK_THAT && attackTargetId < 0) continue;
             options.add(new UnitOrderOption(firstIndex + options.size(), target, action,
-                    x, y, z, dimension, selectedCount, tileSelection, attackTargetId));
+                    x, y, z, dimension, selectedCount, attackTargetId));
         }
         return options;
     }

@@ -29,6 +29,7 @@ final class ConfigRegistryBootstrap {
         registerBoarding(b);
         registerMapIntel(b);
         registerSweep(b);
+        registerTerritory(b);
         registerInvasion(b);
         registerDoctrine(b);
         registerCompat(b);
@@ -715,6 +716,11 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.SWEEP_QUIET_SECONDS, SewvConfig.SWEEP_QUIET_SECONDS::set);
         b.intRange(ConfigScope.SERVER, "sweep", "maxChunkArea", 1, 1024,
                 SewvConfig.SWEEP_MAX_CHUNK_AREA, SewvConfig.SWEEP_MAX_CHUNK_AREA::set);
+    }
+
+    private static void registerTerritory(ConfigRegistry.Builder b) {
+        b.intRange(ConfigScope.SERVER, "territory", "advancePlanMaxChunks", 1, 1024,
+                SewvConfig.ADVANCE_PLAN_MAX_CHUNKS, SewvConfig.ADVANCE_PLAN_MAX_CHUNKS::set);
     }
 
     private static void registerInvasion(ConfigRegistry.Builder b) {

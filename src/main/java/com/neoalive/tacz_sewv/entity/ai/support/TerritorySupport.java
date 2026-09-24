@@ -16,6 +16,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
@@ -116,6 +117,24 @@ public final class TerritorySupport {
         if (!post.sewv$hasReachedTerritoryPost() && distSqToCentre(post, pmc) <= ARRIVE_SQ) {
             post.sewv$setReachedTerritoryPost(true);
         }
+    }
+
+    /**
+     * Has {@code pmc} arrived at its post? On foot that is the sticky {@code reached} flag. A mounted driver never
+     * gets the flag ({@code TerritoryPostGoal} does not run for a passenger, and a hull parks at least 8 blocks short
+     * of the centre anyway), so it is the same test {@code DriveVehicleGoal.driveTo} parks on: horizontal distance from
+     * the hull to the chunk centre within {@link VehicleTargeting#arrivalDistance}. Read-only: it sets no flag, so
+     * nothing about yielding to contact changes.
+     */
+    public static boolean hasArrived(PmcUnitEntity pmc) {
+        ITerritoryPost post = (ITerritoryPost) pmc;
+        if (pmc.getVehicle() instanceof VehicleEntity hull) {
+            double dx = centreX(post) - hull.getX();
+            double dz = centreZ(post) - hull.getZ();
+            double arrive = VehicleTargeting.arrivalDistance(pmc, hull);
+            return dx * dx + dz * dz <= arrive * arrive;
+        }
+        return post.sewv$hasReachedTerritoryPost();
     }
 
     /**

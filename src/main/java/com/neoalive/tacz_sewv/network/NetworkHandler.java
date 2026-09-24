@@ -58,7 +58,7 @@ public class NetworkHandler {
     // 24: PMC rappel order packet.
     // 25: map markers carry optional OpenPAC tint RGB.
     // 26: removed PacketToggleAdvancing (autonomous KotH scrapped).
-    // 27: PacketSweepAndAdvance (player-triggered sweep + claim).
+    // 27: PacketSweepAndAdvance (player-triggered sweep + claim). Removed in 92: the Advance Plan tool replaced its only invoker.
     // 28: PacketOwnedVehicles optional SweepOverlayState.
     // 29: capture_point / team_base config GUIs (open + save).
     // 30: PacketInvasionBillboards (world-space capture UI) — removed in 32.
@@ -111,7 +111,8 @@ public class NetworkHandler {
     // 89: PacketVehicleFormation carries an anchor mode (PLAYER/POSITION — FormationAnchorMode).
     // 90: PacketTerritoryCommand (C->S) + PacketTerritoryState (S->C) — RTS panel / Territory Mode.
     // 91: Territory manual Frontline — MANUAL_FRONTLINE / CLEAR_LINE actions + drawn line in PacketTerritoryState.
-    private static final String PROTOCOL_VERSION = "91";
+    // 92: Advance Plan — PLAN_* actions in PacketTerritoryCommand + the plan block in PacketTerritoryState.
+    private static final String PROTOCOL_VERSION = "92";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -248,14 +249,6 @@ public class NetworkHandler {
                 PacketRappelHelicopter::encode,
                 PacketRappelHelicopter::new,
                 PacketRappelHelicopter::handle
-        );
-
-        CHANNEL.registerMessage(
-                nextId(),
-                PacketSweepAndAdvance.class,
-                PacketSweepAndAdvance::encode,
-                PacketSweepAndAdvance::new,
-                PacketSweepAndAdvance::handle
         );
 
         CHANNEL.registerMessage(

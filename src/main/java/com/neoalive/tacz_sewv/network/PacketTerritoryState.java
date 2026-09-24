@@ -27,6 +27,16 @@ public class PacketTerritoryState {
     public record Row(int id, String name, byte kind, float health, byte status,
                       boolean posted, boolean lost, int chunkX, int chunkZ) {}
 
+    /**
+     * The baked plan as the client draws it. {@code hold}: why a RUNNING plan is waiting (see
+     * {@code AdvancePlanManager.Hold}, 0 = not held). {@code startReason}: 0 = the plan can start, 1 = no front touches
+     * what is left, 2 = the front it hangs from has split (Start is greyed either way). {@code layerOf} is parallel to
+     * {@code region}; layers below {@code currentLayer} are already claimed. {@code arrows} are groups of four ints:
+     * blockX, blockZ, dx, dz.
+     */
+    public record PlanView(byte state, byte hold, byte startReason, int currentLayer, int layerCount,
+                           long[] region, int[] layerOf, int[] arrows) {}
+
     private final boolean modeOn;
     private final List<Row> roster;
     /** Front chunks packed like {@code ChunkPos.asLong}, and the live units posted on each (parallel arrays). */
@@ -35,12 +45,21 @@ public class PacketTerritoryState {
     /** The drawn manual line (chunks in drag order) for the player's current dimension; empty = none. */
     private final long[] manualLine;
 
-    public PacketTerritoryState(boolean modeOn, List<Row> roster, long[] front, int[] coverage, long[] manualLine) {
+    /** Null when there is no plan for the player's current dimension. */
+    private final PlanView plan;
+
+    /** The server's {@code advancePlanMaxChunks}: the client's common config is not synced, so the painting count reads this. */
+    private final int planCap;
+
+    public PacketTerritoryState(boolean modeOn, List<Row> roster, long[] front, int[] coverage, long[] manualLine,
+                                PlanView plan, int planCap) {
         this.modeOn = modeOn;
         this.roster = roster;
         this.front = front;
         this.coverage = coverage;
         this.manualLine = manualLine;
+        this.plan = plan;
+        this.planCap = planCap;
     }
 
     public PacketTerritoryState(FriendlyByteBuf buf) {
@@ -61,6 +80,26 @@ public class PacketTerritoryState {
         int lineLen = buf.readVarInt();
         this.manualLine = new long[lineLen];
         for (int i = 0; i < lineLen; i++) manualLine[i] = buf.readLong();
+        if (buf.readBoolean()) {
+            byte state = buf.readByte();
+            byte hold = buf.readByte();
+            byte startReason = buf.readByte();
+            int current = buf.readVarInt();
+            int layers = buf.readVarInt();
+            int n2 = buf.readVarInt();
+            long[] region = new long[n2];
+            int[] layerOf = new int[n2];
+            for (int i = 0; i < n2; i++) {
+                region[i] = buf.readLong();
+                layerOf[i] = buf.readVarInt();
+            }
+            int[] arrows = new int[buf.readVarInt() * 4];
+            for (int i = 0; i < arrows.length; i++) arrows[i] = buf.readInt();
+            this.plan = new PlanView(state, hold, startReason, current, layers, region, layerOf, arrows);
+        } else {
+            this.plan = null;
+        }
+        this.planCap = buf.readVarInt();
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -84,6 +123,22 @@ public class PacketTerritoryState {
         }
         buf.writeVarInt(manualLine.length);
         for (long key : manualLine) buf.writeLong(key);
+        buf.writeBoolean(plan != null);
+        if (plan != null) {
+            buf.writeByte(plan.state());
+            buf.writeByte(plan.hold());
+            buf.writeByte(plan.startReason());
+            buf.writeVarInt(plan.currentLayer());
+            buf.writeVarInt(plan.layerCount());
+            buf.writeVarInt(plan.region().length);
+            for (int i = 0; i < plan.region().length; i++) {
+                buf.writeLong(plan.region()[i]);
+                buf.writeVarInt(plan.layerOf()[i]);
+            }
+            buf.writeVarInt(plan.arrows().length / 4);
+            for (int v : plan.arrows()) buf.writeInt(v);
+        }
+        buf.writeVarInt(planCap);
     }
 
     public boolean modeOn() { return modeOn; }
@@ -91,6 +146,8 @@ public class PacketTerritoryState {
     public long[] front() { return front; }
     public int[] coverage() { return coverage; }
     public long[] manualLine() { return manualLine; }
+    public PlanView plan() { return plan; }
+    public int planCap() { return planCap; }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() ->

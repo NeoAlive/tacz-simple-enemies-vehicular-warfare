@@ -31,6 +31,7 @@ public final class NeoArmsCarrierAccess {
     @Nullable private static Method mIsNearAny;
     @Nullable private static Method mIsDeckParked;
     @Nullable private static Method mSetDeckParked;
+    @Nullable private static Method mCarrierNetworkId;
     @Nullable private static Method mThreshold;
     @Nullable private static Method mHeadingDeg;
     @Nullable private static Method mLength;
@@ -113,6 +114,35 @@ public final class NeoArmsCarrierAccess {
         }
     }
 
+    /**
+     * True when this hull is deck-parked on a carrier that is in STATIC mode
+     * (taxi allowed). False for DYNAMIC / missing link — travel stays cancelled.
+     */
+    public static boolean isStoodOnStaticCarrier(@Nullable Entity entity) {
+        if (entity == null || !isDeckParked(entity) || entity.level() == null) {
+            return false;
+        }
+        resolve();
+        int carrierId = 0;
+        if (mCarrierNetworkId != null) {
+            try {
+                Object v = mCarrierNetworkId.invoke(null, entity);
+                if (v instanceof Integer i) {
+                    carrierId = i;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (carrierId == 0) {
+            carrierId = entity.getPersistentData().getInt("neoarms:deck_carrier");
+        }
+        if (carrierId == 0) {
+            return false;
+        }
+        Entity carrier = entity.level().getEntity(carrierId);
+        return isStaticMode(carrier);
+    }
+
     @Nullable
     public static Strip deckStrip(@Nullable Entity entity) {
         return deckStrip(entity, true);
@@ -180,6 +210,7 @@ public final class NeoArmsCarrierAccess {
             mIsNearAny = carrierClass.getMethod("isNearAny", Entity.class, double.class);
             mIsDeckParked = deckPark.getMethod("isParked", Entity.class);
             mSetDeckParked = deckPark.getMethod("setParked", Entity.class, boolean.class);
+            mCarrierNetworkId = deckPark.getMethod("carrierNetworkId", Entity.class);
             mThreshold = stripClass.getMethod("threshold");
             mHeadingDeg = stripClass.getMethod("headingDeg");
             mLength = stripClass.getMethod("length");
@@ -192,6 +223,7 @@ public final class NeoArmsCarrierAccess {
             mIsNearAny = null;
             mIsDeckParked = null;
             mSetDeckParked = null;
+            mCarrierNetworkId = null;
             mThreshold = null;
             mHeadingDeg = null;
             mLength = null;

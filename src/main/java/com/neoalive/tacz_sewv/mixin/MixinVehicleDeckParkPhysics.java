@@ -14,9 +14,10 @@ import com.neoalive.tacz_sewv.compat.NeoArmsCarrierAccess;
 import com.neoalive.tacz_sewv.compat.NeoArmsCompat;
 
 /**
- * While Neo Arms {@code DeckPark} is set, SBW must not apply gravity + {@code move} —
- * the carrier deck is Body OBBs, not blocks, so {@code onGround} never sticks and the
- * plane falls through. Also skip {@code travel()} so aircraftEngine cannot shove the hull.
+ * While Neo Arms {@code DeckPark} is set, SBW must not run {@code travel}/{@code move}/gravity.
+ * Allowing {@code aircraftEngine} on a Body-OBB deck clears {@code onGround} and pitches empty
+ * hulls (+0.1°/tick) or lets a boarded plane treat the pad as airborne (nose-down circles).
+ * Neo Arms floor-clamp + pose drag own the stood pose instead.
  */
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
 public abstract class MixinVehicleDeckParkPhysics {
@@ -27,11 +28,16 @@ public abstract class MixinVehicleDeckParkPhysics {
             return;
         }
         VehicleEntity self = (VehicleEntity) (Object) this;
-        if (NeoArmsCarrierAccess.isDeckParked(self)) {
-            self.setDeltaMovement(Vec3.ZERO);
-            self.setDeltaMovementO(Vec3.ZERO);
-            ci.cancel();
+        if (!NeoArmsCarrierAccess.isDeckParked(self)) {
+            return;
         }
+        self.setDeltaMovement(Vec3.ZERO);
+        self.setDeltaMovementO(Vec3.ZERO);
+        self.setXRot(0.0F);
+        self.setZRot(0.0F);
+        self.setOnGround(true);
+        self.fallDistance = 0f;
+        ci.cancel();
     }
 
     @Redirect(
@@ -48,10 +54,6 @@ public abstract class MixinVehicleDeckParkPhysics {
         return data.getGravity();
     }
 
-    /**
-     * VehicleEntity overrides {@code move}; cancel while deck-parked so baseTick's
-     * gravity integration cannot sink the hull through OBB deck.
-     */
     @Inject(method = "move", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$skipMoveWhileDeckParked(MoverType type, Vec3 movement, CallbackInfo ci) {
         if (!NeoArmsCompat.present()) {

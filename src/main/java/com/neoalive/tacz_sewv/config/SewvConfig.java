@@ -299,6 +299,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
     public static final ForgeConfigSpec.IntValue SWEEP_QUIET_SECONDS;
     public static final ForgeConfigSpec.IntValue SWEEP_MAX_CHUNK_AREA;
+    public static final ForgeConfigSpec.IntValue ADVANCE_PLAN_MAX_CHUNKS;
 
     /** Invasion HUD colours (hex RGB). Team A/B match the left/right bases on the layout. */
     public static final ForgeConfigSpec.BooleanValue UNLIMITED_TEAM_BASES;
@@ -1216,6 +1217,13 @@ public final class SewvConfig {
         SWEEP_MAX_CHUNK_AREA = builder.comment(
                         "Largest map selection (width × height in chunks) allowed for Sweep & Advance.")
                 .defineInRange("maxChunkArea", 256, 1, 1024);
+        builder.pop();
+
+        builder.push("territory");
+        ADVANCE_PLAN_MAX_CHUNKS = builder.comment(
+                        "Largest region (in chunks) an Advance Plan may cover. Validated when the plan is baked;",
+                        "existing plans are not re-validated against a changed cap.")
+                .defineInRange("advancePlanMaxChunks", 25, 1, 1024);
         builder.pop();
 
         builder.push("invasion");

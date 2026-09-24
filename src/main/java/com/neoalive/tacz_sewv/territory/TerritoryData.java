@@ -31,6 +31,8 @@ public class TerritoryData extends SavedData {
     private final Set<UUID> seenClaims = new HashSet<>();
     /** Drawn manual line per player, per dimension (chunks in drag order). Display state, not a saved preset. */
     private final Map<UUID, Map<String, long[]>> lines = new HashMap<>();
+    /** Baked Advance Plan per player, per dimension: one at a time, replaced by the next successful bake. */
+    private final Map<UUID, Map<String, AdvancePlan>> plans = new HashMap<>();
 
     public static TerritoryData load(CompoundTag nbt) {
         TerritoryData data = new TerritoryData();
@@ -41,6 +43,11 @@ public class TerritoryData extends SavedData {
             CompoundTag entry = (CompoundTag) t;
             data.lines.computeIfAbsent(entry.getUUID("player"), u -> new HashMap<>())
                     .put(entry.getString("dim"), entry.getLongArray("chunks"));
+        }
+        for (Tag t : nbt.getList("plans", Tag.TAG_COMPOUND)) {
+            CompoundTag entry = (CompoundTag) t;
+            data.plans.computeIfAbsent(entry.getUUID("player"), u -> new HashMap<>())
+                    .put(entry.getString("dim"), AdvancePlan.load(entry.getCompound("plan")));
         }
         return data;
     }
@@ -64,6 +71,17 @@ public class TerritoryData extends SavedData {
             }
         }
         nbt.put("lines", drawn);
+        ListTag planList = new ListTag();
+        for (Map.Entry<UUID, Map<String, AdvancePlan>> player : plans.entrySet()) {
+            for (Map.Entry<String, AdvancePlan> dim : player.getValue().entrySet()) {
+                CompoundTag entry = new CompoundTag();
+                entry.putUUID("player", player.getKey());
+                entry.putString("dim", dim.getKey());
+                entry.put("plan", dim.getValue().save());
+                planList.add(entry);
+            }
+        }
+        nbt.put("plans", planList);
         return nbt;
     }
 
@@ -92,6 +110,36 @@ public class TerritoryData extends SavedData {
     public void clearLine(UUID player, String dim) {
         Map<String, long[]> perDim = lines.get(player);
         if (perDim != null && perDim.remove(dim) != null) setDirty();
+    }
+
+    /** A unit died: it leaves every plan snapshot for good (a dead unit is never "temporarily unavailable"). */
+    public void forgetUnit(UUID unit) {
+        boolean changed = false;
+        for (Map<String, AdvancePlan> perDim : plans.values()) {
+            for (AdvancePlan plan : perDim.values()) changed |= plan.units().remove(unit);
+        }
+        if (changed) setDirty();
+    }
+
+    /** The baked plan for {@code player} in {@code dim}, or null. */
+    public AdvancePlan getPlan(UUID player, String dim) {
+        Map<String, AdvancePlan> perDim = plans.get(player);
+        return perDim == null ? null : perDim.get(dim);
+    }
+
+    public void setPlan(UUID player, String dim, AdvancePlan plan) {
+        plans.computeIfAbsent(player, u -> new HashMap<>()).put(dim, plan);
+        setDirty();
+    }
+
+    public void clearPlan(UUID player, String dim) {
+        Map<String, AdvancePlan> perDim = plans.get(player);
+        if (perDim != null && perDim.remove(dim) != null) setDirty();
+    }
+
+    /** Mode off: every dimension's plan goes with it. */
+    public void clearPlans(UUID player) {
+        if (plans.remove(player) != null) setDirty();
     }
 
     /** Mode off: every dimension's line goes with it. */

@@ -125,6 +125,47 @@ public final class OpenPacCompat {
         return Access.selfClaimedChunks(level, playerId);
     }
 
+    /** What a limit-respecting claim attempt came to. Neutral, so callers never see an OpenPAC type. */
+    public enum ClaimOutcome {
+        /** The chunk was free and is now claimed. */
+        CLAIMED,
+        /** The chunk was already the owner's. */
+        ALREADY_OURS,
+        /** The owner is at their claim limit (or over it). */
+        LIMIT,
+        /** Claims are disabled, or the dimension cannot be claimed. */
+        NOT_CLAIMABLE,
+        /** Someone else holds the chunk: unclaim it first. */
+        TAKEN,
+        /** Anything else OpenPAC refused (a replacement in progress, no permission, ...). */
+        OTHER
+    }
+
+    /**
+     * Claims a chunk THROUGH OpenPAC's limits ({@code tryToClaim}, not the raw {@code claim} that Sweep &amp; Advance
+     * uses, which bypasses them). {@code replace} is false, so another owner's chunk answers {@link ClaimOutcome#TAKEN}
+     * rather than being taken over. The result type is meaningful (unlike the raw call's return), so callers can tell a
+     * limit hit from a refusal. {@link ClaimOutcome#OTHER} when OpenPAC is absent.
+     */
+    public static ClaimOutcome tryClaim(ServerLevel level, UUID ownerId, int chunkX, int chunkZ) {
+        if (!isLoaded() || level == null || ownerId == null) return ClaimOutcome.OTHER;
+        return Access.tryClaim(level, ownerId, chunkX, chunkZ);
+    }
+
+    /**
+     * How many more chunks {@code ownerId} may claim: their full claim limit minus what they hold (the count OpenPAC
+     * itself enforces, per owner and not party-wide). Negative when over the limit; 0 when OpenPAC is absent.
+     */
+    public static int claimHeadroom(MinecraftServer server, UUID ownerId) {
+        if (!isLoaded() || server == null || ownerId == null) return 0;
+        return Access.claimHeadroom(server, ownerId);
+    }
+
+    /** Whether claims are possible in this dimension at all. */
+    public static boolean claimable(ServerLevel level) {
+        return isLoaded() && level != null && Access.claimable(level);
+    }
+
     /** Stage 5: claim chunk for {@code ownerId}. No-op when OpenPAC absent. */
     public static boolean claim(ServerLevel level, UUID ownerId, int chunkX, int chunkZ) {
         if (!isLoaded() || level == null || ownerId == null) {
@@ -175,6 +216,36 @@ public final class OpenPacCompat {
                     .getServerClaimsManager()
                     .get(dimension, chunkX, chunkZ);
             return claim != null ? claim.getPlayerId() : null;
+        }
+
+        static ClaimOutcome tryClaim(ServerLevel level, UUID ownerId, int chunkX, int chunkZ) {
+            var mgr = xaero.pac.common.server.api.OpenPACServerAPI.get(level.getServer()).getServerClaimsManager();
+            // from = to = the chunk: OpenPAC's TOO_FAR check compares them, so a single chunk can never trip it.
+            var result = mgr.tryToClaim(level.dimension().location(), ownerId, MAIN_SUB_CONFIG,
+                    chunkX, chunkZ, chunkX, chunkZ, false);
+            var type = result.getResultType();
+            if (type == xaero.pac.common.claims.result.api.ClaimResult.Type.SUCCESSFUL_CLAIM) return ClaimOutcome.CLAIMED;
+            if (type == xaero.pac.common.claims.result.api.ClaimResult.Type.ALREADY_CLAIMED) {
+                var existing = result.getClaimResult();
+                return existing != null && ownerId.equals(existing.getPlayerId()) ? ClaimOutcome.ALREADY_OURS : ClaimOutcome.TAKEN;
+            }
+            if (type == xaero.pac.common.claims.result.api.ClaimResult.Type.CLAIM_LIMIT_REACHED
+                    || type == xaero.pac.common.claims.result.api.ClaimResult.Type.OVER_CLAIM_LIMIT) return ClaimOutcome.LIMIT;
+            if (type == xaero.pac.common.claims.result.api.ClaimResult.Type.UNCLAIMABLE_DIMENSION
+                    || type == xaero.pac.common.claims.result.api.ClaimResult.Type.CLAIMS_ARE_DISABLED) return ClaimOutcome.NOT_CLAIMABLE;
+            return ClaimOutcome.OTHER;
+        }
+
+        static int claimHeadroom(MinecraftServer server, UUID ownerId) {
+            var mgr = xaero.pac.common.server.api.OpenPACServerAPI.get(server).getServerClaimsManager();
+            // hasPlayerInfo first: getPlayerInfo creates an empty record for an owner who has never claimed.
+            int held = mgr.hasPlayerInfo(ownerId) ? mgr.getPlayerInfo(ownerId).getClaimCount() : 0;
+            return mgr.getPlayerFullClaimLimit(ownerId) - held;
+        }
+
+        static boolean claimable(ServerLevel level) {
+            return xaero.pac.common.server.api.OpenPACServerAPI.get(level.getServer()).getServerClaimsManager()
+                    .isClaimable(level.dimension().location());
         }
 
         static Set<Long> selfClaimedChunks(ServerLevel level, UUID playerId) {

@@ -94,12 +94,16 @@ public final class FrontlineMath {
      * ordered by chunk-centre distance from {@code origin}, ties by (x, z).
      */
     public static List<Chunk> front(Set<Long> selfOwned, Chunk origin) {
-        List<Chunk> out = frontChunks(selfOwned);
-        out.sort(Comparator
+        return sortByDistance(frontChunks(selfOwned), origin);
+    }
+
+    /** {@code chunks} sorted nearest-first from {@code origin} by chunk-centre distance, ties by (x, z). Sorts in place. */
+    public static List<Chunk> sortByDistance(List<Chunk> chunks, Chunk origin) {
+        chunks.sort(Comparator
                 .comparingDouble((Chunk c) -> chunkDistSq(c, origin))
                 .thenComparingInt(Chunk::x)
                 .thenComparingInt(Chunk::z));
-        return out;
+        return chunks;
     }
 
     /**

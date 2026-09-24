@@ -28,6 +28,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.FrontlineMath.Chunk;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketTerritoryCommand;
+import com.neoalive.tacz_sewv.network.PacketTerritoryState.PlanView;
 import com.neoalive.tacz_sewv.network.PacketTerritoryState.Row;
 
 /**
@@ -54,7 +55,13 @@ public final class RtsPanel {
     private static final int ROW_H = 20;
     private static final int SPRITE = 16;
     private static final int HELP_ENTRY_H = 22;
-    private static final int HELP_ENTRIES = 5;
+    private static final int HELP_ENTRIES = 6;
+    /** Roster header sits this far below the panel top: header, mode, two tool rows, and the one status line. */
+    private static final int LIST_TOP = 114;
+    /** Advance Plan Start/Stop button width, and PlanView.state's RUNNING value. */
+    private static final int PLAN_BTN_W = 44;
+    private static final int PLAN_RUNNING = 1;
+    private static final String[] HOLD_KEYS = {"", "hostiles", "not_loaded", "limit", "not_claimable", "retry", "arriving"};
     /** Overlay fade-in: front chunks appearing, a chunk becoming covered, and the manual line appearing. */
     private static final long FADE_MS = 450L;
     /** A drag can capture at most this many chunks (the wire cap); past it further chunks are ignored. */
@@ -86,6 +93,7 @@ public final class RtsPanel {
     private static final ResourceLocation ICON_AIR = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_unit_air.png");
     private static final ResourceLocation ICON_MODE = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_mode.png");
     private static final ResourceLocation ICON_TOOL = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_frontline.png");
+    private static final ResourceLocation ICON_ADVANCE = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_advance.png");
     private static final ResourceLocation ICON_ROSTER = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_roster.png");
     private static final ResourceLocation ICON_KEYS = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_keys.png");
     /** Vanilla 1.20.1 checkbox sheet: 64x64, 20x20 cells; the second row (v = 20) is the checked state. */
@@ -95,6 +103,8 @@ public final class RtsPanel {
     private static final int LINE_AMBER = 0xFFE5A045;
     private static final int UNCOVERED_RGB = 0xC44536;
     private static final int LEASH_RGB = 0x4A7BA8;
+    /** Advance Plan region and arrows: a cool green, distinct from the amber Frontline marks and the blue leash. */
+    private static final int ADVANCE_RGB = 0x3FBF8F;
     /** 20% (was 15%, nudged up after the first look): motion carries a low-alpha mark, so raise this if it is faint, never slow the march. */
     private static final int LEASH_ALPHA = 0x33;
     private static final ResourceLocation FRONT_ICON = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_frontline.png");
@@ -124,6 +134,16 @@ public final class RtsPanel {
     private static final LinkedHashSet<Long> captured = new LinkedHashSet<>();
     private static long[] frontSetSource;
     private static Set<Long> frontSet = Set.of();
+
+    // Advance Plan painting: left-drag adds chunks, right-drag erases, Confirm bakes. Transient client state.
+    private static boolean planPainting;
+    private static final LinkedHashSet<Long> painted = new LinkedHashSet<>();
+    /** The button held on a paint stroke (0 paint, 1 erase), or -1 between strokes. */
+    private static int paintButton = -1;
+    private static double paintLastX;
+    private static double paintLastZ;
+    /** Confirm was pressed: painting mode closes by itself once the server's plan matches, and stays open on a refusal. */
+    private static boolean planSent;
 
     // Fade-in bookkeeping, keyed by packed chunk. Rebuilt only when a state push swaps the arrays.
     private static long[] fadeFront;
@@ -177,8 +197,7 @@ public final class RtsPanel {
 
     /** Drops the drag and the fade bookkeeping, so a reopened map fades its overlay in afresh. */
     private static void resetTransient() {
-        dragging = false;
-        captured.clear();
+        cancelTool();
         appeared.clear();
         covered.clear();
         coveredAt.clear();
@@ -219,14 +238,24 @@ public final class RtsPanel {
         return TerritoryClient.modeOn() && !eligibleSelected().isEmpty();
     }
 
+    /** True while a map tool owns the mouse: the Frontline Tool or Advance Plan painting. */
     public static boolean toolArmed() {
-        return toolArmed;
+        return toolArmed || planPainting;
     }
 
+    public static boolean planPainting() {
+        return planPainting;
+    }
+
+    /** Drops whichever of the two tools is live, with any stroke in progress. */
     public static void cancelTool() {
         toolArmed = false;
         dragging = false;
         captured.clear();
+        planPainting = false;
+        paintButton = -1;
+        planSent = false;
+        painted.clear();
     }
 
     private static void armTool() {
@@ -234,10 +263,65 @@ public final class RtsPanel {
             hint(TerritoryClient.modeOn() ? "gui.tacz_sewv.rts.need_selection" : "gui.tacz_sewv.rts.need_mode");
             return;
         }
+        cancelTool();
         CruisePlot.cancel();
         GuardPlot.cancel();
         PathwayPlot.cancel();
         toolArmed = true;
+    }
+
+    /** Advance Plan painting needs Territory Mode on, but no selected units: units only matter at Start. */
+    private static void armPlan() {
+        if (!TerritoryClient.modeOn()) {
+            hint("gui.tacz_sewv.rts.need_mode");
+            return;
+        }
+        cancelTool();
+        CruisePlot.cancel();
+        GuardPlot.cancel();
+        PathwayPlot.cancel();
+        planPainting = true;
+    }
+
+    /** The Confirm button while painting: bake the painted set. Painting stays open until the server's plan matches it. */
+    public static void confirmPlan() {
+        if (!planPainting) return;
+        send(PacketTerritoryCommand.planBake(new ArrayList<>(painted)));
+        planSent = true;
+    }
+
+    private static List<Integer> selectedPosted() {
+        Set<Integer> selected = selection();
+        List<Integer> out = new ArrayList<>();
+        for (Row r : TerritoryClient.roster()) {
+            if (r.posted() && selected.contains(r.id())) out.add(r.id());
+        }
+        return out;
+    }
+
+    private static void startPlan(PlanView plan) {
+        if (plan.startReason() == 1) {
+            hint("gui.tacz_sewv.rts.plan.no_front");
+        } else if (plan.startReason() == 2) {
+            hint("gui.tacz_sewv.rts.plan.fragmented");
+        } else {
+            List<Integer> ids = selectedPosted();
+            if (ids.isEmpty()) hint("gui.tacz_sewv.rts.plan.need_posted");
+            else send(PacketTerritoryCommand.planStart(ids));
+        }
+    }
+
+    private static boolean startable(PlanView plan) {
+        return plan.state() != PLAN_RUNNING && plan.startReason() == 0 && !selectedPosted().isEmpty();
+    }
+
+    /** The painted set is exactly the baked plan's region: the bake went through. */
+    private static boolean matchesPainted(PlanView plan) {
+        if (plan == null || plan.region().length != painted.size()) return false;
+        for (long key : plan.region()) {
+            if (!painted.contains(key)) return false;
+        }
+        return true;
     }
 
     /**
@@ -247,6 +331,15 @@ public final class RtsPanel {
      */
     public static void toolClick(int button, double worldX, double worldZ) {
         swallowRelease = true;
+        if (planPainting) {
+            if (button == 0 || button == 1) {
+                paintButton = button;
+                paintLastX = worldX;
+                paintLastZ = worldZ;
+                paint(worldX, worldZ, worldX, worldZ);
+            }
+            return;
+        }
         if (button == 0) fire(Mth.floor(worldX) >> 4, Mth.floor(worldZ) >> 4);
         else if (button == 1) beginDrag(worldX, worldZ);
     }
@@ -272,6 +365,11 @@ public final class RtsPanel {
 
     /** Called every frame with the cursor's world position; while a drag runs it captures the front chunks crossed. */
     public static void sampleDrag(double worldX, double worldZ) {
+        if (paintButton >= 0) {
+            paint(paintLastX, paintLastZ, worldX, worldZ);
+            paintLastX = worldX;
+            paintLastZ = worldZ;
+        }
         if (!dragging) return;
         capture(dragLastX, dragLastZ, worldX, worldZ);
         dragLastX = worldX;
@@ -285,6 +383,19 @@ public final class RtsPanel {
             if (captured.size() >= MAX_CAPTURED) return;
             if (front.contains(key)) captured.add(key);
         }
+    }
+
+    /** Any chunk crossed: added (until the server's cap) or erased. Unlike the Frontline drag it is not limited to the front. */
+    private static void paint(double x0, double z0, double x1, double z1) {
+        int cap = TerritoryClient.planCap();
+        for (long key : FrontlineMath.chunksAlong(x0, z0, x1, z1)) {
+            if (paintButton == 0) {
+                if (painted.size() < cap) painted.add(key);
+            } else {
+                painted.remove(key);
+            }
+        }
+        planSent = false;
     }
 
     private static Set<Long> frontSet() {
@@ -323,8 +434,8 @@ public final class RtsPanel {
 
     // ---- layout -------------------------------------------------------------------------------------------
 
-    private record Layout(int x0, int y0, int x1, int y1, int headerY, int modeY, int toolY, int reasonY,
-                          int rosterY, int listTop, int listBottom, int helpY, int helpBodyH) {
+    private record Layout(int x0, int y0, int x1, int y1, int headerY, int modeY, int toolY, int planY,
+                          int reasonY, int rosterY, int listTop, int listBottom, int helpY, int helpBodyH) {
         boolean inside(double mx, double my) {
             return mx >= x0 && mx < x1 && my >= y0 && my < y1;
         }
@@ -356,17 +467,17 @@ public final class RtsPanel {
             int railH = 72;
             int y0 = (h - railH) / 2;
             int x1 = rightEdge(w, y0 + railH);
-            return new Layout(x1 - RAIL_W, y0, x1, y0 + railH, y0, y0, y0, y0, y0, y0, y0, y0, 0);
+            return new Layout(x1 - RAIL_W, y0, x1, y0 + railH, y0, y0, y0, y0, y0, y0, y0, y0, y0, 0);
         }
-        int panelH = Mth.clamp(h - 40, 190, 520);
+        int panelH = Mth.clamp(h - 40, 210, 520);
         int y0 = (h - panelH) / 2;
         int y1 = y0 + panelH;
         int x1 = rightEdge(w, y1);
-        int listTop = y0 + 94;
+        int listTop = y0 + LIST_TOP;
         // The keybind drawer never squeezes the roster below three rows.
-        int helpBody = helpOpen ? Math.min(HELP_ENTRIES * HELP_ENTRY_H, Math.max(0, panelH - 94 - ROW_H - 4 - 3 * ROW_H)) : 0;
+        int helpBody = helpOpen ? Math.min(HELP_ENTRIES * HELP_ENTRY_H, Math.max(0, panelH - LIST_TOP - ROW_H - 4 - 3 * ROW_H)) : 0;
         int helpY = y1 - ROW_H - helpBody - 2;
-        return new Layout(x1 - PANEL_W, y0, x1, y1, y0 + 2, y0 + 18, y0 + 38, y0 + 60, y0 + 72,
+        return new Layout(x1 - PANEL_W, y0, x1, y1, y0 + 2, y0 + 18, y0 + 38, y0 + 58, y0 + 80, y0 + 92,
                 listTop, helpY - 2, helpY, helpBody);
     }
 
@@ -425,6 +536,10 @@ public final class RtsPanel {
             }
             return true;
         }
+        if (my >= l.planY && my < l.planY + ROW_H) {
+            planRowClick(mx, l);
+            return true;
+        }
         if (my >= l.rosterY && my < l.rosterY + ROW_H) {
             if (mx >= l.x0 + PANEL_W / 2) {
                 hideIneligible = !hideIneligible;
@@ -445,6 +560,24 @@ public final class RtsPanel {
             helpScroll = 0;
         }
         return true;
+    }
+
+    /** Advance Plan row: [clear x] and [Start/Stop] once a plan is baked; anywhere else starts (or cancels) painting. */
+    private static void planRowClick(double mx, Layout l) {
+        PlanView plan = TerritoryClient.plan();
+        if (plan != null && !planPainting) {
+            if (mx >= l.x1 - 20) {
+                send(PacketTerritoryCommand.planClear());
+                return;
+            }
+            if (mx >= l.x1 - 20 - PLAN_BTN_W - 2) {
+                if (plan.state() == PLAN_RUNNING) send(PacketTerritoryCommand.planStop());
+                else startPlan(plan);
+                return;
+            }
+        }
+        if (planPainting) cancelTool();
+        else armPlan();
     }
 
     private static void clickRow(Row row, boolean eject, Layout l) {
@@ -470,6 +603,10 @@ public final class RtsPanel {
      * answers true exactly once so Xaero never sees the release.
      */
     public static boolean consumeRelease(int button, double worldX, double worldZ) {
+        if (paintButton == button) {
+            sampleDrag(worldX, worldZ);
+            paintButton = -1;
+        }
         if (dragging && button == 1) {
             sampleDrag(worldX, worldZ);
             endDrag();
@@ -496,6 +633,10 @@ public final class RtsPanel {
     /** A key on the map screen. Returns true when it was ours. */
     public static boolean keyPressed(int keyCode, int scanCode) {
         if (!enabled()) return false;
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE && planPainting) {
+            cancelTool(); // discards the painting; the release of a stroke still in progress is swallowed and does nothing
+            return true;
+        }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE && dragging) {
             // Cancel is not complete: discard the drag, apply nothing, keep the tool armed. The release that follows
             // is still swallowed (the press was ours) and, with no drag running, does nothing.
@@ -528,24 +669,31 @@ public final class RtsPanel {
      * <p><b>Persistent (always, mode on):</b> a solid amber coverage line joining covered front chunks that are
      * 4-adjacent, with the Frontline icon on each covered chunk's centre. A gap in the line IS the signal for an
      * uncovered stretch, so no red fill is needed. The dashed amber manual ordering line shows whenever a manual line
-     * exists or is being drawn.
+     * exists or is being drawn. A baked Advance Plan adds its region tint and advance arrows.
      *
-     * <p><b>Interaction-time (tool armed):</b> per-chunk borders (amber covered, red 15% fill on uncovered) and the
-     * white hover highlight.
+     * <p><b>Interaction-time (a tool armed):</b> per-chunk borders (amber covered, red 15% fill on uncovered), the
+     * painted Advance Plan chunks, and the white hover highlight.
      *
-     * <p>Back to front: leash, armed chunk marks, coverage line, manual line, icons (on top of both lines), hover. Chunks, lines and icons
+     * <p>Back to front (Xaero's own claim fill sits beneath all of it): plan region tint, armed chunk marks, coverage
+     * line, manual line, icons (on top of both lines; fills are flushed before them), leash and lost-chunk outlines
+     * (over the icons: a low-alpha boundary), advance arrows, drag capture highlights, hover. Chunks, lines and icons
      * fade in when they appear, and a chunk that becomes covered fades its line and icon in, the same for an auto run
      * and a manual one (both just change what the server pushes).
      */
     public static void drawOverlay(GuiGraphics g, Project p, int w, int h, int hoverBlockX, int hoverBlockZ) {
-        if (!enabled() || !TerritoryClient.modeOn()) return;
+        if (!enabled()) return;
+        if (!TerritoryClient.modeOn()) {
+            cancelTool(); // mode went off with a tool live; the server dropped any plan with it
+            return;
+        }
+        if (planPainting && planSent && matchesPainted(TerritoryClient.plan())) cancelTool(); // the bake went through
         long now = System.currentTimeMillis();
         long[] front = TerritoryClient.front();
         int[] cover = TerritoryClient.coverage();
         long[] line = TerritoryClient.manualLine();
         trackFade(front, cover, line, now);
 
-        drawLeashes(g, p, w, h);
+        drawPlanRegion(g, p, w, h);
 
         coveredAlpha.clear();
         for (int i = 0; i < front.length; i++) {
@@ -568,7 +716,7 @@ public final class RtsPanel {
 
         drawCoverageLine(g, p, w, h);
 
-        // Manual ordering: the stored line (chunks still on the front) and the drag in progress.
+        // Manual ordering: the stored line (chunks still on the front).
         if (line.length > 0) {
             Set<Long> frontKeys = frontSet();
             List<int[]> pts = new ArrayList<>(line.length);
@@ -581,6 +729,20 @@ public final class RtsPanel {
             }
             dashedPath(g, pts, alphas, w, h);
         }
+
+        // Icons over both lines they anchor; everything queued from here on lands on top of them.
+        drawIcons(g, p, w, h);
+
+        drawLeashes(g, p, w, h);
+        for (Row r : TerritoryClient.roster()) {
+            if (r.posted() && r.lost()) {
+                box(g, p, w, h, r.chunkX(), r.chunkZ(), r.chunkX() + 1, r.chunkZ() + 1,
+                        0x33000000 | UNCOVERED_RGB, 0xFF000000 | UNCOVERED_RGB);
+            }
+        }
+
+        drawPlanArrows(g, p, w, h);
+
         if (dragging && !captured.isEmpty()) {
             List<int[]> pts = new ArrayList<>(captured.size());
             List<Float> alphas = new ArrayList<>(captured.size());
@@ -593,19 +755,102 @@ public final class RtsPanel {
             dashedPath(g, pts, alphas, w, h);
         }
 
-        // Icons last of the persistent marks, so they sit on top of BOTH lines they anchor.
-        drawIcons(g, p, w, h);
-
-        for (Row r : TerritoryClient.roster()) {
-            if (r.posted() && r.lost()) {
-                box(g, p, w, h, r.chunkX(), r.chunkZ(), r.chunkX() + 1, r.chunkZ() + 1,
-                        0x33000000 | UNCOVERED_RGB, 0xFF000000 | UNCOVERED_RGB);
-            }
-        }
-        if (toolArmed && !dragging) {
+        if ((toolArmed && !dragging) || planPainting) {
             int cx = hoverBlockX >> 4, cz = hoverBlockZ >> 4;
             box(g, p, w, h, cx, cz, cx + 1, cz + 1, 0x33FFFFFF, 0x99FFFFFF);
         }
+    }
+
+    /**
+     * The Advance Plan region under everything of ours: while painting, the painted set; otherwise the baked plan by
+     * layer. The layer being claimed is emphasised, later layers are dimmed, and a layer already claimed is only a faint
+     * wash (Xaero draws the claim itself).
+     */
+    private static void drawPlanRegion(GuiGraphics g, Project p, int w, int h) {
+        if (planPainting) {
+            for (long key : painted) {
+                Chunk c = FrontlineMath.unpack(key);
+                box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1, 0x55000000 | ADVANCE_RGB, 0xCC000000 | ADVANCE_RGB);
+            }
+            return;
+        }
+        PlanView plan = TerritoryClient.plan();
+        if (plan == null) return;
+        for (int i = 0; i < plan.region().length; i++) {
+            Chunk c = FrontlineMath.unpack(plan.region()[i]);
+            int layer = plan.layerOf()[i];
+            if (layer < plan.currentLayer()) {
+                box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1, 0x18000000 | ADVANCE_RGB, 0);
+            } else if (layer == plan.currentLayer()) {
+                box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1, 0x60000000 | ADVANCE_RGB, 0xE0000000 | ADVANCE_RGB);
+            } else {
+                box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1, 0x24000000 | ADVANCE_RGB, 0x60000000 | ADVANCE_RGB);
+            }
+        }
+    }
+
+    /**
+     * One arrow per edge normal, from the front's edge toward the region centre and perpendicular to the edge it
+     * crosses, ending in a chevron. Length runs to the centre along the arrow's own axis (clamped), so a deep region
+     * reads as far to go and a shallow one as near.
+     */
+    private static void drawPlanArrows(GuiGraphics g, Project p, int w, int h) {
+        PlanView plan = TerritoryClient.plan();
+        if (plan == null || planPainting || plan.arrows().length == 0) return;
+        double cx = 0, cz = 0;
+        int n = 0;
+        for (int i = 0; i < plan.region().length; i++) {
+            if (plan.layerOf()[i] < plan.currentLayer()) continue;
+            Chunk c = FrontlineMath.unpack(plan.region()[i]);
+            cx += c.centreX();
+            cz += c.centreZ();
+            n++;
+        }
+        if (n == 0) return;
+        cx /= n;
+        cz /= n;
+        int argb = 0xE0000000 | ADVANCE_RGB;
+        int[] arrows = plan.arrows();
+        for (int i = 0; i + 3 < arrows.length; i += 4) {
+            double bx = arrows[i], bz = arrows[i + 1];
+            int dx = arrows[i + 2], dz = arrows[i + 3];
+            double along = (cx - bx) * dx + (cz - bz) * dz;
+            double len = Mth.clamp(along - 8, 24, 128);
+            int[] from = p.toScreen(bx + dx * 8.0, bz + dz * 8.0);
+            int[] tip = p.toScreen(bx + dx * (8.0 + len), bz + dz * (8.0 + len));
+            if (Math.max(from[0], tip[0]) < 0 || Math.min(from[0], tip[0]) > w
+                    || Math.max(from[1], tip[1]) < 0 || Math.min(from[1], tip[1]) > h) continue;
+            leg(g, from, tip, argb);
+            chevron(g, from, tip, argb);
+        }
+    }
+
+    /** A leg as a chain of dots: no rotated quad, and it reads as a route rather than a border. (Copied from MixinGuiMap.) */
+    private static void leg(GuiGraphics g, int[] from, int[] to, int color) {
+        int dx = to[0] - from[0];
+        int dy = to[1] - from[1];
+        int steps = Math.max(Math.abs(dx), Math.abs(dy)) / 6;
+        for (int i = 1; i < steps; i++) {
+            int x = from[0] + dx * i / steps;
+            int y = from[1] + dy * i / steps;
+            g.fill(x - 1, y - 1, x + 1, y + 1, color);
+        }
+    }
+
+    /** Chevron at {@code to}, pointing along from -> to. Screen-space only. (Copied from MixinGuiMap.) */
+    private static void chevron(GuiGraphics g, int[] from, int[] to, int color) {
+        double dx = to[0] - from[0];
+        double dy = to[1] - from[1];
+        double len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 8.0) return;
+        double ux = dx / len, uy = dy / len;
+        double px = -uy, py = ux;
+        int wing = 7, back = 10;
+        int[] left = {(int) Math.round(to[0] - ux * back + px * wing), (int) Math.round(to[1] - uy * back + py * wing)};
+        int[] right = {(int) Math.round(to[0] - ux * back - px * wing), (int) Math.round(to[1] - uy * back - py * wing)};
+        leg(g, left, to, color);
+        leg(g, right, to, color);
+        g.fill(to[0] - 2, to[1] - 2, to[0] + 2, to[1] + 2, color);
     }
 
     /**
@@ -818,6 +1063,7 @@ public final class RtsPanel {
 
         rowBackground(g, l, l.modeY, ROW_BG);
         rowBackground(g, l, l.toolY, toolArmed ? ARMED_BG : ROW_BG);
+        rowBackground(g, l, l.planY, planPainting ? ARMED_BG : ROW_BG);
         rowBackground(g, l, l.rosterY, ROW_BG);
         rowBackground(g, l, l.helpY, ROW_BG);
         for (int i = 0; i < shown && scroll + i < rows.size(); i++) {
@@ -828,6 +1074,7 @@ public final class RtsPanel {
         // ---- stage 2: sprites
         sprite(g, ICON_MODE, l.x0 + 6, l.modeY + 2, 1f);
         sprite(g, ICON_TOOL, l.x0 + 6, l.toolY + 2, enabled ? 1f : DISABLED_ALPHA);
+        sprite(g, ICON_ADVANCE, l.x0 + 6, l.planY + 2, on ? 1f : DISABLED_ALPHA);
         sprite(g, ICON_ROSTER, l.x0 + 6, l.rosterY + 2, 1f);
         sprite(g, ICON_KEYS, l.x0 + 6, l.helpY + 2, 1f);
         for (int i = 0; i < shown && scroll + i < rows.size(); i++) {
@@ -850,11 +1097,33 @@ public final class RtsPanel {
             boolean hot = mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + ROW_H;
             g.drawString(font, "x", l.x1 - 14, l.toolY + 6, hot ? 0xFFFF6666 : DIM, false);
         }
-        if (!enabled) {
-            Component reason = Component.translatable(on ? "gui.tacz_sewv.rts.need_selection" : "gui.tacz_sewv.rts.need_mode");
-            g.drawString(font, reason, l.x0 + 8, l.reasonY, DIM, false);
+        PlanView plan = TerritoryClient.plan();
+        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.plan"), labelX, l.planY + 6,
+                on ? TEXT : scaleAlpha(TEXT, DISABLED_ALPHA), false);
+        if (plan != null && !planPainting) {
+            boolean running = plan.state() == PLAN_RUNNING;
+            boolean go = running || startable(plan);
+            int bx = l.x1 - 20 - PLAN_BTN_W - 2;
+            g.fill(bx, l.planY + 4, bx + PLAN_BTN_W, l.planY + ROW_H - 4, running ? 0xFF8A5A1F : (go ? 0xFF2F7F55 : 0xFF3A4048));
+            g.drawCenteredString(font, Component.translatable(running ? "gui.tacz_sewv.rts.plan.stop" : "gui.tacz_sewv.rts.plan.start"),
+                    bx + PLAN_BTN_W / 2, l.planY + 6, go ? CHIP_LIGHT : DIM);
+            boolean hot = mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.planY && my < l.planY + ROW_H;
+            g.drawString(font, "x", l.x1 - 14, l.planY + 6, hot ? 0xFFFF6666 : DIM, false);
+        }
+
+        // One status line for both tools: what you are doing now, then the plan's state, then why a tool is unavailable.
+        if (planPainting) {
+            int n = painted.size(), cap = TerritoryClient.planCap();
+            g.drawString(font, Component.translatable("gui.tacz_sewv.rts.plan.painting", n, cap), l.x0 + 8, l.reasonY,
+                    n >= cap ? 0xFFFF6666 : LINE_AMBER, false);
         } else if (toolArmed) {
             g.drawString(font, Component.translatable("gui.tacz_sewv.rts.armed"), l.x0 + 8, l.reasonY, LINE_AMBER, false);
+        } else if (plan != null) {
+            boolean held = plan.state() == PLAN_RUNNING && plan.hold() > 0 && plan.hold() < HOLD_KEYS.length;
+            g.drawString(font, planStatus(plan), l.x0 + 8, l.reasonY, held ? LINE_AMBER : DIM, false);
+        } else if (!enabled) {
+            Component reason = Component.translatable(on ? "gui.tacz_sewv.rts.need_selection" : "gui.tacz_sewv.rts.need_mode");
+            g.drawString(font, reason, l.x0 + 8, l.reasonY, DIM, false);
         }
 
         g.drawString(font, Component.translatable("gui.tacz_sewv.rts.roster", TerritoryClient.roster().size()),
@@ -878,14 +1147,38 @@ public final class RtsPanel {
 
         if (toolArmed) {
             g.drawCenteredString(font, Component.translatable("gui.tacz_sewv.rts.tool_hint"), w / 2, h - 42, 0xFFFFFFFF);
+        } else if (planPainting) {
+            g.drawCenteredString(font, Component.translatable("gui.tacz_sewv.rts.plan.paint_hint"), w / 2, h - 42, 0xFFFFFFFF);
         }
-        if (hasLine && mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + ROW_H) {
+        if (plan != null && !planPainting && mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.planY && my < l.planY + ROW_H) {
+            g.renderComponentTooltip(font, List.of(Component.translatable("gui.tacz_sewv.rts.plan.clear")), mx, my);
+        } else if (mx >= l.x0 + 4 && mx < l.x1 - 4 && my >= l.planY && my < l.planY + ROW_H) {
+            g.renderComponentTooltip(font, List.of(
+                    Component.translatable("gui.tacz_sewv.rts.plan.tip1"),
+                    Component.translatable("gui.tacz_sewv.rts.plan.tip2")), mx, my);
+        } else if (hasLine && mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + ROW_H) {
             g.renderComponentTooltip(font, List.of(Component.translatable("gui.tacz_sewv.rts.clear_line")), mx, my);
         } else if (mx >= l.x0 + 4 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + ROW_H) {
             g.renderComponentTooltip(font, List.of(
                     Component.translatable("gui.tacz_sewv.rts.tool_tip1"),
                     Component.translatable("gui.tacz_sewv.rts.tool_tip2")), mx, my);
         }
+    }
+
+    /** The plan's state as one short line. Layers are shown 1-based; {@code currentLayer} is the 0-based one being claimed. */
+    private static Component planStatus(PlanView plan) {
+        int layer = Math.min(plan.currentLayer() + 1, plan.layerCount());
+        if (plan.state() == PLAN_RUNNING) {
+            if (plan.hold() > 0 && plan.hold() < HOLD_KEYS.length) {
+                return Component.translatable("gui.tacz_sewv.rts.plan.held", layer, plan.layerCount(),
+                        Component.translatable("gui.tacz_sewv.rts.plan.hold." + HOLD_KEYS[plan.hold()]));
+            }
+            return Component.translatable("gui.tacz_sewv.rts.plan.running", layer, plan.layerCount());
+        }
+        if (plan.startReason() == 1) return Component.translatable("gui.tacz_sewv.rts.plan.no_front");
+        if (plan.startReason() == 2) return Component.translatable("gui.tacz_sewv.rts.plan.fragmented");
+        if (selectedPosted().isEmpty()) return Component.translatable("gui.tacz_sewv.rts.plan.need_posted");
+        return Component.translatable("gui.tacz_sewv.rts.plan.ready", plan.region().length, plan.layerCount());
     }
 
     /** A row's background: inset 4 px each side and 1 px top and bottom, so adjacent 20 px rows read as separate. */
@@ -1007,9 +1300,10 @@ public final class RtsPanel {
                 RtsKeybind.Keys.TOGGLE_PANEL.getTranslatedKeyMessage().getString(),
                 RtsKeybind.Keys.FRONTLINE_TOOL.getTranslatedKeyMessage().getString(),
                 "RMB drag",
+                "LMB/RMB drag",
                 "Esc",
                 "Shift+Click"};
-        String[] name = {"toggle", "frontline", "draw", "cancel", "add"};
+        String[] name = {"toggle", "frontline", "draw", "advance", "cancel", "add"};
         int y = l.helpY + ROW_H + 2;
         int first = helpScroll;
         int fit = Math.max(1, l.helpBodyH / HELP_ENTRY_H);

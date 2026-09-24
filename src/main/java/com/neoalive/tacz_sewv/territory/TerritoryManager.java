@@ -75,7 +75,7 @@ public final class TerritoryManager {
     /** Players with the RTS panel open (server thread only). */
     private static final Set<UUID> PANEL = new HashSet<>();
     /** Chunks that had a unit on them at the last pass, to tell a unit dying from a chunk simply never covered. */
-    private static final Map<UUID, Set<Long>> LAST_COVERED = new HashMap<>();
+    static final Map<UUID, Set<Long>> LAST_COVERED = new HashMap<>();
     private static final Map<UUID, Map<String, Long>> COOLDOWNS = new HashMap<>();
 
     private TerritoryManager() {}
@@ -123,6 +123,10 @@ public final class TerritoryManager {
             case FRONTLINE -> frontline(player, cmd.chunkX(), cmd.chunkZ(), cmd.ids());
             case RELEASE -> release(player, cmd.ids().isEmpty() ? -1 : cmd.ids().get(0));
             case MANUAL_FRONTLINE -> manualFrontline(player, cmd.chunks(), cmd.ids());
+            case PLAN_BAKE -> AdvancePlanManager.bake(player, cmd.chunks());
+            case PLAN_START -> AdvancePlanManager.start(player, cmd.ids());
+            case PLAN_STOP -> AdvancePlanManager.stop(player);
+            case PLAN_CLEAR -> AdvancePlanManager.clear(player);
             case CLEAR_LINE -> {
                 TerritoryData.get(player.server).clearLine(player.getUUID(), dimKey(player.serverLevel()));
                 pass(player);
@@ -149,6 +153,8 @@ public final class TerritoryManager {
         } else {
             data.set(player.getUUID(), false);
             data.clearLines(player.getUUID()); // the drawn line goes with the mode
+            data.clearPlans(player.getUUID()); // ...and so does a baked Advance Plan
+            AdvancePlanManager.forget(player.getUUID());
             // Every loaded posted unit of theirs, in every dimension, holds where it stands. Units in
             // unloaded chunks are cleaned as they load (onJoin), because the mode is now off.
             for (ServerLevel level : server.getAllLevels()) {
@@ -172,7 +178,7 @@ public final class TerritoryManager {
     }
 
     /** A Frontline run's selected, eligible, owned units. */
-    private record Selection(List<PmcUnitEntity> units, Set<Integer> ids) {}
+    record Selection(List<PmcUnitEntity> units, Set<Integer> ids) {}
 
     /**
      * The selected units that can be posted. Returns null after telling the player why (rate-limited) when there are
@@ -206,7 +212,7 @@ public final class TerritoryManager {
      * {@code origin} anchors the unit ordering. Additive: units posted earlier and not selected keep their chunks
      * and count toward each chunk's prior coverage, so leftovers stack on real coverage. Returns units posted.
      */
-    private static int assignAndPost(ServerPlayer player, ServerLevel level, Selection sel, Set<Long> claims,
+    static int assignAndPost(ServerPlayer player, ServerLevel level, Selection sel, Set<Long> claims,
                                      List<Chunk> orderedFront, Chunk origin) {
         Map<Chunk, Integer> prior = new HashMap<>();
         for (PmcUnitEntity u : ownedLoaded(level, player)) {
@@ -234,7 +240,7 @@ public final class TerritoryManager {
         return posted;
     }
 
-    private static String dimKey(ServerLevel level) {
+    static String dimKey(ServerLevel level) {
         return level.dimension().location().toString();
     }
 
@@ -327,7 +333,8 @@ public final class TerritoryManager {
                 if (((ITerritoryPost) u).sewv$hasTerritoryPost()) TerritorySupport.release(u);
             }
             LAST_COVERED.remove(id);
-            PacketTerritoryState.sendTo(player, new PacketTerritoryState(false, rows(owned), new long[0], new int[0], new long[0]));
+            PacketTerritoryState.sendTo(player, new PacketTerritoryState(false, rows(owned), new long[0], new int[0], new long[0], null,
+                com.neoalive.tacz_sewv.config.SewvConfig.ADVANCE_PLAN_MAX_CHUNKS.get()));
             return;
         }
 
@@ -372,6 +379,14 @@ public final class TerritoryManager {
             }
         }
 
+        // 4b. Advance Plan: parent check, gate, claim a layer, re-run Frontline. Between the lost flags and the leash
+        // step so the state pushed below describes the new posts. Returns the claim set after any layer it claimed.
+        Set<Long> advanced = AdvancePlanManager.advance(player, level, owned, claims, claimsReadable, data);
+        if (advanced != claims) {
+            claims = advanced;
+            front = FrontlineMath.frontChunks(claims);
+        }
+
         // 5. leash enforcement: the setTarget veto only refuses NEW locks, so a target that walks out of
         // the leash mid-fight is dropped here (at most a second late).
         for (PmcUnitEntity u : owned) {
@@ -411,7 +426,8 @@ public final class TerritoryManager {
 
         // 7. push.
         PacketTerritoryState.sendTo(player, new PacketTerritoryState(true, rows(owned), frontKeys, coverage,
-                data.getLine(id, dimKey(level))));
+                data.getLine(id, dimKey(level)), AdvancePlanManager.view(player, level, claims, data),
+                com.neoalive.tacz_sewv.config.SewvConfig.ADVANCE_PLAN_MAX_CHUNKS.get()));
     }
 
     /** One toast per kind per pass: a chunk lost / a chunk that lost its last unit, aggregated if several. */
@@ -513,6 +529,7 @@ public final class TerritoryManager {
         PANEL.remove(id);
         LAST_COVERED.remove(id);
         COOLDOWNS.remove(id);
+        AdvancePlanManager.forget(id);
     }
 
     @SubscribeEvent
@@ -520,6 +537,7 @@ public final class TerritoryManager {
         PANEL.clear();
         LAST_COVERED.clear();
         COOLDOWNS.clear();
+        AdvancePlanManager.forgetAll();
     }
 
     // ---- notifications ----------------------------------------------------------------------------------
@@ -534,7 +552,7 @@ public final class TerritoryManager {
      * One toast at most per message kind every 2 s, and per unit / chunk (the {@code key}) every 3 s — holding a
      * key with no eligible selection must not queue the same message dozens of times.
      */
-    private static void notify(ServerPlayer player, String kind, String key, Component body) {
+    static void notify(ServerPlayer player, String kind, String key, Component body) {
         long now = player.server.getTickCount();
         Map<String, Long> cooldowns = COOLDOWNS.computeIfAbsent(player.getUUID(), u -> new HashMap<>());
         if (cooldowns.size() > 256) cooldowns.values().removeIf(until -> until <= now);

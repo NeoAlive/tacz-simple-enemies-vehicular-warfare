@@ -19,6 +19,8 @@ public final class TerritoryClient {
     private static volatile long[] front = new long[0];
     private static volatile int[] coverage = new int[0];
     private static volatile long[] manualLine = new long[0];
+    private static volatile PacketTerritoryState.PlanView plan;
+    private static volatile int planCap = 25;
 
     private TerritoryClient() {}
 
@@ -33,6 +35,8 @@ public final class TerritoryClient {
         front = state.front();
         coverage = state.coverage();
         manualLine = state.manualLine();
+        plan = state.plan();
+        planCap = state.planCap();
     }
 
     public static void clear() {
@@ -42,6 +46,7 @@ public final class TerritoryClient {
         front = new long[0];
         coverage = new int[0];
         manualLine = new long[0];
+        plan = null;
     }
 
     public static boolean modeOn() { return modeOn; }
@@ -51,6 +56,12 @@ public final class TerritoryClient {
 
     /** The stored manual line (drag order), or empty. Display + the "clear" affordance only. */
     public static long[] manualLine() { return manualLine; }
+
+    /** The baked Advance Plan for this dimension, or null. Replaced wholesale on every push. */
+    public static PacketTerritoryState.PlanView plan() { return plan; }
+
+    /** The server's Advance Plan size cap, for the painting count. */
+    public static int planCap() { return planCap; }
 
     /** True for a unit currently posted by Territory Mode: hidden from the quick wheel, the TDT and the FOB list. */
     public static boolean inTerritory(int entityId) {

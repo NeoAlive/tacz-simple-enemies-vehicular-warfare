@@ -96,9 +96,6 @@ public abstract class MixinGuiMap extends Screen {
     private ResourceKey<Level> rightClickDim;
 
     @Shadow
-    private xaero.map.gui.MapTileSelection mapTileSelection;
-
-    @Shadow
     private int mouseBlockPosX;
 
     @Shadow
@@ -202,7 +199,9 @@ public abstract class MixinGuiMap extends Screen {
         this.tacz_sewv$confirmButton = this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.tacz_sewv.map.cruise.confirm"),
                 b -> {
-                    if (GuardPlot.armed()) {
+                    if (RtsPanel.planPainting()) {
+                        RtsPanel.confirmPlan();
+                    } else if (GuardPlot.armed()) {
                         tacz_sewv$hint("message.tacz_sewv.guard.plotted", GuardPlot.confirm());
                     } else if (PathwayPlot.armed()) {
                         int saved = PathwayPlot.confirm();
@@ -219,7 +218,9 @@ public abstract class MixinGuiMap extends Screen {
         this.tacz_sewv$cancelButton = this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.tacz_sewv.map.cruise.cancel"),
                 b -> {
-                    if (GuardPlot.armed()) {
+                    if (RtsPanel.planPainting()) {
+                        RtsPanel.cancelTool();
+                    } else if (GuardPlot.armed()) {
                         GuardPlot.cancel();
                         tacz_sewv$hint("message.tacz_sewv.guard.cancelled");
                     } else if (PathwayPlot.armed()) {
@@ -434,7 +435,7 @@ public abstract class MixinGuiMap extends Screen {
 
         options.addAll(UnitOrderOption.allFor(options.size(), (GuiMap) (Object) this,
                 this.rightClickX, this.rightClickY, this.rightClickZ, this.rightClickDim,
-                selectedCount, this.mapTileSelection, attackTargetId));
+                selectedCount, attackTargetId));
         ResourceKey<Level> dim = this.rightClickDim;
         if (dim == null && Minecraft.getInstance().player != null) {
             dim = Minecraft.getInstance().player.level().dimension();
@@ -471,8 +472,9 @@ public abstract class MixinGuiMap extends Screen {
         boolean guardArmed = GuardPlot.armed();
         boolean pathwayArmed = PathwayPlot.armed();
         boolean armed = cruiseArmed || guardArmed || pathwayArmed;
-        if (this.tacz_sewv$confirmButton != null) this.tacz_sewv$confirmButton.visible = armed;
-        if (this.tacz_sewv$cancelButton != null) this.tacz_sewv$cancelButton.visible = armed;
+        boolean buttons = armed || RtsPanel.planPainting(); // Advance Plan painting borrows Confirm / Cancel
+        if (this.tacz_sewv$confirmButton != null) this.tacz_sewv$confirmButton.visible = buttons;
+        if (this.tacz_sewv$cancelButton != null) this.tacz_sewv$cancelButton.visible = buttons;
         if (!armed) return;
 
         int color = ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55);

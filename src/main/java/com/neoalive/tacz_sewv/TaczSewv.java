@@ -100,6 +100,8 @@ public class TaczSewv {
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.VehicleDrops.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.SweepAdvancement.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.TerritoryManager.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.AdvancePlanManager.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.LegacySweepCleanup.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.order.OrderReport.class);
         com.neoalive.tacz_sewv.debug.GunCacheProbe.registerBootProbe();
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, SewvConfig.SPEC);

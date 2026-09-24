@@ -13,7 +13,7 @@ import com.neoalive.tacz_sewv.territory.TerritoryManager;
 /** Client→server: everything the RTS panel can ask of Territory Mode. Validated entirely server-side. */
 public class PacketTerritoryCommand {
 
-    public enum Action { SET_MODE, PANEL_OPEN, FRONTLINE, RELEASE, MANUAL_FRONTLINE, CLEAR_LINE, PLAN_BAKE, PLAN_START, PLAN_STOP, PLAN_CLEAR }
+    public enum Action { SET_MODE, PANEL_OPEN, FRONTLINE, RELEASE, MANUAL_FRONTLINE, CLEAR_LINE, PLAN_BAKE, PLAN_START, PLAN_STOP, PLAN_CLEAR, PLAN_SKIP }
 
     /** Selection sent with a Frontline order; a generous cap so a forged packet cannot allocate freely. */
     private static final int MAX_IDS = 256;
@@ -71,6 +71,11 @@ public class PacketTerritoryCommand {
     /** Start the baked plan with the selected posted units. */
     public static PacketTerritoryCommand planStart(List<Integer> unitIds) {
         return new PacketTerritoryCommand(Action.PLAN_START, false, 0, 0, unitIds, List.of());
+    }
+
+    /** Force-claim the current layer, ignoring hostiles and units still moving up (the stall workaround). */
+    public static PacketTerritoryCommand planSkip() {
+        return new PacketTerritoryCommand(Action.PLAN_SKIP, false, 0, 0, List.of(), List.of());
     }
 
     public static PacketTerritoryCommand planStop() {

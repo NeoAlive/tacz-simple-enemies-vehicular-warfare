@@ -15,7 +15,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -52,7 +51,7 @@ import com.neoalive.tacz_sewv.network.PacketTerritoryState.Row;
  *
  * <p>The pass runs only for a player whose panel is open or whose mode is on, at most once a second each, and
  * builds the claim set ONCE per pass (walking a party's claim streams is the expensive part). Order matters:
- * prune → claims → front → lost flags → leash enforcement → coverage → push. Reordering it puts last second's
+ * prune → claims → front → lost flags → advance plan → coverage → push. Reordering it puts last second's
  * ownership into this second's amber chunks.
  */
 public final class TerritoryManager {
@@ -126,6 +125,7 @@ public final class TerritoryManager {
             case PLAN_BAKE -> AdvancePlanManager.bake(player, cmd.chunks());
             case PLAN_START -> AdvancePlanManager.start(player, cmd.ids());
             case PLAN_STOP -> AdvancePlanManager.stop(player);
+            case PLAN_SKIP -> AdvancePlanManager.skip(player);
             case PLAN_CLEAR -> AdvancePlanManager.clear(player);
             case CLEAR_LINE -> {
                 TerritoryData.get(player.server).clearLine(player.getUUID(), dimKey(player.serverLevel()));
@@ -387,19 +387,6 @@ public final class TerritoryManager {
             front = FrontlineMath.frontChunks(claims);
         }
 
-        // 5. leash enforcement: the setTarget veto only refuses NEW locks, so a target that walks out of
-        // the leash mid-fight is dropped here (at most a second late).
-        for (PmcUnitEntity u : owned) {
-            ITerritoryPost p = (ITerritoryPost) u;
-            if (!p.sewv$hasTerritoryPost()) continue;
-            dropOutOfLeash(u, p);
-            if (u.getVehicle() instanceof VehicleEntity hull) {
-                for (Entity passenger : hull.getPassengers()) {
-                    if (passenger != u && passenger instanceof PmcUnitEntity crew) dropOutOfLeash(crew, p);
-                }
-            }
-        }
-
         // 6. coverage, derived from live posted units.
         Map<Long, Integer> onChunk = new HashMap<>();
         for (PmcUnitEntity u : owned) {
@@ -455,11 +442,6 @@ public final class TerritoryManager {
             }
         }
         LAST_COVERED.put(id, nowCovered);
-    }
-
-    private static void dropOutOfLeash(PmcUnitEntity unit, ITerritoryPost holder) {
-        LivingEntity target = unit.getTarget();
-        if (target != null && !TerritorySupport.inLeash(holder, target)) unit.setTarget(null);
     }
 
     // ---- roster -----------------------------------------------------------------------------------------

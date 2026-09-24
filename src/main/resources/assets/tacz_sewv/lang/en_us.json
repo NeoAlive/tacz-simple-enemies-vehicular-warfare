@@ -32,7 +32,7 @@
   "gui.tacz_sewv.rts.on": "ON",
   "gui.tacz_sewv.rts.off": "OFF",
   "gui.tacz_sewv.rts.tool": "Frontline Tool",
-  "gui.tacz_sewv.rts.armed": "Armed - click a chunk or right-drag",
+  "gui.tacz_sewv.rts.armed": "Active: click a chunk or right-drag",
   "gui.tacz_sewv.rts.need_mode": "Enable Territory Mode",
   "gui.tacz_sewv.rts.need_selection": "Select eligible units",
   "gui.tacz_sewv.rts.roster": "Roster (%s)",

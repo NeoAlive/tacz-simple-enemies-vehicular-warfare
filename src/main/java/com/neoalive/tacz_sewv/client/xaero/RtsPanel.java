@@ -46,7 +46,7 @@ import com.neoalive.tacz_sewv.network.PacketTerritoryState.Row;
  */
 public final class RtsPanel {
 
-    private static final int PANEL_W = 200;
+    private static final int PANEL_W = 240;
     private static final int RAIL_W = 16;
     /** Air between the panel and Xaero's button column when they have to share the edge. */
     private static final int COLUMN_GAP = 2;
@@ -71,6 +71,19 @@ public final class RtsPanel {
     private static final int ROW_BG = 0x30303840;
     private static final int ARMED_BG = 0x50E5A045;
     private static final float DISABLED_ALPHA = 0.4f;
+
+    // Roster row columns (all rows share them, so bars and chips line up down the list).
+    private static final int NAME_W = 88;
+    private static final int BAR_W = 40;
+    private static final int BAR_H = 4;
+    private static final int BAR_TRACK = 0xFF262A30;
+    /** Health reads as a value: green above 66%, yellow above 33%, red at or below. */
+    private static final int HEALTH_GREEN = 0xFF55DD55;
+    private static final int HEALTH_YELLOW = 0xFFE6D34A;
+    private static final int HEALTH_RED = 0xFFC44536;
+    private static final ResourceLocation ICON_INFANTRY = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_unit_infantry.png");
+    private static final ResourceLocation ICON_VEHICLE = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_unit_vehicle.png");
+    private static final ResourceLocation ICON_AIR = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_unit_air.png");
     private static final ResourceLocation ICON_MODE = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_mode.png");
     private static final ResourceLocation ICON_TOOL = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_frontline.png");
     private static final ResourceLocation ICON_ROSTER = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_roster.png");
@@ -817,6 +830,10 @@ public final class RtsPanel {
         sprite(g, ICON_TOOL, l.x0 + 6, l.toolY + 2, enabled ? 1f : DISABLED_ALPHA);
         sprite(g, ICON_ROSTER, l.x0 + 6, l.rosterY + 2, 1f);
         sprite(g, ICON_KEYS, l.x0 + 6, l.helpY + 2, 1f);
+        for (int i = 0; i < shown && scroll + i < rows.size(); i++) {
+            Row r = rows.get(scroll + i);
+            sprite(g, unitIcon(r), l.x0 + 6, l.listTop + i * ROW_H + 2, ineligible(r) ? DISABLED_ALPHA : 1f);
+        }
         checkbox(g, l.x1 - 6 - SPRITE, l.modeY + 2, on);
         checkbox(g, l.x1 - 6 - SPRITE, l.rosterY + 2, hideIneligible);
 
@@ -916,42 +933,72 @@ public final class RtsPanel {
         }
     }
 
-    /** Roster row content (the selection background is a stage-1 fill). Pass C reworks bar, chips and unit icons. */
+    /** Infantry, a hull, or an aircraft: air is the driver of an aircraft (the server's AIR status), vehicle any other seat. */
+    private static ResourceLocation unitIcon(Row r) {
+        if (r.status() == com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_AIR) return ICON_AIR;
+        return r.kind() == 1 ? ICON_VEHICLE : ICON_INFANTRY;
+    }
+
+    /** A unit that cannot be posted (and is not already): its row reads as disabled, its chip says why. */
+    private static boolean ineligible(Row r) {
+        return r.status() != com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_OK && !r.posted();
+    }
+
+    /**
+     * Roster row content: name, health bar, status pill, eject. Sprites and the selection background are earlier
+     * stages. The columns are fixed, so a scan down the list compares bars and reads chips without reading names.
+     */
     private static void drawRow(GuiGraphics g, Font font, Row r, Layout l, int y, int mx, int my) {
         int ty = y + (ROW_H - 8) / 2;
-        // Unit type: a foot soldier is a small square, a driver of a hull a wider one.
-        g.fill(l.x0 + 6, ty, l.x0 + (r.kind() == 1 ? 14 : 10), ty + 5, r.kind() == 1 ? 0xFF6FA8FF : 0xFFCCCCCC);
-        int nameX = l.x0 + 18;
-        g.drawString(font, font.plainSubstrByWidth(r.name(), 74), nameX, ty, r.posted() ? TEXT : (r.status() == 0 ? TEXT : DIM), false);
+        int nameX = l.x0 + 6 + SPRITE + 4;
+        g.drawString(font, font.plainSubstrByWidth(r.name(), NAME_W), nameX, ty, ineligible(r) ? DIM : TEXT, false);
 
-        // Health bar.
-        int hx = nameX + 78;
-        g.fill(hx, ty + 2, hx + 24, ty + 5, 0xFF303030);
-        int hw = Math.round(24 * Mth.clamp(r.health(), 0f, 1f));
-        g.fill(hx, ty + 2, hx + hw, ty + 5, r.health() > 0.5f ? 0xFF55DD55 : (r.health() > 0.25f ? AMBER : 0xFFFF4444));
+        int barX = nameX + NAME_W + 4;
+        healthBar(g, barX, y + (ROW_H - BAR_H) / 2, r.health());
 
-        // Chip: TERRITORY when posted, otherwise why the unit cannot be.
-        String chip = r.posted() ? "gui.tacz_sewv.rts.chip.territory" : chipKey(r.status());
-        int chipX = hx + 28;
-        if (chip != null) {
-            int color = r.posted() ? (r.lost() ? 0xFFFF4444 : ACCENT) : AMBER;
-            g.drawString(font, Component.translatable(chip), chipX, ty, color, false);
-        }
+        Chip chip = chipFor(r);
+        if (chip != null) pill(g, font, barX + BAR_W + 6, y + 4, chip);
+
         if (r.posted()) {
             boolean hot = mx >= l.x1 - 14 && mx < l.x1 - 5 && my >= y && my < y + ROW_H;
             g.drawString(font, "x", l.x1 - 12, ty, hot ? 0xFFFF6666 : DIM, false);
         }
     }
 
-    private static String chipKey(byte status) {
-        return switch (status) {
-            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_FOB -> "gui.tacz_sewv.rts.chip.fob";
-            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_AIR -> "gui.tacz_sewv.rts.chip.air";
-            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_CREW -> "gui.tacz_sewv.rts.chip.crew";
-            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_DOWNED -> "gui.tacz_sewv.rts.chip.downed";
-            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_SWEEP -> "gui.tacz_sewv.rts.chip.sweep";
+    private static void healthBar(GuiGraphics g, int x, int y, float health) {
+        float f = Mth.clamp(health, 0f, 1f);
+        g.fill(x, y, x + BAR_W, y + BAR_H, BAR_TRACK);
+        int color = f > 0.66f ? HEALTH_GREEN : (f > 0.33f ? HEALTH_YELLOW : HEALTH_RED);
+        g.fill(x, y, x + Math.round(BAR_W * f), y + BAR_H, color);
+    }
+
+    private record Chip(String key, int bg, int fg) {}
+
+    private static final int CHIP_LIGHT = 0xFFFFFFFF;
+    private static final int CHIP_DARK = 0xFF10202E;
+
+    /** TERRITORY when posted (red if its chunk was lost), otherwise why the unit cannot be. Each chip owns its colour. */
+    private static Chip chipFor(Row r) {
+        if (r.posted()) {
+            return new Chip("gui.tacz_sewv.rts.chip.territory", r.lost() ? 0xFFC44536 : 0xFF2F7F55, CHIP_LIGHT);
+        }
+        return switch (r.status()) {
+            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_CREW -> new Chip("gui.tacz_sewv.rts.chip.crew", 0xFF5A6478, CHIP_LIGHT);
+            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_FOB -> new Chip("gui.tacz_sewv.rts.chip.fob", 0xFF3F6FB0, CHIP_LIGHT);
+            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_AIR -> new Chip("gui.tacz_sewv.rts.chip.air", 0xFF7FB2E5, CHIP_DARK);
+            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_DOWNED -> new Chip("gui.tacz_sewv.rts.chip.downed", 0xFFC44536, CHIP_LIGHT);
+            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_SWEEP -> new Chip("gui.tacz_sewv.rts.chip.sweep", 0xFF2E8B8B, CHIP_LIGHT);
             default -> null;
         };
+    }
+
+    /** A pill: a 12 px tall filled shape with cut corners, its text in the chip's contrasting foreground. */
+    private static void pill(GuiGraphics g, Font font, int x, int y, Chip chip) {
+        Component text = Component.translatable(chip.key());
+        int w = font.width(text) + 8;
+        g.fill(x + 1, y, x + w - 1, y + 12, chip.bg());
+        g.fill(x, y + 1, x + w, y + 11, chip.bg());
+        g.drawString(font, text, x + 4, y + 2, chip.fg(), false);
     }
 
     /** Keybind rows only (spec 3.4): glyph, action name, one-line description. Reference, not a command surface. */

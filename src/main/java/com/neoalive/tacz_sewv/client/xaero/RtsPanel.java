@@ -50,7 +50,9 @@ public final class RtsPanel {
     private static final int RAIL_W = 16;
     /** Air between the panel and Xaero's button column when they have to share the edge. */
     private static final int COLUMN_GAP = 2;
-    private static final int ROW_H = 12;
+    /** Every row (tool rows, roster header, roster rows, keybind header) is 20 px: 16 px sprite + 2 px above/below. */
+    private static final int ROW_H = 20;
+    private static final int SPRITE = 16;
     private static final int HELP_ENTRY_H = 22;
     private static final int HELP_ENTRIES = 5;
     /** Overlay fade-in: front chunks appearing, a chunk becoming covered, and the manual line appearing. */
@@ -65,6 +67,16 @@ public final class RtsPanel {
     private static final int TEXT = 0xFFE6E6E6;
     private static final int DIM = 0xFF8A94A0;
     private static final int SELECT_BG = 0x4055AAFF;
+    /** Row backgrounds: neutral when idle, a subtle amber tint when the row's tool is armed. Amber means "attention". */
+    private static final int ROW_BG = 0x30303840;
+    private static final int ARMED_BG = 0x50E5A045;
+    private static final float DISABLED_ALPHA = 0.4f;
+    private static final ResourceLocation ICON_MODE = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_mode.png");
+    private static final ResourceLocation ICON_TOOL = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_frontline.png");
+    private static final ResourceLocation ICON_ROSTER = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_roster.png");
+    private static final ResourceLocation ICON_KEYS = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_keys.png");
+    /** Vanilla 1.20.1 checkbox sheet: 64x64, 20x20 cells; the second row (v = 20) is the checked state. */
+    private static final ResourceLocation CHECKBOX = new ResourceLocation("textures/gui/checkbox.png");
 
     // Map overlay palette. Amber is the persistent "this is held" colour; red and white are interaction-time only.
     private static final int LINE_AMBER = 0xFFE5A045;
@@ -333,14 +345,15 @@ public final class RtsPanel {
             int x1 = rightEdge(w, y0 + railH);
             return new Layout(x1 - RAIL_W, y0, x1, y0 + railH, y0, y0, y0, y0, y0, y0, y0, y0, 0);
         }
-        int panelH = Mth.clamp(h - 60, 190, 340);
+        int panelH = Mth.clamp(h - 40, 190, 520);
         int y0 = (h - panelH) / 2;
         int y1 = y0 + panelH;
         int x1 = rightEdge(w, y1);
-        int listTop = y0 + 84;
-        int helpBody = helpOpen ? Math.min(HELP_ENTRIES * HELP_ENTRY_H, Math.max(0, panelH - 84 - 12 - 4 - 3 * ROW_H)) : 0;
-        int helpY = y1 - 12 - helpBody - 2;
-        return new Layout(x1 - PANEL_W, y0, x1, y1, y0 + 2, y0 + 18, y0 + 38, y0 + 56, y0 + 70,
+        int listTop = y0 + 94;
+        // The keybind drawer never squeezes the roster below three rows.
+        int helpBody = helpOpen ? Math.min(HELP_ENTRIES * HELP_ENTRY_H, Math.max(0, panelH - 94 - ROW_H - 4 - 3 * ROW_H)) : 0;
+        int helpY = y1 - ROW_H - helpBody - 2;
+        return new Layout(x1 - PANEL_W, y0, x1, y1, y0 + 2, y0 + 18, y0 + 38, y0 + 60, y0 + 72,
                 listTop, helpY - 2, helpY, helpBody);
     }
 
@@ -381,15 +394,15 @@ public final class RtsPanel {
             toggle();
             return true;
         }
-        if (my < l.modeY - 1) { // header: the collapse arrow at the right
+        if (my < l.modeY) { // header: the collapse arrow at the right
             if (mx >= l.x1 - 18) toggle();
             return true;
         }
-        if (my >= l.modeY && my < l.modeY + 16) {
+        if (my >= l.modeY && my < l.modeY + ROW_H) {
             send(PacketTerritoryCommand.setMode(!TerritoryClient.modeOn()));
             return true;
         }
-        if (my >= l.toolY && my < l.toolY + 16) {
+        if (my >= l.toolY && my < l.toolY + ROW_H) {
             if (TerritoryClient.manualLine().length > 0 && mx >= l.x1 - 20) {
                 send(PacketTerritoryCommand.clearLine()); // "Manual line - clear"
             } else if (toolArmed) {
@@ -414,7 +427,7 @@ public final class RtsPanel {
             }
             return true;
         }
-        if (my >= l.helpY && my < l.helpY + 12) {
+        if (my >= l.helpY && my < l.helpY + ROW_H) {
             helpOpen = !helpOpen;
             helpScroll = 0;
         }
@@ -758,9 +771,20 @@ public final class RtsPanel {
         g.fill(x1 - 1, y0, x1, y1, border);
     }
 
+    /**
+     * The panel, in three stages because {@code GuiGraphics.fill} is batched into a deferred buffer while {@code blit}
+     * draws immediately: (1) every fill a sprite sits on, then a flush; (2) the sprites; (3) text and bars. Drawing
+     * a row background after its icon would hide the icon, however the calls are ordered in the source.
+     *
+     * <p>Colour is for STATE only, never for category: idle rows are monochrome, an armed tool's row takes a subtle
+     * amber tint, a disabled row drops to 40% opacity. Amber is reserved for "attention here".
+     */
     public static void render(GuiGraphics g, Font font, int w, int h, int mx, int my) {
         if (!enabled()) return;
         Layout l = layout(w, h);
+        boolean on = TerritoryClient.modeOn();
+
+        // ---- stage 1: fills
         g.fill(l.x0, l.y0, l.x1, l.y1, BG);
         g.fill(l.x0, l.y0, l.x1, l.y0 + 1, BORDER);
         g.fill(l.x0, l.y1 - 1, l.x1, l.y1, BORDER);
@@ -768,58 +792,61 @@ public final class RtsPanel {
         g.fill(l.x1 - 1, l.y0, l.x1, l.y1, BORDER);
 
         if (!expanded) {
-            g.drawCenteredString(font, "<", l.x0 + RAIL_W / 2, l.y0 + 6, TerritoryClient.modeOn() ? ACCENT : TEXT);
-            String label = Component.translatable("gui.tacz_sewv.rts.rail").getString();
-            for (int i = 0; i < label.length(); i++) {
-                g.drawCenteredString(font, String.valueOf(label.charAt(i)), l.x0 + RAIL_W / 2, l.y0 + 20 + i * 10, DIM);
-            }
+            drawRail(g, font, l, on);
             return;
         }
 
-        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.title"), l.x0 + 6, l.headerY + 2, TEXT, false);
-        g.drawString(font, ">", l.x1 - 12, l.headerY + 2, DIM, false);
-
-        // Territory Mode toggle.
-        boolean on = TerritoryClient.modeOn();
-        g.fill(l.x0 + 4, l.modeY, l.x1 - 4, l.modeY + 16, on ? 0x6032803C : 0x40303840);
-        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.mode"), l.x0 + 8, l.modeY + 4, TEXT, false);
-        Component state = Component.translatable(on ? "gui.tacz_sewv.rts.on" : "gui.tacz_sewv.rts.off");
-        g.drawString(font, state, l.x1 - 8 - font.width(state), l.modeY + 4, on ? ACCENT : DIM, false);
-
-        // Frontline Tool, directly below the toggle.
         boolean enabled = toolEnabled();
-        int toolFill = toolArmed ? 0x8066AAFF : (enabled ? 0x60305880 : 0x30202830);
-        g.fill(l.x0 + 4, l.toolY, l.x1 - 4, l.toolY + 16, toolFill);
-        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.tool"), l.x0 + 8, l.toolY + 4,
-                enabled ? TEXT : DIM, false);
         boolean hasLine = TerritoryClient.manualLine().length > 0;
+        List<Row> rows = visibleRows();
+        scroll = Mth.clamp(scroll, 0, maxScroll(l, rows.size()));
+        Set<Integer> selected = selection();
+        int shown = l.visibleRows();
+
+        rowBackground(g, l, l.modeY, ROW_BG);
+        rowBackground(g, l, l.toolY, toolArmed ? ARMED_BG : ROW_BG);
+        rowBackground(g, l, l.rosterY, ROW_BG);
+        rowBackground(g, l, l.helpY, ROW_BG);
+        for (int i = 0; i < shown && scroll + i < rows.size(); i++) {
+            if (selected.contains(rows.get(scroll + i).id())) rowBackground(g, l, l.listTop + i * ROW_H, SELECT_BG);
+        }
+        g.flush();
+
+        // ---- stage 2: sprites
+        sprite(g, ICON_MODE, l.x0 + 6, l.modeY + 2, 1f);
+        sprite(g, ICON_TOOL, l.x0 + 6, l.toolY + 2, enabled ? 1f : DISABLED_ALPHA);
+        sprite(g, ICON_ROSTER, l.x0 + 6, l.rosterY + 2, 1f);
+        sprite(g, ICON_KEYS, l.x0 + 6, l.helpY + 2, 1f);
+        checkbox(g, l.x1 - 6 - SPRITE, l.modeY + 2, on);
+        checkbox(g, l.x1 - 6 - SPRITE, l.rosterY + 2, hideIneligible);
+
+        // ---- stage 3: text and bars
+        int labelX = l.x0 + 6 + SPRITE + 6;
+        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.title"), l.x0 + 6, l.headerY + 3, TEXT, false);
+        g.drawString(font, ">", l.x1 - 12, l.headerY + 3, DIM, false);
+
+        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.mode"), labelX, l.modeY + 6, TEXT, false);
+
+        int toolText = enabled ? TEXT : scaleAlpha(TEXT, DISABLED_ALPHA);
+        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.tool"), labelX, l.toolY + 6, toolText, false);
         if (hasLine) {
-            boolean hot = mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + 16;
-            g.drawString(font, "x", l.x1 - 14, l.toolY + 4, hot ? 0xFFFF6666 : DIM, false);
+            boolean hot = mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + ROW_H;
+            g.drawString(font, "x", l.x1 - 14, l.toolY + 6, hot ? 0xFFFF6666 : DIM, false);
         }
         if (!enabled) {
             Component reason = Component.translatable(on ? "gui.tacz_sewv.rts.need_selection" : "gui.tacz_sewv.rts.need_mode");
             g.drawString(font, reason, l.x0 + 8, l.reasonY, DIM, false);
         } else if (toolArmed) {
-            g.drawString(font, Component.translatable("gui.tacz_sewv.rts.armed"), l.x0 + 8, l.reasonY, ACCENT, false);
+            g.drawString(font, Component.translatable("gui.tacz_sewv.rts.armed"), l.x0 + 8, l.reasonY, LINE_AMBER, false);
         }
 
-        // Roster header + filter toggle.
-        List<Row> rows = visibleRows();
-        scroll = Mth.clamp(scroll, 0, maxScroll(l, rows.size()));
         g.drawString(font, Component.translatable("gui.tacz_sewv.rts.roster", TerritoryClient.roster().size()),
-                l.x0 + 6, l.rosterY + 2, TEXT, false);
+                labelX, l.rosterY + 6, TEXT, false);
         Component filter = Component.translatable("gui.tacz_sewv.rts.filter");
-        int fx = l.x1 - 8 - font.width(filter) - 10;
-        g.fill(fx, l.rosterY + 2, fx + 8, l.rosterY + 10, 0xFF3A4A5A);
-        if (hideIneligible) g.fill(fx + 2, l.rosterY + 4, fx + 6, l.rosterY + 8, ACCENT);
-        g.drawString(font, filter, fx + 12, l.rosterY + 2, DIM, false);
+        g.drawString(font, filter, l.x1 - 6 - SPRITE - 4 - font.width(filter), l.rosterY + 6, DIM, false);
 
-        // Roster rows.
-        Set<Integer> selected = selection();
-        int shown = l.visibleRows();
         for (int i = 0; i < shown && scroll + i < rows.size(); i++) {
-            drawRow(g, font, rows.get(scroll + i), l, l.listTop + i * ROW_H, selected, mx, my);
+            drawRow(g, font, rows.get(scroll + i), l, l.listTop + i * ROW_H, mx, my);
         }
         if (rows.size() > shown) {
             int trackH = l.listBottom - l.listTop;
@@ -828,47 +855,91 @@ public final class RtsPanel {
             g.fill(l.x1 - 3, thumbY, l.x1 - 1, thumbY + thumbH, BORDER);
         }
 
-        // Keybind drawer.
-        g.fill(l.x0 + 4, l.helpY, l.x1 - 4, l.helpY + 12, 0x30202830);
-        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.keys"), l.x0 + 8, l.helpY + 2, DIM, false);
-        g.drawString(font, helpOpen ? "v" : "^", l.x1 - 14, l.helpY + 2, DIM, false);
+        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.keys"), labelX, l.helpY + 6, TEXT, false);
+        g.drawString(font, helpOpen ? "v" : "^", l.x1 - 14, l.helpY + 6, DIM, false);
         if (helpOpen) drawHelp(g, font, l);
 
         if (toolArmed) {
             g.drawCenteredString(font, Component.translatable("gui.tacz_sewv.rts.tool_hint"), w / 2, h - 42, 0xFFFFFFFF);
         }
-        if (hasLine && mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + 16) {
+        if (hasLine && mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + ROW_H) {
             g.renderComponentTooltip(font, List.of(Component.translatable("gui.tacz_sewv.rts.clear_line")), mx, my);
-        } else if (mx >= l.x0 + 4 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + 16) {
+        } else if (mx >= l.x0 + 4 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + ROW_H) {
             g.renderComponentTooltip(font, List.of(
                     Component.translatable("gui.tacz_sewv.rts.tool_tip1"),
                     Component.translatable("gui.tacz_sewv.rts.tool_tip2")), mx, my);
         }
     }
 
-    private static void drawRow(GuiGraphics g, Font font, Row r, Layout l, int y, Set<Integer> selected, int mx, int my) {
-        if (selected.contains(r.id())) g.fill(l.x0 + 3, y, l.x1 - 5, y + ROW_H - 1, SELECT_BG);
+    /** A row's background: inset 4 px each side and 1 px top and bottom, so adjacent 20 px rows read as separate. */
+    private static void rowBackground(GuiGraphics g, Layout l, int y, int argb) {
+        g.fill(l.x0 + 4, y + 1, l.x1 - 4, y + ROW_H - 1, argb);
+    }
+
+    /** A 16 px monochrome sprite, tinted near-white and faded by {@code alpha} (40% when its row is disabled). */
+    private static void sprite(GuiGraphics g, ResourceLocation texture, int x, int y, float alpha) {
+        RenderSystem.enableBlend();
+        g.setColor(0.92f, 0.92f, 0.92f, alpha);
+        g.blit(texture, x, y, SPRITE, SPRITE, 0, 0, 16, 16, 16, 16);
+        g.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /** The vanilla checkbox: empty when off, the checked cell tinted green when on. */
+    private static void checkbox(GuiGraphics g, int x, int y, boolean checked) {
+        RenderSystem.enableBlend();
+        if (checked) g.setColor(0.45f, 1f, 0.45f, 1f);
+        g.blit(CHECKBOX, x, y, SPRITE, SPRITE, 0f, checked ? 20f : 0f, 20, 20, 64, 64);
+        g.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /** The collapsed rail: the arrow, the vertical label, and an amber dot while the mode is on with units posted. */
+    private static void drawRail(GuiGraphics g, Font font, Layout l, boolean on) {
+        g.drawCenteredString(font, "<", l.x0 + RAIL_W / 2, l.y0 + 6, TEXT);
+        String label = Component.translatable("gui.tacz_sewv.rts.rail").getString();
+        for (int i = 0; i < label.length(); i++) {
+            g.drawCenteredString(font, String.valueOf(label.charAt(i)), l.x0 + RAIL_W / 2, l.y0 + 20 + i * 10, DIM);
+        }
+        boolean posted = false;
+        for (Row r : TerritoryClient.roster()) {
+            if (r.posted()) {
+                posted = true;
+                break;
+            }
+        }
+        if (on && posted) {
+            // 6x6 rounded amber dot in a 1 px black ring, so it holds against any map colour.
+            int cx = l.x0 + RAIL_W / 2, cy = l.y1 - 12;
+            g.fill(cx - 4, cy - 3, cx + 4, cy + 3, 0xFF000000);
+            g.fill(cx - 3, cy - 4, cx + 3, cy + 4, 0xFF000000);
+            g.fill(cx - 3, cy - 2, cx + 3, cy + 2, LINE_AMBER);
+            g.fill(cx - 2, cy - 3, cx + 2, cy + 3, LINE_AMBER);
+        }
+    }
+
+    /** Roster row content (the selection background is a stage-1 fill). Pass C reworks bar, chips and unit icons. */
+    private static void drawRow(GuiGraphics g, Font font, Row r, Layout l, int y, int mx, int my) {
+        int ty = y + (ROW_H - 8) / 2;
         // Unit type: a foot soldier is a small square, a driver of a hull a wider one.
-        g.fill(l.x0 + 6, y + 3, l.x0 + (r.kind() == 1 ? 14 : 10), y + 8, r.kind() == 1 ? 0xFF6FA8FF : 0xFFCCCCCC);
+        g.fill(l.x0 + 6, ty, l.x0 + (r.kind() == 1 ? 14 : 10), ty + 5, r.kind() == 1 ? 0xFF6FA8FF : 0xFFCCCCCC);
         int nameX = l.x0 + 18;
-        g.drawString(font, font.plainSubstrByWidth(r.name(), 74), nameX, y + 2, r.posted() ? TEXT : (r.status() == 0 ? TEXT : DIM), false);
+        g.drawString(font, font.plainSubstrByWidth(r.name(), 74), nameX, ty, r.posted() ? TEXT : (r.status() == 0 ? TEXT : DIM), false);
 
         // Health bar.
         int hx = nameX + 78;
-        g.fill(hx, y + 4, hx + 24, y + 7, 0xFF303030);
+        g.fill(hx, ty + 2, hx + 24, ty + 5, 0xFF303030);
         int hw = Math.round(24 * Mth.clamp(r.health(), 0f, 1f));
-        g.fill(hx, y + 4, hx + hw, y + 7, r.health() > 0.5f ? 0xFF55DD55 : (r.health() > 0.25f ? AMBER : 0xFFFF4444));
+        g.fill(hx, ty + 2, hx + hw, ty + 5, r.health() > 0.5f ? 0xFF55DD55 : (r.health() > 0.25f ? AMBER : 0xFFFF4444));
 
         // Chip: TERRITORY when posted, otherwise why the unit cannot be.
         String chip = r.posted() ? "gui.tacz_sewv.rts.chip.territory" : chipKey(r.status());
         int chipX = hx + 28;
         if (chip != null) {
             int color = r.posted() ? (r.lost() ? 0xFFFF4444 : ACCENT) : AMBER;
-            g.drawString(font, Component.translatable(chip), chipX, y + 2, color, false);
+            g.drawString(font, Component.translatable(chip), chipX, ty, color, false);
         }
         if (r.posted()) {
             boolean hot = mx >= l.x1 - 14 && mx < l.x1 - 5 && my >= y && my < y + ROW_H;
-            g.drawString(font, "x", l.x1 - 12, y + 2, hot ? 0xFFFF6666 : DIM, false);
+            g.drawString(font, "x", l.x1 - 12, ty, hot ? 0xFFFF6666 : DIM, false);
         }
     }
 
@@ -892,7 +963,7 @@ public final class RtsPanel {
                 "Esc",
                 "Shift+Click"};
         String[] name = {"toggle", "frontline", "draw", "cancel", "add"};
-        int y = l.helpY + 14;
+        int y = l.helpY + ROW_H + 2;
         int first = helpScroll;
         int fit = Math.max(1, l.helpBodyH / HELP_ENTRY_H);
         for (int i = first; i < HELP_ENTRIES && i < first + fit; i++, y += HELP_ENTRY_H) {

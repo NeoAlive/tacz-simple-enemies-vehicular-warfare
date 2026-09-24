@@ -61,6 +61,11 @@ public final class RtsPanel {
     /** Advance Plan Start/Stop button width, and PlanView.state's RUNNING value. */
     private static final int PLAN_BTN_W = 44;
     private static final int PLAN_RUNNING = 1;
+    /** The ">>" skip-layer button: its width, and how long right-click must be held to fire it. */
+    private static final int SKIP_BTN_W = 20;
+    private static final long SKIP_HOLD_MS = 1000L;
+    private static final int SKIP_TRACK = 0xFF1B2128;
+    private static final int SKIP_FILL = 0xFF5CE6A8;
     private static final String[] HOLD_KEYS = {"", "hostiles", "not_loaded", "limit", "not_claimable", "retry", "arriving"};
     /** Overlay fade-in: front chunks appearing, a chunk becoming covered, and the manual line appearing. */
     private static final long FADE_MS = 450L;
@@ -144,6 +149,8 @@ public final class RtsPanel {
     private static double paintLastZ;
     /** Confirm was pressed: painting mode closes by itself once the server's plan matches, and stays open on a refusal. */
     private static boolean planSent;
+    /** Wall-clock start of a right-click hold on the skip button, or -1. It fires only if it runs to the end on the button. */
+    private static long skipHoldStart = -1;
 
     // Fade-in bookkeeping, keyed by packed chunk. Rebuilt only when a state push swaps the arrays.
     private static long[] fadeFront;
@@ -197,6 +204,7 @@ public final class RtsPanel {
 
     /** Drops the drag and the fade bookkeeping, so a reopened map fades its overlay in afresh. */
     private static void resetTransient() {
+        skipHoldStart = -1;
         cancelTool();
         appeared.clear();
         covered.clear();
@@ -512,6 +520,10 @@ public final class RtsPanel {
         Layout l = layout(w, h);
         if (!l.inside(mx, my)) return false;
         swallowRelease = true;
+        if (button == 1) {
+            if (expanded && skipHit(l, mx, my)) skipHoldStart = System.currentTimeMillis();
+            return true;
+        }
         if (button != 0) return true;
 
         if (!expanded) {
@@ -562,12 +574,27 @@ public final class RtsPanel {
         return true;
     }
 
+    private static int skipX(Layout l) {
+        return l.x1 - 20 - PLAN_BTN_W - 2 - SKIP_BTN_W - 2;
+    }
+
+    /** Over the ">>" button: only shown while a plan is RUNNING and not being repainted. */
+    private static boolean skipHit(Layout l, double mx, double my) {
+        PlanView plan = TerritoryClient.plan();
+        if (plan == null || plan.state() != PLAN_RUNNING || planPainting) return false;
+        return mx >= skipX(l) && mx < skipX(l) + SKIP_BTN_W && my >= l.planY && my < l.planY + ROW_H;
+    }
+
     /** Advance Plan row: [clear x] and [Start/Stop] once a plan is baked; anywhere else starts (or cancels) painting. */
     private static void planRowClick(double mx, Layout l) {
         PlanView plan = TerritoryClient.plan();
         if (plan != null && !planPainting) {
             if (mx >= l.x1 - 20) {
                 send(PacketTerritoryCommand.planClear());
+                return;
+            }
+            if (skipHit(l, mx, l.planY + ROW_H / 2)) {
+                hint("gui.tacz_sewv.rts.plan.skip.hold"); // a left click is not the gesture; say what is
                 return;
             }
             if (mx >= l.x1 - 20 - PLAN_BTN_W - 2) {
@@ -603,6 +630,7 @@ public final class RtsPanel {
      * answers true exactly once so Xaero never sees the release.
      */
     public static boolean consumeRelease(int button, double worldX, double worldZ) {
+        if (button == 1) skipHoldStart = -1; // released early: nothing fires
         if (paintButton == button) {
             sampleDrag(worldX, worldZ);
             paintButton = -1;
@@ -1109,6 +1137,9 @@ public final class RtsPanel {
                     bx + PLAN_BTN_W / 2, l.planY + 6, go ? CHIP_LIGHT : DIM);
             boolean hot = mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.planY && my < l.planY + ROW_H;
             g.drawString(font, "x", l.x1 - 14, l.planY + 6, hot ? 0xFFFF6666 : DIM, false);
+            if (running) drawSkipButton(g, font, l, mx, my);
+        } else {
+            skipHoldStart = -1;
         }
 
         // One status line for both tools: what you are doing now, then the plan's state, then why a tool is unavailable.
@@ -1150,7 +1181,11 @@ public final class RtsPanel {
         } else if (planPainting) {
             g.drawCenteredString(font, Component.translatable("gui.tacz_sewv.rts.plan.paint_hint"), w / 2, h - 42, 0xFFFFFFFF);
         }
-        if (plan != null && !planPainting && mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.planY && my < l.planY + ROW_H) {
+        if (skipHit(l, mx, my)) {
+            g.renderComponentTooltip(font, List.of(
+                    Component.translatable("gui.tacz_sewv.rts.plan.skip.tip1"),
+                    Component.translatable("gui.tacz_sewv.rts.plan.skip.tip2")), mx, my);
+        } else if (plan != null && !planPainting && mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.planY && my < l.planY + ROW_H) {
             g.renderComponentTooltip(font, List.of(Component.translatable("gui.tacz_sewv.rts.plan.clear")), mx, my);
         } else if (mx >= l.x0 + 4 && mx < l.x1 - 4 && my >= l.planY && my < l.planY + ROW_H) {
             g.renderComponentTooltip(font, List.of(
@@ -1163,6 +1198,30 @@ public final class RtsPanel {
                     Component.translatable("gui.tacz_sewv.rts.tool_tip1"),
                     Component.translatable("gui.tacz_sewv.rts.tool_tip2")), mx, my);
         }
+    }
+
+    /**
+     * The ">>" skip-layer button: dark track, filled left to right in a bright colour while right-click is held on it,
+     * and fired when the fill completes. Moving off the button (or the plan stopping) abandons the hold.
+     */
+    private static void drawSkipButton(GuiGraphics g, Font font, Layout l, int mx, int my) {
+        float progress = 0f;
+        if (skipHoldStart >= 0) {
+            if (!skipHit(l, mx, my)) {
+                skipHoldStart = -1;
+            } else {
+                progress = Mth.clamp((System.currentTimeMillis() - skipHoldStart) / (float) SKIP_HOLD_MS, 0f, 1f);
+                if (progress >= 1f) {
+                    send(PacketTerritoryCommand.planSkip());
+                    skipHoldStart = -1;
+                    progress = 0f;
+                }
+            }
+        }
+        int x = skipX(l), y = l.planY + 4, h = ROW_H - 8;
+        g.fill(x, y, x + SKIP_BTN_W, y + h, SKIP_TRACK);
+        if (progress > 0f) g.fill(x, y, x + Math.round(SKIP_BTN_W * progress), y + h, SKIP_FILL);
+        g.drawCenteredString(font, ">>", x + SKIP_BTN_W / 2, l.planY + 6, progress > 0.5f ? 0xFF10202E : (skipHit(l, mx, my) ? TEXT : DIM));
     }
 
     /** The plan's state as one short line. Layers are shown 1-based; {@code currentLayer} is the 0-based one being claimed. */

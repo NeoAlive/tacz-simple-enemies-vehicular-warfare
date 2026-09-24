@@ -83,12 +83,13 @@ public final class TerritorySupport {
     }
 
     /**
-     * Target-acquisition veto for a POSTED unit (caller has already checked the post exists): a lock
-     * outside the leash is refused before it is ever set, the same seam as
-     * {@link PatrolSupport#refusesOutOfAreaTarget}. Deliberately touches nothing about aim or facing.
+     * A posted unit holding a live target outside its leash. The leash bounds pursuit, not acquisition (spec 8.3): the
+     * unit fires from where it stands, and while this is true SEM's cover / maneuver goals must not move it, or they
+     * would walk it out of the leash toward the target by another door ({@link FollowLeash#enRouteToMove}).
      */
-    public static boolean refusesTarget(ITerritoryPost post, LivingEntity target) {
-        return !inLeash(post, target);
+    public static boolean holdsOutOfLeashTarget(PmcUnitEntity pmc, ITerritoryPost post) {
+        LivingEntity target = pmc.getTarget();
+        return target != null && target.isAlive() && !inLeash(post, target);
     }
 
     /**

@@ -243,8 +243,7 @@ public final class PatrolSupport {
      * zombie on the horizon.
      */
     public static boolean isInsideAreaTask(PmcUnitEntity pmc, double x, double z) {
-        com.neoalive.tacz_sewv.bridge.ITerritoryPost territory = TerritorySupport.holder(pmc);
-        if (territory != null) return TerritorySupport.inLeash(territory, x, z);
+        // A Territory Mode post has no area task here: its leash bounds pursuit, not what a crew may scan or fire at.
         IVehiclePatrol task = (IVehiclePatrol) pmc;
         if (task.sewv$getPatrolOrigin() == null) return true;
         int mode = task.sewv$getPatrolMode();
@@ -272,10 +271,7 @@ public final class PatrolSupport {
      * should refuse the lock. Cruise is unbounded (route, not a disk); returns false there.
      */
     public static boolean refusesOutOfAreaTarget(PmcUnitEntity pmc, LivingEntity target) {
-        // Cold branch first. holder() covers every crewman of a posted hull, not just the posted driver:
-        // each seat has its own target, so a gunner would otherwise still lock beyond the leash.
-        com.neoalive.tacz_sewv.bridge.ITerritoryPost territory = TerritorySupport.holder(pmc);
-        if (territory != null) return TerritorySupport.refusesTarget(territory, target);
+        // A Territory Mode post is deliberately absent: its leash bounds PURSUIT, not acquisition (spec 8.3).
         if (((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
             var sweep = (com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc;
             int minX = sweep.sewv$getInfSweepLeft() << 4;

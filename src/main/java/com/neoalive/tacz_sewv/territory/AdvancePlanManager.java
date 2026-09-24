@@ -19,6 +19,7 @@ import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -66,6 +67,8 @@ public final class AdvancePlanManager {
     /** Transient per-player state that must NOT survive a reload: a reload just grants a fresh grace. */
     private static final class Runtime {
         long soakUntil;
+        /** One-shot: the player asked to skip the current layer (see {@link #skip}). */
+        boolean force;
         /** The layer the units were last sent to; a sentinel until the first dispatch, so the first pass after Start fires it. */
         int dispatchedLayer = AdvanceMath.NOT_DISPATCHED;
         int badStreak;
@@ -283,6 +286,20 @@ public final class AdvancePlanManager {
         TerritoryManager.pass(player);
     }
 
+    /**
+     * The stall workaround: the next evaluation claims the current layer WITHOUT waiting for the soak, for units to
+     * arrive, or for hostiles to clear. Only the checks that are about the world rather than the units still apply:
+     * the layer must be loaded and the claim limit / claimability must allow it. One-shot; a hold from one of those
+     * ends it, and the player can skip again.
+     */
+    static void skip(ServerPlayer player) {
+        TerritoryData data = TerritoryData.get(player.server);
+        AdvancePlan plan = data.getPlan(player.getUUID(), TerritoryManager.dimKey(player.serverLevel()));
+        if (plan == null || plan.state() != AdvancePlan.RUNNING) return;
+        RUNTIME.computeIfAbsent(player.getUUID(), k -> new Runtime()).force = true;
+        TerritoryManager.pass(player);
+    }
+
     static void clear(ServerPlayer player) {
         TerritoryData data = TerritoryData.get(player.server);
         String dim = TerritoryManager.dimKey(player.serverLevel());
@@ -357,6 +374,9 @@ public final class AdvancePlanManager {
             data.setDirty();
         }
 
+        boolean forced = rt.force;
+        rt.force = false;
+
         // Path before claim. `contact` = the front chunks touching what is left: where the units are sent and whose
         // arrival is waited on (the same set the parent check computes). The units are the plan's snapshot only.
         Set<Long> contact = AdvanceMath.contactChunks(front, remainder);
@@ -368,7 +388,7 @@ public final class AdvancePlanManager {
             onEdge++;
             if (TerritorySupport.hasArrived(u)) arrived++;
         }
-        switch (AdvanceMath.nextStep(rt.dispatchedLayer, plan.currentLayer(), now >= rt.soakUntil, onEdge, arrived)) {
+        if (!forced) switch (AdvanceMath.nextStep(rt.dispatchedLayer, plan.currentLayer(), now >= rt.soakUntil, onEdge, arrived)) {
             case DISPATCH -> {
                 // Our own front chunks: an unloaded one cannot be pathed to, so say so rather than wait on it silently.
                 if (!AdvanceHostiles.allLoaded(level, contact)) return hold(player, rt, plan, Hold.NOT_LOADED, claims);
@@ -394,7 +414,14 @@ public final class AdvancePlanManager {
         if (!AdvanceHostiles.allLoaded(level, layer) || !AdvanceHostiles.allLoaded(level, layerContact)) {
             return hold(player, rt, plan, Hold.NOT_LOADED, claims);
         }
-        if (AdvanceHostiles.anyIn(level, layer, live.get(0), player)) {
+        Entity blocker = forced ? null : AdvanceHostiles.firstIn(level, layer, live.get(0), player);
+        if (blocker != null) {
+            // Once per hold (the same dedupe the toast uses): which entity is holding the layer, so "hostiles inside"
+            // can be told apart from a downed unit, a parked hull or anything else that cannot really fight back.
+            if (rt.holdKey != Hold.HOSTILES.ordinal() * 1000 + plan.currentLayer()) {
+                TaczSewv.LOGGER.info("Advance plan of {} held on layer {}/{} by {}", player.getGameProfile().getName(),
+                        plan.currentLayer() + 1, plan.layerCount(), AdvanceHostiles.describe(blocker));
+            }
             return hold(player, rt, plan, Hold.HOSTILES, claims);
         }
 

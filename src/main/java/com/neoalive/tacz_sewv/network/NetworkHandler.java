@@ -112,7 +112,8 @@ public class NetworkHandler {
     // 90: PacketTerritoryCommand (C->S) + PacketTerritoryState (S->C) — RTS panel / Territory Mode.
     // 91: Territory manual Frontline — MANUAL_FRONTLINE / CLEAR_LINE actions + drawn line in PacketTerritoryState.
     // 92: Advance Plan — PLAN_* actions in PacketTerritoryCommand + the plan block in PacketTerritoryState.
-    private static final String PROTOCOL_VERSION = "92";
+    // 93: Advance Plan skip-layer — PLAN_SKIP action.
+    private static final String PROTOCOL_VERSION = "93";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

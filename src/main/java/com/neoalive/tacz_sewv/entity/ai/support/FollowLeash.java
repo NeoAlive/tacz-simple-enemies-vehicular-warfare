@@ -90,7 +90,9 @@ public final class FollowLeash {
         if (pmc.getVehicle() != null) return false;
         if (FobSupport.hasRoutePending(pmc)) return true;
         ITerritoryPost territory = (ITerritoryPost) pmc;
-        if (territory.sewv$hasTerritoryPost()) return TerritorySupport.enRoute(pmc, territory);
+        if (territory.sewv$hasTerritoryPost()) {
+            return TerritorySupport.enRoute(pmc, territory) || TerritorySupport.holdsOutOfLeashTarget(pmc, territory);
+        }
         if (pmc.getOrder() != OrderType.MOVE_TO_POSITION) return false;
         Vec3 dest = pmc.getMoveToTarget();
         if (dest == null || dest.equals(Vec3.ZERO)) return false;

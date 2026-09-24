@@ -132,21 +132,12 @@ def modpackClasspathOverlaps = [
         'xaeroworldmap*.jar',
         'open-parties-and-claims*.jar',
 ]
-// Present → Forge loading error (mods.toml mandatory=false + impossible versionRange).
-// Stripped from syncModpack / syncRunModdedMods so the average-modpack run does not carry them;
-// end-user packs that still drop the jar hit the mods.toml gate (same geckoanimfix-style ban
-// SBW itself uses).
-def incompatibleModJars = [
-        'berezka_api*.jar',
-]
-
 tasks.register('syncModpack', Sync) {
     group = 'forge'
     description = "Copies enabled jars from ${modpackSource} into modpack/ (skips *.disabled)."
     from(modpackSource) {
         include '*.jar'
         exclude 'tacz_sewv*.jar'
-        exclude incompatibleModJars
     }
     into modpackDir
 }
@@ -157,7 +148,6 @@ tasks.register('syncRunModdedMods', Sync) {
     from(modpackDir) {
         include '*.jar'
         exclude modpackClasspathOverlaps
-        exclude incompatibleModJars
     }
     into runModdedMods
 }

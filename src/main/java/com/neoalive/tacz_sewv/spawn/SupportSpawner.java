@@ -95,11 +95,14 @@ public final class SupportSpawner {
         if (chance <= 0.0 || rnd.nextDouble() >= chance) return;
         if (companionNearby(level, near, ru, role)) return;
 
-        BlockPos pos = TankSpawner.adjustHeight(level, near.blockPosition());
+        BlockPos at = near.blockPosition();
         // Defer the add to end of tick: this runs inside EntityJoinLevelEvent (fired from
         // addFreshEntity), and SEM's own join handler mutates lists it is iterating, so adding an
         // entity now risks a ConcurrentModificationException. Same guard the garrison hull uses.
-        level.getServer().execute(() -> spawn(level, pos, ru, role));
+        // The heightmap read is deferred too: from inside the join event the unit's own chunk is
+        // still being promoted, and Level.getHeight's blocking chunk fetch then waits on the very
+        // task running it — a permanent server-thread stall (seen with Berezka city structures).
+        level.getServer().execute(() -> spawn(level, TankSpawner.adjustHeight(level, at), ru, role));
     }
 
     private static boolean companionNearby(ServerLevel level, AbstractUnit near, boolean ru, SupportRole role) {

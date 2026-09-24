@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.skin;
 
+import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -7,8 +8,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
+import javax.imageio.ImageIO;
 
-import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 
@@ -24,6 +25,9 @@ import com.neoalive.tacz_sewv.crew.LogoPoolIndex;
  * <p>Transparency is alpha-only — opaque black ink is real ink (palette 0), not discarded
  * backdrop. Near-white ink is stamped as palette grey (index 2), not pure white (index 1):
  * SBW draws the overlay as a flat lit quad, so full-white pixels read as glowing against hull camo.
+ *
+ * <p>Uses {@link ImageIO} rather than client-only {@code NativeImage}, so encoding runs on
+ * dedicated servers (mount → stamp path) as well as the integrated client.
  */
 public final class PmcLogoEncoder {
 
@@ -75,15 +79,12 @@ public final class PmcLogoEncoder {
     private static List<List<Short>> encodeFresh(String poolId, String iconId) {
         try (InputStream in = LogoPoolIndex.openIcon(poolId, iconId)) {
             if (in == null) return null;
-            NativeImage src = NativeImage.read(in);
-            try {
-                if (src.getWidth() == SIZE && src.getHeight() == SIZE) {
-                    return rasterizeExact(src);
-                }
-                return rasterizeArea(src);
-            } finally {
-                src.close();
+            BufferedImage src = ImageIO.read(in);
+            if (src == null) return null;
+            if (src.getWidth() == SIZE && src.getHeight() == SIZE) {
+                return rasterizeExact(src);
             }
+            return rasterizeArea(src);
         } catch (Exception e) {
             LOGGER.warn("[sewv-pmc-logo] could not encode {}/{}: {}", poolId, iconId, e.toString());
             return null;
@@ -91,12 +92,12 @@ public final class PmcLogoEncoder {
     }
 
     /** 1:1 palette map for authored 16×16 boards. */
-    private static List<List<Short>> rasterizeExact(NativeImage image) {
+    private static List<List<Short>> rasterizeExact(BufferedImage image) {
         List<List<Short>> rows = new ArrayList<>(SIZE);
         for (int x = 0; x < SIZE; x++) {
             List<Short> col = new ArrayList<>(SIZE);
             for (int y = 0; y < SIZE; y++) {
-                col.add(toPalette(image.getPixelRGBA(x, y)));
+                col.add(toPalette(image.getRGB(x, y)));
             }
             rows.add(col);
         }
@@ -107,7 +108,7 @@ public final class PmcLogoEncoder {
      * Fallback for pack icons larger than 16×16: average opaque ink over each destination cell.
      * Transparent source samples are backdrop and do not dilute the ink colour.
      */
-    private static List<List<Short>> rasterizeArea(NativeImage src) {
+    private static List<List<Short>> rasterizeArea(BufferedImage src) {
         int sw = src.getWidth();
         int sh = src.getHeight();
         List<List<Short>> rows = new ArrayList<>(SIZE);
@@ -125,7 +126,7 @@ public final class PmcLogoEncoder {
         return rows;
     }
 
-    private static short sampleCell(NativeImage src, int x0, int x1, int y0, int y1) {
+    private static short sampleCell(BufferedImage src, int x0, int x1, int y0, int y1) {
         long sumR = 0;
         long sumG = 0;
         long sumB = 0;
@@ -134,14 +135,14 @@ public final class PmcLogoEncoder {
         for (int sy = y0; sy < y1; sy++) {
             for (int sx = x0; sx < x1; sx++) {
                 total++;
-                int abgr = src.getPixelRGBA(sx, sy);
-                int a = (abgr >> 24) & 0xFF;
+                int argb = src.getRGB(sx, sy);
+                int a = (argb >>> 24) & 0xFF;
                 if (a < 128) {
                     continue;
                 }
-                sumR += abgr & 0xFF;
-                sumG += (abgr >> 8) & 0xFF;
-                sumB += (abgr >> 16) & 0xFF;
+                sumR += (argb >> 16) & 0xFF;
+                sumG += (argb >> 8) & 0xFF;
+                sumB += argb & 0xFF;
                 ink++;
             }
         }
@@ -162,14 +163,15 @@ public final class PmcLogoEncoder {
         return toneDownWhite(nearestPaletteIndex((r << 16) | (g << 8) | b));
     }
 
-    private static short toPalette(int abgr) {
-        int a = (abgr >> 24) & 0xFF;
+    /** {@code argb} from {@link BufferedImage#getRGB}. */
+    private static short toPalette(int argb) {
+        int a = (argb >>> 24) & 0xFF;
         if (a < 128) {
             return -1;
         }
-        int r = abgr & 0xFF;
-        int g = (abgr >> 8) & 0xFF;
-        int b = (abgr >> 16) & 0xFF;
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
         int luma = (r * 30 + g * 59 + b * 11) / 100;
         if (luma >= 200 && Math.abs(r - g) < 24 && Math.abs(g - b) < 24) {
             return PALETTE_GREY;

@@ -48,7 +48,7 @@ public final class OrderPreview {
     /** Blink period of an order's target pip. Long, so a screenful of them pulses gently, not strobes. */
     private static final long BLINK_PERIOD_MS = 2000L;
     /** Seconds for an area ring to turn once. Slow — a rotating dashed circle should barely drift. */
-    private static final double RING_SECONDS_PER_RAD = 2.4;
+    static final double RING_SECONDS_PER_RAD = 2.4;
     private static final int MAX_RING_SEGMENTS = 64;
 
     public static int lowAlpha(int color) {

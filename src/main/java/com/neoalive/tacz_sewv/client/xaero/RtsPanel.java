@@ -9,14 +9,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import org.lwjgl.glfw.GLFW;
 
+import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.territory.RtsKeybind;
 import com.neoalive.tacz_sewv.client.territory.TerritoryClient;
@@ -63,6 +66,21 @@ public final class RtsPanel {
     private static final int DIM = 0xFF8A94A0;
     private static final int SELECT_BG = 0x4055AAFF;
 
+    // Map overlay palette. Amber is the persistent "this is held" colour; red and white are interaction-time only.
+    private static final int LINE_AMBER = 0xFFE5A045;
+    private static final int UNCOVERED_RGB = 0xC44536;
+    private static final int LEASH_RGB = 0x4A7BA8;
+    /** 20% (was 15%, nudged up after the first look): motion carries a low-alpha mark, so raise this if it is faint, never slow the march. */
+    private static final int LEASH_ALPHA = 0x33;
+    private static final ResourceLocation FRONT_ICON = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_frontline.png");
+    private static final int ICON_NATIVE = 16;
+    /** On-screen chunk size (px) at which the 16 px icon still fits, and below which the 8 px half-scale is used. */
+    private static final int ICON_FULL_MIN_CHUNK_PX = 28;
+    private static final int ICON_HALF_MIN_CHUNK_PX = 10;
+    /** Dash and gap (px) of the manual ordering line. */
+    private static final int DASH_ON = 6;
+    private static final int DASH_OFF = 5;
+
     private static boolean expanded;
     private static boolean helpOpen;
     private static boolean hideIneligible;
@@ -90,6 +108,8 @@ public final class RtsPanel {
     private static final Map<Long, Boolean> covered = new HashMap<>();
     private static final Map<Long, Long> coveredAt = new HashMap<>();
     private static final Map<Long, Long> lineAppeared = new HashMap<>();
+    /** Per-frame scratch: covered front chunk -> its fade-in alpha. Cleared each draw; never read across frames. */
+    private static final Map<Long, Float> coveredAlpha = new HashMap<>();
 
     private static List<Row> sortedSource;
     private static List<Row> sorted = List.of();
@@ -477,10 +497,19 @@ public final class RtsPanel {
     // ---- drawing ------------------------------------------------------------------------------------------
 
     /**
-     * Front, coverage, the stored manual line, the drag in progress, leashes of selected posted units, and the chunk
-     * under the cursor while the tool is armed. Front chunks fade in when they appear, an uncovered chunk blends
-     * amber to green when it becomes covered, and the manual line fades in — the same treatment for an auto run and a
-     * manual one, since both just change what the server pushes.
+     * The map overlay, in two tiers so it never draws five layers at once.
+     *
+     * <p><b>Persistent (always, mode on):</b> a solid amber coverage line joining covered front chunks that are
+     * 4-adjacent, with the Frontline icon on each covered chunk's centre. A gap in the line IS the signal for an
+     * uncovered stretch, so no red fill is needed. The dashed amber manual ordering line shows whenever a manual line
+     * exists or is being drawn.
+     *
+     * <p><b>Interaction-time (tool armed):</b> per-chunk borders (amber covered, red 15% fill on uncovered) and the
+     * white hover highlight.
+     *
+     * <p>Back to front: leash, armed chunk marks, coverage line, manual line, icons (on top of both lines), hover. Chunks, lines and icons
+     * fade in when they appear, and a chunk that becomes covered fades its line and icon in, the same for an auto run
+     * and a manual one (both just change what the server pushes).
      */
     public static void drawOverlay(GuiGraphics g, Project p, int w, int h, int hoverBlockX, int hoverBlockZ) {
         if (!enabled() || !TerritoryClient.modeOn()) return;
@@ -490,37 +519,185 @@ public final class RtsPanel {
         long[] line = TerritoryClient.manualLine();
         trackFade(front, cover, line, now);
 
+        drawLeashes(g, p, w, h);
+
+        coveredAlpha.clear();
         for (int i = 0; i < front.length; i++) {
             long key = front[i];
-            Chunk c = FrontlineMath.unpack(key);
             float appear = fade(appeared.get(key), now);
             float cov = cover[i] > 0 ? (coveredAt.containsKey(key) ? fade(coveredAt.get(key), now) : 1f) : 0f;
-            box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1,
-                    scaleAlpha(blend(0x66FFAA00, 0x3355DD55, cov), appear), scaleAlpha(blend(AMBER, ACCENT, cov), appear));
+            if (cover[i] > 0) coveredAlpha.put(key, appear * cov);
+            if (toolArmed) {
+                Chunk c = FrontlineMath.unpack(key);
+                if (cov > 0f) {
+                    box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1, 0, scaleAlpha(LINE_AMBER, appear * cov));
+                }
+                if (cov < 1f) {
+                    float u = appear * (1f - cov);
+                    box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1,
+                            scaleAlpha(0x26000000 | UNCOVERED_RGB, u), scaleAlpha(0x99000000 | UNCOVERED_RGB, u));
+                }
+            }
         }
 
-        // The stored manual line: only the chunks that are still front (a lost one drops out of it).
+        drawCoverageLine(g, p, w, h);
+
+        // Manual ordering: the stored line (chunks still on the front) and the drag in progress.
         if (line.length > 0) {
             Set<Long> frontKeys = frontSet();
-            List<Long> keep = new ArrayList<>(line.length);
-            for (long key : line) if (frontKeys.contains(key)) keep.add(key);
-            drawPath(g, p, w, h, keep, key -> fade(lineAppeared.get(key), now), 0x22FFFFFF, 0xFFFFFFFF);
+            List<int[]> pts = new ArrayList<>(line.length);
+            List<Float> alphas = new ArrayList<>(line.length);
+            for (long key : line) {
+                if (!frontKeys.contains(key)) continue;
+                Chunk c = FrontlineMath.unpack(key);
+                pts.add(p.toScreen(c.x() * 16.0 + 8, c.z() * 16.0 + 8));
+                alphas.add(fade(lineAppeared.get(key), now));
+            }
+            dashedPath(g, pts, alphas, w, h);
         }
         if (dragging && !captured.isEmpty()) {
-            drawPath(g, p, w, h, new ArrayList<>(captured), key -> 1f, 0x5066CCFF, 0xFF66CCFF);
+            List<int[]> pts = new ArrayList<>(captured.size());
+            List<Float> alphas = new ArrayList<>(captured.size());
+            for (long key : captured) {
+                Chunk c = FrontlineMath.unpack(key);
+                box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1, 0x33FFFFFF, 0x99FFFFFF);
+                pts.add(p.toScreen(c.x() * 16.0 + 8, c.z() * 16.0 + 8));
+                alphas.add(1f);
+            }
+            dashedPath(g, pts, alphas, w, h);
         }
 
-        Set<Integer> selected = selection();
+        // Icons last of the persistent marks, so they sit on top of BOTH lines they anchor.
+        drawIcons(g, p, w, h);
+
         for (Row r : TerritoryClient.roster()) {
-            if (!r.posted()) continue;
-            if (selected.contains(r.id())) {
-                box(g, p, w, h, r.chunkX() - 1, r.chunkZ() - 1, r.chunkX() + 2, r.chunkZ() + 2, 0x2266AAFF, 0xAA66AAFF);
+            if (r.posted() && r.lost()) {
+                box(g, p, w, h, r.chunkX(), r.chunkZ(), r.chunkX() + 1, r.chunkZ() + 1,
+                        0x33000000 | UNCOVERED_RGB, 0xFF000000 | UNCOVERED_RGB);
             }
-            if (r.lost()) box(g, p, w, h, r.chunkX(), r.chunkZ(), r.chunkX() + 1, r.chunkZ() + 1, 0x33FF4444, 0xFFFF4444);
         }
         if (toolArmed && !dragging) {
             int cx = hoverBlockX >> 4, cz = hoverBlockZ >> 4;
-            box(g, p, w, h, cx, cz, cx + 1, cz + 1, 0x5566CCFF, 0xFF66CCFF);
+            box(g, p, w, h, cx, cz, cx + 1, cz + 1, 0x33FFFFFF, 0x99FFFFFF);
+        }
+    }
+
+    /**
+     * Solid amber segments between covered front chunks whose centres are 4-adjacent. Both neighbours must be covered:
+     * either one uncovered breaks the line, so the gap marks the hole. Each chunk looks east and south only, so a
+     * segment is drawn once.
+     */
+    private static void drawCoverageLine(GuiGraphics g, Project p, int w, int h) {
+        for (Map.Entry<Long, Float> e : coveredAlpha.entrySet()) {
+            Chunk c = FrontlineMath.unpack(e.getKey());
+            for (int[] step : new int[][] {{1, 0}, {0, 1}}) {
+                Float other = coveredAlpha.get(FrontlineMath.pack(c.x() + step[0], c.z() + step[1]));
+                if (other == null) continue;
+                int[] a = p.toScreen(c.x() * 16.0 + 8, c.z() * 16.0 + 8);
+                int[] b = p.toScreen((c.x() + step[0]) * 16.0 + 8, (c.z() + step[1]) * 16.0 + 8);
+                if (Math.max(a[0], b[0]) < 0 || Math.min(a[0], b[0]) > w
+                        || Math.max(a[1], b[1]) < 0 || Math.min(a[1], b[1]) > h) continue;
+                // Axis-aligned by construction (4-adjacent), so one 2 px rectangle is the whole line.
+                g.fill(Math.min(a[0], b[0]) - 1, Math.min(a[1], b[1]) - 1,
+                        Math.max(a[0], b[0]) + 1, Math.max(a[1], b[1]) + 1,
+                        scaleAlpha(LINE_AMBER, Math.min(e.getValue(), other)));
+            }
+        }
+    }
+
+    /**
+     * The Frontline icon on each covered chunk's centre, drawn over the line it anchors. Grayscale source, tinted
+     * amber at blit time through the shader colour (never pre-tinted in the file). Native 16 px where the chunk is
+     * big enough to hold it, an 8 px half-scale where it would dominate, and omitted when the map is zoomed so far out
+     * that a chunk is a few pixels (the line alone carries it).
+     */
+    private static void drawIcons(GuiGraphics g, Project p, int w, int h) {
+        if (coveredAlpha.isEmpty()) return;
+        // GuiGraphics.fill is batched into a deferred buffer that only flushes at the end of the frame, while blit
+        // draws immediately. Without this the lines and borders queued above would land ON TOP of the icons no
+        // matter what order they were called in.
+        g.flush();
+        float r = ((LINE_AMBER >> 16) & 0xFF) / 255f;
+        float gr = ((LINE_AMBER >> 8) & 0xFF) / 255f;
+        float b = (LINE_AMBER & 0xFF) / 255f;
+        RenderSystem.enableBlend();
+        for (Map.Entry<Long, Float> e : coveredAlpha.entrySet()) {
+            Chunk c = FrontlineMath.unpack(e.getKey());
+            int[] a = p.toScreen(c.x() * 16.0, c.z() * 16.0);
+            int[] far = p.toScreen((c.x() + 1) * 16.0, (c.z() + 1) * 16.0);
+            int chunkPx = Math.abs(far[0] - a[0]);
+            int size = chunkPx >= ICON_FULL_MIN_CHUNK_PX ? ICON_NATIVE : (chunkPx >= ICON_HALF_MIN_CHUNK_PX ? ICON_NATIVE / 2 : 0);
+            if (size == 0) continue;
+            int cx = (a[0] + far[0]) / 2, cy = (a[1] + far[1]) / 2;
+            if (cx + size < 0 || cy + size < 0 || cx - size > w || cy - size > h) continue;
+            g.setColor(r, gr, b, e.getValue());
+            g.blit(FRONT_ICON, cx - size / 2, cy - size / 2, size, size, 0, 0, ICON_NATIVE, ICON_NATIVE, ICON_NATIVE, ICON_NATIVE);
+        }
+        g.setColor(1f, 1f, 1f, 1f);
+    }
+
+    /**
+     * One marching square per distinct selected posted chunk: its 3x3-chunk leash. The dash pattern and the march
+     * are patrol's ring ({@code OrderPreview.ring}) ported to a closed rectangular path — every other segment, phase
+     * from the same wall clock over the same period constant, so a lap takes exactly as long as a patrol ring's.
+     * Drawn first (behind the coverage line); never one ring per chunk, which is noise.
+     */
+    private static void drawLeashes(GuiGraphics g, Project p, int w, int h) {
+        Set<Integer> selected = selection();
+        Set<Long> seen = new HashSet<>();
+        int argb = (LEASH_ALPHA << 24) | LEASH_RGB;
+        for (Row r : TerritoryClient.roster()) {
+            if (!r.posted() || !selected.contains(r.id())) continue;
+            if (!seen.add(FrontlineMath.pack(r.chunkX(), r.chunkZ()))) continue;
+            int[] a = p.toScreen((r.chunkX() - 1) * 16.0, (r.chunkZ() - 1) * 16.0);
+            int[] b = p.toScreen((r.chunkX() + 2) * 16.0, (r.chunkZ() + 2) * 16.0);
+            marchSquare(g, Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1]), argb, w, h);
+        }
+    }
+
+    private static void marchSquare(GuiGraphics g, int x0, int y0, int x1, int y1, int argb, int w, int h) {
+        if (x1 < 0 || y1 < 0 || x0 > w || y0 > h) return;
+        double perimeter = 2.0 * ((x1 - x0) + (y1 - y0));
+        if (perimeter < 16.0) return;
+        // Segment length ~8 px (patrol's ring is ~7-10 px), an even count, never fewer than the ring's 48.
+        int segs = Mth.clamp((int) Math.round(perimeter / 8.0), 48, 160) & ~1;
+        double laps = System.currentTimeMillis() / 1000.0 / OrderPreview.RING_SECONDS_PER_RAD / (Math.PI * 2.0);
+        double offset = (laps - Math.floor(laps)) * perimeter;
+        for (int i = 1; i < segs; i += 2) { // odd segments only, as the ring's `(i & 1) == 0 -> continue`
+            double s = (i * perimeter / segs + offset) % perimeter;
+            int px, py;
+            if (s < x1 - x0) { px = (int) (x0 + s); py = y0; }
+            else if ((s -= x1 - x0) < y1 - y0) { px = x1; py = (int) (y0 + s); }
+            else if ((s -= y1 - y0) < x1 - x0) { px = (int) (x1 - s); py = y1; }
+            else { s -= x1 - x0; px = x0; py = (int) (y1 - s); }
+            g.fill(px - 1, py - 1, px + 1, py + 1, argb);
+        }
+    }
+
+    /**
+     * The manual ordering line: dashed amber through the chunk centres in drawn order, kept distinct from OpenPAC's
+     * white manual-claim line by colour and by the dashing. Dash phase runs continuously along the whole path; each
+     * stretch takes the fade of its weaker end so a fresh line appears smoothly.
+     */
+    private static void dashedPath(GuiGraphics g, List<int[]> pts, List<Float> alphas, int w, int h) {
+        double travelled = 0;
+        for (int i = 1; i < pts.size(); i++) {
+            int[] a = pts.get(i - 1), b = pts.get(i);
+            double dx = b[0] - a[0], dz = b[1] - a[1];
+            double len = Math.sqrt(dx * dx + dz * dz);
+            if (len == 0) continue;
+            boolean off = Math.max(a[0], b[0]) < 0 || Math.min(a[0], b[0]) > w || Math.max(a[1], b[1]) < 0 || Math.min(a[1], b[1]) > h;
+            if (!off) {
+                int color = scaleAlpha(LINE_AMBER, Math.min(alphas.get(i - 1), alphas.get(i)));
+                int stride = Math.max(1, (int) (len / 1500));
+                for (int s = 0; s < len; s += stride) {
+                    if (((travelled + s) % (DASH_ON + DASH_OFF)) >= DASH_ON) continue;
+                    int x = (int) Math.round(a[0] + dx * s / len);
+                    int y = (int) Math.round(a[1] + dz * s / len);
+                    g.fill(x - 1, y - 1, x + 1, y + 1, color);
+                }
+            }
+            travelled += len;
         }
     }
 
@@ -564,52 +741,6 @@ public final class RtsPanel {
     private static int scaleAlpha(int argb, float f) {
         int a = Math.round(((argb >>> 24) & 0xFF) * f);
         return (a << 24) | (argb & 0x00FFFFFF);
-    }
-
-    private static int blend(int from, int to, float t) {
-        int out = 0;
-        for (int shift = 0; shift <= 24; shift += 8) {
-            int a = (from >>> shift) & 0xFF;
-            int b = (to >>> shift) & 0xFF;
-            out |= (Math.round(a + (b - a) * t) & 0xFF) << shift;
-        }
-        return out;
-    }
-
-    /**
-     * Chunks in order, each boxed and joined by a line through the chunk centres. No index numbers (a line reads its
-     * own order), and each chunk / segment takes its own fade so a fresh line appears smoothly.
-     */
-    private static void drawPath(GuiGraphics g, Project p, int w, int h, List<Long> keys,
-                                 java.util.function.ToDoubleFunction<Long> alpha, int fill, int border) {
-        int[] prev = null;
-        float prevAlpha = 1f;
-        for (long key : keys) {
-            Chunk c = FrontlineMath.unpack(key);
-            float a = (float) alpha.applyAsDouble(key);
-            box(g, p, w, h, c.x(), c.z(), c.x() + 1, c.z() + 1, scaleAlpha(fill, a), scaleAlpha(border, a));
-            int[] centre = p.toScreen(c.x() * 16.0 + 8, c.z() * 16.0 + 8);
-            if (prev != null) line(g, prev[0], prev[1], centre[0], centre[1], scaleAlpha(border, Math.min(a, prevAlpha)), w, h);
-            prev = centre;
-            prevAlpha = a;
-        }
-    }
-
-    /** A 2 px line by stepping; long lines are subsampled and fully-offscreen ones skipped. */
-    private static void line(GuiGraphics g, int x0, int y0, int x1, int y1, int color, int w, int h) {
-        if (Math.max(x0, x1) < 0 || Math.min(x0, x1) > w || Math.max(y0, y1) < 0 || Math.min(y0, y1) > h) return;
-        int dx = x1 - x0, dy = y1 - y0;
-        int steps = Math.max(Math.abs(dx), Math.abs(dy));
-        if (steps == 0) {
-            g.fill(x0 - 1, y0 - 1, x0 + 1, y0 + 1, color);
-            return;
-        }
-        int stride = Math.max(1, steps / 1500);
-        for (int i = 0; i <= steps; i += stride) {
-            int x = x0 + dx * i / steps;
-            int y = y0 + dy * i / steps;
-            g.fill(x - 1, y - 1, x + 1, y + 1, color);
-        }
     }
 
     /** Chunk-aligned rectangle [cx0,cx1) x [cz0,cz1) in chunks: translucent fill plus a 1 px border. */

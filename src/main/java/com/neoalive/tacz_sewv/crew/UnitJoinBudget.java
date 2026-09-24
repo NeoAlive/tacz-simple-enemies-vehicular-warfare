@@ -25,6 +25,7 @@ public final class UnitJoinBudget {
 
     private static int joinsThisTick;
     private static final Queue<Deferred> DEFERRED = new ArrayDeque<>();
+    private static final Queue<Runnable> NEXT_TICK = new ArrayDeque<>();
 
     private record Deferred(int entityId, Consumer<AbstractUnit> work) {}
 
@@ -53,10 +54,21 @@ public final class UnitJoinBudget {
         DEFERRED.add(new Deferred(unit.getId(), work));
     }
 
+    /**
+     * Runs {@code task} at the end of the current server tick — genuinely later, unlike
+     * {@code MinecraftServer.execute}, which runs the task inline when called on the server
+     * thread (i.e. from inside the join event, mid chunk promotion).
+     */
+    public static void afterTick(Runnable task) {
+        NEXT_TICK.add(task);
+    }
+
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         joinsThisTick = 0;
+
+        for (int n = NEXT_TICK.size(); n > 0; n--) NEXT_TICK.poll().run();
 
         if (DEFERRED.isEmpty()) return;
         var server = event.getServer();

@@ -1,12 +1,17 @@
 package com.neoalive.tacz_sewv.entity.ai.cover;
 
+import java.util.List;
+
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+
+import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 
 /**
  * O(1) cover queries over {@link CoverVisibilityCache}. No raycasts — validation is the caller's
@@ -28,10 +33,51 @@ public final class CoverQuery {
         double D = Math.sqrt(dx * dx + dz * dz);
         if (D < 1.0E-3) return 0.0;
         int dir = CoverVisibilityCache.compass8(dx, dz);
-        int dOcc = CoverVisibilityCache.distance(level, Mth.floor(x), Mth.floor(z), dir);
+        int dTerrain = CoverVisibilityCache.distance(level, Mth.floor(x), Mth.floor(z), dir);
+        double dOcc = Math.min(dTerrain, wreckDistance(level, x, z, threatX, threatZ));
         if (dOcc >= CoverVisibilityCache.MAX_RANGE) return 1.0;
         // Occluder closer than threat ⇒ covered; ratio is remaining "open" fraction to the threat.
         return Mth.clamp(dOcc / D, 0.0, 1.0);
+    }
+
+    /**
+     * Distance to the first wreck on the line to the threat, or {@code MAX_RANGE}. Wrecks are entities, so the
+     * block-baked table never sees them; this is an overlay read from {@link CombatantIndex}'s last rebuild
+     * (boxes up to {@code combatantIndexIntervalTicks} stale — wrecks barely move).
+     */
+    static double wreckDistance(ServerLevel level, double x, double z, double threatX, double threatZ) {
+        CombatantIndex.Snapshot snap = CombatantIndex.snapshot(level);
+        if (snap == null || !CoverVisibilityCache.enabled()) return CoverVisibilityCache.MAX_RANGE;
+        return wreckDistance(snap.wrecks(), x, z, threatX, threatZ);
+    }
+
+    /**
+     * 2D (x,z) slab test of the segment point→threat against each box; the entry distance of the nearest hit,
+     * capped at {@code MAX_RANGE}. A point inside a box answers 0 (fully masked).
+     */
+    // ponytail: linear over every wreck in the level and ignores height difference (a wreck on a cliff above still
+    // counts); bucket by chunk / add a Y band if wreck counts or terrain make that matter.
+    static double wreckDistance(List<AABB> wrecks, double x, double z, double threatX, double threatZ) {
+        double dx = threatX - x;
+        double dz = threatZ - z;
+        double len = Math.sqrt(dx * dx + dz * dz);
+        double best = CoverVisibilityCache.MAX_RANGE;
+        for (AABB b : wrecks) {
+            double[] t = {0.0, 1.0};
+            if (!slab(x, dx, b.minX, b.maxX, t) || !slab(z, dz, b.minZ, b.maxZ, t)) continue;
+            best = Math.min(best, t[0] * len);
+        }
+        return best;
+    }
+
+    /** Narrow {@code t = [enter, exit]} to where {@code p + d*t} is inside {@code [min, max]}; false if empty. */
+    private static boolean slab(double p, double d, double min, double max, double[] t) {
+        if (Math.abs(d) < 1.0E-9) return p >= min && p <= max;
+        double a = (min - p) / d;
+        double c = (max - p) / d;
+        t[0] = Math.max(t[0], Math.min(a, c));
+        t[1] = Math.min(t[1], Math.max(a, c));
+        return t[0] <= t[1];
     }
 
     public static boolean isCovered(ServerLevel level, double x, double z,
@@ -49,7 +95,8 @@ public final class CoverQuery {
         double dz = threatZ - z;
         double D = Math.max(1.0, Math.sqrt(dx * dx + dz * dz));
         int threatDir = CoverVisibilityCache.compass8(dx, dz);
-        int dThreat = CoverVisibilityCache.distance(level, Mth.floor(x), Mth.floor(z), threatDir);
+        double dThreat = Math.min(CoverVisibilityCache.distance(level, Mth.floor(x), Mth.floor(z), threatDir),
+                wreckDistance(level, x, z, threatX, threatZ));
         if (dThreat >= D || dThreat >= CoverVisibilityCache.MAX_RANGE) return 0.0;
         double cover = 1.0 - Mth.clamp(dThreat / D, 0.0, 1.0);
         double bestOpen = 0.0;

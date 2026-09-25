@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import com.atsuishio.superbwarfare.entity.OBBEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
@@ -17,12 +18,15 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
 /**
@@ -69,16 +73,45 @@ public final class TreeFellingSupport {
     private static final int TRUNK_SEARCH_DEPTH = 8;
 
     private static final String TAG_CONTACTS = "sewv_tree_contacts";
+    /** Game-time deadline of the next scan ({@code treeScanIntervalTicks}); on the hull, so no cleanup hook. */
+    private static final String TAG_NEXT_SCAN = "sewv_tree_next_scan";
+
+    /** Palette pre-check: a chunk section that cannot contain either is skipped without a block read. */
+    private static final Predicate<BlockState> TREE_BLOCK =
+            state -> state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES);
 
     private TreeFellingSupport() {}
 
-    public static void tick(AbstractUnit unit, VehicleEntity vehicle, HullFacts hull) {
+    /**
+     * @param farIdle idle and far from every player ({@code groundFarLodBlocks}): scans half as often.
+     */
+    public static void tick(AbstractUnit unit, VehicleEntity vehicle, HullFacts hull, boolean farIdle) {
         if (!EnhancedFallingTreesCompat.available()) return;
         if (!SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()) return;
         if (!hull.isGroundMobile()) return;
         if (vehicle.getDeltaMovement().horizontalDistanceSqr() < MIN_SPEED_SQ) return;
 
+        // treeScanIntervalTicks: contact start times are game time, so a tree still falls after the same
+        // unbroken contact window — at most one interval later. A deadline, never a modulo on game time.
         Level level = vehicle.level();
+        long now0 = level.getGameTime();
+        int interval = Math.max(1, SewvConfig.TREE_SCAN_INTERVAL_TICKS.get()) * (farIdle ? 2 : 1);
+        CompoundTag data = vehicle.getPersistentData();
+        long nextScan = data.getLong(TAG_NEXT_SCAN);
+        if (interval > 1) {
+            if (now0 < nextScan && nextScan - now0 <= interval) return;
+            data.putLong(TAG_NEXT_SCAN, now0 + interval);
+        }
+        long t0 = System.nanoTime();
+        try {
+            scanAndFell(level, vehicle);
+        } finally {
+            PathingPerf.treeScanNanos += System.nanoTime() - t0;
+            PathingPerf.treeScans++;
+        }
+    }
+
+    private static void scanAndFell(Level level, VehicleEntity vehicle) {
         List<OBB> obbs = vehicle.getOBBs();
         List<OBB> contactObbs = inflateForContact(obbs);
 
@@ -136,26 +169,45 @@ public final class TreeFellingSupport {
                                 VehicleEntity vehicle, AABB box, LongOpenHashSet visited,
                                 Set<BlockPos> touchedNow, BlockPos.MutableBlockPos cursor) {
         int minX = Mth.floor(box.minX);
-        int minY = Mth.floor(box.minY);
+        int minY = Math.max(Mth.floor(box.minY), level.getMinBuildHeight());
         int minZ = Mth.floor(box.minZ);
         int maxX = Mth.floor(box.maxX);
-        int maxY = Mth.floor(box.maxY);
+        int maxY = Math.min(Mth.floor(box.maxY), level.getMaxBuildHeight() - 1);
         int maxZ = Mth.floor(box.maxZ);
 
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    long packed = BlockPos.asLong(x, y, z);
-                    if (!visited.add(packed)) continue;
-                    cursor.set(x, y, z);
-                    BlockState state = level.getBlockState(cursor);
-                    // Tag filter before SAT — most cells in the overestimate are air/dirt.
-                    if (!state.is(BlockTags.LOGS) && !state.is(BlockTags.LEAVES)) continue;
-                    if (!touchesHull(contactObbs, partBoxes, vehicle, cursor)) continue;
-                    BlockPos trunk = resolveTrunk(level, cursor, state);
-                    if (trunk == null) continue;
-                    if (!EnhancedFallingTreesFeller.isFellable(level, trunk, level.getBlockState(trunk))) continue;
-                    touchedNow.add(trunk);
+        // Walk section by section so a section whose palette holds no log or leaf is skipped whole —
+        // on open ground that is every section, and the scan does no block reads at all. Exact: such a
+        // section has no cell this loop could accept.
+        for (int sx = minX >> 4; sx <= maxX >> 4; sx++) {
+            for (int sz = minZ >> 4; sz <= maxZ >> 4; sz++) {
+                LevelChunk chunk = level.getChunkSource().getChunkNow(sx, sz);
+                if (chunk == null) continue;
+                for (int sy = minY >> 4; sy <= maxY >> 4; sy++) {
+                    LevelChunkSection section = chunk.getSection(chunk.getSectionIndexFromSectionY(sy));
+                    if (section.hasOnlyAir() || !section.maybeHas(TREE_BLOCK)) {
+                        PathingPerf.treeSectionsSkipped++;
+                        continue;
+                    }
+                    int x0 = Math.max(minX, sx << 4), x1 = Math.min(maxX, (sx << 4) + 15);
+                    int y0 = Math.max(minY, sy << 4), y1 = Math.min(maxY, (sy << 4) + 15);
+                    int z0 = Math.max(minZ, sz << 4), z1 = Math.min(maxZ, (sz << 4) + 15);
+                    for (int x = x0; x <= x1; x++) {
+                        for (int y = y0; y <= y1; y++) {
+                            for (int z = z0; z <= z1; z++) {
+                                long packed = BlockPos.asLong(x, y, z);
+                                if (!visited.add(packed)) continue;
+                                BlockState state = section.getBlockState(x & 15, y & 15, z & 15);
+                                // Tag filter before SAT — most cells in the overestimate are air/dirt.
+                                if (!state.is(BlockTags.LOGS) && !state.is(BlockTags.LEAVES)) continue;
+                                cursor.set(x, y, z);
+                                if (!touchesHull(contactObbs, partBoxes, vehicle, cursor)) continue;
+                                BlockPos trunk = resolveTrunk(level, cursor, state);
+                                if (trunk == null) continue;
+                                if (!EnhancedFallingTreesFeller.isFellable(level, trunk, level.getBlockState(trunk))) continue;
+                                touchedNow.add(trunk);
+                            }
+                        }
+                    }
                 }
             }
         }

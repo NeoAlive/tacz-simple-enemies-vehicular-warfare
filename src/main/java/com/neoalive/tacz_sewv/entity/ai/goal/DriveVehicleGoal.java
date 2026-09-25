@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness;
+import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
@@ -200,11 +201,30 @@ public class DriveVehicleGoal extends Goal {
         TacticalPosture.clearUnit(this.unit.getId());
     }
 
+    /**
+     * {@code groundFarLodBlocks}: an idle hull (no target, no standing order) with no player within the radius
+     * runs cheaper — lowest path priority and doubled sensor/tree intervals. Cheapest test first; the
+     * player check is AirLod's 10-tick cached sample.
+     */
+    private boolean farIdle() {
+        double lod;
+        try {
+            lod = SewvConfig.GROUND_FAR_LOD_BLOCKS.get();
+        } catch (Throwable unbaked) {
+            return false;
+        }
+        if (lod <= 0.0 || this.unit.getTarget() != null) return false;
+        if (AirLod.nearPlayers(this.vehicle, lod)) return false;
+        return !VehicleTargeting.underStandingOrder(this.unit);
+    }
+
     @Override
     public void tick() {
         if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
         this.driver.tickTimers();
-        TreeFellingSupport.tick(this.unit, this.vehicle, this.hull);
+        boolean farIdle = farIdle();
+        this.driver.setFarIdle(farIdle);
+        TreeFellingSupport.tick(this.unit, this.vehicle, this.hull, farIdle);
 
         if (this.vehicle.getFirstPassenger() == this.unit) {
             TowRecoverySupport.tickDriverStrandedBroadcast(this.vehicle);

@@ -19,7 +19,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -174,14 +174,22 @@ public final class CombatantIndex {
         long nextRebuild = Long.MIN_VALUE;
         long nextClosePass = Long.MIN_VALUE;
         long nextWidePass = Long.MIN_VALUE;
+
+        // Diagnostics, per level. Split so "how much did it publish" and "how long did evaluation take"
+        // cannot be confused.
+        long rebuilds;
+        long lastRebuildNanos;
+        long lastEntryCount;
+        long widePasses;
+        long lastContactsPublished;
+        long lastPairEvalNanos;
+        long lastPredicateCalls;
     }
 
     private static final Map<ServerLevel, State> STATES = new IdentityHashMap<>();
 
-    // Diagnostics, split so "how much did it publish" and "how long did evaluation take" cannot be confused.
-    private static long rebuilds;
-    private static long lastRebuildNanos;
-    private static long lastEntryCount;
+    /** The reach warning is emitted once per server session, after the first player joins. */
+    private static boolean reachChecked;
 
     private CombatantIndex() {}
 
@@ -193,9 +201,22 @@ public final class CombatantIndex {
         return s == null ? null : s.snapshot;
     }
 
+    /** One segment per level that has a snapshot. */
     public static String stats() {
-        return "rebuilds=" + rebuilds + " lastRebuildNanos=" + lastRebuildNanos + " entries=" + lastEntryCount
-                + " | " + FactionWideScan.stats();
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<ServerLevel, State> e : STATES.entrySet()) {
+            State s = e.getValue();
+            if (s.snapshot == null) continue;
+            if (sb.length() > 0) sb.append(" || ");
+            sb.append(e.getKey().dimension().location()).append(": rebuilds=").append(s.rebuilds)
+                    .append(" lastRebuildNanos=").append(s.lastRebuildNanos)
+                    .append(" entries=").append(s.lastEntryCount)
+                    .append(" | widePasses=").append(s.widePasses)
+                    .append(" lastContactsPublished=").append(s.lastContactsPublished)
+                    .append(" lastPairEvalNanos=").append(s.lastPairEvalNanos)
+                    .append(" lastPredicateCalls=").append(s.lastPredicateCalls);
+        }
+        return sb.length() == 0 ? "no snapshot yet" : sb.toString();
     }
 
     // --- tick handler ------------------------------------------------------------------------------
@@ -211,7 +232,7 @@ public final class CombatantIndex {
             long now = level.getGameTime();
             if (FactionWideScan.due(now, st.nextRebuild, interval)) {
                 st.nextRebuild = now + interval;
-                st.snapshot = rebuild(level, now);
+                st.snapshot = rebuild(level, now, st);
             }
             if (st.snapshot != null) FactionWideScan.run(level, st, now);
         }
@@ -221,12 +242,22 @@ public final class CombatantIndex {
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         STATES.clear();
+        reachChecked = false;
     }
 
-    /** The reach depends on the host: say so once, naming the settings to raise. */
+    /**
+     * The reach depends on the host: say so once, naming the settings to raise.
+     *
+     * <p>Checked on the first player join, not at server start: an integrated server applies the client's
+     * render / simulation distance only after startup (it logged 10/0 at start, then changed to 18/8), so a
+     * start-time read warns about a configuration that never actually runs.
+     */
     @SubscribeEvent
-    public static void onServerStarted(ServerStartedEvent event) {
-        MinecraftServer server = event.getServer();
+    public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (reachChecked || event.getEntity().level().isClientSide()) return;
+        MinecraftServer server = event.getEntity().getServer();
+        if (server == null) return;
+        reachChecked = true;
         try {
             if (!SewvConfig.WIDE_SCAN_ENABLED.get()) return;
             double w = SewvConfig.WIDE_SCAN_RADIUS.get();
@@ -253,7 +284,7 @@ public final class CombatantIndex {
 
     // --- rebuild -----------------------------------------------------------------------------------
 
-    private static Snapshot rebuild(ServerLevel level, long now) {
+    private static Snapshot rebuild(ServerLevel level, long now, State st) {
         long t0 = System.nanoTime();
         WorldTargetPriority priority = WorldTargetPriority.get(level);
         Map<String, Boolean> softCategory = new HashMap<>();
@@ -281,9 +312,9 @@ public final class CombatantIndex {
         }
 
         Snapshot snap = new Snapshot(now, living, hulls);
-        rebuilds++;
-        lastRebuildNanos = System.nanoTime() - t0;
-        lastEntryCount = (long) living.size() + hulls.size();
+        st.rebuilds++;
+        st.lastRebuildNanos = System.nanoTime() - t0;
+        st.lastEntryCount = (long) living.size() + hulls.size();
         return snap;
     }
 

@@ -47,6 +47,19 @@ public final class EnhancedFallingTreesFeller {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    /**
+     * {@code TreeRegistry.getTreeType(state).isPresent()} per block state. EFT answers it with an uncached
+     * linear scan over its tree registry, and this is asked for every log a moving hull or a sensor probe
+     * touches. The answer depends on the state and EFT's config only, so it is memoised until the next
+     * datapack/tag reload or server stop ({@link #clearCache}). BlockState uses identity equality.
+     */
+    private static final java.util.concurrent.ConcurrentHashMap<BlockState, Boolean> TREE_TYPE_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void clearCache() {
+        TREE_TYPE_CACHE.clear();
+    }
+
     private EnhancedFallingTreesFeller() {}
 
     /**
@@ -57,7 +70,8 @@ public final class EnhancedFallingTreesFeller {
     public static boolean isFellable(BlockGetter level, BlockPos pos, BlockState state) {
         if (!EnhancedFallingTreesCompat.available()) return false;
         try {
-            if (TreeRegistry.getTreeType(state).isEmpty()) return false;
+            if (!TREE_TYPE_CACHE.computeIfAbsent(state, s -> TreeRegistry.getTreeType(s).isPresent())) return false;
+            // Position-dependent, so never memoised.
             if (SewvConfig.VEHICLE_TREE_FELLING_EXEMPT_GIANT_TRUNKS.get() && isGiantTrunk(level, pos, state)) {
                 return false;
             }

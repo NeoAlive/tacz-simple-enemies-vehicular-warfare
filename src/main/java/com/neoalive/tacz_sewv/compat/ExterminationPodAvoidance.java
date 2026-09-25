@@ -1,20 +1,25 @@
 package com.neoalive.tacz_sewv.compat;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.PathingPerf;
 
 /**
  * When {@code /gamerule sewvInvasionOverrides} is on (Extermination present), AI vehicles keep
@@ -27,6 +32,20 @@ public final class ExterminationPodAvoidance {
             "extermination:uberpod",
             "extermination:emperorpod",
             "extermination:tripod_harvester");
+
+    /** Pods move slowly and a keep-out is 48 blocks; a 1 s old position list is indistinguishable. */
+    private static final int POD_REFRESH_TICKS = 20;
+
+    /** {@link #AVOID_IDS} resolved to types once; compared by identity, not by registry key string. */
+    @Nullable private static Set<EntityType<?>> avoidTypes;
+
+    private static final class PodList {
+        long refreshedAt = Long.MIN_VALUE;
+        List<LivingEntity> pods = List.of();
+    }
+
+    /** Per level; weak so an unloaded dimension's list goes with it. Server thread only. */
+    private static final Map<Level, PodList> PODS = new WeakHashMap<>();
 
     private ExterminationPodAvoidance() {}
 
@@ -88,12 +107,10 @@ public final class ExterminationPodAvoidance {
     private static LivingEntity nearestPod(Level level, Vec3 from, double radius) {
         if (!ExterminationCompat.available()) return null;
         double r2 = radius * radius;
-        AABB box = new AABB(from, from).inflate(radius);
-        List<Entity> found = level.getEntities((Entity) null, box, ExterminationPodAvoidance::isAvoidPod);
         LivingEntity best = null;
         double bestD = Double.POSITIVE_INFINITY;
-        for (Entity e : found) {
-            if (!(e instanceof LivingEntity living) || !living.isAlive()) continue;
+        for (LivingEntity living : pods(level)) {
+            if (!living.isAlive()) continue;
             double d = living.distanceToSqr(from);
             if (d < bestD && d <= r2) {
                 bestD = d;
@@ -103,8 +120,45 @@ public final class ExterminationPodAvoidance {
         return best;
     }
 
-    private static boolean isAvoidPod(Entity entity) {
-        ResourceLocation key = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
-        return key != null && AVOID_IDS.contains(key.toString());
+    /**
+     * The level's pods, refreshed on a game-time deadline instead of one box query per hull per destination
+     * update (two per call before). One pass over the level's entities with an identity test per entity.
+     */
+    private static List<LivingEntity> pods(Level level) {
+        if (!(level instanceof ServerLevel server)) return List.of();
+        long now = server.getGameTime();
+        PodList list = PODS.computeIfAbsent(level, l -> new PodList());
+        if (list.refreshedAt != Long.MIN_VALUE && now >= list.refreshedAt
+                && now - list.refreshedAt < POD_REFRESH_TICKS) {
+            return list.pods;
+        }
+        long t0 = System.nanoTime();
+        Set<EntityType<?>> types = avoidTypes();
+        List<LivingEntity> found = new ArrayList<>();
+        if (!types.isEmpty()) {
+            for (LivingEntity e : server.getEntities(EntityTypeTest.forClass(LivingEntity.class),
+                    e -> types.contains(e.getType()))) {
+                found.add(e);
+            }
+        }
+        list.pods = found;
+        list.refreshedAt = now;
+        PathingPerf.podQueryNanos += System.nanoTime() - t0;
+        PathingPerf.podRefreshes++;
+        return found;
+    }
+
+    private static Set<EntityType<?>> avoidTypes() {
+        Set<EntityType<?>> types = avoidTypes;
+        if (types != null) return types;
+        Set<EntityType<?>> resolved = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (String id : AVOID_IDS) {
+            ResourceLocation rl = ResourceLocation.tryParse(id);
+            if (rl != null && ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
+                resolved.add(ForgeRegistries.ENTITY_TYPES.getValue(rl));
+            }
+        }
+        avoidTypes = resolved;
+        return resolved;
     }
 }

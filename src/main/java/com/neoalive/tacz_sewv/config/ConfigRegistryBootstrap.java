@@ -492,6 +492,26 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.WIDE_SCAN_CADENCE_TICKS, SewvConfig.WIDE_SCAN_CADENCE_TICKS::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "combatantIndexIntervalTicks", 5, 100,
                 SewvConfig.COMBATANT_INDEX_INTERVAL_TICKS, SewvConfig.COMBATANT_INDEX_INTERVAL_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "pathSearchesPerTick", 0, 16,
+                SewvConfig.PATH_SEARCHES_PER_TICK, SewvConfig.PATH_SEARCHES_PER_TICK::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "pathMaxWaitTicks", 1, 100,
+                SewvConfig.PATH_MAX_WAIT_TICKS, SewvConfig.PATH_MAX_WAIT_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "pathMaxVisitedNodes", 128, 1024,
+                SewvConfig.PATH_MAX_VISITED_NODES, SewvConfig.PATH_MAX_VISITED_NODES::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "pathSearchRange", 16, 48,
+                SewvConfig.PATH_SEARCH_RANGE, SewvConfig.PATH_SEARCH_RANGE::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "pathDestQuantum", 0, 8,
+                SewvConfig.PATH_DEST_QUANTUM, SewvConfig.PATH_DEST_QUANTUM::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "sensorColumnTtlTicks", 1, 20,
+                SewvConfig.SENSOR_COLUMN_TTL_TICKS, SewvConfig.SENSOR_COLUMN_TTL_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "treeScanIntervalTicks", 1, 10,
+                SewvConfig.TREE_SCAN_INTERVAL_TICKS, SewvConfig.TREE_SCAN_INTERVAL_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "coverBakeNanosPerTick", 0, 5_000_000,
+                SewvConfig.COVER_BAKE_NANOS_PER_TICK, SewvConfig.COVER_BAKE_NANOS_PER_TICK::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "coverMaxRange", 16, 48,
+                SewvConfig.COVER_MAX_RANGE, SewvConfig.COVER_MAX_RANGE::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "groundFarLodBlocks", 0.0, 512.0,
+                SewvConfig.GROUND_FAR_LOD_BLOCKS, SewvConfig.GROUND_FAR_LOD_BLOCKS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "vehicleAllyAssistRange", 0.0, 256.0,
                 SewvConfig.VEHICLE_ALLY_ASSIST_RANGE, SewvConfig.VEHICLE_ALLY_ASSIST_RANGE::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "stalemateBreakerEnabled",

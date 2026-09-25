@@ -21,7 +21,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
+import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
@@ -56,6 +58,10 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     private long tacz_sewv$lineCacheTick = Long.MIN_VALUE;
     @Unique
     private int tacz_sewv$lineCacheShooterId;
+    // Also keyed on the target: a crew that retargets inside the window (the contact board makes
+    // this routine) must not inherit the previous target's verdict.
+    @Unique
+    private int tacz_sewv$lineCacheTargetId;
     @Unique
     private boolean tacz_sewv$lineCacheBlocked;
 
@@ -78,36 +84,41 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     @Inject(method = "canShoot", at = @At("HEAD"), cancellable = true, remap = false)
     private void tacz_sewv$gateAiFire(
             LivingEntity living, CallbackInfoReturnable<Boolean> cir) {
+        if (tacz_sewv$aiFireDenied(living)) cir.setReturnValue(false);
+    }
 
-        if (!(living instanceof AbstractUnit unit)) return;
+    /**
+     * The whole canShoot gate as a predicate, so a subclass that overrides {@code canShoot}
+     * WITHOUT calling super (SBW's {@code AnnihilatorEntity} does) can run the same verdict from
+     * its own mixin — a HEAD injection on the base method never sees such a call.
+     */
+    @Override
+    public boolean tacz_sewv$aiFireDenied(LivingEntity living) {
+        if (!(living instanceof AbstractUnit unit)) return false;
 
         VehicleEntity self = (VehicleEntity) (Object) this;
         if (TowRecoverySupport.hasTowOrder(unit) && self.getFirstPassenger() == unit) {
-            cir.setReturnValue(false);
-            return;
+            return true;
         }
 
         if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
-            cir.setReturnValue(false);
-            return;
+            return true;
         }
 
         LivingEntity ambushTarget = unit.getTarget();
         if (ambushTarget != null && TacticalPosture.ambushHoldsFire(unit, ambushTarget)) {
-            cir.setReturnValue(false);
-            return;
+            return true;
         }
 
         long now = self.level().getGameTime();
         if (this.tacz_sewv$lastAiShotTick != Long.MIN_VALUE
                 && now - this.tacz_sewv$lastAiShotTick
                         < tacz_sewv$effectiveCooldown(self, living)) {
-            cir.setReturnValue(false);
-            return;
+            return true;
         }
 
         LivingEntity target = unit.getTarget();
-        if (target == null) return;
+        if (target == null) return false;
 
         int losCacheTicks;
         try {
@@ -117,14 +128,14 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         }
         boolean lineCacheExpired = this.tacz_sewv$lineCacheTick == Long.MIN_VALUE
                 || now - this.tacz_sewv$lineCacheTick >= losCacheTicks;
-        if (lineCacheExpired || living.getId() != this.tacz_sewv$lineCacheShooterId) {
+        if (lineCacheExpired || living.getId() != this.tacz_sewv$lineCacheShooterId
+                || target.getId() != this.tacz_sewv$lineCacheTargetId) {
             this.tacz_sewv$lineCacheTick = now;
             this.tacz_sewv$lineCacheShooterId = living.getId();
+            this.tacz_sewv$lineCacheTargetId = target.getId();
             this.tacz_sewv$lineCacheBlocked = tacz_sewv$lineOfFireBlocked(self, living, target);
         }
-        if (this.tacz_sewv$lineCacheBlocked) {
-            cir.setReturnValue(false);
-        }
+        return this.tacz_sewv$lineCacheBlocked;
     }
 
     @Unique
@@ -132,6 +143,20 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             VehicleEntity self, LivingEntity living, LivingEntity target) {
         Vec3 from = self.getShootPos(living, 1f);            // muzzle
         Vec3 to = target.getBoundingBox().getCenter();       // target center
+
+        // DEFERRED(firing-run-los): this gate is deliberately UNCOMPENSATED for a helicopter's firing-run
+        // bank/pitch (no inFiringRun exemption anywhere in this mixin). Where that compensation belongs,
+        // acquisition or here, is unresolved and on hold; the claim that fire-time LoS is strictly
+        // stronger than acquisition LoS (and so that dropping acquisition LoS at range is safe) depends
+        // on this staying uncompensated. See docs/fire-los-audit.md.
+        // Indirect-fire hulls (howitzers, FCP mortar carriers) lob over the terrain a direct
+        // line would hit: line-of-fire is the wrong question for them, and asking it silenced
+        // exactly the radio / contact-board missions they exist for. Danger-close still applies.
+        if (HullFacts.isArtilleryHull(self) || FcpMortarCompat.isMortarHull(self)) {
+            return living instanceof AbstractUnit unit
+                    && VehicleTargeting.friendlyNearPoint(
+                            unit, to, SewvConfig.FRIENDLY_FIRE_VEHICLE_RADIUS.get());
+        }
 
         // Empty hulls and wrecks: the allied check below only names crewed friends,
         // so a parked wreck between muzzle and target was a free shot. Same occupancy

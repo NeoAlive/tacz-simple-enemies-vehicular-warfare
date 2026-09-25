@@ -476,6 +476,22 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "vehicleTargetRequireLineOfSight",
                 SewvConfig.VEHICLE_TARGET_REQUIRE_LOS, SewvConfig.VEHICLE_TARGET_REQUIRE_LOS::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "contactBoardEnabled",
+                SewvConfig.CONTACT_BOARD_ENABLED, SewvConfig.CONTACT_BOARD_ENABLED::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "contactBoardTtlTicks", 40, 1200,
+                SewvConfig.CONTACT_BOARD_TTL_TICKS, SewvConfig.CONTACT_BOARD_TTL_TICKS::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "contactBoardCloseBand", 0.0, 96.0,
+                SewvConfig.CONTACT_BOARD_CLOSE_BAND, SewvConfig.CONTACT_BOARD_CLOSE_BAND::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "contactBoardMoveThreshold", 1.0, 32.0,
+                SewvConfig.CONTACT_BOARD_MOVE_THRESHOLD, SewvConfig.CONTACT_BOARD_MOVE_THRESHOLD::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "wideScanEnabled",
+                SewvConfig.WIDE_SCAN_ENABLED, SewvConfig.WIDE_SCAN_ENABLED::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "wideScanRadius", 96.0, 512.0,
+                SewvConfig.WIDE_SCAN_RADIUS, SewvConfig.WIDE_SCAN_RADIUS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "wideScanCadenceTicks", 10, 100,
+                SewvConfig.WIDE_SCAN_CADENCE_TICKS, SewvConfig.WIDE_SCAN_CADENCE_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "combatantIndexIntervalTicks", 5, 100,
+                SewvConfig.COMBATANT_INDEX_INTERVAL_TICKS, SewvConfig.COMBATANT_INDEX_INTERVAL_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "vehicleAllyAssistRange", 0.0, 256.0,
                 SewvConfig.VEHICLE_ALLY_ASSIST_RANGE, SewvConfig.VEHICLE_ALLY_ASSIST_RANGE::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "stalemateBreakerEnabled",

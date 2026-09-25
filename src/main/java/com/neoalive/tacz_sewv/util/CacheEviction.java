@@ -13,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.BoardVehicleGoal;
+import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
@@ -58,6 +59,7 @@ public final class CacheEviction {
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         HullLocalScan.clearAll();
+        ContactBoard.clearAll();
         VehicleDarknessAccuracy.clearAll();
         VehicleTargeting.clearDiagThrottle();
         Facts.clearAll();

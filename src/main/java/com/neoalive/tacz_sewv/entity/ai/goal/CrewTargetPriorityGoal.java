@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai.goal;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -7,12 +8,13 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
+import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
@@ -128,6 +130,11 @@ public class CrewTargetPriorityGoal extends Goal {
         // than drag it back; this goal's job is the pick, not custody.
         if (!preferred(doctrine, target)) return false;
 
+        // A board-held target of a mounted crew is not dropped for distance (it was admitted out to
+        // wideScanRadius); it leaves with its contact.
+        if (this.unit.getVehicle() != null && ContactBoard.holds(this.unit, target, minSource(doctrine))) {
+            return true;
+        }
         double drop = scanRadius() * DROP_MULT;
         return this.unit.distanceToSqr(target) <= drop * drop;
     }
@@ -145,10 +152,27 @@ public class CrewTargetPriorityGoal extends Goal {
         double radius = scanRadius();
         double radiusSq = radius * radius;
 
-        List<LivingEntity> candidates = this.unit.level().getEntitiesOfClass(
-                LivingEntity.class, new AABB(this.unit.blockPosition()).inflate(radius),
-                e -> preferred(doctrine, e) && isValidTarget(e)
-                        && this.unit.distanceToSqr(e) <= radiusSq);
+        // From the per-level combatant index, not a world query. No snapshot yet means nothing known.
+        CombatantIndex.Snapshot snapshot = CombatantIndex.snapshot(this.unit.level());
+        if (snapshot == null) return null;
+        List<LivingEntity> candidates = new ArrayList<>();
+        for (CombatantIndex.Entry entry : snapshot.query(this.unit.getX(), this.unit.getZ(), radius,
+                this.unit.getY() - radius, this.unit.getY() + radius)) {
+            LivingEntity e = entry.living;
+            if (e != null && e.isAlive() && preferred(doctrine, e) && isValidTarget(e)
+                    && this.unit.distanceToSqr(e) <= radiusSq) {
+                candidates.add(e);
+            }
+        }
+        // A mounted crew also considers what its side already knows out to wideScanRadius, the same
+        // reach VehicleTargetScanGoal gives board contacts. Same filters as a scan-found candidate.
+        if (this.unit.getVehicle() != null) {
+            double wide = wideRadius(radius);
+            for (LivingEntity e : ContactBoard.contactsFor(this.unit, minSource(doctrine))) {
+                if (candidates.contains(e) || !preferred(doctrine, e) || !isValidTarget(e)) continue;
+                if (this.unit.distanceToSqr(e) <= wide * wide) candidates.add(e);
+            }
+        }
 
         LivingEntity best = null;
         double bestDistSq = Double.MAX_VALUE;
@@ -158,6 +182,7 @@ public class CrewTargetPriorityGoal extends Goal {
             // LOS last and only on the running best: the raycast is the expensive part and
             // most candidates never become the best.
             if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+                    && !ContactBoard.waivesLos(this.unit, candidate, minSource(doctrine))
                     && !this.unit.getSensing().hasLineOfSight(candidate)) {
                 continue;
             }
@@ -165,6 +190,25 @@ public class CrewTargetPriorityGoal extends Goal {
             bestDistSq = distSq;
         }
         return best;
+    }
+
+    /** How far board contacts are admitted: the wide radius when wide scan is on, else the scan radius. */
+    private static double wideRadius(double scanRadius) {
+        try {
+            return SewvConfig.WIDE_SCAN_ENABLED.get()
+                    ? Math.max(scanRadius, SewvConfig.WIDE_SCAN_RADIUS.get()) : scanRadius;
+        } catch (Throwable unbaked) {
+            return scanRadius;
+        }
+    }
+
+    /**
+     * Indirect fire (mortars) may act on any board contact, hearsay included: its shot needs no line
+     * of sight. A direct-fire crew wants at least a heard-and-placed contact, then still waits for its
+     * own line of sight at the fire-time gate.
+     */
+    private static ContactBoard.Source minSource(Doctrine doctrine) {
+        return doctrine == Doctrine.TROOPS ? ContactBoard.Source.RELAYED : ContactBoard.Source.PROXIMITY;
     }
 
     /** Is this the kind of target the crew's weapon is for? */

@@ -23,6 +23,7 @@ import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
+import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactSight;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness;
@@ -62,11 +63,17 @@ public class VehicleTargetScanGoal extends Goal {
     // 60 goal ticks ≈ 6 s wall clock: goals tick every other game tick.
     private static final int LOS_GRACE_TICKS = 60;
 
+    /** Board contacts a direct-fire crew will acquire: heard-and-relayed hearsay is for indirect fire. */
+    private static final ContactBoard.Source DIRECT_FIRE_MIN = ContactBoard.Source.PROXIMITY;
+    private static final int PUBLISH_INTERVAL_TICKS = 10;
+
     private final AbstractUnit unit;
     private VehicleEntity vehicle;
     private LivingEntity pendingTarget;
     private int scanCooldown;
     private int ticksWithoutLos;
+    /** Game time before this crew next re-reports a target it is watching to the contact board. */
+    private long nextPublishTime;
 
     public VehicleTargetScanGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -119,9 +126,14 @@ public class VehicleTargetScanGoal extends Goal {
         if (v.getFirstPassenger() instanceof AbstractUnit driver) {
             LivingEntity lock = driver.getTarget();
             if (lock != null && lock.isAlive() && isValidTarget(v, lock)) {
-                boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+                // DEFERRED(firing-run-los): whether the bank/pitch compensation belongs at acquisition (here) or at
+                // fire-time is UNRESOLVED and on hold. Leave this exemption as it is; the fire-time gate in
+                // MixinVehicleFireCooldown is currently uncompensated and "fire-time is strictly stronger than
+                // acquisition" depends on that staying true. See docs/fire-los-audit.md.
+boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
                         && !DriveHelicopterGoal.inFiringRun(v);
-                if (!needLos || this.unit.getSensing().hasLineOfSight(lock)) {
+                if (!needLos || ContactBoard.waivesLos(this.unit, lock, DIRECT_FIRE_MIN)
+                        || this.unit.getSensing().hasLineOfSight(lock)) {
                     this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
                     return lock;
                 }
@@ -162,9 +174,22 @@ public class VehicleTargetScanGoal extends Goal {
         // caches the raycast per tick, so this costs one clip per crew per tick.
         // Suspended during an active heli firing run: pitch/bank occludes the pilot's
         // own ray without the target having left — dropping then would abort the pass.
-        if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+        // DEFERRED(firing-run-los): whether the bank/pitch compensation belongs at acquisition (here) or at
+        // fire-time is UNRESOLVED and on hold. Leave this exemption as it is; the fire-time gate in
+        // MixinVehicleFireCooldown is currently uncompensated and "fire-time is strictly stronger than
+        // acquisition" depends on that staying true. See docs/fire-los-audit.md.
+if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
                 && !DriveHelicopterGoal.inFiringRun(this.vehicle)) {
             if (this.unit.getSensing().hasLineOfSight(target)) {
+                this.ticksWithoutLos = 0;
+                long now = this.unit.level().getGameTime();
+                if (now >= this.nextPublishTime) {
+                    this.nextPublishTime = now + PUBLISH_INTERVAL_TICKS;
+                    ContactBoard.publish(this.unit, target, ContactBoard.Source.DIRECT_SIGHT);
+                }
+            } else if (ContactBoard.waivesLos(this.unit, target, DIRECT_FIRE_MIN)) {
+                // Beyond the close-in band and known to our side: hold the lock. The fire-time gate in
+                // MixinVehicleFireCooldown still refuses every shot until this crew sees it itself.
                 this.ticksWithoutLos = 0;
             } else if (++this.ticksWithoutLos > LOS_GRACE_TICKS) {
                 return false; // hidden too long — release the lock and rescan
@@ -172,6 +197,12 @@ public class VehicleTargetScanGoal extends Goal {
         } else {
             this.ticksWithoutLos = 0;
         }
+
+        // A target the crew's side holds on the contact board is not dropped for distance: it was admitted
+        // out to wideScanRadius, so the 1.5x scan-radius drop would release it the moment it was locked.
+        // It leaves the board (and so this lock) a TTL after the last write. holds, not waivesLos: the
+        // close-in band is about LoS plausibility, not reach.
+        if (ContactBoard.holds(this.unit, target, DIRECT_FIRE_MIN)) return true;
 
         double dropRadius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get() * DROP_MULT;
         double dropHalfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0 * DROP_MULT;
@@ -210,11 +241,16 @@ public class VehicleTargetScanGoal extends Goal {
         candidates.sort(Comparator.comparingDouble(e -> focusAdjustedDistSq(v, e)));
         // Mid firing-run reacquire must not demand LOS every scan interval — the same
         // pitch/bank that flickered the lock would block re-lock for the whole pass.
-        boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+        // DEFERRED(firing-run-los): whether the bank/pitch compensation belongs at acquisition (here) or at
+        // fire-time is UNRESOLVED and on hold. Leave this exemption as it is; the fire-time gate in
+        // MixinVehicleFireCooldown is currently uncompensated and "fire-time is strictly stronger than
+        // acquisition" depends on that staying true. See docs/fire-los-audit.md.
+boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
                 && !DriveHelicopterGoal.inFiringRun(v);
         LivingEntity foliageOnly = null;
         for (LivingEntity candidate : candidates) {
-            boolean los = !needLos || this.unit.getSensing().hasLineOfSight(candidate);
+            boolean los = !needLos || ContactBoard.waivesLos(this.unit, candidate, DIRECT_FIRE_MIN)
+                    || this.unit.getSensing().hasLineOfSight(candidate);
             if (los) {
                 SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK unit={}#{} candidate={}#{} needLos={}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
@@ -271,7 +307,11 @@ public class VehicleTargetScanGoal extends Goal {
         try {
             VehicleTargetScanGoal probe = new VehicleTargetScanGoal(unit);
             probe.vehicle = v;
-            boolean inRun = DriveHelicopterGoal.inFiringRun(v);
+            // DEFERRED(firing-run-los): whether the bank/pitch compensation belongs at acquisition (here) or at
+            // fire-time is UNRESOLVED and on hold. Leave this exemption as it is; the fire-time gate in
+            // MixinVehicleFireCooldown is currently uncompensated and "fire-time is strictly stronger than
+            // acquisition" depends on that staying true. See docs/fire-los-audit.md.
+boolean inRun = DriveHelicopterGoal.inFiringRun(v);
             List<LivingEntity> candidates = probe.collectCylinderCandidates(v, true);
             if (candidates.isEmpty()) return null;
             candidates.sort(Comparator.comparingDouble(e -> probe.focusAdjustedDistSq(v, e)));
@@ -305,7 +345,38 @@ public class VehicleTargetScanGoal extends Goal {
             if (!includeClose && distSq < VehicleMinRangeGoal.MIN_ENGAGE_DISTANCE_SQ) continue;
             out.add(e);
         }
+
+        // Contacts the crew's side already knows are candidates out to wideScanRadius, not just the scan
+        // radius: that is the whole reach of wide detection, and nothing scans out there. Each still passes
+        // isValidTarget, the vertical band and the dead zone, exactly like a scan-found candidate.
+        List<LivingEntity> known = ContactBoard.contactsFor(this.unit, DIRECT_FIRE_MIN);
+        if (!known.isEmpty()) {
+            double wide = wideRadius(radius);
+            double wideSq = wide * wide;
+            double halfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
+            double slack = altitudeSlack(v);
+            for (LivingEntity e : known) {
+                if (out.contains(e)) continue;
+                double dy = e.getY() - v.getY();
+                if (dy > halfHeight || -dy > halfHeight + slack) continue;
+                if (!isValidTarget(v, e)) continue;
+                double distSq = horizontalDistSq(v, e);
+                if (distSq > wideSq) continue;
+                if (!includeClose && distSq < VehicleMinRangeGoal.MIN_ENGAGE_DISTANCE_SQ) continue;
+                out.add(e);
+            }
+        }
         return out;
+    }
+
+    /** How far board contacts are admitted: the wide radius when wide scan is on, else the scan radius. */
+    private static double wideRadius(double scanRadius) {
+        try {
+            return SewvConfig.WIDE_SCAN_ENABLED.get()
+                    ? Math.max(scanRadius, SewvConfig.WIDE_SCAN_RADIUS.get()) : scanRadius;
+        } catch (Throwable unbaked) {
+            return scanRadius;
+        }
     }
 
     /** Distance used for ranking — shrinks the commander's priority target without locking it. */

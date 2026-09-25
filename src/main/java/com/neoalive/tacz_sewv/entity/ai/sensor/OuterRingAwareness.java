@@ -224,6 +224,8 @@ public final class OuterRingAwareness {
         if (best != null) {
             cues.offerEntitySpot(best.getId(), best.blockPosition(), bestDist, BAND_STRENGTH[band],
                     now, best);
+            // A coarse heightmap spot is exactly "aware, no line of sight": the board's PROXIMITY tier.
+            ContactBoard.publish(unit, best, ContactBoard.Source.PROXIMITY);
         }
     }
 

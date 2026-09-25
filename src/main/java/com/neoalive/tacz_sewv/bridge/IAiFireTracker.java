@@ -37,4 +37,12 @@ public interface IAiFireTracker {
      * crew that has never managed a single shot — the case worth catching.
      */
     long tacz_sewv$getLastAiShotTick();
+
+    /**
+     * True when this mod's AI fire gate (CEASE_FIRE, ambush, cooldown, line of fire, smoke,
+     * danger-close) forbids {@code living} from firing this hull right now. This is the single
+     * source of the {@code canShoot} verdict for every hull, including subclasses that override
+     * {@code canShoot} without calling super.
+     */
+    boolean tacz_sewv$aiFireDenied(net.minecraft.world.entity.LivingEntity living);
 }

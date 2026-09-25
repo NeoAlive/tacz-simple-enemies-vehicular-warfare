@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
@@ -112,6 +113,18 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
         if (!VehicleTargeting.categoryAllowed(self, target)) {
             ci.cancel();
         }
+    }
+
+    /**
+     * After vetoes: every accepted lock, of any unit type, goes on the faction contact board. One hook
+     * covers infantry, crews, radio orders and delegation, so no unit type needs its own publisher.
+     */
+    @Inject(method = "setTarget", at = @At("TAIL"))
+    private void tacz_sewv$publishContact(LivingEntity target, CallbackInfo ci) {
+        if (target == null) return;
+        AbstractUnit self = (AbstractUnit) (Object) this;
+        if (self.level().isClientSide() || self.getTarget() != target) return; // HEAD veto cancelled it
+        ContactBoard.onTargetAcquired(self, target);
     }
 
     /** After vetoes: owned PMC acquired a live hostile — rising-edge toast with cooldown. */

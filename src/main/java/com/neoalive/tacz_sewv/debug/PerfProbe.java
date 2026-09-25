@@ -58,6 +58,7 @@ public final class PerfProbe {
                 .append(" (members=").append(members)
                 .append(", influenceCells=").append(influenceCells).append(")\n");
         sb.append("HullLocalScan: ").append(HullLocalScan.stats()).append('\n');
+        sb.append("CombatantIndex: ").append(com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex.stats()).append('\n');
         sb.append("IdleGroupSupport: ").append(
                 com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport.stats()).append('\n');
         sb.append(PathingPerf.snapshotAndReset()).append('\n');

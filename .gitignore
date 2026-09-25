@@ -6,6 +6,7 @@ CLAUDE.md
 .cursor
 .claude
 scripts/
+tools/
 
 # IDE
 .idea/

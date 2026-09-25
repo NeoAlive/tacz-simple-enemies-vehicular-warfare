@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.util;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
+import net.minecraftforge.event.TagsUpdatedEvent;
 import net.minecraftforge.event.entity.EntityLeaveLevelEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -11,6 +12,8 @@ import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
+import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.BoardVehicleGoal;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
@@ -56,8 +59,20 @@ public final class CacheEviction {
         }
     }
 
+    /** Datapack / tag reload can change which states EFT treats as trees. */
+    @SubscribeEvent
+    public static void onTagsUpdated(TagsUpdatedEvent event) {
+        clearTreeTypeCache();
+    }
+
+    // Gated: EnhancedFallingTreesFeller imports EFT and must not be linked when it is absent.
+    private static void clearTreeTypeCache() {
+        if (EnhancedFallingTreesCompat.available()) EnhancedFallingTreesFeller.clearCache();
+    }
+
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
+        clearTreeTypeCache();
         HullLocalScan.clearAll();
         ContactBoard.clearAll();
         VehicleDarknessAccuracy.clearAll();

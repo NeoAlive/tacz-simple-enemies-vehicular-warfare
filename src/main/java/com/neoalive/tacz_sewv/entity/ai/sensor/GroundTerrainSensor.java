@@ -106,8 +106,15 @@ public final class GroundTerrainSensor extends TerrainSensor {
     private double cachedCenterFloor = GroundMobility.NO_FLOOR;
     private int cachedCenterWater;
 
-    /** Game-time key for the per-tick column / grade maps below. */
+    /**
+     * Game time the column / grade maps below were last cleared. They live for {@code sensorColumnTtlTicks}
+     * (1 = cleared every tick, the old behaviour): terrain rarely changes within a few ticks, while a moving
+     * hull re-probes most of the same columns every tick. Column keys include the hull's base Y, because a
+     * probe is measured from it.
+     */
     private long columnCacheTick = Long.MIN_VALUE;
+    /** Idle and far from every player ({@code groundFarLodBlocks}): the column TTL is doubled. */
+    private boolean farIdle;
     private final Long2ObjectOpenHashMap<Column> columnCache = new Long2ObjectOpenHashMap<>();
     private final Long2DoubleOpenHashMap gradeCache = new Long2DoubleOpenHashMap();
     /** Centerline probes from the last {@link #fillMaps} — beam validate reuses the winner's. */
@@ -614,8 +621,25 @@ public final class GroundTerrainSensor extends TerrainSensor {
         this.cachedCenterWater = col.waterDepth;
     }
 
+    public void setFarIdle(boolean farIdle) {
+        this.farIdle = farIdle;
+    }
+
+    private static int columnTtl() {
+        try {
+            return SewvConfig.SENSOR_COLUMN_TTL_TICKS.get();
+        } catch (Throwable unbaked) {
+            return 1;
+        }
+    }
+
     private void ensureColumnCacheTick(long now) {
-        if (now == this.columnCacheTick) return;
+        int ttl = this.farIdle ? columnTtl() * 2 : columnTtl();
+        // now < columnCacheTick: game time went backwards (reload, /time) — treat as expired.
+        if (this.columnCacheTick != Long.MIN_VALUE && now >= this.columnCacheTick
+                && now - this.columnCacheTick < ttl) {
+            return;
+        }
         this.columnCacheTick = now;
         this.columnCache.clear();
         this.gradeCache.clear();
@@ -623,7 +647,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
 
     private Column cachedColumn(Level level, BlockPos.MutableBlockPos pos, int x, int z) {
         ensureColumnCacheTick(level.getGameTime());
-        long key = BlockPos.asLong(x, 0, z);
+        long key = BlockPos.asLong(x, this.vehicle.getBlockY(), z);
         Column hit = this.columnCache.get(key);
         if (hit != null) {
             PathingPerf.columnCacheHits++;

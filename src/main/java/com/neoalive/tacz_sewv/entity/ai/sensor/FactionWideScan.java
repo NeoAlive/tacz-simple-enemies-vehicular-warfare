@@ -55,19 +55,9 @@ public final class FactionWideScan {
         long published;
     }
 
-    // Split on purpose: "how much was written" is not "how long evaluation took".
-    private static long passes;
-    private static long lastContactsPublished;
-    private static long lastPairEvalNanos;
-    private static long lastPredicateCalls;
     private static boolean warnedCadenceClamp;
 
     private FactionWideScan() {}
-
-    public static String stats() {
-        return "widePasses=" + passes + " lastContactsPublished=" + lastContactsPublished
-                + " lastPairEvalNanos=" + lastPairEvalNanos + " lastPredicateCalls=" + lastPredicateCalls;
-    }
 
     // --- pure helpers (ContactBoardSelfCheck-style headless coverage) -----------------------------
 
@@ -172,9 +162,10 @@ public final class FactionWideScan {
                         && VehicleTargeting.isValidHostileTarget(o.observer, s.living),
                 (o, s) -> ContactBoard.publishVetted(o.observer, s.living, ContactBoard.Source.PROXIMITY),
                 stats);
-        passes++;
-        lastPairEvalNanos = System.nanoTime() - t0;
-        lastContactsPublished = stats.published;
-        lastPredicateCalls = stats.predicateCalls;
+        // Per-level (CombatantIndex.State), so a quiet dimension cannot overwrite a busy one's numbers.
+        st.widePasses++;
+        st.lastPairEvalNanos = System.nanoTime() - t0;
+        st.lastContactsPublished = stats.published;
+        st.lastPredicateCalls = stats.predicateCalls;
     }
 }

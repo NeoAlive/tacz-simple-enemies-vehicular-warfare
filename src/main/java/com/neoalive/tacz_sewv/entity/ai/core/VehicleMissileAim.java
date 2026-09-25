@@ -94,10 +94,22 @@ public final class VehicleMissileAim {
         }
     }
 
+    /**
+     * Projectile id → mode, including "no override" (empty). Asked for every AI-crewed vehicle every tick on
+     * both sides, while the answer depends only on the id and the (frozen) entity registry.
+     */
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.Optional<AimMode>> MODE_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     @Nullable
     public static AimMode modeOfProjectile(@Nullable String projectileId) {
         if (projectileId == null || projectileId.isEmpty()) return null;
+        return MODE_CACHE.computeIfAbsent(projectileId,
+                id -> java.util.Optional.ofNullable(resolveModeOfProjectile(id))).orElse(null);
+    }
 
+    @Nullable
+    private static AimMode resolveModeOfProjectile(String projectileId) {
         // Prefer registry class — covers addon subclasses of WireGuide / seekers.
         try {
             ResourceLocation rl = ResourceLocation.tryParse(projectileId);

@@ -18,6 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.event.TickEvent;
@@ -29,6 +30,7 @@ import net.minecraftforge.fml.common.Mod;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
@@ -113,31 +115,108 @@ public final class CoverVisibilityCache {
         }
     }
 
-    /** Package-visible bake of one cell into {@code out[base..base+7]}. */
-    static void bakeCell(ServerLevel level, int cellX, int cellZ, byte[] out, int base) {
-        int centerX = (cellX << 1) + 1;
-        int centerZ = (cellZ << 1) + 1;
-        int surface = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, centerX, centerZ);
-        int eyeY = surface + TURRET_EYE;
-        for (int dir = 0; dir < DIRS; dir++) {
-            int d = 0;
-            for (; d < MAX_RANGE; d++) {
-                int x = centerX + DX[dir] * d;
-                int z = centerZ + DZ[dir] * d;
-                // Re-read height along the walk so berms / trenches at different Y still occlude.
-                int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z) + TURRET_EYE;
-                // Prefer the walk eye band: sample at eyeY and at local surface+eye.
-                if (occludes(level, x, eyeY, z) || (y != eyeY && occludes(level, x, y, z))) {
-                    break;
-                }
-            }
-            out[base + dir] = (byte) Math.min(d, MAX_RANGE);
+    /** {@code coverBakeNanosPerTick}: 0 = cell budget only (the old behaviour). */
+    static long bakeNanosBudget() {
+        try {
+            return SewvConfig.COVER_BAKE_NANOS_PER_TICK.get();
+        } catch (Throwable ignored) {
+            return 0L;
         }
     }
 
-    static boolean occludes(ServerLevel level, int x, int y, int z) {
-        BlockPos pos = new BlockPos(x, y, z);
-        BlockState state = level.getBlockState(pos);
+    /** {@code coverMaxRange}: occluders further than this count as open ground ({@link #MAX_RANGE}). */
+    static int walkRange() {
+        try {
+            return Math.min(MAX_RANGE, SewvConfig.COVER_MAX_RANGE.get());
+        } catch (Throwable ignored) {
+            return MAX_RANGE;
+        }
+    }
+
+    /**
+     * The chunks one bake can reach, resolved once per chunk bake instead of once per probe. Every read
+     * used to go through {@code Level}, i.e. a chunk-cache lookup per heightmap read and per block read
+     * (~24k probes per chunk) — and {@code Level.getBlockState} on a chunk that is not loaded LOADS it
+     * synchronously. {@code getChunkNow} never loads; a ray that reaches an unloaded chunk stops there and
+     * records "clear", the same optimistic answer an unbaked cell already gives.
+     */
+    private static final class ChunkWindow {
+        private final ServerLevel level;
+        private final int originX;
+        private final int originZ;
+        private final int radius;
+        private final int side;
+        private final LevelChunk[] chunks;
+        private final boolean[] resolved;
+
+        ChunkWindow(ServerLevel level, int chunkX, int chunkZ, int range) {
+            this.level = level;
+            this.radius = (range + 16) >> 4;
+            this.side = this.radius * 2 + 1;
+            this.originX = chunkX - this.radius;
+            this.originZ = chunkZ - this.radius;
+            this.chunks = new LevelChunk[this.side * this.side];
+            this.resolved = new boolean[this.side * this.side];
+        }
+
+        @Nullable
+        LevelChunk at(int blockX, int blockZ) {
+            int ix = (blockX >> 4) - this.originX;
+            int iz = (blockZ >> 4) - this.originZ;
+            if (ix < 0 || iz < 0 || ix >= this.side || iz >= this.side) {
+                return this.level.getChunkSource().getChunkNow(blockX >> 4, blockZ >> 4);
+            }
+            int i = iz * this.side + ix;
+            if (!this.resolved[i]) {
+                this.resolved[i] = true;
+                this.chunks[i] = this.level.getChunkSource().getChunkNow(blockX >> 4, blockZ >> 4);
+            }
+            return this.chunks[i];
+        }
+    }
+
+    /** {@code Level.getHeight} for a loaded chunk, read straight from it. */
+    private static int surfaceY(LevelChunk chunk, int x, int z) {
+        return chunk.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x & 15, z & 15) + 1;
+    }
+
+    /** Bake of one cell into {@code out[base..base+7]}. */
+    private static void bakeCell(ServerLevel level, ChunkWindow window, int cellX, int cellZ, byte[] out, int base,
+                                 int range, BlockPos.MutableBlockPos probe) {
+        int centerX = (cellX << 1) + 1;
+        int centerZ = (cellZ << 1) + 1;
+        LevelChunk home = window.at(centerX, centerZ);
+        if (home == null) {
+            for (int dir = 0; dir < DIRS; dir++) out[base + dir] = (byte) MAX_RANGE;
+            return;
+        }
+        int eyeY = surfaceY(home, centerX, centerZ) + TURRET_EYE;
+        for (int dir = 0; dir < DIRS; dir++) {
+            int d = 0;
+            for (; d < range; d++) {
+                int x = centerX + DX[dir] * d;
+                int z = centerZ + DZ[dir] * d;
+                LevelChunk chunk = window.at(x, z);
+                if (chunk == null) {
+                    d = range; // unloaded: stop without loading it, record clear
+                    break;
+                }
+                // Re-read height along the walk so berms / trenches at different Y still occlude.
+                int y = surfaceY(chunk, x, z) + TURRET_EYE;
+                // Prefer the walk eye band: sample at eyeY and at local surface+eye.
+                if (occludes(level, chunk, probe.set(x, eyeY, z))
+                        || (y != eyeY && occludes(level, chunk, probe.set(x, y, z)))) {
+                    break;
+                }
+            }
+            // Walked the whole (possibly shortened) range without a hit: that is "clear", which readers
+            // test as MAX_RANGE — never the shortened range, which would read as an occluder there.
+            out[base + dir] = (byte) (d >= range ? MAX_RANGE : d);
+        }
+    }
+
+    private static boolean occludes(ServerLevel level, LevelChunk chunk, BlockPos pos) {
+        BlockState state = chunk.getBlockState(pos);
         if (state.isAir()) return false;
         // Leaves are soft cover for ContactSight UNCERTAIN — treat as transparent here so the
         // worst-case table matches "hard" occlusion only.
@@ -151,10 +230,13 @@ public final class CoverVisibilityCache {
         int baseCellX = chunkX * CELLS_PER_EDGE;
         int baseCellZ = chunkZ * CELLS_PER_EDGE;
         byte[] dist = grid.dist;
+        int range = walkRange();
+        ChunkWindow window = new ChunkWindow(level, chunkX, chunkZ, range);
+        BlockPos.MutableBlockPos probe = new BlockPos.MutableBlockPos();
         for (int lz = 0; lz < CELLS_PER_EDGE; lz++) {
             for (int lx = 0; lx < CELLS_PER_EDGE; lx++) {
                 int base = (lz * CELLS_PER_EDGE + lx) * DIRS;
-                bakeCell(level, baseCellX + lx, baseCellZ + lz, dist, base);
+                bakeCell(level, window, baseCellX + lx, baseCellZ + lz, dist, base, range, probe);
             }
         }
         grid.ready = true;
@@ -164,29 +246,38 @@ public final class CoverVisibilityCache {
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         if (!enabled()) return;
+        // One budget for the whole server, as coverCacheBakeCellsPerTick documents — it used to be granted
+        // afresh to every dimension. coverBakeNanosPerTick optionally caps the same work by time.
         int budget = bakeBudget();
+        long nanos = bakeNanosBudget();
+        long deadline = nanos > 0 ? System.nanoTime() + nanos : Long.MAX_VALUE;
         Set<ServerLevel> live = new HashSet<>();
         for (ServerLevel level : event.getServer().getAllLevels()) {
             live.add(level);
             LevelCache cache = CACHES.computeIfAbsent(level, l -> new LevelCache());
-            drain(level, cache, budget);
+            budget -= drain(level, cache, budget, deadline);
         }
         CACHES.keySet().retainAll(live);
     }
 
-    private static void drain(ServerLevel level, LevelCache cache, int budget) {
+    /** @return cells spent */
+    private static int drain(ServerLevel level, LevelCache cache, int budget, long deadline) {
         int spent = 0;
-        while (spent < budget && !cache.dirtyChunks.isEmpty()) {
+        while (spent < budget && !cache.dirtyChunks.isEmpty() && System.nanoTime() < deadline) {
             long ck = cache.dirtyChunks.removeFirst();
             if (!cache.dirtySet.remove(ck)) continue;
             int cx = ChunkPosKey.x(ck);
             int cz = ChunkPosKey.z(ck);
             if (!level.hasChunk(cx, cz)) continue;
             ChunkCoverGrid grid = cache.grids.computeIfAbsent(ck, k -> new ChunkCoverGrid());
+            long t0 = System.nanoTime();
             bakeChunk(level, cx, cz, grid);
+            PathingPerf.coverBakeNanos += System.nanoTime() - t0;
+            PathingPerf.coverChunksBaked++;
             SewvDiag.cover("baked chunk={},{} dim={}", cx, cz, level.dimension().location());
             spent += CELLS_PER_CHUNK;
         }
+        return spent;
     }
 
     @SubscribeEvent

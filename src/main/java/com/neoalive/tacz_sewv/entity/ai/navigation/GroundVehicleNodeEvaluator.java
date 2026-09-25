@@ -27,6 +27,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 
@@ -101,6 +102,33 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     /** Per-search {@link #nearDeepWater} cache, keyed by node origin. Byte 0/1, -1 = miss. */
     private final Long2ByteOpenHashMap nearDeepWaterCache = newNearDeepWaterCache();
 
+    /**
+     * Per-search cache of one cell's raw classification, keyed by {@link BlockPos#asLong}. Bits 0-5 hold
+     * the {@link BlockPathTypes} ordinal of the 4-arg {@link #getBlockPathType(BlockGetter, int, int, int)}
+     * (a pure function of the region snapshot), bit 6 whether the cell is a {@code #minecraft:logs} block
+     * (only filled while tree felling is active). Neighbouring nodes share almost all of a wide hull's
+     * footprint, so without this every cell was re-classified once per node that covers it. Exact: the
+     * search reads one frozen {@code PathNavigationRegion}. -1 = miss.
+     */
+    private final Long2ByteOpenHashMap cellCache = newByteCache();
+    /** Per-search {@link GroundMobility#waterDepth} cache, keyed by the probed (x, y, z). -1 = miss. */
+    private final Long2ByteOpenHashMap waterColumnCache = newByteCache();
+    /** Per-search {@link #footprintWaterDepth} cache, keyed by node origin: classification and
+     * {@link #findAcceptedNode} both ask it for the same node. -1 = miss. */
+    private final Long2ByteOpenHashMap footprintWaterCache = newByteCache();
+    private static final int LOG_BIT = 0x40;
+    // ponytail: 6 ordinal bits. Vanilla 1.20.1 has 29 path types; Forge lets mods extend the enum, so a
+    // pack adding 35+ would overflow into LOG_BIT. Widen the map to Long2Short if that ever happens.
+    private static final BlockPathTypes[] PATH_TYPES = BlockPathTypes.values();
+    /** Latched once per search in {@link #prepare}: config cannot change mid-search. */
+    private boolean treeFellingActive;
+
+    private static Long2ByteOpenHashMap newByteCache() {
+        Long2ByteOpenHashMap cache = new Long2ByteOpenHashMap();
+        cache.defaultReturnValue((byte) -1);
+        return cache;
+    }
+
     private static Long2ByteOpenHashMap newFootprintTreeCache() {
         Long2ByteOpenHashMap cache = new Long2ByteOpenHashMap();
         cache.defaultReturnValue((byte) -1);
@@ -134,6 +162,10 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         this.footprintTreeCache.clear();
         this.gradeCache.clear();
         this.nearDeepWaterCache.clear();
+        this.cellCache.clear();
+        this.waterColumnCache.clear();
+        this.footprintWaterCache.clear();
+        this.treeFellingActive = EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get();
         if (mob.getVehicle() instanceof VehicleEntity vehicle) {
             this.amphibious = GroundMobility.isAmphibious(vehicle);
             this.maxUpStep = GroundMobility.maxUpStepOf(vehicle);
@@ -186,9 +218,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             return BlockPathTypes.BLOCKED;
         }
 
-        // Read once per call, not once per cell — three config/registry lookups repeated over a
-        // 100+ cell footprint would itself be needless waste.
-        boolean treeFellingActive = EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get();
+        boolean treeFellingActive = this.treeFellingActive;
         boolean footprintHasTree = false;
 
         BlockPathTypes center = BlockPathTypes.BLOCKED;
@@ -198,7 +228,8 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         for (int i = 0; i < this.entityWidth; ++i) {
             for (int j = 0; j < this.entityHeight; ++j) {
                 for (int k = 0; k < this.entityDepth; ++k) {
-                    BlockPathTypes blockpathtypes = this.getBlockPathType(level, i + x, j + y, k + z);
+                    int cell = cell(level, i + x, j + y, k + z);
+                    BlockPathTypes blockpathtypes = PATH_TYPES[cell & 0x3F];
                     // Fordable water is walkable; cost is applied in findAcceptedNode.
                     if (blockpathtypes == BlockPathTypes.WATER) {
                         blockpathtypes = BlockPathTypes.WALKABLE;
@@ -229,8 +260,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     // used to be a second, separate walk over these same cells in
                     // findAcceptedNode; the result is cached below instead.
                     if (treeFellingActive) {
-                        BlockState cellState = level.getBlockState(this.probe.set(i + x, j + y, k + z));
-                        if (cellState.is(BlockTags.LOGS)) {
+                        if ((cell & LOG_BIT) != 0) {
                             footprintHasTree = true;
                             if (blockpathtypes == BlockPathTypes.BLOCKED) {
                                 blockpathtypes = BlockPathTypes.WALKABLE;
@@ -261,16 +291,47 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         return center == BlockPathTypes.OPEN && worstMalus == 0.0F && this.entityWidth <= 1 ? BlockPathTypes.OPEN : worst;
     }
 
+    /** Cached {@link #getBlockPathType(BlockGetter, int, int, int)} + log bit; see {@link #cellCache}. */
+    private int cell(BlockGetter level, int x, int y, int z) {
+        long key = BlockPos.asLong(x, y, z);
+        byte cached = this.cellCache.get(key);
+        if (cached != -1) {
+            PathingPerf.cellCacheHits++;
+            return cached;
+        }
+        PathingPerf.cellCacheMisses++;
+        int value = this.getBlockPathType(level, x, y, z).ordinal();
+        if (this.treeFellingActive && level.getBlockState(this.probe.set(x, y, z)).is(BlockTags.LOGS)) {
+            value |= LOG_BIT;
+        }
+        this.cellCache.put(key, (byte) value);
+        return value;
+    }
+
     private int footprintWaterDepth(BlockGetter level, int x, int y, int z) {
+        long nodeKey = BlockPos.asLong(x, y, z);
+        byte known = this.footprintWaterCache.get(nodeKey);
+        if (known != -1) return known;
         int max = 0;
         int w = Math.max(1, this.entityWidth);
         int d = Math.max(1, this.entityDepth);
         for (int i = 0; i < w; i++) {
             for (int k = 0; k < d; k++) {
-                max = Math.max(max, GroundMobility.waterDepth(level, this.probe, x + i, y, z + k));
+                max = Math.max(max, waterDepth(level, x + i, y, z + k));
             }
         }
+        this.footprintWaterCache.put(nodeKey, (byte) max);
         return max;
+    }
+
+    /** {@link GroundMobility#waterDepth} memoised per search; see {@link #waterColumnCache}. */
+    private int waterDepth(BlockGetter level, int x, int y, int z) {
+        long key = BlockPos.asLong(x, y, z);
+        byte cached = this.waterColumnCache.get(key);
+        if (cached != -1) return cached;
+        int depth = GroundMobility.waterDepth(level, this.probe, x, y, z);
+        this.waterColumnCache.put(key, (byte) depth);
+        return depth;
     }
 
     private boolean nearDeepWater(int x, int y, int z) {
@@ -287,7 +348,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         scan:
         for (int cx = minX; cx <= maxX; cx++) {
             for (int cz = minZ; cz <= maxZ; cz++) {
-                if (GroundMobility.waterDepth(this.level, this.probe, cx, y, cz) > 0) {
+                if (waterDepth(this.level, cx, y, cz) > 0) {
                     near = true;
                     break scan;
                 }

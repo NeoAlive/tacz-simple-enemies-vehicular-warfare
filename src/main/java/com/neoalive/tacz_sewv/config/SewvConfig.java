@@ -186,6 +186,17 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue WIDE_SCAN_RADIUS;
     public static final ForgeConfigSpec.IntValue WIDE_SCAN_CADENCE_TICKS;
     public static final ForgeConfigSpec.IntValue COMBATANT_INDEX_INTERVAL_TICKS;
+    // Performance heuristics (controlled regressions). Neutral value = the behaviour before they existed.
+    public static final ForgeConfigSpec.IntValue PATH_SEARCHES_PER_TICK;
+    public static final ForgeConfigSpec.IntValue PATH_MAX_WAIT_TICKS;
+    public static final ForgeConfigSpec.IntValue PATH_MAX_VISITED_NODES;
+    public static final ForgeConfigSpec.IntValue PATH_SEARCH_RANGE;
+    public static final ForgeConfigSpec.IntValue PATH_DEST_QUANTUM;
+    public static final ForgeConfigSpec.IntValue SENSOR_COLUMN_TTL_TICKS;
+    public static final ForgeConfigSpec.IntValue TREE_SCAN_INTERVAL_TICKS;
+    public static final ForgeConfigSpec.IntValue COVER_BAKE_NANOS_PER_TICK;
+    public static final ForgeConfigSpec.IntValue COVER_MAX_RANGE;
+    public static final ForgeConfigSpec.DoubleValue GROUND_FAR_LOD_BLOCKS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_ALLY_ASSIST_RANGE;
     public static final ForgeConfigSpec.BooleanValue STALEMATE_BREAKER_ENABLED;
     public static final ForgeConfigSpec.IntValue STALEMATE_SILENCE_TICKS;
@@ -819,6 +830,45 @@ public final class SewvConfig {
                         "How often (game ticks) the per-level combatant index is rebuilt. Hull scans read this snapshot,",
                         "so it bounds how stale their candidate lists can be.")
                 .defineInRange("combatantIndexIntervalTicks", 20, 5, 100);
+        PATH_SEARCHES_PER_TICK = builder.comment(
+                        "PERF. Max ground-vehicle path searches per level per game tick (0 = unlimited, the old behaviour).",
+                        "A search costs ~5 ms; a deferred hull keeps following its current route until it gets a slot.")
+                .defineInRange("pathSearchesPerTick", 0, 0, 16);
+        PATH_MAX_WAIT_TICKS = builder.comment(
+                "PERF. A hull deferred by pathSearchesPerTick this long (game ticks) searches anyway, so none starves.")
+                .defineInRange("pathMaxWaitTicks", 10, 1, 100);
+        PATH_MAX_VISITED_NODES = builder.comment(
+                        "PERF. Node cap for one ground-vehicle path search (512 = old behaviour). Lower is cheaper but",
+                        "turns long detours into partial paths.")
+                .defineInRange("pathMaxVisitedNodes", 512, 128, 1024);
+        PATH_SEARCH_RANGE = builder.comment(
+                        "PERF. Horizontal reach (blocks) of one ground-vehicle path search (32 = old behaviour). Lower is",
+                        "cheaper; far destinations are reached in more partial legs.")
+                .defineInRange("pathSearchRange", 32, 16, 48);
+        PATH_DEST_QUANTUM = builder.comment(
+                        "PERF. Snap ground-vehicle destinations to this block grid before pathing (0 = off). Stops",
+                        "standoff/retreat points that move every tick from forcing repaths.")
+                .defineInRange("pathDestQuantum", 4, 0, 8);
+        SENSOR_COLUMN_TTL_TICKS = builder.comment(
+                        "PERF. How long (game ticks) a crew's terrain sensor reuses a probed column (1 = old behaviour).",
+                        "A block changed in front of a hull is seen up to this many ticks late.")
+                .defineInRange("sensorColumnTtlTicks", 5, 1, 20);
+        TREE_SCAN_INTERVAL_TICKS = builder.comment(
+                        "PERF. How often (game ticks) a moving hull scans for trees it is pushing (1 = old behaviour).",
+                        "Trees still fall after the same contact time, up to this many ticks later.")
+                .defineInRange("treeScanIntervalTicks", 3, 1, 10);
+        COVER_BAKE_NANOS_PER_TICK = builder.comment(
+                        "PERF. Time budget (nanoseconds) for cover-table baking per tick, on top of the cell budget",
+                        "(0 = cell budget only, the old behaviour). Unbaked cover reads as exposed.")
+                .defineInRange("coverBakeNanosPerTick", 0, 0, 5_000_000);
+        COVER_MAX_RANGE = builder.comment(
+                        "PERF. How far (blocks) the cover table looks for an occluder (48 = old behaviour). Occluders",
+                        "further than this count as open ground.")
+                .defineInRange("coverMaxRange", 48, 16, 48);
+        GROUND_FAR_LOD_BLOCKS = builder.comment(
+                        "PERF. An idle ground hull (no target, no order) with no player within this many blocks runs",
+                        "cheaper: lowest path priority and doubled sensor/tree intervals (0 = off).")
+                .defineInRange("groundFarLodBlocks", 0.0, 0.0, 512.0);
         VEHICLE_ALLY_ASSIST_RANGE = builder.comment("How far (blocks) to count nearby allies when deciding to hold or fall back.")
                 .defineInRange("vehicleAllyAssistRange", 128.0, 0.0, 256.0);
         STALEMATE_BREAKER_ENABLED = builder.comment("If a crew cannot hit its target for a while, move to a better angle.")

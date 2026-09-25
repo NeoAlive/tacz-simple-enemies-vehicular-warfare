@@ -81,8 +81,49 @@ public final class VehicleDriver {
     private static final int WHEEL_HARD_TURN_DUTY = 3;
     // 32 horizontal keeps the chunk snapshot at 5×5 chunks instead of 9×9; targets beyond it still
     // get a partial path that walks us closer. Ground vehicles never need a 64-block-tall volume.
-    private static final int PATH_SEARCH_RANGE = 32;
     private static final int PATH_SEARCH_VERTICAL = 16;
+
+    private static int pathSearchRange() {
+        try {
+            return SewvConfig.PATH_SEARCH_RANGE.get();
+        } catch (Throwable unbaked) {
+            return 32;
+        }
+    }
+
+    private static int pathMaxVisitedNodes() {
+        try {
+            return SewvConfig.PATH_MAX_VISITED_NODES.get();
+        } catch (Throwable unbaked) {
+            return 512;
+        }
+    }
+
+    /**
+     * {@code pathDestQuantum}: snap a destination's X/Z to a grid before it is used as a PATH target. Standoff
+     * and retreat points are recomputed from a moving target every tick; on a grid, most of that motion no
+     * longer crosses the drift threshold that forces a repath. Steering still aims at the real destination.
+     */
+    static BlockPos quantize(BlockPos dest, int quantum) {
+        if (quantum <= 1) return dest;
+        int half = quantum / 2;
+        return new BlockPos(Math.floorDiv(dest.getX() + half, quantum) * quantum, dest.getY(),
+                Math.floorDiv(dest.getZ() + half, quantum) * quantum);
+    }
+
+    private static int pathDestQuantum() {
+        try {
+            return SewvConfig.PATH_DEST_QUANTUM.get();
+        } catch (Throwable unbaked) {
+            return 0;
+        }
+    }
+
+    /** See {@link #farIdle}. Also halves the terrain sensor's column refresh rate. */
+    public void setFarIdle(boolean farIdle) {
+        this.farIdle = farIdle;
+        this.sensor.setFarIdle(farIdle);
+    }
 
     private static int pathRecalcCooldown() {
         return SewvConfig.PATH_RECALC_COOLDOWN_TICKS.get();
@@ -150,7 +191,13 @@ public final class VehicleDriver {
     private final HullFacts hull;
     private final GroundTerrainSensor sensor;
     private final GroundVehicleNodeEvaluator nodeEvaluator = new GroundVehicleNodeEvaluator();
-    private final PathFinder pathFinder = new PathFinder(this.nodeEvaluator, 512);
+    /** Rebuilt when {@code pathMaxVisitedNodes} changes (the cap is a constructor argument). */
+    private PathFinder pathFinder;
+    private int pathFinderNodes;
+    /** Game time this hull was first refused a search by {@link PathBudget}; MIN_VALUE = not waiting. */
+    private long pathWaitingSince = Long.MIN_VALUE;
+    /** Idle and far from every player ({@code groundFarLodBlocks}); set by the drive goal each tick. */
+    private boolean farIdle;
 
     private VehicleEntity vehicle;
 
@@ -421,6 +468,7 @@ public final class VehicleDriver {
         this.lastLoggedSteerTarget = null;
         this.lastPathNode = null;
         this.pathRecalcCooldown = 0;
+        this.pathWaitingSince = Long.MIN_VALUE;
         this.infantryPace = false;
         this.sensor.clear();
         clearRecovery();
@@ -432,9 +480,10 @@ public final class VehicleDriver {
      * not "stop", because stopping kills the turn ramp.
      */
     private BlockPos getSteerTarget(BlockPos dest) {
+        BlockPos pathDest = quantize(dest, pathDestQuantum());
         double targetDriftSq = this.lastPathTarget == null
                 ? Double.MAX_VALUE
-                : this.lastPathTarget.distSqr(dest);
+                : this.lastPathTarget.distSqr(pathDest);
         boolean pathStale = this.currentPath == null
                 || this.currentPath.isDone()
                 || this.pathAge > pathMaxAge()
@@ -447,7 +496,15 @@ public final class VehicleDriver {
         // Refresh on the throttle only; between refreshes keep following the path in hand (a route
         // to where the target was a few blocks ago is still a fine approximation) so steering
         // stays continuous.
-        if (pathStale && (this.pathRecalcCooldown <= 0 || destJumped)) {
+        boolean wantSearch = pathStale && (this.pathRecalcCooldown <= 0 || destJumped);
+        // pathSearchesPerTick: refused hulls keep the route in hand and ask again next tick.
+        if (wantSearch && !PathBudget.tryAcquire(this.unit.level(), this.pathWaitingSince, this.farIdle)) {
+            if (this.pathWaitingSince == Long.MIN_VALUE) this.pathWaitingSince = this.unit.level().getGameTime();
+            PathingPerf.pathDeferred++;
+            wantSearch = false;
+        }
+        if (wantSearch) {
+            this.pathWaitingSince = Long.MIN_VALUE;
             if (SewvDiag.groundPathingVerbose()) {
                 SewvDiag.pathing("repath START unit={}#{} vehicle={}#{} dest={} stale={} done={} age={} cooldown={} driftSq={} destJumped={} pathNull={}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
@@ -462,10 +519,10 @@ public final class VehicleDriver {
                         this.currentPath == null);
             }
             long t0 = System.nanoTime();
-            recomputePath(dest);
+            recomputePath(pathDest);
             PathingPerf.pathNanos += System.nanoTime() - t0;
             PathingPerf.pathCalls++;
-            this.lastPathTarget = dest;
+            this.lastPathTarget = pathDest;
             this.pathAge = 0;
             // Terrain won't have changed next tick — back off harder after a failed search.
             this.pathRecalcCooldown = this.currentPath == null ? pathFailCooldown() : pathRecalcCooldown();
@@ -564,14 +621,20 @@ public final class VehicleDriver {
 
     private void recomputePath(BlockPos target) {
         try {
+            int nodes = pathMaxVisitedNodes();
+            if (this.pathFinder == null || this.pathFinderNodes != nodes) {
+                this.pathFinder = new PathFinder(this.nodeEvaluator, nodes);
+                this.pathFinderNodes = nodes;
+            }
+            int range = pathSearchRange();
             BlockPos origin = this.vehicle.blockPosition();
             PathNavigationRegion region = new PathNavigationRegion(
                     this.unit.level(),
-                    origin.offset(-PATH_SEARCH_RANGE, -PATH_SEARCH_VERTICAL, -PATH_SEARCH_RANGE),
-                    origin.offset(PATH_SEARCH_RANGE, PATH_SEARCH_VERTICAL, PATH_SEARCH_RANGE));
+                    origin.offset(-range, -PATH_SEARCH_VERTICAL, -range),
+                    origin.offset(range, PATH_SEARCH_VERTICAL, range));
             // PathFinder.findPath() calls nodeEvaluator.prepare()/done() itself.
             this.currentPath = this.pathFinder.findPath(
-                    region, this.unit, Set.of(target), PATH_SEARCH_RANGE, 1, 1.0F);
+                    region, this.unit, Set.of(target), range, 1, 1.0F);
         } catch (Exception e) {
             this.currentPath = null;
         }

@@ -321,6 +321,9 @@ public final class TowRecoverySupport {
         }
 
         if (entity instanceof VehicleEntity dead && (!dead.isAlive() || dead.isWreck())) {
+            // Zero the grace, or a victim that went briefly missing and came back wrecked would leave
+            // towVictimGraceActive true forever and the tower parked on a dead order.
+            tow.tacz_sewv$setTowVictimGraceTicks(0);
             return null;
         }
 
@@ -504,7 +507,10 @@ public final class TowRecoverySupport {
         List<VehicleEntity> candidates = tower.level().getEntitiesOfClass(
                 VehicleEntity.class,
                 tower.getBoundingBox().inflate(radius),
-                hull -> hull != tower && needsTow(hull) && isFriendlyVictim(towerUnit, tower, hull));
+                // needs_tow outlives the hull being wrecked (nothing clears it then): skip wrecks here, not
+                // one assign/clear churn per scan later.
+                hull -> hull != tower && needsTow(hull) && !hull.isWreck()
+                        && isFriendlyVictim(towerUnit, tower, hull));
 
         return candidates.stream()
                 .min(Comparator.comparingDouble(tower::distanceToSqr))
@@ -572,6 +578,22 @@ public final class TowRecoverySupport {
         if (hull.isTowingAny() || hull.getTowedByEntity() != null) {
             hull.clearTowingInfo();
         }
+    }
+
+    /**
+     * An AI-driven tower's links exist only to serve its tow order, but SBW persists the link in NBT while the
+     * order (a network id) is transient — after a reload, or when a path that drops the order never reaches
+     * {@link #clearOrder}, the hull would drag its victim around forever. Same for a victim wrecked mid-tow:
+     * SBW happily tows wrecks (a player's towline recovery), so nothing on its side lets go. Runs off SBW's own
+     * {@code towingTick}, so it holds whether or not the drive goal is ticking. Player-driven towers are untouched.
+     */
+    public static void scrubStaleAiTow(VehicleEntity tower) {
+        if (!tower.isTowingAny() || !(tower.getFirstPassenger() instanceof AbstractUnit driver)) return;
+        boolean stale = !hasTowOrder(driver);
+        for (Entity towed : tower.getTowingEntities()) {
+            if (towed instanceof VehicleEntity v && (!v.isAlive() || v.isWreck())) stale = true;
+        }
+        if (stale) clearOrder(driver, tower);
     }
 
     public static boolean isTowTowerCandidate(VehicleEntity hull) {

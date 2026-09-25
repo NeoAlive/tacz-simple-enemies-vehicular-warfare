@@ -18,6 +18,7 @@ import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -57,6 +58,9 @@ import com.neoalive.tacz_sewv.util.WorldTargetPriority;
 public final class CombatantIndex {
 
     private static final Logger LOG = LogUtils.getLogger();
+
+    /** A wreck lower than this (a mortar tube, a flattened quad) hides nothing a hull could sit behind. */
+    private static final double WRECK_MIN_HEIGHT = 1.5;
 
     public enum Kind { HULL, MORTAR_CREW, UNIT, SOFT }
 
@@ -103,10 +107,17 @@ public final class CombatantIndex {
         final List<Entry> hulls;
         /** Hulls + mortar crews: the wide pass's subjects, ascending by id. */
         final List<Entry> subjects;
+        /** Wrecked hulls tall enough to hide behind: bounding boxes as of the rebuild (cover, not combatants). */
+        final List<AABB> wrecks;
         private final Map<Long, List<Entry>> grid = new HashMap<>();
 
         Snapshot(long builtAt, List<Entry> living, List<Entry> hulls) {
+            this(builtAt, living, hulls, List.of());
+        }
+
+        Snapshot(long builtAt, List<Entry> living, List<Entry> hulls, List<AABB> wrecks) {
             this.builtAt = builtAt;
+            this.wrecks = List.copyOf(wrecks);
             this.living = sortedById(living);
             this.hulls = sortedById(hulls);
             List<Entry> subs = new ArrayList<>(this.hulls);
@@ -123,6 +134,10 @@ public final class CombatantIndex {
 
         public List<Entry> subjects() {
             return this.subjects;
+        }
+
+        public List<AABB> wrecks() {
+            return this.wrecks;
         }
 
         /**
@@ -303,15 +318,21 @@ public final class CombatantIndex {
         }
 
         List<Entry> hulls = new ArrayList<>();
+        List<AABB> wrecks = new ArrayList<>();
         for (VehicleEntity hull : level.getEntities(EntityTypeTest.forClass(VehicleEntity.class), h -> true)) {
-            if (hull.isRemoved() || hull.isWreck()) continue;
+            if (hull.isRemoved()) continue;
+            if (hull.isWreck()) {
+                AABB box = hull.getBoundingBox();
+                if (box.getYsize() >= WRECK_MIN_HEIGHT) wrecks.add(box);
+                continue;
+            }
             if (!(hull.getFirstPassenger() instanceof LivingEntity first) || !first.isAlive()) continue;
             AbstractUnit observer = first instanceof AbstractUnit u ? u : null;
             hulls.add(new Entry(hull.getId(), Kind.HULL, hull.getX(), hull.getY(), hull.getZ(), first,
                     observer, observer != null, altitudeSlack(level, hull)));
         }
 
-        Snapshot snap = new Snapshot(now, living, hulls);
+        Snapshot snap = new Snapshot(now, living, hulls, wrecks);
         st.rebuilds++;
         st.lastRebuildNanos = System.nanoTime() - t0;
         st.lastEntryCount = (long) living.size() + hulls.size();

@@ -15,6 +15,7 @@ public final class CoverVisibilitySelfCheck {
         exposureFromSynthetic();
         keyholeNeedsAdjacentOpen();
         chunkKeyRoundTrip();
+        wreckOverlay();
 
         System.out.println("cover visibility self-check: OK");
     }
@@ -59,6 +60,21 @@ public final class CoverVisibilitySelfCheck {
         assert CoverVisibilityCache.ChunkPosKey.z(k) == 12;
         long cell = CoverVisibilityCache.cellKey(5, 7); // >>1 → 2, 3
         assert cell == net.minecraft.core.BlockPos.asLong(2, 0, 3);
+    }
+
+    /** Wreck box 10..14 on X, straddling the line z=0: threat east at 40 is masked at 10, others are not. */
+    private static void wreckOverlay() {
+        java.util.List<net.minecraft.world.phys.AABB> w =
+                java.util.List.of(new net.minecraft.world.phys.AABB(10, 0, -2, 14, 3, 2));
+        int max = CoverVisibilityCache.MAX_RANGE;
+        assertNear(10.0, CoverQuery.wreckDistance(w, 0, 0, 40, 0), "wreck on the line: entry distance");
+        assertNear(max, CoverQuery.wreckDistance(w, 0, 0, -40, 0), "wreck behind the hull: no cover");
+        assertNear(max, CoverQuery.wreckDistance(w, 0, 0, 8, 0), "threat in front of the wreck: no cover");
+        assertNear(max, CoverQuery.wreckDistance(w, 0, 10, 40, 10), "line passes beside the wreck");
+        assertNear(0.0, CoverQuery.wreckDistance(w, 12, 0, 40, 0), "inside the box: fully masked");
+        assertNear(max, CoverQuery.wreckDistance(java.util.List.of(), 0, 0, 40, 0), "no wrecks");
+        double diag = CoverQuery.wreckDistance(w, 0, -12, 24, 12); // 45°, enters box at x=10,z=-2
+        assertNear(Math.sqrt(200), diag, "diagonal entry");
     }
 
     private static void assertNear(double expected, double actual, String label) {

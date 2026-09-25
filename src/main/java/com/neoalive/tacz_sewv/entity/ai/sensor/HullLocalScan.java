@@ -5,22 +5,22 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
 /**
- * One LivingEntity AABB fill per hull per scan interval, shared by target acquisition and
+ * One LivingEntity fill per hull per scan interval, shared by target acquisition and
  * {@link com.neoalive.tacz_sewv.entity.ai.utility.Facts} force counts.
  *
- * <p>Keyed on hull network id. Identity mismatch (via {@link Level#getEntity(int)}) or expiry
+ * <p>The fill is a query of {@link CombatantIndex}'s snapshot (no world query). Keyed on hull network id. Identity mismatch (via {@link Level#getEntity(int)}) or expiry
  * forces a refill; hits are free list reuse. No live {@link VehicleEntity} is stored — leave-level
  * {@link #invalidate(int)} plus server-stop {@link #clearAll()} drop abandoned rows. Counters
  * expose fill vs hit rate for Spark-adjacent MSPT diagnosis.
@@ -91,14 +91,21 @@ public final class HullLocalScan {
             BY_HULL.remove(id, e);
         }
 
+        // Fill from the per-level combatant index, never from a world query. No snapshot yet (first tick
+        // of a level, or after a stop/reload) means "nothing known": answer empty and do NOT cache it, or
+        // the emptiness would stand for a whole scan interval.
+        CombatantIndex.Snapshot snapshot = CombatantIndex.snapshot(level);
+        if (snapshot == null) return new Entry();
+
         double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
         double halfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
         double slack = altitudeSlack(v);
-        AABB bounds = new AABB(
-                v.getX() - radius, v.getY() - halfHeight - slack, v.getZ() - radius,
-                v.getX() + radius, v.getY() + halfHeight, v.getZ() + radius);
-
-        List<LivingEntity> living = level.getEntitiesOfClass(LivingEntity.class, bounds, LivingEntity::isAlive);
+        List<LivingEntity> living = new ArrayList<>();
+        for (CombatantIndex.Entry found : snapshot.query(v.getX(), v.getZ(), radius,
+                v.getY() - halfHeight - slack, v.getY() + halfHeight)) {
+            LivingEntity le = found.living;
+            if (le != null && le.isAlive()) living.add(le);
+        }
         int interval = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
 
         Entry fresh = new Entry();
@@ -116,7 +123,9 @@ public final class HullLocalScan {
     }
 
     private static double altitudeSlack(VehicleEntity v) {
-        if (!HullFacts.isHelicopterHull(v) && !HullFacts.isPlaneHull(v)) {
+        // Cached engine type, not isHelicopterHull/isPlaneHull: those re-run computed() on every call.
+        EngineType type = HullFacts.engineType(v);
+        if (type != EngineType.HELICOPTER && type != EngineType.AIRCRAFT) {
             return 0.0;
         }
         int surface = v.level().getHeight(Heightmap.Types.WORLD_SURFACE, v.getBlockX(), v.getBlockZ());

@@ -264,6 +264,24 @@ tasks.register('selfCheckPlane', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckContactBoard', JavaExec) {
+    group = 'verification'
+    description = 'Runs the contact-board store self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoardSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckWideScan', JavaExec) {
+    group = 'verification'
+    description = 'Runs the wide-detection (index + pair pass) self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.sensor.FactionWideScanSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckOuterRing', JavaExec) {
     group = 'verification'
     description = 'Runs the outer-ring band stagger self-check.'
@@ -405,7 +423,7 @@ tasks.register('selfCheckTerritory', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory'
+    dependsOn 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory'
 }
 
 mixin {

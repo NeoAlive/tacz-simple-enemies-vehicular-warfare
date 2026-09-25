@@ -178,6 +178,14 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_HEIGHT;
     public static final ForgeConfigSpec.IntValue VEHICLE_TARGET_SCAN_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TARGET_REQUIRE_LOS;
+    public static final ForgeConfigSpec.BooleanValue CONTACT_BOARD_ENABLED;
+    public static final ForgeConfigSpec.IntValue CONTACT_BOARD_TTL_TICKS;
+    public static final ForgeConfigSpec.DoubleValue CONTACT_BOARD_CLOSE_BAND;
+    public static final ForgeConfigSpec.DoubleValue CONTACT_BOARD_MOVE_THRESHOLD;
+    public static final ForgeConfigSpec.BooleanValue WIDE_SCAN_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue WIDE_SCAN_RADIUS;
+    public static final ForgeConfigSpec.IntValue WIDE_SCAN_CADENCE_TICKS;
+    public static final ForgeConfigSpec.IntValue COMBATANT_INDEX_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_ALLY_ASSIST_RANGE;
     public static final ForgeConfigSpec.BooleanValue STALEMATE_BREAKER_ENABLED;
     public static final ForgeConfigSpec.IntValue STALEMATE_SILENCE_TICKS;
@@ -777,6 +785,40 @@ public final class SewvConfig {
                 .defineInRange("vehicleTargetScanIntervalTicks", 30, 1, 200);
         VEHICLE_TARGET_REQUIRE_LOS = builder.comment("Crewed vehicles only lock enemies they can see (no wall hacks).")
                 .define("vehicleTargetRequireLineOfSight", true);
+        CONTACT_BOARD_ENABLED = builder.comment(
+                        "Faction contact board: what one unit has spotted, the rest of its side may act on.",
+                        "Beyond contactBoardCloseBand a crew locks a board contact without its own line of sight",
+                        "(it still cannot FIRE without one). Off = every crew relies on its own eyes.")
+                .define("contactBoardEnabled", true);
+        CONTACT_BOARD_TTL_TICKS = builder.comment(
+                        "How long (game ticks) a directly-sighted contact stays on the board without being",
+                        "re-seen. Heard/relayed contacts are held for a fraction of this.")
+                .defineInRange("contactBoardTtlTicks", 200, 40, 1200);
+        CONTACT_BOARD_CLOSE_BAND = builder.comment(
+                        "Inside this distance (blocks) a board contact must also pass the crew's own line of",
+                        "sight: 'aware of a soldier through the wall next to me' is noise, not intelligence.")
+                .defineInRange("contactBoardCloseBand", 24.0, 0.0, 96.0);
+        CONTACT_BOARD_MOVE_THRESHOLD = builder.comment(
+                        "A known contact is only re-published after moving this far (blocks); keeps the board",
+                        "at one write per observer event instead of one per tick.")
+                .defineInRange("contactBoardMoveThreshold", 6.0, 1.0, 32.0);
+        WIDE_SCAN_ENABLED = builder.comment(
+                        "Wide detection: crewed vehicles detect each other out to wideScanRadius with no raycast.",
+                        "Off = only the close scan and setTarget locks feed the contact board.")
+                .define("wideScanEnabled", true);
+        WIDE_SCAN_RADIUS = builder.comment(
+                        "How far (blocks) crewed vehicles detect each other. HARD SERVER DEPENDENCY: both entities must be",
+                        "loaded (view-distance) and ticking (simulation-distance). 256 needs both >= 16 chunks; on a",
+                        "stock 10/10 server the effective range is about 160. A warning is logged at startup.")
+                .defineInRange("wideScanRadius", 256.0, 96.0, 512.0);
+        WIDE_SCAN_CADENCE_TICKS = builder.comment(
+                        "How often (game ticks) contacts beyond vehicleTargetScanRadius are re-published.",
+                        "Clamped to half the PROXIMITY contact life (a warning is logged if it is).")
+                .defineInRange("wideScanCadenceTicks", 40, 10, 100);
+        COMBATANT_INDEX_INTERVAL_TICKS = builder.comment(
+                        "How often (game ticks) the per-level combatant index is rebuilt. Hull scans read this snapshot,",
+                        "so it bounds how stale their candidate lists can be.")
+                .defineInRange("combatantIndexIntervalTicks", 20, 5, 100);
         VEHICLE_ALLY_ASSIST_RANGE = builder.comment("How far (blocks) to count nearby allies when deciding to hold or fall back.")
                 .defineInRange("vehicleAllyAssistRange", 128.0, 0.0, 256.0);
         STALEMATE_BREAKER_ENABLED = builder.comment("If a crew cannot hit its target for a while, move to a better angle.")

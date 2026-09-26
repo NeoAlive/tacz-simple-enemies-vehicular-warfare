@@ -251,6 +251,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue INFLUENCE_MAX_CELLS;
     public static final ForgeConfigSpec.IntValue MIN_PLAY_TICKS;
     public static final ForgeConfigSpec.DoubleValue PLAY_SWITCH_MARGIN;
+    public static final ForgeConfigSpec.DoubleValue TACTICAL_SCALE;
 
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
     public static final ForgeConfigSpec.DoubleValue HELI_MAX_DEPRESSION_DEG;
@@ -995,6 +996,11 @@ public final class SewvConfig {
                 .defineInRange("minPlayTicks", 200, 20, 2400);
         PLAY_SWITCH_MARGIN = builder.comment("How much better a new battle plan must score to replace the current one.")
                 .defineInRange("playSwitchMargin", 10.0, 0.0, 100.0);
+        TACTICAL_SCALE = builder.comment(
+                        "Multiplies every battle-group distance (join/leave/size/engagement radii, influence cells, flank,",
+                        "support and withdraw points) and ground crews' engagement rings (armour 40, infantry 15).",
+                        "1.0 = the original geometry; 2.0 suits the 256-block wide detection.")
+                .defineInRange("tacticalScale", 2.0, 0.5, 4.0);
         builder.pop();
 
         builder.push("platoon");

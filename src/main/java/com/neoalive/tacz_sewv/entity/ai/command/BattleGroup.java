@@ -25,6 +25,9 @@ public final class BattleGroup {
     private double lastInfluenceCentroidZ = Double.NaN;
     private int lastMemberFingerprint;
     private boolean hasInfluenceStamp;
+    private long lastInfluenceTick = Long.MIN_VALUE;
+    /** Highest weighted enemy strength faced since the group formed (Pursuit's collapse test). */
+    private double peakEnemyWeight;
 
     @Nullable
     private PlayId currentPlay;
@@ -77,21 +80,33 @@ public final class BattleGroup {
         return this.influenceMap;
     }
 
-    /** True when the group changed enough that its cached influence field is no longer reusable. */
-    boolean needsInfluenceRebuild(double movementThreshold) {
+    /**
+     * True when the cached influence field is no longer reusable: membership changed, the group moved, or it is
+     * older than {@code maxAgeTicks}. The age bound matters because only OUR side is fingerprinted — a group
+     * holding still kept its enemy centroid, counts and flank marks from formation until it dissolved.
+     */
+    boolean needsInfluenceRebuild(double movementThreshold, long nowTick, long maxAgeTicks) {
         int fingerprint = memberFingerprint();
         if (!this.hasInfluenceStamp || fingerprint != this.lastMemberFingerprint) return true;
+        if (nowTick - this.lastInfluenceTick >= maxAgeTicks || nowTick < this.lastInfluenceTick) return true;
         double dx = this.centroidX - this.lastInfluenceCentroidX;
         double dz = this.centroidZ - this.lastInfluenceCentroidZ;
         return dx * dx + dz * dz > movementThreshold * movementThreshold;
     }
 
     /** Stamp only after a successful influence rebuild. */
-    void markInfluenceRebuilt() {
+    void markInfluenceRebuilt(long nowTick) {
         this.lastInfluenceCentroidX = this.centroidX;
         this.lastInfluenceCentroidZ = this.centroidZ;
         this.lastMemberFingerprint = memberFingerprint();
         this.hasInfluenceStamp = true;
+        this.lastInfluenceTick = nowTick;
+    }
+
+    /** Record this rebuild's enemy strength; returns the peak so far. */
+    double notePeakEnemy(double enemyWeight) {
+        this.peakEnemyWeight = Math.max(this.peakEnemyWeight, enemyWeight);
+        return this.peakEnemyWeight;
     }
 
     private int memberFingerprint() {

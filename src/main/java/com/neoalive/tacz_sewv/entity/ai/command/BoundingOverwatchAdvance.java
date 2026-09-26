@@ -30,9 +30,10 @@ public final class BoundingOverwatchAdvance implements Play {
 
     @Override
     public Roles assignRoles(BattleField bf, GroupSnapshot group) {
-        // Advance point: midway toward enemy along the axis.
-        double ax = bf.friendlyCentroidX + bf.axisX * 20.0;
-        double az = bf.friendlyCentroidZ + bf.axisZ * 20.0;
+        // Advance point: one bound toward the enemy.
+        double[] advance = PlayGeometry.advancePoint(bf);
+        double ax = advance[0];
+        double az = advance[1];
         double[] overwatch = PlayGeometry.bofPoint(bf);
 
         int[] order = PlayGeometry.orderByLeft(bf, group);

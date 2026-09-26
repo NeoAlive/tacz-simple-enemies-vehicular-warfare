@@ -187,6 +187,8 @@ public final class DownedUnitPose {
                     String bedrockName = e.getKey();
                     String javaName = BONE_NAMES.get(bedrockName.toLowerCase(Locale.ROOT));
                     if (javaName == null) {
+                        // Deliberately unmapped stale export entry (see class doc) — expected, not worth a warning.
+                        if ("root".equalsIgnoreCase(bedrockName)) continue;
                         LOGGER.warn("Downed pose {}: unmapped bone '{}'", RESOURCE, bedrockName);
                         continue;
                     }

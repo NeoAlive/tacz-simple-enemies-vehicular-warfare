@@ -44,6 +44,26 @@ public final class SewvDiag {
         return ClientConfig.flag(ClientConfig.INDIVIDUAL_TACTICS_DEBUG);
     }
 
+    /** Command tier: battle groups, plays, roles, idle clusters. Default off. */
+    public static boolean collectiveAiVerbose() {
+        return ClientConfig.flag(ClientConfig.COLLECTIVE_AI_DEBUG);
+    }
+
+    /** Per-crew utility decisions. Default off. */
+    public static boolean individualAiVerbose() {
+        return ClientConfig.flag(ClientConfig.INDIVIDUAL_AI_DEBUG);
+    }
+
+    public static void command(String msg, Object... args) {
+        if (!collectiveAiVerbose()) return;
+        LOG.info("[sewv-command] " + msg, args);
+    }
+
+    public static void crew(String msg, Object... args) {
+        if (!individualAiVerbose()) return;
+        LOG.info("[sewv-ai] " + msg, args);
+    }
+
     public static void targeting(String msg, Object... args) {
         if (!diagEnabled()) return;
         LOG.info("[sewv-diag][targeting] " + msg, args);

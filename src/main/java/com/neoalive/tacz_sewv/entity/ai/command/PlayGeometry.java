@@ -2,13 +2,25 @@ package com.neoalive.tacz_sewv.entity.ai.command;
 
 import java.util.Arrays;
 
+import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 
 /**
  * Shared geometry helpers for role assignment — sort members by lateral projection on the
  * enemy→us left axis.
+ *
+ * <p>{@link BattleField#axisX}/{@code axisZ} point from the enemy centroid TO ours, so "toward the enemy" is
+ * {@code -axis}. The first version stepped along {@code +axis} and put every withdraw point in front of the group
+ * and every support point behind it (confirmed by the playtest log's per-point distances). Distances scale with
+ * {@link TacticalScale}.
  */
 public final class PlayGeometry {
+
+    static final double BOF_STEP = 8.0;
+    static final double WITHDRAW_STEP = 24.0;
+    static final double ADVANCE_STEP = 20.0;
+    /** Spacing of support tanks laid on a firing line across the axis. */
+    static final double LINE_SPACING = 16.0;
 
     private PlayGeometry() {}
 
@@ -32,19 +44,25 @@ public final class PlayGeometry {
         return out;
     }
 
-    /** Hold / BoF point: friendly centroid stepped a bit toward the enemy along the axis. */
+    /** Hold / BoF point: friendly centroid stepped a bit toward the enemy. */
     static double[] bofPoint(BattleField bf) {
-        return new double[]{
-                bf.friendlyCentroidX + bf.axisX * 8.0,
-                bf.friendlyCentroidZ + bf.axisZ * 8.0
-        };
+        return towardEnemy(bf, TacticalScale.of(BOF_STEP));
     }
 
-    /** Withdraw point: back along the axis away from the enemy. */
+    /** Withdraw point: back away from the enemy. */
     static double[] withdrawPoint(BattleField bf) {
-        return new double[]{
-                bf.friendlyCentroidX - bf.axisX * 24.0,
-                bf.friendlyCentroidZ - bf.axisZ * 24.0
+        return towardEnemy(bf, -TacticalScale.of(WITHDRAW_STEP));
+    }
+
+    /** Bounding advance point: one bound toward the enemy. */
+    static double[] advancePoint(BattleField bf) {
+        return towardEnemy(bf, TacticalScale.of(ADVANCE_STEP));
+    }
+
+    private static double[] towardEnemy(BattleField bf, double distance) {
+        return new double[] {
+                bf.friendlyCentroidX - bf.axisX * distance,
+                bf.friendlyCentroidZ - bf.axisZ * distance
         };
     }
 

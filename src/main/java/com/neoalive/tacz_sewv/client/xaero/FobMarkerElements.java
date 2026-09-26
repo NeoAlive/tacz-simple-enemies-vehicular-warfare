@@ -37,7 +37,7 @@ public final class FobMarkerElements {
     private static final int RENDER_BOX = 20;
     private static final int ICON = 22;
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(TaczSewv.MODID, "textures/map/fob.png");
+            new ResourceLocation(TaczSewv.MODID, "textures/map/xaeros_icon_fob.png");
 
     public static final Renderer INSTANCE = new Renderer();
 

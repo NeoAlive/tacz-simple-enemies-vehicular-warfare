@@ -5,11 +5,10 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.mojang.logging.LogUtils;
 import net.minecraft.util.Mth;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
@@ -32,9 +31,8 @@ public final class TacticalBrain {
 
     private static final int MIN_PLAN_TICKS = 40;
     private static final double SWITCH_MARGIN = 10.0;
-    private static final boolean DEBUG_LOGGING = false;
-
-    private static final Logger LOGGER = LogUtils.getLogger();
+    /** {@code individualAiDebug}: an unchanged plan is re-logged at most this often per crew. */
+    private static final long DEBUG_HEARTBEAT_TICKS = 200;
 
     /** How long a hit still counts as "recently hit", for the smoke and retreat signals. */
     private static final long RECENT_HIT_TICKS = 100;
@@ -62,6 +60,8 @@ public final class TacticalBrain {
     private long planStarted = Long.MIN_VALUE;
     /** Game time of the last sample, so the feasibility gates can age the memory stamps. */
     private long lastSampledTick = Long.MIN_VALUE;
+    /** Game time of the last decision log line. */
+    private long lastLoggedTick = Long.MIN_VALUE;
 
     /**
      * Re-read the battlefield and, if it is time, re-decide.
@@ -188,7 +188,8 @@ public final class TacticalBrain {
                 Mth.clamp(1.0 / Math.max(f.forceRatio, 1.0E-3) - 1.0, 0.0, 1.0);
         // Beyond the first, each enemy is more pressure — but the difference between four and ten
         // is not something a tank commander meaningfully distinguishes.
-        s[Signal.THREAT_DENSITY.ordinal()] = Mth.clamp((f.enemies - 1) / 4.0, 0.0, 1.0);
+        // Weighted like forceRatio: three riflemen press like one hull.
+        s[Signal.THREAT_DENSITY.ordinal()] = Mth.clamp((f.enemyWeight - 1) / 4.0, 0.0, 1.0);
         s[Signal.ALLIES_NEARBY.ordinal()] = Math.min(f.allies, 3) / 3.0;
         s[Signal.ALONE.ordinal()] = f.allies == 0 ? 1.0 : 0.0;
 
@@ -289,6 +290,7 @@ public final class TacticalBrain {
         // crew whose best option only ever beats it by a few points sits still for good — which is
         // exactly what "idle units look static" turned out to be.
         boolean neverPlanned = this.planStarted == Long.MIN_VALUE;
+        Action before = this.plan;
 
         boolean planStillValid = this.feasible[this.plan.ordinal()];
         double current = planStillValid ? this.scores[this.plan.ordinal()] : bestScore;
@@ -308,7 +310,12 @@ public final class TacticalBrain {
             onIdlePlanAdopted(unit);
         }
 
-        if (DEBUG_LOGGING) logDecision(unit, doctrine);
+        if (SewvDiag.individualAiVerbose()
+                && (this.plan != before || neverPlanned
+                        || Facts.ticksSince(this.lastLoggedTick, now) >= DEBUG_HEARTBEAT_TICKS)) {
+            this.lastLoggedTick = now;
+            logDecision(unit, doctrine);
+        }
     }
 
     /** Align hull NBT with a freshly adopted idle/search plan. */
@@ -443,9 +450,11 @@ public final class TacticalBrain {
                .append(String.format("%.1f", this.scores[ranked.get(i).ordinal()]));
         }
 
-        LOGGER.info("[sewv-ai] {}#{} plan={} conf={} hp={} ammo={} allies={} enemies={} range={}"
+        CrewAssignment.Snapshot task = CrewAssignment.of(unit.getId());
+        SewvDiag.crew("{}#{} plan={} task={} conf={} hp={} ammo={} allies={} enemies={} range={}"
                         + " | best: {} | blocked: {} | {}",
                 unit.getType().toShortString(), unit.getId(), this.plan.key,
+                task == null ? "-" : task.role() + (task.flankSide() == null ? "" : "/" + task.flankSide()),
                 String.format("%.0f", this.facts.confidence),
                 String.format("%.2f", this.facts.health),
                 this.facts.ammo + "(" + this.facts.ammoCount + ")",

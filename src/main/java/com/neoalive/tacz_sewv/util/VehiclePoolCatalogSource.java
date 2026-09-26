@@ -63,6 +63,21 @@ public final class VehiclePoolCatalogSource {
         }
     }
 
+    /**
+     * The engine class of a registered entity type ({@code WHEEL}, {@code HELICOPTER}, ...), or null when
+     * the id is not registered or SBW has no vehicle data for it. The pool editor uses it to flag an id
+     * sitting in the wrong class of pool.
+     */
+    @Nullable
+    public static EngineType engineOf(ResourceLocation id) {
+        try {
+            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.containsKey(id) ? ForgeRegistries.ENTITY_TYPES.getValue(id) : null;
+            return type == null ? null : engineTypeOf(type);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     @Nullable
     private static EngineType engineTypeOf(EntityType<?> type) {
         return VehicleData.getDefault(type).getEngineType();

@@ -13,6 +13,11 @@ description='''${mod_description}'''
 [[mixins]]
 config="tacz_sewv.mixins.json"
 
+# Unit loadout manager: hooks SEM's UnitLoadoutManager.apply (raw JSON, upstream of SEM Extended and the
+# Berezka config mod). Separate config ("required": false, defaultRequire 0) — see loadout/LoadoutManager.
+[[mixins]]
+config="tacz_sewv.loadouts.mixins.json"
+
 # Xaero's World Map compat. Separate config ("required": false) + XaeroMixinPlugin (LoadingModList
 # gate on mod id xaeroworldmap) so an absent World Map never queues MixinGuiMap*.
 [[mixins]]

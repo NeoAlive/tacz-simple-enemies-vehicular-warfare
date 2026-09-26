@@ -7,6 +7,7 @@ import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
@@ -184,6 +185,15 @@ public class TaczSewv {
         ConfigMigration.applyServer();
         // SEM's recruit economy (used by medic capture feature).
         SemRecruitCost.refresh();
+    }
+
+    /**
+     * SEM's loadout files are parsed before any level exists, so the world's loadout layer cannot be
+     * merged in on that first pass — apply it now. See {@code loadout/LoadoutManager}.
+     */
+    @SubscribeEvent
+    public void onServerStarted(ServerStartedEvent event) {
+        com.neoalive.tacz_sewv.loadout.LoadoutManager.reapply(event.getServer());
     }
 
     // Every unit reaches the world through here, whichever door it came in by, which is what makes

@@ -109,7 +109,17 @@ public class SewvCommand {
                         .then(Commands.literal("vehicles")
                                 .executes(ctx -> openPoolEditor(ctx.getSource())))
                         .then(Commands.literal("misc")
-                                .executes(ctx -> openMiscEditor(ctx.getSource()))))
+                                .executes(ctx -> openMiscEditor(ctx.getSource())))
+                        // Unit loadout manager: SEM / SEM Extended / Simple Enemy Mod Config, one screen.
+                        .then(Commands.literal("weapons")
+                                .executes(ctx -> openLoadoutEditor(ctx.getSource()))
+                                .then(Commands.literal("export")
+                                        .then(Commands.literal("ru")
+                                                .executes(ctx -> exportLoadouts(ctx.getSource(), TankFaction.RU)))
+                                        .then(Commands.literal("us")
+                                                .executes(ctx -> exportLoadouts(ctx.getSource(), TankFaction.US)))
+                                        .then(Commands.literal("pmc")
+                                                .executes(ctx -> exportLoadouts(ctx.getSource(), TankFaction.PMC))))))
                 .then(Commands.literal("targetingAllow")
                         .requires(source -> source.hasPermission(2))
                         .executes(ctx -> openTargetPriority(ctx.getSource())))
@@ -366,6 +376,24 @@ public class SewvCommand {
             return 0;
         }
         return com.neoalive.tacz_sewv.invasion.MiscEditorAccess.open(player);
+    }
+
+    private static int openLoadoutEditor(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.pool.player_only"));
+            return 0;
+        }
+        return com.neoalive.tacz_sewv.loadout.LoadoutEditorAccess.open(player);
+    }
+
+    private static int exportLoadouts(CommandSourceStack source, TankFaction faction) {
+        java.nio.file.Path out = com.neoalive.tacz_sewv.loadout.LoadoutEditorAccess.export(source.getServer(), faction);
+        if (out == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.loadout.export_failed"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.loadout.exported", out.toString()), true);
+        return 1;
     }
 
     private static int openTargetPriority(CommandSourceStack source) {

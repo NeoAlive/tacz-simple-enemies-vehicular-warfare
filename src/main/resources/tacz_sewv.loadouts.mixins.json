@@ -1,0 +1,14 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.neoalive.tacz_sewv.mixin.loadout",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "MixinUnitLoadoutManager"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

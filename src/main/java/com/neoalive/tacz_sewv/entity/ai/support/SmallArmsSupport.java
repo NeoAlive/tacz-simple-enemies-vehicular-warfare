@@ -248,7 +248,10 @@ public final class SmallArmsSupport {
     private static Item weaponFor(AbstractUnit unit) {
         String id;
         if (unit instanceof RUunitEntity) {
-            id = SewvConfig.AT_WEAPON_RU.get();
+            String air = SewvConfig.AT_AIR_WEAPON_RU.get();
+            boolean issueAir = air != null && !air.isBlank()
+                    && unit.getRandom().nextDouble() < SewvConfig.AT_AIR_GUNNER_CHANCE.get();
+            id = issueAir ? air : SewvConfig.AT_WEAPON_RU.get();
         } else if (unit instanceof USunitEntity) {
             id = SewvConfig.AT_WEAPON_US.get();
         } else {

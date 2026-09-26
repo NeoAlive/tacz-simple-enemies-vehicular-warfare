@@ -119,6 +119,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue PLAYER_SELF_RAPPEL_WITH_UNITS;
     public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_RU;
     public static final ForgeConfigSpec.ConfigValue<String> AT_WEAPON_US;
+    public static final ForgeConfigSpec.ConfigValue<String> AT_AIR_WEAPON_RU;
+    public static final ForgeConfigSpec.DoubleValue AT_AIR_GUNNER_CHANCE;
     public static final ForgeConfigSpec.DoubleValue AT_SECOND_GUNNER_CHANCE;
     public static final ForgeConfigSpec.IntValue AT_BACKUP_AMMO;
     public static final ForgeConfigSpec.DoubleValue AT_ENGAGE_RANGE;
@@ -662,6 +664,10 @@ public final class SewvConfig {
                 .define("atWeaponRu", "superbwarfare:rpg");
         AT_WEAPON_US = builder.comment("Rocket/missile launcher given to US soldiers who leave the vehicle to fight tanks.")
                 .define("atWeaponUs", "superbwarfare:javelin");
+        AT_AIR_WEAPON_RU = builder.comment("Anti-air launcher some RU AT gunners carry instead of the anti-tank one. Blank = none.")
+                .define("atAirWeaponRu", "superbwarfare:igla");
+        AT_AIR_GUNNER_CHANCE = builder.comment("Chance an RU AT gunner is issued the anti-air launcher (atAirWeaponRu) instead of atWeaponRu.")
+                .defineInRange("atAirGunnerChance", 0.3, 0.0, 1.0);
         AT_SECOND_GUNNER_CHANCE = builder.comment("Chance a dismounted squad gets a second anti-tank gunner.")
                 .defineInRange("atSecondGunnerChance", 0.5, 0.0, 1.0);
         AT_BACKUP_AMMO = builder.comment("Extra rockets or missiles each anti-tank gunner is given.")

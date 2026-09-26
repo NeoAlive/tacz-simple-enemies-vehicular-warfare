@@ -362,6 +362,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.AT_WEAPON_RU, SewvConfig.AT_WEAPON_RU::set);
         b.resourceId(ConfigScope.SERVER, "crew_ai", "atWeaponUs",
                 SewvConfig.AT_WEAPON_US, SewvConfig.AT_WEAPON_US::set);
+        b.resourceId(ConfigScope.SERVER, "crew_ai", "atAirWeaponRu",
+                SewvConfig.AT_AIR_WEAPON_RU, SewvConfig.AT_AIR_WEAPON_RU::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "atAirGunnerChance", 0.0, 1.0,
+                SewvConfig.AT_AIR_GUNNER_CHANCE, SewvConfig.AT_AIR_GUNNER_CHANCE::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "atSecondGunnerChance", 0.0, 1.0,
                 SewvConfig.AT_SECOND_GUNNER_CHANCE, SewvConfig.AT_SECOND_GUNNER_CHANCE::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "atBackupAmmo", 1, 64,

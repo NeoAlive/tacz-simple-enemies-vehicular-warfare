@@ -447,15 +447,27 @@ tasks.register('selfCheckTerritory', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckLoadout', JavaExec) {
+    group = 'verification'
+    description = 'Runs the unit-loadout layer merge self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.loadout.LoadoutMergeSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckTaskedDestination', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory'
+    dependsOn 'selfCheckLoadout', 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckTaskedDestination', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory'
 }
 
 mixin {
     add sourceSets.main, "tacz_sewv.refmap.json"
     config "tacz_sewv.mixins.json"
+    // Loadout manager hook on SEM's UnitLoadoutManager.apply — own optional config, defaultRequire 0,
+    // so a SEM build without that class costs a warning, not a failed start. See loadout/LoadoutManager.
+    config "tacz_sewv.loadouts.mixins.json"
     // Separate config + XaeroMixinPlugin gate — World Map is optional; main config is required.
     config "tacz_sewv.xaero.mixins.json"
     // Separate config + KomodoMixinPlugin gate — Komodo is optional and targeted by string name

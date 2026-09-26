@@ -113,7 +113,8 @@ public class NetworkHandler {
     // 91: Territory manual Frontline — MANUAL_FRONTLINE / CLEAR_LINE actions + drawn line in PacketTerritoryState.
     // 92: Advance Plan — PLAN_* actions in PacketTerritoryCommand + the plan block in PacketTerritoryState.
     // 93: Advance Plan skip-layer — PLAN_SKIP action.
-    private static final String PROTOCOL_VERSION = "93";
+    // 94: PacketOpenLoadoutEditor (S->C) + PacketUpdateLoadouts (C->S) — /sewv pool weapons loadout manager.
+    private static final String PROTOCOL_VERSION = "94";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -706,6 +707,20 @@ public class NetworkHandler {
                 PacketTerritoryState::encode,
                 PacketTerritoryState::new,
                 PacketTerritoryState::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOpenLoadoutEditor.class,
+                PacketOpenLoadoutEditor::encode,
+                PacketOpenLoadoutEditor::new,
+                PacketOpenLoadoutEditor::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketUpdateLoadouts.class,
+                PacketUpdateLoadouts::encode,
+                PacketUpdateLoadouts::new,
+                PacketUpdateLoadouts::handle
         );
     }
 }

@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -66,11 +67,13 @@ public final class LoadoutMerge {
     /**
      * @param raw       file id → parsed JSON as SEM's listener saw it (never mutated here)
      * @param layers    folder ({@code ru_units}…) → layer; rows must already be validated
+     * @param isSbw     gun id → an SBW gun. Those rows never reach SEM (its equipper can only build
+     *                  TACZ guns and would leave the unit empty-handed); see {@link #sbwPool}
      * @param extended  SEM Extended present: emit {@code weight}; otherwise weight becomes duplicate
      *                  entries, because base SEM picks uniformly (emitting both would double-count)
      */
     public static Map<String, JsonElement> merge(Map<String, JsonElement> raw, Map<String, Faction> layers,
-                                                 boolean extended) {
+                                                 boolean extended, Predicate<String> isSbw) {
         Map<String, JsonElement> out = new LinkedHashMap<>();
         for (var e : raw.entrySet()) {
             String fileId = e.getKey();
@@ -80,19 +83,74 @@ public final class LoadoutMerge {
                 continue;
             }
             // An empty REPLACE must not leave the faction with no pool at all.
-            if (f.replace && hasLiveRows(f)) continue;
+            if (f.replace && hasLiveRows(f, isSbw)) continue;
             out.put(fileId, withoutHidden(fileId, f, e.getValue()));
         }
         for (var e : layers.entrySet()) {
             Faction f = e.getValue();
-            if (!f.managed || !hasLiveRows(f)) continue;
-            out.put(layerFileId(e.getKey()), layerFile(f, extended));
+            if (!f.managed || !hasLiveRows(f, isSbw)) continue;
+            out.put(layerFileId(e.getKey()), layerFile(f, extended, isSbw));
         }
         return out;
     }
 
-    private static boolean hasLiveRows(Faction f) {
-        return f.rows.stream().anyMatch(r -> r.weight > 0);
+    /** A faction's SBW rows and the fraction of spawns that should draw from them. */
+    public record SbwPool(List<LoadoutRow> rows, double share) {
+        public static final SbwPool EMPTY = new SbwPool(List.of(), 0.0);
+    }
+
+    /**
+     * The SBW half of one faction's pool. SEM keeps rolling its (TACZ-only) table as usual; after
+     * spawn a unit is re-armed from {@code rows} with probability {@code share}, which makes every
+     * row's overall odds exactly what the editor's % column shows: {@code share = sbw weight /
+     * (sbw weight + weight of every entry SEM will actually roll)}.
+     *
+     * <p>SEM's entries are counted off the MERGED map, so hides, REPLACE and the Extended weight
+     * rule are already applied: with Extended an entry weighs its {@code weight}, without it every
+     * entry weighs 1 (the layer file already expanded weight into duplicates). REPLACE with no TACZ
+     * rows of its own keeps SEM's files — {@code merge} must never leave SEM an empty pool, it throws
+     * — so there the SBW rows take every spawn: share 1.
+     *
+     * @param merged {@link #merge}'s output
+     */
+    public static SbwPool sbwPool(Map<String, JsonElement> merged, String folder, Faction f,
+                                  boolean extended, Predicate<String> isSbw) {
+        if (f == null || !f.managed) return SbwPool.EMPTY;
+        List<LoadoutRow> rows = new ArrayList<>();
+        int sbwWeight = 0;
+        for (LoadoutRow r : f.rows) {
+            if (r.weight <= 0 || !isSbw.test(r.gunId)) continue;
+            rows.add(r.copy());
+            sbwWeight += Math.min(r.weight, LoadoutRow.MAX_WEIGHT);
+        }
+        if (rows.isEmpty()) return SbwPool.EMPTY;
+        if (f.replace && !hasLiveRows(f, isSbw)) return new SbwPool(List.copyOf(rows), 1.0);
+
+        double semWeight = 0;
+        for (var e : merged.entrySet()) {
+            if (!folderOf(e.getKey()).equals(folder) || !e.getValue().isJsonObject()) continue;
+            JsonObject root = e.getValue().getAsJsonObject();
+            if (!root.has("loadouts") || !root.get("loadouts").isJsonObject()) continue;
+            for (var le : root.getAsJsonObject("loadouts").entrySet()) {
+                if (!le.getValue().isJsonObject()) continue;
+                JsonObject o = le.getValue().getAsJsonObject();
+                double w = 1;
+                if (extended && o.has("weight")) {
+                    try {
+                        w = Math.max(1, o.get("weight").getAsInt()); // same floor as the editor % column
+                    } catch (RuntimeException ignored) {
+                        // SEM Extended's own default applies
+                    }
+                }
+                semWeight += w;
+            }
+        }
+        return new SbwPool(List.copyOf(rows), sbwWeight / (sbwWeight + semWeight));
+    }
+
+    /** Live TACZ rows: only those replace SEM files or go into the layer file. */
+    private static boolean hasLiveRows(Faction f, Predicate<String> isSbw) {
+        return f.rows.stream().anyMatch(r -> r.weight > 0 && !isSbw.test(r.gunId));
     }
 
     private static JsonElement withoutHidden(String fileId, Faction f, JsonElement file) {
@@ -114,10 +172,10 @@ public final class LoadoutMerge {
         return copy;
     }
 
-    private static JsonObject layerFile(Faction f, boolean extended) {
+    private static JsonObject layerFile(Faction f, boolean extended, Predicate<String> isSbw) {
         JsonObject loadouts = new JsonObject();
         for (LoadoutRow r : f.rows) {
-            if (r.weight <= 0) continue;
+            if (r.weight <= 0 || isSbw.test(r.gunId)) continue;
             int copies = extended ? 1 : Math.min(r.weight, LoadoutRow.MAX_WEIGHT);
             for (int i = 1; i <= copies; i++) {
                 JsonObject row = r.toJson();

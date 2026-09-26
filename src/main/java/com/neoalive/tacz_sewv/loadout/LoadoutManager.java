@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.loadout;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,6 +45,7 @@ public final class LoadoutManager {
     private static volatile Map<String, String> packOf = Map.of();
     private static volatile IReapplier live;
     private static volatile ResourceManager resources;
+    private static volatile Map<TankFaction, LoadoutMerge.SbwPool> sbwPools = Map.of();
     /** Main thread only: true while {@link #reapply} is inside SEM's {@code apply}. */
     private static boolean reapplying;
 
@@ -113,7 +115,15 @@ public final class LoadoutManager {
         return true;
     }
 
-    /** Null = nothing is managed, so SEM's own files must be left exactly as they are. */
+    /** The SBW half of a faction's pool ({@code NpcSbwWeapon} reads it at spawn); PMC is always empty. */
+    public static LoadoutMerge.SbwPool sbwPool(TankFaction faction) {
+        return sbwPools.getOrDefault(faction, LoadoutMerge.SbwPool.EMPTY);
+    }
+
+    /**
+     * Null = nothing is managed, so SEM's own files must be left exactly as they are. Also
+     * refreshes {@link #sbwPools}, since the SBW share depends on what SEM ends up rolling.
+     */
     @Nullable
     private static Map<String, JsonElement> mergedFor(MinecraftServer server) {
         LoadoutLayer layer = LoadoutLayer.get(server);
@@ -124,14 +134,28 @@ public final class LoadoutManager {
             LoadoutMerge.Faction f = layer.faction(folder);
             if (!f.managed) continue;
             f.rows.removeIf(r -> {
-                boolean drop = !LoadoutValidator.gunUsable(r.gunId);
-                if (drop) TaczSewv.LOGGER.warn("[sewv-loadout] {}/{}: unknown gun {}, skipped", folder, r.name, r.gunId);
+                boolean drop = !LoadoutValidator.gunUsable(r.gunId)
+                        || (faction == TankFaction.PMC && WeaponCatalogSource.isSbwGun(r.gunId));
+                if (drop) TaczSewv.LOGGER.warn("[sewv-loadout] {}/{}: unusable gun {}, skipped", folder, r.name, r.gunId);
                 return drop;
             });
             layers.put(folder, f);
         }
-        if (layers.isEmpty()) return null;
-        return LoadoutMerge.merge(snapshot, layers, extendedPresent());
+        if (layers.isEmpty()) {
+            sbwPools = Map.of();
+            return null;
+        }
+        boolean extended = extendedPresent();
+        Map<String, JsonElement> merged = LoadoutMerge.merge(snapshot, layers, extended, WeaponCatalogSource::isSbwGun);
+        Map<TankFaction, LoadoutMerge.SbwPool> pools = new EnumMap<>(TankFaction.class);
+        for (TankFaction faction : TankFaction.values()) {
+            String folder = LoadoutLayer.folderOf(faction);
+            LoadoutMerge.SbwPool pool = LoadoutMerge.sbwPool(merged, folder, layers.get(folder), extended,
+                    WeaponCatalogSource::isSbwGun);
+            if (!pool.rows().isEmpty()) pools.put(faction, pool);
+        }
+        sbwPools = pools;
+        return merged;
     }
 
     private static void replace(Map<ResourceLocation, JsonElement> into, Map<String, JsonElement> from) {

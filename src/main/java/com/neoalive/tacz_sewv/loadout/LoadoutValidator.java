@@ -30,18 +30,20 @@ public final class LoadoutValidator {
 
     private LoadoutValidator() {}
 
-    /** Merge-time gate: drop a row only when TACZ demonstrably does not know the gun. */
+    /** Merge-time gate: drop a row only when TACZ demonstrably does not know the gun (SBW guns are always known). */
     public static boolean gunUsable(String gunId) {
         if (WeaponCatalogSource.gunMeta(gunId).isPresent()) return true;
-        return WeaponCatalogSource.gunIds().isEmpty();
+        return WeaponCatalogSource.taczGunIds().isEmpty();
     }
 
     /**
      * Strict pass for a row coming from the editor. Returns the cleaned copy, or null when the row
      * cannot be salvaged; every change made is appended to {@code problems} for the action bar.
+     *
+     * @param allowSbw false for PMC: SBW rows are issued after spawn, which is RU/US only
      */
     @Nullable
-    public static LoadoutRow sanitize(LoadoutRow in, boolean extended, List<String> problems) {
+    public static LoadoutRow sanitize(LoadoutRow in, boolean extended, boolean allowSbw, List<String> problems) {
         LoadoutRow r = in.copy();
         r.name = cleanName(r.name, r.gunId);
         if (ResourceLocation.tryParse(r.gunId) == null) {
@@ -49,23 +51,35 @@ public final class LoadoutValidator {
             return null;
         }
         var meta = WeaponCatalogSource.gunMeta(r.gunId);
-        if (meta.isEmpty() && !WeaponCatalogSource.gunIds().isEmpty()) {
+        if (meta.isEmpty() && !WeaponCatalogSource.taczGunIds().isEmpty()) {
             problems.add(r.name + ": unknown gun " + r.gunId);
+            return null;
+        }
+        boolean sbw = meta.isPresent() && meta.get().sbw();
+        if (sbw && !allowSbw) {
+            problems.add(r.name + ": SuperbWarfare guns are RU/US only");
             return null;
         }
         r.weight = Math.max(1, Math.min(LoadoutRow.MAX_WEIGHT, r.weight));
         r.fireMode = r.fireMode == null ? "SEMI" : r.fireMode.toUpperCase(Locale.ROOT);
-        if (!extended && r.fireMode.equals("BURST")) {
+        // SBW rows never reach SEM's parser, so SEM's BURST limit does not apply to them.
+        if (!sbw && !extended && r.fireMode.equals("BURST")) {
             problems.add(r.name + ": BURST needs SEM Extended, set to SEMI");
             r.fireMode = "SEMI";
         }
         meta.ifPresent(m -> {
             r.ammo = Math.max(1, Math.min(r.ammo, Math.max(1, m.magazine())));
-            if (!m.fireModes().isEmpty() && m.fireModes().stream().noneMatch(f -> f.name().equals(r.fireMode))) {
-                r.fireMode = m.fireModes().get(0).name();
+            if (!m.fireModes().isEmpty() && !m.fireModes().contains(r.fireMode)) {
+                r.fireMode = m.fireModes().get(0);
                 problems.add(r.name + ": fire mode not supported by gun, set to " + r.fireMode);
             }
         });
+        if (sbw) {
+            // Attachments and armor are applied by SEM's equipper, which an SBW row never reaches.
+            if (!r.ids.isEmpty()) problems.add(r.name + ": attachments/armor are ignored on SuperbWarfare guns, removed");
+            r.ids.clear();
+            return r;
+        }
         r.ids.entrySet().removeIf(e -> !keep(r, e.getKey(), e.getValue(), problems));
         return r;
     }

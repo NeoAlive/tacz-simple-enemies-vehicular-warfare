@@ -33,6 +33,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.NpcArmor;
 import com.neoalive.tacz_sewv.crew.NpcIdentity;
 import com.neoalive.tacz_sewv.crew.NpcNvg;
+import com.neoalive.tacz_sewv.crew.NpcSbwWeapon;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.SemRecruitCost;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
@@ -204,6 +205,7 @@ public class TaczSewv {
         if (event.getEntity() instanceof AbstractUnit unit) {
             // Prefer trench floors (TrenchPathTypes.TRENCH malus 0) over open ground.
             unit.setPathfindingMalus(BlockPathTypes.WALKABLE, TrenchPathTypes.OPEN_GROUND_MALUS);
+            NpcSbwWeapon.issue(unit, event.loadedFromDisk());
             NpcArmor.issue(unit);
             NpcNvg.issue(unit);
             if (unit instanceof PmcUnitEntity pmc) NpcIdentity.issue(pmc);

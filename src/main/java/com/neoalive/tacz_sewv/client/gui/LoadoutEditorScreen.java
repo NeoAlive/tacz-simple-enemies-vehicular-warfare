@@ -163,8 +163,10 @@ public class LoadoutEditorScreen extends Screen {
         return LoadoutRow.ID_KEYS.get(this.slotIdx);
     }
 
-    /** Extra slots only do anything with SEM Extended, and its equipper only covers RU/US. */
+    /** Extra slots only do anything with SEM Extended (RU/US only); an SBW row never reaches SEM, so none apply. */
     private boolean slotUsable() {
+        LoadoutRow sel = selectedRow();
+        if (sel != null && isSbw(sel.gunId)) return false;
         return this.slotIdx < BASE_KEYS || (this.data.extended() && this.faction != TankFaction.PMC);
     }
 
@@ -336,12 +338,12 @@ public class LoadoutEditorScreen extends Screen {
 
     private List<String> fireModes(LoadoutRow r) {
         List<String> modes = new ArrayList<>();
-        WeaponCatalogSource.gunMeta(r.gunId).ifPresent(m -> m.fireModes().forEach(f -> modes.add(f.name())));
+        boolean sbw = WeaponCatalogSource.gunMeta(r.gunId).map(m -> { modes.addAll(m.fireModes()); return m.sbw(); }).orElse(false);
         if (modes.isEmpty()) {
             modes.add("AUTO");
             modes.add("SEMI");
         }
-        if (!this.data.extended()) modes.remove("BURST");
+        if (!sbw && !this.data.extended()) modes.remove("BURST");
         return modes;
     }
 
@@ -369,7 +371,7 @@ public class LoadoutEditorScreen extends Screen {
         r.name = uniqueName(gun.substring(gun.indexOf(':') + 1));
         WeaponCatalogSource.gunMeta(gun).ifPresent(m -> {
             r.ammo = Math.max(1, m.magazine());
-            if (!m.fireModes().isEmpty()) r.fireMode = m.fireModes().get(0).name();
+            if (!m.fireModes().isEmpty()) r.fireMode = m.fireModes().get(0);
         });
         layer().managed = true;
         ours().add(r);
@@ -541,12 +543,17 @@ public class LoadoutEditorScreen extends Screen {
         return p.isEmpty() ? "?" : "PACK";
     }
 
+    private static boolean isSbw(String gunId) {
+        return WeaponCatalogSource.gunMeta(gunId).map(WeaponCatalogSource.GunMeta::sbw).orElse(false);
+    }
+
     private static int tagColor(String tag) {
         return switch (tag) {
             case "SEM" -> 0xFF8FB3D9;
             case "CFG" -> 0xFFE0A050;
             case "PACK" -> 0xFFB58AE0;
             case "NATIVE" -> 0xFF7FD67F;
+            case "SBW" -> 0xFFE06A6A;
             default -> 0xFF909090;
         };
     }
@@ -554,7 +561,8 @@ public class LoadoutEditorScreen extends Screen {
     /** Spawn weight of every list entry (0 = cannot spawn), inherited first then ours. */
     private double[] weights() {
         LoadoutMerge.Faction f = layer();
-        boolean liveOurs = f.managed && ours().stream().anyMatch(r -> r.weight > 0);
+        // Mirrors LoadoutMerge: only live TACZ rows replace SEM files; SBW rows never do.
+        boolean liveOurs = f.managed && ours().stream().anyMatch(r -> r.weight > 0 && !isSbw(r.gunId));
         double[] w = new double[total()];
         for (int i = 0; i < inherited().size(); i++) {
             LoadoutManager.Inherited in = inherited().get(i);
@@ -580,9 +588,10 @@ public class LoadoutEditorScreen extends Screen {
             file = in.fileId();
         } else {
             r = ours().get(idx - inherited().size());
-            tag = "NATIVE";
+            tag = isSbw(r.gunId) ? "SBW" : "NATIVE";
         }
-        boolean unknownGun = !this.knownGuns.isEmpty() && !this.knownGuns.contains(r.gunId);
+        boolean unknownGun = (!this.knownGuns.isEmpty() && !this.knownGuns.contains(r.gunId))
+                || (this.faction == TankFaction.PMC && isSbw(r.gunId)); // SBW rows are RU/US only
         int state = unknownGun ? BAD : w[idx] > 0 ? LIVE : OFF;
         String pct = sum > 0 && w[idx] > 0 ? String.format(Locale.ROOT, "%.0f%%", 100 * w[idx] / sum) : "-";
         return new Cell(inh, tag, tagColor(tag), file, r, state, pct);

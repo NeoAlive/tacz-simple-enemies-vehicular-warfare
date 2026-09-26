@@ -29,6 +29,10 @@ public final class LoadoutMergeSelfCheck {
         weightIsDuplicatesWithoutExtendedAndAFieldWith(raw);
         unknownKeysSurviveAdopt();
         repeatedMergesNeverMutateTheCache(raw, before);
+        sbwRowsNeverReachSem(raw);
+        sbwShareMatchesWeights(raw);
+        replaceWithOnlySbwKeepsSemAndTakesEverySpawn(raw);
+        unmanagedOrNoSbwIsEmptyPool(raw);
         System.out.println("LoadoutMergeSelfCheck OK");
     }
 
@@ -59,7 +63,7 @@ public final class LoadoutMergeSelfCheck {
     }
 
     private static Map<String, JsonElement> run(Map<String, JsonElement> raw, LoadoutMerge.Faction ru, boolean ext) {
-        return LoadoutMerge.merge(raw, Map.of("ru_units", ru), ext);
+        return LoadoutMerge.merge(raw, Map.of("ru_units", ru), ext, LoadoutMergeSelfCheck::isSbw);
     }
 
     private static void unmanagedIsUntouched(Map<String, JsonElement> raw) {
@@ -128,6 +132,58 @@ public final class LoadoutMergeSelfCheck {
         f.hidden.add(LoadoutMerge.hideKey(SEM_DEFAULT, "ak"));
         for (int i = 0; i < 3; i++) run(raw, f, i % 2 == 0);
         check(raw.toString().equals(before), "merge must deep-copy: the cached raw map is never mutated");
+    }
+
+    /** Stand-in for the registry test: anything in the superbwarfare namespace is an SBW gun here. */
+    private static boolean isSbw(String gunId) {
+        return gunId.startsWith("superbwarfare:");
+    }
+
+    private static LoadoutMerge.SbwPool pool(Map<String, JsonElement> raw, LoadoutMerge.Faction f, boolean ext) {
+        return LoadoutMerge.sbwPool(run(raw, f, ext), "ru_units", f, ext, LoadoutMergeSelfCheck::isSbw);
+    }
+
+    private static void sbwRowsNeverReachSem(Map<String, JsonElement> raw) {
+        Map<String, JsonElement> out = run(raw, layer(false, "tacz:x", "superbwarfare:ak_47"), false);
+        check(!out.toString().contains("superbwarfare:"), "an SBW row must never reach SEM's files");
+        check(out.containsKey(LoadoutMerge.layerFileId("ru_units")), "the TACZ row still makes a layer file");
+        Map<String, JsonElement> sbwOnly = run(raw, layer(false, "superbwarfare:ak_47"), false);
+        check(!sbwOnly.containsKey(LoadoutMerge.layerFileId("ru_units")), "SBW-only inherit: no layer file");
+    }
+
+    private static void sbwShareMatchesWeights(Map<String, JsonElement> raw) {
+        // Inherit, no Extended: SEM rolls ak, rpk, m4 (1 each) + our TACZ row weight 2 → 2 duplicates = 5.
+        LoadoutMerge.Faction f = layer(false, "tacz:x", "superbwarfare:m_60");
+        f.rows.get(0).weight = 2;
+        f.rows.get(1).weight = 5;
+        LoadoutMerge.SbwPool p = pool(raw, f, false);
+        check(p.rows().size() == 1 && Math.abs(p.share() - 5.0 / 10.0) < 1e-9, "share = 5 / (5 + 5), got " + p.share());
+        // Extended: m4 weighs 3 and our row is one entry of weight 2 → SEM weight 1 + 1 + 3 + 2 = 7.
+        LoadoutMerge.SbwPool e = pool(raw, f, true);
+        check(Math.abs(e.share() - 5.0 / 12.0) < 1e-9, "Extended share = 5 / (5 + 7), got " + e.share());
+        // A hidden inherited entry no longer counts.
+        f.hidden.add(LoadoutMerge.hideKey(SEM_DEFAULT, "ak"));
+        check(Math.abs(pool(raw, f, false).share() - 5.0 / 9.0) < 1e-9, "hidden entries leave the denominator");
+    }
+
+    private static void replaceWithOnlySbwKeepsSemAndTakesEverySpawn(Map<String, JsonElement> raw) {
+        LoadoutMerge.Faction f = layer(true, "superbwarfare:ak_47");
+        Map<String, JsonElement> out = run(raw, f, false);
+        check(out.containsKey(SEM_DEFAULT) && out.containsKey(OTHER_PACK), "SBW-only REPLACE keeps SEM a non-empty pool");
+        check(pool(raw, f, false).share() == 1.0, "SBW-only REPLACE: every spawn takes an SBW row");
+        LoadoutMerge.Faction mixed = layer(true, "tacz:x", "superbwarfare:ak_47");
+        check(!run(raw, mixed, false).containsKey(SEM_DEFAULT), "REPLACE with a TACZ row still drops SEM's files");
+        check(Math.abs(pool(raw, mixed, false).share() - 0.5) < 1e-9, "mixed REPLACE: SBW 1 vs our TACZ 1");
+    }
+
+    private static void unmanagedOrNoSbwIsEmptyPool(Map<String, JsonElement> raw) {
+        LoadoutMerge.Faction off = layer(false, "superbwarfare:ak_47");
+        off.managed = false;
+        check(pool(raw, off, false) == LoadoutMerge.SbwPool.EMPTY, "unmanaged faction has no SBW pool");
+        check(pool(raw, layer(false, "tacz:x"), false) == LoadoutMerge.SbwPool.EMPTY, "no SBW rows, no pool");
+        LoadoutMerge.Faction zero = layer(false, "superbwarfare:ak_47");
+        zero.rows.get(0).weight = 0;
+        check(pool(raw, zero, false) == LoadoutMerge.SbwPool.EMPTY, "weight-0 SBW row is off");
     }
 
     private static void check(boolean ok, String what) {

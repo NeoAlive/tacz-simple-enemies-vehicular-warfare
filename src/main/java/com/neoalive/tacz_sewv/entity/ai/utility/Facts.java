@@ -384,12 +384,13 @@ public final class Facts {
             // stops a weaponless seat reporting itself permanently out of ammo.
             if (selected == null) return -1;
             int loaded = hull.getAmmoCount(seat);
-            if (loaded > 0 || selected.useBackpackAmmo()) return loaded;
+            if (selected.useBackpackAmmo()) return loaded;
             // A magazine weapon reads its LOADED rounds: a one-round cannon is 0 after every shot until the
-            // reload lands, and scoring that as OUT sent crews into retreat right after firing. Empty chamber
-            // with a reserve is reloading; OUT is only when the reserve is empty too.
+            // reload lands (scored OUT → retreat right after firing), and a 2-round launcher with one left read
+            // LOW. What the crew has is loaded + reserve; OUT only when both are empty.
             if (selected.hasInfiniteBackupAmmo(hull)) return Integer.MAX_VALUE;
-            return selected.countBackupAmmo(hull);
+            long total = (long) loaded + selected.countBackupAmmo(hull);
+            return (int) Math.min(Integer.MAX_VALUE, total);
         } catch (Throwable ignored) {
             return -1;
         }

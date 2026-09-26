@@ -29,7 +29,10 @@ public final class PlaySelection {
             Roles roles = incumbentRoles != null ? incumbentRoles : new Roles(new Assignment[0]);
             if (!cur.stillValid(bf, group, roles)) {
                 Result fresh = pickBest(bf, group, weights, null);
-                return new Result(fresh.play, fresh.roles, true, true,
+                // Aborted into the same play (a flank flickered shut and reopened): keep whoever still fits
+                // their role instead of re-dealing the whole group.
+                Roles next = fresh.play == incumbent ? sticky(incumbentRoles, fresh.roles) : fresh.roles;
+                return new Result(fresh.play, next, true, true,
                         "abort:" + incumbent.key + "→" + fresh.play.key);
             }
         }

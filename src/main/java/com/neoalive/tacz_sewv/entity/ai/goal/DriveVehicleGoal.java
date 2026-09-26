@@ -115,6 +115,8 @@ public class DriveVehicleGoal extends Goal {
     private long smokeUntil = Long.MIN_VALUE;
     /** Long enough for SBW to register the held decoy input and fire one volley. */
     private static final long RUN_SMOKE_TICKS = 10;
+    /** Blocks past the hull's half-width at which a posture waypoint counts as reached. */
+    private static final double POSTURE_ARRIVE_PAD = 3.0;
 
     /** Everything about actually making the hull go somewhere. See {@link VehicleDriver}. */
     private final VehicleDriver driver;
@@ -205,8 +207,9 @@ public class DriveVehicleGoal extends Goal {
         this.allyAssist.clear();
         this.driver.clear();
         this.breaker.clear();
-        this.taskLatch.reset();
-        this.taskDriving = false;
+        // taskLatch / taskDriving deliberately survive a stop: the goal stops whenever the crew is briefly
+        // between targets with nowhere to go, and resetting them re-ran the run start (log line + smoke volley)
+        // on the same point. The latch forgets on its own when the role, side or point changes.
         this.smokeUntil = Long.MIN_VALUE;
         this.outerRing.clear();
         this.awareness.clear();
@@ -693,8 +696,27 @@ public class DriveVehicleGoal extends Goal {
         }
         this.driver.setInfantryPace(false);
         logPostureSteer(now, "seekCover", seekCover, plan);
-        this.driver.navigateTo(BlockPos.containing(seekCover), this.vehicle.distanceToSqr(seekCover));
+        steerPostureTo(seekCover);
         return true;
+    }
+
+    /**
+     * Drive to a posture waypoint, or hold on it once there. {@code navigateTo} has no arrival test (only a speed
+     * ramp), and with {@code pathDestQuantum} snapping the point a hull standing on it can never quite reach it:
+     * it kept steering at a point under its own tracks, the bearing flipped every few ticks, and the hull rotated
+     * back and forth in place — the infantry-shield point, 6 blocks off a squad the tank already sat beside, did
+     * this to whole pursuit groups.
+     */
+    private void steerPostureTo(Vec3 point) {
+        double dx = point.x - this.vehicle.getX();
+        double dz = point.z - this.vehicle.getZ();
+        double arrive = this.vehicle.getBbWidth() * 0.5 + POSTURE_ARRIVE_PAD;
+        if (dx * dx + dz * dz <= arrive * arrive) {
+            this.driver.stop();
+            this.driver.clearRecovery(); // on station — not stuck
+            return;
+        }
+        this.driver.navigateTo(BlockPos.containing(point), this.vehicle.distanceToSqr(point));
     }
 
     /**
@@ -711,17 +733,18 @@ public class DriveVehicleGoal extends Goal {
         if (scoot != null) {
             this.driver.setInfantryPace(false);
             logPostureSteer(now, "scoot", scoot, plan);
-            this.driver.navigateTo(BlockPos.containing(scoot), this.vehicle.distanceToSqr(scoot));
+            steerPostureTo(scoot);
             return true;
         }
 
         Vec3 shield = this.posture.infantryShieldPoint(now);
         if (shield != null
-                && this.posture.active().contains(TacticalPosture.Tactic.INFANTRY_COVER)) {
+                && this.posture.active().contains(TacticalPosture.Tactic.INFANTRY_COVER)
+                && !taskedToMove()) {
             this.driver.setInfantryPace(this.posture.throttleInfantryPace());
             // Soften plan gate: area-hold often isn't HOLD/ATTACK but the shield point is still valid.
             logPostureSteer(now, "infantryShield", shield, plan);
-            this.driver.navigateTo(BlockPos.containing(shield), this.vehicle.distanceToSqr(shield));
+            steerPostureTo(shield);
             return true;
         }
         this.driver.setInfantryPace(false);
@@ -732,10 +755,20 @@ public class DriveVehicleGoal extends Goal {
                 && (plan == Action.HOLD || plan == Action.ATTACK || plan == Action.PATROL
                         || plan == Action.IDLE_HOLD)) {
             logPostureSteer(now, "keyhole", peek, plan);
-            this.driver.navigateTo(BlockPos.containing(peek), this.vehicle.distanceToSqr(peek));
+            steerPostureTo(peek);
             return true;
         }
         return false;
+    }
+
+    /**
+     * A play has this crew moving (flank, bound, pursuit, withdrawal). Screening the local rifle squad would pin
+     * it beside them and the group's maneuver would never happen, so the infantry shield yields to it.
+     */
+    private boolean taskedToMove() {
+        CrewAssignment.Snapshot assign = CrewAssignment.of(this.unit.getId());
+        return assign != null
+                && (assign.role() == Assignment.Role.MANEUVER || assign.role() == Assignment.Role.WITHDRAW);
     }
 
     /**
@@ -744,7 +777,8 @@ public class DriveVehicleGoal extends Goal {
      * disagree about the direction and walk the hull back and forth over the same ground.
      */
     private void logPostureSteer(long now, String kind, Vec3 dest, Action plan) {
-        if (now - this.lastPostureSteerLog < 20L) return;
+        // MIN_VALUE guard: now - Long.MIN_VALUE overflows negative, which silenced this log forever.
+        if (this.lastPostureSteerLog != Long.MIN_VALUE && now - this.lastPostureSteerLog < 20L) return;
         this.lastPostureSteerLog = now;
         if (!SewvDiag.individualTacticsVerbose()) return;
         SewvDiag.posture(

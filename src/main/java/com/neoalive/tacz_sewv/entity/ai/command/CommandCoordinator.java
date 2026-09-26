@@ -645,7 +645,12 @@ public final class CommandCoordinator {
             boolean ready = facts != null && facts.ready();
             double fitness = 0.0;
             if (ready) {
-                fitness = CommanderFitness.score(facts, x, z,
+                // The sitting commander is scored as central: commander-back keeps it with the supporting
+                // element on purpose, and letting that cost it centrality had it out-voted every few seconds —
+                // each new commander was pulled back in turn, reshuffling roles across the group.
+                boolean sitting = group.hasCommander() && group.commanderId() == memberId;
+                fitness = CommanderFitness.score(facts,
+                        sitting ? group.fitnessCentroidX() : x, sitting ? group.fitnessCentroidZ() : z,
                         group.fitnessCentroidX(), group.fitnessCentroidZ(), maxRadius, weights);
             }
             members.add(new Election.Candidate(memberId, ready, fitness));

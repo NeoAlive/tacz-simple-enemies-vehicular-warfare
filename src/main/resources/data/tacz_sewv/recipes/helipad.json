@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "Y Y",
+    "YYY",
+    "Y Y"
+  ],
+  "key": {
+    "Y": {
+      "item": "minecraft:yellow_concrete"
+    }
+  },
+  "result": {
+    "item": "tacz_sewv:helipad"
+  }
+}

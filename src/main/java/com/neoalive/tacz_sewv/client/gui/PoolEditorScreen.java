@@ -50,7 +50,7 @@ public class PoolEditorScreen extends Screen {
     /** Label + add row, candidates, buttons and padding under the sheet. */
     private static final int BELOW_GRID = 10 + 20 + 4 + CAND_LINES * CAND_H + 4 + 20 + 6;
 
-    private static final String[] COLS = {"n", "id", "name", "class", "def", "pct"};
+    private static final String[] COLS = {"n", "id", "name", "class", "def"};
 
     /** How one id reads in the sheet; resolved once per (category, id) and kept for the screen's life. */
     private record Info(String name, String engine, int state, @Nullable Component note) {}
@@ -65,6 +65,7 @@ public class PoolEditorScreen extends Screen {
     private final TabStrip factionStrip;
     private final TabStrip categoryStrip;
     private final SheetTable table;
+    private final HoverTips hoverTips = new HoverTips();
     private final Map<String, Info> infos = new HashMap<>();
     private final Map<String, String> names = new HashMap<>();
 
@@ -113,7 +114,6 @@ public class PoolEditorScreen extends Screen {
         cols.add(col("name", -2, false));
         cols.add(col("class", 46, false));
         cols.add(col("def", 28, false));
-        cols.add(col("pct", 34, true));
         this.table = new SheetTable(cols, new PoolModel(), Component.translatable("gui.tacz_sewv.pool.tip.col.st"));
     }
 
@@ -230,6 +230,7 @@ public class PoolEditorScreen extends Screen {
     protected void init() {
         VehiclePoolCatalog.ensureLoaded();
         GrenadePoolCatalog.ensureLoaded();
+        this.hoverTips.clear();
         this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
         this.left = (this.width - this.panelW) / 2;
 
@@ -253,10 +254,10 @@ public class PoolEditorScreen extends Screen {
                 Component.translatable("gui.tacz_sewv.pool.filter"));
         this.filterBox.setMaxLength(128);
         this.filterBox.setHint(Component.translatable("gui.tacz_sewv.pool.hint.search"));
-        this.filterBox.setTooltip(Tooltip.create(Component.translatable("gui.tacz_sewv.pool.tip.filter")));
         this.filterBox.setResponder(s -> refreshCandidates());
         this.filterBox.setTabCompleter(this::applyTabCompletion);
-        addRenderableWidget(this.filterBox);
+        addRenderableWidget(this.hoverTips.add(this.filterBox,
+                Component.translatable("gui.tacz_sewv.pool.tip.filter")));
         setInitialFocus(this.filterBox);
         this.filterBox.setValue(previous);
 
@@ -388,8 +389,6 @@ public class PoolEditorScreen extends Screen {
                 case "name" -> i.name();
                 case "class" -> i.engine();
                 case "def" -> isDefault(id) ? "*" : "";
-                case "pct" -> i.state() == SheetTable.BAD || liveCount == 0 ? "-"
-                        : String.format(Locale.ROOT, "%.0f%%", 100.0 / liveCount);
                 default -> "";
             };
         }
@@ -412,10 +411,6 @@ public class PoolEditorScreen extends Screen {
             out.add(Component.literal(i.name()).withStyle(ChatFormatting.YELLOW));
             out.add(Component.literal(id).withStyle(ChatFormatting.GRAY));
             if (i.note() != null) out.add(i.note());
-            if (i.state() != SheetTable.BAD) {
-                out.add(Component.translatable("gui.tacz_sewv.pool.tip.row.chance",
-                        liveCount == 0 ? "-" : String.format(Locale.ROOT, "%.0f%%", 100.0 / liveCount)));
-            }
             out.add(Component.translatable(isDefault(id)
                     ? "gui.tacz_sewv.pool.tip.row.default" : "gui.tacz_sewv.pool.tip.row.custom"));
             return out;
@@ -477,8 +472,6 @@ public class PoolEditorScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
         super.render(g, mouseX, mouseY, partialTick);
-        this.factionStrip.renderSelection(g);
-        this.categoryStrip.renderSelection(g);
         g.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 
         refreshStats();
@@ -494,6 +487,7 @@ public class PoolEditorScreen extends Screen {
 
         List<Component> tip = this.table.hoverTip(mouseX, mouseY);
         if (tip != null) SheetTable.drawTip(g, this.font, tip, mouseX, mouseY);
+        else this.hoverTips.render(g, this.font, mouseX, mouseY);
     }
 
     private void renderSummary(GuiGraphics g) {

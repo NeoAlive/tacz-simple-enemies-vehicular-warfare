@@ -83,6 +83,7 @@ public class LoadoutEditorScreen extends Screen {
     /** True while boxes are being filled from a row, so their responders do not write it back. */
     private boolean loading;
     private boolean draggingBar;
+    private final HoverTips hoverTips = new HoverTips();
     /** Short-lived feedback line (drawn over the title); the sheet itself has no room for messages. */
     @Nullable
     private Component notice;
@@ -182,6 +183,7 @@ public class LoadoutEditorScreen extends Screen {
 
     @Override
     protected void init() {
+        this.hoverTips.clear();
         this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
         this.left = (this.width - this.panelW) / 2;
         int pw = this.panelW;
@@ -309,8 +311,11 @@ public class LoadoutEditorScreen extends Screen {
         return this.colX[COLS.length - 1] + this.colW[COLS.length - 1];
     }
 
+    /** Buttons use vanilla tooltips; text boxes hover-only (a focused one would keep its tooltip open while typing). */
     private <T extends AbstractWidget> T tip(T widget, String key) {
-        widget.setTooltip(Tooltip.create(Component.translatable("gui.tacz_sewv.loadout." + key)));
+        Component text = Component.translatable("gui.tacz_sewv.loadout." + key);
+        if (widget instanceof EditBox) this.hoverTips.add(widget, text);
+        else widget.setTooltip(Tooltip.create(text));
         return widget;
     }
 
@@ -836,6 +841,7 @@ public class LoadoutEditorScreen extends Screen {
             if (row >= 0) tip = rowTip(cell(row, w, sum));
         }
         if (tip != null) drawTip(g, tip, mx, my);
+        else this.hoverTips.render(g, this.font, mx, my);
     }
 
     private List<Component> rowTip(Cell c) {

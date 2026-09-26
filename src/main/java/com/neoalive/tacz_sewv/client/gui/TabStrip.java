@@ -5,14 +5,13 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 
 /**
- * A row of tab buttons that wraps onto further rows and underlines the active one. The vanilla
- * button has no "selected" look, which is what made the old category rows hard to read.
+ * A row of tab buttons that wraps onto further rows. The active tab is the greyed-out (inactive)
+ * button — the vanilla idiom, which keeps the default button texture instead of painting over it.
  */
 final class TabStrip {
 
@@ -38,8 +37,10 @@ final class TabStrip {
         return this;
     }
 
+    /** {@code -1} leaves every tab active (used when another strip owns the selection). */
     void select(int index) {
         this.selected = index;
+        for (int i = 0; i < this.buttons.size(); i++) this.buttons.get(i).active = i != index;
     }
 
     /**
@@ -56,20 +57,14 @@ final class TabStrip {
             int col = i % perRow;
             int row = i / perRow;
             Button b = Button.builder(this.labels.get(i), btn -> {
-                this.selected = index;
+                select(index);
                 this.onSelect.accept(index);
             }).bounds(x + col * (bw + GAP), y + row * ROW_STEP, bw, BTN_H).build();
             b.setTooltip(Tooltip.create(this.tips.get(i)));
             register.accept(b);
             this.buttons.add(b);
         }
+        select(this.selected);
         return y + rowsNeeded * ROW_STEP;
-    }
-
-    /** Drawn after the widgets: a coloured bar under the active tab. */
-    void renderSelection(GuiGraphics g) {
-        if (this.selected < 0 || this.selected >= this.buttons.size()) return;
-        Button b = this.buttons.get(this.selected);
-        g.fill(b.getX(), b.getY() + b.getHeight(), b.getX() + b.getWidth(), b.getY() + b.getHeight() + 2, 0xFFFFAA00);
     }
 }

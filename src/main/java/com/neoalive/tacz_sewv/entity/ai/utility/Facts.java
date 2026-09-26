@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -171,9 +172,11 @@ public final class Facts {
     public double targetDist = Double.MAX_VALUE;
     public int allies;
     public int enemies;
+    /** Enemy strength: hulls 1, riflemen on foot 1/3 ({@code CrewFacts.combatantWeight}). */
+    public double enemyWeight;
     /** Friendlies nearby with no target of their own — who our target could be handed to. */
     public int idleAllies;
-    /** allies+1 (us) over enemies; 1.0 is an even fight, above 1 favours us. */
+    /** Weighted allies+1 (us) over weighted enemies; 1.0 is an even fight, above 1 favours us. */
     public double forceRatio = 1.0;
     public double nearestAllyDist = Double.MAX_VALUE;
     /** The closest friendly, for a crew that decides to fall back on it. */
@@ -380,7 +383,13 @@ public final class Facts {
             // "No such weapon" and "empty magazine" both count as 0, so the null check is what
             // stops a weaponless seat reporting itself permanently out of ammo.
             if (selected == null) return -1;
-            return hull.getAmmoCount(seat);
+            int loaded = hull.getAmmoCount(seat);
+            if (loaded > 0 || selected.useBackpackAmmo()) return loaded;
+            // A magazine weapon reads its LOADED rounds: a one-round cannon is 0 after every shot until the
+            // reload lands, and scoring that as OUT sent crews into retreat right after firing. Empty chamber
+            // with a reserve is reloading; OUT is only when the reserve is empty too.
+            if (selected.hasInfiniteBackupAmmo(hull)) return Integer.MAX_VALUE;
+            return selected.countBackupAmmo(hull);
         } catch (Throwable ignored) {
             return -1;
         }
@@ -423,16 +432,17 @@ public final class Facts {
      * <p>Armor is held at arm's length: two hulls that creep into a point-blank standstill can no
      * longer bring cannon or ATGM to bear on each other. Infantry is a comfortable band inside the
      * coaxial's effective range. Armor holds a wider band (40 ± 8) so tracked overshoot does not
-     * bounce both duelists into mutual reverse.
+     * bounce both duelists into mutual reverse. Both scale with {@link TacticalScale} (default 2x: 80 ± 16 /
+     * 30 ± 10), sized for fights that open at wide-detection range.
      */
     public static double preferredRange(@Nullable TargetCategory category) {
-        return category == TargetCategory.VEHICLE ? 40.0 : 15.0;
+        return TacticalScale.of(category == TargetCategory.VEHICLE ? 40.0 : 15.0);
     }
 
     /** Half-width of the band around {@link #preferredRange} that counts as "on the ring". */
     public static double rangeDeadband(@Nullable TargetCategory category) {
         // Armor was 4: tracked inertia overshoots that and both hulls reverse together.
-        return category == TargetCategory.VEHICLE ? 8.0 : 5.0;
+        return TacticalScale.of(category == TargetCategory.VEHICLE ? 8.0 : 5.0);
     }
 
     private void readBattlefield(AbstractUnit unit, VehicleEntity hull) {
@@ -462,8 +472,8 @@ public final class Facts {
      */
     private void countForces(AbstractUnit unit, VehicleEntity hull) {
         CrewFacts.Faction own = CrewFacts.factionOfCrew(unit);
-        int allyCount = 0;
-        int enemyCount = 0;
+        int allyCount;
+        int enemyCount;
         int idleCount = 0;
         double nearestAllyRange = Double.MAX_VALUE;
         AbstractUnit closestAlly = null;
@@ -475,14 +485,25 @@ public final class Facts {
         boolean radio = organic
                 || (unit instanceof PmcUnitEntity self && HandheldRadioItem.isCarriedBy(self));
 
+        // Counted per combatant (CrewFacts.combatantId): a hull and everyone aboard it is one ally or one
+        // enemy, an on-foot unit is one. Our own crew and embarked squad are not allies at all — they are
+        // the "+1" in forceRatio. Counting them made ALONE unreachable for any multi-seat hull, inflated
+        // confidence, and let REGROUP pick our own gunner as the ally to drive to.
+        Set<Integer> allyCombatants = new HashSet<>();
+        Set<Integer> enemyCombatants = new HashSet<>();
+        // Strength, not headcount: a rifleman on foot is a third of a hull (CrewFacts.combatantWeight), so a
+        // healthy tank does not read a rifle squad as being outnumbered (it retreated from 14 riflemen).
+        double allyWeight = 0.0;
+        double enemyWeight = 0.0;
+
         // Reuse the per-hull LivingEntity fill from HullLocalScan (same box as target scan).
         List<AbstractUnit> nearby = HullLocalScan.unitsInScanBox(hull);
         for (AbstractUnit other : nearby) {
-            if (other == unit || !other.isAlive()) continue;
+            if (other == unit || !other.isAlive() || other.getVehicle() == hull) continue;
             // Combat allyship, not SEM class: two PMCs whose owners are diplomacy ENEMY must
             // not inflate the ally count (that parked every tank fight on HOLD + coaxial MG).
             if (VehicleTargeting.isFriendly(unit, other)) {
-                allyCount++;
+                if (allyCombatants.add(CrewFacts.combatantId(other))) allyWeight += CrewFacts.combatantWeight(other);
                 double range = hull.distanceTo(other);
                 if (range < nearestAllyRange) {
                     nearestAllyRange = range;
@@ -506,13 +527,18 @@ public final class Facts {
                             unit.getClass().getSimpleName(), unit.getId(),
                             other.getClass().getSimpleName(), other.getId());
                 }
-                enemyCount++;
+                if (enemyCombatants.add(CrewFacts.combatantId(other))) {
+                    enemyWeight += CrewFacts.combatantWeight(other);
+                }
             }
         }
+        allyCount = allyCombatants.size();
+        enemyCount = enemyCombatants.size();
         this.hasComms = radio;
 
         this.allies = allyCount;
         this.enemies = enemyCount;
+        this.enemyWeight = enemyWeight;
         this.idleAllies = idleCount;
         this.nearestAllyDist = nearestAllyRange;
         this.nearestAlly = closestAlly;
@@ -522,7 +548,7 @@ public final class Facts {
         // +1 on our side is US; the enemy side is floored at 1 rather than incremented, which
         // would invent a phantom enemy. A lone crew facing a lone enemy is an even 1.0 — the
         // earlier (enemies + 1) read that as 0.5 and had healthy crews permanently "outnumbered".
-        this.forceRatio = (allyCount + 1.0) / Math.max(enemyCount, 1);
+        this.forceRatio = (allyWeight + 1.0) / Math.max(enemyWeight, 1.0);
     }
 
     /**

@@ -51,6 +51,8 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_WIREFRAME;
     public static final ForgeConfigSpec.BooleanValue SHOW_SPAWN_PROBES;
     public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_TACTICS_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue COLLECTIVE_AI_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_AI_DEBUG;
     public static final ForgeConfigSpec.BooleanValue FOB_DEBUG;
 
     /** Temporary on/off from the map-markers keybind; null = follow the setting below. */
@@ -158,6 +160,10 @@ public final class ClientConfig {
                 .define("showSpawnProbes", false);
         INDIVIDUAL_TACTICS_DEBUG = builder.comment("Log cover-cache bake and per-crew posture.")
                 .define("individualTacticsDebug", false);
+        COLLECTIVE_AI_DEBUG = builder.comment("Log battle groups, plays, per-crew roles/destinations and idle formation clusters.")
+                .define("collectiveAiDebug", false);
+        INDIVIDUAL_AI_DEBUG = builder.comment("Log each ground crew's utility decision (plan, scores, blocked actions, tasked role).")
+                .define("individualAiDebug", false);
         FOB_DEBUG = builder.comment("FOB route, assign, resupply, and stale-state logging.")
                 .define("fobDebug", false);
         builder.pop();

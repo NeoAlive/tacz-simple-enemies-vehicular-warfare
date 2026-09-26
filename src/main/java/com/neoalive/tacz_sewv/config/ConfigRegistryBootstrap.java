@@ -126,6 +126,10 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.SHOW_SPAWN_PROBES, ClientConfig.SHOW_SPAWN_PROBES::set);
         b.bool(ConfigScope.CLIENT, "debug", "individualTacticsDebug",
                 ClientConfig.INDIVIDUAL_TACTICS_DEBUG, ClientConfig.INDIVIDUAL_TACTICS_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "collectiveAiDebug",
+                ClientConfig.COLLECTIVE_AI_DEBUG, ClientConfig.COLLECTIVE_AI_DEBUG::set);
+        b.bool(ConfigScope.CLIENT, "debug", "individualAiDebug",
+                ClientConfig.INDIVIDUAL_AI_DEBUG, ClientConfig.INDIVIDUAL_AI_DEBUG::set);
         b.bool(ConfigScope.CLIENT, "debug", "fobDebug",
                 ClientConfig.FOB_DEBUG, ClientConfig.FOB_DEBUG::set);
         b.bool(ConfigScope.CLIENT, "debug", "mapShowCommandDebug",
@@ -605,6 +609,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.MIN_PLAY_TICKS, SewvConfig.MIN_PLAY_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "command", "playSwitchMargin", 0.0, 100.0,
                 SewvConfig.PLAY_SWITCH_MARGIN, SewvConfig.PLAY_SWITCH_MARGIN::set);
+        b.doubleRange(ConfigScope.SERVER, "command", "tacticalScale", 0.5, 4.0,
+                SewvConfig.TACTICAL_SCALE, SewvConfig.TACTICAL_SCALE::set);
     }
 
     private static void registerPlatoon(ConfigRegistry.Builder b) {

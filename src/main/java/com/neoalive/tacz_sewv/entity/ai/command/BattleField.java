@@ -30,6 +30,11 @@ public final class BattleField {
     public int friendlyCount;
     public int enemyCount;
 
+    /** Enemy strength with on-foot units weighted 1/3 of a hull (what {@link #forceBalance} is built from). */
+    public double enemyWeight;
+    /** Highest {@link #enemyWeight} this group has faced since it formed — Pursuit reads a collapse off it. */
+    public double peakEnemyWeight;
+
     public int pocketCount;
     public final double[] pocketX = new double[MAX_POCKETS];
     public final double[] pocketZ = new double[MAX_POCKETS];
@@ -49,6 +54,8 @@ public final class BattleField {
         this.forceBalance = 1.0;
         this.friendlyCount = 0;
         this.enemyCount = 0;
+        this.enemyWeight = 0.0;
+        this.peakEnemyWeight = 0.0;
         this.pocketCount = 0;
         this.populated = false;
     }

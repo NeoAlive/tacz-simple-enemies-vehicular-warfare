@@ -21,6 +21,9 @@ import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
+import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
+import com.neoalive.tacz_sewv.entity.ai.command.TaskedDestination;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.StalemateBreaker;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleDriver;
@@ -44,6 +47,7 @@ import com.neoalive.tacz_sewv.entity.ai.utility.Action;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalBrain;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
+import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 
@@ -103,6 +107,14 @@ public class DriveVehicleGoal extends Goal {
     private final OuterRingAwareness outerRing = new OuterRingAwareness();
     /** Merges outer spots + sound cues into Facts investigate fields. */
     private final AwarenessCues awareness = new AwarenessCues();
+    /** Whether this crew already reached its command-tier role point. See {@link #taskedDestination}. */
+    private final TaskedDestination.Latch taskLatch = new TaskedDestination.Latch();
+    /** Last tasked-destination state logged, so the individual debug line fires on change only. */
+    private boolean taskDriving;
+    /** Game time the run-start smoke volley's decoy hold ends; {@link Long#MIN_VALUE} = none open. */
+    private long smokeUntil = Long.MIN_VALUE;
+    /** Long enough for SBW to register the held decoy input and fire one volley. */
+    private static final long RUN_SMOKE_TICKS = 10;
 
     /** Everything about actually making the hull go somewhere. See {@link VehicleDriver}. */
     private final VehicleDriver driver;
@@ -193,6 +205,9 @@ public class DriveVehicleGoal extends Goal {
         this.allyAssist.clear();
         this.driver.clear();
         this.breaker.clear();
+        this.taskLatch.reset();
+        this.taskDriving = false;
+        this.smokeUntil = Long.MIN_VALUE;
         this.outerRing.clear();
         this.awareness.clear();
         this.brain.facts().unbind(this.unit);
@@ -221,6 +236,12 @@ public class DriveVehicleGoal extends Goal {
     @Override
     public void tick() {
         if (this.weaponSwitchCooldown > 0) this.weaponSwitchCooldown--;
+        // A run-start smoke window (see taskedDestination) is closed here, ahead of every early return, so a
+        // posture or tow branch taking the tick can never leave the latched decoy input held.
+        if (this.smokeUntil != Long.MIN_VALUE && this.unit.level().getGameTime() >= this.smokeUntil) {
+            this.vehicle.setDecoyInputDown(false);
+            this.smokeUntil = Long.MIN_VALUE;
+        }
         this.driver.tickTimers();
         boolean farIdle = farIdle();
         this.driver.setFarIdle(farIdle);
@@ -281,7 +302,8 @@ public class DriveVehicleGoal extends Goal {
         // The decoy input is latched vehicle state: release it on every tick the crew is not
         // actively screening (preserveRetreat re-asserts it immediately after), otherwise one
         // retreat would leave the launcher volleying a fresh smoke salvo every reload, forever.
-        if (target == null || this.brain.plan() != Action.DEPLOY_SMOKE) {
+        if ((target == null || this.brain.plan() != Action.DEPLOY_SMOKE)
+                && this.unit.level().getGameTime() >= this.smokeUntil) {
             this.vehicle.setDecoyInputDown(false);
         }
 
@@ -515,8 +537,18 @@ public class DriveVehicleGoal extends Goal {
             }
         }
 
+        // Command-tier role point for the action the scorer chose (flank mark, withdraw point, …). Drive
+        // there first; once reached, the action's own geometry below takes over.
+        BlockPos tasked = taskedDestination(plan);
+        if (tasked != null) {
+            this.driver.navigateTo(tasked, this.vehicle.distanceToSqr(
+                    tasked.getX() + 0.5, tasked.getY(), tasked.getZ() + 0.5));
+            return;
+        }
+
         switch (plan) {
-            case RETREAT -> this.driver.retreatFrom(combatPos, ring + PRESERVE_RETREAT_MARGIN, distanceSq);
+            case RETREAT -> this.driver.retreatFrom(combatPos,
+                    ring + TacticalScale.of(PRESERVE_RETREAT_MARGIN), distanceSq);
 
             // Smoke is a screened withdrawal, not a standalone puff: the launcher fires along the
             // turret vector (already tracking the threat) while the hull falls back behind it.
@@ -560,6 +592,36 @@ public class DriveVehicleGoal extends Goal {
             // inside it, sit still on it and let the turret work.
             case ATTACK -> maintainVehicleStandoff(combatPos, distanceSq, dist, category);
         }
+    }
+
+    /**
+     * The published play role's point, if the chosen action is that role's action and the crew is not on it
+     * yet; else null. Y is the hull's own, the same convention as {@link VehicleTargeting#computeStandoffPoint}.
+     */
+    @javax.annotation.Nullable
+    private BlockPos taskedDestination(Action plan) {
+        CrewAssignment.Snapshot assign = CrewAssignment.of(this.unit.getId());
+        double[] point = TaskedDestination.pointFor(assign, plan);
+        boolean drive = point != null && this.taskLatch.shouldDrive(assign.role(), assign.flankSide(),
+                point[0], point[1], this.vehicle.getX(), this.vehicle.getZ());
+        if (drive != this.taskDriving) {
+            this.taskDriving = drive;
+            // A flank run or a withdrawal starts behind one smoke volley — once per run, never a standing screen.
+            // (drive implies a non-null assignment: pointFor answers null without one.)
+            boolean screenedRun = drive && (assign.role() == Assignment.Role.WITHDRAW
+                    || (assign.role() == Assignment.Role.MANEUVER && assign.flankSide() != null));
+            if (screenedRun && this.brain.facts().smokeReady) {
+                this.vehicle.setDecoyInputDown(true);
+                this.smokeUntil = this.unit.level().getGameTime() + RUN_SMOKE_TICKS;
+                SewvDiag.crew("{}#{} run smoke role={}", this.unit.getType().toShortString(), this.unit.getId(),
+                        assign.role());
+            }
+            SewvDiag.crew("{}#{} tasked dest {} role={} side={} plan={} point={}",
+                    this.unit.getType().toShortString(), this.unit.getId(), drive ? "START" : "DONE",
+                    assign == null ? "-" : assign.role(), assign == null ? "-" : assign.flankSide(), plan.key,
+                    point == null ? "-" : String.format("%.0f,%.0f", point[0], point[1]));
+        }
+        return drive ? BlockPos.containing(point[0], this.vehicle.getY(), point[1]) : null;
     }
 
     /**
@@ -868,7 +930,7 @@ public class DriveVehicleGoal extends Goal {
 
         BlockPos threatPos = threat.blockPosition();
         double distanceSq = this.vehicle.distanceToSqr(threatPos.getX(), threatPos.getY(), threatPos.getZ());
-        double breakDistance = Facts.preferredRange(category) + PRESERVE_RETREAT_MARGIN;
+        double breakDistance = Facts.preferredRange(category) + TacticalScale.of(PRESERVE_RETREAT_MARGIN);
 
         if (Math.sqrt(distanceSq) > breakDistance) {
             // Clear of the ring — far enough to be safe. Hold here (still smoking) so we

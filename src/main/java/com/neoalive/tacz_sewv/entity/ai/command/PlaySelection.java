@@ -41,7 +41,7 @@ public final class PlaySelection {
         }
 
         if (playStarted != Long.MIN_VALUE && nowTick - playStarted < minPlayTicks) {
-            Roles roles = Plays.of(incumbent).assignRoles(bf, group);
+            Roles roles = sticky(incumbentRoles, Plays.of(incumbent).assignRoles(bf, group));
             return new Result(incumbent, roles, false, false, "hold-min:" + incumbent.key);
         }
 
@@ -54,8 +54,38 @@ public final class PlaySelection {
                     "switch:" + incumbent.key + "→" + best.play.key);
         }
 
-        Roles roles = Plays.of(incumbent).assignRoles(bf, group);
+        Roles roles = sticky(incumbentRoles, Plays.of(incumbent).assignRoles(bf, group));
         return new Result(incumbent, roles, false, false, "keep:" + incumbent.key);
+    }
+
+    /**
+     * While a play holds, a member keeps the role and side it already had; only the destination is refreshed,
+     * from the fresh deal's assignment with that same role and side. Re-dealing every pass by lateral order
+     * (the old behaviour) turned a flanker into base of fire the moment its run changed the lateral order.
+     * A member with no previous role, or whose role no longer exists in the fresh deal, takes the fresh one.
+     */
+    static Roles sticky(@Nullable Roles previous, Roles fresh) {
+        if (previous == null || previous.size() == 0 || fresh == null) return fresh;
+        java.util.Map<Integer, Assignment> prev = new java.util.HashMap<>();
+        for (Assignment a : previous.assignments) prev.put(a.unitId, a);
+        java.util.Map<String, Assignment> byRole = new java.util.HashMap<>();
+        for (Assignment a : fresh.assignments) byRole.putIfAbsent(roleKey(a.role, a.flankSide), a);
+
+        Assignment[] out = new Assignment[fresh.assignments.length];
+        for (int i = 0; i < out.length; i++) {
+            Assignment a = fresh.assignments[i];
+            Assignment p = prev.get(a.unitId);
+            Assignment template = p == null ? null
+                    : (p.role == a.role && p.flankSide == a.flankSide) ? a
+                    : byRole.get(roleKey(p.role, p.flankSide));
+            out[i] = template == null ? a
+                    : new Assignment(a.unitId, p.role, a.priorityTargetId, p.flankSide, template.destX, template.destZ);
+        }
+        return new Roles(out);
+    }
+
+    private static String roleKey(Assignment.Role role, @Nullable Assignment.FlankSide side) {
+        return role + "/" + side;
     }
 
     private static Result pickBest(BattleField bf, GroupSnapshot group, UtilityWeights weights,

@@ -278,5 +278,9 @@
   },
   "play.hold_defend": {
     "base": 15
+  },
+  "play.pursuit": {
+    "base": 70,
+    "confidence": 20
   }
 }

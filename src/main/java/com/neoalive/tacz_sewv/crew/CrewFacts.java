@@ -58,6 +58,21 @@ public final class CrewFacts {
      * overload would quietly pick whichever one the call site's static type happened to be.
      */
     @Nullable
+    /**
+     * One id per fighting element: the hull a unit rides (crew and embarked squad count once), else the unit.
+     * Force counts dedupe on this so a 3-crew tank is one enemy, not three.
+     */
+    public static int combatantId(Entity unit) {
+        return unit.getVehicle() instanceof VehicleEntity hull ? hull.getId() : unit.getId();
+    }
+
+    /** Strength of one combatant in a force ratio: a hull (and all aboard) is 1, a rifleman on foot a third. */
+    public static double combatantWeight(Entity unit) {
+        return unit.getVehicle() instanceof VehicleEntity ? 1.0 : ON_FOOT_WEIGHT;
+    }
+
+    public static final double ON_FOOT_WEIGHT = 1.0 / 3.0;
+
     public static Faction factionOfCrew(Entity unit) {
         if (unit instanceof RUunitEntity) return Faction.RU;
         if (unit instanceof USunitEntity) return Faction.US;

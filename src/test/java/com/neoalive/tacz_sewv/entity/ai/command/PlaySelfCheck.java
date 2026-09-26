@@ -27,6 +27,9 @@ public final class PlaySelfCheck {
         selectionHysteresis();
         holdDefendAlwaysWinsSomething();
         playWeightsRouteNotIntoActions();
+        rolePointsOnTheRightSide();
+        rolesStickWhileThePlayHolds();
+        pursuitFeasibility();
 
         System.out.println("command play self-check: OK");
     }
@@ -220,6 +223,75 @@ public final class PlaySelfCheck {
         assertNear(11.0, w2.scorePlay(PlayId.HOLD_DEFEND, s,
                         com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.NEUTRAL),
                 1.0e-9, "later file replaces play row wholesale");
+    }
+
+    /**
+     * The axis runs enemy→us. Playtest log: WITHDRAW points 32 from the enemy with the group 56 away, BoF points
+     * behind the group. Withdraw must be farther from the enemy than the group; BoF and advance nearer.
+     */
+    private static void rolePointsOnTheRightSide() {
+        BattleField bf = freshBf();
+        fillOpposing(bf, 1.0, true, true, 1); // us at z=40, enemy at z=-40, axis +Z
+        double group = dist(bf.friendlyCentroidX, bf.friendlyCentroidZ, bf);
+        assertTrue(dist(PlayGeometry.withdrawPoint(bf), bf) > group, "withdraw point is behind the group");
+        assertTrue(dist(PlayGeometry.bofPoint(bf), bf) < group, "BoF point is toward the enemy");
+        assertTrue(dist(PlayGeometry.advancePoint(bf), bf) < group, "advance point is toward the enemy");
+    }
+
+    private static double dist(double[] p, BattleField bf) {
+        return dist(p[0], p[1], bf);
+    }
+
+    private static double dist(double x, double z, BattleField bf) {
+        return Math.hypot(x - bf.enemyCentroidX, z - bf.enemyCentroidZ);
+    }
+
+    /** A flanker whose run changes the lateral order keeps its role; only its destination is refreshed. */
+    private static void rolesStickWhileThePlayHolds() {
+        BattleField bf = freshBf();
+        fillOpposing(bf, 1.0, true, false, 1);
+        GroupSnapshot g = new GroupSnapshot(new int[] {1, 2, 3},
+                new double[] {-20, 0, 20}, new double[] {40, 40, 40});
+        Roles first = FrontalFixAndFlank.INSTANCE.assignRoles(bf, g);
+        int flanker = -1;
+        for (Assignment a : first.assignments) if (a.role == Assignment.Role.MANEUVER) flanker = a.unitId;
+        assertTrue(flanker > 0, "fixture has a flanker");
+
+        // The flanker drives across the line: re-dealt by lateral order it would lose the role.
+        double[] xs = {-20, 0, 20};
+        xs[flanker - 1] = 60;
+        GroupSnapshot moved = new GroupSnapshot(new int[] {1, 2, 3}, xs, new double[] {40, 40, 40});
+        Roles fresh = FrontalFixAndFlank.INSTANCE.assignRoles(bf, moved);
+        Roles kept = PlaySelection.sticky(first, fresh);
+        for (Assignment a : kept.assignments) {
+            Assignment before = null;
+            for (Assignment b : first.assignments) if (b.unitId == a.unitId) before = b;
+            assertTrue(before != null && before.role == a.role && before.flankSide == a.flankSide,
+                    "member " + a.unitId + " keeps its role");
+        }
+        assertTrue(PlaySelection.sticky(null, fresh) == fresh, "no previous roles: fresh deal");
+    }
+
+    private static void pursuitFeasibility() {
+        BattleField bf = freshBf();
+        fillOpposing(bf, 1.0, true, true, 1);
+        GroupSnapshot two = group(2, 0, 0);
+        bf.enemyWeight = 4.0;
+        bf.peakEnemyWeight = 4.0;
+        assertTrue(!Pursuit.INSTANCE.feasible(bf, two), "even fight: no pursuit");
+        bf.forceBalance = 3.0;
+        assertTrue(Pursuit.INSTANCE.feasible(bf, two), "dominant balance: pursue");
+        bf.forceBalance = 1.0;
+        bf.enemyWeight = 2.0;
+        assertTrue(Pursuit.INSTANCE.feasible(bf, two), "enemy halved since peak: pursue");
+        bf.peakEnemyWeight = 1.0;
+        bf.enemyWeight = 0.34;
+        assertTrue(!Pursuit.INSTANCE.feasible(bf, two), "a lone tank falling to a rifleman is no rout");
+        assertTrue(!Pursuit.INSTANCE.feasible(bf, group(1, 0, 0)), "pursuit needs 2+");
+        for (Assignment a : Pursuit.INSTANCE.assignRoles(bf, two).assignments) {
+            assertTrue(a.role == Assignment.Role.MANEUVER && a.flankSide == null
+                    && a.destX == bf.enemyCentroidX && a.destZ == bf.enemyCentroidZ, "everyone advances on the enemy");
+        }
     }
 
     // ---- fixtures ----

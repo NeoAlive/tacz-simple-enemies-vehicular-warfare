@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.map;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
+import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
+
 /**
  * Debug-only allocentric battle picture for the map overlay. Built read-only from a populated
  * {@code BattleField} (+ optional committed play label) — centroids, axis, flank marker positions,
@@ -46,11 +48,12 @@ public record BattleFieldMarker(
      * World position of a flank mark. {@code side} is {@code +1} for left, {@code -1} for right.
      * Pure — shared by the map packet packager and the self-check so the ⟂ contract cannot drift.
      */
+    // Scaled here, not by the callers, so the AI's marks (PlaySignals) and the map's (OwnedVehicleTracker) agree.
     public static double flankMarkX(double enemyX, double axisX, double axisZ, int side) {
-        return enemyX + side * leftX(axisX, axisZ) * FLANK_MARK_OFFSET;
+        return enemyX + side * leftX(axisX, axisZ) * TacticalScale.of(FLANK_MARK_OFFSET);
     }
 
     public static double flankMarkZ(double enemyZ, double axisX, double axisZ, int side) {
-        return enemyZ + side * leftZ(axisX, axisZ) * FLANK_MARK_OFFSET;
+        return enemyZ + side * leftZ(axisX, axisZ) * TacticalScale.of(FLANK_MARK_OFFSET);
     }
 }

@@ -10,7 +10,8 @@ public final class Plays {
             DoubleEnvelopment.INSTANCE,
             BoundingOverwatchAdvance.INSTANCE,
             FightingWithdrawal.INSTANCE,
-            HoldDefend.INSTANCE
+            HoldDefend.INSTANCE,
+            Pursuit.INSTANCE
     };
 
     private Plays() {}

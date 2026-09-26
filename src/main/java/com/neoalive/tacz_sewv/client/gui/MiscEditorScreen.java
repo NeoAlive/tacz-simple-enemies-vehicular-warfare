@@ -72,6 +72,7 @@ public class MiscEditorScreen extends Screen {
     private final TabStrip clueStrip;
     private final TabStrip armorStrip;
     private final Map<Kind, SheetTable> tables = new EnumMap<>(Kind.class);
+    private final HoverTips hoverTips = new HoverTips();
     private final Map<String, Match> matches = new HashMap<>();
     private final Map<String, String> armorNames = new HashMap<>();
 
@@ -122,7 +123,8 @@ public class MiscEditorScreen extends Screen {
                 new ClueModel(false), Component.translatable("gui.tacz_sewv.misc.tip.col.st.plane")));
         this.tables.put(Kind.ARMOR, new SheetTable(List.of(
                 col("misc", "n", 24, true), col("misc", "id", -3, false), col("misc", "name", -2, false),
-                col("misc", "slot", 44, false), col("misc", "crew", 40, false)),
+                col("misc", "slot", 44, false), col("misc", "crew", 40, false),
+                col("misc", "pct", 34, true)),
                 new ArmorModel(), Component.translatable("gui.tacz_sewv.misc.tip.col.st.armor")));
     }
 
@@ -205,6 +207,7 @@ public class MiscEditorScreen extends Screen {
     @Override
     protected void init() {
         VehiclePoolCatalog.ensureLoaded();
+        this.hoverTips.clear();
         this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
         this.left = (this.width - this.panelW) / 2;
         ensureIdLists();
@@ -228,10 +231,10 @@ public class MiscEditorScreen extends Screen {
         this.filterBox = new PoolVehicleIdEditBox(this.font, this.left, addY, this.panelW - 88, 20,
                 Component.translatable("gui.tacz_sewv.pool.filter"));
         this.filterBox.setMaxLength(128);
-        this.filterBox.setTooltip(Tooltip.create(Component.translatable("gui.tacz_sewv.misc.tip.filter")));
         this.filterBox.setResponder(s -> refreshCandidates());
         this.filterBox.setTabCompleter(this::applyTabCompletion);
-        addRenderableWidget(this.filterBox);
+        addRenderableWidget(this.hoverTips.add(this.filterBox,
+                Component.translatable("gui.tacz_sewv.misc.tip.filter")));
         setInitialFocus(this.filterBox);
         this.filterBox.setValue(previous);
 
@@ -490,7 +493,8 @@ public class MiscEditorScreen extends Screen {
     }
 
     /**
-     * Armor: state LIVE = applied, OFF = shadowed by an earlier piece in the same slot (never worn),
+     * Armor: pieces that declare the same slot are alternatives, drawn at random per unit
+     * ({@code ArmorPick}), so every valid row is LIVE and the % column is its share of its slot.
      * BAD = not a registered armor item.
      */
     private final class ArmorModel implements SheetTable.Model {
@@ -500,15 +504,27 @@ public class MiscEditorScreen extends Screen {
             return currentList().size();
         }
 
-        /** Index of the earlier entry already filling this entry's slot, or -1. */
-        private int shadowedBy(int row) {
-            List<String> pool = currentList();
-            EquipmentSlot mine = slotOf(pool.get(row));
-            if (mine == null) return -1;
-            for (int i = 0; i < row; i++) {
-                if (slotOf(pool.get(i)) == mine) return i;
+        /** Entries in this list that declare {@code slot} (a duplicated id counts twice, doubling its odds). */
+        private int inSlot(@Nullable EquipmentSlot slot) {
+            if (slot == null) return 0;
+            int n = 0;
+            for (String id : currentList()) {
+                if (slotOf(id) == slot) n++;
             }
-            return -1;
+            return n;
+        }
+
+        private int copies(String id) {
+            int n = 0;
+            for (String other : currentList()) {
+                if (other.equals(id)) n++;
+            }
+            return n;
+        }
+
+        private String chance(String id) {
+            int total = inSlot(slotOf(id));
+            return total == 0 ? "-" : String.format(Locale.ROOT, "%.0f%%", 100.0 * copies(id) / total);
         }
 
         @Override
@@ -520,15 +536,15 @@ public class MiscEditorScreen extends Screen {
                 case 1 -> id;
                 case 2 -> armorName(id);
                 case 3 -> slotLabel(slot);
-                case 4 -> slot == EquipmentSlot.HEAD && shadowedBy(row) < 0 ? "yes" : "-";
+                case 4 -> slot == EquipmentSlot.HEAD ? "yes" : "-";
+                case 5 -> chance(id);
                 default -> "";
             };
         }
 
         @Override
         public int state(int row) {
-            if (slotOf(currentList().get(row)) == null) return SheetTable.BAD;
-            return shadowedBy(row) >= 0 ? SheetTable.OFF : SheetTable.LIVE;
+            return slotOf(currentList().get(row)) == null ? SheetTable.BAD : SheetTable.LIVE;
         }
 
         @Override
@@ -540,11 +556,9 @@ public class MiscEditorScreen extends Screen {
             out.add(Component.literal(id).withStyle(ChatFormatting.GRAY));
             if (slot == null) {
                 out.add(Component.translatable("gui.tacz_sewv.misc.tip.row.notarmor"));
-            } else if (shadowedBy(row) >= 0) {
-                out.add(Component.translatable("gui.tacz_sewv.misc.tip.row.shadowed", slotLabel(slot),
-                        shadowedBy(row) + 1));
             } else {
-                out.add(Component.translatable("gui.tacz_sewv.misc.tip.row.worn", slotLabel(slot)));
+                out.add(Component.translatable("gui.tacz_sewv.misc.tip.row.worn", slotLabel(slot), chance(id)));
+                if (inSlot(slot) > 1) out.add(Component.translatable("gui.tacz_sewv.misc.tip.row.alternatives"));
                 if (slot == EquipmentSlot.HEAD) out.add(Component.translatable("gui.tacz_sewv.misc.tip.row.helmet"));
             }
             out.add(Component.translatable(isDefault(id)
@@ -604,8 +618,6 @@ public class MiscEditorScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g);
         super.render(g, mouseX, mouseY, partialTick);
-        this.clueStrip.renderSelection(g);
-        this.armorStrip.renderSelection(g);
         g.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
 
         renderSummary(g);
@@ -623,6 +635,7 @@ public class MiscEditorScreen extends Screen {
 
         List<Component> tip = table().hoverTip(mouseX, mouseY);
         if (tip != null) SheetTable.drawTip(g, this.font, tip, mouseX, mouseY);
+        else this.hoverTips.render(g, this.font, mouseX, mouseY);
     }
 
     private void renderSummary(GuiGraphics g) {
@@ -630,10 +643,13 @@ public class MiscEditorScreen extends Screen {
         int good = 0;
         Component text;
         if (isArmorTab()) {
-            for (int i = 0; i < pool.size(); i++) {
-                if (armorApplies(i)) good++;
+            java.util.Set<EquipmentSlot> covered = java.util.EnumSet.noneOf(EquipmentSlot.class);
+            for (String id : pool) {
+                EquipmentSlot slot = slotOf(id);
+                if (slot != null) covered.add(slot);
             }
-            text = Component.translatable("gui.tacz_sewv.misc.summary.armor", tabLabel(this.tab), pool.size(), good);
+            text = Component.translatable("gui.tacz_sewv.misc.summary.armor", tabLabel(this.tab), pool.size(),
+                    covered.size());
         } else if (kind() == Kind.VEHICLE_CLUE) {
             for (String clue : pool) {
                 if (matchOf(clue, true).count() > 0) good++;
@@ -643,16 +659,6 @@ public class MiscEditorScreen extends Screen {
             text = Component.translatable("gui.tacz_sewv.misc.summary.plane", tabLabel(this.tab), pool.size());
         }
         g.drawString(this.font, text, this.left, this.summaryY, 0xFFA0A0A0, false);
-    }
-
-    private boolean armorApplies(int row) {
-        List<String> pool = currentList();
-        EquipmentSlot mine = slotOf(pool.get(row));
-        if (mine == null) return false;
-        for (int i = 0; i < row; i++) {
-            if (slotOf(pool.get(i)) == mine) return false;
-        }
-        return true;
     }
 
     private void renderCandidates(GuiGraphics g) {

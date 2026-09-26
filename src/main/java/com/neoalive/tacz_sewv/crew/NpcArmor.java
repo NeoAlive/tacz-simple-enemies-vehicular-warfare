@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.crew;
 
 import java.util.List;
+import java.util.Map;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -57,19 +58,21 @@ public final class NpcArmor {
         // which is the whole thing the skins exist to prevent.
         boolean helmetOnly = VehicleTargeting.isSupportUnit(unit);
         boolean anyEquipped = false;
-        for (String id : loadout) {
-            Item item = resolve(id);
-            if (!(item instanceof ArmorItem armor)) continue;
-
-            EquipmentSlot slot = armor.getEquipmentSlot();
-            if (helmetOnly && slot != EquipmentSlot.HEAD) continue;
-            if (!unit.getItemBySlot(slot).isEmpty()) continue;
+        // Pieces for the same slot are alternatives: the unit draws one of them at random (see
+        // ArmorPick). A slot that is already filled — SEM puts tacz:ammo in a PMC's slot 2 (= FEET) —
+        // is left alone, and so is every non-helmet slot for a support unit.
+        Map<EquipmentSlot, String> chosen = ArmorPick.choose(loadout, NpcArmor::slotOf,
+                slot -> (!helmetOnly || slot == EquipmentSlot.HEAD) && unit.getItemBySlot(slot).isEmpty(),
+                unit.getRandom()::nextInt);
+        for (Map.Entry<EquipmentSlot, String> pick : chosen.entrySet()) {
+            Item item = resolve(pick.getValue());
+            if (item == null) continue;
 
             ItemStack stack = new ItemStack(item);
             if (item == ModItems.PMC_HELMET_MICH.get() && unit instanceof PmcUnitEntity pmc) {
                 stampMichLogo(pmc, stack);
             }
-            wear(unit, slot, stack);
+            wear(unit, pick.getKey(), stack);
             anyEquipped = true;
         }
 
@@ -114,6 +117,11 @@ public final class NpcArmor {
 
     private static void stampMichLogo(PmcUnitEntity unit, ItemStack stack) {
         HelmetLogoSupport.stampForUnitStack(unit, stack);
+    }
+
+    /** The slot an id's item declares, or null when it is not a registered armor item. */
+    private static EquipmentSlot slotOf(String id) {
+        return resolve(id) instanceof ArmorItem armor ? armor.getEquipmentSlot() : null;
     }
 
     private static Item resolve(String id) {

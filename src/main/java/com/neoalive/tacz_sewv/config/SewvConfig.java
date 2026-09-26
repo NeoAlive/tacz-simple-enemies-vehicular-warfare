@@ -529,11 +529,11 @@ public final class SewvConfig {
         builder.push("npc_armor");
         NPC_ARMOR_ENABLED = builder.comment("Give armor to spawned Simple Enemy Mod soldiers.")
                 .define("npcArmorEnabled", true);
-        RU_ARMOR = builder.comment("Armor pieces for RU units (item ids).")
+        RU_ARMOR = builder.comment("Armor pieces for RU units (item ids). Pieces for the same slot are alternatives: each unit gets one at random.")
                 .defineList("ruArmor", List.of("superbwarfare:ru_helmet_6b47", "superbwarfare:ru_chest_6b43"), SewvConfig::isValidResourceId);
-        US_ARMOR = builder.comment("Armor pieces for US units (item ids).")
+        US_ARMOR = builder.comment("Armor pieces for US units (item ids). Pieces for the same slot are alternatives: each unit gets one at random.")
                 .defineList("usArmor", List.of("superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
-        PMC_ARMOR = builder.comment("Armor pieces for PMC units (item ids).")
+        PMC_ARMOR = builder.comment("Armor pieces for PMC units (item ids). Pieces for the same slot are alternatives: each unit gets one at random.")
                 .defineList("pmcArmor", List.of("tacz_sewv:pmc_helmet_mich", "superbwarfare:us_chest_iotv"), SewvConfig::isValidResourceId);
         builder.pop();
 

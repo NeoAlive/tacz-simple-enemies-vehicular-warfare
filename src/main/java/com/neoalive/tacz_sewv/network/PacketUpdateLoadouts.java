@@ -57,7 +57,7 @@ public class PacketUpdateLoadouts {
                 clean.hidden.addAll(in.hidden);
                 Set<String> names = new HashSet<>();
                 for (LoadoutRow row : in.rows) {
-                    LoadoutRow ok = LoadoutValidator.sanitize(row, extended, problems);
+                    LoadoutRow ok = LoadoutValidator.sanitize(row, extended, faction != TankFaction.PMC, problems);
                     if (ok == null) continue;
                     // Names are JSON keys of one file: a duplicate would silently overwrite its twin.
                     String base = ok.name;

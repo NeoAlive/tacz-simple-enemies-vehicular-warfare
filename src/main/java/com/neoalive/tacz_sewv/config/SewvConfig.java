@@ -122,6 +122,10 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue AT_SECOND_GUNNER_CHANCE;
     public static final ForgeConfigSpec.IntValue AT_BACKUP_AMMO;
     public static final ForgeConfigSpec.DoubleValue AT_ENGAGE_RANGE;
+    public static final ForgeConfigSpec.DoubleValue SBW_SMALL_ARMS_RANGE;
+    public static final ForgeConfigSpec.DoubleValue SBW_SNIPER_RANGE;
+    public static final ForgeConfigSpec.DoubleValue SBW_AA_RANGE;
+    public static final ForgeConfigSpec.DoubleValue SBW_AI_SPREAD;
     public static final ForgeConfigSpec.BooleanValue MEDIC_ENABLED;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SEARCH_RADIUS;
     public static final ForgeConfigSpec.DoubleValue MEDIC_HEAL_PER_TREAT;
@@ -664,6 +668,16 @@ public final class SewvConfig {
                 .defineInRange("atBackupAmmo", 8, 1, 64);
         AT_ENGAGE_RANGE = builder.comment("Max distance (blocks) at which anti-tank gunners will fire.")
                 .defineInRange("atEngageRange", 48.0, 8.0, 200.0);
+        SBW_SMALL_ARMS_RANGE = builder.comment("Max distance (blocks) at which units fire SuperbWarfare rifles, SMGs, shotguns and MGs.",
+                        "Keep at or above 90: SEM stops walking a unit toward its target at 90 blocks, so a unit's target",
+                        "between this range and 90 is never approached and never fired at.")
+                .defineInRange("sbwSmallArmsRange", 96.0, 8.0, 200.0);
+        SBW_SNIPER_RANGE = builder.comment("Max distance (blocks) at which units fire SuperbWarfare sniper and heavy rifles.")
+                .defineInRange("sbwSniperRange", 128.0, 8.0, 300.0);
+        SBW_AA_RANGE = builder.comment("Max distance (blocks) at which units fire SuperbWarfare anti-air launchers (Igla).")
+                .defineInRange("sbwAaRange", 160.0, 16.0, 400.0);
+        SBW_AI_SPREAD = builder.comment("Extra spread on SuperbWarfare rifles/MGs/snipers fired by units. 0 = perfect aim. Launchers never get it.")
+                .defineInRange("sbwAiSpread", 1.5, 0.0, 10.0);
         MEDIC_ENABLED = builder.comment("PMC soldiers carrying a medical kit can heal allies when not in a fight.")
                 .define("medicEnabled", true);
         MEDIC_SEARCH_RADIUS = builder.comment("How far (blocks) medics look for wounded allies.")

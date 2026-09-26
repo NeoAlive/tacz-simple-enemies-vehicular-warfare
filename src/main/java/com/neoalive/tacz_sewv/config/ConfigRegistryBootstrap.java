@@ -368,6 +368,14 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.AT_BACKUP_AMMO, SewvConfig.AT_BACKUP_AMMO::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "atEngageRange", 8.0, 200.0,
                 SewvConfig.AT_ENGAGE_RANGE, SewvConfig.AT_ENGAGE_RANGE::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "sbwSmallArmsRange", 8.0, 200.0,
+                SewvConfig.SBW_SMALL_ARMS_RANGE, SewvConfig.SBW_SMALL_ARMS_RANGE::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "sbwSniperRange", 8.0, 300.0,
+                SewvConfig.SBW_SNIPER_RANGE, SewvConfig.SBW_SNIPER_RANGE::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "sbwAaRange", 16.0, 400.0,
+                SewvConfig.SBW_AA_RANGE, SewvConfig.SBW_AA_RANGE::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "sbwAiSpread", 0.0, 10.0,
+                SewvConfig.SBW_AI_SPREAD, SewvConfig.SBW_AI_SPREAD::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "medicEnabled",
                 SewvConfig.MEDIC_ENABLED, SewvConfig.MEDIC_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "medicSearchRadius", 2.0, 48.0,

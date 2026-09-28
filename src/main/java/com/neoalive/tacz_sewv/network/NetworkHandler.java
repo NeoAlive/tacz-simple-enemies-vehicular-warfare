@@ -114,7 +114,8 @@ public class NetworkHandler {
     // 92: Advance Plan — PLAN_* actions in PacketTerritoryCommand + the plan block in PacketTerritoryState.
     // 93: Advance Plan skip-layer — PLAN_SKIP action.
     // 94: PacketOpenLoadoutEditor (S->C) + PacketUpdateLoadouts (C->S) — /sewv pool weapons loadout manager.
-    private static final String PROTOCOL_VERSION = "94";
+    // 95: PacketEntityCamo (S->C) — biome camo number on a unit or hull.
+    private static final String PROTOCOL_VERSION = "95";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -721,6 +722,13 @@ public class NetworkHandler {
                 PacketUpdateLoadouts::encode,
                 PacketUpdateLoadouts::new,
                 PacketUpdateLoadouts::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketEntityCamo.class,
+                PacketEntityCamo::encode,
+                PacketEntityCamo::new,
+                PacketEntityCamo::handle
         );
     }
 }

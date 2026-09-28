@@ -1676,6 +1676,8 @@
   "config.tacz_sewv.vehicleFormationSpacing.tooltip": "Spacing (blocks) between vehicles in a formation.",
   "config.tacz_sewv.vehicleSkinMountChance": "Vehicle Skin Mount Chance",
   "config.tacz_sewv.vehicleSkinMountChance.tooltip": "Chance a soldier climbing into an empty captured vehicle paints it in their faction colours. Vehicles spawned already crewed always get the faction look; this is only for field captures.",
+  "config.tacz_sewv.camoBiomeSelection": "Biome Camo Selection",
+  "config.tacz_sewv.camoBiomeSelection.tooltip": "Pick each unit's and vehicle's camo from the biome it spawned in, so helmet, vest, uniform and hull all match the terrain. Off = the old random pick per unit/hull.",
   "config.tacz_sewv.vehicleTargetRequireLineOfSight": "Vehicle Target Require Line Of Sight",
   "config.tacz_sewv.vehicleTargetRequireLineOfSight.tooltip": "Crewed vehicles only lock enemies they can see (no wall hacks).",
   "config.tacz_sewv.vehicleTargetScanHeight": "Vehicle Target Scan Height",

@@ -352,6 +352,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.GRENADE_MAX_SMOKE, SewvConfig.GRENADE_MAX_SMOKE::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "vehicleSkinMountChance", 0.0, 1.0,
                 SewvConfig.VEHICLE_SKIN_MOUNT_CHANCE, SewvConfig.VEHICLE_SKIN_MOUNT_CHANCE::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "camoBiomeSelection",
+                SewvConfig.CAMO_BIOME_SELECTION, SewvConfig.CAMO_BIOME_SELECTION::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "ifvDismountsEnabled",
                 SewvConfig.IFV_DISMOUNTS_ENABLED, SewvConfig.IFV_DISMOUNTS_ENABLED::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "semCrewDisableInertiaRotate",

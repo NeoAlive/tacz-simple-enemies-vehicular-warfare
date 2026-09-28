@@ -332,7 +332,8 @@ public final class CrewSkinRegistry {
 
     /**
      * Shared camo id for everything this SEM unit is wearing, or {@code -1} if no matched camo
-     * applies (plain-only kit / no skins).
+     * applies (plain-only kit / no skins). The server's biome camo ({@link CamoClient}) wins when
+     * every camo'd piece has it; otherwise the legacy per-UUID pick.
      */
     public static int resolveSetN(LivingEntity wearer, CrewFacts.Faction faction) {
         TreeSet<Integer> intersection = null;
@@ -350,6 +351,11 @@ public final class CrewSkinRegistry {
                 intersection.retainAll(keys);
             }
         }
+        int tagged = CamoClient.get(wearer.getId());
+        if (tagged >= 0 && intersection != null) {
+            if (intersection.contains(tagged)) return tagged;
+            CamoClient.warnMissing(faction + " armor set camo " + tagged);
+        }
         return pick(intersection, wearer);
     }
 
@@ -365,16 +371,29 @@ public final class CrewSkinRegistry {
     /**
      * The unit's uniform, or null to let SEM pick its own variant.
      *
-     * <p>Priority: camo-synced pool → SEM variant override → role default → null (SEM jar).
+     * <p>Priority: biome camo pool → camo-synced pool → SEM variant override → role default →
+     * null (SEM jar).
      */
     @Nullable
     public static ResourceLocation bodySkin(LivingEntity unit) {
         CrewFacts.Faction faction = CrewFacts.factionOfCrew(unit);
         if (faction == null) return null;
         String category = category(unit, faction);
-        int camo = resolveSetN(unit, faction);
-        if (camo < 0) {
-            camo = pick(variantKeys(category, faction), unit);
+        TreeSet<Integer> bodyKeys = variantKeys(category, faction);
+        int tagged = CamoClient.get(unit.getId());
+        int camo;
+        if (tagged >= 0 && bodyKeys.contains(tagged)) {
+            camo = tagged;
+        } else if (tagged >= 0 && !bodyKeys.isEmpty()) {
+            // Armor may carry this camo while the uniform does not (ru_3): the uniform alone
+            // falls back rather than dropping to a plain or SEM skin.
+            CamoClient.warnMissing(faction + " " + category + " uniform camo " + tagged);
+            camo = pick(bodyKeys, unit);
+        } else {
+            camo = resolveSetN(unit, faction);
+            if (camo < 0) {
+                camo = pick(bodyKeys, unit);
+            }
         }
         ResourceLocation camoSkin = get(category, faction, camo, unit.getUUID().hashCode());
         if (camoSkin != null) return camoSkin;

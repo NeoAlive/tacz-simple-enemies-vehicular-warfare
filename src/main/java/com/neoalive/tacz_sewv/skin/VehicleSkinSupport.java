@@ -100,6 +100,7 @@ public final class VehicleSkinSupport {
             case PMC -> CrewFacts.Faction.PMC;
         };
         apply(hull, paint);
+        CamoSupport.stampHull(hull, paint);
         // Spawn paint runs before passengers board — stamp from the spawn faction, not crew.
         PmcVehicleLogoSupport.applySpawnFaction(hull, paint, pmcOwner);
     }

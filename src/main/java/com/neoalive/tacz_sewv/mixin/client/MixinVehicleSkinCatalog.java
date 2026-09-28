@@ -101,7 +101,7 @@ public abstract class MixinVehicleSkinCatalog {
         if (fromId != null) {
             ResourceLocation texture = VehicleSkinRegistry.getExact(path, fromId.faction(), fromId.variant());
             if (texture == null && fromId.variant() < 0) {
-                texture = VehicleSkinRegistry.get(path, fromId.faction(), VehicleSkinClient.salt(entity.getId()));
+                texture = VehicleSkinClient.stickyTexture(path, entity.getId(), fromId.faction());
             }
             if (texture != null) {
                 String id = entity.getSkinId() != null && !entity.getSkinId().isBlank()
@@ -119,8 +119,7 @@ public abstract class MixinVehicleSkinCatalog {
         if (sticky == null) {
             return null;
         }
-        int salt = VehicleSkinClient.salt(entity.getId());
-        ResourceLocation texture = VehicleSkinRegistry.get(path, sticky, salt);
+        ResourceLocation texture = VehicleSkinClient.stickyTexture(path, entity.getId(), sticky);
         if (texture == null) {
             return null;
         }

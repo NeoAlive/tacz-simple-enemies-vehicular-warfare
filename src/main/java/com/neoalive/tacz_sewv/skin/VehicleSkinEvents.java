@@ -46,6 +46,7 @@ public final class VehicleSkinEvents {
                 double chance = SewvConfig.VEHICLE_SKIN_MOUNT_CHANCE.get();
                 if (chance > 0.0 && unit.getRandom().nextDouble() < chance) {
                     VehicleSkinSupport.apply(vehicle, faction);
+                    CamoSupport.inheritHull(vehicle, unit);
                 }
             }
         }
@@ -58,7 +59,12 @@ public final class VehicleSkinEvents {
     public static void onStartTracking(PlayerEvent.StartTracking event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         Entity target = event.getTarget();
+        if (target instanceof AbstractUnit) {
+            CamoSupport.syncTo(player, target);
+            return;
+        }
         if (!(target instanceof VehicleEntity vehicle)) return;
+        CamoSupport.syncTo(player, vehicle);
         if (VehicleSkinSupport.get(vehicle) != null) {
             VehicleSkinSupport.syncTo(player, vehicle);
         }

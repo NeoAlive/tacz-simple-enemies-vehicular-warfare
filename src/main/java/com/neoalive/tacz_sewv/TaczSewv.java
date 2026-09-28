@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv;
 
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraftforge.common.MinecraftForge;
@@ -56,6 +57,7 @@ import com.neoalive.tacz_sewv.procedural.events.LargeCombatEvent;
 import com.neoalive.tacz_sewv.procedural.events.MortarShellingEvent;
 import com.neoalive.tacz_sewv.procedural.events.NavalBattleEvent;
 import com.neoalive.tacz_sewv.procedural.events.OverflightEvent;
+import com.neoalive.tacz_sewv.skin.CamoSupport;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner;
 import com.neoalive.tacz_sewv.util.ChunkTicketSweep;
 import com.neoalive.tacz_sewv.util.WorldTargetPriority;
@@ -207,9 +209,12 @@ public class TaczSewv {
             unit.setPathfindingMalus(BlockPathTypes.WALKABLE, TrenchPathTypes.OPEN_GROUND_MALUS);
             NpcSbwWeapon.issue(unit, event.loadedFromDisk());
             NpcArmor.issue(unit);
+            CamoSupport.issue(unit);
             NpcNvg.issue(unit);
             if (unit instanceof PmcUnitEntity pmc) NpcIdentity.issue(pmc);
             SupportSpawner.maybeSpawnCompanions(unit);
+        } else if (event.getEntity() instanceof VehicleEntity hull) {
+            CamoSupport.retrofitHull(hull);
         }
     }
 }

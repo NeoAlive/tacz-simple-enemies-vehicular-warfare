@@ -110,6 +110,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue GRENADE_MAX_RGO;
     public static final ForgeConfigSpec.IntValue GRENADE_MAX_SMOKE;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_SKIN_MOUNT_CHANCE;
+    public static final ForgeConfigSpec.BooleanValue CAMO_BIOME_SELECTION;
     public static final ForgeConfigSpec.BooleanValue IFV_DISMOUNTS_ENABLED;
     public static final ForgeConfigSpec.BooleanValue SEM_CREW_DISABLE_INERTIA_ROTATE;
     public static final ForgeConfigSpec.BooleanValue TANK_RIDER_DISMOUNT_ENABLED;
@@ -646,6 +647,10 @@ public final class SewvConfig {
                         "Chance a soldier climbing into an empty captured vehicle paints it in their faction colours.",
                         "Vehicles spawned already crewed always get the faction look; this is only for field captures.")
                 .defineInRange("vehicleSkinMountChance", 0.60, 0.0, 1.0);
+        CAMO_BIOME_SELECTION = builder.comment(
+                        "Pick each unit's and vehicle's camo from the biome it spawned in, so helmet, vest,",
+                        "uniform and hull all match the terrain. Off = the old random pick per unit/hull.")
+                .define("camoBiomeSelection", true);
         IFV_DISMOUNTS_ENABLED = builder.comment("IFVs (troop carriers) drop their squad when fighting enemy armor.")
                 .define("ifvDismountsEnabled", true);
         SEM_CREW_DISABLE_INERTIA_ROTATE = builder.comment("Stop the vehicle body from tilting/banking while AI drives.")

@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.client.skin;
 
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
@@ -66,8 +67,22 @@ public final class VehicleSkinClient {
                 ? applied.faction
                 : (catalog != null ? catalog.faction() : null);
         if (faction == null) return null;
-        int salt = applied != null ? applied.salt : 0;
-        return VehicleSkinRegistry.get(path, faction, salt);
+        return stickyTexture(path, vehicle.getId(), faction);
+    }
+
+    /**
+     * Sticky faction paint for a hull: its biome camo's {@code _N} file, else the legacy
+     * {@code salt % pool} pick. Shared with the SBW skin catalog so both agree on one texture.
+     */
+    @Nullable
+    public static ResourceLocation stickyTexture(String path, int entityId, CrewFacts.Faction faction) {
+        int camo = CamoClient.get(entityId);
+        if (camo >= 0) {
+            ResourceLocation biome = VehicleSkinRegistry.getExact(path, faction, camo);
+            if (biome != null) return biome;
+            CamoClient.warnMissing(path + "_" + faction.name().toLowerCase(Locale.ROOT) + "_" + camo);
+        }
+        return VehicleSkinRegistry.get(path, faction, salt(entityId));
     }
 
     private record Applied(CrewFacts.Faction faction, int salt) {

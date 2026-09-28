@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -25,7 +26,8 @@ public abstract class MixinCombatEvent {
 
         int separation = 24;
 
-        if (level.getGameRules().getBoolean(ModGameRules.TANKS_IN_EVENTS)) {
+        if (EasyMode.farCombatTanksAllowed()
+                && level.getGameRules().getBoolean(ModGameRules.TANKS_IN_EVENTS)) {
             if (level.random.nextDouble() < SewvConfig.TANK_SPAWN_CHANCE_RU.get()) {
                 BlockPos posRu = TankSpawner.adjustHeight(level, centerPos.offset(separation, 0, 0));
                 TankSpawner.spawnCombatVehicleWithCrew(level, posRu, TankSpawner.TankFaction.RU, null);

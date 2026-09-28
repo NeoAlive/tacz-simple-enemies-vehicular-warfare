@@ -18,6 +18,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -86,8 +87,6 @@ public class DriveVehicleGoal extends Goal {
     // How many of a dismounting squad may carry an anti-tank launcher. Hard-capped rather than
     // configurable: the point is a couple of AT men supporting riflemen, and a squad that is
     // ALL launchers is a different (and much sillier) unit.
-    private static final int MAX_AT_GUNNERS = 2;
-
     // How far around the ring a deliberate flank aims for. Matches StalemateBreaker's own orbit
     // step: far enough to reach genuinely different ground and a different facing on the target,
     // but not so far that the arc sweeps through the enemy on the way round.
@@ -637,7 +636,7 @@ public class DriveVehicleGoal extends Goal {
         Facts facts = this.brain.facts();
         facts.memory.lastSupportTick = this.unit.level().getGameTime();
         FireMissionSupport.callFireMission(this.unit.level(), facts.faction, facts.owner,
-                this.unit.position(), SewvConfig.MORTAR_RADIO_RANGE.get(), target,
+                this.unit.position(), EasyMode.mortarRadioRange(), target,
                 Set.of(kind));
         // Caller voice: PMC air / mortar-or-tow pools. RU/US have no clips yet (playSupport no-ops).
         CrewRadio.playSupport(this.vehicle, kind);
@@ -811,7 +810,7 @@ public class DriveVehicleGoal extends Goal {
     private void fireAssistIfSpecial(LivingEntity target) {
         if (this.selectedRole != VehicleWeapons.WEAPON_SPECIAL) return;
         VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
-                SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+                EasyMode.aiFireAssistConeDeg());
     }
 
     /**
@@ -865,8 +864,8 @@ public class DriveVehicleGoal extends Goal {
             // weapons actually handed out rather than attempts. That is also what keeps this
             // honest across the every-tick re-entry above: an already-armed man cannot consume
             // one of the two slots a second time.
-            if (armed == 0 || (armed < MAX_AT_GUNNERS
-                    && rider.getRandom().nextDouble() < SewvConfig.AT_SECOND_GUNNER_CHANCE.get())) {
+            if (armed == 0 || (armed < EasyMode.maxAtGunners()
+                    && rider.getRandom().nextDouble() < EasyMode.atSecondGunnerChance())) {
                 if (SmallArmsSupport.issueAtWeapon(rider)) armed++;
             }
             rider.stopRiding();

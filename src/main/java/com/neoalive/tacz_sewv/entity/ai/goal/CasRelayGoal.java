@@ -7,6 +7,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -52,7 +53,7 @@ public class CasRelayGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
-        if (!SewvConfig.FACTION_ORGANIC_COMMS.get()) return false;
+        if (!EasyMode.factionOrganicComms()) return false;
         if (FireMissionSupport.kindOf(this.unit) == FireMissionSupport.Kind.CAS) return false;
 
         LivingEntity target = this.unit.getTarget();
@@ -77,7 +78,7 @@ public class CasRelayGoal extends Goal {
 
         FireMissionSupport.Call call = FireMissionSupport.callFireMission(
                 this.unit.level(), faction, null, this.unit.position(),
-                SewvConfig.MORTAR_RADIO_RANGE.get(), target, CAS_ONLY);
+                EasyMode.mortarRadioRange(), target, CAS_ONLY);
 
         if (call.empty()) {
             this.nextCheck = now + NO_AIRCRAFT_BACKOFF;

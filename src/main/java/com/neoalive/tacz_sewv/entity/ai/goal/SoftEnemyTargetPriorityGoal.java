@@ -11,6 +11,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.compat.SoftEnemyTargeting;
 import com.neoalive.tacz_sewv.compat.SoftEnemyTargeting.Tier;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 
@@ -119,7 +120,7 @@ public class SoftEnemyTargetPriorityGoal extends Goal {
             if (tier == bestTier && distSq >= bestDistSq) continue;
             // LOS last and only on the running best: the raycast is the expensive part and
             // most candidates never become the best.
-            if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+            if (EasyMode.vehicleTargetRequireLos()
                     && !this.unit.getSensing().hasLineOfSight(candidate)) {
                 continue;
             }

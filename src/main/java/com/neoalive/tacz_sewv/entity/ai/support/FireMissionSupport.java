@@ -28,7 +28,7 @@ import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -375,7 +375,7 @@ public final class FireMissionSupport {
     private static void rebuildRoster(Level level, SupportRoster roster, long now) {
         for (List<RosterEntry> entries : roster.byFaction.values()) entries.clear();
         if (!(level instanceof ServerLevel server)) {
-            roster.nextRefresh = now + SewvConfig.SUPPORT_CALL_INTERVAL_TICKS.get();
+            roster.nextRefresh = now + EasyMode.supportCallIntervalTicks();
             return;
         }
         for (AbstractUnit unit : server.getEntities(EntityTypeTest.forClass(AbstractUnit.class), e -> true)) {
@@ -383,7 +383,7 @@ public final class FireMissionSupport {
             Kind kind = faction != null && unit.isAlive() ? kindOf(unit) : null;
             if (kind != null) roster.byFaction.get(faction).add(new RosterEntry(unit.getId(), kind));
         }
-        roster.nextRefresh = now + SewvConfig.SUPPORT_CALL_INTERVAL_TICKS.get();
+        roster.nextRefresh = now + EasyMode.supportCallIntervalTicks();
     }
 
     private record SupportCrew(AbstractUnit unit, Kind kind) {}

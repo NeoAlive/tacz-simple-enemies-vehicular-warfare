@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -73,7 +74,7 @@ public abstract class MixinVillageGarrisonHandler {
         // the same "armour inside colony borders" problem the procedural events avoid, arriving
         // by a different route.
         if (!AmbientSpawnGate.allowsAt(level, basePos)) return;
-        if (!SewvConfig.GARRISON_VEHICLES_ENABLED.get()) return;
+        if (!EasyMode.garrisonVehiclesEnabled()) return;
 
         // Defer out of SEM's onLevelTick loop, which is iterating PENDING_GARRISONS while it calls
         // spawnGuard. Our spawn point is 6-22 blocks off basePos — possibly a chunk SEM never

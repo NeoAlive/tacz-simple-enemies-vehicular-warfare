@@ -23,6 +23,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.client.RadioScreen;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
@@ -99,7 +100,7 @@ public class HandheldRadioItem extends Item {
     private static void standDown(Player player) {
         int released = FireMissionSupport.standDown(
                 player.level(), player.getUUID(), player.position(),
-                SewvConfig.MORTAR_RADIO_RANGE.get());
+                EasyMode.mortarRadioRange());
 
         if (released == 0) {
             hint(player, "message.tacz_sewv.radio.standdown.none", ChatFormatting.GRAY);
@@ -155,7 +156,7 @@ public class HandheldRadioItem extends Item {
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.unit").withStyle(ChatFormatting.GRAY));
         // Search-tree rebuild can call this before COMMON config is baked; .get() throws then.
         double range = SewvConfig.SPEC.isLoaded()
-                ? SewvConfig.MORTAR_RADIO_RANGE.get()
+                ? EasyMode.mortarRadioRange()
                 : SewvConfig.MORTAR_RADIO_RANGE.getDefault();
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.range",
                 (int) range).withStyle(ChatFormatting.DARK_GRAY));

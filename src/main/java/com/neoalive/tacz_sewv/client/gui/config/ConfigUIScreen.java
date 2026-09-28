@@ -31,6 +31,7 @@ public class ConfigUIScreen extends Screen {
     private static final int FOOTER_H = 40;
     private static final int ROW_H = 26;
     private static final int ROW_H_MULTI = 58;
+    private static final int SECTION_H = 18;
     private static final int ROW_GAP = 4;
     private static final int LABEL_W = 148;
     private static final int ROW_INSET = 8;
@@ -304,11 +305,23 @@ public class ConfigUIScreen extends Screen {
     private void resetCategory() {
         Map<Integer, String> draft = activeDraft();
         for (ConfigEntry entry : ConfigRegistry.forCategory(this.scope, currentCategory())) {
-            if (entry.type == ConfigValueType.SHORTCUT) continue;
+            if (entry.type == ConfigValueType.SHORTCUT || entry.type == ConfigValueType.SECTION_HEADER) continue;
             draft.put(entry.index, entry.defaultDraftString());
         }
         this.contentScroll = 0;
         init();
+    }
+
+    private boolean draftBool(String key) {
+        ConfigEntry entry = ConfigRegistry.byKey(key);
+        if (entry == null) return false;
+        String v = activeDraft().getOrDefault(entry.index, entry.draftString());
+        return Boolean.parseBoolean(v);
+    }
+
+    private boolean isEntryVisible(ConfigEntry entry) {
+        if (entry.requiresKey == null) return true;
+        return draftBool(entry.requiresKey);
     }
 
     private void rebuildEntryWidgets() {
@@ -317,8 +330,14 @@ public class ConfigUIScreen extends Screen {
         Map<Integer, String> draft = activeDraft();
 
         for (ConfigEntry entry : entries) {
+            if (!isEntryVisible(entry)) continue;
             String value = draft.computeIfAbsent(entry.index, k -> entry.draftString());
             Runnable onChange = this::updateConfirmButton;
+
+            if (entry.type == ConfigValueType.SECTION_HEADER) {
+                this.rows.add(new RowWidgets(entry, null, null, null, null));
+                continue;
+            }
 
             if (entry.type == ConfigValueType.SHORTCUT) {
                 ConfigWidgets.FlatButton btn = addRenderableWidget(new ConfigWidgets.FlatButton(
@@ -336,6 +355,11 @@ public class ConfigUIScreen extends Screen {
                         new ConfigWidgets.OnOffSwitch(0, 0, on, v -> {
                             draft.put(entry.index, v ? "true" : "false");
                             onChange.run();
+                            // Easy Mode master collapses/expands every child — rebuild the list.
+                            if ("easyMode".equals(entry.key)) {
+                                this.contentScroll = 0;
+                                init();
+                            }
                         }));
                 this.rows.add(new RowWidgets(entry, sw, null, null, null));
                 continue;
@@ -416,9 +440,11 @@ public class ConfigUIScreen extends Screen {
 
         for (RowWidgets row : this.rows) {
             ConfigEntry entry = row.entry();
+            int sectionPad = entry.sectionKey != null ? SECTION_H + ROW_GAP : 0;
             int rowH = rowHeight(entry);
-            boolean visible = y + rowH >= clipTop && y <= clipBottom;
-            int valueY = y + (rowH - 20) / 2;
+            int blockTop = y + sectionPad;
+            boolean visible = blockTop + rowH >= clipTop && blockTop <= clipBottom;
+            int valueY = blockTop + (rowH - 20) / 2;
 
             if (row.toggle() != null) {
                 row.toggle().setTooltip(Tooltip.create(Component.translatable(entry.tooltipKey())));
@@ -429,7 +455,7 @@ public class ConfigUIScreen extends Screen {
             if (row.field() != null) {
                 row.field().setTooltip(Tooltip.create(Component.translatable(entry.tooltipKey())));
                 row.field().setWidth(valueW());
-                row.field().setPosition(valueX(), y + 3);
+                row.field().setPosition(valueX(), blockTop + 3);
                 row.field().visible = visible;
                 row.field().setEditable(visible);
             }
@@ -442,7 +468,7 @@ public class ConfigUIScreen extends Screen {
                 row.enumBtn().visible = visible;
                 row.enumBtn().active = visible;
             }
-            y += rowH + ROW_GAP;
+            y += sectionPad + rowH + ROW_GAP;
         }
     }
 
@@ -475,7 +501,9 @@ public class ConfigUIScreen extends Screen {
         }
         int h = 0;
         for (RowWidgets row : this.rows) {
-            h += rowHeight(row.entry()) + ROW_GAP;
+            ConfigEntry entry = row.entry();
+            if (entry.sectionKey != null) h += SECTION_H + ROW_GAP;
+            h += rowHeight(entry) + ROW_GAP;
         }
         return h;
     }
@@ -500,7 +528,7 @@ public class ConfigUIScreen extends Screen {
         Map<Integer, String> draft = activeDraft();
         Map<Integer, String> baseline = activeBaseline();
         for (ConfigEntry e : ConfigRegistry.forScope(this.scope)) {
-            if (e.type == ConfigValueType.SHORTCUT) continue;
+            if (e.type == ConfigValueType.SHORTCUT || e.type == ConfigValueType.SECTION_HEADER) continue;
             String d = draft.get(e.index);
             String b = baseline.get(e.index);
             if (d == null ? b != null : !d.equals(b)) return true;
@@ -514,7 +542,7 @@ public class ConfigUIScreen extends Screen {
         boolean ok = true;
         for (RowWidgets row : this.rows) {
             ConfigEntry entry = row.entry();
-            if (entry.type == ConfigValueType.SHORTCUT) continue;
+            if (entry.type == ConfigValueType.SHORTCUT || entry.type == ConfigValueType.SECTION_HEADER) continue;
             String text = draft.getOrDefault(entry.index, "");
             boolean valid = ConfigValidator.isValid(entry, text);
             if (row.field() != null) row.field().setValid(valid);
@@ -536,7 +564,7 @@ public class ConfigUIScreen extends Screen {
         Map<Integer, String> baseline = targetScope == ConfigScope.CLIENT ? this.clientBaseline : this.serverBaseline;
         Map<Integer, String> changes = new HashMap<>();
         for (ConfigEntry e : ConfigRegistry.forScope(targetScope)) {
-            if (e.type == ConfigValueType.SHORTCUT) continue;
+            if (e.type == ConfigValueType.SHORTCUT || e.type == ConfigValueType.SECTION_HEADER) continue;
             String d = draft.get(e.index);
             String b = baseline.get(e.index);
             if (d == null ? b != null : !d.equals(b)) {
@@ -599,6 +627,13 @@ public class ConfigUIScreen extends Screen {
             int y = clipTop - this.contentScroll;
             for (RowWidgets row : this.rows) {
                 ConfigEntry entry = row.entry();
+                if (entry.sectionKey != null) {
+                    if (y + SECTION_H >= clipTop && y <= clipBottom) {
+                        Component section = Component.translatable(ConfigEntry.sectionLabelKey(entry.sectionKey));
+                        g.drawString(this.font, section, labelX(), y + 4, COL_MUTED, false);
+                    }
+                    y += SECTION_H + ROW_GAP;
+                }
                 int rowH = rowHeight(entry);
                 if (y + rowH >= clipTop && y <= clipBottom) {
                     Component label = Component.translatable(entry.labelKey());

@@ -26,6 +26,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -327,11 +328,11 @@ public final class Facts {
             return;
         }
         if (now < this.nextCommsScan) return;
-        this.nextCommsScan = now + SewvConfig.SUPPORT_CALL_INTERVAL_TICKS.get();
+        this.nextCommsScan = now + EasyMode.supportCallIntervalTicks();
 
         this.support = FireMissionSupport.availableSupport(
                 unit.level(), this.faction, this.owner, unit.position(),
-                SewvConfig.MORTAR_RADIO_RANGE.get());
+                EasyMode.mortarRadioRange());
     }
 
     private void attach(VehicleEntity hull) {
@@ -458,7 +459,7 @@ public final class Facts {
 
         this.screened = this.target != null && SmokeVision.lineBlockedBySmoke(
                 unit.level(), hull, hull.position(), this.target.position(),
-                SewvConfig.SMOKE_BLOCK_RADIUS.get());
+                EasyMode.smokeBlockRadius());
 
         countForces(unit, hull);
     }
@@ -482,7 +483,7 @@ public final class Facts {
         // RU/US have no inventory a radio could ever be in, so their comms are a doctrine setting
         // rather than a piece of equipment — the same split that makes their ammo issued rather
         // than carried. A PMC crew needs a real radio somebody is actually carrying.
-        boolean organic = own != CrewFacts.Faction.PMC && SewvConfig.FACTION_ORGANIC_COMMS.get();
+        boolean organic = own != CrewFacts.Faction.PMC && EasyMode.factionOrganicComms();
         boolean radio = organic
                 || (unit instanceof PmcUnitEntity self && HandheldRadioItem.isCarriedBy(self));
 
@@ -774,7 +775,7 @@ public final class Facts {
 
         /** The request cooldown, so one contact cannot re-task every tube in the field each second. */
         public boolean recentlyCalledSupport(long now) {
-            return ticksSince(this.lastSupportTick, now) < SewvConfig.SUPPORT_CALL_INTERVAL_TICKS.get();
+            return ticksSince(this.lastSupportTick, now) < EasyMode.supportCallIntervalTicks();
         }
 
         void clear() {

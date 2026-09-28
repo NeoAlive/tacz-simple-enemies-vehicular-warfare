@@ -17,6 +17,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.compat.AshAmmoCompat;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
@@ -652,7 +653,7 @@ public final class PlaneWeapons {
     private static int stickSpacing() {
         return Math.max(MIN_BOMB_SPACING_TICKS,
                 Math.max(SewvConfig.PLANE_BOMB_STICK_INTERVAL.get(),
-                        SewvConfig.AI_FIRE_COOLDOWN_TICKS.get()));
+                        EasyMode.aiFireCooldownTicks()));
     }
 
     /** Grid-mark release: same stick / sight against a fixed aimpoint. */

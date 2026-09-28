@@ -381,6 +381,25 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue MINECOLONIES_RAID_CHANCE;
     public static final ForgeConfigSpec.IntValue MINECOLONIES_RAID_MAX_VEHICLES;
 
+    // Balancing / Easy Mode (overlays — do not change the knobs above; see EasyMode)
+    public static final ForgeConfigSpec.BooleanValue EASY_MODE;
+    public static final ForgeConfigSpec.BooleanValue EASY_DISABLE_SHELLING;
+    public static final ForgeConfigSpec.BooleanValue EASY_DISABLE_LARGE_COMBAT;
+    public static final ForgeConfigSpec.BooleanValue EASY_NO_FAR_COMBAT_TANKS;
+    public static final ForgeConfigSpec.BooleanValue EASY_NO_WORLD_ARMOR;
+    public static final ForgeConfigSpec.BooleanValue EASY_LOWER_EVENT_ESCALATION;
+    public static final ForgeConfigSpec.BooleanValue EASY_SOFT_AI_AIM;
+    public static final ForgeConfigSpec.BooleanValue EASY_SOFT_AI_ROF;
+    public static final ForgeConfigSpec.BooleanValue EASY_FINITE_ENEMY_LOGISTICS;
+    public static final ForgeConfigSpec.BooleanValue EASY_SOFT_AT_DISMOUNTS;
+    public static final ForgeConfigSpec.BooleanValue EASY_NO_RECON_DRONES;
+    public static final ForgeConfigSpec.BooleanValue EASY_SOFT_SUPPORT_CALLS;
+    public static final ForgeConfigSpec.BooleanValue EASY_TIGHTER_ENGAGE_RINGS;
+    public static final ForgeConfigSpec.BooleanValue EASY_KEEP_LOS_GATES;
+    public static final ForgeConfigSpec.BooleanValue EASY_PLAYER_DAMAGE_SCALE_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue EASY_PLAYER_DAMAGE_SCALE;
+    public static final ForgeConfigSpec.BooleanValue EASY_PLAYER_PRIORITY_SOFT;
+
     private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
     private static final int[][] DOCTRINE_DEFAULTS = {
             {2, -1, 2, -1, 1, 0, -2, 2},
@@ -1535,6 +1554,51 @@ public final class SewvConfig {
                         "Hard cap on hulls fielded by one armored colony raid, before crew. Colony raid level",
                         "decides the actual number below this.")
                 .defineInRange("minecoloniesRaidMaxVehicles", 3, 1, 12);
+        builder.pop();
+
+        builder.push("balancing");
+        EASY_MODE = builder.comment(
+                        "Master switch for Easy Mode. Off = unchanged difficulty. On = apply the child toggles below.")
+                .define("easyMode", false);
+        EASY_DISABLE_SHELLING = builder.comment("Easy Mode: disable mortar batteries that shell the player's bed/base.")
+                .define("easyDisableShelling", true);
+        EASY_DISABLE_LARGE_COMBAT = builder.comment("Easy Mode: disable large multi-vehicle battles.")
+                .define("easyDisableLargeCombat", true);
+        EASY_NO_FAR_COMBAT_TANKS = builder.comment("Easy Mode: no tanks injected into SEM far_combat events.")
+                .define("easyNoFarCombatTanks", true);
+        EASY_NO_WORLD_ARMOR = builder.comment(
+                        "Easy Mode: no village garrison tanks and no Berezka structure vehicles.")
+                .define("easyNoWorldArmor", true);
+        EASY_LOWER_EVENT_ESCALATION = builder.comment(
+                        "Easy Mode: SEWV event failure multipliers escalate half as fast.")
+                .define("easyLowerEventEscalation", true);
+        EASY_SOFT_AI_AIM = builder.comment("Easy Mode: wider AI aim spread and a tighter fire-assist cone.")
+                .define("easySoftAiAim", true);
+        EASY_SOFT_AI_ROF = builder.comment("Easy Mode: slower AI vehicle / mortar / Type-63 rate of fire.")
+                .define("easySoftAiRoF", true);
+        EASY_FINITE_ENEMY_LOGISTICS = builder.comment(
+                        "Easy Mode: RU/US hulls use finite fuel and ammo; dry hulls bail like a write-off.")
+                .define("easyFiniteEnemyLogistics", true);
+        EASY_SOFT_AT_DISMOUNTS = builder.comment(
+                        "Easy Mode: at most one AT gunner per dismount, shorter AT range, launcher spread.")
+                .define("easySoftAtDismounts", true);
+        EASY_NO_RECON_DRONES = builder.comment("Easy Mode: RU/US engineers deploy no recon drones.")
+                .define("easyNoReconDrones", true);
+        EASY_SOFT_SUPPORT_CALLS = builder.comment(
+                        "Easy Mode: no organic RU/US radio calls; longer gaps and shorter mortar radio range.")
+                .define("easySoftSupportCalls", true);
+        EASY_TIGHTER_ENGAGE_RINGS = builder.comment("Easy Mode: tacticalScale 1.0 (closer engage rings / command distances).")
+                .define("easyTighterEngageRings", true);
+        EASY_KEEP_LOS_GATES = builder.comment("Easy Mode: force vehicle LoS locks and a larger smoke block radius.")
+                .define("easyKeepLosGates", true);
+        EASY_PLAYER_DAMAGE_SCALE_ENABLED = builder.comment(
+                        "Easy Mode: scale hostile vehicle/unit/mortar damage dealt to the player.")
+                .define("easyPlayerDamageScaleEnabled", true);
+        EASY_PLAYER_DAMAGE_SCALE = builder.comment("Easy Mode: multiplier for scaled player incoming damage (1.0 = full).")
+                .defineInRange("easyPlayerDamageScale", 0.5, 0.25, 1.0);
+        EASY_PLAYER_PRIORITY_SOFT = builder.comment(
+                        "Easy Mode: AI prefers non-player targets and grants a short post-respawn acquire grace.")
+                .define("easyPlayerPrioritySoft", true);
         builder.pop();
 
         SPEC = builder.build();

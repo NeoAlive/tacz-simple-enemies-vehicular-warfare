@@ -9,6 +9,7 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
@@ -54,7 +55,7 @@ public final class NavalBattleEvent extends DynamicEvent {
 
     @Override
     public double getFailureMultiplier() {
-        return SewvConfig.NAVAL_FAILURE_MULTIPLIER.get();
+        return EasyMode.failureMultiplier(SewvConfig.NAVAL_FAILURE_MULTIPLIER.get());
     }
 
     @Override

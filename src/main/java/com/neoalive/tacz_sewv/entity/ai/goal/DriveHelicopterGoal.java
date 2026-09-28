@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -301,7 +302,6 @@ public class DriveHelicopterGoal extends Goal {
      */
     private static final double RAPPEL_INSERT_RADIUS = 64.0;
     /** Same cap as {@link DriveVehicleGoal}'s IFV dismount — one or two AT gunners per insert. */
-    private static final int MAX_AT_GUNNERS = 2;
     /** Ticks holding an in-range enemy before dropping — not first-contact insta-rappel. */
     private static final int RAPPEL_ENGAGE_DEBOUNCE_TICKS = 40;
     /** After any rappel ends, don't autonomous-retrigger while still in the same scrap. */
@@ -1455,8 +1455,8 @@ public class DriveHelicopterGoal extends Goal {
 
             // Same AT issue seam as DriveVehicleGoal.dismountSquad — first always, second rolls,
             // max two per RAPPEL session. issueAtWeapon no-ops for PMC / already-armed.
-            if (this.rappelAtIssued == 0 || (this.rappelAtIssued < MAX_AT_GUNNERS
-                    && unit.getRandom().nextDouble() < SewvConfig.AT_SECOND_GUNNER_CHANCE.get())) {
+            if (this.rappelAtIssued == 0 || (this.rappelAtIssued < EasyMode.maxAtGunners()
+                    && unit.getRandom().nextDouble() < EasyMode.atSecondGunnerChance())) {
                 if (SmallArmsSupport.issueAtWeapon(unit)) this.rappelAtIssued++;
             }
 
@@ -1621,7 +1621,7 @@ public class DriveHelicopterGoal extends Goal {
      * Tracks cone-fail cycles for {@link #compensationActive}.
      */
     private double fireConeDeg() {
-        double base = SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get();
+        double base = EasyMode.aiFireAssistConeDeg();
         double floor = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.heliConeFloorDeg(this.vehicle);
         return Math.max(base, floor);
     }

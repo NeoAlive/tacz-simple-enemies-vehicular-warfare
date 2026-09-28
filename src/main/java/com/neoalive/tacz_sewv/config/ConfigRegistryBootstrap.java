@@ -16,6 +16,7 @@ final class ConfigRegistryBootstrap {
         registerClient(b);
         registerShortcuts(b);
         registerWorldRules(b);
+        registerBalancing(b);
         registerEvents(b);
         registerResources(b);
         registerSoldiers(b);
@@ -141,6 +142,61 @@ final class ConfigRegistryBootstrap {
         b.shortcut(ConfigScope.SERVER, "shortcuts", "misc", "misc");
         b.shortcut(ConfigScope.SERVER, "shortcuts", "target_priority", "target_priority");
         b.shortcut(ConfigScope.SERVER, "shortcuts", "player_doctrine_info", "doctrine_info");
+    }
+
+    private static void registerBalancing(ConfigRegistry.Builder b) {
+        final String cat = "balancing";
+        final String req = "easyMode";
+        b.bool(ConfigScope.SERVER, cat, "easyMode",
+                SewvConfig.EASY_MODE, SewvConfig.EASY_MODE::set);
+        b.bool(ConfigScope.SERVER, cat, "easyDisableShelling",
+                SewvConfig.EASY_DISABLE_SHELLING, SewvConfig.EASY_DISABLE_SHELLING::set,
+                req, "balancing.ambient");
+        b.bool(ConfigScope.SERVER, cat, "easyDisableLargeCombat",
+                SewvConfig.EASY_DISABLE_LARGE_COMBAT, SewvConfig.EASY_DISABLE_LARGE_COMBAT::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyNoFarCombatTanks",
+                SewvConfig.EASY_NO_FAR_COMBAT_TANKS, SewvConfig.EASY_NO_FAR_COMBAT_TANKS::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyNoWorldArmor",
+                SewvConfig.EASY_NO_WORLD_ARMOR, SewvConfig.EASY_NO_WORLD_ARMOR::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyLowerEventEscalation",
+                SewvConfig.EASY_LOWER_EVENT_ESCALATION, SewvConfig.EASY_LOWER_EVENT_ESCALATION::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easySoftAiAim",
+                SewvConfig.EASY_SOFT_AI_AIM, SewvConfig.EASY_SOFT_AI_AIM::set,
+                req, "balancing.lethality");
+        b.bool(ConfigScope.SERVER, cat, "easySoftAiRoF",
+                SewvConfig.EASY_SOFT_AI_ROF, SewvConfig.EASY_SOFT_AI_ROF::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyFiniteEnemyLogistics",
+                SewvConfig.EASY_FINITE_ENEMY_LOGISTICS, SewvConfig.EASY_FINITE_ENEMY_LOGISTICS::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easySoftAtDismounts",
+                SewvConfig.EASY_SOFT_AT_DISMOUNTS, SewvConfig.EASY_SOFT_AT_DISMOUNTS::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyNoReconDrones",
+                SewvConfig.EASY_NO_RECON_DRONES, SewvConfig.EASY_NO_RECON_DRONES::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easySoftSupportCalls",
+                SewvConfig.EASY_SOFT_SUPPORT_CALLS, SewvConfig.EASY_SOFT_SUPPORT_CALLS::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyTighterEngageRings",
+                SewvConfig.EASY_TIGHTER_ENGAGE_RINGS, SewvConfig.EASY_TIGHTER_ENGAGE_RINGS::set,
+                req, "balancing.engagement");
+        b.bool(ConfigScope.SERVER, cat, "easyKeepLosGates",
+                SewvConfig.EASY_KEEP_LOS_GATES, SewvConfig.EASY_KEEP_LOS_GATES::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyPlayerDamageScaleEnabled",
+                SewvConfig.EASY_PLAYER_DAMAGE_SCALE_ENABLED, SewvConfig.EASY_PLAYER_DAMAGE_SCALE_ENABLED::set,
+                req, "balancing.player");
+        b.doubleRange(ConfigScope.SERVER, cat, "easyPlayerDamageScale", 0.25, 1.0,
+                SewvConfig.EASY_PLAYER_DAMAGE_SCALE, SewvConfig.EASY_PLAYER_DAMAGE_SCALE::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyPlayerPrioritySoft",
+                SewvConfig.EASY_PLAYER_PRIORITY_SOFT, SewvConfig.EASY_PLAYER_PRIORITY_SOFT::set,
+                req, null);
     }
 
     private static void registerWorldRules(ConfigRegistry.Builder b) {

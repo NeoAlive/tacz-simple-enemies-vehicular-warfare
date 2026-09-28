@@ -15,7 +15,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.StalemateBreaker;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -200,7 +200,7 @@ public class DriveShipGoal extends Goal {
                     selectWeaponForTarget(target);
                     if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL) {
                         VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
-                                SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+                                EasyMode.aiFireAssistConeDeg());
                     }
                     // Fall through to transit / park on dest below.
                 } else {
@@ -245,7 +245,7 @@ public class DriveShipGoal extends Goal {
         selectWeaponForTarget(target);
         if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL) {
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
-                    SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+                    EasyMode.aiFireAssistConeDeg());
         }
 
         if (isLowHealth()) {

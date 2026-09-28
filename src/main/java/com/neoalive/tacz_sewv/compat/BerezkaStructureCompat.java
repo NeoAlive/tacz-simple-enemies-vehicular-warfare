@@ -17,6 +17,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.berezka.berezka_api.API;
 import org.berezka.berezka_api.events.onStructureSpawned;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -48,7 +49,7 @@ public final class BerezkaStructureCompat {
 
     @SubscribeEvent
     public static void onStructureSpawned(onStructureSpawned event) {
-        if (!SewvConfig.STRUCTURE_VEHICLES_ENABLED.get()) return;
+        if (!EasyMode.structureVehiclesEnabled()) return;
 
         ServerLevel level = API.getCurWorld();
         if (level == null) {

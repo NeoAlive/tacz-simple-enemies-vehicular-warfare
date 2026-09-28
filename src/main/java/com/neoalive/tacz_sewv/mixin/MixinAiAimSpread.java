@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.util.VehicleDarknessAccuracy;
@@ -100,7 +101,7 @@ public abstract class MixinAiAimSpread {
                 ? TACZ_SEWV$ACCURATE
                 : SewvConfig.AI_AIM_ACCURACY.get();
         if (!TACZ_SEWV$ACCURATE.equals(mode)) {
-            double added = SewvConfig.AI_AIM_SPREAD_DEG.get();
+            double added = EasyMode.aiAimSpreadDegrees();
             if (TACZ_SEWV$SCALED.equals(mode)) {
                 // Design crew seats (driver + turret on an IFV), not raw passengers — a loaded
                 // IFV's squad riders would otherwise collapse this to nearly accurate.

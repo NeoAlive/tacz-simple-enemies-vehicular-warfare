@@ -14,7 +14,7 @@ import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.init.ModItems;
@@ -126,7 +126,7 @@ public class PacketRadioCommand {
             }
             if (frequency.directFire() && entityTarget != null
                     && FireMissionSupport.noCrewCanSee(player.level(), CrewFacts.Faction.PMC,
-                            player.getUUID(), player.position(), SewvConfig.MORTAR_RADIO_RANGE.get(),
+                            player.getUUID(), player.position(), EasyMode.mortarRadioRange(),
                             frequency.kinds(), entityTarget)) {
                 OrderReport.fail(player, OrderFailure.TARGET_OBSTRUCTED);
                 return;
@@ -134,7 +134,7 @@ public class PacketRadioCommand {
 
             FireMissionSupport.Call call = FireMissionSupport.callRadioMission(
                     player.level(), player.getUUID(), player.position(),
-                    SewvConfig.MORTAR_RADIO_RANGE.get(), frequency, entityTarget, posTarget,
+                    EasyMode.mortarRadioRange(), frequency, entityTarget, posTarget,
                     settings.delaySeconds(), settings.planeMode());
 
             if (call.empty()) {

@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.config.EasyMode;
 
 /**
  * Unlimited energy for a vehicle whose driver's seat is held by an RU/US unit.
@@ -60,7 +60,7 @@ public abstract class MixinVehicleFactionEnergy {
      */
     @Unique
     private boolean tacz_sewv$hasFactionDriver() {
-        if (!SewvConfig.FACTION_INFINITE_ENERGY.get()) return false;
+        if (!EasyMode.factionInfiniteEnergy()) return false;
         Entity driver = ((VehicleEntity) (Object) this).getFirstPassenger();
         return driver instanceof RUunitEntity || driver instanceof USunitEntity;
     }

@@ -21,6 +21,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
@@ -47,7 +48,6 @@ public final class PlayerRappelTracker {
     /** Give up fighting altitude and snap+drop (player flight inputs used to strand APPROACH forever). */
     private static final int FORCE_APPROACH_TICKS = 80;
     private static final int MAX_DISMOUNT_RETRIES = 40;
-    private static final int MAX_AT_GUNNERS = 2;
     private static final int RAPPEL_TIMEOUT_TICKS = 6000;
 
     private static final Map<UUID, SelfSession> SELF = new HashMap<>();
@@ -321,8 +321,8 @@ public final class PlayerRappelTracker {
             int id = unit.getId();
             if (id == session.ropeMinusId || id == session.ropePlusId) continue;
 
-            if (session.atIssued == 0 || (session.atIssued < MAX_AT_GUNNERS
-                    && unit.getRandom().nextDouble() < SewvConfig.AT_SECOND_GUNNER_CHANCE.get())) {
+            if (session.atIssued == 0 || (session.atIssued < EasyMode.maxAtGunners()
+                    && unit.getRandom().nextDouble() < EasyMode.atSecondGunnerChance())) {
                 if (SmallArmsSupport.issueAtWeapon(unit)) session.atIssued++;
             }
 
@@ -459,8 +459,8 @@ public final class PlayerRappelTracker {
             int id = unit.getId();
             if (id == session.ropeMinusId || id == session.ropePlusId) continue;
 
-            if (session.atIssued == 0 || (session.atIssued < MAX_AT_GUNNERS
-                    && unit.getRandom().nextDouble() < SewvConfig.AT_SECOND_GUNNER_CHANCE.get())) {
+            if (session.atIssued == 0 || (session.atIssued < EasyMode.maxAtGunners()
+                    && unit.getRandom().nextDouble() < EasyMode.atSecondGunnerChance())) {
                 if (SmallArmsSupport.issueAtWeapon(unit)) session.atIssued++;
             }
 

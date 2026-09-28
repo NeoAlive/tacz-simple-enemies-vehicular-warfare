@@ -6,6 +6,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
@@ -32,7 +33,7 @@ public final class ConvoyEvent extends DynamicEvent {
 
     @Override
     public double getFailureMultiplier() {
-        return SewvConfig.CONVOY_FAILURE_MULTIPLIER.get();
+        return EasyMode.failureMultiplier(SewvConfig.CONVOY_FAILURE_MULTIPLIER.get());
     }
 
     @Override

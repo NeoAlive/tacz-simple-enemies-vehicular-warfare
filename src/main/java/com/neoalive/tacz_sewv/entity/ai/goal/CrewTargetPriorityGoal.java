@@ -10,6 +10,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -181,7 +182,7 @@ public class CrewTargetPriorityGoal extends Goal {
             if (distSq >= bestDistSq) continue;
             // LOS last and only on the running best: the raycast is the expensive part and
             // most candidates never become the best.
-            if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+            if (EasyMode.vehicleTargetRequireLos()
                     && !ContactBoard.waivesLos(this.unit, candidate, minSource(doctrine))
                     && !this.unit.getSensing().hasLineOfSight(candidate)) {
                 continue;

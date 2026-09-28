@@ -12,6 +12,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport.SbwClass;
@@ -153,8 +154,8 @@ public class AtWeaponGoal extends Goal {
         this.shotClock += 1.0;
 
         // zoom = true is REQUIRED, not cosmetic: JavelinItem/IglaItem.shoot return immediately
-        // without it. Spread only for guns a rifleman aims by hand; guided launchers ignore it.
-        double spread = (cls == SbwClass.SMALL_ARMS || cls == SbwClass.SNIPER) ? SewvConfig.SBW_AI_SPREAD.get() : 0.0;
+        // without it. Easy Mode soft-AT also spreads launchers; otherwise only hand-aimed guns.
+        double spread = EasyMode.sbwAiSpread(cls);
         int shots = 0;
         while (this.shotClock >= cooldown && shots < 4 && gun.canShoot(this.unit)) {
             try {
@@ -171,7 +172,7 @@ public class AtWeaponGoal extends Goal {
 
     private static double rangeFor(SbwClass cls) {
         return switch (cls) {
-            case AT -> SewvConfig.AT_ENGAGE_RANGE.get();
+            case AT -> EasyMode.atEngageRange();
             case AA -> SewvConfig.SBW_AA_RANGE.get();
             case SNIPER -> SewvConfig.SBW_SNIPER_RANGE.get();
             case SMALL_ARMS -> SewvConfig.SBW_SMALL_ARMS_RANGE.get();

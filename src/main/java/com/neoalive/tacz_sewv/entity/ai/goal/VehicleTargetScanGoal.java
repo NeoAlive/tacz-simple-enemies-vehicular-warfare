@@ -17,6 +17,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
+import com.neoalive.tacz_sewv.config.EasyModePlayerEvents;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
@@ -130,7 +132,7 @@ public class VehicleTargetScanGoal extends Goal {
                 // fire-time is UNRESOLVED and on hold. Leave this exemption as it is; the fire-time gate in
                 // MixinVehicleFireCooldown is currently uncompensated and "fire-time is strictly stronger than
                 // acquisition" depends on that staying true. See docs/fire-los-audit.md.
-boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+boolean needLos = EasyMode.vehicleTargetRequireLos()
                         && !DriveHelicopterGoal.inFiringRun(v);
                 if (!needLos || ContactBoard.waivesLos(this.unit, lock, DIRECT_FIRE_MIN)
                         || this.unit.getSensing().hasLineOfSight(lock)) {
@@ -178,7 +180,7 @@ boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
         // fire-time is UNRESOLVED and on hold. Leave this exemption as it is; the fire-time gate in
         // MixinVehicleFireCooldown is currently uncompensated and "fire-time is strictly stronger than
         // acquisition" depends on that staying true. See docs/fire-los-audit.md.
-if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+if (EasyMode.vehicleTargetRequireLos()
                 && !DriveHelicopterGoal.inFiringRun(this.vehicle)) {
             if (this.unit.getSensing().hasLineOfSight(target)) {
                 this.ticksWithoutLos = 0;
@@ -239,13 +241,28 @@ if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
         // candidate the crew can actually see (every candidate, when LOS is off). Raycasts only
         // run down the list until one passes.
         candidates.sort(Comparator.comparingDouble(e -> focusAdjustedDistSq(v, e)));
+        // Easy Mode soft priority: if any non-player combatant is in range, prefer them over
+        // the player unless this crew was just hurt by that player (retaliation).
+        if (EasyMode.playerPrioritySoft()) {
+            boolean hasNonPlayer = false;
+            for (LivingEntity e : candidates) {
+                if (!(e instanceof Player)) {
+                    hasNonPlayer = true;
+                    break;
+                }
+            }
+            if (hasNonPlayer) {
+                LivingEntity retaliate = this.unit.getLastHurtByMob();
+                candidates.removeIf(e -> e instanceof Player p && retaliate != p);
+            }
+        }
         // Mid firing-run reacquire must not demand LOS every scan interval — the same
         // pitch/bank that flickered the lock would block re-lock for the whole pass.
         // DEFERRED(firing-run-los): whether the bank/pitch compensation belongs at acquisition (here) or at
         // fire-time is UNRESOLVED and on hold. Leave this exemption as it is; the fire-time gate in
         // MixinVehicleFireCooldown is currently uncompensated and "fire-time is strictly stronger than
         // acquisition" depends on that staying true. See docs/fire-los-audit.md.
-boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+boolean needLos = EasyMode.vehicleTargetRequireLos()
                 && !DriveHelicopterGoal.inFiringRun(v);
         LivingEntity foliageOnly = null;
         for (LivingEntity candidate : candidates) {
@@ -315,7 +332,7 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
             List<LivingEntity> candidates = probe.collectCylinderCandidates(v, true);
             if (candidates.isEmpty()) return null;
             candidates.sort(Comparator.comparingDouble(e -> probe.focusAdjustedDistSq(v, e)));
-            boolean needLos = SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get() && !inRun;
+            boolean needLos = EasyMode.vehicleTargetRequireLos() && !inRun;
             for (LivingEntity candidate : candidates) {
                 if (!needLos || unit.getSensing().hasLineOfSight(candidate)) {
                     return candidate;
@@ -457,7 +474,15 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
             }
             return VehicleTargeting.categoryAllowed(this.unit, e);
         }
-        if (e instanceof Player p) return !p.isCreative() && !p.isSpectator();
+        if (e instanceof Player p) {
+            if (p.isCreative() || p.isSpectator()) return false;
+            // Easy Mode respawn grace: no proactive lock until grace ends, unless this crew
+            // was hurt by the player (retaliation).
+            if (EasyModePlayerEvents.inRespawnGrace(p) && this.unit.getLastHurtByMob() != p) {
+                return false;
+            }
+            return true;
+        }
         if (e instanceof IronGolem) return true;
         if (this.unit instanceof RUunitEntity) {
             return VehicleTargeting.categoryAllowed(this.unit, e) && !(e instanceof RUunitEntity);

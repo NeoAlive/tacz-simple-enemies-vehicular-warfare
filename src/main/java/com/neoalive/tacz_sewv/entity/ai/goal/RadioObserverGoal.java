@@ -8,7 +8,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
@@ -84,7 +84,7 @@ public class RadioObserverGoal extends Goal {
 
         FireMissionSupport.Call call = FireMissionSupport.callFireMission(
                 this.unit.level(), this.unit.getOwnerUUID(), this.unit.position(),
-                SewvConfig.MORTAR_RADIO_RANGE.get(), target);
+                EasyMode.mortarRadioRange(), target);
 
         if (call.empty()) {
             this.nextCheck = now + NO_CREWS_BACKOFF;

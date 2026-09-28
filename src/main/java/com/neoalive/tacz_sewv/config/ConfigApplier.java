@@ -18,7 +18,7 @@ public final class ConfigApplier {
     public static Map<Integer, Object> captureServerSnapshot(MinecraftServer server) {
         Map<Integer, Object> out = new HashMap<>();
         for (ConfigEntry e : ConfigRegistry.forScope(ConfigScope.SERVER)) {
-            if (e.type == ConfigValueType.SHORTCUT) continue;
+            if (e.type == ConfigValueType.SHORTCUT || e.type == ConfigValueType.SECTION_HEADER) continue;
             if (e.type == ConfigValueType.GAMERULE_BOOL) {
                 if (e.gameruleKey != null) {
                     out.put(e.index, server.getGameRules().getBoolean(e.gameruleKey));
@@ -85,7 +85,7 @@ public final class ConfigApplier {
 
     public static List<ConfigEntry> writableServerEntries() {
         return ConfigRegistry.forScope(ConfigScope.SERVER).stream()
-                .filter(e -> e.type != ConfigValueType.SHORTCUT)
+                .filter(e -> e.type != ConfigValueType.SHORTCUT && e.type != ConfigValueType.SECTION_HEADER)
                 .toList();
     }
 }

@@ -43,6 +43,7 @@ import com.neoalive.tacz_sewv.compat.McspAmmoCompat;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.compat.VvpAmmoCompat;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
@@ -625,7 +626,7 @@ public final class TankSpawner {
     public static void maybeStockFactionBoardAmmo(VehicleEntity hull, AbstractUnit driver) {
         if (hull.level().isClientSide()) return;
         if (!(driver instanceof RUunitEntity) && !(driver instanceof USunitEntity)) return;
-        if (!SewvConfig.FACTION_INFINITE_AMMO.get()) return;
+        if (!EasyMode.factionInfiniteAmmo()) return;
         if (hull.getFirstPassenger() != driver) return;
         if (!VehicleAmmoStorage.hasStorage(hull)) return;
         if (hull.getPersistentData().getBoolean(TAG_AMMO_STOCKED)) return;
@@ -673,7 +674,7 @@ public final class TankSpawner {
         boolean addonNative = McspAmmoCompat.isMcspHull(id) || AshAmmoCompat.isAshHull(id)
                 || VvpAmmoCompat.isVvpHull(id);
 
-        if (!addonNative && faction != TankFaction.PMC && SewvConfig.FACTION_INFINITE_AMMO.get()) {
+        if (!addonNative && faction != TankFaction.PMC && EasyMode.factionInfiniteAmmo()) {
             VehicleAmmoStorage.setStack(tank, 0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
             return;
         }

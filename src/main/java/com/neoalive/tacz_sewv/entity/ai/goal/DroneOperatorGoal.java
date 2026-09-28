@@ -15,6 +15,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -129,7 +130,7 @@ public class DroneOperatorGoal extends Goal {
             if (!this.drones.contains(drone)) this.drones.add(drone);
         }
 
-        int max = SewvConfig.DRONE_MAX_PER_ENGINEER.get();
+        int max = EasyMode.droneMaxPerEngineer();
         if (this.drones.size() >= max) return;
         // Claimed UUID exists but chunk unloaded — do not spawn a second drone.
         if (DroneSupport.hasUnloadedClaim(level, this.unit)) return;

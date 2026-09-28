@@ -22,6 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -181,12 +182,12 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
                         unit, to, SewvConfig.FRIENDLY_FIRE_VEHICLE_RADIUS.get())) {
             return true;
         }
-        if (SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get()
+        if (EasyMode.vehicleTargetRequireLos()
                 && tacz_sewv$terrainBlocksLine(self, from, target, to)) {
             return true;
         }
         return SmokeVision.lineBlockedBySmoke(
-                self.level(), self, from, to, SewvConfig.SMOKE_BLOCK_RADIUS.get());
+                self.level(), self, from, to, EasyMode.smokeBlockRadius());
     }
 
     // vehicleShoot has TWO independent overloads and the AI paths split between
@@ -270,7 +271,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
      */
     @Unique
     private static int tacz_sewv$effectiveCooldown(VehicleEntity self, LivingEntity living) {
-        int configured = SewvConfig.AI_FIRE_COOLDOWN_TICKS.get();
+        int configured = EasyMode.aiFireCooldownTicks();
         try {
             int rpm = self.vehicleWeaponRpm(living);
             if (rpm <= 0) return configured;

@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
@@ -244,7 +245,7 @@ public class ManType63Goal extends Goal {
         hold(fired ? "FIRING tube " + tube : "shoot refused on tube " + tube);
 
         if (fired) {
-            this.nextShotTime = this.unit.level().getGameTime() + SewvConfig.TYPE63_FIRE_COOLDOWN_TICKS.get();
+            this.nextShotTime = this.unit.level().getGameTime() + EasyMode.type63FireCooldownTicks();
             this.laidOn = null;
         }
     }

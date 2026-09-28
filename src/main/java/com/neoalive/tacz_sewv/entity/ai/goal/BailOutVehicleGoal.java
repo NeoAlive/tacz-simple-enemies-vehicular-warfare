@@ -6,6 +6,7 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
@@ -15,6 +16,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -23,6 +25,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
 
@@ -136,8 +140,50 @@ public class BailOutVehicleGoal extends Goal {
         float max = vehicle.getMaxHealth();
         // A hull that reports no max health gives no fraction to compare against;
         // don't bail the crew out on a garbage reading.
-        if (max <= 0.0F) return false;
-        return vehicle.getHealth() <= max * BAIL_HEALTH_FRACTION;
+        if (max > 0.0F && vehicle.getHealth() <= max * BAIL_HEALTH_FRACTION) return true;
+        return isLogisticsDry(vehicle);
+    }
+
+    /**
+     * Easy Mode finite logistics: a hull with no fuel left and/or no rounds left to fire is
+     * treated like a write-off so the crew reuses the normal bail scramble.
+     */
+    private static boolean isLogisticsDry(VehicleEntity vehicle) {
+        if (!EasyMode.bailWhenDry()) return false;
+        if (vehicle.getFirstPassenger() instanceof Player) return false;
+
+        boolean energyDry = false;
+        int maxEnergy = vehicle.getMaxEnergy();
+        int energy = vehicle.getEnergy();
+        // Integer.MAX_VALUE is SBW's "no energy storage" sentinel — never treat that as dry.
+        if (maxEnergy > 0 && energy != Integer.MAX_VALUE && energy <= 0) {
+            energyDry = true;
+        }
+
+        boolean ammoDry = false;
+        if (VehicleAmmoStorage.hasStorage(vehicle) && !hasCreativeAmmoBox(vehicle)
+                && VehicleAmmoStorage.isEmpty(vehicle)) {
+            // Container empty is not enough — a loaded magazine still fires. Require the
+            // driver's selected weapon to report no rounds too.
+            int loaded = 0;
+            try {
+                loaded = vehicle.getAmmoCount(0);
+            } catch (Throwable ignored) {
+                loaded = 0;
+            }
+            ammoDry = loaded <= 0;
+        }
+
+        return energyDry || ammoDry;
+    }
+
+    private static boolean hasCreativeAmmoBox(VehicleEntity vehicle) {
+        var handler = VehicleAmmoStorage.handler(vehicle);
+        if (handler == null) return false;
+        for (int i = 0; i < handler.getSlots(); i++) {
+            if (handler.getStackInSlot(i).is(ModItems.CREATIVE_AMMO_BOX.get())) return true;
+        }
+        return false;
     }
 
     @Override

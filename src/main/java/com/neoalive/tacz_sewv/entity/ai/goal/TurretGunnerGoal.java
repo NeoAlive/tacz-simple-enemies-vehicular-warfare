@@ -10,7 +10,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
-import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.support.HeliArmament;
@@ -122,7 +122,7 @@ public class TurretGunnerGoal extends Goal {
         if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL
                 && !FcpMortarCompat.isMortarHull(this.vehicle)) {
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
-                    SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+                    EasyMode.aiFireAssistConeDeg());
         }
     }
 
@@ -138,7 +138,7 @@ public class TurretGunnerGoal extends Goal {
             this.weaponSwitchCooldown = WEAPON_SWITCH_COOLDOWN_TICKS;
         }
         VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
-                SewvConfig.AI_FIRE_ASSIST_CONE_DEG.get());
+                EasyMode.aiFireAssistConeDeg());
     }
 
     private static boolean heliLanding(VehicleEntity v) {

@@ -7,6 +7,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -59,7 +60,7 @@ public final class LargeCombatEvent extends DynamicEvent {
 
     @Override
     public double getFailureMultiplier() {
-        return SewvConfig.LARGE_COMBAT_FAILURE_MULTIPLIER.get();
+        return EasyMode.failureMultiplier(SewvConfig.LARGE_COMBAT_FAILURE_MULTIPLIER.get());
     }
 
     @Override
@@ -74,7 +75,7 @@ public final class LargeCombatEvent extends DynamicEvent {
 
     @Override
     public boolean canExecute(ServerLevel level, ServerPlayer player) {
-        return SewvConfig.LARGE_COMBAT_EVENTS_ENABLED.get();
+        return EasyMode.largeCombatEnabled();
     }
 
     @Override

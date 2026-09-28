@@ -26,7 +26,7 @@ public final class ConfigValidator {
             case RESOURCE_ID -> parseResourceId(draft);
             case MULTILINE_IDS -> parseMultilineIds(draft);
             case GAMERULE_BOOL -> parseBool(draft);
-            case SHORTCUT -> "";
+            case SHORTCUT, SECTION_HEADER -> "";
         };
     }
 

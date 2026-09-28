@@ -12,6 +12,7 @@ public final class ConfigCategoryStyle {
     private static final Map<String, String> EMOJI = Map.ofEntries(
             Map.entry("shortcuts", "\u26A1"),
             Map.entry("world_rules", "\uD83C\uDF0D"),
+            Map.entry("balancing", "\u2696\uFE0F"),
             Map.entry("events", "\uD83D\uDCA5"),
             Map.entry("resources", "\uD83D\uDCE6"),
             Map.entry("soldiers", "\uD83C\uDF96\uFE0F"),
@@ -39,6 +40,7 @@ public final class ConfigCategoryStyle {
     private static final Map<String, Integer> COLOR = Map.ofEntries(
             Map.entry("shortcuts", 0xFFFFD54F),
             Map.entry("world_rules", 0xFF81C784),
+            Map.entry("balancing", 0xFF66BB6A),
             Map.entry("events", 0xFFFF8A65),
             Map.entry("resources", 0xFF4DD0E1),
             Map.entry("soldiers", 0xFFE57373),

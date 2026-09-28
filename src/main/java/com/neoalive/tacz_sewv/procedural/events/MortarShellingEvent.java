@@ -7,6 +7,7 @@ import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.compat.MineColoniesCompat;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -54,7 +55,7 @@ public final class MortarShellingEvent extends DynamicEvent {
 
     @Override
     public double getFailureMultiplier() {
-        return SewvConfig.SHELLING_FAILURE_MULTIPLIER.get();
+        return EasyMode.failureMultiplier(SewvConfig.SHELLING_FAILURE_MULTIPLIER.get());
     }
 
     @Override
@@ -69,7 +70,7 @@ public final class MortarShellingEvent extends DynamicEvent {
 
     @Override
     public boolean canExecute(ServerLevel level, ServerPlayer player) {
-        return SewvConfig.SHELLING_EVENTS_ENABLED.get() && baseOf(player, level) != null;
+        return EasyMode.shellingEnabled() && baseOf(player, level) != null;
     }
 
     /**

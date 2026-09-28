@@ -20,6 +20,10 @@ public final class ConfigEntry {
     @Nullable public final List<String> enumOptions;
     @Nullable public final GameRules.Key<GameRules.BooleanValue> gameruleKey;
     @Nullable public final String shortcutAction;
+    /** When set, this entry is hidden unless the named draft/config key is true. */
+    @Nullable public final String requiresKey;
+    /** When set, UI draws a section header (translation key) above this entry. */
+    @Nullable public final String sectionKey;
 
     private final Supplier<Object> reader;
     @Nullable private final Consumer<Object> writer;
@@ -29,6 +33,8 @@ public final class ConfigEntry {
                 @Nullable Double min, @Nullable Double max, @Nullable List<String> enumOptions,
                 @Nullable GameRules.Key<GameRules.BooleanValue> gameruleKey,
                 @Nullable String shortcutAction,
+                @Nullable String requiresKey,
+                @Nullable String sectionKey,
                 Supplier<Object> reader, @Nullable Consumer<Object> writer,
                 @Nullable Supplier<Object> defaultReader) {
         this.index = index;
@@ -41,6 +47,8 @@ public final class ConfigEntry {
         this.enumOptions = enumOptions;
         this.gameruleKey = gameruleKey;
         this.shortcutAction = shortcutAction;
+        this.requiresKey = requiresKey;
+        this.sectionKey = sectionKey;
         this.reader = reader;
         this.writer = writer;
         this.defaultReader = defaultReader;
@@ -100,5 +108,9 @@ public final class ConfigEntry {
 
     public static String categoryLabelKey(String categoryId) {
         return "gui.tacz_sewv.config.category." + categoryId;
+    }
+
+    public static String sectionLabelKey(String sectionId) {
+        return "gui.tacz_sewv.config.section." + sectionId;
     }
 }

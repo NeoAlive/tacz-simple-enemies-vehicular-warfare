@@ -11,6 +11,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
@@ -167,7 +168,7 @@ public class ManVehicleMortarGoal extends Goal {
         UUID targetId = liveTarget ? target.getUUID() : this.unit.getUUID();
         this.hull.vehicleShoot(this.unit, targetId, this.laidAim);
 
-        this.nextShotTime = this.unit.level().getGameTime() + SewvConfig.MORTAR_FIRE_COOLDOWN_TICKS.get();
+        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.mortarFireCooldownTicks();
         this.laidOn = null;
         this.laidLaunch = null;
         this.laidAim = null;

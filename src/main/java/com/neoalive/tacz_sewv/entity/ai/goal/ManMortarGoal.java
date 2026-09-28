@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
@@ -369,7 +370,7 @@ public class ManMortarGoal extends Goal {
                 : "vehicleShoot REFUSED the shot (tube loaded=" + !this.mortar.getItems()
                         .get(MortarSupport.TUBE_SLOT).isEmpty() + ", shell=" + shell + ")");
 
-        this.nextShotTime = this.unit.level().getGameTime() + SewvConfig.MORTAR_FIRE_COOLDOWN_TICKS.get();
+        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.mortarFireCooldownTicks();
         this.laidOn = null;
     }
 
@@ -387,7 +388,7 @@ public class ManMortarGoal extends Goal {
                 ? "recovered a shell left loaded by an interrupted launch"
                 : "could not recover a shell left loaded by an interrupted launch");
 
-        this.nextShotTime = this.unit.level().getGameTime() + SewvConfig.MORTAR_FIRE_COOLDOWN_TICKS.get();
+        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.mortarFireCooldownTicks();
         this.laidOn = null;
     }
 

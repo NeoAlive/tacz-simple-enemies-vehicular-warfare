@@ -5,6 +5,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
@@ -12,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
+import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 
@@ -46,10 +48,22 @@ public final class CrewRadio {
         VEHICLE_IDLE(600),
         VEHICLE_LOW_HEALTH(200),
         VEHICLE_MG_SHOOT(140),
-        VEHICLE_CANNON_SHOOT(140);
+        VEHICLE_CANNON_SHOOT(140),
+        /** PMC calling for CAS — shares the {@code support} category cooldown. */
+        VEHICLE_SUPPORT_AIR(160, "support"),
+        /** PMC calling for mortar or TOW — shares the {@code support} category cooldown. */
+        VEHICLE_SUPPORT_MORTAR(160, "support"),
+        /** Hull first indexed as a hostile contact — shares the {@code targeted} category cooldown. */
+        VEHICLE_TARGETED(140, "targeted");
 
         final int cooldown;
-        Line(int cooldown) { this.cooldown = cooldown; }
+        /** Shared NBT cooldown bucket; null = one key per line name. */
+        final String category;
+        Line(int cooldown) { this(cooldown, null); }
+        Line(int cooldown, String category) {
+            this.cooldown = cooldown;
+            this.category = category;
+        }
 
         boolean soft() {
             return this == VEHICLE_IDLE || this == ORDER_DISPATCH_PLAN
@@ -62,6 +76,10 @@ public final class CrewRadio {
 
         boolean registersAwareness() {
             return this != VEHICLE_IDLE && this != UNIT_HEAL && this != UNIT_REPAIR && this != UNIT_DIG;
+        }
+
+        String cooldownKey() {
+            return category != null ? category : name();
         }
     }
 
@@ -151,6 +169,30 @@ public final class CrewRadio {
     }
 
     /**
+     * PMC support callout. {@code CAS} → air; {@code MORTAR}/{@code TOW} → mortar pool. No-ops for
+     * other kinds / non-PMC (no clips). Shares the {@code support} category cooldown.
+     */
+    public static void playSupport(VehicleEntity hull, FireMissionSupport.Kind kind) {
+        if (!enabled() || hull.level().isClientSide || kind == null) return;
+        Line line = switch (kind) {
+            case CAS -> Line.VEHICLE_SUPPORT_AIR;
+            case MORTAR, TOW -> Line.VEHICLE_SUPPORT_MORTAR;
+            default -> null;
+        };
+        if (line != null) play(hull, line);
+    }
+
+    /**
+     * Rising-edge "we're being painted": first time this living entity is written onto a hostile
+     * contact board while riding a hull. Cheap — one passenger walk already done by {@link #play}.
+     */
+    public static void maybeBeingTargeted(LivingEntity target) {
+        if (!enabled() || target == null || target.level().isClientSide) return;
+        if (!(target.getVehicle() instanceof VehicleEntity hull) || hull.isWreck()) return;
+        play(hull, Line.VEHICLE_TARGETED);
+    }
+
+    /**
      * Rising-edge low-health line. Clears the spoken flag when health recovers above the band so a
      * later dip can speak again. Retries while low if overlap blocked the first attempt.
      */
@@ -185,7 +227,7 @@ public final class CrewRadio {
     private static boolean playPool(VehicleEntity hull, AbstractUnit speaker, Line line, SoundPool pool,
             CompoundTag data) {
         long now = hull.level().getGameTime();
-        String typeKey = TYPE_KEY + line.name();
+        String typeKey = TYPE_KEY + line.cooldownKey();
         if (!line.bypassOverlap() && now < data.getLong(OVERLAP_KEY)) return false;
         if (now < data.getLong(typeKey)) return false;
         if (line.soft() && hull.level() instanceof ServerLevel sl
@@ -233,6 +275,8 @@ public final class CrewRadio {
                     ? ModSounds.VEHICLE_MG_SHOOT_RU_PANICKED : ModSounds.VEHICLE_MG_SHOOT_RU;
             case VEHICLE_CANNON_SHOOT -> panicked
                     ? ModSounds.VEHICLE_CANNON_SHOOT_RU_PANICKED : ModSounds.VEHICLE_CANNON_SHOOT_RU;
+            case VEHICLE_SUPPORT_AIR, VEHICLE_SUPPORT_MORTAR -> null;
+            case VEHICLE_TARGETED -> ModSounds.VEHICLE_TARGETED_RU;
         };
         if (unit instanceof USunitEntity) return switch (line) {
             case ORDER_DISPATCH, ORDER_DISPATCH_PLAN -> ModSounds.ORDER_DISPATCH_US;
@@ -252,6 +296,8 @@ public final class CrewRadio {
                     ? ModSounds.VEHICLE_MG_SHOOT_US_PANICKED : ModSounds.VEHICLE_MG_SHOOT_US;
             case VEHICLE_CANNON_SHOOT -> panicked
                     ? ModSounds.VEHICLE_CANNON_SHOOT_US_PANICKED : ModSounds.VEHICLE_CANNON_SHOOT_US;
+            case VEHICLE_SUPPORT_AIR, VEHICLE_SUPPORT_MORTAR -> null;
+            case VEHICLE_TARGETED -> ModSounds.VEHICLE_TARGETED_US;
         };
         // PMC (and any other AbstractUnit)
         return switch (line) {
@@ -272,6 +318,9 @@ public final class CrewRadio {
                     ? ModSounds.VEHICLE_MG_SHOOT_PMC_PANICKED : ModSounds.VEHICLE_MG_SHOOT_PMC;
             case VEHICLE_CANNON_SHOOT -> panicked
                     ? ModSounds.VEHICLE_CANNON_SHOOT_PMC_PANICKED : ModSounds.VEHICLE_CANNON_SHOOT_PMC;
+            case VEHICLE_SUPPORT_AIR -> ModSounds.VEHICLE_SUPPORT_AIR_PMC;
+            case VEHICLE_SUPPORT_MORTAR -> ModSounds.VEHICLE_SUPPORT_MORTAR_PMC;
+            case VEHICLE_TARGETED -> ModSounds.VEHICLE_TARGETED_PMC;
         };
     }
 

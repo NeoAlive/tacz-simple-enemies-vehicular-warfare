@@ -74,6 +74,15 @@ public final class ModSounds {
     public static final SoundPool VEHICLE_MG_SHOOT_RU_PANICKED = pool("vehicle_mg_shoot_ru_panicked", 2);
     public static final SoundPool VEHICLE_MG_SHOOT_US_PANICKED = pool("vehicle_mg_shoot_us_panicked", 2);
 
+    /** PMC only: calling for air / mortar-or-tow support. */
+    public static final SoundPool VEHICLE_SUPPORT_AIR_PMC = pool("vehicle_support_air_pmc", 2);
+    public static final SoundPool VEHICLE_SUPPORT_MORTAR_PMC = pool("vehicle_support_mortar_pmc", 2);
+
+    /** Hull reacting when first indexed as a hostile contact. */
+    public static final SoundPool VEHICLE_TARGETED_PMC = pool("vehicle_targeted_pmc", 5);
+    public static final SoundPool VEHICLE_TARGETED_RU = pool("vehicle_targeted_ru", 5);
+    public static final SoundPool VEHICLE_TARGETED_US = pool("vehicle_targeted_us", 4);
+
     // PMC handheld-radio ordnance acks (faction-neutral pilot pools).
     public static final SoundPool PILOT_AGM = pool("pilot_agm", 2);
     public static final SoundPool PILOT_BOMB = pool("pilot_bomb", 2);

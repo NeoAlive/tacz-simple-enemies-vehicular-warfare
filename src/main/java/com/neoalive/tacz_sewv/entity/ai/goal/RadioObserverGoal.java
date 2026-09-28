@@ -2,12 +2,14 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 
 import java.util.EnumSet;
 
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
@@ -87,6 +89,15 @@ public class RadioObserverGoal extends Goal {
         if (call.empty()) {
             this.nextCheck = now + NO_CREWS_BACKOFF;
         } else {
+            // Caller voice first (mounted only — CrewRadio is hull-scoped); then the pilot ack.
+            if (this.unit.getVehicle() instanceof VehicleEntity hull) {
+                if (call.kinds().contains(FireMissionSupport.Kind.CAS)) {
+                    CrewRadio.playSupport(hull, FireMissionSupport.Kind.CAS);
+                } else if (call.kinds().contains(FireMissionSupport.Kind.MORTAR)
+                        || call.kinds().contains(FireMissionSupport.Kind.TOW)) {
+                    CrewRadio.playSupport(hull, FireMissionSupport.Kind.MORTAR);
+                }
+            }
             // A unit phoning in its own contact names no ordnance — it is reporting what it sees,
             // not choosing how the aircraft attacks.
             var ack = FireMissionSupport.ackFor(call.kinds(), PlaneAttackMode.AUTO);

@@ -16,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 
@@ -263,12 +264,17 @@ public final class ContactBoard {
             lastSweep = now;
             sweep(now);
         }
+        // Rising-edge only: first write (or re-after-expiry) of this id — cheap find before upsert.
+        boolean novel = find(key, target.getId(), now) == null;
         boolean wrote = upsert(key, target.getId(), target.getX(), target.getY(), target.getZ(),
                 source, now, ttl(), moveThreshold());
         if (wrote) {
             SewvDiag.scan("ContactBoard.publish {}#{} -> {} #{} source={}",
                     observer.getClass().getSimpleName(), observer.getId(),
                     key.faction(), target.getId(), source);
+            if (novel) {
+                CrewRadio.maybeBeingTargeted(target);
+            }
         }
         return wrote;
     }

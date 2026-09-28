@@ -639,6 +639,8 @@ public class DriveVehicleGoal extends Goal {
         FireMissionSupport.callFireMission(this.unit.level(), facts.faction, facts.owner,
                 this.unit.position(), SewvConfig.MORTAR_RADIO_RANGE.get(), target,
                 Set.of(kind));
+        // Caller voice: PMC air / mortar-or-tow pools. RU/US have no clips yet (playSupport no-ops).
+        CrewRadio.playSupport(this.vehicle, kind);
     }
 
     /**

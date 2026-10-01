@@ -87,6 +87,10 @@ public class DroneOperatorGoal extends Goal {
 
     @Override
     public void tick() {
+        if (!SewvConfig.ENGINEER_DRONES_ENABLED.get()) {
+            if (DroneControl.isLocked(this.unit)) unlock();
+            return;
+        }
         this.drones.removeIf(d -> {
             if (d.isAlive()) return false;
             DroneControl.clearDroneClaim(this.unit);

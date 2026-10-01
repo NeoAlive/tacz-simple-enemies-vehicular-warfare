@@ -159,6 +159,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue ENGINEER_REPAIR_SPEED_BOOST;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ENGINEER_SIDEARM_POOL;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> COMMANDER_SIDEARM_POOL;
+    public static final ForgeConfigSpec.BooleanValue ENGINEER_DRONES_ENABLED;
     public static final ForgeConfigSpec.IntValue DRONE_MAX_PER_ENGINEER;
     public static final ForgeConfigSpec.IntValue DRONE_DEPLOY_CHECK_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue DRONE_DEPLOY_CHANCE;
@@ -178,6 +179,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue TOW_PLAYER_ORDER_MAX_DISTANCE;
     public static final ForgeConfigSpec.BooleanValue AUTO_MAN_MORTAR_ENABLED;
     public static final ForgeConfigSpec.DoubleValue AUTO_MAN_MORTAR_SCAN_RADIUS;
+    public static final ForgeConfigSpec.BooleanValue COMBAT_ENGINEER_DIG_ENABLED;
     public static final ForgeConfigSpec.BooleanValue AUTO_ENTRENCH_ENABLED;
     public static final ForgeConfigSpec.DoubleValue AUTO_ENTRENCH_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
@@ -781,6 +783,9 @@ public final class SewvConfig {
                 .defineList("engineerSidearmPool", List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"), SewvConfig::isValidResourceId);
         COMMANDER_SIDEARM_POOL = builder.comment("Pistols PMC Commanders may carry (TACZ gun ids).")
                 .defineList("commanderSidearmPool", List.of("tacz:m9a1", "tacz:m1911", "tacz:glock_17"), SewvConfig::isValidResourceId);
+        ENGINEER_DRONES_ENABLED = builder.comment(
+                        "RU/US engineers may deploy and fly attack drones. Off parks any drone they already have out.")
+                .define("engineerDronesEnabled", true);
         DRONE_MAX_PER_ENGINEER = builder.comment("Max attack drones each RU/US engineer may have out at once.")
                 .defineInRange("droneMaxPerEngineer", 1, 0, 8);
         DRONE_DEPLOY_CHECK_INTERVAL_TICKS = builder.comment("How often (game ticks) an engineer considers launching another drone.")
@@ -825,6 +830,9 @@ public final class SewvConfig {
                 .define("autoManMortarEnabled", true);
         AUTO_MAN_MORTAR_SCAN_RADIUS = builder.comment("How far (blocks) they look for empty mortars.")
                 .defineInRange("autoManMortarScanRadius", 32.0, 4.0, 128.0);
+        COMBAT_ENGINEER_DIG_ENABLED = builder.comment(
+                        "RU/US combat engineers may dig one foxhole trench on their own.")
+                .define("combatEngineerDigEnabled", true);
         AUTO_ENTRENCH_ENABLED = builder.comment(
                         "Idle RU/US soldiers may claim nearby trench networks, emplacements, or free sandbags.")
                 .define("autoEntrenchEnabled", true);

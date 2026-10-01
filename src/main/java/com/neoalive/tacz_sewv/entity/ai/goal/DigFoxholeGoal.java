@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.support.DigFoxholeSupport;
 
@@ -31,6 +32,7 @@ public class DigFoxholeGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
+        if (!SewvConfig.COMBAT_ENGINEER_DIG_ENABLED.get()) return false;
         if (!(this.unit.level() instanceof ServerLevel level)) return false;
         if (DigFoxholeSupport.hasDug(this.unit)) return false;
         if (this.unit.tickCount < MIN_AGE_TICKS) return false;

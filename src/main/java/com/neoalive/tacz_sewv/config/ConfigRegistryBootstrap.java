@@ -498,6 +498,8 @@ final class ConfigRegistryBootstrap {
         b.multilineIds(ConfigScope.SERVER, "crew_ai", "commanderSidearmPool",
                 () -> List.copyOf(SewvConfig.COMMANDER_SIDEARM_POOL.get()),
                 v -> SewvConfig.COMMANDER_SIDEARM_POOL.set(v));
+        b.bool(ConfigScope.SERVER, "crew_ai", "engineerDronesEnabled",
+                SewvConfig.ENGINEER_DRONES_ENABLED, SewvConfig.ENGINEER_DRONES_ENABLED::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "droneMaxPerEngineer", 0, 8,
                 SewvConfig.DRONE_MAX_PER_ENGINEER, SewvConfig.DRONE_MAX_PER_ENGINEER::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "droneDeployCheckIntervalTicks", 20, 12000,
@@ -536,6 +538,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.AUTO_MAN_MORTAR_ENABLED, SewvConfig.AUTO_MAN_MORTAR_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "autoManMortarScanRadius", 4.0, 128.0,
                 SewvConfig.AUTO_MAN_MORTAR_SCAN_RADIUS, SewvConfig.AUTO_MAN_MORTAR_SCAN_RADIUS::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "combatEngineerDigEnabled",
+                SewvConfig.COMBAT_ENGINEER_DIG_ENABLED, SewvConfig.COMBAT_ENGINEER_DIG_ENABLED::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "autoEntrenchEnabled",
                 SewvConfig.AUTO_ENTRENCH_ENABLED, SewvConfig.AUTO_ENTRENCH_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "autoEntrenchScanRadius", 8.0, 128.0,

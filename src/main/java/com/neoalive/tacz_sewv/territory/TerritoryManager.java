@@ -39,6 +39,7 @@ import com.neoalive.tacz_sewv.network.PacketHudNotification;
 import com.neoalive.tacz_sewv.network.PacketTerritoryCommand;
 import com.neoalive.tacz_sewv.network.PacketTerritoryState;
 import com.neoalive.tacz_sewv.network.PacketTerritoryState.Row;
+import com.neoalive.tacz_sewv.notify.NotificationKind;
 
 /**
  * Server side of Territory Mode: who may be posted, the Frontline Tool, and the once-a-second pass that keeps
@@ -542,6 +543,8 @@ public final class TerritoryManager {
         if (now < cooldowns.getOrDefault(kind, 0L) || now < cooldowns.getOrDefault(keyed, 0L)) return;
         cooldowns.put(kind, now + KIND_COOLDOWN);
         cooldowns.put(keyed, now + KEY_COOLDOWN);
-        PacketHudNotification.sendTo(player, Component.translatable("notification.tacz_sewv.territory.title"), body);
+        PacketHudNotification.sendTo(player,
+                Component.translatable("notification.tacz_sewv.territory.title"), body,
+                NotificationKind.TERRITORY);
     }
 }

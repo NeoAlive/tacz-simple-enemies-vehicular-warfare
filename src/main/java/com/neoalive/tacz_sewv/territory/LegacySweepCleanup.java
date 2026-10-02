@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.network.PacketHudNotification;
+import com.neoalive.tacz_sewv.notify.NotificationKind;
 
 /**
  * Stands down units still carrying a Sweep &amp; Advance from before its invoker was removed.
@@ -69,7 +70,8 @@ public final class LegacySweepCleanup {
             if (player == null) continue;
             PacketHudNotification.sendTo(player,
                     Component.translatable("notification.tacz_sewv.legacy_sweep.title"),
-                    Component.translatable("notification.tacz_sewv.legacy_sweep.body", e.getValue()));
+                    Component.translatable("notification.tacz_sewv.legacy_sweep.body", e.getValue()),
+                    NotificationKind.TERRITORY);
             it.remove();
         }
     }

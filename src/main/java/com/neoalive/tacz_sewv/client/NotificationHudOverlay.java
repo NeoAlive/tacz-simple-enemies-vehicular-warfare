@@ -1,8 +1,11 @@
 package com.neoalive.tacz_sewv.client;
 
+import java.util.List;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderGuiEvent;
@@ -11,6 +14,7 @@ import net.minecraftforge.fml.common.Mod;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.gui.GuiFit;
+import com.neoalive.tacz_sewv.notify.NotificationKind;
 
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class NotificationHudOverlay {
@@ -27,59 +31,92 @@ public final class NotificationHudOverlay {
     }
 
     /**
-     * Draws the current banner, if any. Split from the event so a fullscreen screen that hides the HUD (the world
-     * map) can repeat it on top; the timer is only advanced from the GUI event, never here.
+     * Draws the current ticket stack, if any. Split from the event so a fullscreen screen that hides
+     * the HUD (the world map) can repeat it on top; the timer is only advanced from the GUI event.
      */
     public static void drawOver(GuiGraphics g) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.options.hideGui || !NotificationHud.visible()) return;
 
-        NotificationHud.Item item = NotificationHud.front();
-        if (item == null) return;
+        List<NotificationHud.Slot> slots = NotificationHud.slots();
+        if (slots.isEmpty()) return;
 
         Font font = mc.font;
         int screenW = mc.getWindow().getGuiScaledWidth();
-        // Prefer half texture size; only shrink further when even that overflows the GUI width.
         float scale = Math.min(NotificationHud.DISPLAY_SCALE,
-                GuiFit.fitScale(NotificationHud.TEX_W, screenW));
-        int drawW = Math.round(NotificationHud.TEX_W * scale);
+                GuiFit.fitScale(NotificationHud.TICKET_W, screenW));
+        int drawW = Math.round(NotificationHud.TICKET_W * scale);
         int x = (screenW - drawW) / 2;
-        // drawY is in texture pixels (0 = flush top); scaling keeps the rest edge at y=0.
-        int y = Math.round(NotificationHud.drawY() * scale);
 
+        for (int i = 0; i < slots.size(); i++) {
+            NotificationHud.Slot slot = slots.get(i);
+            NotificationHud.Item item = slot.item;
+            if (item == null) continue;
+            int y = Math.round(slot.drawY(i) * scale);
+            drawTicket(g, font, x, y, scale, item, slot.barT());
+        }
+    }
+
+    private static void drawTicket(GuiGraphics g, Font font, int screenX, int screenY, float scale,
+                                   NotificationHud.Item item, float barT) {
+        NotificationKind kind = item.kind;
         var pose = g.pose();
         pose.pushPose();
-        pose.translate(x, y, 0);
+        pose.translate(screenX, screenY, 0);
         pose.scale(scale, scale, 1f);
 
-        g.blit(NotificationHud.texture(), 0, 0, 0, 0,
-                NotificationHud.TEX_W, NotificationHud.TEX_H,
-                NotificationHud.TEX_W, NotificationHud.TEX_H);
+        int w = NotificationHud.TICKET_W;
+        int h = NotificationHud.TICKET_H;
+        int headerH = NotificationHud.HEADER_H;
+        int timerH = NotificationHud.TIMER_H;
 
-        float t = NotificationHud.barT();
-        int barW = Math.max(NotificationHud.BAR_W_EMPTY,
-                Math.round(Mth.lerp(t, NotificationHud.BAR_W_FULL, NotificationHud.BAR_W_EMPTY)));
-        g.fill(NotificationHud.BAR_X, NotificationHud.BAR_Y,
-                NotificationHud.BAR_X + barW, NotificationHud.BAR_Y + NotificationHud.BAR_H,
-                NotificationHud.BAR_COLOR);
+        // Depth underlay.
+        g.fill(1, 1, w + 1, h + 1, NotificationHud.SHADOW);
 
-        int tx = NotificationHud.TEXT_X;
-        int ty = NotificationHud.TEXT_Y;
-        // Title stays single-line (scaled); body wraps to new lines instead of being trimmed.
-        int titleBudget = Math.max(1, (int) (NotificationHud.TEXT_MAX_W / NotificationHud.TITLE_SCALE));
-        String title = font.plainSubstrByWidth(item.title().getString(), titleBudget);
+        // Header chip.
+        g.fill(0, 0, w, headerH, kind.accentArgb());
 
-        pose.pushPose();
-        pose.translate(tx, ty, 0);
-        pose.scale(NotificationHud.TITLE_SCALE, NotificationHud.TITLE_SCALE, 1f);
-        g.drawString(font, title, 0, 0, NotificationHud.CYAN, false);
-        pose.popPose();
+        // Icon tile.
+        int tile = NotificationHud.ICON_TILE;
+        int tileX = NotificationHud.ICON_PAD;
+        int tileY = (headerH - tile) / 2;
+        g.fill(tileX, tileY, tileX + tile, tileY + tile, kind.iconTileArgb());
+        String icon = kind.icon();
+        int iconW = font.width(icon);
+        g.drawString(font, icon,
+                tileX + (tile - iconW) / 2,
+                tileY + (tile - font.lineHeight) / 2 + 1,
+                NotificationHud.ICON_COLOR, false);
 
-        int bodyY = ty + Math.round(font.lineHeight * NotificationHud.TITLE_SCALE);
-        for (var line : font.split(item.body(), NotificationHud.TEXT_MAX_W)) {
-            g.drawString(font, line, tx, bodyY, NotificationHud.BODY_COLOR, false);
-            bodyY += font.lineHeight;
+        // Title on the header.
+        int titleX = tileX + tile + NotificationHud.TITLE_PAD_X;
+        int titleBudget = Math.max(1, w - titleX - 6);
+        String title = font.plainSubstrByWidth(item.title.getString(), titleBudget);
+        g.drawString(font, title, titleX, (headerH - font.lineHeight) / 2 + 1,
+                NotificationHud.TITLE_COLOR, false);
+
+        // Hairline timer under the header (full → empty left-to-right).
+        int timerY = headerH;
+        g.fill(0, timerY, w, timerY + timerH, kind.iconTileArgb());
+        int barW = Math.max(0, Math.round(Mth.lerp(barT, w, 0)));
+        if (barW > 0) {
+            g.fill(0, timerY, barW, timerY + timerH, kind.accentArgb());
         }
+
+        // Body band.
+        int bodyTop = headerH + timerH;
+        g.fill(0, bodyTop, w, h, NotificationHud.BODY_BG);
+        int textX = NotificationHud.BODY_PAD_X;
+        int textY = bodyTop + NotificationHud.BODY_PAD_Y;
+        int textMaxW = w - textX - NotificationHud.BODY_PAD_X;
+        int lines = 0;
+        for (FormattedCharSequence line : font.split(item.body, textMaxW)) {
+            if (lines >= NotificationHud.MAX_BODY_LINES) break;
+            g.drawString(font, line, textX, textY, NotificationHud.BODY_COLOR, false);
+            textY += font.lineHeight;
+            lines++;
+        }
+
         pose.popPose();
     }
 }

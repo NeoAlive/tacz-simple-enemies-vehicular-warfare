@@ -71,6 +71,7 @@ import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHudNotification;
 import com.neoalive.tacz_sewv.network.PacketOpenConfigUI;
 import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
+import com.neoalive.tacz_sewv.notify.NotificationKind;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner.Emplacement;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner;
@@ -129,15 +130,24 @@ public class SewvCommand {
                                 .executes(ctx -> debugRappel(ctx.getSource())))
                         .then(Commands.literal("notificationTest")
                                 .executes(ctx -> debugNotificationTest(ctx.getSource(),
+                                        NotificationKind.GENERIC,
                                         "Notification test",
                                         "Queue another with the same command."))
-                                .then(Commands.argument("title", StringArgumentType.string())
+                                .then(Commands.argument("kind", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> suggestNotificationKinds(builder))
                                         .executes(ctx -> debugNotificationTest(ctx.getSource(),
-                                                StringArgumentType.getString(ctx, "title"), ""))
-                                        .then(Commands.argument("body", StringArgumentType.greedyString())
+                                                NotificationKind.parse(StringArgumentType.getString(ctx, "kind")),
+                                                "Notification test",
+                                                "Kind " + StringArgumentType.getString(ctx, "kind")))
+                                        .then(Commands.argument("title", StringArgumentType.string())
                                                 .executes(ctx -> debugNotificationTest(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "title"),
-                                                        StringArgumentType.getString(ctx, "body"))))))
+                                                        NotificationKind.parse(StringArgumentType.getString(ctx, "kind")),
+                                                        StringArgumentType.getString(ctx, "title"), ""))
+                                                .then(Commands.argument("body", StringArgumentType.greedyString())
+                                                        .executes(ctx -> debugNotificationTest(ctx.getSource(),
+                                                                NotificationKind.parse(StringArgumentType.getString(ctx, "kind")),
+                                                                StringArgumentType.getString(ctx, "title"),
+                                                                StringArgumentType.getString(ctx, "body")))))))
                         .then(Commands.literal("guncache")
                                 .executes(ctx -> debugGunCache(ctx.getSource())))
                         .then(Commands.literal("reloadSkins")
@@ -500,15 +510,22 @@ public class SewvCommand {
         return null;
     }
 
-    /** Stage-1 rappel: toggle hover-lock on the looked-at / nearest helicopter. */
-    private static int debugNotificationTest(CommandSourceStack source, String title, String body) {
+    private static int debugNotificationTest(CommandSourceStack source, NotificationKind kind,
+                                             String title, String body) {
         if (!(source.getEntity() instanceof ServerPlayer player)) {
             source.sendFailure(Component.translatable("command.tacz_sewv.debug.notificationTest.player_only"));
             return 0;
         }
-        PacketHudNotification.sendTo(player, title, body);
+        PacketHudNotification.sendTo(player, title, body, kind);
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.notificationTest.ok"), false);
         return 1;
+    }
+
+    private static CompletableFuture<Suggestions> suggestNotificationKinds(SuggestionsBuilder builder) {
+        for (NotificationKind kind : NotificationKind.values()) {
+            builder.suggest(kind.name());
+        }
+        return builder.buildFuture();
     }
 
     private static int debugRappel(CommandSourceStack source) {

@@ -81,6 +81,8 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.NOTIFICATIONS_ENABLED, ClientConfig.NOTIFICATIONS_ENABLED::set);
         b.intRange(ConfigScope.CLIENT, "overlay", "notificationScreenSeconds", 1, 30,
                 ClientConfig.NOTIFICATION_SCREEN_SECONDS, ClientConfig.NOTIFICATION_SCREEN_SECONDS::set);
+        b.intRange(ConfigScope.CLIENT, "overlay", "notificationMaxVisible", 1, 8,
+                ClientConfig.NOTIFICATION_MAX_VISIBLE, ClientConfig.NOTIFICATION_MAX_VISIBLE::set);
         b.bool(ConfigScope.CLIENT, "overlay", "helmetGrayscale",
                 ClientConfig.HELMET_GRAYSCALE, ClientConfig.HELMET_GRAYSCALE::set);
 

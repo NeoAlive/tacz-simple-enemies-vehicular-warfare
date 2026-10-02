@@ -33,6 +33,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
     public static final ForgeConfigSpec.BooleanValue NOTIFICATIONS_ENABLED;
     public static final ForgeConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
+    public static final ForgeConfigSpec.IntValue NOTIFICATION_MAX_VISIBLE;
     public static final ForgeConfigSpec.BooleanValue HELMET_GRAYSCALE;
 
     // Formerly ModGameRules debug toggles — live via Config UI Client → Debug.
@@ -94,9 +95,11 @@ public final class ClientConfig {
                 .comment("Show HUD notification banners (unit downed, vehicle destroyed, ammo out, and so on).")
                 .define("notificationsEnabled", true);
         NOTIFICATION_SCREEN_SECONDS = builder
-                .comment("How many seconds a HUD notification stays on screen before the next queued one",
-                        "(or the banner slides away).")
+                .comment("How many seconds each HUD notification ticket stays on screen before it slides away.")
                 .defineInRange("notificationScreenSeconds", 5, 1, 30);
+        NOTIFICATION_MAX_VISIBLE = builder
+                .comment("How many HUD notification tickets may show stacked at once (extras wait in a backlog).")
+                .defineInRange("notificationMaxVisible", 3, 1, 8);
         HELMET_GRAYSCALE = builder
                 .comment("Desaturate only the PMC MICH DogTag UV to low-contrast grey (logo alpha kept).")
                 .define("helmetGrayscale", true);

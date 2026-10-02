@@ -1,119 +1,118 @@
 package com.neoalive.tacz_sewv.client;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.annotation.Nullable;
 
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
-import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.notify.NotificationKind;
 
 /**
- * Client queue + animation for the top-center HUD banner. Overlay draws; this owns state.
- * Screen time is a cached millisecond value, not a per-frame config read.
- *
- * <p>Layout numbers are texture pixels ({@code notification_*.png} is 320×82). The overlay draws
- * them at {@link #DISPLAY_SCALE} so the banner stays readable at large GUI scale without
- * dominating the top of the screen.
+ * Client queue + animation for the top-center signal-ticket stack. Overlay draws; this owns state.
+ * Up to {@code notificationMaxVisible} tickets show at once; further pushes sit in a backlog.
  */
 public final class NotificationHud {
 
-    static final int TEX_W = 320;
-    static final int TEX_H = 82;
-    /** On-screen size relative to texture pixels — half size for large-GUI readability. */
-    static final float DISPLAY_SCALE = 0.5f;
-    /** Flush with the top edge of the screen — no margin. */
-    static final int REST_Y = 0;
-    static final int BAR_X = 7;
-    static final int BAR_Y = 54;
-    static final int BAR_H = 3;
-    static final int BAR_W_FULL = 306;
-    static final int BAR_W_EMPTY = 1;
-    static final int TEXT_X = 71;
-    static final int TEXT_Y = 20;
-    static final int TEXT_MAX_W = TEX_W - TEXT_X - 8;
-    /** Matches the cyan on {@code notification_*.png} (border / warning icon). */
-    static final int CYAN = 0x4FD1C5;
-    static final int BAR_COLOR = 0xFF4FD1C5;
-    static final int BODY_COLOR = 0xFFFFFF;
-    /** Halfway between 1× (body) and the previous 2× title. */
-    static final float TITLE_SCALE = 1.3f;
+    /** Pre-scale ticket width (then × {@link #DISPLAY_SCALE}). */
+    public static final int TICKET_W = 280;
+    /** Pre-scale ticket height: header 18 + hairline 2 + body ~24. */
+    public static final int TICKET_H = 44;
+    public static final int TICKET_GAP = 4;
+    public static final int HEADER_H = 18;
+    public static final int TIMER_H = 2;
+    public static final int ICON_TILE = 14;
+    public static final int ICON_PAD = 2;
+    public static final int TITLE_PAD_X = 4;
+    public static final int BODY_PAD_X = 8;
+    public static final int BODY_PAD_Y = 3;
+    public static final int MAX_BODY_LINES = 2;
 
-    private static final int MAX_QUEUE = 16;
+    /** On-screen size relative to layout pixels — half size for large-GUI readability. */
+    public static final float DISPLAY_SCALE = 0.5f;
+
+    public static final int BODY_BG = 0xCC0B0F14;
+    public static final int SHADOW = 0x88000000;
+    public static final int TITLE_COLOR = 0xFFFFFFF0;
+    public static final int BODY_COLOR = 0xFFD1D5DB;
+    public static final int ICON_COLOR = 0xFFFFFFFF;
+
+    private static final int MAX_BACKLOG = 16;
     private static final long ANIM_MS = 250L;
     private static final long DEFAULT_SCREEN_MS = 5_000L;
-
-    private static final ResourceLocation TEX_ONE =
-            new ResourceLocation(TaczSewv.MODID, "textures/gui/notification/notification_one.png");
-    private static final ResourceLocation TEX_TWO =
-            new ResourceLocation(TaczSewv.MODID, "textures/gui/notification/notification_two.png");
-    private static final ResourceLocation TEX_THREE =
-            new ResourceLocation(TaczSewv.MODID, "textures/gui/notification/notification_three.png");
+    private static final int DEFAULT_MAX_VISIBLE = 3;
 
     private static volatile long screenTimeMs = DEFAULT_SCREEN_MS;
+    private static volatile int maxVisible = DEFAULT_MAX_VISIBLE;
 
-    private static final ArrayDeque<Item> queue = new ArrayDeque<>();
-    private static Phase phase = Phase.IDLE;
-    private static long animElapsedMs;
-    private static long frontElapsedMs;
-    private static long frontDurationMs = DEFAULT_SCREEN_MS;
+    private static final ArrayDeque<Item> backlog = new ArrayDeque<>();
+    private static final List<Slot> slots = new ArrayList<>();
     private static long lastWallMs;
-    @Nullable private static Item exiting;
 
     private NotificationHud() {}
 
     public static void refreshScreenTimeCache() {
         int seconds = 5;
+        int visible = DEFAULT_MAX_VISIBLE;
         try {
             seconds = Mth.clamp(ClientConfig.NOTIFICATION_SCREEN_SECONDS.get(), 1, 30);
+            visible = Mth.clamp(ClientConfig.NOTIFICATION_MAX_VISIBLE.get(), 1, 8);
         } catch (IllegalStateException ignored) {
-            // Spec not baked yet (very early load); keep previous / default.
+            // Spec not baked yet.
         }
         screenTimeMs = seconds * 1000L;
+        maxVisible = visible;
+        while (slots.size() > maxVisible) {
+            Slot removed = slots.remove(slots.size() - 1);
+            if (removed.item != null && removed.phase != Phase.EXIT) {
+                backlog.addFirst(removed.item);
+                while (backlog.size() > MAX_BACKLOG) backlog.removeLast();
+            }
+        }
+        promote();
     }
 
-    public static void push(Component title, Component body) {
+    public static void push(Component title, Component body, NotificationKind kind) {
         if (!ClientConfig.flag(ClientConfig.NOTIFICATIONS_ENABLED)) return;
         if (title == null) title = Component.empty();
         if (body == null) body = Component.empty();
-        if (queue.size() >= MAX_QUEUE) return;
-        queue.addLast(new Item(title, body));
-        if (phase == Phase.IDLE) {
-            phase = Phase.ENTER;
-            animElapsedMs = 0L;
-        } else if (phase == Phase.EXIT) {
-            phase = Phase.ENTER;
-            animElapsedMs = Math.max(0L, ANIM_MS - animElapsedMs);
-            exiting = null;
+        if (kind == null) kind = NotificationKind.GENERIC;
+        Item item = new Item(title, body, kind);
+        if (activeShowingOrEntering() < maxVisible) {
+            slots.add(Slot.enter(item));
+        } else if (backlog.size() < MAX_BACKLOG) {
+            backlog.addLast(item);
         }
     }
 
     /**
-     * Skip the remaining on-screen delay for the current notification. ENTER finishes into
-     * SHOWING first; then the hold timer is marked elapsed so the next {@link #tick} advances
-     * to EXIT (or the next queued item) with the normal exit animation. Idle / already exiting
-     * is a no-op.
+     * Skip remaining hold on the topmost showing ticket (or finish its enter into showing).
      *
-     * @return true if a live notification's delay was skipped
+     * @return true if a live ticket's delay was skipped
      */
     public static boolean dismiss() {
-        if (phase == Phase.IDLE || phase == Phase.EXIT) return false;
-        if (phase == Phase.ENTER) {
-            animElapsedMs = ANIM_MS;
-            phase = Phase.SHOWING;
-            beginFrontTimer();
+        for (Slot slot : slots) {
+            if (slot.phase == Phase.ENTER) {
+                slot.animElapsedMs = ANIM_MS;
+                slot.phase = Phase.SHOWING;
+                slot.beginFrontTimer();
+                slot.frontElapsedMs = slot.frontDurationMs;
+                return true;
+            }
+            if (slot.phase == Phase.SHOWING) {
+                slot.frontElapsedMs = slot.frontDurationMs;
+                return true;
+            }
         }
-        if (phase != Phase.SHOWING) return false;
-        frontElapsedMs = frontDurationMs;
-        return true;
+        return false;
     }
 
-    /** True while a banner is entering, showing, or exiting. */
     public static boolean isActive() {
-        return phase != Phase.IDLE;
+        return !slots.isEmpty();
     }
 
     static void tick(boolean paused, long nowMs) {
@@ -123,81 +122,128 @@ public final class NotificationHud {
         if (paused || dt < 0L) dt = 0L;
         if (dt > 250L) dt = 250L;
 
-        switch (phase) {
-            case IDLE -> {}
-            case ENTER -> {
-                animElapsedMs += dt;
-                if (animElapsedMs >= ANIM_MS) {
-                    animElapsedMs = ANIM_MS;
-                    phase = Phase.SHOWING;
-                    beginFrontTimer();
-                }
-            }
-            case SHOWING -> {
-                frontElapsedMs += dt;
-                if (frontElapsedMs >= frontDurationMs) {
-                    Item done = queue.pollFirst();
-                    if (queue.isEmpty()) {
-                        exiting = done;
-                        phase = Phase.EXIT;
-                        animElapsedMs = 0L;
-                    } else {
-                        beginFrontTimer();
-                    }
-                }
-            }
-            case EXIT -> {
-                animElapsedMs += dt;
-                if (animElapsedMs >= ANIM_MS) {
-                    phase = Phase.IDLE;
-                    animElapsedMs = 0L;
-                    exiting = null;
-                }
+        for (int i = 0; i < slots.size(); i++) {
+            Slot slot = slots.get(i);
+            slot.tick(dt);
+            if (slot.phase == Phase.IDLE) {
+                slots.remove(i);
+                i--;
             }
         }
+        promote();
     }
 
     static boolean visible() {
-        return phase != Phase.IDLE && (phase == Phase.EXIT || !queue.isEmpty());
+        return !slots.isEmpty();
     }
 
-    static int drawY() {
-        float t = ANIM_MS <= 0L ? 1f : Mth.clamp(animElapsedMs / (float) ANIM_MS, 0f, 1f);
-        int hiddenY = -TEX_H;
-        return switch (phase) {
-            case IDLE -> hiddenY;
-            case ENTER -> Math.round(Mth.lerp(easeOutCubic(t), hiddenY, REST_Y));
-            case SHOWING -> REST_Y;
-            case EXIT -> Math.round(Mth.lerp(easeInCubic(t), REST_Y, hiddenY));
-        };
+    static List<Slot> slots() {
+        return slots;
     }
 
-    static ResourceLocation texture() {
-        int n = Math.max(queue.size(), phase == Phase.EXIT ? 1 : 0);
-        if (n >= 3) return TEX_THREE;
-        if (n == 2) return TEX_TWO;
-        return TEX_ONE;
+    static int restY(int index) {
+        return index * (TICKET_H + TICKET_GAP);
     }
 
-    @Nullable
-    static Item front() {
-        Item head = queue.peekFirst();
-        return head != null ? head : exiting;
+    /** Slots that still occupy a stack position (enter / show / exit). */
+    private static int activeShowingOrEntering() {
+        int n = 0;
+        for (Slot slot : slots) {
+            if (slot.phase != Phase.IDLE) n++;
+        }
+        return n;
     }
 
-    /** 0 = full bar, 1 = empty (1px). Frozen during enter; EXIT holds empty. */
-    static float barT() {
-        return switch (phase) {
-            case IDLE, ENTER -> 0f;
-            case SHOWING -> frontDurationMs <= 0L ? 1f
-                    : Mth.clamp(frontElapsedMs / (float) frontDurationMs, 0f, 1f);
-            case EXIT -> 1f;
-        };
+    private static void promote() {
+        // Exiting tickets still occupy a row until IDLE — do not overfill the stack.
+        while (slots.size() < maxVisible && !backlog.isEmpty()) {
+            slots.add(Slot.enter(backlog.pollFirst()));
+        }
     }
 
-    private static void beginFrontTimer() {
-        frontElapsedMs = 0L;
-        frontDurationMs = screenTimeMs;
+    public static final class Item {
+        public final Component title;
+        public final Component body;
+        public final NotificationKind kind;
+
+        Item(Component title, Component body, NotificationKind kind) {
+            this.title = title;
+            this.body = body;
+            this.kind = kind;
+        }
+    }
+
+    static final class Slot {
+        @Nullable Item item;
+        Phase phase = Phase.IDLE;
+        long animElapsedMs;
+        long frontElapsedMs;
+        long frontDurationMs = DEFAULT_SCREEN_MS;
+
+        static Slot enter(Item item) {
+            Slot slot = new Slot();
+            slot.item = item;
+            slot.phase = Phase.ENTER;
+            slot.animElapsedMs = 0L;
+            return slot;
+        }
+
+        void beginFrontTimer() {
+            this.frontElapsedMs = 0L;
+            this.frontDurationMs = screenTimeMs;
+        }
+
+        void tick(long dt) {
+            switch (this.phase) {
+                case IDLE -> {}
+                case ENTER -> {
+                    this.animElapsedMs += dt;
+                    if (this.animElapsedMs >= ANIM_MS) {
+                        this.animElapsedMs = ANIM_MS;
+                        this.phase = Phase.SHOWING;
+                        beginFrontTimer();
+                    }
+                }
+                case SHOWING -> {
+                    this.frontElapsedMs += dt;
+                    if (this.frontElapsedMs >= this.frontDurationMs) {
+                        this.phase = Phase.EXIT;
+                        this.animElapsedMs = 0L;
+                    }
+                }
+                case EXIT -> {
+                    this.animElapsedMs += dt;
+                    if (this.animElapsedMs >= ANIM_MS) {
+                        this.phase = Phase.IDLE;
+                        this.item = null;
+                        this.animElapsedMs = 0L;
+                    }
+                }
+            }
+        }
+
+        /** Layout Y for this slot at stack index {@code index}. */
+        int drawY(int index) {
+            float t = ANIM_MS <= 0L ? 1f : Mth.clamp(this.animElapsedMs / (float) ANIM_MS, 0f, 1f);
+            int rest = restY(index);
+            int hidden = rest - TICKET_H;
+            return switch (this.phase) {
+                case IDLE -> hidden;
+                case ENTER -> Math.round(Mth.lerp(easeOutCubic(t), hidden, rest));
+                case SHOWING -> rest;
+                case EXIT -> Math.round(Mth.lerp(easeInCubic(t), rest, hidden));
+            };
+        }
+
+        /** 0 = full timer, 1 = empty. */
+        float barT() {
+            return switch (this.phase) {
+                case IDLE, ENTER -> 0f;
+                case SHOWING -> this.frontDurationMs <= 0L ? 1f
+                        : Mth.clamp(this.frontElapsedMs / (float) this.frontDurationMs, 0f, 1f);
+                case EXIT -> 1f;
+            };
+        }
     }
 
     private static float easeOutCubic(float t) {
@@ -208,8 +254,6 @@ public final class NotificationHud {
     private static float easeInCubic(float t) {
         return t * t * t;
     }
-
-    record Item(Component title, Component body) {}
 
     private enum Phase { IDLE, ENTER, SHOWING, EXIT }
 }

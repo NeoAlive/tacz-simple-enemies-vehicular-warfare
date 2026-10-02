@@ -51,12 +51,12 @@ public final class HudNotify {
         Component killer = killerLabel(source);
         BlockPos pos = pmc.blockPosition();
         if (killer != null) {
-            send(owner,
+            send(owner, NotificationKind.PMC_DOWNED,
                     Component.translatable("notification.tacz_sewv.pmc_downed.title_by", name, killer),
                     Component.translatable("notification.tacz_sewv.pmc_downed.body_by",
                             kind, name, pos.getX(), pos.getY(), pos.getZ(), killer));
         } else {
-            send(owner,
+            send(owner, NotificationKind.PMC_DOWNED,
                     Component.translatable("notification.tacz_sewv.pmc_downed.title", name),
                     Component.translatable("notification.tacz_sewv.pmc_downed.body",
                             kind, name, pos.getX(), pos.getY(), pos.getZ()));
@@ -73,12 +73,12 @@ public final class HudNotify {
         Component killer = killerLabel(source);
         BlockPos pos = pmc.blockPosition();
         if (killer != null) {
-            send(owner,
+            send(owner, NotificationKind.PMC_KILLED,
                     Component.translatable("notification.tacz_sewv.pmc_killed.title_by", name, killer),
                     Component.translatable("notification.tacz_sewv.pmc_killed.body_by",
                             kind, name, pos.getX(), pos.getY(), pos.getZ(), killer));
         } else {
-            send(owner,
+            send(owner, NotificationKind.PMC_KILLED,
                     Component.translatable("notification.tacz_sewv.pmc_killed.title", name),
                     Component.translatable("notification.tacz_sewv.pmc_killed.body",
                             kind, name, pos.getX(), pos.getY(), pos.getZ()));
@@ -94,12 +94,12 @@ public final class HudNotify {
         if (killer == null) killer = entityLabel(hull.getLastAttacker());
         BlockPos pos = hull.blockPosition();
         if (killer != null) {
-            send(owner,
+            send(owner, NotificationKind.VEHICLE_DESTROYED,
                     Component.translatable("notification.tacz_sewv.vehicle_destroyed.title_by", kind, killer),
                     Component.translatable("notification.tacz_sewv.vehicle_destroyed.body_by",
                             kind, pos.getX(), pos.getY(), pos.getZ(), killer));
         } else {
-            send(owner,
+            send(owner, NotificationKind.VEHICLE_DESTROYED,
                     Component.translatable("notification.tacz_sewv.vehicle_destroyed.title", kind),
                     Component.translatable("notification.tacz_sewv.vehicle_destroyed.body",
                             kind, pos.getX(), pos.getY(), pos.getZ()));
@@ -109,7 +109,7 @@ public final class HudNotify {
     public static void eventNearby(ServerPlayer player, String eventId, BlockPos pos) {
         if (player == null || eventId == null || eventId.isEmpty()) return;
         Component eventName = Component.translatable("notification.tacz_sewv.event.name." + eventId);
-        send(player,
+        send(player, NotificationKind.forEventId(eventId),
                 Component.translatable("notification.tacz_sewv.event.title", eventName),
                 Component.translatable("notification.tacz_sewv.event.body",
                         eventName, pos.getX(), pos.getY(), pos.getZ()));
@@ -120,7 +120,7 @@ public final class HudNotify {
         if (notify == null) return;
         Component faction = factionLabel(CrewFacts.factionOfCrew(medic));
         BlockPos pos = medic.blockPosition();
-        send(notify,
+        send(notify, NotificationKind.MEDIC_CAPTURED,
                 Component.translatable("notification.tacz_sewv.medic_captured.title", faction),
                 Component.translatable("notification.tacz_sewv.medic_captured.body",
                         faction, pos.getX(), pos.getY(), pos.getZ()));
@@ -235,7 +235,7 @@ public final class HudNotify {
         Component contact = entityLabel(target);
         if (contact == null) contact = Component.translatable("notification.tacz_sewv.faction.unknown");
         BlockPos pos = pmc.blockPosition();
-        send(owner,
+        send(owner, NotificationKind.PMC_ENGAGING,
                 Component.translatable("notification.tacz_sewv.pmc_engaging.title", name, contact),
                 Component.translatable("notification.tacz_sewv.pmc_engaging.body",
                         kind, name, contact, pos.getX(), pos.getY(), pos.getZ()));
@@ -262,7 +262,7 @@ public final class HudNotify {
         Component kind = vehicleKindLabel(hull);
         BlockPos pos = hull.blockPosition();
         int pct = Math.max(0, Math.round(frac * 100f));
-        send(owner,
+        send(owner, NotificationKind.PMC_ENERGY,
                 Component.translatable("notification.tacz_sewv.pmc_energy_low.title", kind),
                 Component.translatable("notification.tacz_sewv.pmc_energy_low.body",
                         kind, pct, pos.getX(), pos.getY(), pos.getZ()));
@@ -282,7 +282,7 @@ public final class HudNotify {
 
         String name = unitName(pmc);
         BlockPos pos = flagHost.blockPosition();
-        send(owner,
+        send(owner, NotificationKind.PMC_AMMO,
                 Component.translatable("notification.tacz_sewv.pmc_ammo_out.title", name),
                 Component.translatable("notification.tacz_sewv.pmc_ammo_out.body",
                         kind, name, pos.getX(), pos.getY(), pos.getZ()));
@@ -335,8 +335,8 @@ public final class HudNotify {
                 }).orElse(false);
     }
 
-    private static void send(ServerPlayer player, Component title, Component body) {
-        PacketHudNotification.sendTo(player, title, body);
+    private static void send(ServerPlayer player, NotificationKind kind, Component title, Component body) {
+        PacketHudNotification.sendTo(player, title, body, kind);
     }
 
     @Nullable

@@ -68,6 +68,7 @@
     "client.MixinVehicleTeamOverlay",
     "client.MixinVehicleRappelWires",
     "client.MixinVehicleRenderer",
+    "client.MixinDogTagLighting",
     "client.MixinVehicleSkinCatalog",
     "client.MixinGeoArmorRenderer",
     "client.MixinGeckoArmorLayerImpl",

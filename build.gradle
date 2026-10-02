@@ -116,8 +116,17 @@ minecraft {
 // Average-modpack jars live in modpack/ (gitignored). syncModpack pulls from Prism;
 // syncRunModdedMods mirrors them into run-modded/mods without the FG-classpath overlaps.
 // Named away from prepareRunModded — ForgeGradle already owns that for the modded run.
-def modpackSource = file(findProperty('modpack_source')
-        ?: "${System.getProperty('user.home')}/.local/share/PrismLauncher/instances/1.20.1(1)/minecraft/mods")
+// A configured path that is not on this machine is skipped so a stale Linux/Windows
+// property does not hide the Prism instance that is actually installed.
+def prismModsCandidates = [
+        findProperty('profile_mods'),
+        findProperty('modpack_source'),
+        "${System.getProperty('user.home')}/AppData/Roaming/PrismLauncher/instances/1.20.1/minecraft/mods",
+        "${System.getProperty('user.home')}/.local/share/PrismLauncher/instances/1.20.1/minecraft/mods",
+        "${System.getProperty('user.home')}/.local/share/PrismLauncher/instances/1.20.1(1)/minecraft/mods",
+].findAll { it != null && !it.toString().isEmpty() }.collect { file(it) }
+def prismMods = prismModsCandidates.find { it.directory } ?: prismModsCandidates[0]
+def modpackSource = prismMods
 def modpackDir = file('modpack')
 def runModdedMods = file('run-modded/mods')
 // Already loaded via dependencies { } — putting these in run/mods double-registers the modid.
@@ -810,20 +819,20 @@ tasks.register('verifyMixinRefmap') {
 tasks.named('jar').configure { finalizedBy 'verifyMixinRefmap' }
 tasks.named('build').configure { dependsOn 'verifyMixinRefmap' }
 
-// Opt-in push of the built jar into the average-modpack Prism instance.
-// Usage: ./gradlew build -Pprofilesync
-def profileModsDefault = System.getProperty('os.name').toLowerCase().contains('windows')
-        ? "${System.getProperty('user.home')}/AppData/Roaming/PrismLauncher/instances/1.20.1/minecraft/mods"
-        : "${System.getProperty('user.home')}/.local/share/PrismLauncher/instances/1.20.1/minecraft/mods"
-def profileMods = file(findProperty('profile_mods') ?: profileModsDefault)
+// Opt-in push of the built jar into the Prism instance's mods folder.
+// Usage: ./gradlew build -PsyncwithProfile
+def profileMods = prismMods
+def syncWithProfile = project.hasProperty('syncwithProfile') || project.hasProperty('profilesync')
 
 tasks.register('syncToProfile') {
     group = 'forge'
-    description = "Copies the reobfuscated jar into ${profileMods} (opt-in via -Pprofilesync)."
+    description = "Copies the reobfuscated jar into ${profileMods} (opt-in via -PsyncwithProfile)."
     dependsOn 'reobfJar', 'verifyMixinRefmap'
-    onlyIf { project.hasProperty('profilesync') }
+    onlyIf { syncWithProfile }
     doLast {
-        def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        def built = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        def reobf = layout.buildDirectory.file('reobfJar/output.jar').get().asFile
+        def jarFile = reobf.isFile() ? reobf : built
         if (!profileMods.directory) {
             throw new GradleException("Profile mods folder missing: ${profileMods}")
         }
@@ -832,11 +841,12 @@ tasks.register('syncToProfile') {
         copy {
             from jarFile
             into profileMods
+            rename { built.name }
         }
-        println "Synced ${jarFile.name} → ${profileMods}"
+        println "Synced ${built.name} → ${profileMods}"
     }
 }
-if (project.hasProperty('profilesync')) {
+if (syncWithProfile) {
     tasks.named('build').configure { finalizedBy 'syncToProfile' }
 }
 

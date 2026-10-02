@@ -14,11 +14,17 @@ import com.neoalive.tacz_sewv.config.ClientConfig;
 /**
  * Client queue + animation for the top-center HUD banner. Overlay draws; this owns state.
  * Screen time is a cached millisecond value, not a per-frame config read.
+ *
+ * <p>Layout numbers are texture pixels ({@code notification_*.png} is 320×82). The overlay draws
+ * them at {@link #DISPLAY_SCALE} so the banner stays readable at large GUI scale without
+ * dominating the top of the screen.
  */
 public final class NotificationHud {
 
     static final int TEX_W = 320;
     static final int TEX_H = 82;
+    /** On-screen size relative to texture pixels — half size for large-GUI readability. */
+    static final float DISPLAY_SCALE = 0.5f;
     /** Flush with the top edge of the screen — no margin. */
     static final int REST_Y = 0;
     static final int BAR_X = 7;

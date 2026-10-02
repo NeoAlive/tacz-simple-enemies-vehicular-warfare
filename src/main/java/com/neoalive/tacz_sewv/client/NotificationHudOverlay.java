@@ -39,9 +39,12 @@ public final class NotificationHudOverlay {
 
         Font font = mc.font;
         int screenW = mc.getWindow().getGuiScaledWidth();
-        float scale = GuiFit.fitScale(NotificationHud.TEX_W, screenW);
+        // Prefer half texture size; only shrink further when even that overflows the GUI width.
+        float scale = Math.min(NotificationHud.DISPLAY_SCALE,
+                GuiFit.fitScale(NotificationHud.TEX_W, screenW));
         int drawW = Math.round(NotificationHud.TEX_W * scale);
         int x = (screenW - drawW) / 2;
+        // drawY is in texture pixels (0 = flush top); scaling keeps the rest edge at y=0.
         int y = Math.round(NotificationHud.drawY() * scale);
 
         var pose = g.pose();

@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
@@ -25,9 +26,12 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
+import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
 
 /**
@@ -60,6 +64,13 @@ public class BailOutVehicleGoal extends Goal {
 
     /** Pending RU/US scramble after leaving a sandbag — absolute, no vehicle required. */
     public static final String TAG_SANDBAG_SCRAMBLE = "sewv:sandbag_scramble";
+
+    /** Pending on-foot scramble away from a live frag. Faction-blind. Crews are not tagged. */
+    public static final String TAG_GRENADE_BAIL = "sewv:grenade_bail";
+    private static final String TAG_GRENADE_X = "sewv:grenade_x";
+    private static final String TAG_GRENADE_Y = "sewv:grenade_y";
+    private static final String TAG_GRENADE_Z = "sewv:grenade_z";
+    private static final String TAG_GRENADE_CLEAR = "sewv:grenade_clear";
 
     // Scramble just clear of the hull hitbox — get out of the wreck volume fast without
     // running across the map. Radii are added on top of the hull's half-extent.
@@ -121,8 +132,42 @@ public class BailOutVehicleGoal extends Goal {
         unit.getPersistentData().remove(TAG_SANDBAG_SCRAMBLE);
     }
 
+    /** Queue a foot scramble away from a frag. Crews stay seated. Downed and captured units stay put. */
+    public static void requestGrenadeBail(AbstractUnit unit, Vec3 threat, double clearance) {
+        if (unit.getVehicle() instanceof VehicleEntity) return;
+        if (unit instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) return;
+        if (unit instanceof IMedicCaptured captured && captured.sewv$isCapturedSynced()) return;
+        CompoundTag tag = unit.getPersistentData();
+        if (tag.getBoolean(TAG_GRENADE_BAIL)) return;
+        tag.putBoolean(TAG_GRENADE_BAIL, true);
+        tag.putDouble(TAG_GRENADE_X, threat.x);
+        tag.putDouble(TAG_GRENADE_Y, threat.y);
+        tag.putDouble(TAG_GRENADE_Z, threat.z);
+        tag.putDouble(TAG_GRENADE_CLEAR, clearance);
+    }
+
+    private static boolean hasGrenadeBail(AbstractUnit unit) {
+        return unit.getPersistentData().getBoolean(TAG_GRENADE_BAIL);
+    }
+
+    private static void clearGrenadeBail(AbstractUnit unit) {
+        CompoundTag tag = unit.getPersistentData();
+        tag.remove(TAG_GRENADE_BAIL);
+        tag.remove(TAG_GRENADE_X);
+        tag.remove(TAG_GRENADE_Y);
+        tag.remove(TAG_GRENADE_Z);
+        tag.remove(TAG_GRENADE_CLEAR);
+    }
+
     @Override
     public boolean canUse() {
+        if (hasGrenadeBail(this.unit)) {
+            if (this.unit.getVehicle() instanceof VehicleEntity) {
+                clearGrenadeBail(this.unit);
+                return false;
+            }
+            return true;
+        }
         if (hasSandbagScramble(this.unit) && this.unit.getVehicle() == null) {
             return true;
         }
@@ -192,6 +237,25 @@ public class BailOutVehicleGoal extends Goal {
         this.sandbagScramble = hasSandbagScramble(this.unit);
         clearSandbagScramble(this.unit);
         BailOutSupport.clearManualBail(this.unit);
+
+        if (hasGrenadeBail(this.unit)) {
+            CompoundTag tag = this.unit.getPersistentData();
+            Vec3 threat = new Vec3(tag.getDouble(TAG_GRENADE_X), tag.getDouble(TAG_GRENADE_Y),
+                    tag.getDouble(TAG_GRENADE_Z));
+            double clearance = tag.getDouble(TAG_GRENADE_CLEAR);
+            clearGrenadeBail(this.unit);
+            this.sandbagScramble = false;
+            EntrenchSupport.clear(this.unit);
+            this.escapePos = BailOutSupport.escapeFrom(this.unit, threat, clearance);
+            applyScrambleSpeed();
+            if (this.unit instanceof PmcUnitEntity pmc && this.escapePos != null) {
+                pmc.setMoveToTarget(Vec3.atBottomCenterOf(this.escapePos));
+            }
+            if (!this.commandable && this.escapePos != null) {
+                moveToEscapePos();
+            }
+            return;
+        }
 
         if (this.sandbagScramble) {
             this.escapePos = findEscapePosNear(this.unit.getX(), this.unit.getY(), this.unit.getZ(),

@@ -106,6 +106,9 @@ public final class SupportUnitGoals {
         goals.removeAllGoals(g -> true);
         targets.removeAllGoals(g -> true);
         if (unit.getRole() == null) unit.setRole(UnitRole.DEFAULT);
+        // On-foot frag scramble. Support units never call VehicleAiGoals, so without this
+        // they stand in the blast. Seated crews are ignored by the grenade path.
+        goals.addGoal(0, new BailOutVehicleGoal(unit));
     }
 
     private static void idle(AbstractUnit unit, GoalSelector goals) {

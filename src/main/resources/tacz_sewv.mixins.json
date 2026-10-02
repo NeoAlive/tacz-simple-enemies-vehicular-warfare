@@ -18,6 +18,7 @@
     "MixinFactionUnitEntity",
     "MixinCombatEvent",
     "MixinDynamicEventManager",
+    "MixinGrenadeBail",
     "MixinVillageGarrisonHandler",
     "MixinVehicleFireCooldown",
     "MixinAnnihilatorFireGate",

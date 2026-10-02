@@ -199,6 +199,36 @@ public final class BailOutSupport {
         return null;
     }
 
+    /**
+     * Standable ground {@code clearance} blocks from {@code threat}, on the unit's side of it.
+     * Same angle fallbacks as the hull flee.
+     */
+    @Nullable
+    public static BlockPos escapeFrom(AbstractUnit unit, Vec3 threat, double clearance) {
+        double dx = unit.getX() - threat.x;
+        double dz = unit.getZ() - threat.z;
+        if (dx * dx + dz * dz < 1.0e-4) {
+            float yaw = unit.getYRot() * Mth.DEG_TO_RAD;
+            dx = -Mth.sin(yaw);
+            dz = Mth.cos(yaw);
+        }
+        double len = Math.sqrt(dx * dx + dz * dz);
+        dx /= len;
+        dz /= len;
+
+        Level level = unit.level();
+        int refY = Mth.floor(unit.getY());
+        float base = (float) Math.atan2(dz, dx);
+        for (float offset : FLEE_ANGLE_FALLBACKS) {
+            float angle = base + offset;
+            int x = Mth.floor(threat.x + Mth.cos(angle) * clearance);
+            int z = Mth.floor(threat.z + Mth.sin(angle) * clearance);
+            BlockPos candidate = standableGroundAt(level, x, z, refY);
+            if (candidate != null) return candidate;
+        }
+        return null;
+    }
+
     @Nullable
     private static BlockPos standableGroundAt(Level level, int x, int z, int hullY) {
         BlockPos column = new BlockPos(x, hullY, z);

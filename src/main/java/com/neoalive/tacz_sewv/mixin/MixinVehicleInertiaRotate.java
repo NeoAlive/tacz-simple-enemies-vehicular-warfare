@@ -30,8 +30,14 @@ public abstract class MixinVehicleInertiaRotate {
                     target = "Lcom/atsuishio/superbwarfare/data/vehicle/DefaultVehicleData;getInertiaRotateRate()F",
                     remap = false))
     private float tacz_sewv$semCrewInertia(DefaultVehicleData data) {
-        if (SewvConfig.SEM_CREW_DISABLE_INERTIA_ROTATE.get()
-                && ((VehicleEntity) (Object) this).getFirstPassenger() instanceof AbstractUnit) {
+        VehicleEntity self = (VehicleEntity) (Object) this;
+        // A hull our flight integrator owns gets no cosmetic bank at all, whatever the config:
+        // the integrator's attitude is the attitude.
+        if (((com.neoalive.tacz_sewv.heli.IFlightDynamics) self).sewv$flightMode()
+                != com.neoalive.tacz_sewv.heli.IFlightDynamics.NONE) {
+            return 0.0F;
+        }
+        if (SewvConfig.SEM_CREW_DISABLE_INERTIA_ROTATE.get() && self.getFirstPassenger() instanceof AbstractUnit) {
             return 0.0F;
         }
         return data.getInertiaRotateRate();

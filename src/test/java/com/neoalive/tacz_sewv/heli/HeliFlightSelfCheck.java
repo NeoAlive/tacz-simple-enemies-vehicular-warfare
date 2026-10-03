@@ -40,9 +40,93 @@ public final class HeliFlightSelfCheck {
 
         layering();
         attitude();
+        determinism();
+        HeliPhysicsChecks.run();
+        HeliControlChecks.run();
+        HeliGuidanceChecks.run();
+        HeliAvoidChecks.run();
+        HeliGuidedChecks.run();
         HeliStandoffSelfCheck.main(args);
 
-        System.out.println("heli flight self-check: OK (D5, P7)");
+        System.out.println("heli flight self-check: OK (D1-D3, D5, P1-P11, C1-C7, R1/R2 geometry, R6, R7, A1, A2, A5, S1, S3, S4, S7, mission)");
+    }
+
+    // --- D1-D3 ----------------------------------------------------------------------------------
+
+    private static void determinism() throws IOException {
+        // D1: the same scenario twice is bit-identical, every tick.
+        Sim a = scenario(), b = scenario();
+        HeliControlChecks.SquareRef ref = new HeliControlChecks.SquareRef(15.0, 100.0);
+        for (int i = 0; i < 20 * 60; i++) {
+            a.tick(ref);
+            b.tick(ref);
+            assert bits(a) .equals(bits(b)) : "D1: runs diverged at tick " + i;
+        }
+
+        // D2: the order the probe finds obstacles in cannot change the barrier force.
+        List<com.neoalive.tacz_sewv.heli.avoid.ObstacleSet.Box> boxes = new java.util.ArrayList<>();
+        SplittableRandom rng = new SplittableRandom(0xD2L);
+        for (int i = 0; i < 12; i++) {
+            double x = rng.nextDouble(-8, 8), y = rng.nextDouble(-8, 8), z = rng.nextDouble(-8, 8);
+            boxes.add(new com.neoalive.tacz_sewv.heli.avoid.ObstacleSet.Box(rng.nextLong(), x, y, z, x + 1, y + 1, z + 1, 0, 0, 0));
+        }
+        List<com.neoalive.tacz_sewv.heli.avoid.ObstacleSet.Box> shuffled = new java.util.ArrayList<>(boxes);
+        java.util.Collections.shuffle(shuffled, new java.util.Random(7));
+        Vector3d f1 = barrierForce(boxes), f2 = barrierForce(shuffled);
+        assert Double.doubleToRawLongBits(f1.x) == Double.doubleToRawLongBits(f2.x)
+                && Double.doubleToRawLongBits(f1.y) == Double.doubleToRawLongBits(f2.y)
+                && Double.doubleToRawLongBits(f1.z) == Double.doubleToRawLongBits(f2.z)
+                : "D2: obstacle order changed the force: " + f1 + " vs " + f2;
+        assert f1.lengthSquared() > 0 : "D2: the scenario must actually produce a force";
+
+        // D3: key order inside the data file cannot change a row.
+        com.google.gson.JsonObject root = com.google.gson.JsonParser.parseString(Files.readString(Sim.SHIPPED)).getAsJsonObject();
+        var plain = com.neoalive.tacz_sewv.heli.data.AirframeData.parse(List.of(java.util.Map.entry("a", root)));
+        var reversed = com.neoalive.tacz_sewv.heli.data.AirframeData.parse(
+                List.of(java.util.Map.entry("a", reverseKeys(root).getAsJsonObject())));
+        assert plain.classes().keySet().equals(reversed.classes().keySet()) : "D3: class set differs";
+        for (String k : plain.classes().keySet()) {
+            assert plain.classes().get(k).describe().equals(reversed.classes().get(k).describe())
+                    : "D3: key order changed class " + k;
+        }
+    }
+
+    private static Sim scenario() {
+        Sim s = new HeliControlChecks.SquareRef(15.0, 100.0).startOnPath(new Sim("light"));
+        s.wind.set(3, 0, -2);
+        return s;
+    }
+
+    private static String bits(Sim s) {
+        double[] v = {s.s.p.x, s.s.p.y, s.s.p.z, s.s.v.x, s.s.v.y, s.s.v.z, s.s.q.x, s.s.q.y, s.s.q.z, s.s.q.w,
+                s.s.w.x, s.s.w.y, s.s.w.z, s.s.omega, s.s.theta0, s.s.pedal};
+        StringBuilder b = new StringBuilder();
+        for (double d : v) b.append(Long.toHexString(Double.doubleToRawLongBits(d))).append(',');
+        return b.toString();
+    }
+
+    private static Vector3d barrierForce(List<com.neoalive.tacz_sewv.heli.avoid.ObstacleSet.Box> boxes) {
+        var set = new com.neoalive.tacz_sewv.heli.avoid.ObstacleSet(boxes, -2.0);
+        var f = new com.neoalive.tacz_sewv.heli.avoid.AvoidForce(10, 25, 5, 2, 2, 3, 1, 0.05);
+        Vector3d p = new Vector3d(0.3, 0.1, -0.2), v = new Vector3d(4, -3, 2);
+        f.update(set, p, v);
+        return f.force(set, p, v, 1400, new Vector3d());
+    }
+
+    private static com.google.gson.JsonElement reverseKeys(com.google.gson.JsonElement e) {
+        if (e.isJsonObject()) {
+            List<String> keys = new java.util.ArrayList<>(e.getAsJsonObject().keySet());
+            java.util.Collections.reverse(keys);
+            com.google.gson.JsonObject out = new com.google.gson.JsonObject();
+            for (String k : keys) out.add(k, reverseKeys(e.getAsJsonObject().get(k)));
+            return out;
+        }
+        if (e.isJsonArray()) {
+            com.google.gson.JsonArray out = new com.google.gson.JsonArray();
+            for (com.google.gson.JsonElement x : e.getAsJsonArray()) out.add(reverseKeys(x));
+            return out;
+        }
+        return e;
     }
 
     // --- D5 -------------------------------------------------------------------------------------

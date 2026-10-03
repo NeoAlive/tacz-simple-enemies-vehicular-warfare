@@ -31,6 +31,14 @@ import com.neoalive.tacz_sewv.heli.physics.McPose;
  * up/nose vectors and SBW's own render transform for the same angles: the live check of the Euler
  * convention, which must stay under 1e-4.
  *
+ * <p>Phase 2 diagnostics follow {@code model}: the runtime's intended position after publish
+ * ({@code p_pred}), its procedures, last reference sample and situation summary (blank on
+ * {@code sbw} rows); then {@code out_x..} and {@code dm_applied_..}, read right after
+ * {@code baseTick}'s {@code move()}; then {@code p_ent_..}, the entity position at the NEXT tick's
+ * engine entry. A row is therefore written one tick late. {@code out_x == in_x} with a non-zero dm
+ * means {@code move()} did not apply it; {@code p_ent != out_x} means something wrote the position
+ * between ticks.
+ *
  * <p>Server thread only. The hot-path cost while nothing is traced is one empty-map check.
  */
 public final class HeliTrace {
@@ -39,7 +47,10 @@ public final class HeliTrace {
     private static final String HEADER = "gameTime,in_x,in_y,in_z,in_dmx,in_dmy,in_dmz,in_yaw,in_pitch,in_roll,"
             + "in_power,in_synchedRot,in_engStart,in_engOver,in_hover,in_fwd,in_back,in_down,in_left,in_right,"
             + "in_mouseX,in_mouseY,in_energy,in_onGround,tcRead,poseErr,"
-            + "out_dmx,out_dmy,out_dmz,out_yaw,out_pitch,out_roll,out_power,out_synchedRot\n";
+            + "out_dmx,out_dmy,out_dmz,out_yaw,out_pitch,out_roll,out_power,out_synchedRot,model,"
+            + "p_pred_x,p_pred_y,p_pred_z,proc_active,proc_requested,ref_t,ref_px,ref_py,ref_pz,ref_vx,ref_vy,ref_vz,"
+            + "sit_orderKind,sit_underOrders,sit_hasDestination,sit_destinationDistance,"
+            + "out_x,out_y,out_z,dm_applied_x,dm_applied_y,dm_applied_z,p_ent_x,p_ent_y,p_ent_z\n";
 
     /** Hull id -> the half-built row for the current tick. */
     private static final Map<Integer, Row> TRACED = new HashMap<>();
@@ -48,6 +59,8 @@ public final class HeliTrace {
         final Path file;
         final StringBuilder line = new StringBuilder(256);
         boolean tcRead;
+        /** The row has its post-move columns and waits for the next tick's p_ent. */
+        boolean pending;
 
         Row(Path file) {
             this.file = file;
@@ -58,7 +71,11 @@ public final class HeliTrace {
 
     /** Flip tracing for {@code hull}. Returns the new state. */
     public static boolean toggle(VehicleEntity hull) {
-        if (TRACED.remove(hull.getId()) != null) return false;
+        Row old = TRACED.remove(hull.getId());
+        if (old != null) {
+            if (old.pending) write(hull, old, old.line.append(",,\n"));
+            return false;
+        }
         Path file = file(hull);
         try {
             Files.createDirectories(file.getParent());
@@ -80,6 +97,12 @@ public final class HeliTrace {
         Row row = row(v);
         if (row == null) return;
         StringBuilder s = row.line;
+        if (row.pending) {
+            cols(s, v.getX(), v.getY());
+            s.append(v.getZ()).append('\n');
+            if (!write(v, row, s)) return;
+        }
+        row.pending = false;
         s.setLength(0);
         var dm = v.getDeltaMovement();
         s.append(v.level().getGameTime()).append(',');
@@ -93,21 +116,55 @@ public final class HeliTrace {
         row.tcRead = false;
     }
 
-    /** Engine exit (every return path): finish and append the row. */
-    public static void ret(VehicleEntity v) {
+    /**
+     * Engine exit: finish and append the row. {@code model} is {@code sbw} when SBW's own engine
+     * ran, {@code sewv} when our integrator flew the hull and SBW's engine was cancelled.
+     */
+    public static void ret(VehicleEntity v, String model) {
         Row row = row(v);
         if (row == null || row.line.length() == 0) return;
         StringBuilder s = row.line;
         var dm = v.getDeltaMovement();
         cols(s, dm.x, dm.y, dm.z, v.getYRot(), v.getXRot(), v.getRoll(), v.getPower(), v.getSynchedPropellerRot());
-        s.setCharAt(s.length() - 1, '\n');
+        s.append(model).append(',');
+        HeliRuntime r = HeliFlight.runtime(v);
+        if (r == null || !"sewv".equals(model)) {
+            s.append(",".repeat(16));
+            return;
+        }
+        cols(s, r.predicted.x, r.predicted.y, r.predicted.z);
+        s.append(r.activeId()).append(',').append(r.requested).append(',');
+        var ref = r.lastRef;
+        if (ref == null) s.append(",".repeat(7));
+        else cols(s, ref.t(), ref.p().x(), ref.p().y(), ref.p().z(), ref.v().x(), ref.v().y(), ref.v().z());
+        var sit = r.sit;
+        if (sit == null) {
+            s.append(",,,,");
+        } else {
+            s.append(sit.order).append(',');
+            bits(s, sit.underOrders, sit.hasDestination);
+            cols(s, sit.destDistance);
+        }
+    }
+
+    /** Right after {@code baseTick}'s {@code move()}: where the hull ended up, and its stored dm. */
+    public static void postMove(VehicleEntity v) {
+        Row row = row(v);
+        if (row == null || row.line.length() == 0 || row.pending) return;
+        var dm = v.getDeltaMovement();
+        cols(row.line, v.getX(), v.getY(), v.getZ(), dm.x, dm.y, dm.z);
+        row.pending = true;
+    }
+
+    private static boolean write(VehicleEntity v, Row row, CharSequence s) {
         try {
             Files.writeString(row.file, s, StandardOpenOption.APPEND);
+            return true;
         } catch (IOException e) {
             LOGGER.error("[sewv heli] trace write failed for #{}; tracing stopped", v.getId(), e);
             TRACED.remove(v.getId());
+            return false;
         }
-        s.setLength(0);
     }
 
     /** {@code baseTick} read TerrainCompat this tick; reported on the next row. */

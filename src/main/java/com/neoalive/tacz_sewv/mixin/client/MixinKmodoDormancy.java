@@ -35,12 +35,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = KmodoDormancy.class, remap = false)
 public abstract class MixinKmodoDormancy {
 
+    /** Synced rotor speed (SBW scale, 0.12 = full) above which the hull counts as occupied. */
+    private static final float ROTOR_AWAKE = 0.005F;
+
     private static final boolean ENABLED =
             Boolean.parseBoolean(System.getProperty("sewv.komodoDormancy", "true"));
 
     @Inject(method = "occupied", at = @At("HEAD"), cancellable = true, remap = false)
     private static void tacz_sewv$ignoreAiOnlyCrew(GeoVehicleEntity e, CallbackInfoReturnable<Boolean> cir) {
         if (!ENABLED) return;
+        // A turning rotor keeps the hull awake: Komodo's wake signal never reads rotor spin, so a
+        // dormant hovering helicopter would freeze its blades mid-air (decision D3).
+        if (e.getSynchedPropellerRot() > ROTOR_AWAKE) {
+            cir.setReturnValue(Boolean.TRUE);
+            return;
+        }
         boolean hasPassenger = false;
         for (Entity passenger : e.getPassengers()) {
             if (passenger instanceof Player) {

@@ -1,0 +1,94 @@
+{
+  "classes": {
+    "light": {
+      "mass": 1400, "cgHeight": 1.2, "inertia": [2400, 2750, 900],
+      "rotor": {
+        "radius": 4.0, "tipSpeed": 200, "inertia": 625, "direction": "ccw", "hubHeight": 1.8,
+        "sigmaCd0": 0.00056, "inducedKappa": 1.15, "cyclicMaxDeg": 8, "hubStiffness": 30000, "angularDamping": 2000,
+        "ctTable": [[0, 0], [0.25, 0.0070], [0.45, 0.013642], [0.7, 0.0172], [1.0, 0.0191]]
+      },
+      "engine": {
+        "maxPower": 1.0e6, "governor": {"wn": 4}, "startRate": 5, "collectiveLag": 0.15,
+        "efficiency": 0.3, "idlePower": 50000, "frictionCoeff": 2.7
+      },
+      "tail": {"type": "tail", "arm": 4.5, "height": 0.5, "nominalThrust": 5000, "maxThrust": 6000, "inflowDamping": 555},
+      "fuselage": {"cdA": [4, 6, 1.0]},
+      "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 4.5, "tiltMaxDeg": 25, "rateMaxPR": 60, "yawRateMax": 57,
+                 "minTurnRadius": 40, "aLatMax": 8},
+      "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 3},
+      "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 12}
+    },
+    "attack": {
+      "mass": 8000, "cgHeight": 1.8, "inertia": [72000, 82000, 13500],
+      "rotor": {
+        "radius": 7.3, "tipSpeed": 240, "inertia": 12500, "direction": "ccw", "hubHeight": 2.5,
+        "sigmaCd0": 0.00064, "inducedKappa": 1.15, "cyclicMaxDeg": 8, "hubStiffness": 336000, "angularDamping": 60000,
+        "ctTable": [[0, 0], [0.25, 0.00834], [0.45, 0.016253], [0.7, 0.02048], [1.0, 0.02275]]
+      },
+      "engine": {
+        "maxPower": 6.6e6, "governor": {"wn": 4}, "startRate": 3.3, "collectiveLag": 0.15,
+        "efficiency": 0.3, "idlePower": 330000, "frictionCoeff": 46
+      },
+      "tail": {"type": "tail", "arm": 9.0, "height": 1.0, "nominalThrust": 28000, "maxThrust": 34000, "inflowDamping": 2376},
+      "fuselage": {"cdA": [12, 25, 3.0]},
+      "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 5.0, "tiltMaxDeg": 25, "rateMaxPR": 45, "yawRateMax": 40,
+                 "minTurnRadius": 40, "aLatMax": 8},
+      "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 3},
+      "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 18}
+    },
+    "attack_coaxial": {
+      "mass": 10000, "cgHeight": 2.0, "inertia": [78400, 90000, 19600],
+      "rotor": {
+        "radius": 7.25, "tipSpeed": 260, "inertia": 25000, "direction": "ccw", "hubHeight": 3.0,
+        "sigmaCd0": 0.0011, "inducedKappa": 1.25, "cyclicMaxDeg": 8, "hubStiffness": 576000, "angularDamping": 63000,
+        "ctTable": [[0, 0], [0.25, 0.0090], [0.45, 0.017552], [0.7, 0.02334], [1.0, 0.02808]]
+      },
+      "engine": {
+        "maxPower": 1.05e7, "governor": {"wn": 4}, "startRate": 3.6, "collectiveLag": 0.15,
+        "efficiency": 0.3, "idlePower": 525000, "frictionCoeff": 58
+      },
+      "tail": {"type": "coaxial", "arm": 1.0, "height": 0.0, "nominalThrust": 50000, "maxThrust": 60000, "inflowDamping": 75000},
+      "fuselage": {"cdA": [13, 28, 3.0]},
+      "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 5.0, "tiltMaxDeg": 25, "rateMaxPR": 45, "yawRateMax": 40,
+                 "minTurnRadius": 40, "aLatMax": 8},
+      "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 2},
+      "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 36}
+    },
+    "utility": {
+      "mass": 7500, "cgHeight": 1.8, "inertia": [76800, 81700, 16900],
+      "rotor": {
+        "radius": 8.18, "tipSpeed": 220, "inertia": 20000, "direction": "ccw", "hubHeight": 2.6,
+        "sigmaCd0": 0.00064, "inducedKappa": 1.15, "cyclicMaxDeg": 8, "hubStiffness": 234000, "angularDamping": 61000,
+        "ctTable": [[0, 0], [0.25, 0.00741], [0.45, 0.014443], [0.7, 0.0182], [1.0, 0.02022]]
+      },
+      "engine": {
+        "maxPower": 5.5e6, "governor": {"wn": 4}, "startRate": 2.7, "collectiveLag": 0.15,
+        "efficiency": 0.3, "idlePower": 275000, "frictionCoeff": 56.5
+      },
+      "tail": {"type": "tail", "arm": 9.5, "height": 1.2, "nominalThrust": 26000, "maxThrust": 30000, "inflowDamping": 2456},
+      "fuselage": {"cdA": [15, 30, 2.5]},
+      "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 5.0, "tiltMaxDeg": 25, "rateMaxPR": 45, "yawRateMax": 30,
+                 "minTurnRadius": 40, "aLatMax": 8},
+      "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 3},
+      "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 18}
+    }
+  },
+  "hulls": {
+    "superbwarfare:ah_6": "light",
+    "superbwarfare:mi_28": "attack",
+    "ashvehicle:ah-64": "attack",
+    "ashvehicle:ka52": "attack_coaxial",
+    "fcp:huey": "utility",
+    "fcp:mi17": "utility",
+    "ashvehicle:uh_60": "utility",
+    "vvp:mi_8": "utility",
+    "vvp:nh_90": "utility"
+  },
+  "clues": [
+    {"contains": "littlebird", "class": "light"},
+    {"contains": "ah-64", "class": "attack"},
+    {"contains": "ah_64", "class": "attack"},
+    {"contains": "ka52", "class": "attack_coaxial"},
+    {"contains": "ka_52", "class": "attack_coaxial"}
+  ]
+}

@@ -20,81 +20,51 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Vector3f;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
-import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
 import com.neoalive.tacz_sewv.entity.ai.support.HeliArmament;
 import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
+import com.neoalive.tacz_sewv.heli.HeliFlight;
+import com.neoalive.tacz_sewv.heli.HeliRuntime;
+import com.neoalive.tacz_sewv.heli.guidance.ModeSelector;
+import com.neoalive.tacz_sewv.heli.guidance.OrderKind;
+import com.neoalive.tacz_sewv.heli.guidance.ProcedureId;
+import com.neoalive.tacz_sewv.heli.guidance.Situation;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHeliRunPhase;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
- * Autopilot for SuperbWarfare helicopters. Flight model, deliberately simple:
+ * Pilot of an AI-crewed SuperbWarfare helicopter. Since the physics rework this goal no longer
+ * touches a stick: SBW's {@code helicopterEngine} is replaced for the hull by our own rigid body,
+ * rotor model and cascaded controller ({@code heli.*}), and this goal is the layer above them.
+ * Each tick it:
+ * <ol>
+ * <li>keeps the order bookkeeping it always did: forced land and rappel, sticky LANDED, takeoff,
+ *     the RU/US takeoff normalisation, chunk tickets, flares, weapon hold and fire assist, rappel
+ *     ropes;</li>
+ * <li>does every world read guidance needs (destination, terrain-relative altitudes, pads, target)
+ *     and writes them into a {@link Situation};</li>
+ * <li>asks the pure {@link ModeSelector} for a procedure and hands both to the hull's
+ *     {@link HeliRuntime}, which flies it from inside the hull's own tick.</li>
+ * </ol>
  *
- * <ul>
- * <li><b>Terrain-following cruise.</b> Every leg flies the configured cruise
- *     altitude (clamped 30-50) above the terrain actually below and ahead of the
- *     hull: the heightmap is sampled along the next stretch of the route and the
- *     collective holds the offset over the HIGHEST upcoming ground, so the
- *     aircraft climbs before a ridge and sinks with falling land. An absolute
- *     level anchored at the takeoff origin turned into treetop-skimming (and a
- *     wall of whisker deflections) the moment an order led into rising terrain.
- *     Cliffs and structures taller than the cruise offset remain the whiskers'
- *     job.</li>
- * <li><b>Whisker avoidance.</b> Every lateral leg asks {@link AirTerrainSensor} for the
- *     nearest clear bearing to the one it wants (yaw avoidance); probe reach grows with
- *     current ground speed so momentum can't outrun the lookahead; a fully-blocked
- *     forward cone answers with a climb (vertical avoidance).</li>
- * <li><b>Combat.</b> Pilot ground armament via {@link HeliArmament} (not
- *     {@code selectWeaponForTarget} — that latches rockets over AG missiles).
- *     Each engagement cycle picks <em>ORBIT</em> or <em>STRAFE</em> 50/50:
- *     ORBIT holds cruise + geometry standoff and yaws/pitches the nose onto the
- *     target; STRAFE is a short plane-like INGRESS→ATTACK→BREAK→REPOSITION pass
- *     where yaw locks the run axis and pitch alone tracks the target into the
- *     fire cone. Re-rolls after each racetrack or a short orbit dwell. After two
- *     aim cycles that saw CONE and never fired, {@code compensationManeuver} arms:
- *     longer momentum lead plus yaw/pitch margin from the last miss. Hover mode
- *     OFF while aiming/breaking. Whiskers can force BREAK at any time.</li>
- * <li><b>Orders outrank auto-acquired targets.</b> A PMC pilot under an explicit
- *     movement order (move-to, follow, formation, hold, cease-fire) keeps flying
- *     the order: a retaliation target must not hijack the hull into the combat
- *     profile — with hull-fixed weapons that means flying AT the target, i.e.
- *     the whole aircraft goes freelancing. The fire assist still takes any shot
- *     that happens to line up mid-leg. ATTACK_THAT_TARGET and FREE_FIRE hand the
- *     hull to the fight; autonomous RU/US crews (no order system) always
- *     fight.</li>
- * <li><b>FOLLOW_COMMANDER</b> / formation parks over the commander's X/Z. On foot
- *     that is cruise AGL (TDT altitude, clamped 30-50) never closer than a
- *     fixed clearance over their head. When the commander is in a helicopter,
- *     followers match that hull's Y, with the same TDT cruise as a floor so a
- *     low hover cannot drag them into the trees. Formation slots keep that
- *     altitude rather than snapping to the ground.</li>
- * <li><b>Landing (CTRL+L)</b> outranks every other duty: it climbs clear of the
- *     leg, runs straight at the designated block under direct velocity command
- *     ({@code landingTick}), sinks on it, and settles into the sticky LANDED
- *     state on ground contact near the pad.</li>
- * </ul>
- *
- * <p>Control plumbing (from SBW's {@code helicopterEngine}): {@code forwardInput}
- * is the collective (climb), {@code downInput} descends, {@code mouseMoveSpeedY}
- * pitches (positive = nose down), {@code mouseMoveSpeedX} yaws (positive = yaw
- * increases). Analog sticks decay ×0.95/tick and are raw mouse-delta scale (tens,
- * not ±1), so every input is re-asserted every tick at realistic magnitudes.
+ * <p>Phase 2 of the rework: combat is a hover with the nose on the target and the fire assist
+ * shooting; the orbit, standoff and firing-run procedures arrive in Phase 3. The public static API
+ * below (tags, {@link RunPhase}, forced-order and rappel flags, {@link #inFiringRun}) is unchanged,
+ * because packets, commands, the scan goals and the overlay all depend on it.
  */
 public class DriveHelicopterGoal extends Goal {
 
@@ -103,11 +73,6 @@ public class DriveHelicopterGoal extends Goal {
     /** Synced / NBT / overlay phase names — ordinals must stay stable. */
     public enum RunPhase {
         IDLE, INGRESS, ATTACK, BREAK, REPOSITION, RAPPEL
-    }
-
-    /** Per-cycle combat shape — picked 50/50, independent of guided vs unguided. */
-    private enum CombatManeuver {
-        UNSET, ORBIT, STRAFE
     }
 
     public static final String TAG_HELI_RUN_PHASE = "sewv:heli_run_phase";
@@ -154,9 +119,9 @@ public class DriveHelicopterGoal extends Goal {
     }
 
     /**
-     * True while this hull's pilot is in INGRESS/ATTACK/BREAK/REPOSITION. Written to the
-     * hull's persistent data every phase change so mounted-lock goals can read it without
-     * holding a goal reference. IDLE / RAPPEL / missing tag = not in a firing run.
+     * True while this hull's pilot is in INGRESS/ATTACK/BREAK/REPOSITION. Written to the hull's
+     * persistent data every phase change so mounted-lock goals can read it without holding a goal
+     * reference. IDLE / RAPPEL / missing tag = not in a firing run.
      */
     public static boolean inFiringRun(VehicleEntity vehicle) {
         if (vehicle == null) return false;
@@ -190,105 +155,29 @@ public class DriveHelicopterGoal extends Goal {
         }
     }
 
-    private static final double ALT_DEADBAND = 2.5;
-    private static final double CRUISE_SPEED = 0.85;
-
-    // Below this fraction of max health the engine takes over with a crash-spin —
-    // nothing the pilot inputs matters, so we stop fighting it.
-    private static final float CRASH_HEALTH_FRACTION = 0.10F;
-
-    // --- Transit sticks (gentle, bounded — non-combat flight never dives) ---
-    private static final double YAW_STICK_PER_DEG = 0.5;
-    private static final float MAX_YAW_STICK = 20.0F;      // ≈2.2°/tick yaw at saturation
-    private static final double ALIGN_THRESHOLD_DEG = 35.0;
-    private static final double PITCH_DEG_PER_SPEED_ERR = 40.0;
-    private static final float MAX_ATTITUDE_DEG = 20.0F;   // transit tilt ceiling
-    private static final double PITCH_STICK_PER_DEG = 0.8;
-    private static final float MAX_PITCH_STICK = 15.0F;
-    private static final double APPROACH_GAIN = 0.1;
-    /** Along-track speed error below this → level pitch (no accelerate/brake). */
-    private static final double VEL_ERR_DEADBAND = 0.03;
     /**
-     * Pitch brake (nose-up) only inside this remaining horizontal distance.
-     * Mid-cruise overspeed coasts level — SBW lift does not shed speed under the
-     * cruise cap reliably, so continuous braking latches nose-up mid-air.
+     * Horizontal standoff so that a nose depression of {@code maxDepressionDeg} points at a
+     * target {@code heightAboveTarget} below the hold altitude, floored at {@code minStandoff}.
+     * Pure geometry — no world access. When height <= 0 (target at/above hold), returns the floor.
      */
-    private static final double BRAKE_HORIZON = 40.0;
+    public static double guidedStandoffRing(double heightAboveTarget, double maxDepressionDeg, double minStandoff) {
+        if (!(minStandoff > 0.0)) minStandoff = 0.0;
+        if (!(heightAboveTarget > 0.0)) return minStandoff;
+        double tan = Math.tan(Math.toRadians(maxDepressionDeg));
+        if (!(tan > 1.0E-6)) return minStandoff;
+        return Math.max(minStandoff, heightAboveTarget / tan);
+    }
 
-    // --- Collective (vertical) ---
-    private static final double CLIMB_RATE_CAP = 0.22;
-    private static final double DESCEND_RATE_CAP = 0.22;
+    private static final double ALT_DEADBAND = 2.5;
 
     // --- Cruise altitude (terrain-relative) ---
-    // The terrain offset is the config value hard-clamped to this band.
+    // The terrain offset is the pilot's TDT altitude hard-clamped to this band.
     private static final double MIN_FLIGHT_ALT = 30.0;
     private static final double MAX_FLIGHT_ALT = 50.0;
-    // Never fly a leg below destination + this (e.g. stay above the followed player).
+    // Never hold below destination + this (e.g. stay above the followed player).
     private static final double MIN_OVER_DEST = 12.0;
-    // Heightmap sampling for the terrain-following collective: step spacing and
-    // how far ahead along the leg the highest ground is looked for. The lookahead
-    // outranges the longest whisker probe, so ridge climbs start on the collective
-    // before the whiskers ever have to veto the bearing.
+    // How far ahead along a leg the highest ground is looked for.
     private static final double TERRAIN_LOOKAHEAD = 48.0;
-
-    // --- Whiskers (see AirTerrainSensor for what counts as blocked) ---
-    // Probe reach = base + ~1.5s of current travel: a fixed 12-block line was
-    // routinely outrun by cruise momentum (the hull can't shed speed in the
-    // distance the probe cleared), so the fan looks further ahead the faster
-    // the aircraft is actually moving (~34 blocks at default cruise speed).
-    private static final double WHISKER_BASE_DISTANCE = 16.0;
-    private static final double WHISKER_LOOKAHEAD_TICKS = 30.0;
-    // Fully boxed in: pop up this far above the obstacle line and try again. The
-    // avoidance floor decays ~1 block/s afterwards so surplus altitude is given
-    // back gradually (and re-triggers cleanly if the obstacle is tall).
-    private static final double AVOID_CLIMB_STEP = 4.0;
-    private static final double AVOID_FLOOR_DECAY = 0.05;
-
-    // --- Combat / firing run ---
-    private static final double ENGAGE_DEADBAND = 4.0;
-    private static final double BREAK_RANGE = 14.0;
-    private static final float MAX_COMBAT_DIVE_DEG = 60.0F;
-    private static final float MAX_CLIMB_AIM_DEG = 15.0F;
-    // Combat aim: high-gain — orbit bearing sweeps fast and the 12° fire cone drops
-    // shots unless the nose snaps back every tick. Engine yaw saturates around
-    // stick≈5 airborne; gain is for small in-cone errors. Strafe yaw uses the same
-    // stick onto the locked run axis (pitch alone tracks the target).
-    private static final double AIM_YAW_PER_DEG = 6.0;
-    private static final double AIM_PITCH_PER_DEG = 3.5;
-    private static final float MAX_AIM_PITCH_STICK = 45.0F;
-    private static final float MAX_AIM_YAW_STICK = 60.0F;
-    /** Lead own + target motion so the cone tracks through a turn/orbit. */
-    private static final double AIM_LEAD_TICKS = 3.0;
-    /** After this many aim cycles that saw CONE and never fired, arm compensation. */
-    private static final int CONE_FAIL_ATTEMPTS_BEFORE_COMPENSATION = 2;
-    /** Extra motion lead once compensation is armed (control lag + drift). */
-    private static final double COMPENSATION_EXTRA_LEAD_TICKS = 5.0;
-    /** Flat angular bias (deg) added in the direction of the last cone yaw miss. */
-    private static final double COMPENSATION_YAW_MARGIN_DEG = 8.0;
-    /** Fraction of the measured yaw miss folded back into the aim bias. */
-    private static final double COMPENSATION_YAW_MISS_SCALE = 0.35;
-    /** Extra nose-down (deg) bias from the last cone pitch miss when compensating. */
-    private static final double COMPENSATION_PITCH_MARGIN_DEG = 4.0;
-    /** Leave ORBIT and re-roll maneuver so STRAFE/ORBIT swap often. */
-    private static final int ORBIT_MAX_TICKS = 80;
-    // Bounded pass: commanded AGL vs pull-up abort floor must stay apart — when they
-    // shared one constant (22), ATTACK steered into the abort band and self-terminated
-    // on arrival (~1s passes, no time to fire). Gap = RUN_ALTITUDE - PULLUP_FLOOR = 16.
-    private static final double RUN_ALTITUDE = 34.0;   // fly the pass at this AGL
-    private static final double PULLUP_FLOOR = 18.0;   // abort when clearance <= this (+ sink lead)
-    /** Shorter than the plane's ~440-block run — heli can re-attack quickly. */
-    private static final double RUN_LENGTH = 60.0;
-    private static final double OVERFLY_MARGIN = 8.0;
-    private static final double PULLUP_LEAD_TICKS = 12.0;
-    private static final float BREAK_YAW_STICK = 12.0F;   // capped — yaw also rolls
-    private static final float BREAK_CLIMB_PITCH_DEG = -28.0F; // nose up
-    private static final float BREAK_ALIGN_DEG = 40.0F;
-    private static final double REPOSITION_ARRIVE = 10.0;
-    // Committed INGRESS…REPOSITION: getTarget() may stay null for seconds (LOS /
-    // scan cylinder) while the sticky entity is still alive — a short miss counter
-    // was wiping BREAK before REPOSITION. Sticky owns the run until the entity is
-    // gone; this grace only covers the entity-unloaded blip after that.
-    private static final int RUN_GATE_GRACE_TICKS = 40;
 
     // --- Rappel ---
     // Terrain-relative AGL — not an offset from current altitude.
@@ -296,42 +185,19 @@ public class DriveHelicopterGoal extends Goal {
     /** Last-resort exit if a rappel never completes (debug left on, etc.). */
     private static final long RAPPEL_TIMEOUT_TICKS = 6000L;
     private static final double RAPPEL_STABLE_XZ = 1.0;
-    /**
-     * RU/US combat-insert: enemy must be within this horizontal range (engagement-scale,
-     * not the old 12–48 knife band that fought the firing-run gate).
-     */
+    /** RU/US combat insert: enemy must be within this horizontal range. */
     private static final double RAPPEL_INSERT_RADIUS = 64.0;
-    /** Same cap as {@link DriveVehicleGoal}'s IFV dismount — one or two AT gunners per insert. */
     /** Ticks holding an in-range enemy before dropping — not first-contact insta-rappel. */
     private static final int RAPPEL_ENGAGE_DEBOUNCE_TICKS = 40;
     /** After any rappel ends, don't autonomous-retrigger while still in the same scrap. */
     private static final int RAPPEL_AUTONOMOUS_COOLDOWN_TICKS = 200;
 
-    // --- Arrival ---
-    private static final double ARRIVE_RADIUS = 4.0;
-    private static final double LAND_DESCENT_RADIUS = 2.5;
+    // --- Landing ---
     private static final double LAND_SETTLE_RADIUS = 6.5;
-    /** Settle radius for a helipad specifically — see the {@code helipad} check in landingTick. */
+    /** Settle radius for a helipad specifically: a wide radius let a hull graze a tree short of it. */
     private static final double HELIPAD_SETTLE_RADIUS = 2.25;
-    // --- Landing run (see landingTick) ---
-    /** Height above the highest ground on the leg that the straight-line run is flown at. */
+    /** Height above the highest ground on the leg that the run-in to a pad is flown at. */
     private static final double TRANSIT_AGL = 24.0;
-    /** Speed of the run out; the descent ring drops it to the terminal speed. */
-    private static final double LAND_TRANSIT_SPEED = 0.55;
-    /** Inside this, hold height bleeds to the pad. */
-    private static final double LAND_DESCEND_RADIUS = 24.0;
-    /** Floor so the proportional term cannot stall the run just short of the pad. */
-    private static final double LAND_MIN_SPEED = 0.03;
-    // Terminal speeds sized so a worst-case impact stays under SBW's 0.2 crash gate.
-    private static final double CAPTURE_MAX_SPEED = 0.15;
-    private static final double CAPTURE_GAIN = 0.15;
-    private static final double CAPTURE_BLEND = 0.35;
-    private static final double CAPTURE_ALT = 9.0;
-    private static final double CAPTURE_MAX_SINK = 0.12;
-    /** Altitude deficit (blocks) over which forward speed tapers back in as the hull climbs to transitY. */
-    private static final double CLIMB_TAPER_RANGE = 8.0;
-    /** Forward speed never drops below this fraction, even far under transitY — no full stop. */
-    private static final double MIN_CLIMB_SPEED_FRACTION = 0.25;
 
     private static final float DECOY_HEALTH_FRACTION = 0.5F;
     private static final float PRESERVE_DECOY_CHANCE = 0.5F;
@@ -339,45 +205,22 @@ public class DriveHelicopterGoal extends Goal {
     private final AbstractUnit unit;
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
     private final HullFacts hull = new HullFacts();
-    private final AirTerrainSensor sensor;
     private final DecoyEpisode flares = new DecoyEpisode();
     // Held on the airframe so it keeps flying with no player nearby (config-gated).
     private final ChunkTicket chunkTicket = new ChunkTicket();
 
     private VehicleEntity vehicle;
-    private double avoidFloorY = Double.NaN;
+    private HeliRuntime runtime;
     /** Physical seat weapon slot held for this engagement, or -1 if none. */
     private int heldWeaponSlot = -1;
     /** Network id of the target the hold was taken against. */
     private int heldTargetId = Integer.MIN_VALUE;
-
     private RunPhase runPhase = RunPhase.IDLE;
-    private CombatManeuver combatManeuver = CombatManeuver.UNSET;
-    /** Goal ticks spent in the current ORBIT cycle (re-roll after {@link #ORBIT_MAX_TICKS}). */
-    private int orbitTicks;
-    /** Aim cycles that saw {@link VehicleWeapons.FireGate#CONE} and never fired. */
-    private int coneFailAttempts;
-    /** After {@link #CONE_FAIL_ATTEMPTS_BEFORE_COMPENSATION} fails — predictive aim + margin. */
-    private boolean compensationActive;
-    private boolean cycleFired;
-    private boolean cycleHadCone;
-    /** Signed yaw from muzzle→target (deg); + = target right of shootDir. Last CONE sample. */
-    private double lastConeYawMissDeg;
-    /** Pitch miss (desired depression − shoot pitch); + = need more nose-down. */
-    private double lastConePitchMissDeg;
-    private double runDirX = Double.NaN;
-    private double runDirZ = Double.NaN;
-    private double runStartX;
-    private double runStartZ;
-    private double repositionX = Double.NaN;
-    private double repositionZ = Double.NaN;
-    /** Network id of the target the current run was fighting, for gate-grace sticky resolve. */
-    private int lastRunTargetId = Integer.MIN_VALUE;
-    /** Consecutive null-target ticks while a run is committed. */
-    private int runGateMisses;
-    /** Consecutive empty-hold ticks while a run is committed (separate from target grace). */
-    private int runHoldMisses;
-    /** XZ locked on RAPPEL entry — station-keep like landing capture, no sink. */
+    /** Where an idle or fighting hull holds station; NaN = take the current position next tick. */
+    private double holdX = Double.NaN, holdZ = Double.NaN;
+    private boolean holdForCombat;
+
+    /** XZ locked on RAPPEL entry. */
     private double rappelLockX = Double.NaN;
     private double rappelLockZ = Double.NaN;
     private long rappelStartedAt = Long.MIN_VALUE;
@@ -397,18 +240,7 @@ public class DriveHelicopterGoal extends Goal {
     /** AT launchers handed out this RAPPEL session (mirrors IFV {@code dismountSquad} armed count). */
     private int rappelAtIssued;
 
-    // --- Flight-quality diagnosis (heliFlightDebug) — observe-only ---
-    private static final int FLIGHT_LOG_INTERVAL_TICKS = 10;
-    private String flightHoverMode = "";
-    private String flightBranch = "";
-    private long flightLastLogAt = Long.MIN_VALUE;
-    private int flightTicksAlign;
-    private int flightTicksTrack;
-    private int flightTicksWhisker;
-    private boolean flightWasArriveHover;
-    private boolean flightAvoidFloorWasActive;
-
-    /** When true, transit/land/rappel only — no orbit/strafe (unarmed troop-lift hulls). */
+    /** When true, transit/land/rappel only — no combat (unarmed troop-lift hulls). */
     private final boolean transportOnly;
 
     public DriveHelicopterGoal(AbstractUnit unit) {
@@ -418,7 +250,6 @@ public class DriveHelicopterGoal extends Goal {
     DriveHelicopterGoal(AbstractUnit unit, boolean transportOnly) {
         this.unit = unit;
         this.transportOnly = transportOnly;
-        this.sensor = new AirTerrainSensor(unit);
         this.setFlags(EnumSet.noneOf(Flag.class)); // flying doesn't need to lock move/look flags
     }
 
@@ -434,7 +265,6 @@ public class DriveHelicopterGoal extends Goal {
         if (this.transportOnly != transport) return false;
 
         this.vehicle = v;
-        this.sensor.attach(v);
         // Run whenever mounted in a helicopter, even with no destination: a helicopter
         // must be actively controlled to hold station, so "idle" means "hover", not "off".
         return true;
@@ -444,6 +274,7 @@ public class DriveHelicopterGoal extends Goal {
     public boolean canContinueToUse() {
         if (this.unit.getVehicle() != this.vehicle
                 || this.vehicle == null
+                || this.runtime == null
                 || this.vehicle.getFirstPassenger() != this.unit
                 || this.vehicle.isWreck()
                 || !this.hull.isHelicopter()) {
@@ -453,9 +284,8 @@ public class DriveHelicopterGoal extends Goal {
         return this.transportOnly == transport;
     }
 
-    // The flight model re-asserts analog stick inputs against their ×0.95/tick
-    // decay and closes control loops against live velocity; vanilla only ticks
-    // running goals every OTHER tick unless this is overridden.
+    // Guidance must be refreshed every game tick (the runtime treats a snapshot older than a second
+    // as a dead pilot); vanilla only ticks running goals every OTHER tick unless this is overridden.
     @Override
     public boolean requiresUpdateEveryTick() {
         return true;
@@ -463,73 +293,176 @@ public class DriveHelicopterGoal extends Goal {
 
     @Override
     public void start() {
-        // A freshly boarded PMC helicopter sitting on the ground stays parked
-        // (sticky LANDED) until an explicit takeoff order — without this, mounting
-        // a parked hull auto-launched it to cruise altitude, making the takeoff
-        // key ceremonial. ONLY player-owned crews park: RU/US crews take no player
-        // flight orders and lift off immediately instead (see the normalization in
-        // tick()). Spawned PMC crews are unaffected: TankSpawner issues TAKEOFF
-        // before their first AI tick, so their command is never NONE here.
+        // A freshly boarded PMC helicopter sitting on the ground stays parked (sticky LANDED) until
+        // an explicit takeoff order. RU/US crews take no player flight orders and lift off instead
+        // (see the normalisation in tick()). Spawned PMC crews are unaffected: TankSpawner issues
+        // TAKEOFF before their first AI tick.
         if (this.vehicle != null && this.vehicle.onGround()
                 && this.unit instanceof PmcUnitEntity
                 && this.unit instanceof IHelicopterPilot pilot
                 && pilot.sewv$getHeliCommand() == IHelicopterPilot.HELI_CMD_NONE) {
             pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
         }
+        this.runtime = this.vehicle == null ? null : HeliFlight.attach(this.vehicle, this.unit);
     }
 
     @Override
     public void stop() {
         if (this.vehicle != null) {
             AirframeSupport.releaseInputs(this.vehicle);
-            // releaseInputs leaves the decoy latch alone (crash-spin flares must
-            // survive its per-tick calls) — but a crew leaving the seat lets go.
             AirframeSupport.clearDecoy(this.vehicle);
             setRappelRequested(this.vehicle, false);
             clearForcedRappel(this.vehicle);
             // A pending Land is deliberately NOT cleared: pad and flag are persistent, so a
             // reload or a crew change resumes the approach instead of silently dropping it.
-            // Hand the chunk back before we drop the vehicle the ticket is keyed to.
             this.chunkTicket.release(this.vehicle);
+            HeliFlight.detach(this.vehicle);
         }
         this.vehicle = null;
-        this.avoidFloorY = Double.NaN;
+        this.runtime = null;
         clearWeaponHold();
-        clearRun();
-        clearFlightDiag();
+        clearHold();
+        if (this.runPhase != RunPhase.IDLE) setRunPhase(RunPhase.IDLE);
+        clearRappelState();
         this.allyAssist.clear();
-        this.sensor.clear();
+    }
+
+    @Override
+    public void tick() {
+        HudNotify.watchPmcVehicle(this.unit, this.vehicle);
+        IHelicopterPilot pilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
+        int command = pilot != null ? pilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
+        // Sticky LANDED on the deck: no ticket. Airborne / takeoff / landing keep the follow.
+        boolean parked = command == IHelicopterPilot.HELI_CMD_LANDED && this.vehicle.onGround();
+        AirframeSupport.updateChunkLoading(this.chunkTicket, this.vehicle,
+                SewvConfig.HELI_CHUNK_LOADING.get() && !parked);
+
+        // A burning airframe keeps popping flares all the way down.
+        AirframeSupport.updateDecoy(this.vehicle, this.unit, this.flares,
+                DECOY_HEALTH_FRACTION, PRESERVE_DECOY_CHANCE);
+
+        // Hostile RU/US crews take no player flight orders and never idle parked: any grounded
+        // resting state resolves to an immediate takeoff.
+        if (pilot != null && !(this.unit instanceof PmcUnitEntity)
+                && this.vehicle.onGround()
+                && (command == IHelicopterPilot.HELI_CMD_NONE
+                    || command == IHelicopterPilot.HELI_CMD_LANDED)) {
+            command = IHelicopterPilot.HELI_CMD_TAKEOFF;
+            pilot.sewv$setHeliCommand(command);
+        }
+
+        // Committed rope slides finish even if RAPPEL tears down mid-descent.
+        rappelAdvanceDescents();
+
+        Situation sit = new Situation();
+        sit.time = this.vehicle.level().getGameTime() / 20.0;
+        sit.pilotId = this.unit.getId();
+        ProcedureId active = this.runtime.activeId();
+        if (active != null) sit.active = active;
+
+        if (!forcedOrder(pilot, sit)) {
+            if (command == IHelicopterPilot.HELI_CMD_LANDED) {
+                sit.order = OrderKind.LANDED;
+            } else {
+                if (command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
+                    double climbTo = cruiseAltitudeHere();
+                    if (this.vehicle.getY() >= climbTo - ALT_DEADBAND && !this.vehicle.onGround()) {
+                        pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
+                    } else {
+                        sit.order = OrderKind.TAKEOFF;
+                        sit.climbTo = climbTo;
+                    }
+                }
+                if (sit.order == OrderKind.NONE) {
+                    maybeAutonomousRappel();
+                    duty(sit);
+                }
+            }
+        }
+        this.runtime.setGuidance(sit, ModeSelector.select(sit));
     }
 
     /**
-     * Land and rappel, dispatched before anything else this goal can do.
-     *
-     * <p>The player's Land/Rappel additionally wipe combat and steering state, so they outrank
-     * FOLLOW orbit and a firing run rather than competing with them. Deliberately inside this
-     * goal rather than a separate priority-0 one: a second goal has to make this one stand down,
-     * and {@code stop()} then releases the chunk ticket and the rappel flag — so the override was
-     * left steering a hull whose state it had just cleared, and the airframe coasted away under
-     * its last inputs.
-     *
-     * @return true when the order owns the tick (caller returns immediately).
+     * Normal duty: fight a live target (Phase 2: hover with the nose on it, fire assist shooting),
+     * else fly an ordered destination, else hold station where the hull is.
      */
-    private boolean forcedOrderTick(@Nullable IHelicopterPilot pilot) {
+    private void duty(Situation sit) {
+        LivingEntity target = this.transportOnly ? null : this.unit.getTarget();
+        boolean pinned = flightPinnedByOrder();
+        sit.underOrders = pinned;
+        if (target != null) {
+            updateWeaponHold(target);
+            // A pinned flight path doesn't ground the guns: canShoot still gates ammo, CEASE_FIRE,
+            // line of fire and smoke.
+            fireAssist(target);
+        } else {
+            clearWeaponHold();
+        }
+
+        if (target != null && !pinned) {
+            sit.targetValid = true;
+            sit.targetX = target.getX();
+            sit.targetY = target.getY();
+            sit.targetZ = target.getZ();
+            holdHere(true);
+            sit.holdX = this.holdX;
+            sit.holdZ = this.holdZ;
+            sit.holdY = Math.max(cruiseAltitudeHere(), target.getY() + MIN_OVER_DEST);
+            return;
+        }
+
+        BlockPos dest = VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
+        if (dest != null) {
+            clearHold();
+            double px = dest.getX() + 0.5, pz = dest.getZ() + 0.5;
+            sit.hasDestination = true;
+            sit.destX = px;
+            sit.destZ = pz;
+            sit.destY = orderAltitude(px, pz, dest, false);
+            sit.destDistance = Math.hypot(px - this.vehicle.getX(), pz - this.vehicle.getZ());
+            sit.holdX = px;
+            sit.holdZ = pz;
+            sit.holdY = orderAltitude(px, pz, dest, true);
+            return;
+        }
+        holdHere(false);
+        sit.holdX = this.holdX;
+        sit.holdZ = this.holdZ;
+        sit.holdY = cruiseAltitudeHere();
+    }
+
+    /** Latch the station on first use, so a hold is a fixed point rather than wherever the hull drifted. */
+    private void holdHere(boolean combat) {
+        if (Double.isNaN(this.holdX) || this.holdForCombat != combat) {
+            this.holdX = this.vehicle.getX();
+            this.holdZ = this.vehicle.getZ();
+            this.holdForCombat = combat;
+        }
+    }
+
+    private void clearHold() {
+        this.holdX = Double.NaN;
+        this.holdZ = Double.NaN;
+    }
+
+    /**
+     * Land and rappel, ahead of anything else this goal can do. They stay inside this goal rather
+     * than a separate priority-0 one: a second goal would have to make this one stand down, and
+     * {@code stop()} then releases the chunk ticket and the rappel flag mid-order.
+     *
+     * @return true when the order owns the tick.
+     */
+    private boolean forcedOrder(@Nullable IHelicopterPilot pilot, Situation sit) {
         if (pilot == null) return false;
         boolean playerLand = this.vehicle.getPersistentData().getBoolean(TAG_FORCED_LAND)
                 || pilot.sewv$getHeliCommand() == IHelicopterPilot.HELI_CMD_LANDING;
         boolean playerRappel = this.vehicle.getPersistentData().getBoolean(TAG_FORCED_RAPPEL);
-        // Autonomous RU/US inserts raise the request flag alone and tick the same sequence.
-        boolean rappelling = playerRappel || isRappelRequested(this.vehicle)
-                || this.runPhase == RunPhase.RAPPEL;
+        boolean rappelling = playerRappel || isRappelRequested(this.vehicle) || this.runPhase == RunPhase.RAPPEL;
         if (!playerLand && !rappelling) return false;
 
         if (playerLand || playerRappel) {
             this.unit.setTarget(null);
-            if (isFiringRunPhase(this.runPhase)) {
-                abandonRun("player-order");
-            }
             clearWeaponHold();
-            this.avoidFloorY = Double.NaN;
         }
 
         // Land outranks rappel if both are somehow armed.
@@ -543,272 +476,51 @@ public class DriveHelicopterGoal extends Goal {
             // Re-assert every tick: nothing else may retask the hull mid-approach.
             pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDING);
             pilot.sewv$setHeliLandPos(pad);
-            landingTick(pilot, pad);
+            landing(pilot, pad, sit);
             return true;
         }
 
-        // Nothing to rope down from on the deck; clear rather than leave the order latched,
-        // which would block every later order on this hull.
+        // Nothing to rope down from on the deck; clear rather than leave the order latched.
         if (this.vehicle.onGround() && this.runPhase != RunPhase.RAPPEL) {
             clearForcedRappel(this.vehicle);
             setRappelRequested(this.vehicle, false);
             return false;
         }
-
-        if (rappelTick()) {
-            return true;
-        }
+        if (rappelTick(sit)) return true;
         clearForcedRappel(this.vehicle);
         return false;
     }
 
     /**
-     * The only landing path: climb to a clear transit height, translate straight at the pad,
-     * sink onto it.
-     *
-     * <p>Velocity is commanded directly at the pad every tick — no whiskers, no attitude pursuit,
-     * no glide slope. Those are what produced the orbit: any steering law that can deflect the
-     * bearing can also close a loop around the LZ, and other helicopters on the same pad sit
-     * inside the whisker sensor's clearance bubble, so a shared LZ deflected every bearing. This
-     * cannot orbit, because the commanded direction is always exactly the bearing to the pad.
+     * Landing guidance: the pad, the Y the hull rests at, and a run-in altitude clear of the
+     * highest ground on the leg. Settling (grounded inside the settle radius) is decided here and
+     * hands the hull to PARK.
      */
-    private void landingTick(IHelicopterPilot pilot, BlockPos pad) {
+    private void landing(IHelicopterPilot pilot, BlockPos pad, Situation sit) {
         double surfaceY = touchdownY(pad);
-        double px = pad.getX() + 0.5;
-        double pz = pad.getZ() + 0.5;
-        double dx = px - this.vehicle.getX();
-        double dz = pz - this.vehicle.getZ();
-        double dist = Math.sqrt(dx * dx + dz * dz);
+        double px = pad.getX() + 0.5, pz = pad.getZ() + 0.5;
+        double dist = Math.hypot(px - this.vehicle.getX(), pz - this.vehicle.getZ());
         boolean grounded = this.vehicle.onGround() || this.vehicle.getY() <= surfaceY + 0.35;
-
-        // A helipad is a precise ~2-block-radius target, not the wide strip LAND_SETTLE_RADIUS
-        // (6.5) was tuned for — that radius let a hull graze a tree well short of the actual pad,
-        // read the graze as "landed", and settle there instead of continuing in.
+        // A helipad is a precise target; the wide field radius let a hull graze a tree short of it.
         boolean helipad = this.unit.level() instanceof ServerLevel sl
                 && com.neoalive.tacz_sewv.airport.HelipadRegistry.get(sl).contains(pad);
-        double settleRadius = helipad ? HELIPAD_SETTLE_RADIUS : LAND_SETTLE_RADIUS;
-
-        if (grounded && dist <= settleRadius) {
+        if (grounded && dist <= (helipad ? HELIPAD_SETTLE_RADIUS : LAND_SETTLE_RADIUS)) {
             settleLanded(pilot);
+            sit.order = OrderKind.LANDED;
             return;
         }
-
-        AirframeSupport.releaseInputs(this.vehicle);
-        this.vehicle.setHoverMode(true);
-
-        // Clear-of-terrain height for the whole remaining leg, so the straight-line run cannot
-        // fly into the ridge a whisker fan would have gone around.
-        double transitY = Math.max(surfaceY + TRANSIT_AGL,
-                AirframeSupport.highestGroundToward(this.vehicle, px, pz, TERRAIN_LOOKAHEAD)
-                        + TRANSIT_AGL);
-
-        double targetY;
-        double speedCap;
-        if (dist > LAND_DESCEND_RADIUS) {
-            targetY = transitY;
-            speedCap = LAND_TRANSIT_SPEED;
-        } else {
-            // Inside the descent ring: bleed the hold height to the pad as it closes.
-            targetY = surfaceY + (dist < LAND_DESCENT_RADIUS
-                    ? 0.0 : CAPTURE_ALT * (dist / LAND_DESCEND_RADIUS));
-            speedCap = CAPTURE_MAX_SPEED;
-        }
-
-        // Ease off forward speed while the leg is not yet clear, rather than gating it to a hard
-        // 0 — otherwise a low hull would drive horizontally into terrain the collective is still
-        // climbing over. This used to be a flat 0/1 gate on that altitude test, and transitY steps
-        // every AirframeSupport.CACHE_TTL_TICKS as the terrain lookahead refreshes; the combination
-        // was a visible forward / stop / forward stutter on the approach. Tapering instead of
-        // cutting keeps some progress through every step instead of snapping to a dead stop.
-        double altDeficit = dist > LAND_DESCEND_RADIUS
-                ? Math.max(0.0, transitY - ALT_DEADBAND - this.vehicle.getY()) : 0.0;
-        double climbTaper = 1.0 - Mth.clamp(altDeficit / CLIMB_TAPER_RANGE, 0.0, 1.0 - MIN_CLIMB_SPEED_FRACTION);
-        double speed = Math.min(speedCap, dist * CAPTURE_GAIN + LAND_MIN_SPEED) * climbTaper;
-
-        applyCollective(targetY);
-
-        Vec3 v = this.vehicle.getDeltaMovement();
-        double desX = dist > 1.0E-4 ? dx / dist * speed : 0.0;
-        double desZ = dist > 1.0E-4 ? dz / dist * speed : 0.0;
-        double nvy = v.y;
-        if (dist < LAND_DESCENT_RADIUS && this.vehicle.getY() > surfaceY + 0.35) {
-            this.vehicle.setDownInputDown(true);
-            nvy = Mth.lerp(CAPTURE_BLEND, v.y, -CAPTURE_MAX_SINK);
-        }
-        this.vehicle.setDeltaMovement(
-                Mth.lerp(CAPTURE_BLEND, v.x, desX),
-                nvy,
-                Mth.lerp(CAPTURE_BLEND, v.z, desZ));
-
-        logLandingPhase(climbTaper < 1.0 ? "LAND_CLIMB" : "LAND_RUN", dist, surfaceY);
-    }
-
-    @Override
-    public void tick() {
-        HudNotify.watchPmcVehicle(this.unit, this.vehicle);
-        IHelicopterPilot earlyPilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
-        int earlyCommand = earlyPilot != null
-                ? earlyPilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
-        // Sticky LANDED on the deck: no ticket. Airborne / takeoff / landing keep the follow.
-        boolean parked = earlyCommand == IHelicopterPilot.HELI_CMD_LANDED && this.vehicle.onGround();
-        AirframeSupport.updateChunkLoading(this.chunkTicket, this.vehicle,
-                SewvConfig.HELI_CHUNK_LOADING.get() && !parked);
-
-        // Before the crash guard on purpose: a burning airframe spiraling in keeps
-        // popping flares all the way down.
-        AirframeSupport.updateDecoy(this.vehicle, this.unit, this.flares,
-                DECOY_HEALTH_FRACTION, PRESERVE_DECOY_CHANCE);
-
-        // Sub-10% health: the engine flies it into the ground on its own. Let go.
-        float max = this.vehicle.getMaxHealth();
-        if (max > 0.0F && this.vehicle.getHealth() < max * CRASH_HEALTH_FRACTION) {
-            AirframeSupport.releaseInputs(this.vehicle);
-            return;
-        }
-        // No power to the rotor — inputs do nothing anyway; don't pretend to fly.
-        if (this.vehicle.getEnergy() <= 0) {
-            AirframeSupport.releaseInputs(this.vehicle);
-            return;
-        }
-
-        IHelicopterPilot pilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
-        int command = pilot != null ? pilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
-
-        // Hostile RU/US crews take no player flight orders and never idle parked:
-        // any grounded resting state (spawn edge cases, world reload, a survived
-        // crash-spin) resolves to an immediate takeoff.
-        if (pilot != null && !(this.unit instanceof PmcUnitEntity)
-                && this.vehicle.onGround()
-                && (command == IHelicopterPilot.HELI_CMD_NONE
-                    || command == IHelicopterPilot.HELI_CMD_LANDED)) {
-            command = IHelicopterPilot.HELI_CMD_TAKEOFF;
-            pilot.sewv$setHeliCommand(command);
-        }
-
-        // Committed rope slides finish even if RAPPEL tears down mid-descent. Ahead of the
-        // dispatch below so it runs on the ticks that dispatch consumes as well.
-        rappelAdvanceDescents();
-
-        // Land / rappel outrank everything, sticky LANDED included — a parked hull ordered to
-        // a new pad must be able to pick up and go.
-        if (forcedOrderTick(pilot)) {
-            return;
-        }
-
-        // LANDED is sticky: stay shut down on the ground — no hover, no order-driven
-        // flying — until the player issues a new takeoff (L) or landing (CTRL+L).
-        if (command == IHelicopterPilot.HELI_CMD_LANDED) {
-            AirframeSupport.releaseInputs(this.vehicle);
-            this.vehicle.setHoverMode(false);
-            return;
-        }
-
-        // TAKEOFF: climb straight up to the terrain-relative cruise level over the
-        // takeoff column, then clear the order and fall through to normal duty.
-        // The heightmap under a vertically climbing hull is stable, so the climb
-        // target doesn't chase its own altitude the way a getY() offset would.
-        if (command == IHelicopterPilot.HELI_CMD_TAKEOFF) {
-            double climbTo = cruiseAltitudeHere();
-            if (this.vehicle.getY() >= climbTo - ALT_DEADBAND) {
-                pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
-            } else {
-                climbVertically(climbTo);
-                return;
-            }
-        }
-
-        // RU/US combat-insert only; the sequence itself runs in forcedOrderTick from next tick.
-        maybeAutonomousRappel();
-
-        // Combat: firing-run SM or guided standoff.
-        // last living target even when getTarget() flickers null (scan/LOS) — only
-        // a dead/unloaded sticky, lasting hold-empty, order-pin, or an IDLE-state
-        // guided pick abandons to IDLE. After abandon, hold cruise here so a
-        // collapsing run cannot fall through into a low destination and sink.
-        // Transport lifts never engage — they fly the destination and land/rappel only.
-        LivingEntity combatTarget = this.transportOnly ? null : this.unit.getTarget();
-        boolean pinned = flightPinnedByOrder();
-
-        if (!this.transportOnly && isFiringRunPhase(this.runPhase)) {
-            if (pinned) {
-                abandonRun("order-pin");
-                holdHover(cruiseAltitudeHere());
-                return;
-            }
-            LivingEntity runTarget = combatTarget != null ? combatTarget : stickyRunTarget();
-            if (runTarget != null) {
-                if (combatTarget != null) {
-                    this.lastRunTargetId = combatTarget.getId();
-                }
-                this.runGateMisses = 0;
-                combatTick(runTarget);
-                return;
-            }
-            // Sticky id points at a corpse → hand off to another in-range enemy and
-            // CONTINUE the run when possible; only abandon when the fight is truly over.
-            if (stickyTargetDead()) {
-                if (tryHandoffFromDeadTarget()) {
-                    return;
-                }
-                abandonRun("target-dead");
-                holdHover(cruiseAltitudeHere());
-                return;
-            }
-            this.runGateMisses++;
-            if (this.runGateMisses < RUN_GATE_GRACE_TICKS) {
-                holdHover(cruiseAltitudeHere());
-                return;
-            }
-            abandonRun("target-null");
-            holdHover(cruiseAltitudeHere());
-            return;
-        }
-
-        if (combatTarget != null && !pinned) {
-            this.lastRunTargetId = combatTarget.getId();
-            this.runGateMisses = 0;
-            combatTick(combatTarget);
-            return;
-        }
-
-        // Order-driven movement (move-to, follow, formation, ally assist) or idle hover.
-        BlockPos dest = VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
-
-        // A pinned flight path doesn't ground the guns: if the nose happens to
-        // bear on the live target mid-leg, take the shot (canShoot still gates
-        // ammo, CEASE_FIRE, LOS and smoke). Transport: no opportunistic fire.
-        if (combatTarget != null) {
-            logAiFire(combatTarget, fireConeDeg());
-        }
-
-        if (dest == null) {
-            noteHoverMode("IDLE_HOVER");
-            holdHover(cruiseAltitudeHere());
-            return;
-        }
-        double dx = dest.getX() + 0.5 - this.vehicle.getX();
-        double dz = dest.getZ() + 0.5 - this.vehicle.getZ();
-        double px = dest.getX() + 0.5;
-        double pz = dest.getZ() + 0.5;
-        if (dx * dx + dz * dz <= ARRIVE_RADIUS * ARRIVE_RADIUS) {
-            // Arrived — hold overhead: TDT cruise over the ground HERE, never
-            // closer than the fixed clearance over a commander on foot. A
-            // commander in a helicopter is matched instead (TDT still floors it).
-            noteHoverMode("ARRIVE_HOVER");
-            holdHover(orderAltitude(px, pz, dest, true));
-        } else {
-            if (this.flightWasArriveHover) {
-                noteArriveThrash();
-            }
-            flyToward(px, pz, orderAltitude(px, pz, dest, false), "transit");
-        }
+        sit.order = OrderKind.LAND;
+        sit.padX = px;
+        sit.padZ = pz;
+        sit.touchdownY = surfaceY;
+        sit.transitY = Math.max(surfaceY + TRANSIT_AGL,
+                AirframeSupport.highestGroundToward(this.vehicle, px, pz, TERRAIN_LOOKAHEAD) + TRANSIT_AGL);
     }
 
     /**
-     * Hover / transit Y for an ordered destination. TDT cruise (AGL, clamped) is
-     * always the floor. A commander in a helicopter is matched so follow and
-     * formation stay on their altitude; on foot the old dest+clearance rule
-     * still keeps the rotor off their head.
+     * Hover / transit Y for an ordered destination. TDT cruise (AGL, clamped) is always the floor.
+     * A commander in a helicopter is matched so follow and formation stay on their altitude; on
+     * foot the dest+clearance rule keeps the rotor off their head.
      */
     private double orderAltitude(double px, double pz, BlockPos dest, boolean arrived) {
         double cruise = arrived ? cruiseAltitudeHere() : cruiseAltitudeToward(px, pz);
@@ -826,11 +538,9 @@ public class DriveHelicopterGoal extends Goal {
         return Math.max(cruise, dest.getY() + MIN_OVER_DEST);
     }
 
-    // True when the pilot's current SEM order explicitly owns the flight path.
-    // HOLD_POSITION/CEASE_FIRE pin too: a crew ordered to hold parks and watches,
-    // exactly like the ground goal (which doesn't maneuver at all without a
-    // destination) — it doesn't get dragged across the map by a retaliation
-    // target it happened to acquire.
+    // True when the pilot's current SEM order explicitly owns the flight path. HOLD_POSITION and
+    // CEASE_FIRE pin too: a crew ordered to hold parks and watches rather than being dragged across
+    // the map by a retaliation target.
     private boolean flightPinnedByOrder() {
         if (!(this.unit instanceof PmcUnitEntity pmc)) return false;
         OrderType order = pmc.getOrder();
@@ -842,741 +552,10 @@ public class DriveHelicopterGoal extends Goal {
                 || order == OrderType.CEASE_FIRE;
     }
 
-    // Combat: pick/hold a ground-usable pilot weapon, then ORBIT standoff or STRAFE run.
-    private void combatTick(LivingEntity target) {
-        updateWeaponHold(target);
-        if (this.heldWeaponSlot < 0) {
-            // Empty armament → IDLE once settled; mid-run, grace the hold hiccup so
-            // BREAK/REPOSITION can finish instead of collapsing on a one-tick miss.
-            // Own counter: must not share runGateMisses (live-target path zeros that).
-            if (isFiringRunPhase(this.runPhase) && this.runHoldMisses < RUN_GATE_GRACE_TICKS) {
-                this.runHoldMisses++;
-                runStateMachine(target);
-                return;
-            }
-            abandonRun("hold-empty");
-            holdCruiseNear(target);
-            return;
-        }
-        this.runHoldMisses = 0;
+    // --- Weapons ---------------------------------------------------------------------------------
 
-        if (this.runPhase == RunPhase.IDLE) {
-            if (this.combatManeuver == CombatManeuver.UNSET) {
-                pickCombatManeuver();
-            }
-            if (this.combatManeuver == CombatManeuver.ORBIT) {
-                orbitCombatTick(target);
-                return;
-            }
-            // STRAFE — fall through to the racetrack.
-        }
-        this.runGateMisses = 0;
-        runStateMachine(target);
-    }
-
-    /** Coin-flip each cycle so ORBIT and STRAFE alternate often across engagements. */
-    private void pickCombatManeuver() {
-        this.combatManeuver = this.unit.getRandom().nextBoolean()
-                ? CombatManeuver.ORBIT
-                : CombatManeuver.STRAFE;
-        this.orbitTicks = 0;
-        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && this.vehicle != null) {
-            LOGGER.info("[sewv heli] {}#{} maneuver={}",
-                    this.vehicle.getName().getString(),
-                    this.vehicle.getId(),
-                    this.combatManeuver);
-        }
-    }
-
-    /** Last engagement target still alive in-world, or null. Used only for run-gate grace. */
-    @Nullable
-    private LivingEntity stickyRunTarget() {
-        if (this.lastRunTargetId == Integer.MIN_VALUE || this.vehicle == null) return null;
-        if (!(this.vehicle.level().getEntity(this.lastRunTargetId) instanceof LivingEntity living)) {
-            return null;
-        }
-        return living.isAlive() ? living : null;
-    }
-
-    /** Sticky id resolves to an entity that is present but dead — genuine end of fight. */
-    private boolean stickyTargetDead() {
-        if (this.lastRunTargetId == Integer.MIN_VALUE || this.vehicle == null) return false;
-        if (!(this.vehicle.level().getEntity(this.lastRunTargetId) instanceof LivingEntity living)) {
-            return false; // unloaded / missing — not a confirmed corpse
-        }
-        return !living.isAlive();
-    }
-
-    /**
-     * After the sticky target dies: if another valid enemy is in the scan cylinder
-     * (and LOS when required / not mid firing-run), lock it and keep the racetrack.
-     * Returns true when the run continued on the new target.
-     */
-    private boolean tryHandoffFromDeadTarget() {
-        LivingEntity next = VehicleTargetScanGoal.findHandoffTarget(this.unit, this.vehicle);
-        if (next == null) return false;
-
-        this.unit.setTarget(next);
-        // setTarget may be cancelled (friendly / support role) — verify.
-        if (this.unit.getTarget() != next) return false;
-
-        this.lastRunTargetId = next.getId();
-        this.runGateMisses = 0;
-        // Force doctrine re-pick for the new contact (soft→armor must switch slots).
-        clearWeaponHold();
-
-        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
-            LOGGER.info("[sewv heli] {}#{} HANDOFF dead→{} phase={} alt={}",
-                    this.vehicle.getName().getString(),
-                    this.vehicle.getId(),
-                    next.getId(),
-                    this.runPhase,
-                    String.format("%.1f", this.vehicle.getY()));
-        }
-        combatTick(next);
-        return true;
-    }
-
-    private void runStateMachine(LivingEntity target) {
-        if (this.runPhase == RunPhase.IDLE) {
-            setRunPhase(RunPhase.INGRESS);
-        }
-        switch (this.runPhase) {
-            case INGRESS -> ingressTick(target);
-            case ATTACK -> attackPassTick(target);
-            case BREAK -> breakTick(target);
-            case REPOSITION -> repositionTick(target);
-            default -> holdCruiseNear(target);
-        }
-    }
-
-    private void holdCruiseNear(LivingEntity target) {
-        double holdY = Math.max(cruiseAltitudeToward(target.getX(), target.getZ()),
-                target.getY() + MIN_OVER_DEST);
-        double dx = target.getX() - this.vehicle.getX();
-        double dz = target.getZ() - this.vehicle.getZ();
-        if (dx * dx + dz * dz > ARRIVE_RADIUS * ARRIVE_RADIUS) {
-            flyToward(target.getX(), target.getZ(), holdY, "hold_cruise");
-        } else {
-            noteHoverMode("ARRIVE_HOVER");
-            holdHover(holdY);
-        }
-    }
-
-    /**
-     * Horizontal standoff so that a nose depression of {@code maxDepressionDeg} points at a
-     * target {@code heightAboveTarget} below the hold altitude, floored at {@code minStandoff}.
-     * Pure geometry — no world access. When height ≤ 0 (target at/above hold), returns the floor.
-     */
-    public static double guidedStandoffRing(double heightAboveTarget, double maxDepressionDeg, double minStandoff) {
-        if (!(minStandoff > 0.0)) minStandoff = 0.0;
-        if (!(heightAboveTarget > 0.0)) return minStandoff;
-        double tan = Math.tan(Math.toRadians(maxDepressionDeg));
-        if (!(tan > 1.0E-6)) return minStandoff;
-        return Math.max(minStandoff, heightAboveTarget / tan);
-    }
-
-    private void orbitCombatTick(LivingEntity target) {
-        this.orbitTicks++;
-        if (this.orbitTicks >= ORBIT_MAX_TICKS) {
-            noteAimCycleEnd();
-            // Dwell done — re-roll; STRAFE starts the racetrack, ORBIT resets the timer.
-            pickCombatManeuver();
-            if (this.combatManeuver == CombatManeuver.STRAFE) {
-                setRunPhase(RunPhase.INGRESS);
-                runStateMachine(target);
-                return;
-            }
-        }
-
-        double dx = target.getX() - this.vehicle.getX();
-        double dz = target.getZ() - this.vehicle.getZ();
-        double horizDist = Math.sqrt(dx * dx + dz * dz);
-
-        double cruiseY = cruiseAltitudeToward(target.getX(), target.getZ());
-        double holdY = Math.max(cruiseY, target.getY() + MIN_OVER_DEST);
-        double engage = guidedStandoffRing(
-                cruiseY - target.getY(),
-                SewvConfig.HELI_MAX_DEPRESSION_DEG.get(),
-                SewvConfig.HELI_MIN_STANDOFF.get());
-
-        if (horizDist > engage + ENGAGE_DEADBAND) {
-            flyToward(target.getX(), target.getZ(), holdY, "guided_engage");
-            return;
-        }
-        if (horizDist < BREAK_RANGE) {
-            BlockPos out = VehicleTargeting.computeStandoffPoint(
-                    this.vehicle, target.blockPosition(), engage);
-            flyToward(out.getX() + 0.5, out.getZ() + 0.5, holdY, "guided_break");
-            return;
-        }
-        aimAtTarget(target, horizDist, holdY);
-    }
-
-    // --- Firing run phases -----------------------------------------------------------------------
-
-    private void ingressTick(LivingEntity target) {
-        double cruiseY = Math.max(cruiseAltitudeToward(target.getX(), target.getZ()),
-                target.getY() + MIN_OVER_DEST);
-        double engage = SewvConfig.HELI_ENGAGE_RADIUS.get();
-        double dx = target.getX() - this.vehicle.getX();
-        double dz = target.getZ() - this.vehicle.getZ();
-        double horiz = Math.sqrt(dx * dx + dz * dz);
-
-        Vec3 toT = horiz > 1.0E-4 ? new Vec3(dx / horiz, 0, dz / horiz) : forwardFlat();
-        double probe = WHISKER_BASE_DISTANCE
-                + this.vehicle.getDeltaMovement().horizontalDistance() * WHISKER_LOOKAHEAD_TICKS;
-        if (this.sensor.chooseClearBearing(toT, Math.min(probe, Math.max(horiz, 4.0))) == null) {
-            enterBreak(target);
-            return;
-        }
-
-        if (horiz <= engage + ENGAGE_DEADBAND
-                && this.vehicle.getY() >= cruiseY - ALT_DEADBAND * 2) {
-            startAttackRun(target);
-            setRunPhase(RunPhase.ATTACK);
-            attackPassTick(target);
-            return;
-        }
-        flyToward(target.getX(), target.getZ(), cruiseY, "ingress");
-    }
-
-    private void startAttackRun(LivingEntity target) {
-        Vec3 toT = new Vec3(target.getX() - this.vehicle.getX(), 0, target.getZ() - this.vehicle.getZ());
-        Vec3 dir = toT.lengthSqr() > 1.0E-6 ? toT.normalize() : forwardFlat();
-        this.runDirX = dir.x;
-        this.runDirZ = dir.z;
-        this.runStartX = this.vehicle.getX();
-        this.runStartZ = this.vehicle.getZ();
-    }
-
-    private void attackPassTick(LivingEntity target) {
-        if (Double.isNaN(this.runDirX)) startAttackRun(target);
-
-        double gx = this.vehicle.getX();
-        double gz = this.vehicle.getZ();
-        double distFromStart = Math.hypot(gx - this.runStartX, gz - this.runStartZ);
-
-        double planeAlong = (gx - this.runStartX) * this.runDirX + (gz - this.runStartZ) * this.runDirZ;
-        double targetAlong = (target.getX() - this.runStartX) * this.runDirX
-                + (target.getZ() - this.runStartZ) * this.runDirZ;
-        boolean passedTarget = planeAlong > targetAlong + OVERFLY_MARGIN;
-
-        int groundRef = Math.max(surfaceBelow(),
-                AirframeSupport.highestGroundToward(
-                        this.vehicle, gx + this.runDirX * 24.0, gz + this.runDirZ * 24.0, TERRAIN_LOOKAHEAD));
-        double clearance = this.vehicle.getY() - groundRef;
-        double descentRate = Math.max(0.0, -this.vehicle.getDeltaMovement().y);
-        double pullupTrigger = PULLUP_FLOOR + descentRate * PULLUP_LEAD_TICKS;
-
-        Vec3 runDir = new Vec3(this.runDirX, 0, this.runDirZ);
-        double probe = WHISKER_BASE_DISTANCE
-                + this.vehicle.getDeltaMovement().horizontalDistance() * WHISKER_LOOKAHEAD_TICKS;
-        if (this.sensor.chooseClearBearing(runDir, probe) == null
-                || passedTarget || clearance <= pullupTrigger || distFromStart >= RUN_LENGTH
-                || heldWeaponDepleted(this.vehicle.getSeatIndex(this.unit))) {
-            enterBreak(target);
-            return;
-        }
-
-        // STRAFE pass: collective holds run altitude. Default: yaw locks run axis, pitch
-        // tracks elevation. After two cone-fail cycles, compensation frees both axes onto
-        // a momentum/yaw-margin aimpoint so the fire cone can finally land.
-        double runY = Math.max(groundRef + RUN_ALTITUDE, target.getY() + MIN_OVER_DEST);
-        applyCollective(withAvoidFloor(runY));
-        this.vehicle.setHoverMode(false);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-
-        if (this.compensationActive) {
-            aimCompensated(target);
-        } else {
-            aimStrafePass(target);
-        }
-        logAiFire(target, fireConeDeg());
-    }
-
-    private void enterBreak(LivingEntity target) {
-        if (this.runPhase == RunPhase.ATTACK) {
-            noteAimCycleEnd();
-        }
-        clearRunAxis();
-        setRunPhase(RunPhase.BREAK);
-        breakTick(target);
-    }
-
-    private void breakTick(LivingEntity target) {
-        double cruiseY = Math.max(cruiseAltitudeToward(target.getX(), target.getZ()),
-                target.getY() + MIN_OVER_DEST);
-        double holdY = withAvoidFloor(cruiseY);
-
-        // Climb hard (collective + nose-up) while yawing off the target — yaw rolls the
-        // airframe, so climb must compensate. Aim/fire OFF.
-        this.vehicle.setHoverMode(false);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        applyCollective(holdY);
-
-        Vec3 away = new Vec3(this.vehicle.getX() - target.getX(), 0, this.vehicle.getZ() - target.getZ());
-        if (away.lengthSqr() < 1.0E-6) away = forwardFlat().scale(-1);
-        else away = away.normalize();
-        // Prefer a clear break bearing; else force the away vector.
-        double probe = WHISKER_BASE_DISTANCE + 16.0;
-        Vec3 clear = this.sensor.chooseClearBearing(away, probe);
-        Vec3 breakDir = clear != null ? clear : away;
-
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
-        double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, breakDir));
-        this.vehicle.setMouseMoveSpeedX(
-                (float) Mth.clamp(-YAW_STICK_PER_DEG * yawErrDeg, -BREAK_YAW_STICK, BREAK_YAW_STICK));
-        float attitudeErr = BREAK_CLIMB_PITCH_DEG - this.vehicle.getXRot();
-        this.vehicle.setMouseMoveSpeedY(
-                (float) Mth.clamp(attitudeErr * PITCH_STICK_PER_DEG, -MAX_PITCH_STICK, MAX_PITCH_STICK));
-
-        double horiz = Math.hypot(this.vehicle.getX() - target.getX(), this.vehicle.getZ() - target.getZ());
-        boolean high = this.vehicle.getY() >= cruiseY - ALT_DEADBAND;
-        boolean clearHeading = clear != null;
-        boolean farEnough = horiz >= SewvConfig.HELI_MIN_STANDOFF.get();
-        boolean aligned = Math.abs(yawErrDeg) < BREAK_ALIGN_DEG;
-        if (high && clearHeading && farEnough && aligned) {
-            pickReposition(target);
-            setRunPhase(RunPhase.REPOSITION);
-        }
-    }
-
-    private void pickReposition(LivingEntity target) {
-        double engage = SewvConfig.HELI_ENGAGE_RADIUS.get();
-        // Entity-id parity for flank side — same idea as ground FLANK_*.
-        double side = (this.unit.getId() & 1) == 0 ? 1.0 : -1.0;
-        Vec3 toHeli = new Vec3(this.vehicle.getX() - target.getX(), 0, this.vehicle.getZ() - target.getZ());
-        if (toHeli.lengthSqr() < 1.0E-6) toHeli = forwardFlat();
-        else toHeli = toHeli.normalize();
-        // Perpendicular offset at standoff range for the next ingress.
-        double px = -toHeli.z * side;
-        double pz = toHeli.x * side;
-        this.repositionX = target.getX() + px * engage;
-        this.repositionZ = target.getZ() + pz * engage;
-    }
-
-    private void repositionTick(LivingEntity target) {
-        if (Double.isNaN(this.repositionX)) pickReposition(target);
-        double holdY = Math.max(cruiseAltitudeToward(this.repositionX, this.repositionZ),
-                target.getY() + MIN_OVER_DEST);
-        double dx = this.repositionX - this.vehicle.getX();
-        double dz = this.repositionZ - this.vehicle.getZ();
-        if (dx * dx + dz * dz <= REPOSITION_ARRIVE * REPOSITION_ARRIVE) {
-            this.repositionX = Double.NaN;
-            this.repositionZ = Double.NaN;
-            // End of racetrack — re-roll ORBIT vs STRAFE for the next cycle.
-            pickCombatManeuver();
-            if (this.combatManeuver == CombatManeuver.ORBIT) {
-                clearRunAxis();
-                setRunPhase(RunPhase.IDLE);
-            } else {
-                setRunPhase(RunPhase.INGRESS);
-            }
-            return;
-        }
-        // Whisker abort during reposition still climbs via flyToward's avoid floor.
-        flyToward(this.repositionX, this.repositionZ, holdY, "reposition");
-    }
-
-    private Vec3 forwardFlat() {
-        Vector3f f = this.vehicle.getForwardDirection();
-        Vec3 v = new Vec3(f.x(), 0, f.z());
-        return v.lengthSqr() > 1.0E-6 ? v.normalize() : new Vec3(0, 0, 1);
-    }
-
-    private void clearRunAxis() {
-        this.runDirX = Double.NaN;
-        this.runDirZ = Double.NaN;
-    }
-
-    private void clearRun() {
-        setRunPhase(RunPhase.IDLE);
-        clearRunAxis();
-        this.repositionX = Double.NaN;
-        this.repositionZ = Double.NaN;
-        this.lastRunTargetId = Integer.MIN_VALUE;
-        this.runGateMisses = 0;
-        this.runHoldMisses = 0;
-        this.combatManeuver = CombatManeuver.UNSET;
-        this.orbitTicks = 0;
-        this.coneFailAttempts = 0;
-        this.compensationActive = false;
-        this.cycleFired = false;
-        this.cycleHadCone = false;
-        this.lastConeYawMissDeg = 0.0;
-        this.lastConePitchMissDeg = 0.0;
-        this.rappelLockX = Double.NaN;
-        this.rappelLockZ = Double.NaN;
-        this.rappelStartedAt = Long.MIN_VALUE;
-        this.rappelStableAt = Long.MIN_VALUE;
-    }
-
-    /**
-     * RU/US combat insertion: bring troops to a fight, then drop them near it.
-     *
-     * <p><b>Fires when all of:</b>
-     * <ol>
-     *   <li>Eligible cargo aboard (weaponless passengers) — nothing to insert otherwise.</li>
-     *   <li>Live target within {@link #RAPPEL_INSERT_RADIUS} (64) — "there is a fight here",
-     *       engagement-scale, not a knife-fight ring.</li>
-     *   <li>That contact has held for {@link #RAPPEL_ENGAGE_DEBOUNCE_TICKS} — debounce so a
-     *       first lock at long range does not insta-hover; the heli has actually arrived.</li>
-     *   <li>Hull ≥ half health — healthy enough to survive the hover; below that this goal
-     *       is already in the flare/escape band and should not park for a rappel.</li>
-     *   <li>Past post-rappel cooldown — stops timeout/abort with cargo still aboard from
-     *       immediately re-requesting; a successful drop already clears cargo so won't re-fire.</li>
-     * </ol>
-     *
-     * <p><b>Deliberately does NOT require:</b>
-     * <ul>
-     *   <li>A min range — overflying the scrap and dropping is fine for insertion.</li>
-     *   <li>{@code !isFiringRunPhase} — that veto fought condition (2): a heli near a target
-     *       is usually in INGRESS/ATTACK/BREAK, so the old gate almost never fired. Dropping
-     *       on arrival or after a pass <em>is</em> the intent; enterRappel exits the run.</li>
-     * </ul>
-     *
-     * <p>Command tier still has no arrive/deploy/LZ for helis; this remains the interim.
-     */
-    private void maybeAutonomousRappel() {
-        if (this.unit instanceof PmcUnitEntity) return;
-        if (isRappelRequested(this.vehicle) || this.runPhase == RunPhase.RAPPEL) return;
-
-        long now = this.unit.level().getGameTime();
-        if (now < this.rappelAutonomousCooldownUntil) return;
-
-        if (!RappelSupport.hasEligiblePassenger(this.vehicle)) {
-            this.rappelEngageSince = Long.MIN_VALUE;
-            return;
-        }
-
-        float maxHp = this.vehicle.getMaxHealth();
-        if (maxHp > 0.0F && this.vehicle.getHealth() < maxHp * DECOY_HEALTH_FRACTION) {
-            this.rappelEngageSince = Long.MIN_VALUE; // mid-escape — abandon insert plan
-            return;
-        }
-
-        LivingEntity target = this.unit.getTarget();
-        if (target == null || !target.isAlive()) {
-            this.rappelEngageSince = Long.MIN_VALUE; // left the fight / lost contact
-            return;
-        }
-
-        double dx = target.getX() - this.vehicle.getX();
-        double dz = target.getZ() - this.vehicle.getZ();
-        double distSq = dx * dx + dz * dz;
-        if (distSq > RAPPEL_INSERT_RADIUS * RAPPEL_INSERT_RADIUS) {
-            this.rappelEngageSince = Long.MIN_VALUE; // not in the engagement area yet
-            return;
-        }
-
-        if (this.rappelEngageSince == Long.MIN_VALUE) {
-            this.rappelEngageSince = now;
-            return; // start debounce — do not drop on the first tick of contact
-        }
-        if (now - this.rappelEngageSince < RAPPEL_ENGAGE_DEBOUNCE_TICKS) {
-            return;
-        }
-
-        this.rappelEngageSince = Long.MIN_VALUE;
-        setRappelRequested(this.vehicle, true);
-        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
-            LOGGER.info("[sewv heli] {}#{} autonomous rappel (target=#{} dist={} debounce={})",
-                    this.vehicle.getName().getString(),
-                    this.vehicle.getId(),
-                    target.getId(),
-                    String.format("%.0f", Math.sqrt(distSq)),
-                    RAPPEL_ENGAGE_DEBOUNCE_TICKS);
-        }
-    }
-
-    /**
-     * One RAPPEL sequence tick. {@code true} = keep holding hover (caller returns);
-     * {@code false} = teardown done, resume normal flight.
-     */
-    private boolean rappelTick() {
-        boolean requested = isRappelRequested(this.vehicle);
-
-        // Debug force-exit (or external clear) while still in phase — tear down now.
-        // Mid-rope slides keep advancing via rappelAdvanceDescents above.
-        if (!requested && this.runPhase == RunPhase.RAPPEL) {
-            exitRappel("debug-off");
-            return false;
-        }
-
-        if (requested && this.runPhase != RunPhase.RAPPEL) {
-            enterRappel();
-        }
-        if (this.runPhase != RunPhase.RAPPEL) {
-            return false;
-        }
-
-        long now = this.unit.level().getGameTime();
-        if (now - this.rappelStartedAt >= RAPPEL_TIMEOUT_TICKS) {
-            exitRappel("timeout");
-            return false;
-        }
-
-        rappelStationHover();
-
-        if (!rappelHoverStable()) {
-            this.rappelStableAt = Long.MIN_VALUE;
-            return true;
-        }
-        if (this.rappelStableAt == Long.MIN_VALUE) {
-            this.rappelStableAt = now;
-            if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
-                LOGGER.info("[sewv heli] {}#{} rappel settle start ({} ticks)",
-                        this.vehicle.getName().getString(),
-                        this.vehicle.getId(),
-                        RappelSupport.SETTLE_TICKS);
-            }
-        }
-        if (now - this.rappelStableAt < RappelSupport.SETTLE_TICKS) {
-            return true; // settle delay — no descents yet
-        }
-
-        rappelStartEligible();
-
-        // Done when nobody eligible remains aboard and both ropes are clear —
-        // covers "all troopers landed" and "never had eligible cargo".
-        if (rappelRopesIdle() && !RappelSupport.hasEligiblePassenger(this.vehicle)) {
-            exitRappel("complete");
-            return false;
-        }
-        return true;
-    }
-
-    private boolean rappelHoverStable() {
-        double targetY = surfaceBelow() + RAPPEL_HOVER_AGL;
-        if (Math.abs(this.vehicle.getY() - targetY) > ALT_DEADBAND) return false;
-        double dx = this.rappelLockX - this.vehicle.getX();
-        double dz = this.rappelLockZ - this.vehicle.getZ();
-        return dx * dx + dz * dz <= RAPPEL_STABLE_XZ * RAPPEL_STABLE_XZ;
-    }
-
-    private boolean rappelRopesIdle() {
-        return this.rappelRopeMinusId < 0 && this.rappelRopePlusId < 0;
-    }
-
-    /** Wipe any firing-run / idle into RAPPEL and lock the hover station. */
-    private void enterRappel() {
-        clearRunAxis();
-        this.repositionX = Double.NaN;
-        this.repositionZ = Double.NaN;
-        this.lastRunTargetId = Integer.MIN_VALUE;
-        this.runGateMisses = 0;
-        this.runHoldMisses = 0;
-        this.rappelLockX = this.vehicle.getX();
-        this.rappelLockZ = this.vehicle.getZ();
-        this.rappelStartedAt = this.unit.level().getGameTime();
-        this.rappelStableAt = Long.MIN_VALUE;
-        this.rappelAtIssued = 0;
-        setRunPhase(RunPhase.RAPPEL);
-    }
-
-    /**
-     * Teardown order is load-bearing: clear the request flag (wires gate on the synced
-     * RAPPEL phase, which exits next) → exit phase → caller falls through to flight.
-     * Active rope slides are NOT cancelled here — they keep advancing until land.
-     */
-    private void exitRappel(String reason) {
-        setRappelRequested(this.vehicle, false);
-        clearForcedRappel(this.vehicle);
-        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && this.vehicle != null) {
-            LOGGER.info("[sewv heli] {}#{} rappel teardown reason={} ropesIdle={}",
-                    this.vehicle.getName().getString(),
-                    this.vehicle.getId(),
-                    reason,
-                    rappelRopesIdle());
-        }
-        if (this.runPhase == RunPhase.RAPPEL) {
-            setRunPhase(RunPhase.IDLE);
-        }
-        this.rappelLockX = Double.NaN;
-        this.rappelLockZ = Double.NaN;
-        this.rappelStartedAt = Long.MIN_VALUE;
-        this.rappelStableAt = Long.MIN_VALUE;
-        this.rappelEngageSince = Long.MIN_VALUE;
-        this.rappelAtIssued = 0;
-        // Keeps RU/US from immediately re-arming after a timeout/abort that left cargo aboard.
-        this.rappelAutonomousCooldownUntil =
-                this.unit.level().getGameTime() + RAPPEL_AUTONOMOUS_COOLDOWN_TICKS;
-    }
-
-    /**
-     * Landing capture station-hover without the pad descent: hover mode + capture
-     * lateral blend onto the entry lock, collective onto terrain + {@link #RAPPEL_HOVER_AGL}.
-     */
-    private void rappelStationHover() {
-        double targetY = surfaceBelow() + RAPPEL_HOVER_AGL;
-        double dx = this.rappelLockX - this.vehicle.getX();
-        double dz = this.rappelLockZ - this.vehicle.getZ();
-        double dist = Math.sqrt(dx * dx + dz * dz);
-
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        this.vehicle.setMouseMoveSpeedX(0.0F);
-        this.vehicle.setMouseMoveSpeedY(0.0F);
-        this.vehicle.setHoverMode(true);
-        applyCollective(targetY);
-
-        double speed = Math.min(CAPTURE_MAX_SPEED, dist * CAPTURE_GAIN);
-        double desX = dist > 1.0E-4 ? dx / dist * speed : 0.0;
-        double desZ = dist > 1.0E-4 ? dz / dist * speed : 0.0;
-        Vec3 v = this.vehicle.getDeltaMovement();
-        this.vehicle.setDeltaMovement(
-                Mth.lerp(CAPTURE_BLEND, v.x, desX),
-                v.y,
-                Mth.lerp(CAPTURE_BLEND, v.z, desZ));
-    }
-
-    /** Kick eligible cargo onto free ropes (one per side). Pilot/gunners stay aboard. */
-    private void rappelStartEligible() {
-        if (this.rappelRopeMinusId < 0) {
-            tryStartRope(false);
-        }
-        if (this.rappelRopePlusId < 0) {
-            tryStartRope(true);
-        }
-    }
-
-    private void tryStartRope(boolean plusX) {
-        for (Entity passenger : List.copyOf(this.vehicle.getPassengers())) {
-            if (!RappelSupport.isRappelEligible(this.vehicle, passenger)) continue;
-            if (!(passenger instanceof AbstractUnit unit)) continue;
-            int id = unit.getId();
-            if (id == this.rappelRopeMinusId || id == this.rappelRopePlusId) continue;
-
-            // Same AT issue seam as DriveVehicleGoal.dismountSquad — first always, second rolls,
-            // max two per RAPPEL session. issueAtWeapon no-ops for PMC / already-armed.
-            if (this.rappelAtIssued == 0 || (this.rappelAtIssued < EasyMode.maxAtGunners()
-                    && unit.getRandom().nextDouble() < EasyMode.atSecondGunnerChance())) {
-                if (SmallArmsSupport.issueAtWeapon(unit)) this.rappelAtIssued++;
-            }
-
-            Vec3 top = RappelSupport.ropeTopWorld(this.vehicle, plusX);
-            unit.stopRiding();
-            unit.setDeltaMovement(Vec3.ZERO);
-            unit.fallDistance = 0.0F;
-            unit.setPos(top.x, top.y, top.z);
-            if (plusX) {
-                this.rappelRopePlusId = id;
-                this.rappelRopePlusAx = top.x;
-                this.rappelRopePlusAz = top.z;
-            } else {
-                this.rappelRopeMinusId = id;
-                this.rappelRopeMinusAx = top.x;
-                this.rappelRopeMinusAz = top.z;
-            }
-            if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
-                LOGGER.info("[sewv heli] {}#{} rappel start unit=#{} rope={} xz={},{}",
-                        this.vehicle.getName().getString(),
-                        this.vehicle.getId(),
-                        id,
-                        plusX ? "X+" : "X-",
-                        String.format("%.1f", top.x),
-                        String.format("%.1f", top.z));
-            }
-            return;
-        }
-    }
-
-    /** Advance any in-progress rope slides (committed — survives RAPPEL teardown). */
-    private void rappelAdvanceDescents() {
-        if (this.rappelRopeMinusId >= 0) {
-            if (!advanceRope(false)) {
-                this.rappelRopeMinusId = -1;
-                this.rappelRopeMinusAx = Double.NaN;
-                this.rappelRopeMinusAz = Double.NaN;
-            }
-        }
-        if (this.rappelRopePlusId >= 0) {
-            if (!advanceRope(true)) {
-                this.rappelRopePlusId = -1;
-                this.rappelRopePlusAx = Double.NaN;
-                this.rappelRopePlusAz = Double.NaN;
-            }
-        }
-    }
-
-    /** @return true while still descending */
-    private boolean advanceRope(boolean plusX) {
-        int id = plusX ? this.rappelRopePlusId : this.rappelRopeMinusId;
-        double ax = plusX ? this.rappelRopePlusAx : this.rappelRopeMinusAx;
-        double az = plusX ? this.rappelRopePlusAz : this.rappelRopeMinusAz;
-        if (!(this.unit.level().getEntity(id) instanceof AbstractUnit unit)) {
-            return false;
-        }
-        return RappelSupport.tickDescent(unit, ax, az);
-    }
-
-    /** Wipe a committed run to IDLE, logging the gate that forced it when debug is on. */
-    private void abandonRun(String reason) {
-        if (this.runPhase != RunPhase.IDLE && ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && this.vehicle != null) {
-            LivingEntity live = this.unit.getTarget();
-            // Distinguishes false loss (live enemy still in the scan cylinder) from
-            // genuine end-of-fight (nothing left to re-lock).
-            VehicleTargetScanGoal.RelockProbe relock =
-                    VehicleTargetScanGoal.probeRelock(this.unit, this.vehicle);
-            LOGGER.info("[sewv heli] {}#{} ABANDON {}→IDLE reason={} slot={} target={} sticky={} gateMiss={}/{} holdMiss={}/{} alt={} relockInRange={} relockLos={} relockId={}",
-                    this.vehicle.getName().getString(),
-                    this.vehicle.getId(),
-                    this.runPhase,
-                    reason,
-                    this.heldWeaponSlot,
-                    live != null ? live.getId() : -1,
-                    this.lastRunTargetId,
-                    this.runGateMisses,
-                    RUN_GATE_GRACE_TICKS,
-                    this.runHoldMisses,
-                    RUN_GATE_GRACE_TICKS,
-                    String.format("%.1f", this.vehicle.getY()),
-                    relock.inRange(),
-                    relock.hasLos(),
-                    relock.id());
-        }
-        clearRun();
-    }
-
-    private void setRunPhase(RunPhase next) {
-        boolean changed = this.runPhase != next;
-        this.runPhase = next;
-        if (changed) {
-            syncPhaseDebug(true);
-        } else if (this.vehicle != null && next != RunPhase.IDLE && this.vehicle.tickCount % 40 == 0) {
-            // Re-broadcast so players who entered tracking range still see the label.
-            syncPhaseDebug(false);
-        }
-    }
-
-    private void syncPhaseDebug(boolean phaseChanged) {
-        if (this.vehicle == null) return;
-        this.vehicle.getPersistentData().putString(TAG_HELI_RUN_PHASE, this.runPhase.name());
-        if (this.vehicle.level() instanceof ServerLevel) {
-            NetworkHandler.CHANNEL.send(
-                    PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> this.vehicle),
-                    new PacketHeliRunPhase(this.vehicle.getId(), this.runPhase.ordinal()));
-        }
-        if (phaseChanged && ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
-            LOGGER.info("[sewv heli] {}#{} phase={} slot={} alt={}",
-                    this.vehicle.getName().getString(),
-                    this.vehicle.getId(),
-                    this.runPhase,
-                    this.heldWeaponSlot,
-                    String.format("%.1f", this.vehicle.getY()));
-        }
-    }
-
-    // Pick once per engagement; re-pick only on target change or magazine truly empty.
-    // Mid-reload must NOT thrash the slot. Uses HeliArmament (not selectWeaponForTarget).
-    // Mid-run: if the held magazine is empty, do NOT re-pick here — attackPassTick's
-    // depleted gate enters BREAK; a re-pick to guided used to collapse the run to IDLE.
+    // Pick once per engagement; re-pick only on target change or magazine truly empty. Mid-reload
+    // must NOT thrash the slot. HeliArmament, not selectWeaponForTarget (that latches rockets).
     private void updateWeaponHold(LivingEntity target) {
         int seat = this.vehicle.getSeatIndex(this.unit);
         if (seat < 0) {
@@ -1586,26 +565,15 @@ public class DriveHelicopterGoal extends Goal {
         int tid = target.getId();
         boolean retarget = tid != this.heldTargetId;
         boolean empty = this.heldWeaponSlot >= 0 && heldWeaponDepleted(seat);
-        if (empty && isFiringRunPhase(this.runPhase)) {
-            this.vehicle.setWeaponIndex(seat, this.heldWeaponSlot);
-            return;
-        }
         if (this.heldWeaponSlot < 0 || retarget || empty) {
-            boolean armor = target.getVehicle() instanceof VehicleEntity;
             int slot = HeliArmament.pickGroundWeapon(this.vehicle, seat, target);
             if (slot < 0) {
                 clearWeaponHold();
                 return;
             }
             if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && slot != this.heldWeaponSlot) {
-                LOGGER.info("[sewv heli] {}#{} PICK slot={}→{} armor={} target={} phase={}",
-                        this.vehicle.getName().getString(),
-                        this.vehicle.getId(),
-                        this.heldWeaponSlot,
-                        slot,
-                        armor,
-                        tid,
-                        this.runPhase);
+                LOGGER.info("[sewv heli] {}#{} PICK slot={}->{} target={}",
+                        this.vehicle.getName().getString(), this.vehicle.getId(), this.heldWeaponSlot, slot, tid);
             }
             this.vehicle.setWeaponIndex(seat, slot);
             this.heldWeaponSlot = slot;
@@ -1615,100 +583,18 @@ public class DriveHelicopterGoal extends Goal {
         }
     }
 
-    /**
-     * Fire assist + optional debug. Logs FIRED with the selected slot, or the gate
-     * (skips RPM_WAIT spam — only interesting rejects and actual shots).
-     * Tracks cone-fail cycles for {@link #compensationActive}.
-     */
     private double fireConeDeg() {
         double base = EasyMode.aiFireAssistConeDeg();
         double floor = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.heliConeFloorDeg(this.vehicle);
         return Math.max(base, floor);
     }
 
-    private void logAiFire(LivingEntity target, double coneDeg) {
-        VehicleWeapons.FireGate gate = VehicleWeapons.tryAiFireAssistResult(
-                this.vehicle, this.unit, target, Math.max(coneDeg, fireConeDeg()));
-        if (gate == VehicleWeapons.FireGate.FIRED) {
-            this.cycleFired = true;
-            this.coneFailAttempts = 0;
-            this.compensationActive = false;
-        } else if (gate == VehicleWeapons.FireGate.CONE) {
-            this.cycleHadCone = true;
-            sampleConeMiss(target);
-        }
-        if (!ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) return;
-        if (gate == VehicleWeapons.FireGate.RPM_WAIT) return;
-        int seat = this.vehicle.getSeatIndex(this.unit);
-        int selected = seat >= 0 ? this.vehicle.getSelectedWeapon(seat) : -1;
-        if (gate == VehicleWeapons.FireGate.FIRED) {
-            LOGGER.info("[sewv heli] {}#{} FIRE slot={} selected={} phase={} target={}",
-                    this.vehicle.getName().getString(),
-                    this.vehicle.getId(),
-                    this.heldWeaponSlot,
-                    selected,
-                    this.runPhase,
-                    target.getId());
-        } else {
-            LOGGER.info("[sewv heli] {}#{} NOFIRE gate={} slot={} selected={} phase={} target={} comp={}",
-                    this.vehicle.getName().getString(),
-                    this.vehicle.getId(),
-                    gate,
-                    this.heldWeaponSlot,
-                    selected,
-                    this.runPhase,
-                    target.getId(),
-                    this.compensationActive);
-        }
-    }
-
-    /** Record signed muzzle→target miss used by compensation aim. */
-    private void sampleConeMiss(LivingEntity target) {
-        Vec3 shootDir = this.vehicle.getShootDirectionForHud(this.unit, 1.0F);
-        Vec3 shootPos = this.vehicle.getShootPos(this.unit, 1.0F);
-        Vec3 toTarget = target.getBoundingBox().getCenter().subtract(shootPos);
-        if (shootDir.lengthSqr() < 1.0E-6 || toTarget.lengthSqr() < 1.0E-6) return;
-
-        Vec3 shootFlat = new Vec3(shootDir.x, 0.0, shootDir.z);
-        Vec3 tgtFlat = new Vec3(toTarget.x, 0.0, toTarget.z);
-        if (shootFlat.lengthSqr() > 1.0E-6 && tgtFlat.lengthSqr() > 1.0E-6) {
-            Vector3f muzzleFlat = new Vector3f(
-                    (float) shootFlat.x, 0.0F, (float) shootFlat.z).normalize();
-            this.lastConeYawMissDeg = Math.toDegrees(
-                    VehicleTargeting.signedAngleTo(muzzleFlat, tgtFlat.normalize()));
-        }
-
-        double shootHoriz = Math.sqrt(shootDir.x * shootDir.x + shootDir.z * shootDir.z);
-        double tgtHoriz = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
-        double shootPitch = Math.toDegrees(Math.atan2(-shootDir.y, Math.max(shootHoriz, 1.0E-4)));
-        double tgtPitch = Math.toDegrees(Math.atan2(-toTarget.y, Math.max(tgtHoriz, 1.0E-4)));
-        this.lastConePitchMissDeg = tgtPitch - shootPitch;
-    }
-
-    /**
-     * End of an ORBIT dwell or STRAFE ATTACK: if we saw CONE and never fired, count a
-     * failed attempt; arm compensation after {@link #CONE_FAIL_ATTEMPTS_BEFORE_COMPENSATION}.
-     */
-    private void noteAimCycleEnd() {
-        if (this.cycleFired) {
-            this.coneFailAttempts = 0;
-            this.compensationActive = false;
-        } else if (this.cycleHadCone) {
-            this.coneFailAttempts++;
-            if (this.coneFailAttempts >= CONE_FAIL_ATTEMPTS_BEFORE_COMPENSATION) {
-                this.compensationActive = true;
-                if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && this.vehicle != null) {
-                    LOGGER.info("[sewv heli] {}#{} COMPENSATION armed fails={} yawMiss={} pitchMiss={}",
-                            this.vehicle.getName().getString(),
-                            this.vehicle.getId(),
-                            this.coneFailAttempts,
-                            String.format("%.1f", this.lastConeYawMissDeg),
-                            String.format("%.1f", this.lastConePitchMissDeg));
-                }
-            }
-        }
-        this.cycleFired = false;
-        this.cycleHadCone = false;
+    private void fireAssist(LivingEntity target) {
+        VehicleWeapons.FireGate gate = VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, fireConeDeg());
+        if (!ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) || gate == VehicleWeapons.FireGate.RPM_WAIT) return;
+        LOGGER.info("[sewv heli] {}#{} {} slot={} target={}", this.vehicle.getName().getString(),
+                this.vehicle.getId(), gate == VehicleWeapons.FireGate.FIRED ? "FIRE" : "NOFIRE gate=" + gate,
+                this.heldWeaponSlot, target.getId());
     }
 
     private boolean heldWeaponDepleted(int seat) {
@@ -1730,160 +616,225 @@ public class DriveHelicopterGoal extends Goal {
         this.heldTargetId = Integer.MIN_VALUE;
     }
 
-    // Aim platform: two-axis mouse aim. Collective holds {@code holdY} (ORBIT cruise).
-    // Hover mode OFF — auto-level would keep the nose flat.
-    private void aimAtTarget(LivingEntity target, double horizDist, double holdY) {
-        applyCollective(withAvoidFloor(holdY));
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        this.vehicle.setHoverMode(false);
-        if (this.compensationActive) {
-            aimCompensated(target);
-        } else {
-            aimNoseOnly(target, horizDist);
-        }
-        logAiFire(target, fireConeDeg());
-    }
-
-    // Nose onto the fire-assist aimpoint (shootPos → target, with short motion lead).
-    // ORBIT hold: both yaw and pitch track the target. Strafe uses {@link #aimStrafePass}.
-    private void aimNoseOnly(LivingEntity target, double horizDist) {
-        this.vehicle.setHoverMode(false);
-        steerNoseToVector(aimVectorSimple(target));
-    }
+    // --- Rappel ----------------------------------------------------------------------------------
 
     /**
-     * STRAFE pass aim — plane-style: yaw holds the locked run axis; pitch alone
-     * tracks the target's elevation into the fire cone. Collective owns altitude.
+     * RU/US combat insertion: bring troops to a fight, then drop them near it. Fires when all of:
+     * eligible cargo aboard; a live target within {@link #RAPPEL_INSERT_RADIUS}; that contact held
+     * for {@link #RAPPEL_ENGAGE_DEBOUNCE_TICKS}; hull at least half health; past the post-rappel
+     * cooldown.
      */
-    private void aimStrafePass(LivingEntity target) {
-        this.vehicle.setHoverMode(false);
+    private void maybeAutonomousRappel() {
+        if (this.unit instanceof PmcUnitEntity) return;
+        if (isRappelRequested(this.vehicle) || this.runPhase == RunPhase.RAPPEL) return;
 
-        Vec3 runDir = new Vec3(this.runDirX, 0.0, this.runDirZ);
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
-        double yawErrDeg = runDir.lengthSqr() > 1.0E-8
-                ? Math.toDegrees(VehicleTargeting.signedAngleTo(forward, runDir))
-                : 0.0;
+        long now = this.unit.level().getGameTime();
+        if (now < this.rappelAutonomousCooldownUntil) return;
 
-        Vec3 toTarget = aimVectorSimple(target);
-        double horiz = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
-        double desiredPitch = Math.toDegrees(Math.atan2(-toTarget.y, Math.max(horiz, 1.0)));
-        float aimAttitude = (float) Mth.clamp(desiredPitch, -MAX_CLIMB_AIM_DEG, MAX_COMBAT_DIVE_DEG);
-        float attitudeErr = aimAttitude - this.vehicle.getXRot();
-
-        float mouseX = (float) Mth.clamp(-AIM_YAW_PER_DEG * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK);
-        float mouseY = (float) Mth.clamp(attitudeErr * AIM_PITCH_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK);
-        this.vehicle.mouseInput(mouseX, mouseY);
-    }
-
-    /**
-     * compensationManeuver: after two cone-fail cycles, aim using future own/target
-     * positions from momentum, plus a yaw/pitch margin from the last cone miss so
-     * the nose leads the lag that kept missing the fire-assist cone.
-     */
-    private void aimCompensated(LivingEntity target) {
-        this.vehicle.setHoverMode(false);
-        steerNoseToVector(aimVectorCompensated(target));
-    }
-
-    /** Default lead aim vector (own + target motion at {@link #AIM_LEAD_TICKS}). */
-    private Vec3 aimVectorSimple(LivingEntity target) {
-        Vec3 ownLead = this.vehicle.getDeltaMovement().scale(AIM_LEAD_TICKS);
-        Vec3 tgtLead = target.getDeltaMovement().scale(AIM_LEAD_TICKS);
-        Vec3 shootPos = this.vehicle.getShootPos(this.unit, 1.0F).add(ownLead);
-        Vec3 aimPoint = target.getBoundingBox().getCenter().add(tgtLead);
-        return aimPoint.subtract(shootPos);
-    }
-
-    /**
-     * Compensated aim: longer relative-motion lead, then rotate by yaw margin from the
-     * last CONE miss and add pitch margin. Fire assist still tests the live target —
-     * this only steers the nose so that geometry closes into the cone.
-     */
-    private Vec3 aimVectorCompensated(LivingEntity target) {
-        double lead = AIM_LEAD_TICKS + COMPENSATION_EXTRA_LEAD_TICKS;
-        Vec3 ownVel = this.vehicle.getDeltaMovement();
-        Vec3 tgtVel = target.getDeltaMovement();
-        Vec3 shootPos = this.vehicle.getShootPos(this.unit, 1.0F);
-        Vec3 futureShoot = shootPos.add(ownVel.scale(lead));
-        Vec3 futureTgt = target.getBoundingBox().getCenter().add(tgtVel.scale(lead));
-        Vec3 toAim = futureTgt.subtract(futureShoot);
-
-        double yawBias = 0.0;
-        if (Math.abs(this.lastConeYawMissDeg) > 0.5) {
-            yawBias = Math.copySign(COMPENSATION_YAW_MARGIN_DEG, this.lastConeYawMissDeg)
-                    + this.lastConeYawMissDeg * COMPENSATION_YAW_MISS_SCALE;
+        if (!RappelSupport.hasEligiblePassenger(this.vehicle)) {
+            this.rappelEngageSince = Long.MIN_VALUE;
+            return;
         }
-        toAim = rotateY(toAim, yawBias);
-
-        double pitchBias = 0.0;
-        if (Math.abs(this.lastConePitchMissDeg) > 0.5) {
-            pitchBias = Math.copySign(COMPENSATION_PITCH_MARGIN_DEG, this.lastConePitchMissDeg);
+        float maxHp = this.vehicle.getMaxHealth();
+        if (maxHp > 0.0F && this.vehicle.getHealth() < maxHp * DECOY_HEALTH_FRACTION) {
+            this.rappelEngageSince = Long.MIN_VALUE;
+            return;
         }
-        if (pitchBias != 0.0) {
-            double horiz = Math.sqrt(toAim.x * toAim.x + toAim.z * toAim.z);
-            double pitch = Math.toDegrees(Math.atan2(-toAim.y, Math.max(horiz, 1.0E-4))) + pitchBias;
-            double rad = Math.toRadians(pitch);
-            // Rebuild with adjusted depression, preserving horizontal bearing.
-            double len = Math.sqrt(horiz * horiz + toAim.y * toAim.y);
-            if (len > 1.0E-4 && horiz > 1.0E-4) {
-                double nhx = toAim.x / horiz;
-                double nhz = toAim.z / horiz;
-                toAim = new Vec3(
-                        nhx * len * Math.cos(rad),
-                        -len * Math.sin(rad),
-                        nhz * len * Math.cos(rad));
+        LivingEntity target = this.unit.getTarget();
+        if (target == null || !target.isAlive()) {
+            this.rappelEngageSince = Long.MIN_VALUE;
+            return;
+        }
+        double dx = target.getX() - this.vehicle.getX();
+        double dz = target.getZ() - this.vehicle.getZ();
+        double distSq = dx * dx + dz * dz;
+        if (distSq > RAPPEL_INSERT_RADIUS * RAPPEL_INSERT_RADIUS) {
+            this.rappelEngageSince = Long.MIN_VALUE;
+            return;
+        }
+        if (this.rappelEngageSince == Long.MIN_VALUE) {
+            this.rappelEngageSince = now;
+            return;
+        }
+        if (now - this.rappelEngageSince < RAPPEL_ENGAGE_DEBOUNCE_TICKS) return;
+
+        this.rappelEngageSince = Long.MIN_VALUE;
+        setRappelRequested(this.vehicle, true);
+        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
+            LOGGER.info("[sewv heli] {}#{} autonomous rappel (target=#{} dist={})",
+                    this.vehicle.getName().getString(), this.vehicle.getId(), target.getId(),
+                    String.format(java.util.Locale.ROOT, "%.0f", Math.sqrt(distSq)));
+        }
+    }
+
+    /** One RAPPEL sequence tick. {@code true} = keep holding station; {@code false} = teardown done. */
+    private boolean rappelTick(Situation sit) {
+        boolean requested = isRappelRequested(this.vehicle);
+        if (!requested && this.runPhase == RunPhase.RAPPEL) {
+            exitRappel("debug-off");
+            return false;
+        }
+        if (requested && this.runPhase != RunPhase.RAPPEL) enterRappel();
+        if (this.runPhase != RunPhase.RAPPEL) return false;
+
+        long now = this.unit.level().getGameTime();
+        if (now - this.rappelStartedAt >= RAPPEL_TIMEOUT_TICKS) {
+            exitRappel("timeout");
+            return false;
+        }
+
+        sit.order = OrderKind.RAPPEL;
+        sit.lockX = this.rappelLockX;
+        sit.lockZ = this.rappelLockZ;
+        sit.rappelY = surfaceBelow() + RAPPEL_HOVER_AGL;
+
+        if (!rappelHoverStable()) {
+            this.rappelStableAt = Long.MIN_VALUE;
+            return true;
+        }
+        if (this.rappelStableAt == Long.MIN_VALUE) this.rappelStableAt = now;
+        if (now - this.rappelStableAt < RappelSupport.SETTLE_TICKS) return true;
+
+        rappelStartEligible();
+        // Done when nobody eligible remains aboard and both ropes are clear.
+        if (rappelRopesIdle() && !RappelSupport.hasEligiblePassenger(this.vehicle)) {
+            exitRappel("complete");
+            return false;
+        }
+        return true;
+    }
+
+    private boolean rappelHoverStable() {
+        double targetY = surfaceBelow() + RAPPEL_HOVER_AGL;
+        if (Math.abs(this.vehicle.getY() - targetY) > ALT_DEADBAND) return false;
+        double dx = this.rappelLockX - this.vehicle.getX();
+        double dz = this.rappelLockZ - this.vehicle.getZ();
+        return dx * dx + dz * dz <= RAPPEL_STABLE_XZ * RAPPEL_STABLE_XZ;
+    }
+
+    private boolean rappelRopesIdle() {
+        return this.rappelRopeMinusId < 0 && this.rappelRopePlusId < 0;
+    }
+
+    private void enterRappel() {
+        this.rappelLockX = this.vehicle.getX();
+        this.rappelLockZ = this.vehicle.getZ();
+        this.rappelStartedAt = this.unit.level().getGameTime();
+        this.rappelStableAt = Long.MIN_VALUE;
+        this.rappelAtIssued = 0;
+        setRunPhase(RunPhase.RAPPEL);
+    }
+
+    /** Clear the request flag, then exit the phase. Active rope slides keep advancing until they land. */
+    private void exitRappel(String reason) {
+        setRappelRequested(this.vehicle, false);
+        clearForcedRappel(this.vehicle);
+        if (ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) && this.vehicle != null) {
+            LOGGER.info("[sewv heli] {}#{} rappel teardown reason={} ropesIdle={}",
+                    this.vehicle.getName().getString(), this.vehicle.getId(), reason, rappelRopesIdle());
+        }
+        if (this.runPhase == RunPhase.RAPPEL) setRunPhase(RunPhase.IDLE);
+        this.rappelLockX = Double.NaN;
+        this.rappelLockZ = Double.NaN;
+        this.rappelStartedAt = Long.MIN_VALUE;
+        this.rappelStableAt = Long.MIN_VALUE;
+        this.rappelEngageSince = Long.MIN_VALUE;
+        this.rappelAtIssued = 0;
+        this.rappelAutonomousCooldownUntil = this.unit.level().getGameTime() + RAPPEL_AUTONOMOUS_COOLDOWN_TICKS;
+    }
+
+    private void clearRappelState() {
+        this.rappelLockX = Double.NaN;
+        this.rappelLockZ = Double.NaN;
+        this.rappelStartedAt = Long.MIN_VALUE;
+        this.rappelStableAt = Long.MIN_VALUE;
+    }
+
+    /** Kick eligible cargo onto free ropes (one per side). Pilot/gunners stay aboard. */
+    private void rappelStartEligible() {
+        if (this.rappelRopeMinusId < 0) tryStartRope(false);
+        if (this.rappelRopePlusId < 0) tryStartRope(true);
+    }
+
+    private void tryStartRope(boolean plusX) {
+        for (Entity passenger : List.copyOf(this.vehicle.getPassengers())) {
+            if (!RappelSupport.isRappelEligible(this.vehicle, passenger)) continue;
+            if (!(passenger instanceof AbstractUnit rider)) continue;
+            int id = rider.getId();
+            if (id == this.rappelRopeMinusId || id == this.rappelRopePlusId) continue;
+
+            // Same AT issue seam as DriveVehicleGoal.dismountSquad — first always, second rolls.
+            if (this.rappelAtIssued == 0 || (this.rappelAtIssued < EasyMode.maxAtGunners()
+                    && rider.getRandom().nextDouble() < EasyMode.atSecondGunnerChance())) {
+                if (SmallArmsSupport.issueAtWeapon(rider)) this.rappelAtIssued++;
             }
+
+            Vec3 top = RappelSupport.ropeTopWorld(this.vehicle, plusX);
+            rider.stopRiding();
+            rider.setDeltaMovement(Vec3.ZERO);
+            rider.fallDistance = 0.0F;
+            rider.setPos(top.x, top.y, top.z);
+            if (plusX) {
+                this.rappelRopePlusId = id;
+                this.rappelRopePlusAx = top.x;
+                this.rappelRopePlusAz = top.z;
+            } else {
+                this.rappelRopeMinusId = id;
+                this.rappelRopeMinusAx = top.x;
+                this.rappelRopeMinusAz = top.z;
+            }
+            return;
         }
-        return toAim;
     }
 
-    private void steerNoseToVector(Vec3 toAim) {
-        double horiz = Math.sqrt(toAim.x * toAim.x + toAim.z * toAim.z);
-        if (horiz < 1.0E-4 && Math.abs(toAim.y) < 1.0E-4) return;
-
-        Vec3 toFlat = horiz > 1.0E-4
-                ? new Vec3(toAim.x / horiz, 0, toAim.z / horiz)
-                : Vec3.ZERO;
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
-        double yawErrDeg = toFlat == Vec3.ZERO
-                ? 0.0
-                : Math.toDegrees(VehicleTargeting.signedAngleTo(forward, toFlat));
-
-        double desiredPitch = Math.toDegrees(Math.atan2(-toAim.y, Math.max(horiz, 1.0)));
-        float aimAttitude = (float) Mth.clamp(desiredPitch, -MAX_CLIMB_AIM_DEG, MAX_COMBAT_DIVE_DEG);
-        float attitudeErr = aimAttitude - this.vehicle.getXRot();
-
-        float mouseX = (float) Mth.clamp(-AIM_YAW_PER_DEG * yawErrDeg, -MAX_AIM_YAW_STICK, MAX_AIM_YAW_STICK);
-        float mouseY = (float) Mth.clamp(attitudeErr * AIM_PITCH_PER_DEG, -MAX_AIM_PITCH_STICK, MAX_AIM_PITCH_STICK);
-        this.vehicle.mouseInput(mouseX, mouseY);
+    /** Advance any in-progress rope slides (committed — survives RAPPEL teardown). */
+    private void rappelAdvanceDescents() {
+        if (this.rappelRopeMinusId >= 0 && !advanceRope(false)) {
+            this.rappelRopeMinusId = -1;
+            this.rappelRopeMinusAx = Double.NaN;
+            this.rappelRopeMinusAz = Double.NaN;
+        }
+        if (this.rappelRopePlusId >= 0 && !advanceRope(true)) {
+            this.rappelRopePlusId = -1;
+            this.rappelRopePlusAx = Double.NaN;
+            this.rappelRopePlusAz = Double.NaN;
+        }
     }
 
-    private static Vec3 rotateY(Vec3 v, double deg) {
-        if (Math.abs(deg) < 1.0E-4) return v;
-        double r = Math.toRadians(deg);
-        double c = Math.cos(r);
-        double s = Math.sin(r);
-        return new Vec3(v.x * c - v.z * s, v.y, v.x * s + v.z * c);
+    /** @return true while still descending */
+    private boolean advanceRope(boolean plusX) {
+        int id = plusX ? this.rappelRopePlusId : this.rappelRopeMinusId;
+        double ax = plusX ? this.rappelRopePlusAx : this.rappelRopeMinusAx;
+        double az = plusX ? this.rappelRopePlusAz : this.rappelRopeMinusAz;
+        if (!(this.unit.level().getEntity(id) instanceof AbstractUnit rider)) return false;
+        return RappelSupport.tickDescent(rider, ax, az);
     }
 
-    // Touchdown → sticky LANDED; the hull stays down until a new takeoff order
-    // rather than immediately resuming FOLLOW/MOVE orders.
+    private void setRunPhase(RunPhase next) {
+        boolean changed = this.runPhase != next;
+        this.runPhase = next;
+        if (this.vehicle == null) return;
+        this.vehicle.getPersistentData().putString(TAG_HELI_RUN_PHASE, this.runPhase.name());
+        if (this.vehicle.level() instanceof ServerLevel) {
+            NetworkHandler.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> this.vehicle),
+                    new PacketHeliRunPhase(this.vehicle.getId(), this.runPhase.ordinal()));
+        }
+        if (changed && ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG)) {
+            LOGGER.info("[sewv heli] {}#{} phase={}", this.vehicle.getName().getString(), this.vehicle.getId(), this.runPhase);
+        }
+    }
+
+    // --- Landing helpers ---------------------------------------------------------------------------
+
+    // Touchdown -> sticky LANDED; the hull stays down until a new takeoff order.
     private void settleLanded(IHelicopterPilot pilot) {
-        noteHoverMode("LANDING_SETTLED");
-        logLandingPhase("SETTLED", 0.0, this.vehicle.getY());
-        AirframeSupport.releaseInputs(this.vehicle);
-        this.vehicle.setHoverMode(false);
         pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
         pilot.sewv$setHeliLandPos(null);
         clearForcedLand(this.vehicle);
-        this.avoidFloorY = Double.NaN;
     }
 
-    // Feet-level Y the hull can actually sit at on the ordered block's column:
-    // walk up the contiguous solid stack above the pick (bounded), so designating
-    // the face of a wall or hillside resolves to the surface on top of it.
+    // Feet-level Y the hull can actually sit at on the ordered block's column: walk up the
+    // contiguous solid stack above the pick (bounded).
     private double touchdownY(BlockPos pad) {
         Level level = this.unit.level();
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(pad.getX(), pad.getY(), pad.getZ());
@@ -1896,394 +847,23 @@ public class DriveHelicopterGoal extends Goal {
         return pad.getY() + 1.0;
     }
 
-    // The one lateral primitive: whisker-check the bearing, point the nose at the
-    // clear travel direction, and pitch for along-track speed while the collective
-    // holds desiredY. Desired speed tapers with distance near the point; mid-cruise
-    // overspeed coasts level (no nose-up brake) so pitch never latches against the
-    // cruise cap. Nose is never aimed at the 2D velocity-error vector — that
-    // crabs/reverse-thrusts (see heli flight-quality diagnosis).
-    private void flyToward(double steerX, double steerZ, double desiredY) {
-        flyToward(steerX, steerZ, desiredY, APPROACH_GAIN, null);
-    }
-
-    private void flyToward(double steerX, double steerZ, double desiredY, String caller) {
-        flyToward(steerX, steerZ, desiredY, APPROACH_GAIN, caller);
-    }
-
-    private void flyToward(double steerX, double steerZ, double desiredY, double approachGain) {
-        flyToward(steerX, steerZ, desiredY, approachGain, null);
-    }
-
-    private void flyToward(double steerX, double steerZ, double desiredY, double approachGain,
-            @Nullable String caller) {
-        Vec3 avoid = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjustHorizontal(
-                this.vehicle, steerX, steerZ);
-        steerX = avoid.x;
-        steerZ = avoid.z;
-
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-
-        double dx = steerX - this.vehicle.getX();
-        double dz = steerZ - this.vehicle.getZ();
-        double dist = Math.sqrt(dx * dx + dz * dz);
-        Vec3 dirToDest = dist > 1.0E-4 ? new Vec3(dx / dist, 0, dz / dist) : Vec3.ZERO;
-
-        Vec3 vel = this.vehicle.getDeltaMovement();
-        double groundSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
-
-        // Whiskers: fly the nearest clear bearing to the desired one, probing as
-        // far ahead as current momentum demands — but never past the steering
-        // point itself (ground beyond a landing pad or a destination at the foot
-        // of a wall must not read as "blocked"), with a small floor so a wall
-        // right on the nose still registers. A fully blocked cone means terrain
-        // taller than the flight level dead ahead — answer vertically: hold and
-        // pop above it (the "pitch" whisker).
-        double probe = Math.min(
-                WHISKER_BASE_DISTANCE + groundSpeed * WHISKER_LOOKAHEAD_TICKS,
-                Math.max(dist, 4.0));
-        Vec3 travelDir = this.sensor.chooseClearBearing(dirToDest, probe);
-        if (travelDir == null || travelDir.lengthSqr() < 1.0E-8) {
-            noteAvoidFloorSet(this.vehicle.getY() + AVOID_CLIMB_STEP);
-            this.avoidFloorY = this.vehicle.getY() + AVOID_CLIMB_STEP;
-            noteHoverMode("WHISKER_AVOID_HOVER");
-            holdHover(this.avoidFloorY);
-            logFlyToward(caller, "WHISKER_BLOCKED", dirToDest, null, dist, groundSpeed, probe,
-                    0.0, 0.0, 0.0, 0.0, 0.0F, vel);
-            return;
-        }
-
-        if (caller != null) {
-            noteHoverMode("TRANSIT_FLY");
-        }
-
-        applyCollective(withAvoidFloor(desiredY));
-        this.vehicle.setHoverMode(false); // full control authority while moving
-
-        // Heavy airframes: climb-first when well below the leg altitude — forward
-        // capture starved collective on AH-64 / Ka-52.
-        boolean heavy = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.isHeavyHeli(this.vehicle);
-        double cruiseCap = heavy ? CRUISE_SPEED * 0.75 : CRUISE_SPEED;
-        if (heavy && this.vehicle.getY() < desiredY - ALT_DEADBAND * 2.0) {
-            cruiseCap = 0.0;
-        }
-        double desiredSpeed = Math.min(cruiseCap, dist * approachGain);
-        double speedAlong = vel.x * travelDir.x + vel.z * travelDir.z;
-        double speedErr = desiredSpeed - speedAlong;
-
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
-        double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, travelDir));
-
-        // Yaw always onto the clear path. Pitch only once roughly aligned: accel
-        // when slow; brake (nose-up) only inside BRAKE_HORIZON; overspeed farther
-        // out coasts level (TRACK_COAST).
-        float attitudeCmd = 0.0F;
-        String branch;
-        if (Math.abs(yawErrDeg) >= ALIGN_THRESHOLD_DEG) {
-            branch = "ALIGN";
-        } else if (speedErr > VEL_ERR_DEADBAND) {
-            branch = "TRACK";
-            attitudeCmd = (float) Mth.clamp(
-                    speedErr * PITCH_DEG_PER_SPEED_ERR, -MAX_ATTITUDE_DEG, MAX_ATTITUDE_DEG);
-        } else if (speedErr < -VEL_ERR_DEADBAND) {
-            if (dist <= BRAKE_HORIZON) {
-                branch = "TRACK";
-                attitudeCmd = (float) Mth.clamp(
-                        speedErr * PITCH_DEG_PER_SPEED_ERR, -MAX_ATTITUDE_DEG, MAX_ATTITUDE_DEG);
-            } else {
-                branch = "TRACK_COAST";
-            }
-        } else {
-            branch = "TRACK";
-        }
-        steerNose(forward, travelDir, attitudeCmd);
-        logFlyToward(caller, branch, dirToDest, travelDir, dist, groundSpeed, probe,
-                desiredSpeed, speedAlong, speedErr, yawErrDeg, attitudeCmd, vel);
-    }
-
-    // Hold a stationary hover at targetY: hover mode auto-levels and damps drift,
-    // the collective trims the height, sticks stay centered.
-    private void holdHover(double targetY) {
-        applyCollective(withAvoidFloor(targetY));
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        this.vehicle.setMouseMoveSpeedX(0.0F);
-        this.vehicle.setMouseMoveSpeedY(0.0F);
-        this.vehicle.setHoverMode(true);
-        logHoldHoverSample(targetY);
-    }
-
-    // Pure vertical climb (takeoff): collective only, hover mode keeping it level
-    // and drift-free so it goes straight up from the origin.
-    private void climbVertically(double desiredY) {
-        applyCollective(desiredY);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
-        this.vehicle.setMouseMoveSpeedX(0.0F);
-        this.vehicle.setMouseMoveSpeedY(0.0F);
-        this.vehicle.setHoverMode(true);
-    }
-
-    // Collective: climb toward desiredY, descend away from it, coast within the
-    // deadband. Rate caps stop the bang-bang inputs from hunting up and down.
-    // forwardInputDown is the collective on a helicopter, NOT translation.
-    private void applyCollective(double desiredY) {
-        double dy = desiredY - this.vehicle.getY();
-        // Heavy attack helis (AH-64 / Ka-52): narrower deadband so collective engages sooner
-        // when ascending, and never starve climb for forward transit.
-        boolean heavy = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.isHeavyHeli(this.vehicle);
-        double deadband = heavy ? ALT_DEADBAND * 0.5 : ALT_DEADBAND;
-        double climbCap = heavy ? CLIMB_RATE_CAP * 1.25 : CLIMB_RATE_CAP;
-        double vy = this.vehicle.getDeltaMovement().y;
-        boolean climb = dy > deadband && vy < climbCap;
-        boolean descend = dy < -deadband && vy > -DESCEND_RATE_CAP;
-        this.vehicle.setForwardInputDown(climb);
-        this.vehicle.setDownInputDown(descend);
-    }
-
-    // Inner loops shared by every profile: yaw stick proportional to the heading
-    // error onto `aim`, pitch stick closed against the hull's actual xRot toward
-    // the commanded attitude (positive = nose down). Yaw sign note: positive
-    // mouseMoveSpeedX INCREASES yaw and getAngleBetween is signed the other way,
-    // hence the negation — verified against SBW's helicopterEngine yaw update.
-    private void steerNose(Vector3f forward, Vec3 aim, float targetAttitudeDeg) {
-        if (aim.lengthSqr() > 1.0E-8) {
-            double yawErrDeg = Math.toDegrees(VehicleTargeting.signedAngleTo(forward, aim));
-            this.vehicle.setMouseMoveSpeedX(
-                    (float) Mth.clamp(-YAW_STICK_PER_DEG * yawErrDeg, -MAX_YAW_STICK, MAX_YAW_STICK));
-        } else {
-            this.vehicle.setMouseMoveSpeedX(0.0F);
-        }
-        float attitudeErr = targetAttitudeDeg - this.vehicle.getXRot();
-        this.vehicle.setMouseMoveSpeedY(
-                (float) Mth.clamp(attitudeErr * PITCH_STICK_PER_DEG, -MAX_PITCH_STICK, MAX_PITCH_STICK));
-    }
-
-    private void releaseInputs() {
-        AirframeSupport.releaseInputs(this.vehicle);
-    }
+    // --- Altitudes -------------------------------------------------------------------------------
 
     // Terrain-relative cruise level over the hull's own column.
     private double cruiseAltitudeHere() {
         return AirframeSupport.cruiseAltitudeHere(this.vehicle, flightAltitude());
     }
 
-    // Terrain-relative cruise level for a leg toward (toX, toZ): the configured
-    // offset above the HIGHEST ground between here and there, so the collective
-    // starts climbing before a ridge and gives the altitude back as the land
-    // falls away — instead of holding an absolute level anchored at the takeoff
-    // origin into terrain it knows nothing about.
+    // Terrain-relative cruise level for a leg toward (toX, toZ): the offset above the HIGHEST
+    // ground between here and there.
     private double cruiseAltitudeToward(double toX, double toZ) {
         boolean far = AirLod.farTransit(this.vehicle, SewvConfig.HELI_FAR_LOD_BLOCKS.get(),
                 this.unit.getTarget() == null);
         return AirframeSupport.cruiseAltitudeToward(
-                this.vehicle, toX, toZ, flightAltitude(), TERRAIN_LOOKAHEAD,
-                AirLod.groundTtl(far));
+                this.vehicle, toX, toZ, flightAltitude(), TERRAIN_LOOKAHEAD, AirLod.groundTtl(far));
     }
 
-    // The active hold height including the whisker climb floor, which decays about
-    // a block per second so surplus avoidance altitude is given back gently.
-    private double withAvoidFloor(double desiredY) {
-        if (Double.isNaN(this.avoidFloorY)) {
-            return desiredY;
-        }
-        this.avoidFloorY -= AVOID_FLOOR_DECAY;
-        if (this.avoidFloorY <= desiredY) {
-            this.avoidFloorY = Double.NaN;
-            noteAvoidFloorClear(desiredY);
-            return desiredY;
-        }
-        this.flightAvoidFloorWasActive = true;
-        return this.avoidFloorY;
-    }
-
-    private void clearFlightDiag() {
-        this.flightHoverMode = "";
-        this.flightBranch = "";
-        this.flightLastLogAt = Long.MIN_VALUE;
-        this.flightTicksAlign = 0;
-        this.flightTicksTrack = 0;
-        this.flightTicksWhisker = 0;
-        this.flightWasArriveHover = false;
-        this.flightAvoidFloorWasActive = false;
-    }
-
-    private void noteHoverMode(String mode) {
-        if (!SewvDiag.heliFlightVerbose()) {
-            this.flightHoverMode = mode;
-            this.flightWasArriveHover = "ARRIVE_HOVER".equals(mode);
-            return;
-        }
-        if (!mode.equals(this.flightHoverMode)) {
-            Vec3 vel = this.vehicle.getDeltaMovement();
-            SewvDiag.flight("{}#{} mode {} -> {} pos={}/{}/{} spdXZ={} avoidFloor={}",
-                    this.unit.getName().getString(), this.unit.getId(),
-                    this.flightHoverMode.isEmpty() ? "-" : this.flightHoverMode, mode,
-                    fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
-                    fmt(Math.sqrt(vel.x * vel.x + vel.z * vel.z)),
-                    Double.isNaN(this.avoidFloorY) ? "-" : fmt(this.avoidFloorY));
-            // Leaving a flyToward session — dump branch dwell so a transit/landing leg is readable.
-            boolean wasFly = "TRANSIT_FLY".equals(this.flightHoverMode)
-                    || "LANDING_GLIDE".equals(this.flightHoverMode);
-            boolean stillFly = "TRANSIT_FLY".equals(mode) || "LANDING_GLIDE".equals(mode);
-            if (wasFly && !stillFly) {
-                SewvDiag.flight("{}#{} branchDwell end mode={} align={} track={} whisker={}",
-                        this.unit.getName().getString(), this.unit.getId(), mode,
-                        this.flightTicksAlign, this.flightTicksTrack, this.flightTicksWhisker);
-                this.flightTicksAlign = 0;
-                this.flightTicksTrack = 0;
-                this.flightTicksWhisker = 0;
-                this.flightBranch = "";
-            }
-            this.flightHoverMode = mode;
-        }
-        this.flightWasArriveHover = "ARRIVE_HOVER".equals(mode);
-    }
-
-    private void noteArriveThrash() {
-        if (!SewvDiag.heliFlightVerbose()) return;
-        Vec3 vel = this.vehicle.getDeltaMovement();
-        SewvDiag.flight("{}#{} ARRIVE_THRASH left radius={} pos={}/{}/{} spdXZ={} yaw={} xRot={}",
-                this.unit.getName().getString(), this.unit.getId(),
-                fmt(ARRIVE_RADIUS),
-                fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
-                fmt(Math.sqrt(vel.x * vel.x + vel.z * vel.z)),
-                fmt(this.vehicle.getYRot()), fmt(this.vehicle.getXRot()));
-    }
-
-    /** Landing phase transitions for post-nose-decouple re-verify (observe-only). */
-    private void logLandingPhase(String phase, double dist, double surfaceY) {
-        if (!SewvDiag.heliFlightVerbose() || this.vehicle == null) return;
-        Vec3 vel = this.vehicle.getDeltaMovement();
-        SewvDiag.flight(
-                "{}#{} land {} dist={} pos={}/{}/{} surfaceY={} spdXZ={} yaw={} xRot={} vy={}",
-                this.unit.getName().getString(), this.unit.getId(), phase,
-                fmt(dist),
-                fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
-                fmt(surfaceY),
-                fmt(Math.sqrt(vel.x * vel.x + vel.z * vel.z)),
-                fmt(this.vehicle.getYRot()), fmt(this.vehicle.getXRot()), fmt(vel.y));
-    }
-
-    private void noteAvoidFloorSet(double floorY) {
-        if (!SewvDiag.heliFlightVerbose()) {
-            this.flightAvoidFloorWasActive = true;
-            return;
-        }
-        if (!this.flightAvoidFloorWasActive) {
-            SewvDiag.flight("{}#{} avoidFloor SET y={} climbStep={}",
-                    this.unit.getName().getString(), this.unit.getId(),
-                    fmt(floorY), fmt(AVOID_CLIMB_STEP));
-        }
-        this.flightAvoidFloorWasActive = true;
-    }
-
-    private void noteAvoidFloorClear(double desiredY) {
-        if (!this.flightAvoidFloorWasActive) return;
-        this.flightAvoidFloorWasActive = false;
-        if (!SewvDiag.heliFlightVerbose()) return;
-        SewvDiag.flight("{}#{} avoidFloor CLEAR desiredY={}",
-                this.unit.getName().getString(), this.unit.getId(), fmt(desiredY));
-    }
-
-    private void logHoldHoverSample(double targetY) {
-        if (!SewvDiag.heliFlightVerbose()) return;
-        long now = this.vehicle.level().getGameTime();
-        if (this.flightLastLogAt != Long.MIN_VALUE
-                && now - this.flightLastLogAt < FLIGHT_LOG_INTERVAL_TICKS) {
-            return;
-        }
-        // Only sample while in a hover mode we care about for the idle repro.
-        if (!"IDLE_HOVER".equals(this.flightHoverMode)
-                && !"ARRIVE_HOVER".equals(this.flightHoverMode)
-                && !"WHISKER_AVOID_HOVER".equals(this.flightHoverMode)) {
-            return;
-        }
-        this.flightLastLogAt = now;
-        Vec3 vel = this.vehicle.getDeltaMovement();
-        double spd = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
-        SewvDiag.flight(
-                "{}#{} hover mode={} pos={}/{}/{} targetY={} spdXZ={} velHdg={} yaw={} xRot={} avoidFloor={}",
-                this.unit.getName().getString(), this.unit.getId(),
-                this.flightHoverMode,
-                fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
-                fmt(targetY), fmt(spd),
-                spd > 1.0E-4 ? fmt(Math.toDegrees(Math.atan2(vel.z, vel.x))) : "-",
-                fmt(this.vehicle.getYRot()), fmt(this.vehicle.getXRot()),
-                Double.isNaN(this.avoidFloorY) ? "-" : fmt(this.avoidFloorY));
-    }
-
-    private void logFlyToward(@Nullable String caller, String branch,
-            Vec3 dirToDest, @Nullable Vec3 travelDir,
-            double dist, double groundSpeed, double probe,
-            double desiredSpeed, double speedAlong, double speedErr,
-            double yawErrDeg, float attitudeCmd, Vec3 vel) {
-        switch (branch) {
-            case "ALIGN" -> this.flightTicksAlign++;
-            case "TRACK", "TRACK_COAST" -> this.flightTicksTrack++;
-            case "WHISKER_BLOCKED" -> this.flightTicksWhisker++;
-            default -> {
-            }
-        }
-        if (!SewvDiag.heliFlightVerbose()) {
-            this.flightBranch = branch;
-            return;
-        }
-        long now = this.vehicle.level().getGameTime();
-        boolean transition = !branch.equals(this.flightBranch);
-        boolean throttle = this.flightLastLogAt == Long.MIN_VALUE
-                || now - this.flightLastLogAt >= FLIGHT_LOG_INTERVAL_TICKS;
-        if (!transition && !throttle) {
-            this.flightBranch = branch;
-            return;
-        }
-        this.flightLastLogAt = now;
-        this.flightBranch = branch;
-
-        String tag = caller != null ? caller : "untagged";
-        double noseYaw = this.vehicle.getYRot();
-        double velHdg = groundSpeed > 1.0E-4
-                ? Math.toDegrees(Math.atan2(vel.z, vel.x)) : Double.NaN;
-        double noseVelDeg = Double.isNaN(velHdg)
-                ? Double.NaN : Mth.wrapDegrees(velHdg - noseYaw);
-        double destHdg = dirToDest.lengthSqr() > 1.0E-8
-                ? Math.toDegrees(Math.atan2(dirToDest.z, dirToDest.x)) : Double.NaN;
-        double travelHdg = travelDir != null && travelDir.lengthSqr() > 1.0E-8
-                ? Math.toDegrees(Math.atan2(travelDir.z, travelDir.x)) : Double.NaN;
-
-        SewvDiag.flight(
-                "{}#{} fly caller={} branch={} pos={}/{}/{} dist={} spd={} probe={} "
-                        + "dirDest={} travel={} desSpd={} speedAlong={} speedErr={} "
-                        + "yawErr={} attCmd={} noseYaw={} xRot={} velHdg={} noseVelDeg={} "
-                        + "dwell[align={} track={} w={}] avoidFloor={}",
-                this.unit.getName().getString(), this.unit.getId(),
-                tag, branch,
-                fmt(this.vehicle.getX()), fmt(this.vehicle.getY()), fmt(this.vehicle.getZ()),
-                fmt(dist), fmt(groundSpeed), fmt(probe),
-                fmtDeg(destHdg), fmtDeg(travelHdg),
-                fmt(desiredSpeed), fmt(speedAlong), fmt(speedErr),
-                fmt(yawErrDeg), fmt(attitudeCmd),
-                fmt(noseYaw), fmt(this.vehicle.getXRot()),
-                fmtDeg(velHdg), fmtDeg(noseVelDeg),
-                this.flightTicksAlign, this.flightTicksTrack, this.flightTicksWhisker,
-                Double.isNaN(this.avoidFloorY) ? "-" : fmt(this.avoidFloorY));
-    }
-
-    private static String fmt(double v) {
-        return String.format(java.util.Locale.ROOT, "%.2f", v);
-    }
-
-    private static String fmtDeg(double v) {
-        return Double.isNaN(v) ? "-" : fmt(v);
-    }
-
-    // Terrain-relative cruise offset: the pilot's own live cruise altitude (set by the takeoff
-    // order from the TDT stepper, or the default for autonomous crews), hard-clamped to the 30-50
-    // band the flight model is designed around. Read fresh every tick, so retrimming it airborne
-    // takes effect immediately.
+    // The pilot's own live cruise altitude, hard-clamped to the 30-50 band.
     private double flightAltitude() {
         int alt = (this.unit instanceof IHelicopterPilot pilot)
                 ? pilot.sewv$getCruiseAltitude() : IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;

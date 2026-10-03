@@ -1,13 +1,11 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import com.atsuishio.superbwarfare.data.vehicle.DefaultVehicleData;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.compat.NeoArmsCarrierAccess;
@@ -18,6 +16,9 @@ import com.neoalive.tacz_sewv.compat.NeoArmsCompat;
  * Allowing {@code aircraftEngine} on a Body-OBB deck clears {@code onGround} and pitches empty
  * hulls (+0.1°/tick) or lets a boarded plane treat the pad as airborne (nose-down circles).
  * Neo Arms floor-clamp + pose drag own the stood pose instead.
+ *
+ * <p>The deck-parked gravity zero lives in {@code MixinVehicleHeliGravity}, the single owner of
+ * that {@code getGravity()} redirect (a redirect claims its call exclusively).
  */
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
 public abstract class MixinVehicleDeckParkPhysics {
@@ -38,20 +39,6 @@ public abstract class MixinVehicleDeckParkPhysics {
         self.setOnGround(true);
         self.fallDistance = 0f;
         ci.cancel();
-    }
-
-    @Redirect(
-            method = "baseTick",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lcom/atsuishio/superbwarfare/data/vehicle/DefaultVehicleData;getGravity()D",
-                    remap = false))
-    private double tacz_sewv$zeroGravityWhileDeckParked(DefaultVehicleData data) {
-        if (NeoArmsCompat.present()
-                && NeoArmsCarrierAccess.isDeckParked((VehicleEntity) (Object) this)) {
-            return 0.0;
-        }
-        return data.getGravity();
     }
 
     @Inject(method = "move", at = @At("HEAD"), cancellable = true)

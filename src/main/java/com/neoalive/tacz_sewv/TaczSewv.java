@@ -159,6 +159,8 @@ public class TaczSewv {
     @SubscribeEvent
     public void onAddReloadListener(AddReloadListenerEvent event) {
         event.addListener(new UtilityWeights.Loader());
+        // Helicopter airframe rows (physics rework); see com.neoalive.tacz_sewv.heli.data.HeliAirframes.
+        event.addListener(new com.neoalive.tacz_sewv.heli.data.HeliAirframes.Loader());
         // See com.neoalive.tacz_sewv.ballistics.TranslationTable.
         event.addListener(new com.neoalive.tacz_sewv.ballistics.TranslationTable.Loader());
         // See com.neoalive.tacz_sewv.crew.NamePools.

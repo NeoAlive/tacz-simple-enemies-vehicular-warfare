@@ -116,7 +116,7 @@ public class NetworkHandler {
     // 94: PacketOpenLoadoutEditor (S->C) + PacketUpdateLoadouts (C->S) — /sewv pool weapons loadout manager.
     // 95: PacketEntityCamo (S->C) — biome camo number on a unit or hull.
     // 96: PacketHudNotification + NotificationKind (signal-ticket colours / icons).
-    private static final String PROTOCOL_VERSION = "96";
+    private static final String PROTOCOL_VERSION = "97";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -245,6 +245,13 @@ public class NetworkHandler {
                 PacketHeliRunPhase::encode,
                 PacketHeliRunPhase::new,
                 PacketHeliRunPhase::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketHeliRoll.class,
+                PacketHeliRoll::encode,
+                PacketHeliRoll::new,
+                PacketHeliRoll::handle
         );
 
         CHANNEL.registerMessage(

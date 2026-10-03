@@ -35,7 +35,8 @@ public final class NotificationHud {
     /** On-screen size relative to layout pixels — half size for large-GUI readability. */
     public static final float DISPLAY_SCALE = 0.5f;
 
-    public static final int BODY_BG = 0xCC0B0F14;
+    /** Near-opaque so stacked peeks cannot muddy the front card. */
+    public static final int BODY_BG = 0xF00B0F14;
     public static final int SHADOW = 0x66000000;
     public static final int TITLE_COLOR = 0xFFFFFFF0;
     public static final int BODY_COLOR = 0xFFD1D5DB;
@@ -43,8 +44,10 @@ public final class NotificationHud {
 
     private static final int MAX_BACKLOG = 16;
     private static final long ANIM_MS = 250L;
-    /** Title/body fade-in after the card finishes enter. */
-    static final long TEXT_FADE_MS = 180L;
+    /** L→R wipe of text + box after the card finishes enter. */
+    static final long TEXT_REVEAL_MS = 220L;
+    /** Box lags the text wipe so copy pops out of the rail first. */
+    static final long BOX_LAG_MS = 55L;
     private static final long DEFAULT_SCREEN_MS = 5_000L;
     private static final int DEFAULT_MAX_VISIBLE = 3;
 
@@ -254,15 +257,27 @@ public final class NotificationHud {
         }
 
         /**
-         * Title/body alpha: 0 during enter, ease-in after landing on SHOWING, full during exit.
+         * Text L→R reveal (0–1): starts when SHOWING begins, ease-out so it pops from the rail.
+         * Full during exit. Rail itself is always drawn and is not gated on this.
          */
-        float textAlpha() {
+        float textReveal() {
+            return revealProgress(0L);
+        }
+
+        /**
+         * Content-box L→R reveal (0–1): lags {@link #textReveal} so hierarchy is rail → text → box.
+         */
+        float boxReveal() {
+            return revealProgress(BOX_LAG_MS);
+        }
+
+        private float revealProgress(long lagMs) {
             return switch (this.phase) {
                 case IDLE, ENTER -> 0f;
                 case SHOWING -> {
-                    if (TEXT_FADE_MS <= 0L) yield 1f;
-                    float t = Mth.clamp(this.frontElapsedMs / (float) TEXT_FADE_MS, 0f, 1f);
-                    yield easeInCubic(t);
+                    if (TEXT_REVEAL_MS <= 0L) yield 1f;
+                    float t = Mth.clamp((this.frontElapsedMs - lagMs) / (float) TEXT_REVEAL_MS, 0f, 1f);
+                    yield easeOutCubic(t);
                 }
                 case EXIT -> 1f;
             };

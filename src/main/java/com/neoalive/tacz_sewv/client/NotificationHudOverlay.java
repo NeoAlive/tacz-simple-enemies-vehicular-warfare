@@ -54,13 +54,14 @@ public final class NotificationHudOverlay {
             NotificationHud.Slot slot = slots.get(i);
             NotificationHud.Item item = slot.item;
             if (item == null) continue;
+            boolean front = i == stackSize - 1;
             int y = Math.round(slot.drawY(i, stackSize) * scale);
-            drawTicket(g, font, x, y, scale, item, slot.barT(), slot.textAlpha());
+            drawTicket(g, font, x, y, scale, item, slot, front);
         }
     }
 
     private static void drawTicket(GuiGraphics g, Font font, int screenX, int screenY, float scale,
-                                   NotificationHud.Item item, float barT, float textAlpha) {
+                                   NotificationHud.Item item, NotificationHud.Slot slot, boolean front) {
         NotificationKind kind = item.kind;
         var pose = g.pose();
         pose.pushPose();
@@ -71,35 +72,51 @@ public final class NotificationHudOverlay {
         int h = NotificationHud.TICKET_H;
         int railW = NotificationHud.RAIL_W;
 
-        // Soft underlay.
+        if (!front) {
+            // Opaque kind strip only — no translucent panel/text muddying the front card.
+            g.fill(0, 0, w, h, kind.accentArgb());
+            pose.popPose();
+            return;
+        }
+
+        float barT = slot.barT();
+        float textReveal = slot.textReveal();
+        float boxReveal = slot.boxReveal();
+
+        // Soft underlay under the settled card footprint.
         g.fill(1, 1, w + 1, h + 1, NotificationHud.SHADOW);
 
-        // Quiet content panel (everything right of the rail).
-        g.fill(railW, 0, w, h, NotificationHud.BODY_BG);
-
-        // Kind rail track (dim) + timer fill top → bottom.
+        // Kind rail (top of hierarchy) — always full; timer depletes top → bottom.
         g.fill(0, 0, railW, h, kind.iconTileArgb());
         int filledH = Math.max(0, Math.round(Mth.lerp(barT, h, 0)));
         if (filledH > 0) {
             g.fill(0, 0, railW, filledH, kind.accentArgb());
         }
 
-        // Icon in the upmost rail cell.
         String icon = kind.icon();
         int iconW = font.width(icon);
-        int iconX = (railW - iconW) / 2;
-        int iconY = 2;
-        g.drawString(font, icon, iconX, iconY, NotificationHud.ICON_COLOR, false);
+        g.drawString(font, icon, (railW - iconW) / 2, 2, NotificationHud.ICON_COLOR, false);
 
-        // Title + body fade in after the card lands.
-        if (textAlpha > 0.01f) {
-            int titleColor = withAlpha(NotificationHud.TITLE_COLOR, textAlpha);
-            int bodyColor = withAlpha(NotificationHud.BODY_COLOR, textAlpha);
+        int contentW = w - railW;
+
+        // Box (bottom of hierarchy): L→R wipe from the rail, lags the text.
+        if (boxReveal > 0.001f) {
+            int boxW = Math.max(1, Math.round(contentW * boxReveal));
+            g.fill(railW, 0, railW + boxW, h, NotificationHud.BODY_BG);
+        }
+
+        // Text (middle): L→R scissor wipe from the rail so it pops out ahead of the box.
+        if (textReveal > 0.001f) {
+            int revealPx = Math.max(1, Math.round(contentW * textReveal * scale));
+            int scissorX = screenX + Math.round(railW * scale);
+            int scissorY = screenY;
+            int scissorH = Math.round(h * scale);
+            g.enableScissor(scissorX, scissorY, scissorX + revealPx, scissorY + scissorH);
 
             int contentX = railW + NotificationHud.TITLE_PAD_X;
             int titleBudget = Math.max(1, w - contentX - 6);
             String title = font.plainSubstrByWidth(item.title.getString(), titleBudget);
-            g.drawString(font, title, contentX, 3, titleColor, false);
+            g.drawString(font, title, contentX, 3, NotificationHud.TITLE_COLOR, false);
 
             int textX = railW + NotificationHud.BODY_PAD_X;
             int textY = 3 + font.lineHeight + NotificationHud.BODY_PAD_Y;
@@ -107,18 +124,14 @@ public final class NotificationHudOverlay {
             int lines = 0;
             for (FormattedCharSequence line : font.split(item.body, textMaxW)) {
                 if (lines >= NotificationHud.MAX_BODY_LINES) break;
-                g.drawString(font, line, textX, textY, bodyColor, false);
+                g.drawString(font, line, textX, textY, NotificationHud.BODY_COLOR, false);
                 textY += font.lineHeight;
                 lines++;
             }
+
+            g.disableScissor();
         }
 
         pose.popPose();
-    }
-
-    private static int withAlpha(int argb, float alpha) {
-        int baseA = (argb >>> 24) & 0xFF;
-        int newA = Mth.clamp(Math.round(baseA * alpha), 0, 255);
-        return (newA << 24) | (argb & 0x00FFFFFF);
     }
 }

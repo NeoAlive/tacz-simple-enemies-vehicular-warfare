@@ -13,36 +13,38 @@ import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.notify.NotificationKind;
 
 /**
- * Client queue + animation for the top-center signal-ticket stack. Overlay draws; this owns state.
+ * Client queue + animation for the top-center flag-card stack. Overlay draws; this owns state.
  * Up to {@code notificationMaxVisible} tickets show at once; further pushes sit in a backlog.
+ * Newest sits in front (flush top); older tickets peek a few px below like Windows tabs.
  */
 public final class NotificationHud {
 
     /** Pre-scale ticket width (then × {@link #DISPLAY_SCALE}). */
     public static final int TICKET_W = 280;
-    /** Pre-scale ticket height: header 18 + hairline 2 + body ~24. */
-    public static final int TICKET_H = 44;
-    public static final int TICKET_GAP = 4;
-    public static final int HEADER_H = 18;
-    public static final int TIMER_H = 2;
-    public static final int ICON_TILE = 14;
-    public static final int ICON_PAD = 2;
-    public static final int TITLE_PAD_X = 4;
-    public static final int BODY_PAD_X = 8;
-    public static final int BODY_PAD_Y = 3;
+    /** Pre-scale ticket height: rail + title + two body lines. */
+    public static final int TICKET_H = 40;
+    /** Kind rail wide enough for the Unicode icon. */
+    public static final int RAIL_W = 16;
+    /** How far each back ticket peeks below the one in front. */
+    public static final int PEEK = 5;
+    public static final int TITLE_PAD_X = 6;
+    public static final int BODY_PAD_X = 6;
+    public static final int BODY_PAD_Y = 2;
     public static final int MAX_BODY_LINES = 2;
 
     /** On-screen size relative to layout pixels — half size for large-GUI readability. */
     public static final float DISPLAY_SCALE = 0.5f;
 
     public static final int BODY_BG = 0xCC0B0F14;
-    public static final int SHADOW = 0x88000000;
+    public static final int SHADOW = 0x66000000;
     public static final int TITLE_COLOR = 0xFFFFFFF0;
     public static final int BODY_COLOR = 0xFFD1D5DB;
     public static final int ICON_COLOR = 0xFFFFFFFF;
 
     private static final int MAX_BACKLOG = 16;
     private static final long ANIM_MS = 250L;
+    /** Title/body fade-in after the card finishes enter. */
+    static final long TEXT_FADE_MS = 180L;
     private static final long DEFAULT_SCREEN_MS = 5_000L;
     private static final int DEFAULT_MAX_VISIBLE = 3;
 
@@ -90,12 +92,13 @@ public final class NotificationHud {
     }
 
     /**
-     * Skip remaining hold on the topmost showing ticket (or finish its enter into showing).
+     * Skip remaining hold on the frontmost (newest) showing ticket (or finish its enter into showing).
      *
      * @return true if a live ticket's delay was skipped
      */
     public static boolean dismiss() {
-        for (Slot slot : slots) {
+        for (int i = slots.size() - 1; i >= 0; i--) {
+            Slot slot = slots.get(i);
             if (slot.phase == Phase.ENTER) {
                 slot.animElapsedMs = ANIM_MS;
                 slot.phase = Phase.SHOWING;
@@ -141,8 +144,13 @@ public final class NotificationHud {
         return slots;
     }
 
-    static int restY(int index) {
-        return index * (TICKET_H + TICKET_GAP);
+    /**
+     * Rest Y for stack index. Newest (last index) is flush at 0; each older ticket peeks
+     * {@link #PEEK} px further down.
+     */
+    static int restY(int index, int stackSize) {
+        int fromFront = Math.max(0, stackSize - 1 - index);
+        return fromFront * PEEK;
     }
 
     /** Slots that still occupy a stack position (enter / show / exit). */
@@ -223,9 +231,9 @@ public final class NotificationHud {
         }
 
         /** Layout Y for this slot at stack index {@code index}. */
-        int drawY(int index) {
+        int drawY(int index, int stackSize) {
             float t = ANIM_MS <= 0L ? 1f : Mth.clamp(this.animElapsedMs / (float) ANIM_MS, 0f, 1f);
-            int rest = restY(index);
+            int rest = restY(index, stackSize);
             int hidden = rest - TICKET_H;
             return switch (this.phase) {
                 case IDLE -> hidden;
@@ -241,6 +249,21 @@ public final class NotificationHud {
                 case IDLE, ENTER -> 0f;
                 case SHOWING -> this.frontDurationMs <= 0L ? 1f
                         : Mth.clamp(this.frontElapsedMs / (float) this.frontDurationMs, 0f, 1f);
+                case EXIT -> 1f;
+            };
+        }
+
+        /**
+         * Title/body alpha: 0 during enter, ease-in after landing on SHOWING, full during exit.
+         */
+        float textAlpha() {
+            return switch (this.phase) {
+                case IDLE, ENTER -> 0f;
+                case SHOWING -> {
+                    if (TEXT_FADE_MS <= 0L) yield 1f;
+                    float t = Mth.clamp(this.frontElapsedMs / (float) TEXT_FADE_MS, 0f, 1f);
+                    yield easeInCubic(t);
+                }
                 case EXIT -> 1f;
             };
         }

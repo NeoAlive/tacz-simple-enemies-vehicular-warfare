@@ -248,10 +248,10 @@ tasks.register('selfCheckSeam', JavaExec) {
 
 tasks.register('selfCheckHeli', JavaExec) {
     group = 'verification'
-    description = 'Runs the guided-heli standoff geometry self-check.'
+    description = 'Runs the helicopter flight-stack self-check (includes the standoff geometry check).'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
-    mainClass = 'com.neoalive.tacz_sewv.entity.ai.support.HeliStandoffSelfCheck'
+    mainClass = 'com.neoalive.tacz_sewv.heli.HeliFlightSelfCheck'
     jvmArgs '-ea'
 }
 

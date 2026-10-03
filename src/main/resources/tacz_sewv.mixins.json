@@ -36,6 +36,8 @@
     "MixinVehiclePassengerNaN",
     "MixinVehicleFactionEnergy",
     "MixinVehicleInertiaRotate",
+    "MixinHeliEngineTrace",
+    "MixinVehicleFlightDynamics",
     "MixinVehicleInteractLock",
     "MixinVehicleDamageRedirect",
     "MixinVehicleDeathDrops",

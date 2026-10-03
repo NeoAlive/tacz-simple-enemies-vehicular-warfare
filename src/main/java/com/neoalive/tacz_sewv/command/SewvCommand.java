@@ -128,6 +128,8 @@ public class SewvCommand {
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("rappel")
                                 .executes(ctx -> debugRappel(ctx.getSource())))
+                        .then(Commands.literal("heliTrace")
+                                .executes(ctx -> debugHeliTrace(ctx.getSource())))
                         .then(Commands.literal("notificationTest")
                                 .executes(ctx -> debugNotificationTest(ctx.getSource(),
                                         NotificationKind.GENERIC,
@@ -543,6 +545,24 @@ public class SewvCommand {
         source.sendSuccess(() -> Component.translatable(
                 next ? "command.tacz_sewv.debug.rappel.on" : "command.tacz_sewv.debug.rappel.off",
                 heli.getDisplayName(), heli.getId()), true);
+        return 1;
+    }
+
+    /** Toggle the Phase 0 engine trace (heli.HeliTrace) on the helicopter you look at or ride. */
+    private static int debugHeliTrace(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.rappel.player_only"));
+            return 0;
+        }
+        VehicleEntity heli = findDebugHelicopter(player);
+        if (heli == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.rappel.none"));
+            return 0;
+        }
+        boolean on = com.neoalive.tacz_sewv.heli.HeliTrace.toggle(heli);
+        java.nio.file.Path file = com.neoalive.tacz_sewv.heli.HeliTrace.file(heli);
+        source.sendSuccess(() -> Component.literal("Heli trace " + (on ? "ON" : "OFF") + " for "
+                + heli.getDisplayName().getString() + " #" + heli.getId() + " -> " + file), true);
         return 1;
     }
 

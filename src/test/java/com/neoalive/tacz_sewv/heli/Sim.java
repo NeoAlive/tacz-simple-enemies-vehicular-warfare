@@ -13,9 +13,16 @@ import org.joml.Vector3d;
 
 import com.neoalive.tacz_sewv.heli.avoid.AvoidForce;
 import com.neoalive.tacz_sewv.heli.avoid.ObstacleSet;
+import com.neoalive.tacz_sewv.heli.avoid.PathProbe;
+import com.neoalive.tacz_sewv.heli.control.FlightCore;
 import com.neoalive.tacz_sewv.heli.control.HeliController;
 import com.neoalive.tacz_sewv.heli.data.AirframeData;
 import com.neoalive.tacz_sewv.heli.guidance.HeliReference;
+import com.neoalive.tacz_sewv.heli.guidance.ModeSelector;
+import com.neoalive.tacz_sewv.heli.guidance.Parity;
+import com.neoalive.tacz_sewv.heli.guidance.ProcedureId;
+import com.neoalive.tacz_sewv.heli.guidance.ProcedureStack;
+import com.neoalive.tacz_sewv.heli.guidance.Situation;
 import com.neoalive.tacz_sewv.heli.physics.Airframe;
 import com.neoalive.tacz_sewv.heli.physics.HeliControl;
 import com.neoalive.tacz_sewv.heli.physics.HeliEnv;
@@ -38,10 +45,12 @@ final class Sim {
     private static Map<String, Airframe> classes;
 
     final Airframe af;
+    /** The shared per-tick flight stack (what the in-game runtime runs); the fields below alias it. */
+    final FlightCore core;
     final HeliPhysics physics;
     final HeliController ctl;
-    final HeliState s = new HeliState();
-    final HeliControl u = new HeliControl();
+    final HeliState s;
+    final HeliControl u;
     final Vector3d wind = new Vector3d();
     double groundY = 0.0;
     double t;
@@ -51,6 +60,10 @@ final class Sim {
     ObstacleSet obstacles = ObstacleSet.empty();
     final Vector3d avoid = new Vector3d();
     boolean onGround;
+    /** Guided runs: the tactical bias's world (terrain columns and other airframes) and this hull's id. */
+    PathProbe.Terrain terrain = (x, z, yb, yt) -> Double.NaN;
+    List<PathProbe.Traffic> traffic = List.of();
+    int selfId;
 
     Sim(String cls) {
         this(airframe(cls));
@@ -58,8 +71,11 @@ final class Sim {
 
     Sim(Airframe af) {
         this.af = af;
-        this.physics = new HeliPhysics(af, 0.0);
-        this.ctl = new HeliController(af, G, RHO);
+        this.core = new FlightCore(af, G, RHO, 0.0, null);
+        this.physics = core.physics;
+        this.ctl = core.ctl;
+        this.s = core.s;
+        this.u = core.u;
     }
 
     static synchronized Map<String, Airframe> classes() {
@@ -119,34 +135,29 @@ final class Sim {
     }
 
     /**
-     * One game tick the way {@code HeliRuntime} runs it: select, switch with a blend, then six
-     * sub-steps of reference, controller (or let-go when the procedure is not flying) and physics.
-     * Every reference sample is handed to {@code sink} (may be null).
+     * One game tick the way {@code HeliRuntime} runs it, through the same {@link FlightCore}: the
+     * selector and the transition rule, the barrier (when {@link #barrier} is set) and the tactical
+     * bias against {@link #terrain} and {@link #traffic}, six sub-steps. Fills the two summary
+     * fields the goal takes from the runtime (engage cycle, firing run). Every reference sample is
+     * handed to {@code sink} (may be null).
      */
-    void tickGuided(com.neoalive.tacz_sewv.heli.guidance.ProcedureStack stack,
-                    com.neoalive.tacz_sewv.heli.guidance.Situation sit, long tick,
-                    java.util.function.Consumer<HeliReference> sink) {
+    void tickGuided(Situation sit, long tick, java.util.function.Consumer<HeliReference> sink) {
         double t0 = tick / 20.0;
         sit.time = t0;
+        ProcedureStack stack = core.stack;
         if (stack.activeId() != null) sit.active = stack.activeId();
-        var want = com.neoalive.tacz_sewv.heli.guidance.ModeSelector.select(sit);
-        if (stack.activeId() != want) stack.switchTo(want, s, sit, t0, tick);
-        HeliEnv env = env();
-        for (int k = 0; k < 6; k++) {
-            double tk = (6.0 * tick + k) / 120.0;
-            HeliReference r = stack.refAt(tk, s, sit);
-            if (sink != null) sink.accept(r);
-            u.engine = stack.engine();
-            if (barrier != null) barrier.force(obstacles, s.p, s.v, af.mass, avoid);
-            if (stack.flying()) {
-                ctl.step(r, s, env, avoid, u);
-            } else {
-                u.collective = 0;
-                u.cLon = u.cLat = u.pedal = 0;
-                ctl.reset();
-            }
-            physics.step(s, u, env, avoid);
-        }
+        sit.engageCycle = stack.engageCycle();
+        sit.inFiringRun = stack.activeId() == ProcedureId.FIRE_RUN;
+        sit.hullVx = s.v.x;
+        sit.hullVz = s.v.z;
+        core.guide(ModeSelector.select(sit), sit, t0, tick);
+        core.barrier = barrier;
+        ObstacleSet set = new ObstacleSet(obstacles.boxes(), stack.groundBarrier(t0) ? obstacles.groundY() : Double.NaN);
+        PathProbe.Result path = PathProbe.probe(core.rawRef(t0, sit), s.v, HeliAvoidChecks.HALF_WIDTH,
+                HeliAvoidChecks.HEIGHT, terrain, traffic, selfId, Parity.side(sit.pilotId));
+        core.avoidance(set, path, HeliAvoidChecks.HALF_WIDTH + 3.0, t0);
+        core.integrate(env(), sit, tick, sink);
+        avoid.set(core.avoid);
         t = (tick + 1) / 20.0;
         onGround = false;
         if (s.p.y <= groundY) {

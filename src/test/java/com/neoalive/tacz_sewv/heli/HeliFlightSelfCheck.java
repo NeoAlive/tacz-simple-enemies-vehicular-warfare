@@ -46,9 +46,11 @@ public final class HeliFlightSelfCheck {
         HeliGuidanceChecks.run();
         HeliAvoidChecks.run();
         HeliGuidedChecks.run();
+        HeliAttackChecks.run();
         HeliStandoffSelfCheck.main(args);
 
-        System.out.println("heli flight self-check: OK (D1-D3, D5, P1-P11, C1-C7, R1/R2 geometry, R6, R7, A1, A2, A5, S1, S3, S4, S7, mission)");
+        System.out.println("heli flight self-check: OK (D1-D5, P1-P11, C1-C7, R1-R8, A1-A5, S1-S9, mission, "
+                + "attack procedures, mutual avoidance)");
     }
 
     // --- D1-D3 ----------------------------------------------------------------------------------

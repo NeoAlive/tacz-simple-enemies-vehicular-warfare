@@ -154,6 +154,12 @@ public final class HeliController {
         double yawEff = Math.max((af.coaxial ? 1.0 : af.tailArm) * af.tailNominal * (rho / Airframe.RHO0) * wr * wr, 1.0);
         double kYaw = af.bwYaw * af.iy / yawEff;
         double antiTorque = af.coaxial ? 0.0 : af.rotorDir * s.engineTorque / yawEff;
+        // The tail's inflow term at the present sideslip, c rho_r w_r v_slip, inverted like the
+        // anti-torque: without it, sideways flight (a FireLoop) costs a standing yaw error of
+        // (c v_slip / l T_N) / (K_rP K_phi). Only the sideslip part: the yaw-rate part is damping the
+        // rate loop already accounts for. A coaxial has no tail rotor in the stream.
+        double slip = af.coaxial ? 0.0 : -qInv.transform(new Vector3d(s.v).sub(wind)).x;
+        antiTorque += af.coaxial ? 0.0 : af.tailArm * af.tailDamping * (rho / Airframe.RHO0) * wr * slip / yawEff;
         out.cLon = clamp(kLon * (ew.x + af.rateZeta / af.bwRate * rateDeriv.x), -1.0, 1.0);
         out.cLat = clamp(kLat * (ew.z + af.rateZeta / af.bwRate * rateDeriv.z), -1.0, 1.0);
         out.pedal = clamp(antiTorque + kYaw * (ew.y + af.rateZeta / af.bwYaw * rateDeriv.y), -1.0, 1.0);

@@ -9,19 +9,33 @@ import com.neoalive.tacz_sewv.heli.physics.HeliControl;
 import com.neoalive.tacz_sewv.heli.physics.HeliState;
 
 /**
- * Runs the active procedure and hands over between procedures with the C2 blend of
- * {@link ReferenceBlend} (plan sections 4.7-4.8). Phase 2 holds one slot; the DetNav top slot
- * arrives with the attack procedures.
+ * Runs the active procedure and hands over between procedures (plan sections 4.7, 4.8, 4.11).
  *
- * <ul>
- * <li>On a switch the outgoing procedure keeps being sampled for the blend window (procedures are
- *     defined past completion). A switch while already blending freezes the current blended
- *     sample as a constant-acceleration extrapolation, so the nesting depth never grows.</li>
- * <li>{@link #complete} is never true on the tick a procedure began (minimum life one tick).</li>
- * <li>A snapshot older than {@link #STALE_SECONDS} means the pilot goal stopped feeding guidance:
- *     the stack switches itself to {@link ProcedureId#SAFETY_HOLD}. That is a failure path; the
- *     goal refreshes every tick.</li>
- * </ul>
+ * <p><b>Transition rule</b> (20 Hz, {@link #request}). The selector's choice P replaces the active
+ * procedure A when P differs and either P's precedence class is higher, A has completed, or A is not
+ * an attack procedure. So an attack procedure (DetNav) runs to completion unless something of a
+ * higher class (survival, an order) pre-empts it, which is what stops FireLoop and FireStill
+ * chattering; every other procedure follows the selector at once (the selector already carries
+ * hysteresis). On completion an attack or survival procedure whose id is chosen again is begun
+ * afresh (the next pass of a run, the next evade leg); a completed FreeNav procedure the selector
+ * still wants simply continues its last segment.
+ *
+ * <p><b>Fallbacks</b> when a procedure cannot begin: FIRE_STILL to FIRE_LOOP to FIRE_RUN to
+ * HOVER_HOLD; FIRE_LOOP outside its entry band first tries the tangent-point approach; anything
+ * else to HOVER_HOLD, which is always feasible. A resolved procedure of the same kind as the active
+ * one does not restart it.
+ *
+ * <p><b>Engagements.</b> Each completed attack procedure (not the approach) counts one engage
+ * cycle; the count resets on a target change. A FireRun's exit axis is handed to the next FireRun
+ * against the same target. A target hand-off during an attack procedure calls
+ * {@link HeliProcedure#retarget}; if the procedure cannot follow, it is begun afresh.
+ *
+ * <p>Blending: on a switch the outgoing procedure keeps being sampled for the blend window
+ * (procedures are defined past completion). A switch while already blending freezes the current
+ * blended sample as a constant-acceleration extrapolation, so the nesting depth never grows.
+ * {@link #complete} is never true on the tick a procedure began (minimum life one tick). A snapshot
+ * older than {@link #STALE_SECONDS} means the pilot goal stopped feeding guidance; the runtime then
+ * switches to {@link ProcedureId#SAFETY_HOLD}.
  */
 public final class ProcedureStack {
 
@@ -29,16 +43,24 @@ public final class ProcedureStack {
     private static final double TB_MIN = 0.75, TB_MAX = 4.0;
 
     private final Airframe af;
+    private final double g;
     /** Largest acceleration a hand-over may add: 0.3 g. */
     private final double blendAccel;
     private HeliProcedure active;
+    private ModeSelector.Precedence activeClass = ModeSelector.Precedence.FREENAV;
+    private int activeTarget = -1;
     private long beganTick = Long.MIN_VALUE;
     private DoubleFunction<HeliReference> outgoing;
     private double blendStart, blendLength;
     private HeliReference last;
+    /** The snapshot the active procedure was last sampled with: an outgoing procedure keeps it. */
+    private Situation lastSit;
+    private int engageCycle, lastTarget = -1;
+    private double[] runAxis;
 
     public ProcedureStack(Airframe af, double g) {
         this.af = af;
+        this.g = g;
         this.blendAccel = 0.3 * g;
     }
 
@@ -50,13 +72,102 @@ public final class ProcedureStack {
         return active;
     }
 
-    /** Switch to {@code id} (falling back to HOVER_HOLD when it cannot begin), blending from the current reference. */
+    public ModeSelector.Precedence activeClass() {
+        return activeClass;
+    }
+
+    public int engageCycle() {
+        return engageCycle;
+    }
+
+    /** Apply the transition rule to the selector's choice. */
+    public void request(ModeSelector.Choice choice, HeliState s, Situation sit, double t, long tick) {
+        if (sit.targetId != lastTarget) {
+            lastTarget = sit.targetId;
+            engageCycle = 0;
+            runAxis = null;
+        }
+        if (active == null) {
+            HeliProcedure first = resolve(choice.id(), s, sit);
+            install(first, classOf(choice, first), s, sit, t, tick);
+            return;
+        }
+        boolean done = complete(s, sit, t, tick);
+        boolean attack = activeClass == ModeSelector.Precedence.ATTACK;
+        if (done && attack && !(active instanceof Procedures.LoopApproach)) {
+            engageCycle++;
+            if (active instanceof Procedures.FireRun run) runAxis = run.exitAxis();
+        }
+        if (!done && attack && sit.targetValid && sit.targetId != activeTarget) {
+            activeTarget = sit.targetId;
+            if (!active.retarget(sit, t)) {
+                HeliProcedure again = resolve(active.id(), s, sit);
+                install(again, classOf(new ModeSelector.Choice(active.id(), activeClass), again), s, sit, t, tick);
+                return;
+            }
+        }
+        boolean differs = choice.id() != active.id();
+        boolean outranks = choice.precedence().ordinal() > activeClass.ordinal();
+        boolean rebegin = done && !differs && (attack || activeClass == ModeSelector.Precedence.SURVIVAL);
+        if ((differs && (outranks || done || !attack)) || rebegin) {
+            HeliProcedure next = resolve(choice.id(), s, sit);
+            if (!done && next.getClass() == active.getClass() && next.id() == active.id()) {
+                activeClass = classOf(choice, next);
+                return;
+            }
+            install(next, classOf(choice, next), s, sit, t, tick);
+        } else if (!differs) {
+            activeClass = choice.precedence();
+        }
+    }
+
+    /**
+     * The precedence a resolved procedure runs under: the choice's, unless a fallback left the
+     * chosen family. A hover standing in for an attack that could not begin is FreeNav: it never
+     * completes, so under the attack class it would hold the hull until something outranked it.
+     */
+    private static ModeSelector.Precedence classOf(ModeSelector.Choice choice, HeliProcedure p) {
+        boolean sameFamily = p.id() == choice.id() || p instanceof Procedures.LoopApproach
+                || (isAttack(choice.id()) && isAttack(p.id()));
+        return sameFamily ? choice.precedence() : ModeSelector.Precedence.FREENAV;
+    }
+
+    private static boolean isAttack(ProcedureId id) {
+        return id == ProcedureId.FIRE_STILL || id == ProcedureId.FIRE_LOOP || id == ProcedureId.FIRE_RUN;
+    }
+
+    /** Switch unconditionally (the runtime's safety hold); FreeNav class, so any choice replaces it. */
     public void switchTo(ProcedureId id, HeliState s, Situation sit, double t, long tick) {
-        HeliProcedure next = Procedures.create(id, af);
-        if (!next.canBegin(s, sit)) next = Procedures.create(ProcedureId.HOVER_HOLD, af);
+        install(resolve(id, s, sit), ModeSelector.Precedence.FREENAV, s, sit, t, tick);
+    }
+
+    private HeliProcedure resolve(ProcedureId id, HeliState s, Situation sit) {
+        for (ProcedureId k = id; ; k = fallback(k)) {
+            HeliProcedure p = Procedures.create(k, af, g);
+            if (p.canBegin(s, sit)) return p;
+            if (k == ProcedureId.FIRE_LOOP) {
+                HeliProcedure approach = new Procedures.LoopApproach(af, g);
+                if (approach.canBegin(s, sit)) return approach;
+            }
+        }
+    }
+
+    private static ProcedureId fallback(ProcedureId id) {
+        return switch (id) {
+            case FIRE_STILL -> ProcedureId.FIRE_LOOP;
+            case FIRE_LOOP -> ProcedureId.FIRE_RUN;
+            default -> ProcedureId.HOVER_HOLD;
+        };
+    }
+
+    private void install(HeliProcedure next, ModeSelector.Precedence cls, HeliState s, Situation sit, double t, long tick) {
+        if (next instanceof Procedures.FireRun run) run.hint(runAxis);
         if (active != null) {
-            HeliReference now = refAt(t, s, sit);
-            outgoing = blending(t) ? extrapolation(now) : procedureFeed(active, s, sit);
+            Situation old = lastSit != null ? lastSit : sit;
+            HeliReference now = refAt(t, s, old);
+            // The outgoing procedure keeps flying the snapshot it knew: the new one may not carry its
+            // fields at all (an attack snapshot has no hold point or destination).
+            outgoing = blending(t) ? extrapolation(now) : procedureFeed(active, s, old);
             next.begin(s, sit, t);
             HeliReference in = next.refAt(t, s, sit);
             double dp = new Vector3d(in.p()).distance(now.p()), dv = new Vector3d(in.v()).distance(now.v());
@@ -67,6 +178,8 @@ public final class ProcedureStack {
             outgoing = null;
         }
         active = next;
+        activeClass = cls;
+        activeTarget = sit.targetId;
         beganTick = tick;
     }
 
@@ -90,6 +203,7 @@ public final class ProcedureStack {
 
     /** The reference at {@code t}, blended while a hand-over is in progress. */
     public HeliReference refAt(double t, HeliState s, Situation sit) {
+        lastSit = sit;
         HeliReference in = active.refAt(t, s, sit);
         last = blending(t) ? ReferenceBlend.blend(outgoing.apply(t), in, blendStart, blendLength, t) : in;
         if (!blending(t)) outgoing = null;
@@ -115,5 +229,17 @@ public final class ProcedureStack {
 
     public boolean flying() {
         return active == null || active.flying();
+    }
+
+    public FirePhase firePhase() {
+        return active == null ? FirePhase.NONE : active.firePhase();
+    }
+
+    public boolean fireWindow(HeliState s, Situation sit) {
+        return active == null || active.fireWindow(s, sit);
+    }
+
+    public double[] lookahead() {
+        return active == null ? null : active.lookahead();
     }
 }

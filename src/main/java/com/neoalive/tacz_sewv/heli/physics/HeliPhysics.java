@@ -89,9 +89,11 @@ public final class HeliPhysics {
         qInv.set(s.q).conjugate();
         Vector3d va = qInv.transform(tmp.set(s.v).sub(wind), new Vector3d());
         double arm = af.coaxial ? 1.0 : af.tailArm;
-        // Starboard air velocity at the tail: -(v_a + w x r_tr).x with r_tr = (0, h, -l).
+        // Starboard air velocity at the tail: -(v_a + w x r_tr).x with r_tr = (0, h, -l). A coaxial has
+        // no tail rotor sitting in the sideslip stream: its yaw channel (differential torque) is damped
+        // by yaw rate alone, so sideslip does not enter it.
         double wxrX = s.w.y * (-arm) - s.w.z * af.tailHeight;
-        double vTail = -(va.x + wxrX);
+        double vTail = af.coaxial ? -wxrX : -(va.x + wxrX);
         double tail = s.tailFailed ? 0.0
                 : clamp(af.tailNominal * rhoR * wr * wr * s.pedal - af.tailDamping * rhoR * wr * vTail,
                         -af.tailMax, af.tailMax);

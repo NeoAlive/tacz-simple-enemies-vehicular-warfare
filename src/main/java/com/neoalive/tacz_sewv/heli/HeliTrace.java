@@ -133,8 +133,8 @@ public final class HeliTrace {
             return;
         }
         cols(s, r.predicted.x, r.predicted.y, r.predicted.z);
-        s.append(r.activeId()).append(',').append(r.requested).append(',');
-        var ref = r.lastRef;
+        s.append(r.activeId()).append(',').append(r.requested == null ? null : r.requested.id()).append(',');
+        var ref = r.lastRef();
         if (ref == null) s.append(",".repeat(7));
         else cols(s, ref.t(), ref.p().x(), ref.p().y(), ref.p().z(), ref.v().x(), ref.v().y(), ref.v().z());
         var sit = r.sit;

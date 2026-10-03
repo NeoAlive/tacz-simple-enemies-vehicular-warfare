@@ -4,6 +4,7 @@ import java.util.EnumSet;
 import java.util.List;
 
 import com.atsuishio.superbwarfare.data.gun.GunData;
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
@@ -37,10 +38,12 @@ import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.heli.HeliFlight;
 import com.neoalive.tacz_sewv.heli.HeliRuntime;
+import com.neoalive.tacz_sewv.heli.guidance.Envelope;
 import com.neoalive.tacz_sewv.heli.guidance.ModeSelector;
 import com.neoalive.tacz_sewv.heli.guidance.OrderKind;
 import com.neoalive.tacz_sewv.heli.guidance.ProcedureId;
 import com.neoalive.tacz_sewv.heli.guidance.Situation;
+import com.neoalive.tacz_sewv.heli.physics.Airframe;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHeliRunPhase;
 import com.neoalive.tacz_sewv.notify.HudNotify;
@@ -61,10 +64,13 @@ import com.neoalive.tacz_sewv.util.ChunkTicket;
  *     {@link HeliRuntime}, which flies it from inside the hull's own tick.</li>
  * </ol>
  *
- * <p>Phase 2 of the rework: combat is a hover with the nose on the target and the fire assist
- * shooting; the orbit, standoff and firing-run procedures arrive in Phase 3. The public static API
- * below (tags, {@link RunPhase}, forced-order and rappel flags, {@link #inFiringRun}) is unchanged,
- * because packets, commands, the scan goals and the overlay all depend on it.
+ * <p>Combat is the selector's attack rows: FireStill (guided weapon on armour), FireLoop and
+ * FireRun, chosen from the summary this goal fills (target category, line of sight, motion, weapon,
+ * envelope flags, the runtime's engage cycle). The run phase shown on the overlay and read by the
+ * scan goals is the active procedure's. The fire assist only shoots inside the procedure's fire
+ * window. The public static API below (tags, {@link RunPhase}, forced-order and rappel flags,
+ * {@link #inFiringRun}) is unchanged, because packets, commands, the scan goals and the overlay all
+ * depend on it.
  */
 public class DriveHelicopterGoal extends Goal {
 
@@ -161,12 +167,11 @@ public class DriveHelicopterGoal extends Goal {
      * Pure geometry — no world access. When height <= 0 (target at/above hold), returns the floor.
      */
     public static double guidedStandoffRing(double heightAboveTarget, double maxDepressionDeg, double minStandoff) {
-        if (!(minStandoff > 0.0)) minStandoff = 0.0;
-        if (!(heightAboveTarget > 0.0)) return minStandoff;
-        double tan = Math.tan(Math.toRadians(maxDepressionDeg));
-        if (!(tan > 1.0E-6)) return minStandoff;
-        return Math.max(minStandoff, heightAboveTarget / tan);
+        return Envelope.standoffRing(heightAboveTarget, Math.toRadians(maxDepressionDeg), minStandoff);
     }
+
+    /** Hull NBT: the XZ (BlockPos long) a RU/US patrol loop is centred on, written when a pilot first claims the hull. */
+    public static final String TAG_PATROL_ANCHOR = "sewv:heli_patrol_anchor";
 
     private static final double ALT_DEADBAND = 2.5;
 
@@ -199,6 +204,15 @@ public class DriveHelicopterGoal extends Goal {
     /** Height above the highest ground on the leg that the run-in to a pad is flown at. */
     private static final double TRANSIT_AGL = 24.0;
 
+    // --- Combat geometry ---
+    /** Weapon reach handed to the attack envelopes: guided missiles, everything else. */
+    private static final double GUIDED_RANGE = 160.0, UNGUIDED_RANGE = 100.0;
+    /** Below this target ground speed it is STATIC, above the second FAST, m/s. */
+    private static final double MOTION_STATIC = 0.5, MOTION_FAST = 8.0;
+    /** groundRef ring radii around the target, and its refresh period. */
+    private static final double[] GROUND_RING = {32.0, 64.0};
+    private static final long GROUND_REF_TTL = 10L;
+
     private static final float DECOY_HEALTH_FRACTION = 0.5F;
     private static final float PRESERVE_DECOY_CHANCE = 0.5F;
 
@@ -219,6 +233,10 @@ public class DriveHelicopterGoal extends Goal {
     /** Where an idle or fighting hull holds station; NaN = take the current position next tick. */
     private double holdX = Double.NaN, holdZ = Double.NaN;
     private boolean holdForCombat;
+    /** Cached groundRef around the current target. */
+    private double groundRef = Double.NaN;
+    private long groundRefAt = Long.MIN_VALUE;
+    private int groundRefTarget = -1;
 
     /** XZ locked on RAPPEL entry. */
     private double rappelLockX = Double.NaN;
@@ -304,6 +322,9 @@ public class DriveHelicopterGoal extends Goal {
             pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_LANDED);
         }
         this.runtime = this.vehicle == null ? null : HeliFlight.attach(this.vehicle, this.unit);
+        if (this.vehicle != null && !this.vehicle.getPersistentData().contains(TAG_PATROL_ANCHOR)) {
+            this.vehicle.getPersistentData().putLong(TAG_PATROL_ANCHOR, this.vehicle.blockPosition().asLong());
+        }
     }
 
     @Override
@@ -359,6 +380,7 @@ public class DriveHelicopterGoal extends Goal {
         sit.pilotId = this.unit.getId();
         ProcedureId active = this.runtime.activeId();
         if (active != null) sit.active = active;
+        fillCommon(sit);
 
         if (!forcedOrder(pilot, sit)) {
             if (command == IHelicopterPilot.HELI_CMD_LANDED) {
@@ -379,12 +401,119 @@ public class DriveHelicopterGoal extends Goal {
                 }
             }
         }
+        if (sit.targetValid) {
+            Airframe af = this.runtime.airframe();
+            double g = this.runtime.gravity();
+            sit.windCeilingOk = Envelope.windOk(af, g, Airframe.RHO0, 0.0); // no wind source in-world (plan O8)
+            sit.yawStandoffOk = Envelope.yawOk(af, g, Airframe.RHO0, sit, this.vehicle.getX(), this.vehicle.getZ());
+        }
         this.runtime.setGuidance(sit, ModeSelector.select(sit));
+        if (this.runPhase != RunPhase.RAPPEL) {
+            RunPhase phase = switch (this.runtime.firePhase()) {
+                case INGRESS -> RunPhase.INGRESS;
+                case ATTACK -> RunPhase.ATTACK;
+                case BREAK -> RunPhase.BREAK;
+                case REPOSITION -> RunPhase.REPOSITION;
+                case NONE -> RunPhase.IDLE;
+            };
+            if (phase != this.runPhase) setRunPhase(phase);
+        }
+    }
+
+    /** Summary and geometry every tick needs, whatever the order: health, engage state, altitudes, patrol. */
+    private void fillCommon(Situation sit) {
+        float max = this.vehicle.getMaxHealth();
+        sit.healthFrac = max > 0.0F ? this.vehicle.getHealth() / max : 1.0;
+        sit.evadeHealth = this.runtime.airframe().evadeHealth;
+        sit.engageCycle = this.runtime.engageCycle();
+        sit.inFiringRun = this.runtime.activeId() == ProcedureId.FIRE_RUN;
+        sit.autonomous = !(this.unit instanceof PmcUnitEntity);
+        Vec3 dm = this.vehicle.getDeltaMovement();
+        sit.hullVx = dm.x * 20.0;
+        sit.hullVz = dm.z * 20.0;
+        double[] ahead = this.runtime.lookahead();
+        sit.cruiseY = ahead != null ? cruiseAltitudeToward(ahead[0], ahead[1]) : cruiseAltitudeHere();
+        sit.groundBelow = surfaceBelow();
+        if (this.vehicle.getPersistentData().contains(TAG_PATROL_ANCHOR)) {
+            BlockPos anchor = BlockPos.of(this.vehicle.getPersistentData().getLong(TAG_PATROL_ANCHOR));
+            sit.anchorX = anchor.getX() + 0.5;
+            sit.anchorZ = anchor.getZ() + 0.5;
+        }
+        sit.seed = this.vehicle.getUUID().getMostSignificantBits() ^ this.vehicle.getUUID().getLeastSignificantBits();
+        sit.engageRadius = SewvConfig.HELI_ENGAGE_RADIUS.get();
+        sit.minStandoff = SewvConfig.HELI_MIN_STANDOFF.get();
+        sit.fireCone = Math.toRadians(fireConeDeg());
+    }
+
+    /** The target half of the summary and geometry, for the attack rows and procedures. */
+    private void fillTarget(Situation sit, LivingEntity target) {
+        sit.targetValid = true;
+        sit.targetId = target.getId();
+        sit.targetX = target.getX();
+        sit.targetY = target.getY();
+        sit.targetZ = target.getZ();
+        Entity mover = target.getVehicle() != null ? target.getVehicle() : target;
+        Vec3 tv = mover.getDeltaMovement();
+        sit.targetVx = tv.x * 20.0;
+        sit.targetVy = mover.onGround() ? 0.0 : tv.y * 20.0;
+        sit.targetVz = tv.z * 20.0;
+        VehicleEntity ride = target.getVehicle() instanceof VehicleEntity v ? v : null;
+        sit.targetHullId = ride != null ? ride.getId() : -1;
+        if (ride != null && isAirframe(ride)) {
+            sit.targetCategory = Situation.TargetCategory.AIR;
+        } else if (VehicleWeapons.classifyTarget(target) == VehicleWeapons.TargetCategory.VEHICLE) {
+            sit.targetCategory = Situation.TargetCategory.VEHICLE;
+        } else {
+            sit.targetCategory = Situation.TargetCategory.INFANTRY;
+        }
+        sit.targetDistance = Math.hypot(sit.targetX - this.vehicle.getX(), sit.targetZ - this.vehicle.getZ());
+        sit.targetLos = this.unit.getSensing().hasLineOfSight(target);
+        double speed = Math.hypot(sit.targetVx, sit.targetVz);
+        sit.targetMotion = speed < MOTION_STATIC ? Situation.TargetMotion.STATIC
+                : speed < MOTION_FAST ? Situation.TargetMotion.SLOW : Situation.TargetMotion.FAST;
+        int seat = this.vehicle.getSeatIndex(this.unit);
+        sit.armed = !this.transportOnly && this.heldWeaponSlot >= 0;
+        sit.ammoFrac = sit.armed && heldWeaponDepleted(seat) ? 0.0 : 1.0;
+        sit.weaponGuided = sit.armed && HeliArmament.isGuidedProjectile(
+                HeliArmament.readSignals(this.vehicle, seat, this.heldWeaponSlot).projectileId());
+        sit.weaponRange = sit.weaponGuided ? GUIDED_RANGE : UNGUIDED_RANGE;
+        sit.groundRef = groundRefAround(target);
+    }
+
+    private static boolean isAirframe(VehicleEntity v) {
+        EngineType t = HullFacts.engineType(v);
+        return t == EngineType.HELICOPTER || t == EngineType.AIRCRAFT;
     }
 
     /**
-     * Normal duty: fight a live target (Phase 2: hover with the nose on it, fire assist shooting),
-     * else fly an ordered destination, else hold station where the hull is.
+     * groundRef for attack geometry (plan 4.0): the highest WORLD_SURFACE (trees count) at the
+     * target and on two rings round it, where stations and run legs are flown. Never sync-loads;
+     * refreshed every {@link #GROUND_REF_TTL} ticks or on a new target.
+     */
+    private double groundRefAround(LivingEntity target) {
+        long now = this.vehicle.level().getGameTime();
+        if (target.getId() == this.groundRefTarget && now - this.groundRefAt < GROUND_REF_TTL) return this.groundRef;
+        Level level = this.vehicle.level();
+        int best = AirframeSupport.surfaceAtLoaded(level, target.getBlockX(), target.getBlockZ());
+        if (best == Integer.MIN_VALUE) best = Mth.floor(target.getY());
+        for (double r : GROUND_RING) {
+            for (int i = 0; i < 8; i++) {
+                double a = i * Math.PI / 4.0;
+                int h = AirframeSupport.surfaceAtLoaded(level, Mth.floor(target.getX() + r * Math.sin(a)),
+                        Mth.floor(target.getZ() + r * Math.cos(a)));
+                if (h != Integer.MIN_VALUE) best = Math.max(best, h);
+            }
+        }
+        this.groundRef = best;
+        this.groundRefAt = now;
+        this.groundRefTarget = target.getId();
+        return best;
+    }
+
+    /**
+     * Normal duty: fight a live target (the selector picks the attack procedure from what is filled
+     * here; the fire assist shoots inside the procedure's fire window), else fly an ordered
+     * destination, else hold station where the hull is (or patrol, for RU/US).
      */
     private void duty(Situation sit) {
         LivingEntity target = this.transportOnly ? null : this.unit.getTarget();
@@ -393,17 +522,14 @@ public class DriveHelicopterGoal extends Goal {
         if (target != null) {
             updateWeaponHold(target);
             // A pinned flight path doesn't ground the guns: canShoot still gates ammo, CEASE_FIRE,
-            // line of fire and smoke.
-            fireAssist(target);
+            // line of fire and smoke. The attack procedure's window gates the assist on top.
+            if (this.runtime.fireWindow()) fireAssist(target);
         } else {
             clearWeaponHold();
         }
 
         if (target != null && !pinned) {
-            sit.targetValid = true;
-            sit.targetX = target.getX();
-            sit.targetY = target.getY();
-            sit.targetZ = target.getZ();
+            fillTarget(sit, target);
             holdHere(true);
             sit.holdX = this.holdX;
             sit.holdZ = this.holdZ;

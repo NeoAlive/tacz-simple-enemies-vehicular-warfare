@@ -171,10 +171,16 @@ public final class AirframeData {
         if (af.bwRate * HeliPhysics.H > 0.2) p.add("control.rate x sub-step must be <= 0.2");
         if (af.bwYaw * TOL > 1.0 / (3.0 * af.yawLag)) p.add("control.yaw must be <= 1/(3 tail.yawLag)");
         if (af.bwVel * TOL > 1.0 / (3.0 * af.collectiveLag)) p.add("control.vel must be <= 1/(3 engine.collectiveLag)");
+        if (af.minTurnRadius < af.cruiseSpeed * af.cruiseSpeed / af.aLatMax * TOL) {
+            p.add("limits.minTurnRadius must be >= procedures.cruiseSpeed^2 / limits.aLatMax");
+        }
+        if (!(af.coneLo < af.coneHi)) p.add("aim.pitchFreeConeDeg must be [lo, hi] with lo < hi");
+        if (!(af.patrolRMin > 0.0 && af.patrolRMin <= af.patrolRMax)) p.add("procedures.patrol needs 0 < rMin <= rMax");
         if (!af.coaxial) {
             double qHover = RotorModel.hoverPower(af, g, rho) / af.omegaN;
-            if (af.tailArm * af.tailMax < 1.3 * qHover) {
-                p.add(String.format("tail authority %.0f < 1.3 x hover torque %.0f", af.tailArm * af.tailMax, qHover));
+            double authority = af.tailArm * Math.min(af.tailNominal, af.tailMax); // full pedal gives T_trN
+            if (authority < 1.3 * qHover) {
+                p.add(String.format("tail authority %.0f < 1.3 x hover torque %.0f", authority, qHover));
             }
         }
         return p;

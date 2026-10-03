@@ -30,36 +30,38 @@ final class HeliGuidedChecks {
     // S1 / S3 ----------------------------------------------------------------------------------------
     private static void selector() {
         Situation s = new Situation();
-        assert ModeSelector.select(s) == ProcedureId.HOVER_HOLD : "S3: an empty situation must hold";
+        assert ModeSelector.select(s).id() == ProcedureId.HOVER_HOLD : "S3: an empty situation must hold";
         s.order = OrderKind.LANDED;
-        assert ModeSelector.select(s) == ProcedureId.PARK : "S1: LANDED -> PARK";
+        assert ModeSelector.select(s).id() == ProcedureId.PARK : "S1: LANDED -> PARK";
         s.order = OrderKind.LAND;
-        assert ModeSelector.select(s) == ProcedureId.LAND : "S1: LAND -> LAND";
+        assert ModeSelector.select(s).id() == ProcedureId.LAND : "S1: LAND -> LAND";
         s.order = OrderKind.RAPPEL;
-        assert ModeSelector.select(s) == ProcedureId.RAPPEL_HOLD : "S1: RAPPEL -> RAPPEL_HOLD";
+        assert ModeSelector.select(s).id() == ProcedureId.RAPPEL_HOLD : "S1: RAPPEL -> RAPPEL_HOLD";
         s.order = OrderKind.TAKEOFF;
-        assert ModeSelector.select(s) == ProcedureId.TAKEOFF : "S1: TAKEOFF -> TAKEOFF";
+        assert ModeSelector.select(s).id() == ProcedureId.TAKEOFF : "S1: TAKEOFF -> TAKEOFF";
 
         s = new Situation();
         s.hasDestination = true;
         s.destDistance = 100;
-        assert ModeSelector.select(s) == ProcedureId.TRANSIT : "S1: far destination -> TRANSIT";
+        assert ModeSelector.select(s).id() == ProcedureId.TRANSIT : "S1: far destination -> TRANSIT";
         s.destDistance = 30;
-        assert ModeSelector.select(s) == ProcedureId.HOVER_HOLD : "S1: near destination -> HOVER_HOLD";
+        assert ModeSelector.select(s).id() == ProcedureId.HOVER_HOLD : "S1: near destination -> HOVER_HOLD";
         s.active = ProcedureId.TRANSIT;
-        assert ModeSelector.select(s) == ProcedureId.TRANSIT : "S1: a transit runs until it arrives";
+        assert ModeSelector.select(s).id() == ProcedureId.TRANSIT : "S1: a transit runs until it arrives";
         s.destDistance = 3;
-        assert ModeSelector.select(s) == ProcedureId.HOVER_HOLD : "S1: an arrived transit hands over to the hold";
+        assert ModeSelector.select(s).id() == ProcedureId.HOVER_HOLD : "S1: an arrived transit hands over to the hold";
 
         s = new Situation();
         s.targetValid = true;
         s.hasDestination = true;
         s.destDistance = 100;
-        assert ModeSelector.select(s) == ProcedureId.HOVER_HOLD : "S1: a target outranks a free destination";
+        assert ModeSelector.select(s).id() == ProcedureId.TRANSIT : "S1 row 9: an unarmed hull with a target keeps its destination";
+        s.armed = true;
+        assert ModeSelector.select(s).precedence() == ModeSelector.Precedence.ATTACK : "S1 row 8: an armed hull attacks";
         s.underOrders = true;
-        assert ModeSelector.select(s) == ProcedureId.TRANSIT : "S4: an order outranks the target";
+        assert ModeSelector.select(s).id() == ProcedureId.TRANSIT : "S4: an order outranks the target";
         s.order = OrderKind.LAND;
-        assert ModeSelector.select(s) == ProcedureId.LAND : "S4: a forced order outranks everything";
+        assert ModeSelector.select(s).id() == ProcedureId.LAND : "S4: a forced order outranks everything";
     }
 
     // S7 and staleness ---------------------------------------------------------------------------------
@@ -86,7 +88,7 @@ final class HeliGuidedChecks {
         Airframe af = Sim.airframe(cls);
         Sim sim = new Sim(af);
         sim.onGround = true;
-        ProcedureStack stack = new ProcedureStack(af, Sim.G);
+        ProcedureStack stack = sim.core.stack;
         long[] tick = {0};
         double[] worstJump = {0}, worstDv = {0};
         HeliReference[] prev = {null};
@@ -101,9 +103,9 @@ final class HeliGuidedChecks {
         // Parked, then a takeoff order to 35 m.
         Situation sit = new Situation();
         sit.order = OrderKind.LANDED;
-        for (int i = 0; i < 40; i++) sim.tickGuided(stack, sit, tick[0]++, continuity);
+        for (int i = 0; i < 40; i++) sim.tickGuided(sit, tick[0]++, continuity);
         assert stack.activeId() == ProcedureId.PARK && sim.s.engine == HeliState.Engine.OFF : "mission: not parked";
-        int takeoffTicks = takeoff(sim, stack, tick, continuity);
+        int takeoffTicks = takeoff(sim, tick, continuity);
 
         // Transit 300 m east at 35 m, then hold over the destination for 60 s.
         Situation go = new Situation();
@@ -117,7 +119,7 @@ final class HeliGuidedChecks {
         int transitTicks = 0;
         while (transitTicks < 20 * 120) {
             go.destDistance = Math.hypot(300 - sim.s.p.x, sim.s.p.z);
-            sim.tickGuided(stack, go, tick[0]++, continuity);
+            sim.tickGuided(go, tick[0]++, continuity);
             transitTicks++;
             if (stack.activeId() == ProcedureId.HOVER_HOLD && go.destDistance < 2) break;
         }
@@ -125,7 +127,7 @@ final class HeliGuidedChecks {
         double worstHold = 0;
         for (int i = 0; i < 20 * 60; i++) {
             go.destDistance = Math.hypot(300 - sim.s.p.x, sim.s.p.z);
-            sim.tickGuided(stack, go, tick[0]++, continuity);
+            sim.tickGuided(go, tick[0]++, continuity);
             if (i >= 20 * 10) worstHold = Math.max(worstHold, sim.s.p.distance(300, 35, 0));
         }
         assert worstHold <= 1.0 : "mission " + cls + ": hold strayed " + worstHold + " m";
@@ -141,7 +143,7 @@ final class HeliGuidedChecks {
         double sink = 0;
         for (int i = 0; i < 20 * 120 && !settled; i++) {
             double vyBefore = sim.s.v.y;
-            sim.tickGuided(stack, land, tick[0]++, continuity);
+            sim.tickGuided(land, tick[0]++, continuity);
             if (sim.onGround) sink = Math.max(sink, -vyBefore);
             settled = sim.onGround && Math.hypot(340 - sim.s.p.x, sim.s.p.z) <= 2.25;
         }
@@ -149,9 +151,9 @@ final class HeliGuidedChecks {
         assert sink < 3.0 : "mission " + cls + ": touchdown sink " + sink + " m/s";
         Situation parked = new Situation();
         parked.order = OrderKind.LANDED;
-        for (int i = 0; i < 20 * 20; i++) sim.tickGuided(stack, parked, tick[0]++, continuity);
+        for (int i = 0; i < 20 * 20; i++) sim.tickGuided(parked, tick[0]++, continuity);
         assert sim.s.engine == HeliState.Engine.OFF && sim.onGround : "mission " + cls + ": did not park";
-        int again = takeoff(sim, stack, tick, continuity);
+        int again = takeoff(sim, tick, continuity);
 
         System.out.printf(java.util.Locale.ROOT,
                 "  M %s: takeoff %.1f s, transit 300 m %.1f s, hold +-%.2f m, touchdown %.2f m/s, re-takeoff %.1f s, "
@@ -163,13 +165,13 @@ final class HeliGuidedChecks {
     }
 
     /** TAKEOFF to 35 m, cleared the way the goal clears it; returns ticks taken. */
-    private static int takeoff(Sim sim, ProcedureStack stack, long[] tick, java.util.function.Consumer<HeliReference> sink) {
+    private static int takeoff(Sim sim, long[] tick, java.util.function.Consumer<HeliReference> sink) {
         Situation up = new Situation();
         up.order = OrderKind.TAKEOFF;
         up.climbTo = 35;
         int n = 0;
         while (n < 20 * 90 && !(sim.s.p.y >= 35 - 2.5 && !sim.onGround)) {
-            sim.tickGuided(stack, up, tick[0]++, sink);
+            sim.tickGuided(up, tick[0]++, sink);
             n++;
         }
         assert sim.s.p.y >= 32.5 : "takeoff did not reach 35 m (at " + sim.s.p.y + ")";

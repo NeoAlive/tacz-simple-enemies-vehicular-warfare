@@ -73,19 +73,27 @@ public final class AirTerrainSensor extends TerrainSensor {
             // Never getBlockState into an unloaded chunk — that path managedBlock's the server.
             if (!level.hasChunk(px >> 4, pz >> 4)) return false;
 
-            // Cruise slab is usually empty air: one heightmap read beats a Y loop of collision shapes.
-            int surface = level.getHeight(Heightmap.Types.WORLD_SURFACE, px, pz);
-            if (surface >= yBottom) {
-                for (int y = yBottom; y <= yTop; y++) {
-                    if (!level.getBlockState(pos.set(px, y, pz)).getCollisionShape(level, pos).isEmpty()) {
-                        return false;
-                    }
-                }
-            }
+            if (!Double.isNaN(slabTop(level, pos, px, pz, yBottom, yTop))) return false;
 
             d += along <= NEAR_BAND ? 1.0 : FAR_STEP;
         }
         return true;
+    }
+
+    /**
+     * The slab probe, shared with the helicopter tactical bias ({@code heli.WorldObstacleField}):
+     * whether column (px, pz) has a collidable block in [yBottom, yTop]. Returns NaN when the slab is
+     * clear, else the column's WORLD_SURFACE top (trees count), which is what a climb must clear. The
+     * caller checks the chunk is loaded; this never loads one.
+     */
+    public static double slabTop(Level level, BlockPos.MutableBlockPos pos, int px, int pz, int yBottom, int yTop) {
+        // Cruise slab is usually empty air: one heightmap read beats a Y loop of collision shapes.
+        int surface = level.getHeight(Heightmap.Types.WORLD_SURFACE, px, pz);
+        if (surface < yBottom) return Double.NaN;
+        for (int y = yBottom; y <= yTop; y++) {
+            if (!level.getBlockState(pos.set(px, y, pz)).getCollisionShape(level, pos).isEmpty()) return surface;
+        }
+        return Double.NaN;
     }
 
     /**

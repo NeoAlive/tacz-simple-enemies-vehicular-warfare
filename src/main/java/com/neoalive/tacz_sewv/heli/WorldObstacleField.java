@@ -15,8 +15,11 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3dc;
 
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
 import com.neoalive.tacz_sewv.heli.avoid.AvoidForce;
 import com.neoalive.tacz_sewv.heli.avoid.ObstacleSet;
+import com.neoalive.tacz_sewv.heli.avoid.PathProbe;
+import com.neoalive.tacz_sewv.heli.guidance.HeliReference;
 
 /**
  * Builds the barrier's {@link ObstacleSet} for one hull, once per tick (plan sections 4.9 and
@@ -96,6 +99,38 @@ public final class WorldObstacleField {
             if (level.hasChunk(bx >> 4, bz >> 4)) groundY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz);
         }
         return new ObstacleSet(boxes, groundY);
+    }
+
+    /**
+     * The tactical bias's path probe (plan 4.9) against this world: terrain through
+     * {@link AirTerrainSensor#slabTop}, airframes as moving boxes. Every helicopter and plane except
+     * this hull and the hull the target rides ({@code excludeId}, plan 4.9a). An airframe our stack
+     * flies yields by id (see {@link PathProbe}); a player's, a parked hull or a wreck never does.
+     * Unloaded columns read as clear here: the bias must not climb at every chunk edge, and the
+     * barrier still never sync-loads.
+     */
+    public static PathProbe.Result probePath(VehicleEntity hull, HeliReference ref, Vector3dc hullV, double halfWidth,
+                                             double height, int excludeId, int tieSide) {
+        double vx = ref.v().x(), vz = ref.v().z(), vh = Math.sqrt(vx * vx + vz * vz);
+        if (vh < 1.0) return PathProbe.Result.CLEAR;
+        Level level = hull.level();
+        double reach = vh * PathProbe.HORIZON + halfWidth + PathProbe.CLEARANCE + 2.0;
+        List<PathProbe.Traffic> traffic = new ArrayList<>();
+        AABB search = hull.getBoundingBox().inflate(reach, reach * 0.5 + height, reach);
+        for (VehicleEntity o : level.getEntitiesOfClass(VehicleEntity.class, search,
+                o -> o != hull && o.getId() != excludeId && isAirframe(o))) {
+            AABB b = o.getBoundingBox();
+            Vec3 dm = o.getDeltaMovement();
+            traffic.add(new PathProbe.Traffic(o.getId(), HeliFlight.owns(o), b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ,
+                    dm.x * 20.0, dm.y * 20.0, dm.z * 20.0));
+        }
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        PathProbe.Terrain terrain = (x, z, yb, yt) -> {
+            int px = (int) Math.floor(x), pz = (int) Math.floor(z);
+            if (!level.hasChunk(px >> 4, pz >> 4)) return Double.NaN;
+            return AirTerrainSensor.slabTop(level, pos, px, pz, (int) Math.floor(yb), (int) Math.floor(yt));
+        };
+        return PathProbe.probe(ref, hullV, halfWidth, height, terrain, traffic, hull.getId(), tieSide);
     }
 
     /** Ground surface under the hub for ground effect; +infinity when the column is not loaded. */

@@ -50,4 +50,30 @@ public interface HeliProcedure {
     default boolean flying() {
         return true;
     }
+
+    /** Attack phase for the overlay and the scan goals; NONE outside FireRun. */
+    default FirePhase firePhase() {
+        return FirePhase.NONE;
+    }
+
+    /**
+     * True when the geometry allows firing (plan 4.10: the pitch-free cone, the run's window).
+     * Non-attack procedures do not restrict the fire assist.
+     */
+    default boolean fireWindow(HeliState s, Situation sit) {
+        return true;
+    }
+
+    /**
+     * The target changed mid-procedure (a hand-off). True when the procedure simply follows the new
+     * target; false ends it (INVALIDATED) and the same id is begun afresh from the current state.
+     */
+    default boolean retarget(Situation sit, double t) {
+        return false;
+    }
+
+    /** A point ahead on the procedure's own route, for terrain-relative altitude; null = none. */
+    default double[] lookahead() {
+        return null;
+    }
 }

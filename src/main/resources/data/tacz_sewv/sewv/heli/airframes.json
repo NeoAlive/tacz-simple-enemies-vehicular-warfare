@@ -11,7 +11,7 @@
         "maxPower": 1.0e6, "governor": {"wn": 4}, "startRate": 5, "collectiveLag": 0.15,
         "efficiency": 0.3, "idlePower": 50000, "frictionCoeff": 2.7
       },
-      "tail": {"type": "tail", "arm": 4.5, "height": 0.5, "nominalThrust": 5000, "maxThrust": 6000, "inflowDamping": 555},
+      "tail": {"type": "tail", "arm": 4.5, "height": 0.5, "nominalThrust": 5000, "maxThrust": 6000, "inflowDamping": 99},
       "fuselage": {"cdA": [4, 6, 1.0]},
       "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 4.5, "tiltMaxDeg": 25, "rateMaxPR": 60, "yawRateMax": 57,
                  "minTurnRadius": 40, "aLatMax": 8},
@@ -29,12 +29,13 @@
         "maxPower": 6.6e6, "governor": {"wn": 4}, "startRate": 3.3, "collectiveLag": 0.15,
         "efficiency": 0.3, "idlePower": 330000, "frictionCoeff": 46
       },
-      "tail": {"type": "tail", "arm": 9.0, "height": 1.0, "nominalThrust": 28000, "maxThrust": 34000, "inflowDamping": 2376},
+      "tail": {"type": "tail", "arm": 9.0, "height": 1.0, "nominalThrust": 28000, "maxThrust": 34000, "inflowDamping": 546},
       "fuselage": {"cdA": [12, 25, 3.0]},
       "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 5.0, "tiltMaxDeg": 25, "rateMaxPR": 45, "yawRateMax": 40,
                  "minTurnRadius": 40, "aLatMax": 8},
       "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 3},
-      "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 18}
+      "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 18},
+      "aim": {"pitchFreeConeDeg": [-3, 25]}
     },
     "attack_coaxial": {
       "mass": 10000, "cgHeight": 2.0, "inertia": [78400, 90000, 19600],
@@ -52,7 +53,8 @@
       "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 5.0, "tiltMaxDeg": 25, "rateMaxPR": 45, "yawRateMax": 40,
                  "minTurnRadius": 40, "aLatMax": 8},
       "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 2},
-      "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 36}
+      "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 36},
+      "aim": {"pitchFreeConeDeg": [-3, 25]}
     },
     "utility": {
       "mass": 7500, "cgHeight": 1.8, "inertia": [76800, 81700, 16900],
@@ -65,7 +67,7 @@
         "maxPower": 5.5e6, "governor": {"wn": 4}, "startRate": 2.7, "collectiveLag": 0.15,
         "efficiency": 0.3, "idlePower": 275000, "frictionCoeff": 56.5
       },
-      "tail": {"type": "tail", "arm": 9.5, "height": 1.2, "nominalThrust": 26000, "maxThrust": 30000, "inflowDamping": 2456},
+      "tail": {"type": "tail", "arm": 9.5, "height": 1.2, "nominalThrust": 26000, "maxThrust": 30000, "inflowDamping": 492},
       "fuselage": {"cdA": [15, 30, 2.5]},
       "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 5.0, "tiltMaxDeg": 25, "rateMaxPR": 45, "yawRateMax": 30,
                  "minTurnRadius": 40, "aLatMax": 8},

@@ -9,15 +9,18 @@ import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.heli.avoid.AvoidForce;
 import com.neoalive.tacz_sewv.heli.avoid.ObstacleSet;
-import com.neoalive.tacz_sewv.heli.control.HeliController;
+import com.neoalive.tacz_sewv.heli.avoid.PathProbe;
+import com.neoalive.tacz_sewv.heli.control.FlightCore;
+import com.neoalive.tacz_sewv.heli.guidance.FirePhase;
 import com.neoalive.tacz_sewv.heli.guidance.HeliReference;
+import com.neoalive.tacz_sewv.heli.guidance.ModeSelector;
+import com.neoalive.tacz_sewv.heli.guidance.Parity;
 import com.neoalive.tacz_sewv.heli.guidance.ProcedureId;
 import com.neoalive.tacz_sewv.heli.guidance.ProcedureStack;
 import com.neoalive.tacz_sewv.heli.guidance.Situation;
 import com.neoalive.tacz_sewv.heli.physics.Airframe;
 import com.neoalive.tacz_sewv.heli.physics.HeliControl;
 import com.neoalive.tacz_sewv.heli.physics.HeliEnv;
-import com.neoalive.tacz_sewv.heli.physics.HeliPhysics;
 import com.neoalive.tacz_sewv.heli.physics.HeliState;
 import com.neoalive.tacz_sewv.heli.physics.McPose;
 import com.neoalive.tacz_sewv.heli.physics.RotorModel;
@@ -59,24 +62,19 @@ public final class HeliRuntime {
     final Airframe af;
     final int pilotId;
     final double g;
-    final HeliPhysics physics;
-    final HeliController ctl;
-    final HeliState s = new HeliState();
-    final HeliControl u = new HeliControl();
+    /** The pure per-tick flight stack (shared with the headless self-checks). */
+    final FlightCore core;
+    final HeliState s;
     final ProcedureStack stack;
-    final AvoidForce barrier;
+    private final double halfWidth, height;
 
     Situation sit;
-    ProcedureId requested;
-    private ObstacleSet obstacles = ObstacleSet.empty();
-    private final Vector3d avoid = new Vector3d();
+    ModeSelector.Choice requested;
     private boolean seated, restLatched, failed, warnedNaN;
     private Vector3d lastDm;
     /** Our intended position after the last publish, and the entity position we published from. */
     final Vector3d predicted = new Vector3d();
     private final Vector3d pubFrom = new Vector3d();
-    /** Trace only: the last sub-step's reference and the selector's last request. */
-    HeliReference lastRef;
     private float pubYaw, pubPitch, pubRoll, sentRoll = Float.NaN;
     private double energyDebt;
 
@@ -88,15 +86,17 @@ public final class HeliRuntime {
             LOGGER.warn("[sewv heli] {} row '{}' cannot lift at this hull's gravity {} m/s^2; scaling its C_T table by {}",
                     hull.getType(), af.name, g, this.g / 24.0);
             af = af.withCtScale(this.g / 24.0);
+            tMax *= this.g / 24.0;
         }
         this.af = af;
         this.pilotId = pilotId;
-        this.physics = new HeliPhysics(af, fuelPerJoule(af, g, hull));
-        this.ctl = new HeliController(af, g, Airframe.RHO0);
-        this.stack = new ProcedureStack(af, g);
+        this.halfWidth = hull.getBbWidth() / 2.0;
+        this.height = hull.getBbHeight();
         double aC = Math.max(g * StrictMath.tan(af.tiltMax), tMax / af.mass - g);
-        this.barrier = new AvoidForce(aC, af.vMaxH, af.vDescent, 2.0,
-                hull.getBbWidth() / 2.0, hull.getBbHeight(), 1.0, 0.05);
+        this.core = new FlightCore(af, g, Airframe.RHO0, fuelPerJoule(af, g, hull),
+                new AvoidForce(aC, af.vMaxH, af.vDescent, 2.0, halfWidth, height, 1.0, 0.05));
+        this.s = core.s;
+        this.stack = core.stack;
     }
 
     boolean ownedBy(VehicleEntity hull) {
@@ -111,10 +111,41 @@ public final class HeliRuntime {
         return s;
     }
 
-    /** The goal's guidance for the next tick: the snapshot and the procedure the selector chose. */
-    public void setGuidance(Situation situation, ProcedureId id) {
+    public Airframe airframe() {
+        return af;
+    }
+
+    public double gravity() {
+        return g;
+    }
+
+    /** Attack procedures completed against the current target (the selector's engage cycle). */
+    public int engageCycle() {
+        return stack.engageCycle();
+    }
+
+    public FirePhase firePhase() {
+        return stack.firePhase();
+    }
+
+    /** The active procedure lets the guns fire (pitch-free cone, the run's window). */
+    public boolean fireWindow() {
+        return sit == null || stack.fireWindow(s, sit);
+    }
+
+    /** A point ahead on the active procedure's route (terrain look-ahead), or null. */
+    public double[] lookahead() {
+        return stack.lookahead();
+    }
+
+    HeliReference lastRef() {
+        return core.lastRef;
+    }
+
+    /** The goal's guidance for the next tick: the snapshot and the selector's choice. */
+    public void setGuidance(Situation situation, ModeSelector.Choice choice) {
         this.sit = situation;
-        this.requested = id;
+        this.requested = choice;
     }
 
     /** One game tick, from inside the hull's {@code travel()}. Returns the flight mode. */
@@ -140,8 +171,8 @@ public final class HeliRuntime {
                 if (stack.activeId() != null) LOGGER.warn("[sewv heli] #{} guidance went stale; holding", hull.getId());
                 stack.switchTo(ProcedureId.SAFETY_HOLD, s, guidance, t0, gt);
             }
-        } else if (requested != null && requested != stack.activeId()) {
-            stack.switchTo(requested, s, guidance, t0, gt);
+        } else if (requested != null) {
+            core.guide(requested, guidance, t0, gt);
         }
 
         boolean wantsEngine = stack.engine() == HeliControl.EngineCmd.START;
@@ -159,24 +190,13 @@ public final class HeliRuntime {
             return IFlightDynamics.PARKED;
         }
 
-        obstacles = WorldObstacleField.build(hull, barrier, s.p, s.v, barrier.detectRadius(), stack.groundBarrier(t0));
-        barrier.update(obstacles, s.p, s.v);
+        ObstacleSet obstacles = WorldObstacleField.build(hull, core.barrier, s.p, s.v, core.barrier.detectRadius(),
+                stack.groundBarrier(t0));
+        PathProbe.Result path = WorldObstacleField.probePath(hull, core.rawRef(t0, guidance), s.v, halfWidth, height,
+                guidance.targetHullId, Parity.side(pilotId));
+        core.avoidance(obstacles, path, halfWidth + 3.0, t0);
         Vector3d p0 = new Vector3d(s.p);
-        for (int k = 0; k < 6; k++) {
-            double t = (6.0 * gt + k) / 120.0;
-            HeliReference r = stack.refAt(t, s, guidance);
-            lastRef = r;
-            u.engine = stack.engine();
-            barrier.force(obstacles, s.p, s.v, af.mass, avoid);
-            if (stack.flying()) {
-                ctl.step(r, s, env, avoid, u);
-            } else {
-                u.collective = 0.0;
-                u.cLon = u.cLat = u.pedal = 0.0;
-                ctl.reset();
-            }
-            physics.step(s, u, env, avoid);
-        }
+        core.integrate(env, guidance, gt, null);
         if (!finite()) {
             if (!warnedNaN) LOGGER.error("[sewv heli] #{} state went non-finite; re-seating and holding", hull.getId());
             warnedNaN = true;
@@ -210,7 +230,7 @@ public final class HeliRuntime {
         s.v.set(dm.x * 20.0, dm.y * 20.0, dm.z * 20.0);
         s.q.set(McPose.toQuat(hull.getYRot(), hull.getXRot(), hull.getRoll()));
         s.w.zero();
-        ctl.reset();
+        core.ctl.reset();
         pubYaw = hull.getYRot();
         pubPitch = hull.getXRot();
         pubRoll = hull.getRoll();

@@ -34,7 +34,12 @@ public final class Airframe {
             "limits.yawRateMax", "limits.minTurnRadius", "limits.aLatMax",
             "control.pos", "control.posV", "control.vel", "control.velZeta", "control.att", "control.rate",
             "control.rateZeta", "control.yaw",
-            "autorotation.collective", "autorotation.kOmega", "autorotation.flareHeight");
+            "autorotation.collective", "autorotation.kOmega", "autorotation.flareHeight",
+            "aim.pitchFreeConeDeg.0", "aim.pitchFreeConeDeg.1",
+            "aim.targetLatAccel.infantry", "aim.targetLatAccel.vehicle", "aim.targetLatAccel.air",
+            "procedures.cruiseSpeed", "procedures.orbitSpeed", "procedures.runSpeed", "procedures.reattackDeg",
+            "procedures.stillDwell", "procedures.loopTime", "procedures.evadeHealth", "procedures.evadeDistance",
+            "procedures.patrol.rMin", "procedures.patrol.rMax");
 
     /** Keys a row may omit. {@code tail.yawLag} is absent: its default depends on the tail type. */
     public static final Map<String, Double> DEFAULTS = Map.ofEntries(
@@ -44,7 +49,15 @@ public final class Airframe {
             Map.entry("effects.vrs.xiPeak", 0.8), Map.entry("effects.vrs.xiHi", 1.6),
             Map.entry("effects.vrs.etaHi", 1.0), Map.entry("effects.axial.k", 0.1),
             Map.entry("engine.governor.kd", 0.1),
-            Map.entry("engine.hoverBurnFraction", 0.7576), Map.entry("control.rateZeta", 0.05));
+            Map.entry("engine.hoverBurnFraction", 0.7576), Map.entry("control.rateZeta", 0.05),
+            Map.entry("aim.pitchFreeConeDeg.0", -3.0), Map.entry("aim.pitchFreeConeDeg.1", 3.0),
+            Map.entry("aim.targetLatAccel.infantry", 2.0), Map.entry("aim.targetLatAccel.vehicle", 3.0),
+            Map.entry("aim.targetLatAccel.air", 8.0),
+            Map.entry("procedures.cruiseSpeed", 17.5), Map.entry("procedures.orbitSpeed", 12.0),
+            Map.entry("procedures.runSpeed", 20.0), Map.entry("procedures.reattackDeg", 120.0),
+            Map.entry("procedures.stillDwell", 8.0), Map.entry("procedures.loopTime", 30.0),
+            Map.entry("procedures.evadeHealth", 0.3), Map.entry("procedures.evadeDistance", 150.0),
+            Map.entry("procedures.patrol.rMin", 60.0), Map.entry("procedures.patrol.rMax", 140.0));
 
     public final String name;
     public final boolean coaxial;
@@ -67,6 +80,12 @@ public final class Airframe {
     public final double vMaxH, vClimb, vDescent, tiltMax, rateMaxPR, yawRateMax, minTurnRadius, aLatMax;
     public final double bwPos, bwPosV, bwVel, velZeta, bwAtt, bwRate, rateZeta, bwYaw;
     public final double autoCollective, autoKOmega, flareHeight;
+    /** Pitch-free cone [lo, hi] as target depression below the nose at trim, radians. */
+    public final double coneLo, coneHi;
+    /** Target lateral acceleration per category (infantry, vehicle, air), m/s^2. */
+    public final double latAccInfantry, latAccVehicle, latAccAir;
+    public final double cruiseSpeed, orbitSpeed, runSpeed, reattack, stillDwell, loopTime;
+    public final double evadeHealth, evadeDistance, patrolRMin, patrolRMax;
 
     private final TreeMap<String, Double> canonical;
 
@@ -158,6 +177,21 @@ public final class Airframe {
         autoCollective = v.get("autorotation.collective");
         autoKOmega = v.get("autorotation.kOmega");
         flareHeight = v.get("autorotation.flareHeight");
+        coneLo = StrictMath.toRadians(v.get("aim.pitchFreeConeDeg.0"));
+        coneHi = StrictMath.toRadians(v.get("aim.pitchFreeConeDeg.1"));
+        latAccInfantry = v.get("aim.targetLatAccel.infantry");
+        latAccVehicle = v.get("aim.targetLatAccel.vehicle");
+        latAccAir = v.get("aim.targetLatAccel.air");
+        cruiseSpeed = v.get("procedures.cruiseSpeed");
+        orbitSpeed = v.get("procedures.orbitSpeed");
+        runSpeed = v.get("procedures.runSpeed");
+        reattack = StrictMath.toRadians(v.get("procedures.reattackDeg"));
+        stillDwell = v.get("procedures.stillDwell");
+        loopTime = v.get("procedures.loopTime");
+        evadeHealth = v.get("procedures.evadeHealth");
+        evadeDistance = v.get("procedures.evadeDistance");
+        patrolRMin = v.get("procedures.patrol.rMin");
+        patrolRMax = v.get("procedures.patrol.rMax");
     }
 
     /** Copy with some keys replaced — for tuning experiments and self-checks. */

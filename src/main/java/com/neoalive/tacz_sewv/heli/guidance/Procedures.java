@@ -1,5 +1,9 @@
 package com.neoalive.tacz_sewv.heli.guidance;
 
+import java.util.List;
+import java.util.SplittableRandom;
+import java.util.function.Supplier;
+
 import org.joml.Vector3d;
 
 import com.neoalive.tacz_sewv.heli.physics.Airframe;
@@ -8,21 +12,20 @@ import com.neoalive.tacz_sewv.heli.physics.HeliPhysics;
 import com.neoalive.tacz_sewv.heli.physics.HeliState;
 
 /**
- * The FreeNav procedures needed to fly at all (Phase 2): hover/rappel hold, transit, takeoff,
- * land, park, and the safety hold used when a reference goes stale. DetNav attack procedures
- * arrive in Phase 3.
+ * Every procedure (plan sections 4.8 and 4.10). FreeNav: hover/rappel hold, transit, patrol,
+ * evade, takeoff, land, park and the safety hold used when a reference goes stale. DetNav (attack):
+ * FireStill, FireLoop (with its out-of-band approach) and FireRun with its break/reposition exit.
  *
- * <p>Every position a procedure takes from the {@link Situation} passes through a
- * {@link Prefilter}, so a 20 Hz step in a parameter (a refreshed terrain altitude, a moved hold
- * point) never steps the reference.
+ * <p>Every position a procedure takes from the {@link Situation} passes through a filter
+ * ({@link Prefilter} for parameters, {@link TargetTrack} for the target), so a 20 Hz step in a
+ * parameter (a refreshed terrain altitude, a moved hold point, a new target snapshot) never steps
+ * the reference.
  */
 public final class Procedures {
 
     private static final double H = HeliPhysics.H;
-    /** Prefilter corner for hold points and altitudes, rad/s. */
+    /** Prefilter corner for hold points, altitudes and station errors, rad/s. */
     private static final double FILTER_W = 0.8;
-    /** Transit cruise speed as a fraction of the speed limit (the data-driven value comes in Phase 3). */
-    private static final double CRUISE_FRACTION = 0.7;
     /** Path-speed acceleration and braking, m/s^2. */
     private static final double PATH_ACCEL = 3.0;
     /** Horizontal arrival radius and speed for a transit to count as complete. */
@@ -34,10 +37,13 @@ public final class Procedures {
     /** Inside this horizontal range a landing stops transiting and descends. */
     public static final double LAND_DESCEND_RADIUS = 24.0;
     private static final double ALT_DEADBAND = 2.5;
+    /** FireStill: line of sight lost for this long ends the station (an aspect change is FireLoop's job). */
+    private static final double LOS_LOST_LIMIT = 2.0;
+    private static final double RHO = Airframe.RHO0;
 
     private Procedures() {}
 
-    public static HeliProcedure create(ProcedureId id, Airframe af) {
+    public static HeliProcedure create(ProcedureId id, Airframe af, double g) {
         return switch (id) {
             case SAFETY_HOLD -> new Hold(af, Hold.Mode.SAFETY);
             case HOVER_HOLD -> new Hold(af, Hold.Mode.HOLD);
@@ -46,6 +52,11 @@ public final class Procedures {
             case TAKEOFF -> new Takeoff(af);
             case LAND -> new Land(af);
             case PARK -> new Park();
+            case PATROL -> new Patrol(af);
+            case EVADE -> new Evade(af);
+            case FIRE_STILL -> new FireStill(af, g);
+            case FIRE_LOOP -> new FireLoop(af, g);
+            case FIRE_RUN -> new FireRun(af, g);
         };
     }
 
@@ -53,6 +64,27 @@ public final class Procedures {
     static double heading(HeliState s) {
         Vector3d f = s.q.transform(new Vector3d(0, 0, 1));
         return StrictMath.atan2(-f.x, f.z);
+    }
+
+    /** Horizontal travel direction: the velocity when moving, else the nose. {x, z}, unit. */
+    static double[] travelDir(HeliState s) {
+        double sp = Math.sqrt(s.v.x * s.v.x + s.v.z * s.v.z);
+        if (sp > 2.0) return new double[] {s.v.x / sp, s.v.z / sp};
+        double yaw = heading(s);
+        return new double[] {-StrictMath.sin(yaw), StrictMath.cos(yaw)};
+    }
+
+    static double wrapPi(double a) {
+        double r = StrictMath.IEEEremainder(a, 2.0 * Math.PI);
+        return r <= -Math.PI ? r + 2.0 * Math.PI : r;
+    }
+
+    /** Yaw and yaw rate of the line of sight from {@code p} (moving at {@code v}) to {@code tp} (moving at {@code tv}). */
+    static double[] lineOfSight(Vector3d p, Vector3d v, Vector3d tp, Vector3d tv, double fallbackYaw) {
+        double dx = tp.x - p.x, dz = tp.z - p.z, r2 = dx * dx + dz * dz;
+        if (r2 < 1.0) return new double[] {fallbackYaw, 0.0};
+        double ddx = tv.x - v.x, ddz = tv.z - v.z;
+        return new double[] {StrictMath.atan2(-dx, dz), (-dz * ddx + dx * ddz) / r2};
     }
 
     /** Three prefilters following a point, with the hull's limits as rate bounds. */
@@ -78,6 +110,73 @@ public final class Procedures {
                     new Vector3d(x.rate(), y.rate(), z.rate()), new Vector3d(x.accel(), y.accel(), z.accel()),
                     yaw, yawRate);
         }
+    }
+
+    /**
+     * Arc-length follower on a Dubins path: a 1-D speed profile (s'' limited, s' continuous, so the
+     * reference is C1). With no {@link #next} it brakes to arrive at rest at the end; with one it
+     * carries the overshoot onto the next path, which must start on this one's end pose.
+     */
+    static final class PathFollower {
+        DubinsPlanar.Path path;
+        Supplier<DubinsPlanar.Path> next;
+        double s, sd, sdd, time = Double.NaN;
+        int legs;
+        final double[] out = new double[5];
+
+        void start(DubinsPlanar.Path p, double speed, double t) {
+            path = p;
+            next = null;
+            s = 0.0;
+            sd = Math.max(0.0, speed);
+            sdd = 0.0;
+            time = t;
+            legs = 0;
+        }
+
+        /** Continue on a new path from its start, keeping speed, acceleration and clock. */
+        void swap(DubinsPlanar.Path p) {
+            path = p;
+            next = null;
+            s = 0.0;
+            legs = 0;
+        }
+
+        void advance(double t, double cruise) {
+            while (time + 0.5 * H < t) {
+                double want = cruise;
+                if (next == null) want = Math.min(cruise, Math.sqrt(2.0 * PATH_ACCEL * Math.max(0.0, path.length() - s)));
+                sdd = Math.max(-PATH_ACCEL, Math.min(PATH_ACCEL, (want - sd) / 0.5));
+                sd = Math.max(0.0, sd + H * sdd);
+                s = s + H * sd;
+                if (s >= path.length()) {
+                    DubinsPlanar.Path n = next == null ? null : next.get();
+                    if (n != null) {
+                        s -= path.length();
+                        path = n;
+                        legs++;
+                    } else {
+                        s = path.length();
+                    }
+                }
+                time += H;
+            }
+        }
+
+        /** The reference at the follower's current point, with altitude from {@code alt}. */
+        HeliReference sample(double t, Prefilter alt) {
+            path.sample(s, out);
+            double dx = out[2], dz = out[3], k = out[4];
+            Vector3d p = new Vector3d(out[0], alt.value(), out[1]);
+            Vector3d v = new Vector3d(dx * sd, alt.rate(), dz * sd);
+            // a = d s'' + kappa s'^2 n_L(d), n_L(d) = (d.z, -d.x)
+            Vector3d a = new Vector3d(dx * sdd + k * sd * sd * dz, alt.accel(), dz * sdd - k * sd * sd * dx);
+            return new HeliReference(t, p, v, a, StrictMath.atan2(-dx, dz), -k * sd);
+        }
+    }
+
+    static DubinsPlanar.Path line(double x, double z, double dx, double dz, double length) {
+        return new DubinsPlanar.Path(List.of(new DubinsPlanar.Line(x, z, dx, dz, length)), length, "S");
     }
 
     // --- Hold: hover / rappel station / safety ------------------------------------------------
@@ -154,24 +253,21 @@ public final class Procedures {
 
     /**
      * Fly to the destination along a Dubins path at cruise speed, at the leg altitude the goal
-     * supplies (terrain-relative, prefiltered). The path speed is a 1-D follower: accelerate to
-     * cruise, brake so as to arrive at rest (s'' limited, s' continuous, so the reference is C1).
-     * A moving destination is re-planned from the current reference sample, at most once a second.
+     * supplies (terrain-relative, prefiltered), braking to arrive at rest. A moving destination is
+     * re-planned from the current reference sample, at most once a second.
      */
     static class Transit implements HeliProcedure {
-        private final Airframe af;
+        final Airframe af;
         private final Prefilter alt = new Prefilter();
-        private DubinsPlanar.Path path;
-        private double s, sd, sdd, time = Double.NaN, planTime;
-        private double planDestX, planDestZ;
-        private final double[] out = new double[5];
+        private final PathFollower f = new PathFollower();
+        private double planTime, planDestX, planDestZ;
 
         Transit(Airframe af) {
             this.af = af;
         }
 
         double cruise() {
-            return CRUISE_FRACTION * af.vMaxH;
+            return af.cruiseSpeed;
         }
 
         @Override
@@ -199,25 +295,10 @@ public final class Procedures {
             double ex = bl > 1e-6 ? bx / bl : hx, ez = bl > 1e-6 ? bz / bl : hz;
             double v = cruise();
             double r = Math.max(af.minTurnRadius, v * v / af.aLatMax);
-            this.path = DubinsPlanar.shortest(x, z, hx, hz, dx, dz, ex, ez, r);
-            this.s = 0.0;
-            this.sd = Math.max(0.0, vx * hx + vz * hz);
-            this.sdd = 0.0;
-            this.time = t;
+            f.start(DubinsPlanar.shortest(x, z, hx, hz, dx, dz, ex, ez, r), Math.max(0.0, vx * hx + vz * hz), t);
             this.planTime = t;
             this.planDestX = dx;
             this.planDestZ = dz;
-        }
-
-        private void advance(double t) {
-            while (time + 0.5 * H < t) {
-                double brake = Math.sqrt(2.0 * PATH_ACCEL * Math.max(0.0, path.length() - s));
-                double want = Math.min(cruise(), brake);
-                sdd = Math.max(-PATH_ACCEL, Math.min(PATH_ACCEL, (want - sd) / 0.5));
-                sd = Math.max(0.0, sd + H * sdd);
-                s = Math.min(path.length(), s + H * sd);
-                time += H;
-            }
         }
 
         @Override
@@ -232,15 +313,9 @@ public final class Procedures {
         }
 
         private HeliReference sample(double t, Situation sit) {
-            advance(t);
-            path.sample(s, out);
+            f.advance(t, cruise());
             alt.at(t, legAltitude(sit), FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
-            double dx = out[2], dz = out[3], k = out[4];
-            Vector3d p = new Vector3d(out[0], alt.value(), out[1]);
-            Vector3d v = new Vector3d(dx * sd, alt.rate(), dz * sd);
-            // a = d s'' + kappa s'^2 n_L(d), n_L(d) = (d.z, -d.x)
-            Vector3d a = new Vector3d(dx * sdd + k * sd * sd * dz, alt.accel(), dz * sdd - k * sd * sd * dx);
-            return new HeliReference(t, p, v, a, StrictMath.atan2(-dx, dz), -k * sd);
+            return f.sample(t, alt);
         }
 
         double legAltitude(Situation sit) {
@@ -256,9 +331,166 @@ public final class Procedures {
         }
 
         @Override
+        public double[] lookahead() {
+            return new double[] {planDestX, planDestZ};
+        }
+
+        @Override
         public boolean isComplete(HeliState st, Situation sit, double t) {
             double dx = destX(sit) - st.p.x, dz = destZ(sit) - st.p.z;
             return dx * dx + dz * dz <= ARRIVE_RADIUS * ARRIVE_RADIUS && st.v.x * st.v.x + st.v.z * st.v.z < 1.0;
+        }
+    }
+
+    /** Evade (plan O7): a transit to {@code evadeDistance} straight away from the target, at cruise altitude. */
+    static final class Evade extends Transit {
+        private double ex, ez;
+
+        Evade(Airframe af) {
+            super(af);
+        }
+
+        @Override
+        public ProcedureId id() {
+            return ProcedureId.EVADE;
+        }
+
+        @Override
+        public boolean canBegin(HeliState s, Situation sit) {
+            return sit.targetValid;
+        }
+
+        @Override
+        public void begin(HeliState st, Situation sit, double t) {
+            double ax = st.p.x - sit.targetX, az = st.p.z - sit.targetZ, l = Math.sqrt(ax * ax + az * az);
+            if (l < 1.0) {
+                double[] d = travelDir(st);
+                ax = -d[0];
+                az = -d[1];
+                l = 1.0;
+            }
+            ex = st.p.x + af.evadeDistance * ax / l;
+            ez = st.p.z + af.evadeDistance * az / l;
+            super.begin(st, sit, t);
+        }
+
+        @Override
+        double destX(Situation sit) {
+            return ex;
+        }
+
+        @Override
+        double destZ(Situation sit) {
+            return ez;
+        }
+
+        @Override
+        double legAltitude(Situation sit) {
+            return sit.cruiseY;
+        }
+    }
+
+    // --- Patrol ----------------------------------------------------------------------------------
+
+    /**
+     * RU/US free patrol: a closed loop of four nodes round the anchor, drawn from the hull's
+     * persistent seed (theta_0 first, then r_k and the jitter j_k per node, in that order), each
+     * flown with the bisector heading, joined by Dubins legs at R_p = max(R_min, V^2/a_lat). Entry is a
+     * Dubins leg from the current pose to the nearest node ahead. Terrain-relative cruise altitude.
+     * Never completes.
+     */
+    static final class Patrol implements HeliProcedure {
+        static final int NODES = 4;
+        private final Airframe af;
+        private final PathFollower f = new PathFollower();
+        private final Prefilter alt = new Prefilter();
+        final double[][] node = new double[NODES][2], head = new double[NODES][2];
+        final DubinsPlanar.Path[] legs = new DubinsPlanar.Path[NODES];
+        private int at;
+
+        Patrol(Airframe af) {
+            this.af = af;
+        }
+
+        @Override
+        public ProcedureId id() {
+            return ProcedureId.PATROL;
+        }
+
+        /** Build the loop round (ax, az) from {@code seed}; pure, so D4 can compare two builds. */
+        void build(double ax, double az, long seed) {
+            SplittableRandom rng = new SplittableRandom(seed);
+            double theta0 = rng.nextDouble() * 2.0 * Math.PI;
+            for (int k = 0; k < NODES; k++) {
+                double r = af.patrolRMin + rng.nextDouble() * (af.patrolRMax - af.patrolRMin);
+                double j = (2.0 * rng.nextDouble() - 1.0) * Math.PI / (2.0 * NODES);
+                double th = theta0 + 2.0 * Math.PI * k / NODES + j;
+                node[k][0] = ax + r * StrictMath.sin(th);
+                node[k][1] = az + r * StrictMath.cos(th);
+            }
+            for (int k = 0; k < NODES; k++) {
+                double[] a = node[(k + NODES - 1) % NODES], b = node[k], c = node[(k + 1) % NODES];
+                double ix = b[0] - a[0], iz = b[1] - a[1], il = Math.sqrt(ix * ix + iz * iz);
+                double ox = c[0] - b[0], oz = c[1] - b[1], ol = Math.sqrt(ox * ox + oz * oz);
+                double hx = ix / il + ox / ol, hz = iz / il + oz / ol, hl = Math.sqrt(hx * hx + hz * hz);
+                head[k][0] = hx / hl;
+                head[k][1] = hz / hl;
+            }
+            double r = radius();
+            for (int k = 0; k < NODES; k++) {
+                int n = (k + 1) % NODES;
+                legs[k] = DubinsPlanar.shortest(node[k][0], node[k][1], head[k][0], head[k][1],
+                        node[n][0], node[n][1], head[n][0], head[n][1], r);
+            }
+        }
+
+        double radius() {
+            return Math.max(af.minTurnRadius, af.cruiseSpeed * af.cruiseSpeed / af.aLatMax);
+        }
+
+        @Override
+        public void begin(HeliState s, Situation sit, double t) {
+            build(Double.isNaN(sit.anchorX) ? s.p.x : sit.anchorX, Double.isNaN(sit.anchorZ) ? s.p.z : sit.anchorZ, sit.seed);
+            double[] d = travelDir(s);
+            int best = -1, nearest = 0;
+            double bestD = Double.MAX_VALUE, nearD = Double.MAX_VALUE;
+            for (int k = 0; k < NODES; k++) {
+                double dx = node[k][0] - s.p.x, dz = node[k][1] - s.p.z, dd = dx * dx + dz * dz;
+                if (dd < nearD) {
+                    nearD = dd;
+                    nearest = k;
+                }
+                if (dx * d[0] + dz * d[1] > 0.0 && dd < bestD) {
+                    bestD = dd;
+                    best = k;
+                }
+            }
+            at = best >= 0 ? best : nearest;
+            f.start(DubinsPlanar.shortest(s.p.x, s.p.z, d[0], d[1], node[at][0], node[at][1], head[at][0], head[at][1],
+                    radius()), Math.max(0.0, s.v.x * d[0] + s.v.z * d[1]), t);
+            f.next = () -> {
+                DubinsPlanar.Path leg = legs[at];
+                at = (at + 1) % NODES;
+                return leg;
+            };
+            alt.reset(s.p.y, s.v.y);
+        }
+
+        @Override
+        public HeliReference refAt(double t, HeliState s, Situation sit) {
+            f.advance(t, af.cruiseSpeed);
+            alt.at(t, sit.cruiseY, FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
+            return f.sample(t, alt);
+        }
+
+        @Override
+        public double[] lookahead() {
+            return node[at].clone();
+        }
+
+        @Override
+        public boolean isComplete(HeliState s, Situation sit, double t) {
+            return false;
         }
     }
 
@@ -451,6 +683,436 @@ public final class Procedures {
         @Override
         public boolean isComplete(HeliState s, Situation sit, double t) {
             return false;
+        }
+    }
+
+    // --- FireStill (DetNav) --------------------------------------------------------------------
+
+    /**
+     * Hover at a standoff station and hold the nose on the target (plan 4.10): S = T_h + d_s u, u the
+     * bearing from target to hull at begin, d_s from the yaw and lag envelopes and the standoff
+     * floor, the altitude from the elevation solve. The station moves with the (tracked) target; the
+     * hull's offset from it at begin decays through rate- and acceleration-limited filters. Complete
+     * on target loss past the ghost, line of sight lost for two seconds, or the dwell.
+     */
+    static final class FireStill implements HeliProcedure {
+        private final Airframe af;
+        private final double g;
+        private final TargetTrack track = new TargetTrack();
+        private final Prefilter ex = new Prefilter(), ez = new Prefilter(), alt = new Prefilter();
+        private double ux, uz, standoff, t0, yaw, losLostAt = Double.NaN;
+
+        FireStill(Airframe af, double g) {
+            this.af = af;
+            this.g = g;
+        }
+
+        @Override
+        public ProcedureId id() {
+            return ProcedureId.FIRE_STILL;
+        }
+
+        @Override
+        public boolean canBegin(HeliState s, Situation sit) {
+            return sit.targetValid && Envelope.windOk(af, g, RHO, 0.0) && Envelope.yawOk(af, g, RHO, sit, s.p.x, s.p.z);
+        }
+
+        @Override
+        public void begin(HeliState s, Situation sit, double t) {
+            track.update(sit);
+            Vector3d tp = track.p(t), tv = track.v(t);
+            double ax = s.p.x - tp.x, az = s.p.z - tp.z, l = Math.sqrt(ax * ax + az * az);
+            if (l < 1.0) {
+                double[] d = travelDir(s);
+                ax = -d[0];
+                az = -d[1];
+                l = 1.0;
+            }
+            ux = ax / l;
+            uz = az / l;
+            standoff = Envelope.station(af, sit, Envelope.baseStandoff(af, g, RHO, sit, s.p.x, s.p.z))[0];
+            ex.reset(s.p.x - (tp.x + standoff * ux), s.v.x - tv.x);
+            ez.reset(s.p.z - (tp.z + standoff * uz), s.v.z - tv.z);
+            alt.reset(s.p.y, s.v.y);
+            yaw = heading(s);
+            t0 = t;
+        }
+
+        @Override
+        public HeliReference refAt(double t, HeliState s, Situation sit) {
+            track.update(sit);
+            if (sit.targetValid && !sit.targetLos) {
+                if (Double.isNaN(losLostAt)) losLostAt = sit.time;
+            } else if (sit.targetLos) {
+                losLostAt = Double.NaN;
+            }
+            Vector3d tp = track.p(t), tv = track.v(t), ta = track.a(t);
+            ex.at(t, 0.0, FILTER_W, H, -af.vMaxH, af.vMaxH, af.aLatMax);
+            ez.at(t, 0.0, FILTER_W, H, -af.vMaxH, af.vMaxH, af.aLatMax);
+            alt.at(t, Envelope.station(af, sit, standoff)[1], FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
+            Vector3d p = new Vector3d(tp.x + standoff * ux + ex.value(), alt.value(), tp.z + standoff * uz + ez.value());
+            Vector3d v = new Vector3d(tv.x + ex.rate(), alt.rate(), tv.z + ez.rate());
+            Vector3d a = new Vector3d(ta.x + ex.accel(), alt.accel(), ta.z + ez.accel());
+            double[] los = lineOfSight(p, v, tp, tv, yaw);
+            yaw = los[0];
+            return new HeliReference(t, p, v, a, los[0], los[1]);
+        }
+
+        @Override
+        public boolean isComplete(HeliState s, Situation sit, double t) {
+            return track.lost() || (!Double.isNaN(losLostAt) && sit.time - losLostAt > LOS_LOST_LIMIT)
+                    || t - t0 >= af.stillDwell;
+        }
+
+        @Override
+        public boolean fireWindow(HeliState s, Situation sit) {
+            return Envelope.inCone(af, s.p.y, sit.targetY, StrictMath.hypot(sit.targetX - s.p.x, sit.targetZ - s.p.z), sit.fireCone);
+        }
+
+        @Override
+        public boolean retarget(Situation sit, double t) {
+            return true;
+        }
+    }
+
+    // --- FireLoop (DetNav) ---------------------------------------------------------------------
+
+    /** Orbit radius: the FireStill standoff without the wind rule, from the target's own crossing motion. */
+    public static double loopRadius(Airframe af, double g, Situation sit, double hullX, double hullZ) {
+        return Envelope.station(af, sit, Envelope.baseStandoff(af, g, RHO, sit, hullX, hullZ, false))[0];
+    }
+
+    /**
+     * Orbit the target at R_o in the pilot's parity sense, nose on the centre (a pedal turn flown
+     * sideways), at the orbit speed V_o of {@link Envelope#orbitSpeed} (plan 4.10, plus its sideslip term):
+     * <pre>
+     *   theta(tau) = theta_0 + s V_o tau / R_o,   e = (sin theta, 0, cos theta),  e' = (cos theta, 0, -sin theta)
+     *   p = c + r e + y,   v = c' + r' e + r theta' e',   a = c'' + r'' e + 2 r' theta' e' - r theta'^2 e
+     *   psi = pi - theta,  psi' = -theta'
+     * </pre>
+     * c is the tracked target. The radial error at begin (inside the half-radius entry band) decays
+     * through a limited filter, r = R_o + rho(t), so the entry is a C1 spiral rather than a blend
+     * absorbing a step. Complete after a full lap, {@code loopTime}, or target loss.
+     */
+    static final class FireLoop implements HeliProcedure {
+        private final Airframe af;
+        private final double g;
+        private final TargetTrack track = new TargetTrack();
+        private final Prefilter rho = new Prefilter(), alt = new Prefilter();
+        private double radius, thDot, theta0, t0;
+        int sense;
+
+        FireLoop(Airframe af, double g) {
+            this.af = af;
+            this.g = g;
+        }
+
+        @Override
+        public ProcedureId id() {
+            return ProcedureId.FIRE_LOOP;
+        }
+
+        @Override
+        public boolean canBegin(HeliState s, Situation sit) {
+            if (!sit.targetValid) return false;
+            double r = loopRadius(af, g, sit, s.p.x, s.p.z);
+            double d = StrictMath.hypot(s.p.x - sit.targetX, s.p.z - sit.targetZ);
+            return Math.abs(d - r) <= 0.5 * r;
+        }
+
+        @Override
+        public void begin(HeliState s, Situation sit, double t) {
+            track.update(sit);
+            Vector3d c = track.p(t), cv = track.v(t);
+            sense = Parity.side(sit.pilotId);
+            radius = loopRadius(af, g, sit, s.p.x, s.p.z);
+            thDot = sense * Envelope.orbitSpeed(af, g, RHO, radius, sit.fireCone, StrictMath.hypot(cv.x, cv.z)) / radius;
+            double rx = s.p.x - c.x, rz = s.p.z - c.z, d = Math.sqrt(rx * rx + rz * rz);
+            theta0 = StrictMath.atan2(rx, rz);
+            double vr = d > 1e-6 ? ((s.v.x - cv.x) * rx + (s.v.z - cv.z) * rz) / d : 0.0;
+            rho.reset(d - radius, vr);
+            alt.reset(s.p.y, s.v.y);
+            t0 = t;
+        }
+
+        double radius() {
+            return radius;
+        }
+
+        @Override
+        public HeliReference refAt(double t, HeliState s, Situation sit) {
+            track.update(sit);
+            Vector3d c = track.p(t), cv = track.v(t), ca = track.a(t);
+            rho.at(t, 0.0, FILTER_W, H, -af.vMaxH, af.vMaxH, af.aLatMax);
+            alt.at(t, Envelope.station(af, sit, radius)[1], FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
+            double th = theta0 + thDot * (t - t0);
+            double sin = StrictMath.sin(th), cos = StrictMath.cos(th);
+            double r = radius + rho.value(), rd = rho.rate(), rdd = rho.accel();
+            Vector3d p = new Vector3d(c.x + r * sin, alt.value(), c.z + r * cos);
+            Vector3d v = new Vector3d(cv.x + rd * sin + r * thDot * cos, alt.rate(), cv.z + rd * cos - r * thDot * sin);
+            double rad = rdd - r * thDot * thDot, tan = 2.0 * rd * thDot;
+            Vector3d a = new Vector3d(ca.x + rad * sin + tan * cos, alt.accel(), ca.z + rad * cos - tan * sin);
+            return new HeliReference(t, p, v, a, wrapPi(Math.PI - th), -thDot);
+        }
+
+        @Override
+        public boolean isComplete(HeliState s, Situation sit, double t) {
+            return Math.abs(thDot * (t - t0)) >= 2.0 * Math.PI || t - t0 >= af.loopTime || track.lost();
+        }
+
+        @Override
+        public boolean fireWindow(HeliState s, Situation sit) {
+            return Envelope.inCone(af, s.p.y, sit.targetY, StrictMath.hypot(sit.targetX - s.p.x, sit.targetZ - s.p.z), sit.fireCone);
+        }
+
+        @Override
+        public boolean retarget(Situation sit, double t) {
+            return true;
+        }
+    }
+
+    /**
+     * FireLoop's fallback outside its entry band (plan 4.11): a transit to the orbit's tangent point
+     * in the pilot's sense, theta_Q = phi + s acos(R_o/d) (radial when inside the circle), so the hull
+     * arrives already flying the orbit's direction. Carries the attack precedence; completes on
+     * entering the band, which hands over to FireLoop. Never counts as an engagement.
+     */
+    static final class LoopApproach extends Transit {
+        private final double g;
+        private double radius, offX, offZ;
+
+        LoopApproach(Airframe af, double g) {
+            super(af);
+            this.g = g;
+        }
+
+        @Override
+        public boolean canBegin(HeliState s, Situation sit) {
+            return sit.targetValid;
+        }
+
+        @Override
+        public void begin(HeliState st, Situation sit, double t) {
+            radius = loopRadius(af, g, sit, st.p.x, st.p.z);
+            double rx = st.p.x - sit.targetX, rz = st.p.z - sit.targetZ, d = Math.sqrt(rx * rx + rz * rz);
+            double phi = StrictMath.atan2(rx, rz);
+            double q = d > radius ? phi + Parity.side(sit.pilotId) * StrictMath.acos(radius / d) : phi;
+            offX = radius * StrictMath.sin(q);
+            offZ = radius * StrictMath.cos(q);
+            super.begin(st, sit, t);
+        }
+
+        @Override
+        double destX(Situation sit) {
+            return sit.targetX + offX;
+        }
+
+        @Override
+        double destZ(Situation sit) {
+            return sit.targetZ + offZ;
+        }
+
+        @Override
+        double legAltitude(Situation sit) {
+            return Envelope.station(af, sit, radius)[1];
+        }
+
+        @Override
+        public boolean isComplete(HeliState s, Situation sit, double t) {
+            double d = StrictMath.hypot(s.p.x - sit.targetX, s.p.z - sit.targetZ);
+            return !sit.targetValid || Math.abs(d - radius) <= 0.5 * radius;
+        }
+
+        @Override
+        public boolean retarget(Situation sit, double t) {
+            return true; // the destination is read off the live target; the transit re-plans itself
+        }
+    }
+
+    // --- FireRun (DetNav) ----------------------------------------------------------------------
+
+    /**
+     * A strafing pass (plan 4.10). Axis e = the bearing to the target at begin, or the axis the last
+     * pass's exit handed down. Run start P_s = T_h - L_in e. If the hull is off the axis (heading > 15
+     * deg or cross-track > 3 m) a Dubins ingress to (P_s, e) is prepended. Then the run leg along e at
+     * the run speed and the run altitude max(groundRef + 34, y_t + 12).
+     *
+     * <p>The fire window opens at {@code engageRadius} and closes at the break range, overfly past
+     * T + 8, the window time T_w = (V_max - V_run)/a_w, a depleted weapon, the pull-up floor, or the
+     * target lost past the ghost. Closing it flies the exit: a Dubins break/reposition to
+     * (P_s', e'), e' = R_Y(s reattack) e, BREAK on its first arc and REPOSITION after, at cruise
+     * altitude; the procedure completes at the end of it and hands e' to the next pass. A pre-empted
+     * run never flies the exit.
+     */
+    static final class FireRun implements HeliProcedure {
+        static final double BREAK_RANGE = 14.0, OVERFLY_MARGIN = 8.0, PULLUP_FLOOR = 18.0, PULLUP_LEAD = 0.5;
+        static final double RUN_AGL = 34.0, MIN_OVER_TARGET = 12.0, T_ALIGN = 3.0, ALIGN_XTRACK = 3.0;
+        static final double ALIGN_COS = StrictMath.cos(StrictMath.toRadians(15.0));
+        /** Straight tail appended to every path, so the reference never runs out of road. */
+        private static final double TAIL = 1000.0;
+
+        private final Airframe af;
+        private final double g;
+        private final TargetTrack track = new TargetTrack();
+        private final PathFollower f = new PathFollower();
+        private final Prefilter alt = new Prefilter();
+        private double ex, ez, nextEx = Double.NaN, nextEz = Double.NaN, hintEx = Double.NaN, hintEz;
+        private double lin, windowOpen = Double.NaN, breakArc;
+        private boolean onLine, done;
+        private int sense;
+        FirePhase phase = FirePhase.INGRESS;
+
+        FireRun(Airframe af, double g) {
+            this.af = af;
+            this.g = g;
+        }
+
+        @Override
+        public ProcedureId id() {
+            return ProcedureId.FIRE_RUN;
+        }
+
+        /** The axis the previous pass's exit handed down. */
+        void hint(double[] axis) {
+            if (axis != null && !Double.isNaN(axis[0])) {
+                hintEx = axis[0];
+                hintEz = axis[1];
+            }
+        }
+
+        double[] exitAxis() {
+            return new double[] {nextEx, nextEz};
+        }
+
+        double runAltitude(Situation sit) {
+            return Math.max(sit.groundRef + RUN_AGL, sit.targetY + MIN_OVER_TARGET);
+        }
+
+        double radius() {
+            return Math.max(af.minTurnRadius, af.runSpeed * af.runSpeed / af.aLatMax);
+        }
+
+        /**
+         * T_w = (V_max - V_run) / a_w with a_w = g tan(clamp(eps - cone_hi - alpha, 0, gamma_max)) - D(V)/m, at
+         * the window's open range; infinite when a_w <= 0. The fire gate only needs the boresight within
+         * alpha of the line of sight, so the nose-down the window forces is what is left after the
+         * pitch-free cone AND the fire cone (the plan's formula left alpha out, which made every run at
+         * the shipped geometry infeasible).
+         */
+        double windowTime(Situation sit) {
+            double eps = StrictMath.atan2(runAltitude(sit) - sit.targetY, Math.max(sit.engageRadius, 1.0));
+            double tilt = Math.max(0.0, Math.min(af.tiltMax, eps - af.coneHi - sit.fireCone));
+            double drag = 0.5 * RHO * af.cdaZ * af.runSpeed * af.runSpeed / af.mass;
+            double aw = g * StrictMath.tan(tilt) - drag;
+            return aw <= 0.0 ? Double.POSITIVE_INFINITY : (af.vMaxH - af.runSpeed) / aw;
+        }
+
+        @Override
+        public boolean canBegin(HeliState s, Situation sit) {
+            return sit.targetValid && windowTime(sit) >= 1.0;
+        }
+
+        @Override
+        public void begin(HeliState s, Situation sit, double t) {
+            track.update(sit);
+            sense = Parity.side(sit.pilotId);
+            Vector3d tp = track.p(t);
+            if (!Double.isNaN(hintEx)) {
+                ex = hintEx;
+                ez = hintEz;
+            } else {
+                double dx = tp.x - s.p.x, dz = tp.z - s.p.z, l = Math.sqrt(dx * dx + dz * dz);
+                double[] d = travelDir(s);
+                ex = l > 1.0 ? dx / l : d[0];
+                ez = l > 1.0 ? dz / l : d[1];
+            }
+            lin = Math.max(sit.engageRadius + af.runSpeed * T_ALIGN, 2.0 * af.minTurnRadius);
+            double psx = tp.x - lin * ex, psz = tp.z - lin * ez;
+            double[] d = travelDir(s);
+            double speed = Math.max(0.0, s.v.x * d[0] + s.v.z * d[1]);
+            double rx = s.p.x - tp.x, rz = s.p.z - tp.z;
+            double along = rx * ex + rz * ez, cross = Math.abs(rx * ez - rz * ex);
+            boolean aligned = d[0] * ex + d[1] * ez >= ALIGN_COS && cross <= ALIGN_XTRACK && along <= -sit.engageRadius;
+            if (aligned) {
+                f.start(line(s.p.x, s.p.z, ex, ez, -along + TAIL), speed, t);
+                onLine = true;
+            } else {
+                f.start(DubinsPlanar.shortest(s.p.x, s.p.z, d[0], d[1], psx, psz, ex, ez, radius()), speed, t);
+                f.next = () -> line(psx, psz, ex, ez, lin + TAIL);
+                onLine = false;
+            }
+            alt.reset(s.p.y, s.v.y);
+            phase = FirePhase.INGRESS;
+        }
+
+        @Override
+        public HeliReference refAt(double t, HeliState s, Situation sit) {
+            track.update(sit);
+            if (!done) advancePhase(t, s, sit);
+            boolean attacking = phase == FirePhase.INGRESS || phase == FirePhase.ATTACK;
+            double speed = attacking ? (onLine ? af.runSpeed : af.cruiseSpeed)
+                    : (phase == FirePhase.BREAK ? af.runSpeed : af.cruiseSpeed);
+            f.advance(t, speed);
+            if (!onLine && f.legs > 0) onLine = true;
+            alt.at(t, attacking ? runAltitude(sit) : sit.cruiseY, FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
+            return f.sample(t, alt);
+        }
+
+        private void advancePhase(double t, HeliState s, Situation sit) {
+            switch (phase) {
+                case INGRESS, ATTACK -> {
+                    Vector3d tp = track.p(t);
+                    double rx = s.p.x - tp.x, rz = s.p.z - tp.z, range = Math.sqrt(rx * rx + rz * rz);
+                    double along = rx * ex + rz * ez;
+                    if (phase == FirePhase.INGRESS && onLine && range <= sit.engageRadius) {
+                        phase = FirePhase.ATTACK;
+                        windowOpen = t;
+                    }
+                    boolean pullUp = s.p.y - sit.groundBelow <= PULLUP_FLOOR + Math.max(0.0, -s.v.y) * PULLUP_LEAD;
+                    boolean close = track.lost() || (onLine && along > OVERFLY_MARGIN) || (onLine && pullUp)
+                            || (phase == FirePhase.ATTACK && (range <= BREAK_RANGE || t - windowOpen >= windowTime(sit)
+                                    || sit.ammoFrac <= 0.0));
+                    if (close) startBreak(t, tp);
+                }
+                case BREAK -> {
+                    if (f.legs > 0 || f.s >= breakArc) phase = FirePhase.REPOSITION;
+                }
+                case REPOSITION -> {
+                    if (f.legs > 0) done = true;
+                }
+                default -> {
+                }
+            }
+        }
+
+        private void startBreak(double t, Vector3d tp) {
+            f.path.sample(f.s, f.out);
+            double a = sense * af.reattack, cos = StrictMath.cos(a), sin = StrictMath.sin(a);
+            nextEx = ex * cos + ez * sin;
+            nextEz = -ex * sin + ez * cos;
+            double psx = tp.x - lin * nextEx, psz = tp.z - lin * nextEz;
+            DubinsPlanar.Path exit = DubinsPlanar.shortest(f.out[0], f.out[1], f.out[2], f.out[3],
+                    psx, psz, nextEx, nextEz, radius());
+            f.swap(exit);
+            double ax = nextEx, az = nextEz;
+            f.next = () -> line(psx, psz, ax, az, TAIL);
+            breakArc = exit.segments().get(0).length();
+            phase = FirePhase.BREAK;
+        }
+
+        @Override
+        public boolean isComplete(HeliState s, Situation sit, double t) {
+            return done;
+        }
+
+        @Override
+        public FirePhase firePhase() {
+            return phase;
+        }
+
+        @Override
+        public boolean fireWindow(HeliState s, Situation sit) {
+            return phase == FirePhase.ATTACK;
         }
     }
 }

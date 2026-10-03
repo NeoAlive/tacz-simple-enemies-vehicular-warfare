@@ -691,16 +691,20 @@ public final class Procedures {
     /**
      * Hover at a standoff station and hold the nose on the target (plan 4.10): S = T_h + d_s u, u the
      * bearing from target to hull at begin, d_s from the yaw and lag envelopes and the standoff
-     * floor, the altitude from the elevation solve. The station moves with the (tracked) target; the
-     * hull's offset from it at begin decays through rate- and acceleration-limited filters. Complete
-     * on target loss past the ghost, line of sight lost for two seconds, or the dwell.
+     * floor, the altitude from the elevation solve. All three are solved once, at begin, and held
+     * as an offset from the target: the station moves with the (tracked) target and with nothing
+     * else, so the snapshot's per-tick terrain reads (cruise altitude under the hull, groundRef)
+     * cannot walk it. The hull's offset from it at begin decays through rate- and
+     * acceleration-limited filters (the capture), after which the reference is still. Complete on
+     * target loss past the ghost, line of sight lost for two seconds, or the dwell.
      */
     static final class FireStill implements HeliProcedure {
         private final Airframe af;
         private final double g;
         private final TargetTrack track = new TargetTrack();
         private final Prefilter ex = new Prefilter(), ez = new Prefilter(), alt = new Prefilter();
-        private double ux, uz, standoff, t0, yaw, losLostAt = Double.NaN;
+        private double ux, uz, standoff, rise, t0, yaw, losLostAt = Double.NaN;
+        private double[] held;
 
         FireStill(Airframe af, double g) {
             this.af = af;
@@ -717,6 +721,15 @@ public final class Procedures {
             return sit.targetValid && Envelope.windOk(af, g, RHO, 0.0) && Envelope.yawOk(af, g, RHO, sit, s.p.x, s.p.z);
         }
 
+        /** The station (bearing, standoff, rise) the previous FireStill held against this target. */
+        void hint(double[] station) {
+            held = station;
+        }
+
+        double[] station() {
+            return new double[] {ux, uz, standoff, rise};
+        }
+
         @Override
         public void begin(HeliState s, Situation sit, double t) {
             track.update(sit);
@@ -728,12 +741,33 @@ public final class Procedures {
                 az = -d[1];
                 l = 1.0;
             }
-            ux = ax / l;
-            uz = az / l;
-            standoff = Envelope.station(af, sit, Envelope.baseStandoff(af, g, RHO, sit, s.p.x, s.p.z))[0];
-            ex.reset(s.p.x - (tp.x + standoff * ux), s.v.x - tv.x);
-            ez.reset(s.p.z - (tp.z + standoff * uz), s.v.z - tv.z);
-            alt.reset(s.p.y, s.v.y);
+            if (held != null) {
+                // A re-begin after the dwell against the same target keeps the station it held: a fresh
+                // solve from wherever the hull stands (within its hold error) would nudge it each time.
+                ux = held[0];
+                uz = held[1];
+                standoff = held[2];
+                rise = held[3];
+            } else {
+                ux = ax / l;
+                uz = az / l;
+                double[] st = Envelope.station(af, sit, Envelope.baseStandoff(af, g, RHO, sit, s.p.x, s.p.z));
+                rise = st[1] - tp.y;
+                // d_s = max(d_yaw, d_lag, heliMinStandoff, 2 |y_s - y_t|): at most 1:2 drop to range
+                // (26.6 deg below the nose), so the boresight sits inside the fire cone on station.
+                standoff = Math.max(st[0], 2.0 * Math.abs(rise));
+            }
+            if (held != null) {
+                // Continue the held station exactly: the previous FireStill's reference was already on
+                // it, so starting from the hull (within its hold error) would only start a new capture.
+                ex.reset(0.0, 0.0);
+                ez.reset(0.0, 0.0);
+                alt.reset(tp.y + rise, tv.y);
+            } else {
+                ex.reset(s.p.x - (tp.x + standoff * ux), s.v.x - tv.x);
+                ez.reset(s.p.z - (tp.z + standoff * uz), s.v.z - tv.z);
+                alt.reset(s.p.y, s.v.y);
+            }
             yaw = heading(s);
             t0 = t;
         }
@@ -749,7 +783,7 @@ public final class Procedures {
             Vector3d tp = track.p(t), tv = track.v(t), ta = track.a(t);
             ex.at(t, 0.0, FILTER_W, H, -af.vMaxH, af.vMaxH, af.aLatMax);
             ez.at(t, 0.0, FILTER_W, H, -af.vMaxH, af.vMaxH, af.aLatMax);
-            alt.at(t, Envelope.station(af, sit, standoff)[1], FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
+            alt.at(t, tp.y + rise, FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
             Vector3d p = new Vector3d(tp.x + standoff * ux + ex.value(), alt.value(), tp.z + standoff * uz + ez.value());
             Vector3d v = new Vector3d(tv.x + ex.rate(), alt.rate(), tv.z + ez.rate());
             Vector3d a = new Vector3d(ta.x + ex.accel(), alt.accel(), ta.z + ez.accel());
@@ -799,7 +833,7 @@ public final class Procedures {
         private final double g;
         private final TargetTrack track = new TargetTrack();
         private final Prefilter rho = new Prefilter(), alt = new Prefilter();
-        private double radius, thDot, theta0, t0;
+        private double radius, rise, thDot, theta0, t0;
         int sense;
 
         FireLoop(Airframe af, double g) {
@@ -826,6 +860,7 @@ public final class Procedures {
             Vector3d c = track.p(t), cv = track.v(t);
             sense = Parity.side(sit.pilotId);
             radius = loopRadius(af, g, sit, s.p.x, s.p.z);
+            rise = Envelope.station(af, sit, radius)[1] - c.y;
             thDot = sense * Envelope.orbitSpeed(af, g, RHO, radius, sit.fireCone, StrictMath.hypot(cv.x, cv.z)) / radius;
             double rx = s.p.x - c.x, rz = s.p.z - c.z, d = Math.sqrt(rx * rx + rz * rz);
             theta0 = StrictMath.atan2(rx, rz);
@@ -844,7 +879,7 @@ public final class Procedures {
             track.update(sit);
             Vector3d c = track.p(t), cv = track.v(t), ca = track.a(t);
             rho.at(t, 0.0, FILTER_W, H, -af.vMaxH, af.vMaxH, af.aLatMax);
-            alt.at(t, Envelope.station(af, sit, radius)[1], FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
+            alt.at(t, c.y + rise, FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
             double th = theta0 + thDot * (t - t0);
             double sin = StrictMath.sin(th), cos = StrictMath.cos(th);
             double r = radius + rho.value(), rd = rho.rate(), rdd = rho.accel();

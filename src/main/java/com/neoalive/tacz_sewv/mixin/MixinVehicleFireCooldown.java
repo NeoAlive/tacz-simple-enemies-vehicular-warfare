@@ -139,6 +139,11 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         return this.tacz_sewv$lineCacheBlocked;
     }
 
+    @Override
+    public boolean tacz_sewv$lineOfFireBlocked(LivingEntity living, LivingEntity target) {
+        return tacz_sewv$lineOfFireBlocked((VehicleEntity) (Object) this, living, target);
+    }
+
     @Unique
     private static boolean tacz_sewv$lineOfFireBlocked(
             VehicleEntity self, LivingEntity living, LivingEntity target) {

@@ -419,34 +419,65 @@ final class HeliAttackChecks {
         return Math.abs(Math.toDegrees(Math.IEEEremainder(nose - los, 2 * Math.PI)));
     }
 
-    /** FireStill against a parked tank: holds the solved station, nose on, inside the fire window. */
+    /**
+     * FireStill against a parked tank: captures the solved station, then the reference is still
+     * (no drift across the dwell re-begins, even with the terrain under the hull read differently
+     * every tick), the hull holds it with a steady pitch (no limit cycle), nose on, fire window open.
+     */
     private static void fireStill(String cls) {
         Airframe af = Sim.airframe(cls);
         Sim sim = new Sim(af).hover(-90, 30, 0, -90);
-        double worstRange = 0, worstNose = 0, standoff = Double.NaN;
+        SplittableRandom terrain = new SplittableRandom(0xF5L);
+        double worstRange = 0, worstNose = 0, standoff = Double.NaN, drift = 0, refSpeed = 0, captured = 0;
+        double worstBore = 0, coneDeg = Double.NaN, drop = 0;
+        double pitchLo = Double.MAX_VALUE, pitchHi = -Double.MAX_VALUE;
+        Vector3d anchor = null;
         boolean window = true;
-        for (long tick = 0; tick < 20 * 40; tick++) {
-            Situation s = targetAt(0, 0);
+        for (long tick = 0; tick < 20 * 60; tick++) {
+            double t = tick / 20.0;
+            Situation s = t < WARMUP ? hoverAt(sim) : targetAt(0, 0);
             s.weaponGuided = true;
             s.targetCategory = Situation.TargetCategory.VEHICLE;
             s.targetMotion = Situation.TargetMotion.STATIC;
             s.weaponRange = 160;
+            s.cruiseY = 40 + terrain.nextDouble(-5, 5); // the surface under a moving hull, re-read each tick
             sim.tickGuided(s, tick, null);
-            if (tick == 0) {
+            if (t < WARMUP) continue;
+            if (Double.isNaN(standoff)) {
                 assert sim.core.stack.activeId() == ProcedureId.FIRE_STILL : "FireStill " + cls + ": got " + sim.core.stack.activeId();
-                standoff = Envelope.station(af, s, Envelope.baseStandoff(af, Sim.G, Airframe.RHO0, s, -90, 0))[0];
+                double[] st = Envelope.station(af, s, Envelope.baseStandoff(af, Sim.G, Airframe.RHO0, s, sim.s.p.x, sim.s.p.z));
+                standoff = Math.max(st[0], 2.0 * Math.abs(st[1] - s.targetY));
+                coneDeg = Math.toDegrees(s.fireCone);
             }
-            if (tick >= 20 * 15) {
+            HeliReference r = sim.core.lastRef;
+            double v = new Vector3d(r.v()).length();
+            if (v >= 0.05) captured = t - WARMUP; // the last moment the reference was still moving
+            if (t >= WARMUP + 15) {
+                if (anchor == null) anchor = new Vector3d(r.p());
+                drift = Math.max(drift, anchor.distance(r.p()));
+                refSpeed = Math.max(refSpeed, v);
                 worstRange = Math.max(worstRange, Math.abs(Math.hypot(sim.s.p.x, sim.s.p.z) - standoff));
                 worstNose = Math.max(worstNose, noseError(sim, 0, 0));
+                Vector3d f = sim.s.q.transform(new Vector3d(0, 0, 1));
+                // What the fire gate judges: the nose (boresight) against the line to the target, in 3D.
+                Vector3d los = new Vector3d(-sim.s.p.x, -sim.s.p.y, -sim.s.p.z).normalize();
+                worstBore = Math.max(worstBore, Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, f.dot(los))))));
+                drop = sim.s.p.y;
+                double pitch = Math.toDegrees(Math.asin(-f.y));
+                pitchLo = Math.min(pitchLo, pitch);
+                pitchHi = Math.max(pitchHi, pitch);
                 window &= sim.core.stack.fireWindow(sim.s, s);
             }
         }
+        assert drift < 0.01 && refSpeed < 1e-3 : "FireStill " + cls + ": station moved " + drift + " m (ref speed " + refSpeed + ")";
         assert worstRange < 2.0 : "FireStill " + cls + ": station error " + worstRange;
         assert worstNose < 5.0 : "FireStill " + cls + ": nose error " + worstNose;
+        assert pitchHi - pitchLo < 1.0 : "FireStill " + cls + ": pitch cycles " + (pitchHi - pitchLo) + " deg peak to peak";
         assert window : "FireStill " + cls + ": fire window closed on station";
-        System.out.printf(Locale.ROOT, "  FS %s: parked tank, standoff %.1f m, station +-%.2f m, nose +-%.2f deg, window open%n",
-                cls, standoff, worstRange, worstNose);
+        assert worstBore < coneDeg : "FireStill " + cls + ": boresight " + worstBore + " deg off the target, cone " + coneDeg;
+        System.out.printf(Locale.ROOT, "  FS %s: parked tank, standoff %.1f m for a %.1f m drop, boresight <= %.1f deg off the target "
+                        + "(cone %.0f), capture %.1f s, drift %.4f m, hold +-%.2f m, nose +-%.2f deg, pitch %.2f deg p-p%n",
+                cls, standoff, drop, worstBore, coneDeg, captured, drift, worstRange, worstNose, pitchHi - pitchLo);
     }
 
     /** R3: FireLoop round a 5 m/s target: radius, nose on the centre, orbit sense = parity. */

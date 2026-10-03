@@ -27,7 +27,8 @@ import com.neoalive.tacz_sewv.heli.physics.HeliState;
  *
  * <p><b>Engagements.</b> Each completed attack procedure (not the approach) counts one engage
  * cycle; the count resets on a target change. A FireRun's exit axis is handed to the next FireRun
- * against the same target. A target hand-off during an attack procedure calls
+ * against the same target, and a FireStill's station to the next FireStill, so a re-begin after the
+ * dwell continues on the same station instead of re-solving it. A target hand-off during an attack procedure calls
  * {@link HeliProcedure#retarget}; if the procedure cannot follow, it is begun afresh.
  *
  * <p>Blending: on a switch the outgoing procedure keeps being sampled for the blend window
@@ -50,13 +51,14 @@ public final class ProcedureStack {
     private ModeSelector.Precedence activeClass = ModeSelector.Precedence.FREENAV;
     private int activeTarget = -1;
     private long beganTick = Long.MIN_VALUE;
+    private double beganAt = Double.NaN;
     private DoubleFunction<HeliReference> outgoing;
     private double blendStart, blendLength;
     private HeliReference last;
     /** The snapshot the active procedure was last sampled with: an outgoing procedure keeps it. */
     private Situation lastSit;
     private int engageCycle, lastTarget = -1;
-    private double[] runAxis;
+    private double[] runAxis, stillStation;
 
     public ProcedureStack(Airframe af, double g) {
         this.af = af;
@@ -76,6 +78,11 @@ public final class ProcedureStack {
         return activeClass;
     }
 
+    /** Sim time the active procedure began (re-begins included). */
+    public double beganAt() {
+        return beganAt;
+    }
+
     public int engageCycle() {
         return engageCycle;
     }
@@ -86,6 +93,7 @@ public final class ProcedureStack {
             lastTarget = sit.targetId;
             engageCycle = 0;
             runAxis = null;
+            stillStation = null;
         }
         if (active == null) {
             HeliProcedure first = resolve(choice.id(), s, sit);
@@ -97,6 +105,7 @@ public final class ProcedureStack {
         if (done && attack && !(active instanceof Procedures.LoopApproach)) {
             engageCycle++;
             if (active instanceof Procedures.FireRun run) runAxis = run.exitAxis();
+            if (active instanceof Procedures.FireStill still) stillStation = still.station();
         }
         if (!done && attack && sit.targetValid && sit.targetId != activeTarget) {
             activeTarget = sit.targetId;
@@ -162,6 +171,7 @@ public final class ProcedureStack {
 
     private void install(HeliProcedure next, ModeSelector.Precedence cls, HeliState s, Situation sit, double t, long tick) {
         if (next instanceof Procedures.FireRun run) run.hint(runAxis);
+        if (next instanceof Procedures.FireStill still) still.hint(stillStation);
         if (active != null) {
             Situation old = lastSit != null ? lastSit : sit;
             HeliReference now = refAt(t, s, old);
@@ -181,6 +191,7 @@ public final class ProcedureStack {
         activeClass = cls;
         activeTarget = sit.targetId;
         beganTick = tick;
+        beganAt = t;
     }
 
     private static DoubleFunction<HeliReference> procedureFeed(HeliProcedure p, HeliState s, Situation sit) {

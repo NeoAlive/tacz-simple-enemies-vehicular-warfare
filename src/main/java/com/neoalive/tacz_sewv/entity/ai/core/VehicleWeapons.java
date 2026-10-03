@@ -767,6 +767,17 @@ public final class VehicleWeapons {
     public static final double NPC_ASSIST_CONE_FLOOR_DEG = 35.0;
 
     /** Effective cone for an NPC-crewed seat: max(requested, {@link #NPC_ASSIST_CONE_FLOOR_DEG}). */
+    /**
+     * The angle the fire assist judges a shot on: the hull's HUD shoot direction against the line
+     * from the muzzle to the target's bounding-box centre, degrees; NaN when either is degenerate.
+     */
+    public static double boresightAngleDeg(VehicleEntity vehicle, AbstractUnit unit, LivingEntity target) {
+        Vec3 shootDir = vehicle.getShootDirectionForHud(unit, 1.0F);
+        Vec3 toTarget = target.getBoundingBox().getCenter().subtract(vehicle.getShootPos(unit, 1.0F));
+        if (shootDir.lengthSqr() < 1.0E-6 || toTarget.lengthSqr() < 1.0E-6) return Double.NaN;
+        return Math.toDegrees(Math.acos(Mth.clamp(shootDir.normalize().dot(toTarget.normalize()), -1.0, 1.0)));
+    }
+
     public static double npcAssistConeDeg(double requestedDeg) {
         return Math.max(requestedDeg, NPC_ASSIST_CONE_FLOOR_DEG);
     }

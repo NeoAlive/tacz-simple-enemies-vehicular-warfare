@@ -138,6 +138,11 @@ public final class HeliRuntime {
         return stack.lookahead();
     }
 
+    /** Sim time the active procedure began. */
+    public double procedureBegan() {
+        return stack.beganAt();
+    }
+
     HeliReference lastRef() {
         return core.lastRef;
     }

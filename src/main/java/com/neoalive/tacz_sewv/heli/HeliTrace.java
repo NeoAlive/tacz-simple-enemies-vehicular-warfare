@@ -39,6 +39,12 @@ import com.neoalive.tacz_sewv.heli.physics.McPose;
  * means {@code move()} did not apply it; {@code p_ent != out_x} means something wrote the position
  * between ticks.
  *
+ * <p>Phase 3 diagnostics follow {@code p_ent}: the active procedure's age, fire phase and fire
+ * window; the Situation fields that drive the attack rows; the target's position and velocity as
+ * guidance saw them; then the fire assist's own verdict for the tick ({@code fire_event} 1 when
+ * {@code vehicleShoot} was called, the gate's answer, the boresight-to-LOS angle it was judged on,
+ * the cone, and an uncached terrain/obstacle line-of-fire test from muzzle to target).
+ *
  * <p>Server thread only. The hot-path cost while nothing is traced is one empty-map check.
  */
 public final class HeliTrace {
@@ -50,7 +56,14 @@ public final class HeliTrace {
             + "out_dmx,out_dmy,out_dmz,out_yaw,out_pitch,out_roll,out_power,out_synchedRot,model,"
             + "p_pred_x,p_pred_y,p_pred_z,proc_active,proc_requested,ref_t,ref_px,ref_py,ref_pz,ref_vx,ref_vy,ref_vz,"
             + "sit_orderKind,sit_underOrders,sit_hasDestination,sit_destinationDistance,"
-            + "out_x,out_y,out_z,dm_applied_x,dm_applied_y,dm_applied_z,p_ent_x,p_ent_y,p_ent_z\n";
+            + "out_x,out_y,out_z,dm_applied_x,dm_applied_y,dm_applied_z,p_ent_x,p_ent_y,p_ent_z,"
+            + "proc_age,fire_phase,fire_window,sit_targetValid,sit_armed,sit_ammoFrac,sit_targetCategory,"
+            + "sit_targetDistance,sit_weaponGuided,sit_targetVy,target_x,target_y,target_z,target_vx,target_vy,target_vz,"
+            + "fire_event,fire_gate,boresight_vs_los_deg,fire_cone_deg,los_clear\n";
+    /** proc_age .. target_vz, blank. */
+    private static final String NO_RUNTIME = ",".repeat(16);
+    /** fire_event .. los_clear when the goal reported nothing this tick. */
+    private static final String NO_FIRE = "0,,,,";
 
     /** Hull id -> the half-built row for the current tick. */
     private static final Map<Integer, Row> TRACED = new HashMap<>();
@@ -61,6 +74,8 @@ public final class HeliTrace {
         boolean tcRead;
         /** The row has its post-move columns and waits for the next tick's p_ent. */
         boolean pending;
+        /** Runtime columns (proc_age .. target_vz) and the goal's fire columns, written after p_ent. */
+        String extra = NO_RUNTIME, fire = NO_FIRE;
 
         Row(Path file) {
             this.file = file;
@@ -73,7 +88,7 @@ public final class HeliTrace {
     public static boolean toggle(VehicleEntity hull) {
         Row old = TRACED.remove(hull.getId());
         if (old != null) {
-            if (old.pending) write(hull, old, old.line.append(",,\n"));
+            if (old.pending) write(hull, old, old.line.append(",,,").append(old.extra).append(old.fire).append('\n'));
             return false;
         }
         Path file = file(hull);
@@ -98,11 +113,13 @@ public final class HeliTrace {
         if (row == null) return;
         StringBuilder s = row.line;
         if (row.pending) {
-            cols(s, v.getX(), v.getY());
-            s.append(v.getZ()).append('\n');
+            cols(s, v.getX(), v.getY(), v.getZ());
+            s.append(row.extra).append(row.fire).append('\n');
             if (!write(v, row, s)) return;
         }
         row.pending = false;
+        row.extra = NO_RUNTIME;
+        row.fire = NO_FIRE;
         s.setLength(0);
         var dm = v.getDeltaMovement();
         s.append(v.level().getGameTime()).append(',');
@@ -145,6 +162,38 @@ public final class HeliTrace {
             bits(s, sit.underOrders, sit.hasDestination);
             cols(s, sit.destDistance);
         }
+        StringBuilder e = new StringBuilder(160);
+        cols(e, ref == null ? Double.NaN : ref.t() - r.procedureBegan());
+        e.append(r.firePhase()).append(',');
+        bits(e, r.fireWindow());
+        if (sit == null) {
+            e.append(",".repeat(13));
+        } else {
+            bits(e, sit.targetValid, sit.armed);
+            cols(e, sit.ammoFrac);
+            e.append(sit.targetCategory).append(',');
+            cols(e, sit.targetDistance);
+            bits(e, sit.weaponGuided);
+            cols(e, sit.targetVy, sit.targetX, sit.targetY, sit.targetZ, sit.targetVx, sit.targetVy, sit.targetVz);
+        }
+        row.extra = e.toString();
+    }
+
+    /** True while {@code v} is being traced (cheap; lets callers skip work the trace alone needs). */
+    public static boolean tracing(VehicleEntity v) {
+        return row(v) != null;
+    }
+
+    /**
+     * The pilot's fire assist for this tick (it runs after the hull's own tick, so it lands on the
+     * row being completed): whether {@code vehicleShoot} was called, the gate's verdict, the
+     * boresight-to-LOS angle and cone it was judged on, and the muzzle-to-target line of fire.
+     */
+    public static void noteFire(VehicleEntity v, boolean fired, String gate, double angleDeg, double coneDeg,
+                                boolean losClear) {
+        Row row = row(v);
+        if (row == null) return;
+        row.fire = (fired ? "1," : "0,") + gate + ',' + angleDeg + ',' + coneDeg + ',' + (losClear ? '1' : '0');
     }
 
     /** Right after {@code baseTick}'s {@code move()}: where the hull ended up, and its stored dm. */

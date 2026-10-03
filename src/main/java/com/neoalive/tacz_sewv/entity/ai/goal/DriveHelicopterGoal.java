@@ -23,6 +23,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.EasyMode;
@@ -38,6 +39,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.heli.HeliFlight;
 import com.neoalive.tacz_sewv.heli.HeliRuntime;
+import com.neoalive.tacz_sewv.heli.HeliTrace;
 import com.neoalive.tacz_sewv.heli.guidance.Envelope;
 import com.neoalive.tacz_sewv.heli.guidance.ModeSelector;
 import com.neoalive.tacz_sewv.heli.guidance.OrderKind;
@@ -449,10 +451,13 @@ public class DriveHelicopterGoal extends Goal {
     private void fillTarget(Situation sit, LivingEntity target) {
         sit.targetValid = true;
         sit.targetId = target.getId();
-        sit.targetX = target.getX();
-        sit.targetY = target.getY();
-        sit.targetZ = target.getZ();
+        // Geometry is anchored on the hull a mounted target rides (where SBW's own missile aim points
+        // too): the crew of one tank are several metres apart, and a hand-off between them must not
+        // move a FireStill station or a FireLoop centre.
         Entity mover = target.getVehicle() != null ? target.getVehicle() : target;
+        sit.targetX = mover.getX();
+        sit.targetY = mover.getY();
+        sit.targetZ = mover.getZ();
         Vec3 tv = mover.getDeltaMovement();
         sit.targetVx = tv.x * 20.0;
         sit.targetVy = mover.onGround() ? 0.0 : tv.y * 20.0;
@@ -523,7 +528,13 @@ public class DriveHelicopterGoal extends Goal {
             updateWeaponHold(target);
             // A pinned flight path doesn't ground the guns: canShoot still gates ammo, CEASE_FIRE,
             // line of fire and smoke. The attack procedure's window gates the assist on top.
-            if (this.runtime.fireWindow()) fireAssist(target);
+            if (this.runtime.fireWindow()) {
+                fireAssist(target);
+            } else if (HeliTrace.tracing(this.vehicle)) {
+                HeliTrace.noteFire(this.vehicle, false, "WINDOW", VehicleWeapons.boresightAngleDeg(this.vehicle, this.unit, target),
+                        VehicleWeapons.npcAssistConeDeg(fireConeDeg()),
+                        !((IAiFireTracker) this.vehicle).tacz_sewv$lineOfFireBlocked(this.unit, target));
+            }
         } else {
             clearWeaponHold();
         }
@@ -717,6 +728,12 @@ public class DriveHelicopterGoal extends Goal {
 
     private void fireAssist(LivingEntity target) {
         VehicleWeapons.FireGate gate = VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, fireConeDeg());
+        if (HeliTrace.tracing(this.vehicle)) {
+            HeliTrace.noteFire(this.vehicle, gate == VehicleWeapons.FireGate.FIRED, gate.name(),
+                    VehicleWeapons.boresightAngleDeg(this.vehicle, this.unit, target),
+                    VehicleWeapons.npcAssistConeDeg(fireConeDeg()),
+                    !((IAiFireTracker) this.vehicle).tacz_sewv$lineOfFireBlocked(this.unit, target));
+        }
         if (!ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) || gate == VehicleWeapons.FireGate.RPM_WAIT) return;
         LOGGER.info("[sewv heli] {}#{} {} slot={} target={}", this.vehicle.getName().getString(),
                 this.vehicle.getId(), gate == VehicleWeapons.FireGate.FIRED ? "FIRE" : "NOFIRE gate=" + gate,

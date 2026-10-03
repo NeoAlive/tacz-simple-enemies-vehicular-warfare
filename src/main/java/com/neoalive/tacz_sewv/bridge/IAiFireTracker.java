@@ -45,4 +45,12 @@ public interface IAiFireTracker {
      * {@code canShoot} without calling super.
      */
     boolean tacz_sewv$aiFireDenied(net.minecraft.world.entity.LivingEntity living);
+
+    /**
+     * The line-of-fire half of that verdict alone (hull occlusion, allies, danger-close, terrain,
+     * smoke along muzzle to {@code target}), evaluated now and NOT cached. Diagnostics only: the
+     * gate itself keeps using its cached verdict.
+     */
+    boolean tacz_sewv$lineOfFireBlocked(net.minecraft.world.entity.LivingEntity living,
+                                         net.minecraft.world.entity.LivingEntity target);
 }

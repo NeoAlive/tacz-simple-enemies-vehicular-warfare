@@ -6,6 +6,7 @@ import java.util.Map;
 import net.minecraft.client.Minecraft;
 
 import com.neoalive.tacz_sewv.client.gui.MiscEditorScreen;
+import com.neoalive.tacz_sewv.invasion.MiscEditorAccess;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
 
@@ -17,9 +18,8 @@ public final class MiscEditorClient {
     public static void openScreen(Map<CueKind, List<String>> cues,
                                   Map<CueKind, List<String>> cueDefaults,
                                   Map<TankFaction, List<String>> armor,
-                                  Map<TankFaction, List<String>> armorDefaults,
-                                  List<String> armorCatalog) {
+                                  Map<TankFaction, List<String>> armorDefaults) {
         Minecraft.getInstance().setScreen(new MiscEditorScreen(
-                cues, cueDefaults, armor, armorDefaults, armorCatalog));
+                cues, cueDefaults, armor, armorDefaults, MiscEditorAccess.armorCatalog()));
     }
 }

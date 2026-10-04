@@ -33,13 +33,13 @@ public class PacketOpenTargetPriority {
     public PacketOpenTargetPriority(FriendlyByteBuf buf) {
         this.excluded = readFactionSets(buf);
         this.defaults = readFactionSets(buf);
-        this.catalog = PacketOpenPoolEditor.readStringList(buf);
+        this.catalog = PacketOpenPoolEditor.readCatalogList(buf);
     }
 
     public void encode(FriendlyByteBuf buf) {
         writeFactionSets(buf, this.excluded);
         writeFactionSets(buf, this.defaults);
-        PacketOpenPoolEditor.writeStringList(buf, this.catalog);
+        PacketOpenPoolEditor.writeCatalogList(buf, this.catalog);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {

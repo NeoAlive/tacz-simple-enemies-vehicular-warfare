@@ -19,6 +19,7 @@ import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import com.neoalive.tacz_sewv.invasion.MiscEditorAccess;
 import com.neoalive.tacz_sewv.loadout.LoadoutValidator;
 import com.neoalive.tacz_sewv.loadout.WeaponCatalogSource;
 import com.neoalive.tacz_sewv.network.PacketOpenLoadoutEditor;
@@ -42,11 +43,13 @@ public final class WeaponCatalog {
 
     private WeaponCatalog() {}
 
-    /** Called when the editor opens: union of the server snapshot and this client's own TACZ index. */
+    /** Called when the editor opens: union of the server snapshot and this client's own registries. */
     public static void absorb(PacketOpenLoadoutEditor.Data data) {
         guns = union(data.guns(), WeaponCatalogSource.gunIds());
         attachments = union(data.attachments(), WeaponCatalogSource.attachmentIds());
-        armor = List.copyOf(new TreeSet<>(data.armor()));
+        // Armor autofill is local (same scan as /sewv pool misc) so a truncated wire catalog
+        // never blanks the armor picker on huge packs.
+        armor = union(data.armor(), MiscEditorAccess.armorCatalog());
         HAYSTACK.clear();
         ALLOWED.clear();
     }

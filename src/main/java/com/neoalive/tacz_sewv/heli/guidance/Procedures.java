@@ -1098,7 +1098,7 @@ public final class Procedures {
      * deg or cross-track > 3 m) a Dubins ingress to (P_s, e) is prepended. Then the run leg along e at
      * the run speed and the run altitude max(groundRef + 34, y_t + 12).
      *
-     * <p>The fire window opens at {@code engageRadius} and closes at the break range, overfly past
+     * <p>The fire window opens at {@link #openRange} and closes at the break range, overfly past
      * T + 8, the window time T_w = (V_max - V_run)/a_w, a depleted weapon, the pull-up floor, or the
      * target lost past the ghost. Closing it flies the exit: a Dubins break/reposition to
      * (P_s', e'), e' = R_Y(s reattack) e, BREAK on its first arc and REPOSITION after, at cruise
@@ -1107,6 +1107,8 @@ public final class Procedures {
      */
     static final class FireRun implements HeliProcedure {
         static final double BREAK_RANGE = 14.0, OVERFLY_MARGIN = 8.0, PULLUP_FLOOR = 18.0, PULLUP_LEAD = 0.5;
+        /** Seconds the fire window should stay open on a pass. */
+        static final double WINDOW_TARGET = 3.0;
         static final double RUN_AGL = 34.0, MIN_OVER_TARGET = 12.0, T_ALIGN = 3.0, ALIGN_XTRACK = 3.0;
         static final double ALIGN_COS = StrictMath.cos(StrictMath.toRadians(15.0));
         /** Straight tail appended to every path, so the reference never runs out of road. */
@@ -1173,6 +1175,17 @@ public final class Procedures {
             return sit.targetValid && windowTime(sit) >= 1.0;
         }
 
+        /**
+         * Where the fire window opens (Phase 5 retune). heliEngageRadius alone (32 m by default) left
+         * 18 m between it and the break range, 0.9 s at the run speed: a cannon got off a burst and a
+         * missile rarely launched at all. The window is now sized in time: it opens far enough out to
+         * stay open {@link #WINDOW_TARGET} s before the break, or for the whole feasible window T_w if
+         * that is shorter, and never inside heliEngageRadius, which is now the floor.
+         */
+        double openRange(Situation sit) {
+            return Math.max(sit.engageRadius, BREAK_RANGE + af.runSpeed * Math.min(WINDOW_TARGET, windowTime(sit)));
+        }
+
         @Override
         public void begin(HeliState s, Situation sit, double t) {
             track.update(sit);
@@ -1187,13 +1200,13 @@ public final class Procedures {
                 ex = l > 1.0 ? dx / l : d[0];
                 ez = l > 1.0 ? dz / l : d[1];
             }
-            lin = Math.max(sit.engageRadius + af.runSpeed * T_ALIGN, 2.0 * af.minTurnRadius);
+            lin = Math.max(openRange(sit) + af.runSpeed * T_ALIGN, 2.0 * af.minTurnRadius);
             double psx = tp.x - lin * ex, psz = tp.z - lin * ez;
             double[] d = travelDir(s);
             double speed = Math.max(0.0, s.v.x * d[0] + s.v.z * d[1]);
             double rx = s.p.x - tp.x, rz = s.p.z - tp.z;
             double along = rx * ex + rz * ez, cross = Math.abs(rx * ez - rz * ex);
-            boolean aligned = d[0] * ex + d[1] * ez >= ALIGN_COS && cross <= ALIGN_XTRACK && along <= -sit.engageRadius;
+            boolean aligned = d[0] * ex + d[1] * ez >= ALIGN_COS && cross <= ALIGN_XTRACK && along <= -openRange(sit);
             if (aligned) {
                 f.start(line(s.p.x, s.p.z, ex, ez, -along + TAIL), speed, t);
                 onLine = true;
@@ -1225,7 +1238,7 @@ public final class Procedures {
                     Vector3d tp = track.p(t);
                     double rx = s.p.x - tp.x, rz = s.p.z - tp.z, range = Math.sqrt(rx * rx + rz * rz);
                     double along = rx * ex + rz * ez;
-                    if (phase == FirePhase.INGRESS && onLine && range <= sit.engageRadius) {
+                    if (phase == FirePhase.INGRESS && onLine && range <= openRange(sit)) {
                         phase = FirePhase.ATTACK;
                         windowOpen = t;
                     }

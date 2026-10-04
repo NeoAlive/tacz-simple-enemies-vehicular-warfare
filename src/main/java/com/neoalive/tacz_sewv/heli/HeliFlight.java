@@ -57,6 +57,7 @@ public final class HeliFlight {
     public static int clientTick(VehicleEntity hull) {
         if (!(hull.getFirstPassenger() instanceof AbstractUnit)) return IFlightDynamics.NONE;
         hull.setPropellerRot(hull.getPropellerRot() + PROPELLER_VISUAL_RATE * hull.getSynchedPropellerRot());
+        Downwash.dust(hull);
         float roll = ((IFlightDynamics) hull).sewv$clientRoll();
         if (!Float.isNaN(roll)) hull.setZRot(roll);
         return IFlightDynamics.FLYING;
@@ -74,7 +75,8 @@ public final class HeliFlight {
             return existing;
         }
         String id = String.valueOf(ForgeRegistries.ENTITY_TYPES.getKey(hull.getType()));
-        Airframe af = HeliAirframes.resolve(id, NpcVehicleOverrides.isTransportHeli(hull), NpcVehicleOverrides.isHeavyHeli(hull));
+        Airframe af = HeliAirframes.resolve(id, NpcVehicleOverrides.isTransportHeli(hull), NpcVehicleOverrides.isHeavyHeli(hull),
+                hull.getBbWidth());
         if (af == null) {
             LOGGER.error("[sewv heli] no airframe table loaded; {} stays on SBW's engine", id);
             return null;

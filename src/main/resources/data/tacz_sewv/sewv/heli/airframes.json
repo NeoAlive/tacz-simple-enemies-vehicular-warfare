@@ -1,7 +1,7 @@
 {
   "classes": {
     "light": {
-      "mass": 1400, "cgHeight": 1.2, "inertia": [2400, 2750, 900],
+      "refWidth": 2.25, "mass": 1400, "cgHeight": 1.2, "inertia": [2400, 2750, 900],
       "rotor": {
         "radius": 4.0, "tipSpeed": 200, "inertia": 625, "direction": "ccw", "hubHeight": 1.8,
         "sigmaCd0": 0.00056, "inducedKappa": 1.15, "cyclicMaxDeg": 8, "hubStiffness": 30000, "angularDamping": 2000,
@@ -19,7 +19,7 @@
       "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 12}
     },
     "attack": {
-      "mass": 8000, "cgHeight": 1.8, "inertia": [72000, 82000, 13500],
+      "refWidth": 3.375, "mass": 8000, "cgHeight": 1.8, "inertia": [72000, 82000, 13500],
       "rotor": {
         "radius": 7.3, "tipSpeed": 240, "inertia": 45000, "direction": "ccw", "hubHeight": 2.5,
         "sigmaCd0": 0.00064, "inducedKappa": 1.15, "cyclicMaxDeg": 8, "hubStiffness": 336000, "angularDamping": 60000,

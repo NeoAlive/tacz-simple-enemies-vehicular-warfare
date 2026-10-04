@@ -43,13 +43,19 @@ public final class MiscEditorAccess {
             armor.put(faction, new ArrayList<>(data.listArmor(faction)));
             armorDefaults.put(faction, new ArrayList<>(WorldVehicleClasses.builtInArmor(faction)));
         }
+        // Armor add-catalog is built client-side (same ForgeRegistries scan) — do not send it.
         NetworkHandler.CHANNEL.send(
                 PacketDistributor.PLAYER.with(() -> player),
-                new PacketOpenMiscEditor(cues, cueDefaults, armor, armorDefaults, armorCatalog()));
+                new PacketOpenMiscEditor(cues, cueDefaults, armor, armorDefaults));
         return 1;
     }
 
-    /** Armor items for the misc-editor add catalog. */
+    /**
+     * Armor items for add-catalog / autofill. Safe on either side — pure registry scan.
+     * The misc open packet does not carry this (too large for the shared 512-entry list cap);
+     * the loadout editor still sends it via {@link com.neoalive.tacz_sewv.network.LoadoutWire}
+     * which allows 16k.
+     */
     public static List<String> armorCatalog() {
         List<String> out = new ArrayList<>();
         for (Item item : ForgeRegistries.ITEMS) {

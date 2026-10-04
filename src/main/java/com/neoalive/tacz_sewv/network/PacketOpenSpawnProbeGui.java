@@ -48,8 +48,8 @@ public class PacketOpenSpawnProbeGui {
         this.vehicleList = PacketOpenPoolEditor.readStringList(buf);
         this.preCrewedSpawn = buf.readBoolean();
         this.infantryList = readInfantryList(buf);
-        this.vehicleCatalog = PacketOpenPoolEditor.readStringList(buf);
-        this.infantryCatalog = PacketOpenPoolEditor.readStringList(buf);
+        this.vehicleCatalog = PacketOpenPoolEditor.readCatalogList(buf);
+        this.infantryCatalog = PacketOpenPoolEditor.readCatalogList(buf);
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -59,8 +59,8 @@ public class PacketOpenSpawnProbeGui {
         PacketOpenPoolEditor.writeStringList(buf, this.vehicleList);
         buf.writeBoolean(this.preCrewedSpawn);
         writeInfantryList(buf, this.infantryList);
-        PacketOpenPoolEditor.writeStringList(buf, this.vehicleCatalog);
-        PacketOpenPoolEditor.writeStringList(buf, this.infantryCatalog);
+        PacketOpenPoolEditor.writeCatalogList(buf, this.vehicleCatalog);
+        PacketOpenPoolEditor.writeCatalogList(buf, this.infantryCatalog);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {

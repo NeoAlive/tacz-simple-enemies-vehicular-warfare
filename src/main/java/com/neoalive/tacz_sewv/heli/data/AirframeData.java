@@ -142,6 +142,41 @@ public final class AirframeData {
     }
 
     /**
+     * Froude scaling exponent of every dimensional key: value x lambda^e for a hull lambda times the
+     * reference size. Same gravity, so speeds go as sqrt(lambda), times as sqrt(lambda), masses as
+     * lambda^3. Thrust rho A V_t^2 C_T then goes as lambda^3 like the weight, so C_T, hover collective
+     * and every dimensionless ratio of the row are unchanged. (Plan O6 scaled lengths and mass but
+     * not tip speed: thrust lambda^2 against weight lambda^3, so a bigger hull could not lift.)
+     * Keys absent here are dimensionless or tactical and are kept.
+     */
+    private static final Map<String, Double> FROUDE = Map.ofEntries(
+            Map.entry("mass", 3.0), Map.entry("cgHeight", 1.0), Map.entry("refWidth", 1.0),
+            Map.entry("inertia.0", 5.0), Map.entry("inertia.1", 5.0), Map.entry("inertia.2", 5.0),
+            Map.entry("rotor.radius", 1.0), Map.entry("rotor.tipSpeed", 0.5), Map.entry("rotor.inertia", 5.0),
+            Map.entry("rotor.hubHeight", 1.0), Map.entry("rotor.hubStiffness", 4.0), Map.entry("rotor.angularDamping", 4.5),
+            Map.entry("engine.maxPower", 3.5), Map.entry("engine.idlePower", 3.5), Map.entry("engine.frictionCoeff", 4.5),
+            Map.entry("engine.governor.wn", -0.5), Map.entry("engine.startRate", -1.0), Map.entry("engine.collectiveLag", 0.5),
+            Map.entry("tail.arm", 1.0), Map.entry("tail.height", 1.0), Map.entry("tail.nominalThrust", 3.0),
+            Map.entry("tail.maxThrust", 3.0), Map.entry("tail.inflowDamping", 2.5), Map.entry("tail.yawLag", 0.5),
+            Map.entry("fuselage.cdA.0", 2.0), Map.entry("fuselage.cdA.1", 2.0), Map.entry("fuselage.cdA.2", 2.0),
+            Map.entry("limits.vMaxH", 0.5), Map.entry("limits.vClimb", 0.5), Map.entry("limits.vDescent", 0.5),
+            Map.entry("limits.rateMaxPR", -0.5), Map.entry("limits.yawRateMax", -0.5), Map.entry("limits.minTurnRadius", 1.0),
+            Map.entry("control.pos", -0.5), Map.entry("control.posV", -0.5), Map.entry("control.vel", -0.5),
+            Map.entry("control.att", -0.5), Map.entry("control.rate", -0.5), Map.entry("control.yaw", -0.5),
+            Map.entry("autorotation.flareHeight", 1.0),
+            Map.entry("procedures.cruiseSpeed", 0.5), Map.entry("procedures.orbitSpeed", 0.5),
+            Map.entry("procedures.runSpeed", 0.5));
+
+    /** The row Froude-scaled to a hull {@code lambda} times its reference size (see {@link #FROUDE}). */
+    public static Airframe scaled(Airframe af, double lambda) {
+        Map<String, Double> o = new TreeMap<>();
+        for (Map.Entry<String, Double> e : FROUDE.entrySet()) {
+            o.put(e.getKey(), af.value(e.getKey()) * StrictMath.pow(lambda, e.getValue()));
+        }
+        return af.with(o);
+    }
+
+    /**
      * Load-time checks (plan section 5). An empty list means the row is usable. The two thrust
      * limits are independent: the rotor table bounds thrust aerodynamically, the engine bounds
      * shaft power, and a power-limited hull droops rotor speed rather than hitting a fixed cap.

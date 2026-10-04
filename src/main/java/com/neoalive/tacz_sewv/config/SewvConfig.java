@@ -330,6 +330,11 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue QUICK_EVAC_BOARD_TIMEOUT_TICKS;
     public static final ForgeConfigSpec.IntValue QUICK_REFILL_TIMEOUT_TICKS;
     public static final ForgeConfigSpec.DoubleValue QUICK_LAND_RADIUS;
+    /**
+     * Max ids the server sends in admin-editor add-catalogs (guns / attachments / armor /
+     * vehicles / target types). Overflow is truncated, never a disconnect.
+     */
+    public static final ForgeConfigSpec.IntValue EDITOR_CATALOG_MAX;
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
@@ -1070,15 +1075,16 @@ public final class SewvConfig {
 
         builder.push("flight_ai");
         HELI_ENGAGE_RADIUS = builder.comment(
-                        "Preferred horizontal distance (blocks) for helicopter cannon/rocket attacks.",
-                        "Missile attacks use heliMinStandoff and heliMaxDepressionDeg instead.")
+                        "Closest range (blocks) at which a helicopter firing run opens its fire window.",
+                        "The window is sized to stay open ~3 s, so it usually opens further out than this.")
                 .defineInRange("heliEngageRadius", 32.0, 12.0, 64.0);
         HELI_MAX_DEPRESSION_DEG = builder.comment(
-                        "Steepest nose-down angle (degrees) for missile attacks. Higher = can sit closer above the target.")
+                        "IGNORED since the helicopter flight rework: the pitch-free firing cone is per airframe",
+                        "(aim.pitchFreeConeDeg in data/tacz_sewv/sewv/heli/airframes.json). Kept so existing tomls load.")
                 .defineInRange("heliMaxDepressionDeg", 45.0, 20.0, 55.0);
         HELI_MIN_STANDOFF = builder.comment(
-                        "Closest horizontal range (blocks) for helicopter missile attacks,",
-                        "even when the target is on a tall peak.")
+                        "Floor (blocks) under the helicopter hover-attack and orbit standoff; the airframe's",
+                        "yaw authority and the target's height can push it further out, never closer.")
                 .defineInRange("heliMinStandoff", 28.0, 16.0, 96.0);
         HELI_CHUNK_LOADING = builder.comment(
                         "Keep AI helicopters active even when no player is nearby (uses chunk tickets).",
@@ -1371,6 +1377,11 @@ public final class SewvConfig {
                         "How far (blocks) Quick Board / Entrench / Refill / General / Formation look",
                         "for owned PMCs, friendly vehicles, trenches, and chests.")
                 .defineInRange("quickLandRadius", 64.0, 8.0, 256.0);
+        EDITOR_CATALOG_MAX = builder.comment(
+                        "Max registry ids sent in /sewv pool (and similar) add-catalogs.",
+                        "If a pack has more guns/armor/vehicles than this, the rest are omitted from",
+                        "autofill — the editor still opens. Raise on huge packs if ids are missing.")
+                .defineInRange("editorCatalogMax", 16384, 64, 32768);
         builder.pop();
 
         builder.push("map");

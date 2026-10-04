@@ -29,7 +29,7 @@ public final class SewvDiag {
         return ClientConfig.flag(ClientConfig.SHIP_PATHING_DEBUG);
     }
 
-    /** Helicopter flyToward / hover investigation logs. Default off. */
+    /** Helicopter flight-stack telemetry (HeliRuntime, once a second per hull). Default off. */
     public static boolean heliFlightVerbose() {
         return ClientConfig.flag(ClientConfig.HELI_FLIGHT_DEBUG);
     }

@@ -7,6 +7,7 @@ import net.minecraftforge.network.PacketDistributor;
 import org.joml.Vector3d;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.heli.avoid.AvoidForce;
 import com.neoalive.tacz_sewv.heli.avoid.ObstacleSet;
 import com.neoalive.tacz_sewv.heli.avoid.PathProbe;
@@ -213,6 +214,8 @@ public final class HeliRuntime {
             stack.switchTo(ProcedureId.SAFETY_HOLD, s, guidance, t0, gt);
         }
         publish(hull, fuel0);
+        Downwash.push(hull, af, s);
+        if (gt % 20 == 0 && SewvDiag.heliFlightVerbose()) telemetry(hull);
         return IFlightDynamics.FLYING;
     }
 
@@ -339,6 +342,27 @@ public final class HeliRuntime {
         double rate = info != null && info.has("EnergyCostRate") ? info.get("EnergyCostRate").getAsDouble() : 1.0;
         double pHover = RotorModel.hoverPower(af, g, Airframe.RHO0);
         return 20.0 * af.hoverBurnFraction * rate / (pHover / af.efficiency + af.idlePower);
+    }
+
+    /** heliFlightDebug: what the stack is doing, in one line. */
+    private void telemetry(VehicleEntity hull) {
+        HeliReference r = core.lastRef;
+        if (r == null) return;
+        var ctl = core.ctl;
+        LOGGER.info(String.format(java.util.Locale.ROOT,
+                "[sewv heli] #%d %s(%s) %.1fs engine=%s rotor=%.2f coll=%.2f | p=(%.1f,%.1f,%.1f) v=%.1f | "
+                        + "err p=%.2f v=%.2f yaw=%.1fdeg | bias=%.1f/%.1f barrier=%.2fg | sat thrust=%b tilt=%b auto=%b",
+                hull.getId(), stack.activeId(), stack.activeClass(), r.t() - stack.beganAt(), s.engine,
+                s.omega / af.omegaN, s.theta0, s.p.x, s.p.y, s.p.z, s.v.length(),
+                s.p.distance(r.p().x(), r.p().y(), r.p().z()), s.v.distance(r.v().x(), r.v().y(), r.v().z()),
+                McPose.wrapDeg(Math.toDegrees(r.yaw() - headingRad())),
+                core.bias.altitude(), core.bias.lateral(), core.avoid.length() / (af.mass * g),
+                ctl.thrustSaturated, ctl.tiltSaturated, ctl.autorotationLaw));
+    }
+
+    private double headingRad() {
+        Vector3d f = s.q.transform(new Vector3d(0, 0, 1));
+        return StrictMath.atan2(-f.x, f.z);
     }
 
     private boolean finite() {

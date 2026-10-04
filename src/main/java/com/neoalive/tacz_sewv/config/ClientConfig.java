@@ -143,7 +143,8 @@ public final class ClientConfig {
                 .define("outerRingDebugLogging", false);
         HELI_COMBAT_DEBUG = builder.comment("Helicopter combat / run-phase diagnosis (logs + overlay).")
                 .define("heliCombatDebug", false);
-        HELI_FLIGHT_DEBUG = builder.comment("Helicopter flyToward / hover investigation logs.")
+        HELI_FLIGHT_DEBUG = builder.comment("Helicopter flight-stack telemetry: one [sewv heli] line per hull per second",
+                        "(procedure, state, reference, errors, saturation). Server side; singleplayer reads this flag.")
                 .define("heliFlightDebug", false);
         PLANE_COMBAT_DEBUG = builder.comment("Fixed-wing combat / landing diagnosis (logs + client arcs).")
                 .define("planeCombatDebug", false);

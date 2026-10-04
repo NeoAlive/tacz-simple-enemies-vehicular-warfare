@@ -55,6 +55,7 @@ final class HeliAttackChecks {
             fireRuns(cls);
         }
         targetLoss();
+        froude();
         for (String cls : HeliPhysicsChecks.CLASSES) engineOut(cls);
         touchdown();
         isolation();
@@ -593,6 +594,34 @@ final class HeliAttackChecks {
             System.out.printf(Locale.ROOT, "  R5: target lost at %.1f s, run exited by %.1f s, reference step %.3f m / %.3f m/s%n",
                     lossAt, ended, worst[0], worst[1]);
         }
+    }
+
+    // --- Froude scaling (Phase 5) ------------------------------------------------------------------
+
+    /**
+     * A role class scaled to another hull's size (addon hulls with no row): every scaled row must
+     * validate, hover at exactly the reference collective (C_T is invariant under Froude scaling,
+     * which is the point of it), and hold a hover closed-loop.
+     */
+    private static void froude() {
+        StringBuilder line = new StringBuilder();
+        for (String cls : new String[] {"light", "attack"}) {
+            Airframe af = Sim.airframe(cls);
+            double ref = com.neoalive.tacz_sewv.heli.physics.RotorModel.hoverCollective(af, Sim.G, Sim.RHO);
+            for (double lambda : new double[] {0.5, 0.7, 1.4, 2.0}) {
+                Airframe sc = com.neoalive.tacz_sewv.heli.data.AirframeData.scaled(af, lambda);
+                List<String> problems = com.neoalive.tacz_sewv.heli.data.AirframeData.validate(sc, Sim.G, Sim.RHO);
+                assert problems.isEmpty() : "F " + cls + " x" + lambda + ": " + problems;
+                double hc = com.neoalive.tacz_sewv.heli.physics.RotorModel.hoverCollective(sc, Sim.G, Sim.RHO);
+                assert Math.abs(hc - ref) < 1e-6 : "F " + cls + " x" + lambda + ": hover collective " + hc + " vs " + ref;
+                Sim sim = new Sim(sc).hover(0, 40, 0, 0);
+                sim.run(30, Sim.hold(10, 45, 0, 0)); // a 10 m sideways, 5 m up step
+                double err = sim.s.p.distance(10, 45, 0);
+                assert err < 0.5 : "F " + cls + " x" + lambda + ": step settled " + err + " m off";
+                line.append(String.format(Locale.ROOT, " %s x%.1f (%.0f kg) %.2f m;", cls, lambda, sc.mass, err));
+            }
+        }
+        System.out.println("  F Froude: rows validate, hover collective invariant, 30 s after a 10 m step:" + line);
     }
 
     // --- Engine out (Phase 4) ---------------------------------------------------------------------

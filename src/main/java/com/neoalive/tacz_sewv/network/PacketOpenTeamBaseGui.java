@@ -96,7 +96,7 @@ public class PacketOpenTeamBaseGui {
         this.teams = PacketOpenPoolEditor.readStringList(buf);
         this.onlinePlayerNames = PacketOpenPoolEditor.readStringList(buf);
         this.onlinePlayerUuids = PacketOpenPoolEditor.readStringList(buf);
-        this.catalog = PacketOpenPoolEditor.readStringList(buf);
+        this.catalog = PacketOpenPoolEditor.readCatalogList(buf);
         Map<TankFaction, List<String>> armor = new EnumMap<>(TankFaction.class);
         for (TankFaction faction : TankFaction.values()) {
             armor.put(faction, PacketOpenPoolEditor.readStringList(buf));
@@ -125,7 +125,7 @@ public class PacketOpenTeamBaseGui {
         PacketOpenPoolEditor.writeStringList(buf, this.teams);
         PacketOpenPoolEditor.writeStringList(buf, this.onlinePlayerNames);
         PacketOpenPoolEditor.writeStringList(buf, this.onlinePlayerUuids);
-        PacketOpenPoolEditor.writeStringList(buf, this.catalog);
+        PacketOpenPoolEditor.writeCatalogList(buf, this.catalog);
         for (TankFaction faction : TankFaction.values()) {
             List<String> list = this.armorPools.getOrDefault(faction, List.of());
             PacketOpenPoolEditor.writeStringList(buf, list);

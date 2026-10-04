@@ -11,7 +11,9 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
+import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.editor.PoolEditorClient;
+import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
 
@@ -33,13 +35,13 @@ public class PacketOpenPoolEditor {
     public PacketOpenPoolEditor(FriendlyByteBuf buf) {
         this.pools = readPools(buf);
         this.defaults = readPools(buf);
-        this.catalog = readStringList(buf);
+        this.catalog = readCatalogList(buf);
     }
 
     public void encode(FriendlyByteBuf buf) {
         writePools(buf, this.pools);
         writePools(buf, this.defaults);
-        writeStringList(buf, this.catalog);
+        writeCatalogList(buf, this.catalog);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -68,9 +70,14 @@ public class PacketOpenPoolEditor {
         }
     }
 
-    /** Cap for C→S string lists (vehicle pools, spawn probes, armor catalogs). */
+    /**
+     * Cap for pool/cue/armor-<em>selection</em> string lists (authoritative edits).
+     * Add-catalogs use {@link #writeCatalogList}/{@link #readCatalogList} instead.
+     */
     static final int MAX_STRING_LIST = 512;
     static final int MAX_STRING_LEN = 256;
+    /** Absolute read ceiling for add-catalogs (DoS guard). Write uses {@link SewvConfig#EDITOR_CATALOG_MAX}. */
+    static final int MAX_CATALOG_HARD = 32768;
 
     static List<String> readStringList(FriendlyByteBuf buf) {
         int n = buf.readVarInt();
@@ -83,7 +90,47 @@ public class PacketOpenPoolEditor {
     }
 
     static void writeStringList(FriendlyByteBuf buf, List<String> list) {
+        if (list == null) list = List.of();
         buf.writeVarInt(list.size());
-        for (String s : list) buf.writeUtf(s);
+        for (String s : list) buf.writeUtf(s, MAX_STRING_LEN);
+    }
+
+    /** How many catalog ids the server will send this open (config, clamped to the hard read max). */
+    static int catalogCap() {
+        try {
+            int configured = SewvConfig.EDITOR_CATALOG_MAX.get();
+            if (configured < 64) return 64;
+            return Math.min(configured, MAX_CATALOG_HARD);
+        } catch (Throwable t) {
+            // Config not baked yet (shouldn't happen on a live open) — safe default.
+            return 16384;
+        }
+    }
+
+    /**
+     * Add-catalog write: keep the first {@link #catalogCap()} entries, drop the rest.
+     * Never throws for size — a huge pack must still open the editor.
+     */
+    static void writeCatalogList(FriendlyByteBuf buf, List<String> list) {
+        if (list == null) list = List.of();
+        int cap = catalogCap();
+        int n = Math.min(list.size(), cap);
+        if (list.size() > n) {
+            TaczSewv.LOGGER.warn(
+                    "[sewv] Truncating editor catalog from {} to {} ids (editorCatalogMax); raise the config if autofill is missing entries",
+                    list.size(), n);
+        }
+        buf.writeVarInt(n);
+        for (int i = 0; i < n; i++) buf.writeUtf(list.get(i), MAX_STRING_LEN);
+    }
+
+    static List<String> readCatalogList(FriendlyByteBuf buf) {
+        int n = buf.readVarInt();
+        if (n < 0 || n > MAX_CATALOG_HARD) {
+            throw new IllegalArgumentException("catalog list size out of range: " + n);
+        }
+        List<String> list = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) list.add(buf.readUtf(MAX_STRING_LEN));
+        return list;
     }
 }

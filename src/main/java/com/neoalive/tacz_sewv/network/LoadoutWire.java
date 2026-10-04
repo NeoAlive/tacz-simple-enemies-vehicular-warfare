@@ -20,8 +20,6 @@ final class LoadoutWire {
 
     static final int MAX_ROWS = 256;
     static final int MAX_HIDDEN = 1024;
-    /** Catalogs are the only big lists: every gun / attachment / armor id the server has loaded. */
-    static final int MAX_CATALOG = 16384;
     static final int ID_LEN = 256;
     static final int JSON_LEN = 4096;
     private static final Gson GSON = new Gson();
@@ -70,15 +68,11 @@ final class LoadoutWire {
     }
 
     static void writeIds(FriendlyByteBuf buf, List<String> ids) {
-        buf.writeVarInt(ids.size());
-        ids.forEach(id -> buf.writeUtf(id, ID_LEN));
+        PacketOpenPoolEditor.writeCatalogList(buf, ids);
     }
 
     static List<String> readIds(FriendlyByteBuf buf) {
-        int n = checked(buf.readVarInt(), MAX_CATALOG);
-        List<String> out = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) out.add(buf.readUtf(ID_LEN));
-        return out;
+        return PacketOpenPoolEditor.readCatalogList(buf);
     }
 
     static int checked(int n, int max) {

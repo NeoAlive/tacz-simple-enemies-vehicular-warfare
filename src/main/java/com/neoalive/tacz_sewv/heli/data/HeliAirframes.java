@@ -49,8 +49,15 @@ public final class HeliAirframes {
         return generation;
     }
 
-    /** The airframe for a hull, or null if the table is empty. */
-    public static Airframe resolve(String registryId, boolean transport, boolean heavy) {
+    /** Size ratio range a derived row is scaled across; beyond it the role class is a poor model anyway. */
+    private static final double LAMBDA_MIN = 0.5, LAMBDA_MAX = 2.0;
+
+    /**
+     * The airframe for a hull, or null if the table is empty. A hull with neither a row nor a clue
+     * flies its role class Froude-scaled to its own width (plan O6), when the class carries a
+     * {@code refWidth}; a scaled row that fails validation falls back to the class as written.
+     */
+    public static Airframe resolve(String registryId, boolean transport, boolean heavy, double hullWidth) {
         AirframeData.Result r = active;
         if (r == null || r.classes().isEmpty()) return null;
         String id = registryId == null ? "" : registryId.toLowerCase(Locale.ROOT);
@@ -63,15 +70,22 @@ public final class HeliAirframes {
                 }
             }
         }
-        if (cls == null || !r.classes().containsKey(cls)) {
-            cls = transport ? "utility" : heavy ? "attack" : "light";
-            if (LOGGED.add(id)) {
-                LOGGER.info("[sewv heli] no airframe row for {}: flying it as role class '{}'"
-                        + " (add it to data/<ns>/sewv/heli to tune)", id, cls);
-            }
-        }
+        boolean derived = cls == null || !r.classes().containsKey(cls);
+        if (derived) cls = transport ? "utility" : heavy ? "attack" : "light";
         Airframe af = r.classes().get(cls);
-        return af != null ? af : r.classes().values().iterator().next();
+        if (af == null) return r.classes().values().iterator().next();
+        if (!derived) return af;
+        double lambda = af.refWidth > 0.0 && hullWidth > 0.0
+                ? Math.max(LAMBDA_MIN, Math.min(LAMBDA_MAX, hullWidth / af.refWidth)) : 1.0;
+        Airframe scaled = lambda == 1.0 ? af : AirframeData.scaled(af, lambda);
+        List<String> problems = AirframeData.validate(scaled, AirframeData.CHECK_GRAVITY, Airframe.RHO0);
+        if (LOGGED.add(id)) {
+            LOGGER.info("[sewv heli] no airframe row for {}: flying role class '{}' scaled x{} to its width{}"
+                            + " (add a row to data/<ns>/sewv/heli to tune)", id, cls,
+                    String.format(Locale.ROOT, "%.2f", lambda),
+                    problems.isEmpty() ? "" : "; scaled row invalid (" + String.join("; ", problems) + "), using it unscaled");
+        }
+        return problems.isEmpty() ? scaled : af;
     }
 
     static AirframeData.Result bundled() {

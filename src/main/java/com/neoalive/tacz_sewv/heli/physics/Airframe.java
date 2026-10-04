@@ -19,7 +19,7 @@ public final class Airframe {
 
     /** Every numeric key a row may carry. */
     public static final List<String> KEYS = List.of(
-            "mass", "cgHeight", "inertia.0", "inertia.1", "inertia.2",
+            "mass", "cgHeight", "refWidth", "inertia.0", "inertia.1", "inertia.2",
             "rotor.radius", "rotor.tipSpeed", "rotor.inertia", "rotor.hubHeight", "rotor.sigmaCd0",
             "rotor.inducedKappa", "rotor.cyclicMaxDeg", "rotor.hubStiffness", "rotor.angularDamping",
             "effects.etl.k", "effects.etl.muPeak", "effects.groundEffect.k", "effects.groundEffect.c",
@@ -57,7 +57,8 @@ public final class Airframe {
             Map.entry("procedures.runSpeed", 20.0), Map.entry("procedures.reattackDeg", 120.0),
             Map.entry("procedures.stillDwell", 8.0), Map.entry("procedures.loopTime", 30.0),
             Map.entry("procedures.evadeHealth", 0.3), Map.entry("procedures.evadeDistance", 150.0),
-            Map.entry("procedures.patrol.rMin", 60.0), Map.entry("procedures.patrol.rMax", 140.0));
+            Map.entry("procedures.patrol.rMin", 60.0), Map.entry("procedures.patrol.rMax", 140.0),
+            Map.entry("refWidth", 0.0));
 
     public final String name;
     public final boolean coaxial;
@@ -68,6 +69,8 @@ public final class Airframe {
     public final double[] ctValue;
 
     public final double mass, cgHeight, ix, iy, iz;
+    /** Bounding-box width of the hull this row was tuned on; 0 = do not size-scale it for other hulls. */
+    public final double refWidth;
     public final double radius, area, tipSpeed, omegaN, rotorInertia, hubHeight, sigmaCd0, kappa;
     public final double cyclicMax, hubStiffness, angularDamping;
     public final double etlK, etlMuPeak, geK, geC, vrsLoss, vrsXiLo, vrsXiPeak, vrsXiHi, vrsEtaHi;
@@ -115,6 +118,7 @@ public final class Airframe {
 
         mass = v.get("mass");
         cgHeight = v.get("cgHeight");
+        refWidth = v.get("refWidth");
         ix = v.get("inertia.0");
         iy = v.get("inertia.1");
         iz = v.get("inertia.2");
@@ -192,6 +196,13 @@ public final class Airframe {
         evadeDistance = v.get("procedures.evadeDistance");
         patrolRMin = v.get("procedures.patrol.rMin");
         patrolRMax = v.get("procedures.patrol.rMax");
+    }
+
+    /** The row's value for {@code key} (one of {@link #KEYS}). */
+    public double value(String key) {
+        Double v = canonical.get(key);
+        if (v == null) throw new IllegalArgumentException("unknown key '" + key + "'");
+        return v;
     }
 
     /** Copy with some keys replaced — for tuning experiments and self-checks. */

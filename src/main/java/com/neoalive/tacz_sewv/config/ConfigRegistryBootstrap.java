@@ -341,6 +341,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.UNIT_CORPSE_US, SewvConfig.UNIT_CORPSE_US::set);
         b.bool(ConfigScope.SERVER, "resources", "unitCorpsePmc",
                 SewvConfig.UNIT_CORPSE_PMC, SewvConfig.UNIT_CORPSE_PMC::set);
+        b.intRange(ConfigScope.SERVER, "resources", "unitCorpseDespawnMinutes", 0, 1440,
+                SewvConfig.UNIT_CORPSE_DESPAWN_MINUTES, SewvConfig.UNIT_CORPSE_DESPAWN_MINUTES::set);
+        b.intRange(ConfigScope.SERVER, "resources", "unitCorpseMaxPerDimension", 0, 4096,
+                SewvConfig.UNIT_CORPSE_MAX_PER_DIMENSION, SewvConfig.UNIT_CORPSE_MAX_PER_DIMENSION::set);
     }
 
     private static void registerSoldiers(ConfigRegistry.Builder b) {

@@ -222,7 +222,7 @@ public final class VehicleWeapons {
         if (!(mob.getVehicle() instanceof VehicleEntity vehicle)) return false;
         if (vehicle.getFirstPassenger() == mob) return true; // driver — always busy driving
         SeatInfo seat = vehicle.getSeat(mob);
-        return seat != null && !seat.weapons().isEmpty();     // gunner; passenger → false
+        return seat != null && seat.weapons() != null && !seat.weapons().isEmpty(); // gunner; passenger → false
     }
 
     public static TargetCategory classifyTarget(LivingEntity target) {

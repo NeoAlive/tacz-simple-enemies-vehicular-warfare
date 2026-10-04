@@ -1,12 +1,15 @@
 package com.neoalive.tacz_sewv.compat;
 
+import java.util.ArrayDeque;
 import java.util.Map;
 import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
@@ -24,6 +27,7 @@ import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
+import com.neoalive.tacz_sewv.bridge.ISemCorpse;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.UnitCorpseAppearance;
 import com.neoalive.tacz_sewv.util.UnitCorpseLoot;
@@ -50,6 +54,9 @@ public final class CorpseCompat {
 
     /** PMC inventory snapshots keyed by entity network id — taken before SEM empties pockets. */
     private static final Map<Integer, UnitCorpseLoot.PmcSnapshot> PMC_SNAPSHOTS = new ConcurrentHashMap<>();
+
+    /** SEM corpses spawned this session, oldest first, per level — for the count cap. */
+    private static final Map<ServerLevel, ArrayDeque<Entity>> CAPPED = new WeakHashMap<>();
 
     private CorpseCompat() {}
 
@@ -116,6 +123,25 @@ public final class CorpseCompat {
         return unit instanceof IMedicCaptured captured && captured.sewv$isCaptured();
     }
 
+    /**
+     * Keeps at most {@code unitCorpseMaxPerDimension} SEM corpses per level, oldest removed first
+     * (loot included, nothing drops). Server thread only.
+     * ponytail: counts corpses spawned this session only; ones loaded from disk are bounded by the lifetime cap.
+     */
+    private static void enforceCap(ServerLevel level, Entity corpse) {
+        int cap = SewvConfig.UNIT_CORPSE_MAX_PER_DIMENSION.get();
+        if (cap <= 0) {
+            CAPPED.remove(level);
+            return;
+        }
+        ArrayDeque<Entity> live = CAPPED.computeIfAbsent(level, l -> new ArrayDeque<>());
+        live.removeIf(Entity::isRemoved);
+        live.addLast(corpse);
+        while (live.size() > cap) {
+            if (live.pollFirst() instanceof ISemCorpse oldest) oldest.sewv$silentDiscard();
+        }
+    }
+
     private static boolean factionEnabled(AbstractUnit unit) {
         if (unit instanceof PmcUnitEntity) return SewvConfig.UNIT_CORPSE_PMC.get();
         if (unit instanceof RUunitEntity) return SewvConfig.UNIT_CORPSE_RU.get();
@@ -162,6 +188,7 @@ public final class CorpseCompat {
                     de.maxhenkel.corpse.entities.CorpseEntity.createFromDeath(host, death);
             corpse.setYRot(unit.getYRot());
             level.addFreshEntity(corpse);
+            enforceCap(level, corpse);
             return true;
         }
 
@@ -183,6 +210,10 @@ public final class CorpseCompat {
                 }
                 equipment = resized;
             }
+            // Equipment is display only (loot lives in main/offhand). Dropping the hands keeps the
+            // TACZ gun model off every lying unit — the costliest layer of a corpse's player render.
+            equipment.set(EquipmentSlot.MAINHAND.ordinal(), ItemStack.EMPTY);
+            equipment.set(EquipmentSlot.OFFHAND.ordinal(), ItemStack.EMPTY);
 
             String display = unitName(unit);
             UnitCorpseAppearance appearance = UnitCorpseAppearance.of(unit);

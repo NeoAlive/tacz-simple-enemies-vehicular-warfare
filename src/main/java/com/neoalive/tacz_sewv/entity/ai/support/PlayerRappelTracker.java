@@ -266,15 +266,8 @@ public final class PlayerRappelTracker {
 
     private static void beginPlayerRope(ServerPlayer player, VehicleEntity hull, SelfSession session) {
         boolean plusX = (player.getId() & 1) == 0;
-        Vec3 top = RappelSupport.ropeTopWorld(hull, plusX);
-
         // Same call SBW's /dismount uses (Entity.stopRiding → removeVehicle → removePassenger).
-        if (player.getVehicle() == hull) {
-            player.stopRiding();
-        }
-        player.setDeltaMovement(Vec3.ZERO);
-        player.fallDistance = 0.0F;
-        player.setPos(top.x, top.y, top.z);
+        Vec3 top = RappelSupport.startRope(player, hull, plusX);
 
         if (hull.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
             serverLevel.getChunkSource().broadcastAndSend(
@@ -326,11 +319,7 @@ public final class PlayerRappelTracker {
                 if (SmallArmsSupport.issueAtWeapon(unit)) session.atIssued++;
             }
 
-            Vec3 top = RappelSupport.ropeTopWorld(hull, plusX);
-            unit.stopRiding();
-            unit.setDeltaMovement(Vec3.ZERO);
-            unit.fallDistance = 0.0F;
-            unit.setPos(top.x, top.y, top.z);
+            Vec3 top = RappelSupport.startRope(unit, hull, plusX);
             if (plusX) {
                 session.ropePlusId = id;
                 session.ropePlusAx = top.x;
@@ -464,11 +453,7 @@ public final class PlayerRappelTracker {
                 if (SmallArmsSupport.issueAtWeapon(unit)) session.atIssued++;
             }
 
-            Vec3 top = RappelSupport.ropeTopWorld(hull, plusX);
-            unit.stopRiding();
-            unit.setDeltaMovement(Vec3.ZERO);
-            unit.fallDistance = 0.0F;
-            unit.setPos(top.x, top.y, top.z);
+            Vec3 top = RappelSupport.startRope(unit, hull, plusX);
             if (plusX) {
                 session.ropePlusId = id;
                 session.ropePlusAx = top.x;

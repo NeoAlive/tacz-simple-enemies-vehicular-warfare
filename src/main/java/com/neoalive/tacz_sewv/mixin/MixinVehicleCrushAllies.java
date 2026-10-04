@@ -3,12 +3,16 @@ package com.neoalive.tacz_sewv.mixin;
 import java.util.ArrayList;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.world.entity.Entity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 
 /**
  * Safety net for AI-crewed hulls: SBW's {@code crushEntities} damages every unmounted
@@ -20,6 +24,10 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
  * <p>0.8.9.1 replaced the old {@code stream().filter(...).toList()} with an explicit
  * {@link ArrayList} build, so the filter hooks {@code ArrayList.add} instead of
  * {@code Stream.toList}.
+ *
+ * <p>Also skips SBW's OBB entity support/push for a rider sliding one of this hull's rappel ropes
+ * ({@link RappelSupport#onRopeOf}): on a wide modded hull the rope top is inside the OBB, and the
+ * support lift out-climbs the slide, leaving the rider stuck in the hull and the rappel unfinished.
  */
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleMotionUtils")
 public abstract class MixinVehicleCrushAllies {
@@ -43,5 +51,10 @@ public abstract class MixinVehicleCrushAllies {
         @SuppressWarnings("unchecked")
         ArrayList<Object> raw = (ArrayList<Object>) list;
         return raw.add(entity);
+    }
+
+    @Inject(method = "handleEntityObbCollision", at = @At("HEAD"), cancellable = true, remap = false)
+    private void tacz_sewv$skipRappeller(VehicleEntity vehicle, Entity entity, CallbackInfo ci) {
+        if (RappelSupport.onRopeOf(entity, vehicle)) ci.cancel();
     }
 }

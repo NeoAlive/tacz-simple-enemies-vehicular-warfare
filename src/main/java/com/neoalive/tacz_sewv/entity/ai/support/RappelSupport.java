@@ -1,5 +1,8 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
+import java.util.Map;
+import java.util.WeakHashMap;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -68,6 +71,9 @@ public final class RappelSupport {
     public static boolean isRappelEligible(VehicleEntity hull, Entity passenger) {
         if (!(passenger instanceof AbstractUnit unit) || passenger instanceof Player) return false;
         if (passenger.getVehicle() != hull) return false;
+        // An unreadable seat is not taken for cargo: it would ground an armed hull's attack (see
+        // DriveHelicopterGoal.duty) on missing data.
+        if (hull.getSeat(passenger) == null) return false;
         return !VehicleWeapons.controlsVehicleWeapon(unit);
     }
 
@@ -99,11 +105,50 @@ public final class RappelSupport {
     }
 
     /**
+     * Riders on a rope -> {hull id, game time the mark lapses}. Server thread only. While marked, a
+     * rider does not collide with its hull: the rope top sits inside a wide hull's box, and SBW's OBB
+     * {@code support} lifts an entity whose feet are inside the hull by 1.1x the embedding depth per
+     * tick, which out-climbs the {@link #DESCENT_STEP} slide and pins the rider (and the rappel) for
+     * good. Every slide tick refreshes the mark, so an abandoned slide lapses on its own.
+     */
+    private static final Map<Entity, long[]> ON_ROPE = new WeakHashMap<>();
+    private static final long ROPE_MARK_TICKS = 40;
+
+    /** Put {@code rider} on the {@code plusX} rope of {@code hull}: dismount, place at the rope top, mark. */
+    public static Vec3 startRope(LivingEntity rider, VehicleEntity hull, boolean plusX) {
+        Vec3 top = ropeTopWorld(hull, plusX);
+        if (rider.getVehicle() == hull) rider.stopRiding();
+        rider.setDeltaMovement(Vec3.ZERO);
+        rider.fallDistance = 0.0F;
+        rider.setPos(top.x, top.y, top.z);
+        ON_ROPE.put(rider, new long[] {hull.getId(), rider.level().getGameTime() + ROPE_MARK_TICKS});
+        return top;
+    }
+
+    /** True while {@code rider} slides a rope of {@code hull} (server side; always false on a client). */
+    public static boolean onRopeOf(Entity rider, Entity hull) {
+        if (rider.level().isClientSide || ON_ROPE.isEmpty()) return false;
+        long[] m = ON_ROPE.get(rider);
+        return m != null && m[0] == hull.getId() && rider.level().getGameTime() <= m[1];
+    }
+
+    /**
      * One tick of a committed rope slide: pin XZ, drop Y by {@link #DESCENT_STEP}, snap to ground.
      *
      * @return {@code true} if still descending; {@code false} when landed or lost
      */
     public static boolean tickDescent(LivingEntity entity, double anchorX, double anchorZ) {
+        boolean still = slide(entity, anchorX, anchorZ);
+        long[] m = ON_ROPE.get(entity);
+        if (!still) {
+            ON_ROPE.remove(entity);
+        } else if (m != null) {
+            m[1] = entity.level().getGameTime() + ROPE_MARK_TICKS;
+        }
+        return still;
+    }
+
+    private static boolean slide(LivingEntity entity, double anchorX, double anchorZ) {
         if (!entity.isAlive()) return false;
         if (entity.isPassenger()) {
             entity.stopRiding(); // IFV dismount endpoint — frees rifle / AtWeaponGoal

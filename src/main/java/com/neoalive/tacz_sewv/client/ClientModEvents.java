@@ -25,6 +25,7 @@ import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
 import com.neoalive.tacz_sewv.compat.ColtanArmorBridge;
 import com.neoalive.tacz_sewv.compat.ColtanCompat;
 import com.neoalive.tacz_sewv.compat.ColtanSkinBridge;
+import com.neoalive.tacz_sewv.compat.CorpseCompat;
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModel;
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModelLayers;
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderRenderer;
@@ -61,6 +62,9 @@ public class ClientModEvents {
         if (ColtanCompat.bridgeActive()) {
             ColtanSkinBridge.register();
             ColtanArmorBridge.register();
+            if (CorpseCompat.isLoaded()) {
+                ColtanSkinBridge.registerCorpses();
+            }
         }
         event.enqueueWork(() -> MenuScreens.register(ModMenus.STOCKPILE.get(), StockpileScreen::new));
     }

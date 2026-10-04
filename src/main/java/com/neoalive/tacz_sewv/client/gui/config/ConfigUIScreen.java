@@ -3,11 +3,14 @@ package com.neoalive.tacz_sewv.client.gui.config;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
@@ -61,6 +64,12 @@ public class ConfigUIScreen extends Screen {
     private int categoryScroll;
     private int contentScroll;
     private boolean draggingScrollbar;
+    /** Live query; non-blank means rows come from every category of {@link #scope}. Survives {@code init()}. */
+    private String search = "";
+    private boolean searchFocused;
+    private EditBox searchBox;
+    /** Lower-cased searchable text per entry — the language cannot change while the screen is open. */
+    private final Map<ConfigEntry, String> haystack = new HashMap<>();
 
     private ConfigWidgets.FlatButton confirmButton;
     private ConfigWidgets.FlatButton resetButton;
@@ -186,6 +195,21 @@ public class ConfigUIScreen extends Screen {
         this.scopeServerTab.active = this.canEditServer;
         this.scopeServerTab.visible = this.canEditServer;
 
+        int searchW = Math.min(180, pw - 2 * PAD - 2 * SCOPE_TAB_W - 24);
+        this.searchBox = new EditBox(this.font, left + pw - PAD - searchW, tabY + 1, searchW, SCOPE_TAB_H - 2,
+                Component.translatable("gui.tacz_sewv.config.search.hint"));
+        this.searchBox.setHint(Component.translatable("gui.tacz_sewv.config.search.hint"));
+        this.searchBox.setValue(this.search);
+        this.searchBox.setResponder(s -> {
+            if (s.equals(this.search)) return;
+            this.search = s;
+            this.searchFocused = true;
+            this.contentScroll = 0;
+            init();
+        });
+        addRenderableWidget(this.searchBox);
+        if (this.searchFocused) setFocused(this.searchBox);
+
         int ribbonY = ribbonY();
         this.ribbonLeft = addRenderableWidget(new ConfigWidgets.FlatButton(
                 left + PAD, ribbonY, 16, RIBBON_H, Component.literal("<"),
@@ -304,7 +328,10 @@ public class ConfigUIScreen extends Screen {
 
     private void resetCategory() {
         Map<Integer, String> draft = activeDraft();
-        for (ConfigEntry entry : ConfigRegistry.forCategory(this.scope, currentCategory())) {
+        List<ConfigEntry> targets = searching()
+                ? this.rows.stream().map(RowWidgets::entry).toList()
+                : ConfigRegistry.forCategory(this.scope, currentCategory());
+        for (ConfigEntry entry : targets) {
             if (entry.type == ConfigValueType.SHORTCUT || entry.type == ConfigValueType.SECTION_HEADER) continue;
             draft.put(entry.index, entry.defaultDraftString());
         }
@@ -324,9 +351,42 @@ public class ConfigUIScreen extends Screen {
         return draftBool(entry.requiresKey);
     }
 
+    private boolean searching() {
+        return !this.search.isBlank();
+    }
+
+    /** Every whitespace token of the query must appear in the entry's key, label, tooltip, category or section. */
+    private boolean matchesSearch(ConfigEntry entry) {
+        if (entry.type == ConfigValueType.SECTION_HEADER) return false;
+        String hay = this.haystack.computeIfAbsent(entry, e -> (e.key + ' ' + I18n.get(e.labelKey()) + ' '
+                + I18n.get(e.tooltipKey()) + ' ' + e.category + ' '
+                + ConfigCategoryStyle.ribbonLabel(e.category).getString() + ' '
+                + (e.sectionKey == null ? "" : I18n.get(ConfigEntry.sectionLabelKey(e.sectionKey))))
+                .toLowerCase(Locale.ROOT));
+        for (String token : this.search.toLowerCase(Locale.ROOT).trim().split("\\s+")) {
+            if (!hay.contains(token)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Header drawn above row {@code i}, or null. Searching: the category name wherever it changes,
+     * since results span categories. Otherwise: the entry's own section.
+     */
+    private Component headerFor(int i) {
+        ConfigEntry entry = this.rows.get(i).entry();
+        if (searching()) {
+            return i == 0 || !this.rows.get(i - 1).entry().category.equals(entry.category)
+                    ? ConfigCategoryStyle.ribbonLabel(entry.category) : null;
+        }
+        return entry.sectionKey != null ? Component.translatable(ConfigEntry.sectionLabelKey(entry.sectionKey)) : null;
+    }
+
     private void rebuildEntryWidgets() {
         this.rows.clear();
-        List<ConfigEntry> entries = ConfigRegistry.forCategory(this.scope, currentCategory());
+        List<ConfigEntry> entries = searching()
+                ? ConfigRegistry.forScope(this.scope).stream().filter(this::matchesSearch).toList()
+                : ConfigRegistry.forCategory(this.scope, currentCategory());
         Map<Integer, String> draft = activeDraft();
 
         for (ConfigEntry entry : entries) {
@@ -433,14 +493,15 @@ public class ConfigUIScreen extends Screen {
         int clipBottom = contentBottom();
         int y = clipTop - this.contentScroll;
 
-        if (isShortcutsCategory()) {
+        if (shortcutLayout()) {
             layoutShortcutRows(y, clipTop, clipBottom);
             return;
         }
 
-        for (RowWidgets row : this.rows) {
+        for (int i = 0; i < this.rows.size(); i++) {
+            RowWidgets row = this.rows.get(i);
             ConfigEntry entry = row.entry();
-            int sectionPad = entry.sectionKey != null ? SECTION_H + ROW_GAP : 0;
+            int sectionPad = headerFor(i) != null ? SECTION_H + ROW_GAP : 0;
             int rowH = rowHeight(entry);
             int blockTop = y + sectionPad;
             boolean visible = blockTop + rowH >= clipTop && blockTop <= clipBottom;
@@ -459,6 +520,12 @@ public class ConfigUIScreen extends Screen {
                 row.field().visible = visible;
                 row.field().setEditable(visible);
             }
+            if (row.shortcutBtn() != null) {
+                row.shortcutBtn().setWidth(Math.min(SHORTCUT_BTN_W, valueW()));
+                row.shortcutBtn().setPosition(valueX(), valueY);
+                row.shortcutBtn().visible = visible;
+                row.shortcutBtn().active = visible;
+            }
             if (row.enumBtn() != null) {
                 String cur = activeDraft().getOrDefault(entry.index, entry.draftString());
                 row.enumBtn().setMessage(enumOptionLabel(entry, cur));
@@ -470,6 +537,11 @@ public class ConfigUIScreen extends Screen {
             }
             y += sectionPad + rowH + ROW_GAP;
         }
+    }
+
+    /** The centred button layout is for the shortcuts tab alone; search results always list as rows. */
+    private boolean shortcutLayout() {
+        return isShortcutsCategory() && !searching();
     }
 
     private void layoutShortcutRows(int startY, int clipTop, int clipBottom) {
@@ -495,15 +567,14 @@ public class ConfigUIScreen extends Screen {
     }
 
     private int contentHeight() {
-        if (isShortcutsCategory()) {
+        if (shortcutLayout()) {
             int totalH = this.rows.size() * (SHORTCUT_BTN_H + SHORTCUT_GAP) - SHORTCUT_GAP;
             return Math.max(totalH, contentBottom() - contentTop());
         }
         int h = 0;
-        for (RowWidgets row : this.rows) {
-            ConfigEntry entry = row.entry();
-            if (entry.sectionKey != null) h += SECTION_H + ROW_GAP;
-            h += rowHeight(entry) + ROW_GAP;
+        for (int i = 0; i < this.rows.size(); i++) {
+            if (headerFor(i) != null) h += SECTION_H + ROW_GAP;
+            h += rowHeight(this.rows.get(i).entry()) + ROW_GAP;
         }
         return h;
     }
@@ -622,14 +693,20 @@ public class ConfigUIScreen extends Screen {
 
         renderRibbon(g, left, ribbonY(), pw);
 
-        if (!isShortcutsCategory()) {
+        if (searching() && this.rows.isEmpty()) {
+            g.drawCenteredString(this.font, Component.translatable("gui.tacz_sewv.config.search.no_results"),
+                    this.width / 2, clipTop + 12, COL_MUTED);
+        }
+
+        if (!shortcutLayout()) {
             g.enableScissor(contentLeft(), clipTop, contentRight(), clipBottom);
             int y = clipTop - this.contentScroll;
-            for (RowWidgets row : this.rows) {
+            for (int i = 0; i < this.rows.size(); i++) {
+                RowWidgets row = this.rows.get(i);
                 ConfigEntry entry = row.entry();
-                if (entry.sectionKey != null) {
+                Component section = headerFor(i);
+                if (section != null) {
                     if (y + SECTION_H >= clipTop && y <= clipBottom) {
-                        Component section = Component.translatable(ConfigEntry.sectionLabelKey(entry.sectionKey));
                         g.drawString(this.font, section, labelX(), y + 4, COL_MUTED, false);
                     }
                     y += SECTION_H + ROW_GAP;
@@ -679,7 +756,7 @@ public class ConfigUIScreen extends Screen {
             Component label = ConfigCategoryStyle.ribbonLabel(cat);
             int w = this.font.width(label) + 14;
             if (x + w > maxX) break;
-            boolean sel = i == this.categoryIndex;
+            boolean sel = i == this.categoryIndex && !searching();
             if (sel) {
                 g.fill(x, ribbonY + 2, x + w, ribbonY + RIBBON_H - 2, ConfigCategoryStyle.selectedBackground(cat));
                 g.fill(x, ribbonY + RIBBON_H - 3, x + w, ribbonY + RIBBON_H - 2, ConfigCategoryStyle.accentColor(cat));
@@ -708,6 +785,8 @@ public class ConfigUIScreen extends Screen {
                 if (mouseX >= x && mouseX < x + w && mouseY >= ribbonY && mouseY < ribbonY + RIBBON_H) {
                     this.categoryIndex = i;
                     this.contentScroll = 0;
+                    this.search = "";
+                    this.searchFocused = false;
                     ensureCategoryVisible();
                     init();
                     return true;

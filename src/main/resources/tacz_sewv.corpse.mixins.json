@@ -6,7 +6,7 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "tacz_sewv.refmap.json",
   "mixins": [
-    "MixinCorpseEntityDisplayName"
+    "MixinCorpseEntity"
   ],
   "client": [
     "client.MixinCorpseRenderer",

@@ -1,11 +1,10 @@
 package com.neoalive.tacz_sewv.client;
 
-import java.lang.reflect.Method;
-
 import javax.annotation.Nullable;
 
 import net.minecraft.resources.ResourceLocation;
 
+import com.neoalive.tacz_sewv.bridge.ISemCorpse;
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.util.UnitCorpseAppearance;
@@ -14,48 +13,37 @@ import com.neoalive.tacz_sewv.util.UnitCorpseAppearance;
  * Client-only bind of the CorpseEntity currently being drawn, so DummyPlayer skin lookups can
  * resolve SEM/SEWV unit textures instead of Mojang skins.
  *
- * <p>Uses reflection for {@code getCorpseName()} so this class never mentions CorpseMod types —
- * safe to classload when Corpse is absent.
+ * <p>Reads the corpse through {@link ISemCorpse} (mixed on by {@code MixinCorpseEntity}), so this
+ * class never mentions CorpseMod types. The skin is resolved once and cached on the corpse — this
+ * runs every frame for every visible corpse.
  */
 public final class UnitCorpseSkin {
 
     private static final ThreadLocal<ResourceLocation> BOUND = new ThreadLocal<>();
 
-    private static volatile Method getCorpseName;
-
     private UnitCorpseSkin() {}
 
     public static void bind(@Nullable Object corpseEntity) {
-        if (corpseEntity == null) {
+        ResourceLocation skin = skinOf(corpseEntity);
+        if (skin == null) {
             BOUND.remove();
-            return;
+        } else {
+            BOUND.set(skin);
         }
-        Method method = getCorpseNameMethod();
-        if (method == null) {
-            BOUND.remove();
-            return;
+    }
+
+    /** The SEM unit skin for a corpse, or null for a player corpse. Also Coltan's corpse resolver. */
+    @Nullable
+    public static ResourceLocation skinOf(@Nullable Object corpseEntity) {
+        if (!(corpseEntity instanceof ISemCorpse corpse)) return null;
+        UnitCorpseAppearance appearance = corpse.sewv$appearance();
+        if (appearance == null) return null;
+        ResourceLocation skin = corpse.sewv$cachedSkin();
+        if (skin == null) {
+            skin = resolve(appearance.factionKey(), appearance.roleFolder(), appearance.variant());
+            corpse.sewv$setCachedSkin(skin);
         }
-        try {
-            Object raw = method.invoke(corpseEntity);
-            if (!(raw instanceof String name)) {
-                BOUND.remove();
-                return;
-            }
-            UnitCorpseAppearance appearance = UnitCorpseAppearance.parseEncodedName(name);
-            if (appearance == null) {
-                BOUND.remove();
-                return;
-            }
-            ResourceLocation skin = resolve(
-                    appearance.factionKey(), appearance.roleFolder(), appearance.variant());
-            if (skin == null) {
-                BOUND.remove();
-            } else {
-                BOUND.set(skin);
-            }
-        } catch (Throwable t) {
-            BOUND.remove();
-        }
+        return skin;
     }
 
     public static void clear() {
@@ -65,24 +53,6 @@ public final class UnitCorpseSkin {
     @Nullable
     public static ResourceLocation current() {
         return BOUND.get();
-    }
-
-    @Nullable
-    private static Method getCorpseNameMethod() {
-        Method cached = getCorpseName;
-        if (cached != null) return cached;
-        synchronized (UnitCorpseSkin.class) {
-            if (getCorpseName != null) return getCorpseName;
-            try {
-                Class<?> corpse = Class.forName("de.maxhenkel.corpse.entities.CorpseEntity");
-                Method method = corpse.getMethod("getCorpseName");
-                method.setAccessible(true);
-                getCorpseName = method;
-                return method;
-            } catch (Throwable t) {
-                return null;
-            }
-        }
     }
 
     @Nullable

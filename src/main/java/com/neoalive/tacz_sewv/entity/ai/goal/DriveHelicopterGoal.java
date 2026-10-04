@@ -553,7 +553,12 @@ public class DriveHelicopterGoal extends Goal {
      * destination, else hold station where the hull is (or patrol, for RU/US).
      */
     private void duty(Situation sit) {
-        LivingEntity target = this.transportOnly ? null : committedTarget(this.unit.getTarget());
+        // An RU/US hull with troops in its weaponless seats flies no attack procedure: it patrols,
+        // its door guns still fire on SBW's own seat loop, and the insert drops the troops when the
+        // patrol brings it near the fight. A hull whose every seat is armed (mi_28) has no such seat
+        // and fights as before.
+        boolean carrying = !(this.unit instanceof PmcUnitEntity) && RappelSupport.hasEligiblePassenger(this.vehicle);
+        LivingEntity target = this.transportOnly || carrying ? null : committedTarget(this.unit.getTarget());
         boolean pinned = flightPinnedByOrder();
         sit.underOrders = pinned;
         if (target != null) {
@@ -581,6 +586,10 @@ public class DriveHelicopterGoal extends Goal {
         }
 
         BlockPos dest = VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
+        // resolveDestination answers an RU/US crew's own target as its destination; a carrying hull
+        // patrols instead of flying to it (an objective ahead of the target, e.g. a capture, stays).
+        LivingEntity seen = this.unit.getTarget();
+        if (carrying && dest != null && seen != null && dest.equals(seen.blockPosition())) dest = null;
         if (dest != null) {
             clearHold();
             double px = dest.getX() + 0.5, pz = dest.getZ() + 0.5;
@@ -1015,11 +1024,7 @@ public class DriveHelicopterGoal extends Goal {
                 if (SmallArmsSupport.issueAtWeapon(rider)) this.rappelAtIssued++;
             }
 
-            Vec3 top = RappelSupport.ropeTopWorld(this.vehicle, plusX);
-            rider.stopRiding();
-            rider.setDeltaMovement(Vec3.ZERO);
-            rider.fallDistance = 0.0F;
-            rider.setPos(top.x, top.y, top.z);
+            Vec3 top = RappelSupport.startRope(rider, this.vehicle, plusX);
             if (plusX) {
                 this.rappelRopePlusId = id;
                 this.rappelRopePlusAx = top.x;

@@ -53,6 +53,7 @@
     "MixinWalkNodeEvaluator",
     "MixinDroneKamikaze",
     "MixinVehicleCrushAllies",
+    "MixinEntityRappelCollision",
     "MixinVehicleCarrierDeckStacking",
     "MixinVehicleDeckParkPhysics",
     "MixinSetVehicleSkinMessage",

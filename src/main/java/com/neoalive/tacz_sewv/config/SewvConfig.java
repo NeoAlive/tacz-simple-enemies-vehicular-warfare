@@ -73,6 +73,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue UNIT_CORPSE_RU;
     public static final ForgeConfigSpec.BooleanValue UNIT_CORPSE_US;
     public static final ForgeConfigSpec.BooleanValue UNIT_CORPSE_PMC;
+    public static final ForgeConfigSpec.IntValue UNIT_CORPSE_DESPAWN_MINUTES;
+    public static final ForgeConfigSpec.IntValue UNIT_CORPSE_MAX_PER_DIMENSION;
 
     public static final ForgeConfigSpec.BooleanValue NPC_ARMOR_ENABLED;
     public static final ForgeConfigSpec.BooleanValue STRUCTURES_GENERATE;
@@ -553,6 +555,14 @@ public final class SewvConfig {
                 .define("unitCorpseUs", true);
         UNIT_CORPSE_PMC = builder.comment("Spawn CorpseMod corpses for PMC unit deaths when unitCorpseCompat is on.")
                 .define("unitCorpsePmc", true);
+        UNIT_CORPSE_DESPAWN_MINUTES = builder.comment(
+                        "Remove an SEM unit corpse this many minutes after it spawns, loot included (nothing drops).",
+                        "Player corpses are untouched. 0 = never (CorpseMod's own rules only).")
+                .defineInRange("unitCorpseDespawnMinutes", 20, 0, 1440);
+        UNIT_CORPSE_MAX_PER_DIMENSION = builder.comment(
+                        "Keep at most this many SEM unit corpses per dimension; the oldest is removed, loot included.",
+                        "Counts corpses spawned since the server started. Player corpses are untouched. 0 = no cap.")
+                .defineInRange("unitCorpseMaxPerDimension", 64, 0, 4096);
         builder.pop();
 
         builder.push("npc_armor");

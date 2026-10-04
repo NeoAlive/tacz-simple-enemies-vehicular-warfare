@@ -48,6 +48,8 @@ public final class Situation {
     public int engageCycle;
     /** Envelope results (plan 4.10): FireStill's wind ceiling and yaw standoff are within reach. */
     public boolean windCeilingOk = true, yawStandoffOk = true;
+    /** Airborne with the engine stopped or failed: the only thing left to do is autorotate. */
+    public boolean engineOut;
     /** Target entity id (pick8e key, retarget detection); -1 for none. */
     public int targetId = -1;
 

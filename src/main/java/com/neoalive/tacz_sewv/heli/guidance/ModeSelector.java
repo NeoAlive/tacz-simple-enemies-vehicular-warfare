@@ -5,6 +5,7 @@ package com.neoalive.tacz_sewv.heli.guidance;
  * it never reads the world, and never the geometry half of the snapshot. First match wins:
  *
  * <pre>
+ *  0    airborne with the engine out                               -> AUTOROTATE   ORDER_FORCED
  *  1-4  LANDED -> PARK, LAND -> LAND, RAPPEL -> RAPPEL_HOLD, TAKEOFF -> TAKEOFF   ORDER_FORCED
  *  5    health < evadeHealth, live target, no order                -> EVADE        SURVIVAL
  *  6    under orders, far from the destination                     -> TRANSIT      ORDERED
@@ -36,6 +37,7 @@ public final class ModeSelector {
     private ModeSelector() {}
 
     public static Choice select(Situation s) {
+        if (s.engineOut) return forced(ProcedureId.AUTOROTATE); // physics outranks every order
         switch (s.order) {
             case LANDED:
                 return forced(ProcedureId.PARK);

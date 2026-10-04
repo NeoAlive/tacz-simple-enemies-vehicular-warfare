@@ -55,6 +55,7 @@ final class HeliAttackChecks {
             fireRuns(cls);
         }
         targetLoss();
+        for (String cls : HeliPhysicsChecks.CLASSES) engineOut(cls);
         touchdown();
         isolation();
         mutualAvoidance("light");
@@ -592,6 +593,81 @@ final class HeliAttackChecks {
             System.out.printf(Locale.ROOT, "  R5: target lost at %.1f s, run exited by %.1f s, reference step %.3f m / %.3f m/s%n",
                     lossAt, ended, worst[0], worst[1]);
         }
+    }
+
+    // --- Engine out (Phase 4) ---------------------------------------------------------------------
+
+    /** The goal's engine-out rule (DriveHelicopterGoal): airborne with the engine stopped or failed. */
+    private static void markEngineOut(Sim sim, Situation s) {
+        s.engineOut = !sim.onGround && (sim.s.engine == com.neoalive.tacz_sewv.heli.physics.HeliState.Engine.OFF
+                || sim.s.engine == com.neoalive.tacz_sewv.heli.physics.HeliState.Engine.FAILED);
+        s.groundBelow = sim.groundY;
+    }
+
+    /**
+     * Fuel runs out in a 100 m transit: AUTOROTATE takes over from the transit and lands under SBW's
+     * 8 m/s crash gate with rotor speed to spare (manual check 4 headless). Then an engine merely
+     * stopped in the air, with fuel aboard, is restarted and normal flight resumes.
+     */
+    private static void engineOut(String cls) {
+        StringBuilder line = new StringBuilder();
+        for (double h : new double[] {40, 100}) {
+            double[] r = engineOutFrom(cls, h);
+            assert r[0] < 8.0 && r[1] >= 0.6 : "engine out " + cls + " at " + h + " m: touchdown " + r[0] + " m/s, rotor " + r[1];
+            line.append(String.format(Locale.ROOT, " from %.0f m: %.2f m/s, rotor %.2f;", h, r[0], r[1]));
+        }
+        Airframe af = Sim.airframe(cls);
+        Sim re = new Sim(af).hover(0, 100, 0, 0);
+        re.s.engine = com.neoalive.tacz_sewv.heli.physics.HeliState.Engine.OFF;
+        boolean restarted = false;
+        double lowest = 100;
+        for (long tick = 0; tick < 20 * 30; tick++) {
+            Situation s = new Situation();
+            s.holdX = 0;
+            s.holdY = 100;
+            s.holdZ = 0;
+            markEngineOut(re, s);
+            re.tickGuided(s, tick, null);
+            lowest = Math.min(lowest, re.s.p.y);
+            restarted |= re.s.engine == com.neoalive.tacz_sewv.heli.physics.HeliState.Engine.RUN
+                    && re.core.stack.activeId() == ProcedureId.HOVER_HOLD;
+        }
+        assert restarted : "engine out " + cls + ": a stopped engine with fuel was not restarted";
+        System.out.printf(Locale.ROOT, "  E %s: fuel out in cruise, autorotation touchdown%s stopped engine with fuel restarted "
+                + "in the air (lowest %.1f m)%n", cls, line, lowest);
+    }
+
+    /** {touchdown sink, rotor speed fraction, sink at the table flare height, that height} after a fuel cut at h0. */
+    private static double[] engineOutFrom(String cls, double h0) {
+        Airframe af = Sim.airframe(cls);
+        Sim sim = new Sim(af).hover(0, h0, 0, 0);
+        double entrySink = Double.NaN, entryH = Double.NaN;
+        double vTouch = Double.NaN, wTouch = Double.NaN, cutAt = 10.0;
+        for (long tick = 0; tick < 20 * 120 && Double.isNaN(vTouch); tick++) {
+            double t = tick / 20.0;
+            if (t >= cutAt) sim.s.fuel = 0.0;
+            Situation s = new Situation();
+            s.hasDestination = true;
+            s.destX = 0;
+            s.destZ = 2000;
+            s.destY = h0;
+            s.destDistance = 2000 - sim.s.p.z;
+            markEngineOut(sim, s);
+            double vy = sim.s.v.y;
+            sim.tickGuided(s, tick, null);
+            if (Double.isNaN(entrySink) && sim.s.p.y + af.cgHeight + af.hubHeight <= af.flareHeight) {
+                entrySink = -sim.s.v.y;
+                entryH = sim.s.p.y;
+            }
+            if (t >= cutAt + 0.5) {
+                assert sim.core.stack.activeId() == ProcedureId.AUTOROTATE : "engine out " + cls + ": flying " + sim.core.stack.activeId();
+            }
+            if (sim.onGround) {
+                vTouch = -vy;
+                wTouch = sim.s.omega / af.omegaN;
+            }
+        }
+        return new double[] {vTouch, wTouch, entrySink, entryH};
     }
 
     // --- A3, A4 ------------------------------------------------------------------------------------

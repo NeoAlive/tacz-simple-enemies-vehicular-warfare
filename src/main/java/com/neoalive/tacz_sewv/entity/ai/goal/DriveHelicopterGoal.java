@@ -47,6 +47,7 @@ import com.neoalive.tacz_sewv.heli.guidance.OrderKind;
 import com.neoalive.tacz_sewv.heli.guidance.ProcedureId;
 import com.neoalive.tacz_sewv.heli.guidance.Situation;
 import com.neoalive.tacz_sewv.heli.physics.Airframe;
+import com.neoalive.tacz_sewv.heli.physics.HeliState;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHeliRunPhase;
 import com.neoalive.tacz_sewv.notify.HudNotify;
@@ -353,6 +354,10 @@ public class DriveHelicopterGoal extends Goal {
 
     @Override
     public void tick() {
+        if (HeliFlight.stale(this.runtime)) {
+            HeliRuntime fresh = HeliFlight.attach(this.vehicle, this.unit);
+            if (fresh != null) this.runtime = fresh;
+        }
         HudNotify.watchPmcVehicle(this.unit, this.vehicle);
         IHelicopterPilot pilot = (this.unit instanceof IHelicopterPilot p) ? p : null;
         int command = pilot != null ? pilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
@@ -403,6 +408,17 @@ public class DriveHelicopterGoal extends Goal {
                     duty(sit);
                 }
             }
+        }
+        // Engine out: in the air the selector autorotates whatever the order; on the ground a hull
+        // that cannot start again (failed, or no fuel) is parked rather than left asking to fly.
+        HeliState.Engine engine = this.runtime.state().engine;
+        boolean engineDead = engine == HeliState.Engine.FAILED
+                || (engine == HeliState.Engine.OFF && this.vehicle.getEnergy() <= 0);
+        if (this.vehicle.onGround()) {
+            if (engineDead) sit.order = OrderKind.LANDED;
+        } else if ((engine == HeliState.Engine.OFF || engine == HeliState.Engine.FAILED)
+                && this.runtime.activeId() != ProcedureId.PARK) { // a parked hull's onGround can flicker
+            sit.engineOut = true;
         }
         if (sit.targetValid) {
             Airframe af = this.runtime.airframe();

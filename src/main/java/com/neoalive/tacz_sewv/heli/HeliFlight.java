@@ -62,10 +62,17 @@ public final class HeliFlight {
         return IFlightDynamics.FLYING;
     }
 
-    /** Called by the pilot goal's start(). Returns null (SBW keeps flying) if no airframe resolves. */
+    /**
+     * Called by the pilot goal's start(), and again by its tick whenever {@link #stale} says the
+     * airframe table was reloaded: the replacement runtime re-seats from the entity (pose, velocity,
+     * engine state), so a hull in flight keeps flying on the new row. Returns null (SBW keeps flying)
+     * if no airframe resolves.
+     */
     public static HeliRuntime attach(VehicleEntity hull, AbstractUnit pilot) {
         HeliRuntime existing = runtime(hull);
-        if (existing != null && existing.pilotId == pilot.getId()) return existing;
+        if (existing != null && existing.pilotId == pilot.getId() && existing.generation == HeliAirframes.generation()) {
+            return existing;
+        }
         String id = String.valueOf(ForgeRegistries.ENTITY_TYPES.getKey(hull.getType()));
         Airframe af = HeliAirframes.resolve(id, NpcVehicleOverrides.isTransportHeli(hull), NpcVehicleOverrides.isHeavyHeli(hull));
         if (af == null) {
@@ -75,6 +82,11 @@ public final class HeliFlight {
         HeliRuntime r = new HeliRuntime(af, pilot.getId(), hull);
         ((IFlightDynamics) hull).sewv$setHeliRuntime(r);
         return r;
+    }
+
+    /** True when the airframe table was reloaded after this runtime was built. */
+    public static boolean stale(HeliRuntime r) {
+        return r != null && r.generation != HeliAirframes.generation();
     }
 
     /**

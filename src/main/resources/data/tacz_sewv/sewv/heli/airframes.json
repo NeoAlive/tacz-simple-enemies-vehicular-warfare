@@ -21,7 +21,7 @@
     "attack": {
       "mass": 8000, "cgHeight": 1.8, "inertia": [72000, 82000, 13500],
       "rotor": {
-        "radius": 7.3, "tipSpeed": 240, "inertia": 12500, "direction": "ccw", "hubHeight": 2.5,
+        "radius": 7.3, "tipSpeed": 240, "inertia": 45000, "direction": "ccw", "hubHeight": 2.5,
         "sigmaCd0": 0.00064, "inducedKappa": 1.15, "cyclicMaxDeg": 8, "hubStiffness": 336000, "angularDamping": 60000,
         "ctTable": [[0, 0], [0.25, 0.00834], [0.45, 0.016253], [0.7, 0.02048], [1.0, 0.02275]]
       },
@@ -40,7 +40,7 @@
     "attack_coaxial": {
       "mass": 10000, "cgHeight": 2.0, "inertia": [78400, 90000, 19600],
       "rotor": {
-        "radius": 7.25, "tipSpeed": 260, "inertia": 25000, "direction": "ccw", "hubHeight": 3.0,
+        "radius": 7.25, "tipSpeed": 260, "inertia": 45000, "direction": "ccw", "hubHeight": 3.0,
         "sigmaCd0": 0.0011, "inducedKappa": 1.25, "cyclicMaxDeg": 8, "hubStiffness": 576000, "angularDamping": 63000,
         "ctTable": [[0, 0], [0.25, 0.0090], [0.45, 0.017552], [0.7, 0.02334], [1.0, 0.02808]]
       },

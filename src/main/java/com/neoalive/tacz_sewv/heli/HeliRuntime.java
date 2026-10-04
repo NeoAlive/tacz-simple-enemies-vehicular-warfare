@@ -11,6 +11,7 @@ import com.neoalive.tacz_sewv.heli.avoid.AvoidForce;
 import com.neoalive.tacz_sewv.heli.avoid.ObstacleSet;
 import com.neoalive.tacz_sewv.heli.avoid.PathProbe;
 import com.neoalive.tacz_sewv.heli.control.FlightCore;
+import com.neoalive.tacz_sewv.heli.data.HeliAirframes;
 import com.neoalive.tacz_sewv.heli.guidance.FirePhase;
 import com.neoalive.tacz_sewv.heli.guidance.HeliReference;
 import com.neoalive.tacz_sewv.heli.guidance.ModeSelector;
@@ -61,6 +62,8 @@ public final class HeliRuntime {
 
     final Airframe af;
     final int pilotId;
+    /** The airframe table this runtime was built from; a /reload bumps it (plan section 5). */
+    final int generation = HeliAirframes.generation();
     final double g;
     /** The pure per-tick flight stack (shared with the headless self-checks). */
     final FlightCore core;

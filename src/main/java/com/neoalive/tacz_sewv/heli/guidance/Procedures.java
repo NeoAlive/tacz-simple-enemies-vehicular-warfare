@@ -57,6 +57,7 @@ public final class Procedures {
             case FIRE_STILL -> new FireStill(af, g);
             case FIRE_LOOP -> new FireLoop(af, g);
             case FIRE_RUN -> new FireRun(af, g);
+            case AUTOROTATE -> new Autorotate(af, g);
         };
     }
 
@@ -678,6 +679,131 @@ public final class Procedures {
         public HeliReference refAt(double t, HeliState s, Situation sit) {
             Vector3d zero = new Vector3d();
             return new HeliReference(t, new Vector3d(at), zero, zero, yaw, 0.0);
+        }
+
+        @Override
+        public boolean isComplete(HeliState s, Situation sit, double t) {
+            return false;
+        }
+    }
+
+    // --- Autorotate -------------------------------------------------------------------------------
+
+    /** Minimum-jerk quintic from (p0, v0, a0) to (p1, v1, a1) over T, sampled at tau: {p, v, a}. */
+    static double[] quintic(double p0, double v0, double a0, double p1, double v1, double a1, double T, double tau) {
+        double h = p1 - p0, T2 = T * T, T3 = T2 * T;
+        double c3 = (20 * h - (8 * v1 + 12 * v0) * T - (3 * a0 - a1) * T2) / (2 * T3);
+        double c4 = (-30 * h + (14 * v1 + 16 * v0) * T + (3 * a0 - 2 * a1) * T2) / (2 * T3 * T);
+        double c5 = (12 * h - 6 * (v1 + v0) * T + (a1 - a0) * T2) / (2 * T3 * T2);
+        double t2 = tau * tau, t3 = t2 * tau, t4 = t3 * tau, t5 = t4 * tau;
+        return new double[] {
+                p0 + v0 * tau + 0.5 * a0 * t2 + c3 * t3 + c4 * t4 + c5 * t5,
+                v0 + a0 * tau + 3 * c3 * t2 + 4 * c4 * t3 + 5 * c5 * t4,
+                a0 + 6 * c3 * tau + 12 * c4 * t2 + 20 * c5 * t3};
+    }
+
+    /**
+     * Engine out in the air (fuel exhausted, engine failed; plan 4.6 item 11 and O4). Above the
+     * flare height ({@link #flareHeight}: the table's, raised when the sink outruns it): an autorotative glide straight ahead at full forward speed, with no vertical
+     * demand (the controller's autorotation law owns collective there and holds rotor speed). At
+     * the flare height: a boundary-value flare, height along the minimum-jerk quintic from the
+     * current (y, v_y) to (ground, -1.5 m/s) over T_f = 2 h / (|v_y| + 1.5), at least 2 s, forward
+     * speed held through the first half and bled to half in the second (a run-on touchdown), tracked
+     * by the normal collective inversion, spending rotor energy. The same profile P11 proves.
+     *
+     * <p>Asks for an engine start the whole way down: the physics refuses one with no fuel or a
+     * failed engine, and if one is possible (an airborne hull whose engine was simply stopped) the
+     * selector hands back to normal flight as soon as it runs. Never completes.
+     */
+    static final class Autorotate implements HeliProcedure {
+        private static final double TOUCH_SINK = 1.5, FLARE_MARGIN = 2.0;
+        private final Airframe af;
+        private final double g;
+        private double dx, dz, t0 = Double.NaN, tf, y0, vy0, ground, x0, z0, v0;
+
+        Autorotate(Airframe af, double g) {
+            this.af = af;
+            this.g = g;
+        }
+
+        /**
+         * Height the flare needs: the table's flare height, or more when the hull is sinking faster than
+         * that height can arrest. An engine cut low down (cruise is 30-50 m above ground) reaches the
+         * table height still accelerating, well above the steady autorotative sink the table assumes:
+         * h = 2 v^2 / (2 a), a = T_max(Omega) / m - g, the deceleration the rotor can give at its
+         * present speed; the factor 2 covers the quintic flare's peak deceleration, 1.875 x its mean.
+         */
+        double flareHeight(HeliState s) {
+            double omegaR = s.omega * af.radius;
+            double tMax = Airframe.RHO0 * af.area * omegaR * omegaR * com.neoalive.tacz_sewv.heli.physics.RotorModel.maxCt(af);
+            double a = Math.max(0.5, tMax / af.mass - g), sink = Math.max(0.0, -s.v.y);
+            return Math.max(af.flareHeight, FLARE_MARGIN * sink * sink / (2.0 * a));
+        }
+
+        @Override
+        public ProcedureId id() {
+            return ProcedureId.AUTOROTATE;
+        }
+
+        @Override
+        public HeliControl.EngineCmd engine() {
+            return HeliControl.EngineCmd.START;
+        }
+
+        @Override
+        public boolean groundBarrier(double t) {
+            return false; // the ground is where this ends
+        }
+
+        @Override
+        public void begin(HeliState s, Situation sit, double t) {
+            double[] d = travelDir(s);
+            dx = d[0];
+            dz = d[1];
+        }
+
+        @Override
+        public HeliReference refAt(double t, HeliState s, Situation sit) {
+            Vector3d zero = new Vector3d();
+            if (Double.isNaN(t0)) {
+                double hr = s.p.y + af.cgHeight + af.hubHeight - sit.groundBelow;
+                if (hr > flareHeight(s)) {
+                    return new HeliReference(t, new Vector3d(s.p).add(dx, 0, dz),
+                            new Vector3d(dx * af.vMaxH, s.v.y, dz * af.vMaxH), zero, StrictMath.atan2(-dx, dz), 0.0);
+                }
+                t0 = t;
+                y0 = s.p.y;
+                vy0 = s.v.y;
+                x0 = s.p.x;
+                z0 = s.p.z;
+                v0 = Math.max(0.0, s.v.x * dx + s.v.z * dz);
+                ground = sit.groundBelow;
+                tf = Math.max(2.0, 2.0 * (y0 - ground) / (Math.abs(vy0) + TOUCH_SINK));
+            }
+            double yaw = StrictMath.atan2(-dx, dz), tau = t - t0;
+            if (tau > tf) {
+                double extra = tau - tf, along = runOn(tf) + 0.5 * v0 * extra;
+                return new HeliReference(t, new Vector3d(x0 + dx * along, ground - TOUCH_SINK * extra, z0 + dz * along),
+                        new Vector3d(dx * 0.5 * v0, -TOUCH_SINK, dz * 0.5 * v0), zero, yaw, 0.0);
+            }
+            double[] y = quintic(y0, vy0, 0, ground, -TOUCH_SINK, 0, tf, tau);
+            double half = tf / 2, along = runOn(tau), sp = v0, ac = 0.0;
+            if (tau > half) {
+                double[] q = quintic(0, v0, 0, 0, 0.5 * v0, 0, half, tau - half);
+                sp = q[1];
+                ac = q[2];
+            }
+            return new HeliReference(t, new Vector3d(x0 + dx * along, y[0], z0 + dz * along),
+                    new Vector3d(dx * sp, y[1], dz * sp), new Vector3d(dx * ac, y[2], dz * ac), yaw, 0.0);
+        }
+
+        /** Distance along the glide after tau s of flare: constant speed, then the quintic bleed to half. */
+        private double runOn(double tau) {
+            double half = tf / 2;
+            if (tau <= half) return v0 * tau;
+            double s = Math.min(1.0, (tau - half) / half), s4 = s * s * s * s;
+            double iw = half * (s4 * 2.5 - 3 * s4 * s + s4 * s * s);
+            return v0 * half + v0 * Math.min(tau - half, half) - 0.5 * v0 * iw;
         }
 
         @Override

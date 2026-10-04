@@ -164,7 +164,8 @@ public final class AirframeData {
             Map.entry("control.pos", -0.5), Map.entry("control.posV", -0.5), Map.entry("control.vel", -0.5),
             Map.entry("control.att", -0.5), Map.entry("control.rate", -0.5), Map.entry("control.yaw", -0.5),
             Map.entry("autorotation.flareHeight", 1.0),
-            Map.entry("procedures.cruiseSpeed", 0.5), Map.entry("procedures.orbitSpeed", 0.5),
+            Map.entry("procedures.cruiseSpeed", 0.5), Map.entry("procedures.turnSpeed", 0.5),
+            Map.entry("procedures.orbitSpeed", 0.5),
             Map.entry("procedures.runSpeed", 0.5));
 
     /** The row Froude-scaled to a hull {@code lambda} times its reference size (see {@link #FROUDE}). */
@@ -206,8 +207,8 @@ public final class AirframeData {
         if (af.bwRate * HeliPhysics.H > 0.2) p.add("control.rate x sub-step must be <= 0.2");
         if (af.bwYaw * TOL > 1.0 / (3.0 * af.yawLag)) p.add("control.yaw must be <= 1/(3 tail.yawLag)");
         if (af.bwVel * TOL > 1.0 / (3.0 * af.collectiveLag)) p.add("control.vel must be <= 1/(3 engine.collectiveLag)");
-        if (af.minTurnRadius < af.cruiseSpeed * af.cruiseSpeed / af.aLatMax * TOL) {
-            p.add("limits.minTurnRadius must be >= procedures.cruiseSpeed^2 / limits.aLatMax");
+        if (af.minTurnRadius < af.turnSpeed * af.turnSpeed / af.aLatMax * TOL) {
+            p.add("limits.minTurnRadius must be >= procedures.turnSpeed^2 / limits.aLatMax");
         }
         if (!(af.coneLo < af.coneHi)) p.add("aim.pitchFreeConeDeg must be [lo, hi] with lo < hi");
         if (!(af.patrolRMin > 0.0 && af.patrolRMin <= af.patrolRMax)) p.add("procedures.patrol needs 0 < rMin <= rMax");

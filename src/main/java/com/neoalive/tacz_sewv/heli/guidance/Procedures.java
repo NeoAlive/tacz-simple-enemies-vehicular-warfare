@@ -61,6 +61,20 @@ public final class Procedures {
         };
     }
 
+    /**
+     * A rotorcraft's planning radius (Phase 6). A plane turns at its cruise speed because it cannot
+     * slow below stall, so its radius is V^2 / a_lat at cruise; a helicopter slows into the turn, so
+     * its radius is set at {@code turnSpeed} and the path follower brakes for it (the speed profile).
+     */
+    static double turnRadius(Airframe af) {
+        // The nose must follow the track too: a turn at speed V on radius R needs yaw rate V / R.
+        return Math.max(Math.max(af.minTurnRadius, af.turnSpeed * af.turnSpeed / af.aLatMax),
+                af.turnSpeed / (YAW_MARGIN * af.yawRateMax));
+    }
+
+    /** Fraction of the yaw-rate and lateral-acceleration limits a planned path may use. */
+    static final double YAW_MARGIN = 0.8, LAT_MARGIN = 0.85;
+
     /** Nose heading of {@code s} as a vanilla yaw in radians. */
     static double heading(HeliState s) {
         Vector3d f = s.q.transform(new Vector3d(0, 0, 1));
@@ -119,6 +133,23 @@ public final class Procedures {
      * carries the overshoot onto the next path, which must start on this one's end pose.
      */
     static final class PathFollower {
+        /** Jerk limit on a commanded path acceleration, m/s^3. */
+        static final double JERK = 8.0;
+        /**
+         * Lateral acceleration the speed profile respects (Phase 6): on an arc of radius R the path
+         * speed is held to sqrt(a_lat R), and ahead of one it brakes along sqrt(v_arc^2 + 2 a_lat d).
+         * Infinite = no profile (constant-radius planning). {@code endLimit} is the speed the NEXT path
+         * may be entered at (it starts with an arc of the planning radius).
+         */
+        double aLat = Double.POSITIVE_INFINITY, endLimit = Double.POSITIVE_INFINITY;
+        /** Yaw rate the nose can follow on an arc (v = r R), rad/s; infinite = no limit. */
+        double yawRate = Double.POSITIVE_INFINITY;
+
+        /** Speed-profile limits for this airframe: lateral acceleration and the nose's yaw rate, with margins. */
+        void limits(Airframe af) {
+            aLat = af.aLatMax;
+            yawRate = YAW_MARGIN * af.yawRateMax;
+        }
         DubinsPlanar.Path path;
         Supplier<DubinsPlanar.Path> next;
         double s, sd, sdd, time = Double.NaN;
@@ -144,11 +175,37 @@ public final class Procedures {
         }
 
         void advance(double t, double cruise) {
+            advance(t, cruise, Double.NaN, Double.POSITIVE_INFINITY);
+        }
+
+        /**
+         * The path speed allowed at arc length {@code at}: the current arc's sqrt(a_lat R), every later
+         * arc's braking envelope, and the path end (rest, or the next path's entry speed).
+         */
+        double speedLimit(double at) {
+            double lim = next == null ? Math.sqrt(2.0 * PATH_ACCEL * Math.max(0.0, path.length() - at))
+                    : Math.sqrt(endLimit * endLimit + 2.0 * aLat * Math.max(0.0, path.length() - at));
+            if (aLat == Double.POSITIVE_INFINITY) return lim;
+            double start = 0.0;
+            for (DubinsPlanar.Segment seg : path.segments()) {
+                double end = start + seg.length();
+                if (seg instanceof DubinsPlanar.Arc arc && end > at && seg.length() > 1e-9) {
+                    double v = Math.min(Math.sqrt(aLat * arc.r()), yawRate * arc.r());
+                    lim = Math.min(lim, start <= at ? v : Math.sqrt(v * v + 2.0 * aLat * (start - at)));
+                }
+                start = end;
+            }
+            return lim;
+        }
+
+        /** As {@link #advance(double, double)}, but with path acceleration {@code accel} (when not NaN) up to speed {@code cap}. */
+        void advance(double t, double cruise, double accel, double cap) {
             while (time + 0.5 * H < t) {
-                double want = cruise;
-                if (next == null) want = Math.min(cruise, Math.sqrt(2.0 * PATH_ACCEL * Math.max(0.0, path.length() - s)));
-                sdd = Math.max(-PATH_ACCEL, Math.min(PATH_ACCEL, (want - sd) / 0.5));
-                sd = Math.max(0.0, sd + H * sdd);
+                double want = Math.min(cruise, speedLimit(s));
+                double brake = aLat == Double.POSITIVE_INFINITY ? PATH_ACCEL : aLat;
+                sdd = Double.isNaN(accel) ? Math.max(-brake, Math.min(PATH_ACCEL, (want - sd) / 0.5))
+                        : sdd + Math.max(-JERK * H, Math.min(JERK * H, accel - sdd)); // a commanded a: jerk-limited, or the nose overshoots
+                sd = Math.min(cap, Math.max(0.0, sd + H * sdd));
                 s = s + H * sd;
                 if (s >= path.length()) {
                     DubinsPlanar.Path n = next == null ? null : next.get();
@@ -294,9 +351,8 @@ public final class Procedures {
             }
             double bx = dx - x, bz = dz - z, bl = Math.sqrt(bx * bx + bz * bz);
             double ex = bl > 1e-6 ? bx / bl : hx, ez = bl > 1e-6 ? bz / bl : hz;
-            double v = cruise();
-            double r = Math.max(af.minTurnRadius, v * v / af.aLatMax);
-            f.start(DubinsPlanar.shortest(x, z, hx, hz, dx, dz, ex, ez, r), Math.max(0.0, vx * hx + vz * hz), t);
+            f.limits(af);
+            f.start(DubinsPlanar.shortest(x, z, hx, hz, dx, dz, ex, ez, turnRadius(af)), Math.max(0.0, vx * hx + vz * hz), t);
             this.planTime = t;
             this.planDestX = dx;
             this.planDestZ = dz;
@@ -446,11 +502,13 @@ public final class Procedures {
         }
 
         double radius() {
-            return Math.max(af.minTurnRadius, af.cruiseSpeed * af.cruiseSpeed / af.aLatMax);
+            return turnRadius(af);
         }
 
         @Override
         public void begin(HeliState s, Situation sit, double t) {
+            f.limits(af);
+            f.endLimit = af.turnSpeed;
             build(Double.isNaN(sit.anchorX) ? s.p.x : sit.anchorX, Double.isNaN(sit.anchorZ) ? s.p.z : sit.anchorZ, sit.seed);
             double[] d = travelDir(s);
             int best = -1, nearest = 0;
@@ -1098,9 +1156,17 @@ public final class Procedures {
      * deg or cross-track > 3 m) a Dubins ingress to (P_s, e) is prepended. Then the run leg along e at
      * the run speed and the run altitude max(groundRef + 34, y_t + 12).
      *
-     * <p>The fire window opens at {@link #openRange} and closes at the break range, overfly past
-     * T + 8, the window time T_w = (V_max - V_run)/a_w, a depleted weapon, the pull-up floor, or the
-     * target lost past the ghost. Closing it flies the exit: a Dubins break/reposition to
+     * <p><b>Target frame</b> (Phase 6). The whole path lives in the target's moving frame, as
+     * FireLoop's orbit does: the follower's coordinates are offsets from the tracked target, and the
+     * reference is p = p_t + P(s), v = v_t + P'(s) s', a = a_t + P''s'^2 + P's''. Every clearance in
+     * this class (break range, escape arc, overfly) is therefore a clearance from the target itself,
+     * moving or not, and a moving target never drives the hull into it. The path speed is capped so
+     * the ground speed |v_t + P' s'| stays within vMaxH.
+     *
+     * <p>The fire window is placed by the fire cone ({@link #closeRange}, {@link #openRange}): the
+     * run is level, so the target's depression below the nose grows as the range closes, and the
+     * window must end where it leaves the cone. It also closes on overfly past T + 8, a depleted
+     * weapon, the pull-up floor, or the target lost past the ghost. Closing it flies the exit: a Dubins break/reposition to
      * (P_s', e'), e' = R_Y(s reattack) e, BREAK on its first arc and REPOSITION after, at cruise
      * altitude; the procedure completes at the end of it and hands e' to the next pass. A pre-empted
      * run never flies the exit.
@@ -1109,8 +1175,27 @@ public final class Procedures {
         static final double BREAK_RANGE = 14.0, OVERFLY_MARGIN = 8.0, PULLUP_FLOOR = 18.0, PULLUP_LEAD = 0.5;
         /** Seconds the fire window should stay open on a pass. */
         static final double WINDOW_TARGET = 3.0;
-        static final double RUN_AGL = 34.0, MIN_OVER_TARGET = 12.0, T_ALIGN = 3.0, ALIGN_XTRACK = 3.0;
-        static final double ALIGN_COS = StrictMath.cos(StrictMath.toRadians(15.0));
+        /** The window ends this far inside the fire cone's edge (nose trim and tracking error). */
+        static final double CONE_MARGIN = StrictMath.toRadians(5.0);
+        static final double RUN_AGL = 34.0, MIN_OVER_TARGET = 12.0, T_ALIGN = 3.0, ALIGN_XTRACK = 10.0;
+        /** A bunt's alignment time on the run line, and how far above its run altitude it flies between passes. */
+        static final double T_ALIGN_BUNT = 1.5, BUNT_EXIT_CLIMB = 5.0;
+        /** Off the run axis by more than this, the pass is no longer a run at this target: break and re-plan. */
+        static final double AXIS_LOST = StrictMath.toRadians(30.0);
+        /** Seconds before the window the bunt starts pitching, so the nose is on the target as it opens. */
+        static final double PRE_PITCH = 1.0;
+        /** The window opens only with the nose within this of the target's bearing. */
+        static final double ALIGN_YAW = StrictMath.toRadians(5.0);
+        static final double ALIGN_YAW_RATE = 0.1;
+        // Already on the run axis within ALIGN_XTRACK / 25 deg: start on the line (the live line re-aims through the target).
+        static final double ALIGN_COS = StrictMath.cos(StrictMath.toRadians(25.0));
+        /** Bunt run: height over the ground round the target and over the target, ingress speed below vMaxH, and the depression it opens at. */
+        static final double BUNT_AGL = 15.0, BUNT_OVER_TARGET = 8.0, BUNT_HEADROOM = 10.0;
+        static final double BUNT_OPEN = StrictMath.toRadians(6.0);
+        /** Closest a bunt's break turn may carry the hull to the target, m. */
+        static final double BREAK_CLEAR = 30.0;
+        /** A bunt's pull-up floor above the ground under the hull. */
+        static final double BUNT_PULLUP = 9.0;
         /** Straight tail appended to every path, so the reference never runs out of road. */
         private static final double TAIL = 1000.0;
 
@@ -1119,10 +1204,21 @@ public final class Procedures {
         private final TargetTrack track = new TargetTrack();
         private final PathFollower f = new PathFollower();
         private final Prefilter alt = new Prefilter();
+        /** A nose-aimed weapon: the run is a low accelerating "bunt" that pitches the nose onto the target. */
+        private boolean bunt;
         private double ex, ez, nextEx = Double.NaN, nextEz = Double.NaN, hintEx = Double.NaN, hintEz;
-        private double lin, windowOpen = Double.NaN, breakArc;
+        private double lin, breakArc;
+        /** Run altitude and target height from the last snapshot with a live target (latched across a loss). */
+        private double runAlt = Double.NaN, targetY = Double.NaN;
         private boolean onLine, done;
         private int sense;
+        private double lastSteer = Double.NaN;
+        /** The bunt pitch has started ahead of the window (the nose takes ~a second to come down). */
+        private boolean prePitch;
+        /** This sub-step's cap on the path (target-frame) speed from vMaxH on the ground. */
+        private double relCap = Double.POSITIVE_INFINITY;
+        /** Weapon ballistics from the snapshot, for the lead point. */
+        private double projSpeed, projGravity, aimDy;
         FirePhase phase = FirePhase.INGRESS;
 
         FireRun(Airframe af, double g) {
@@ -1147,43 +1243,137 @@ public final class Procedures {
             return new double[] {nextEx, nextEz};
         }
 
+        /**
+         * max(groundRef + 34, y_t + 12), latched while the target is live. A lost target's snapshot
+         * fields are zero, and reading them made the run climb to absolute Y 34 mid-pass (on a world
+         * whose ground is far from Y 0 that was tens of metres; seen in a live trace).
+         */
         double runAltitude(Situation sit) {
-            return Math.max(sit.groundRef + RUN_AGL, sit.targetY + MIN_OVER_TARGET);
+            if (sit.targetValid) {
+                runAlt = bunt ? Math.max(sit.groundRef + BUNT_AGL, sit.targetY + BUNT_OVER_TARGET)
+                        : Math.max(sit.groundRef + RUN_AGL, sit.targetY + MIN_OVER_TARGET);
+                targetY = sit.targetY;
+            }
+            return runAlt;
         }
 
         double radius() {
-            return Math.max(af.minTurnRadius, af.runSpeed * af.runSpeed / af.aLatMax);
+            return turnRadius(af);
         }
 
         /**
-         * T_w = (V_max - V_run) / a_w with a_w = g tan(clamp(eps - cone_hi - alpha, 0, gamma_max)) - D(V)/m, at
-         * the window's open range; infinite when a_w <= 0. The fire gate only needs the boresight within
-         * alpha of the line of sight, so the nose-down the window forces is what is left after the
-         * pitch-free cone AND the fire cone (the plan's formula left alpha out, which made every run at
-         * the shipped geometry infeasible).
+         * The break turn's radius. A bunt breaks at up to vMaxH and turns at that speed: braking first
+         * to the rotorcraft turn speed costs ~a straight braking run TOWARD the target, which for the
+         * 30 m clearance gives the same break range (worked through in the Phase 6 plan's review), so
+         * the break keeps its speed and its radius vMaxH^2 / a_lat.
          */
-        double windowTime(Situation sit) {
-            double eps = StrictMath.atan2(runAltitude(sit) - sit.targetY, Math.max(sit.engageRadius, 1.0));
-            double tilt = Math.max(0.0, Math.min(af.tiltMax, eps - af.coneHi - sit.fireCone));
-            double drag = 0.5 * RHO * af.cdaZ * af.runSpeed * af.runSpeed / af.mass;
-            double aw = g * StrictMath.tan(tilt) - drag;
-            return aw <= 0.0 ? Double.POSITIVE_INFINITY : (af.vMaxH - af.runSpeed) / aw;
+        double breakRadius() {
+            // Flown at LAT_MARGIN of a_lat, so the hull's lag does not eat the clearance.
+            return bunt ? Math.max(af.minTurnRadius, af.vMaxH * af.vMaxH / (LAT_MARGIN * af.aLatMax)) : radius();
+        }
+
+        /** The lead point for the held weapon, seen from {@code from}. */
+        Vector3d aim(Vector3d from, double t) {
+            Vector3d tp = track.p(t).add(0.0, aimDy, 0.0);
+            return Envelope.aimPoint(from, tp, track.v(t), projSpeed, projGravity);
+        }
+
+        /**
+         * The run line follows the target (Phase 6): on the line it is re-anchored at the current
+         * reference point toward the lead point, the heading turning no faster than a_lat / s', so the
+         * path stays one a helicopter can fly and the reference stays continuous. Once per sub-step.
+         */
+        private void steer(double t) {
+            if (!Double.isNaN(lastSteer) && t < lastSteer + 0.5 * H) return;
+            double dt = Double.isNaN(lastSteer) ? H : t - lastSteer;
+            lastSteer = t;
+            f.path.sample(f.s, f.out);
+            Vector3d tp = track.p(t);
+            // The lead point relative to the target (the frame origin) and the reference point in that frame.
+            Vector3d l = aim(new Vector3d(tp.x + f.out[0], alt.value(), tp.z + f.out[1]), t).sub(tp);
+            double dx = l.x - f.out[0], dz = l.z - f.out[1], d = Math.sqrt(dx * dx + dz * dz);
+            if (d < 1.0) return;
+            double want = StrictMath.atan2(ex * dz - ez * dx, ex * dx + ez * dz); // signed, left positive
+            double max = Math.min(af.aLatMax / Math.max(f.sd, af.turnSpeed), YAW_MARGIN * af.yawRateMax) * dt;
+            double turn = Math.max(-max, Math.min(max, want)), c = StrictMath.cos(turn), sn = StrictMath.sin(turn);
+            double nx = ex * c - ez * sn;
+            ez = ex * sn + ez * c;
+            ex = nx;
+            double sd = f.sd;
+            f.swap(line(f.out[0], f.out[1], ex, ez, TAIL));
+            f.legs = 1; // still on the run line
+            f.sd = sd;
+        }
+
+        /**
+         * Where the window ends: the range at which the target sits at the fire cone's edge below a
+         * level nose, h / tan(alpha - 5 deg), never inside the break range. Only alpha: the fire assist
+         * judges the PILOT's weapons, which are fixed to the nose (SBW's HUD shoot direction); the
+         * airframe's pitch-free cone belongs to a chin turret, which SBW's own crew loop aims and fires. (The plan sized
+         * the window from T_w, the time a forward acceleration a_w can hold the nose down; the run leg
+         * is flown level and never commands a_w, so a live trace showed the whole window outside the
+         * cone and not a single shot in 98 s.)
+         */
+        double closeRange(Situation sit) {
+            // A bunt aims the nose itself, so its limit is the tilt the airframe can hold; and it breaks far
+            // enough out that the break turn stays BREAK_CLEAR from the target (a live trace: shot down
+            // over a BMP while turning away inside 30 m).
+            double eps = bunt ? af.tiltMax : Math.min(StrictMath.toRadians(85.0), sit.fireCone - CONE_MARGIN);
+            // Turning at radius R from range d while heading at the target passes it at sqrt(d^2 + R^2) - R.
+            double r = breakRadius(), floor = bunt ? StrictMath.sqrt((BREAK_CLEAR + r) * (BREAK_CLEAR + r) - r * r) : BREAK_RANGE;
+            return Math.max(floor, (runAltitude(sit) - targetY) / StrictMath.tan(Math.max(eps, 0.05)));
+        }
+
+        /**
+         * Where the window opens: {@link #WINDOW_TARGET} s of run before it ends, at least
+         * heliEngageRadius, within weapon range. A bunt opens where the target is {@link #BUNT_OPEN}
+         * below the horizon: shallow enough that the forward acceleration that pitches the nose onto
+         * it can be held for a few seconds.
+         */
+        double openRange(Situation sit) {
+            double open = bunt ? (runAltitude(sit) - targetY) / StrictMath.tan(BUNT_OPEN)
+                    : closeRange(sit) + af.runSpeed * WINDOW_TARGET;
+            return Math.min(sit.weaponRange, Math.max(sit.engageRadius, open));
+        }
+
+        @Override
+        public boolean retarget(Situation sit, double t) {
+            // The run follows the new target (Phase 6): its track absorbs the jump, the live line turns
+            // toward it, and a target the pass can no longer serve ends the pass (AXIS_LOST, a break),
+            // never a re-planned ingress mid-air. A live trace re-began the run ten times in 70 s on
+            // target churn alone and never reached a window.
+            readWeapon(sit);
+            return true;
+        }
+
+        private void readWeapon(Situation sit) {
+            projSpeed = sit.projSpeed;
+            projGravity = sit.projGravity;
+            aimDy = sit.aimDy;
         }
 
         @Override
         public boolean canBegin(HeliState s, Situation sit) {
-            return sit.targetValid && windowTime(sit) >= 1.0;
+            bunt = sit.noseAim;
+            return sit.targetValid && openRange(sit) - closeRange(sit) >= af.runSpeed;
+        }
+
+        /** Run-leg speed: a bunt comes in slower, leaving room to accelerate through the window. */
+        double runSpeed() {
+            return bunt ? Math.min(af.runSpeed, af.vMaxH - BUNT_HEADROOM) : af.runSpeed;
         }
 
         /**
-         * Where the fire window opens (Phase 5 retune). heliEngageRadius alone (32 m by default) left
-         * 18 m between it and the break range, 0.9 s at the run speed: a cannon got off a burst and a
-         * missile rarely launched at all. The window is now sized in time: it opens far enough out to
-         * stay open {@link #WINDOW_TARGET} s before the break, or for the whole feasible window T_w if
-         * that is shorter, and never inside heliEngageRadius, which is now the floor.
+         * The bunt's path acceleration (plan 4.10's a_w, now commanded): with heading on the target,
+         * the nose pitches with the thrust tilt, atan((m a + D) / m g), so a = g tan(eps) - D/m puts
+         * it at the target's depression eps. Read off the reference itself, never the hull, so it is
+         * a function of time like any other reference.
          */
-        double openRange(Situation sit) {
-            return Math.max(sit.engageRadius, BREAK_RANGE + af.runSpeed * Math.min(WINDOW_TARGET, windowTime(sit)));
+        double buntAccel(double refY, double refX, double refZ, Vector3d tp, double speed) {
+            double r = Math.max(1.0, StrictMath.hypot(tp.x - refX, tp.z - refZ));
+            double eps = StrictMath.atan2(Math.max(0.0, refY - tp.y), r);
+            double drag = 0.5 * RHO * af.cdaZ * speed * speed / af.mass;
+            return g * StrictMath.tan(eps) - drag;
         }
 
         @Override
@@ -1200,18 +1390,29 @@ public final class Procedures {
                 ex = l > 1.0 ? dx / l : d[0];
                 ez = l > 1.0 ? dz / l : d[1];
             }
-            lin = Math.max(openRange(sit) + af.runSpeed * T_ALIGN, 2.0 * af.minTurnRadius);
-            double psx = tp.x - lin * ex, psz = tp.z - lin * ez;
-            double[] d = travelDir(s);
-            double speed = Math.max(0.0, s.v.x * d[0] + s.v.z * d[1]);
-            double rx = s.p.x - tp.x, rz = s.p.z - tp.z;
+            bunt = sit.noseAim;
+            readWeapon(sit);
+            f.limits(af);
+            Vector3d tv = track.v(t);
+            // Run-in: what physics needs and no more (Phase 6; it was ~235 m, the source of the 300 m
+            // excursions). A bunt aligns in T_ALIGN_BUNT, and adds time only if it must still descend.
+            // Descent time includes the altitude prefilter's settling (critically damped, ~2/w to within 2 m).
+            double drop = Math.max(0.0, s.p.y - runAltitude(sit));
+            double align = bunt ? Math.max(T_ALIGN_BUNT, drop > 0.5 ? drop / af.vDescent + 2.0 / FILTER_W : 0.0) : T_ALIGN;
+            lin = Math.max(openRange(sit) + runSpeed() * align, 2.0 * radius());
+            // Everything below is in the target frame: offsets from the target, velocity relative to it.
+            double psx = -lin * ex, psz = -lin * ez;
+            double rx = s.p.x - tp.x, rz = s.p.z - tp.z, rvx = s.v.x - tv.x, rvz = s.v.z - tv.z;
+            double rsp = Math.sqrt(rvx * rvx + rvz * rvz);
+            double[] d = rsp > 2.0 ? new double[] {rvx / rsp, rvz / rsp} : travelDir(s);
+            double speed = Math.max(0.0, rvx * d[0] + rvz * d[1]);
             double along = rx * ex + rz * ez, cross = Math.abs(rx * ez - rz * ex);
             boolean aligned = d[0] * ex + d[1] * ez >= ALIGN_COS && cross <= ALIGN_XTRACK && along <= -openRange(sit);
             if (aligned) {
-                f.start(line(s.p.x, s.p.z, ex, ez, -along + TAIL), speed, t);
+                f.start(line(rx, rz, ex, ez, -along + TAIL), speed, t);
                 onLine = true;
             } else {
-                f.start(DubinsPlanar.shortest(s.p.x, s.p.z, d[0], d[1], psx, psz, ex, ez, radius()), speed, t);
+                f.start(DubinsPlanar.shortest(rx, rz, d[0], d[1], psx, psz, ex, ez, radius()), speed, t);
                 f.next = () -> line(psx, psz, ex, ez, lin + TAIL);
                 onLine = false;
             }
@@ -1224,12 +1425,36 @@ public final class Procedures {
             track.update(sit);
             if (!done) advancePhase(t, s, sit);
             boolean attacking = phase == FirePhase.INGRESS || phase == FirePhase.ATTACK;
-            double speed = attacking ? (onLine ? af.runSpeed : af.cruiseSpeed)
+            double speed = attacking ? (onLine ? runSpeed() : af.cruiseSpeed)
                     : (phase == FirePhase.BREAK ? af.runSpeed : af.cruiseSpeed);
-            f.advance(t, speed);
+            Vector3d tp = track.p(t), tv = track.v(t), ta = track.a(t);
+            f.path.sample(f.s, f.out);
+            // Ground speed |v_t + P' s'| <= vMaxH: the largest s' along the current direction P'.
+            double td = tv.x * f.out[2] + tv.z * f.out[3], t2 = tv.x * tv.x + tv.z * tv.z;
+            relCap = Math.max(0.0, -td + Math.sqrt(Math.max(0.0, td * td - t2 + af.vMaxH * af.vMaxH)));
+            speed = Math.min(speed, relCap);
+            if (bunt && (phase == FirePhase.ATTACK || prePitch)) {
+                Vector3d from = new Vector3d(tp.x + f.out[0], alt.value(), tp.z + f.out[1]);
+                // The nose pitches with the GROUND acceleration a_t + P' s'', so the path term is what remains
+                // after the target's own acceleration along the path.
+                double along = ta.x * f.out[2] + ta.z * f.out[3];
+                f.advance(t, speed, buntAccel(alt.value(), from.x, from.z, aim(from, t), f.sd) - along, relCap);
+            } else {
+                f.advance(t, speed);
+            }
             if (!onLine && f.legs > 0) onLine = true;
-            alt.at(t, attacking ? runAltitude(sit) : sit.cruiseY, FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
-            return f.sample(t, alt);
+            if (attacking && onLine) steer(t);
+            double exitY = bunt ? runAltitude(sit) + BUNT_EXIT_CLIMB : sit.cruiseY; // a bunt stays low between passes
+            alt.at(t, attacking ? runAltitude(sit) : exitY, FILTER_W, H, -af.vDescent, af.vClimb, af.aLatMax);
+            HeliReference rel = f.sample(t, alt);
+            HeliReference r = new HeliReference(t, new Vector3d(rel.p()).add(tp.x, 0.0, tp.z),
+                    new Vector3d(rel.v()).add(tv.x, 0.0, tv.z), new Vector3d(rel.a()).add(ta.x, 0.0, ta.z), rel.yaw(), rel.yawRate());
+            if (!(attacking && onLine)) return r;
+            // On the run the nose is aimed, not slaved to the track: yaw = line of sight to the lead
+            // point (yaw is an independent degree of freedom, plan 4.0/4.6, as FireStill uses it).
+            Vector3d p = new Vector3d(r.p()), v = new Vector3d(r.v());
+            double[] los = lineOfSight(p, v, aim(p, t), track.v(t), r.yaw());
+            return new HeliReference(t, p, v, new Vector3d(r.a()), los[0], los[1]);
         }
 
         private void advancePhase(double t, HeliState s, Situation sit) {
@@ -1238,39 +1463,72 @@ public final class Procedures {
                     Vector3d tp = track.p(t);
                     double rx = s.p.x - tp.x, rz = s.p.z - tp.z, range = Math.sqrt(rx * rx + rz * rz);
                     double along = rx * ex + rz * ez;
-                    if (phase == FirePhase.INGRESS && onLine && range <= openRange(sit)) {
-                        phase = FirePhase.ATTACK;
-                        windowOpen = t;
-                    }
-                    boolean pullUp = s.p.y - sit.groundBelow <= PULLUP_FLOOR + Math.max(0.0, -s.v.y) * PULLUP_LEAD;
-                    boolean close = track.lost() || (onLine && along > OVERFLY_MARGIN) || (onLine && pullUp)
-                            || (phase == FirePhase.ATTACK && (range <= BREAK_RANGE || t - windowOpen >= windowTime(sit)
-                                    || sit.ammoFrac <= 0.0));
+                    // A bunt opens only at its run altitude: a hull still descending onto it sees the target too
+                    // steep, and the acceleration that would pitch the nose there runs out in a second or two.
+                    boolean atHeight = !bunt || Math.abs(alt.value() - runAltitude(sit)) < 3.0;
+                    // ...and only with the nose settled on the target: a hull rolling out of the reposition turn
+                    // still swings its nose (the plan's alignment rule, now applied to the window itself).
+                    boolean nosed = Math.abs(wrapPi(heading(s) - StrictMath.atan2(-(tp.x - s.p.x), tp.z - s.p.z))) < ALIGN_YAW
+                            && Math.abs(s.w.y) < ALIGN_YAW_RATE; // settled, not swinging through
+                    if (phase == FirePhase.INGRESS && onLine && atHeight && nosed && range <= openRange(sit)) phase = FirePhase.ATTACK;
+                    prePitch = bunt && onLine && atHeight && range <= openRange(sit) + f.sd * PRE_PITCH;
+                    double floor = bunt ? BUNT_PULLUP : PULLUP_FLOOR; // a bunt flies below the strafe floor by design
+                    boolean pullUp = s.p.y - sit.groundBelow <= floor + Math.max(0.0, -s.v.y) * PULLUP_LEAD;
+                    // Survivability floor on the whole run, not only the window, and a target the line can no
+                    // longer serve (a mover that outran it, a hand-off far off the axis) ends the pass.
+                    double cosOff = range > 1.0 ? -(rx * ex + rz * ez) / range : 1.0;
+                    boolean tooClose = onLine && range < (bunt ? BREAK_CLEAR : BREAK_RANGE);
+                    boolean axisLost = onLine && range > (bunt ? BREAK_CLEAR : BREAK_RANGE) && cosOff < StrictMath.cos(AXIS_LOST);
+                    boolean close = track.lost() || (onLine && along > OVERFLY_MARGIN) || (onLine && pullUp) || tooClose || axisLost
+                            || (phase == FirePhase.ATTACK && (range <= closeRange(sit) || sit.ammoFrac <= 0.0
+                                    || (bunt && f.sd >= relCap - 0.5))); // a bunt can no longer accelerate: the nose comes up
                     if (close) startBreak(t, tp);
                 }
                 case BREAK -> {
                     if (f.legs > 0 || f.s >= breakArc) phase = FirePhase.REPOSITION;
                 }
                 case REPOSITION -> {
-                    if (f.legs > 0) done = true;
+                    if (f.legs > 1) done = true; // legs: escape arc (0), reposition Dubins (1), run line (2)
                 }
                 default -> {
                 }
             }
         }
 
+        /**
+         * The exit (Phase 6). BREAK: a 90 deg escape arc in the pilot's parity sense at the break
+         * radius, which by construction of {@link #closeRange} passes the target BREAK_CLEAR off and
+         * ends heading across the line of sight. REPOSITION: a Dubins at the rotorcraft turn radius
+         * from there to the next run-in point, then its run line. (The first version was one shortest
+         * Dubins straight to the next run-in point; with a short run-in that point lies across the
+         * target and the path went over it.)
+         */
         private void startBreak(double t, Vector3d tp) {
+            prePitch = false;
             f.path.sample(f.s, f.out);
-            double a = sense * af.reattack, cos = StrictMath.cos(a), sin = StrictMath.sin(a);
+            // The next axis turns AGAINST the escape side, so the next run-in point lies on the side the
+            // hull escaped to (rotating it the other way put it across the target).
+            double a = -sense * af.reattack, cos = StrictMath.cos(a), sin = StrictMath.sin(a);
             nextEx = ex * cos + ez * sin;
             nextEz = -ex * sin + ez * cos;
-            double psx = tp.x - lin * nextEx, psz = tp.z - lin * nextEz;
-            DubinsPlanar.Path exit = DubinsPlanar.shortest(f.out[0], f.out[1], f.out[2], f.out[3],
-                    psx, psz, nextEx, nextEz, radius());
-            f.swap(exit);
+            double psx = -lin * nextEx, psz = -lin * nextEz; // target frame: the target is the origin
+            double px = f.out[0], pz = f.out[1], dx = f.out[2], dz = f.out[3], rb = breakRadius();
+            boolean left = sense > 0;
+            // Arc centre on the turn side: n_L(d) = (d.z, -d.x) for a left turn.
+            double cx = px + (left ? rb : -rb) * dz, cz = pz + (left ? -rb : rb) * dx;
+            DubinsPlanar.Arc escape = new DubinsPlanar.Arc(cx, cz, rb, StrictMath.atan2(px - cx, pz - cz), 0.5 * Math.PI, left);
+            DubinsPlanar.Path breakPath = new DubinsPlanar.Path(java.util.List.of(escape), escape.length(), left ? "L" : "R");
+            double[] end = new double[5];
+            escape.sample(escape.length(), end);
             double ax = nextEx, az = nextEz;
-            f.next = () -> line(psx, psz, ax, az, TAIL);
-            breakArc = exit.segments().get(0).length();
+            f.swap(breakPath);
+            f.endLimit = af.turnSpeed;
+            f.next = () -> {
+                f.endLimit = Double.POSITIVE_INFINITY;
+                f.next = () -> line(psx, psz, ax, az, TAIL);
+                return DubinsPlanar.shortest(end[0], end[1], end[2], end[3], psx, psz, ax, az, radius());
+            };
+            breakArc = escape.length();
             phase = FirePhase.BREAK;
         }
 

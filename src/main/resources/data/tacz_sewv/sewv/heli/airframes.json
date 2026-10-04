@@ -14,7 +14,7 @@
       "tail": {"type": "tail", "arm": 4.5, "height": 0.5, "nominalThrust": 5000, "maxThrust": 6000, "inflowDamping": 99},
       "fuselage": {"cdA": [4, 6, 1.0]},
       "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 4.5, "tiltMaxDeg": 25, "rateMaxPR": 60, "yawRateMax": 57,
-                 "minTurnRadius": 40, "aLatMax": 8},
+                 "minTurnRadius": 10, "aLatMax": 9},
       "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 3},
       "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 12}
     },
@@ -32,7 +32,7 @@
       "tail": {"type": "tail", "arm": 9.0, "height": 1.0, "nominalThrust": 28000, "maxThrust": 34000, "inflowDamping": 546},
       "fuselage": {"cdA": [12, 25, 3.0]},
       "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 5.0, "tiltMaxDeg": 25, "rateMaxPR": 45, "yawRateMax": 40,
-                 "minTurnRadius": 40, "aLatMax": 8},
+                 "minTurnRadius": 10, "aLatMax": 9},
       "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 3},
       "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 18},
       "aim": {"pitchFreeConeDeg": [-3, 25]}
@@ -51,7 +51,7 @@
       "tail": {"type": "coaxial", "arm": 1.0, "height": 0.0, "nominalThrust": 50000, "maxThrust": 60000, "inflowDamping": 75000},
       "fuselage": {"cdA": [13, 28, 3.0]},
       "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 5.0, "tiltMaxDeg": 25, "rateMaxPR": 45, "yawRateMax": 40,
-                 "minTurnRadius": 40, "aLatMax": 8},
+                 "minTurnRadius": 10, "aLatMax": 9},
       "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 2},
       "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 36},
       "aim": {"pitchFreeConeDeg": [-3, 25]}
@@ -70,7 +70,7 @@
       "tail": {"type": "tail", "arm": 9.5, "height": 1.2, "nominalThrust": 26000, "maxThrust": 30000, "inflowDamping": 492},
       "fuselage": {"cdA": [15, 30, 2.5]},
       "limits": {"vMaxH": 25, "vClimb": 8, "vDescent": 5.0, "tiltMaxDeg": 25, "rateMaxPR": 45, "yawRateMax": 30,
-                 "minTurnRadius": 40, "aLatMax": 8},
+                 "minTurnRadius": 10, "aLatMax": 9},
       "control": {"pos": 0.4, "posV": 0.4, "vel": 1.2, "velZeta": 0.9, "att": 4, "rate": 12, "yaw": 3},
       "autorotation": {"collective": 0.15, "kOmega": 2.0, "flareHeight": 18}
     }

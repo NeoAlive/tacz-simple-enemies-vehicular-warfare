@@ -40,6 +40,17 @@ public final class Situation {
     /** Held weapon's remaining ammunition as a fraction; 0 means depleted. */
     public double ammoFrac = 1.0;
     public boolean armed, weaponGuided;
+    /**
+     * The held weapon leaves along the nose (unguided cannon and rockets; a pilot's wire-guided
+     * missile, which rides the nose line): it only hits with the nose ON the target.
+     */
+    public boolean noseAim;
+    /** Held weapon's muzzle speed (m/s, 0 = unknown) and projectile gravity (m/s^2), for the lead point. */
+    public double projSpeed, projGravity;
+    /** Height of the target's centre above its position (what a shot is aimed at). */
+    public double aimDy;
+    /** The fire assist's aim point this tick (lead + drop), for the trace; NaN when not computed. */
+    public double aimX = Double.NaN, aimY = Double.NaN, aimZ = Double.NaN;
     /** A firing run is in progress (sticky until the run's exit completes). */
     public boolean inFiringRun;
     /** RU/US: no player orders, patrols when idle. */

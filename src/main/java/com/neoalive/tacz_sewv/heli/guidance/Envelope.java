@@ -167,6 +167,25 @@ public final class Envelope {
         return new double[] {standoff, y};
     }
 
+    /**
+     * Where to point a projectile of speed {@code vp} (m/s) and gravity {@code gp} (m/s^2) fired from
+     * {@code from} to meet a target at {@code tp} moving at {@code tv}: the lead point
+     * L = tp + tv t_f, t_f = |L - from| / vp (two fixed-point iterations), raised by the drop
+     * g_p t_f^2 / 2. The target itself when the speed is unknown.
+     */
+    public static org.joml.Vector3d aimPoint(org.joml.Vector3dc from, org.joml.Vector3dc tp, org.joml.Vector3dc tv,
+                                             double vp, double gp) {
+        org.joml.Vector3d l = new org.joml.Vector3d(tp);
+        if (!(vp > 0.0)) return l;
+        double tf = 0.0;
+        for (int i = 0; i < 2; i++) {
+            tf = l.distance(from) / vp;
+            l.set(tp).fma(tf, tv);
+        }
+        l.y += 0.5 * gp * tf * tf;
+        return l;
+    }
+
     /** True when a target at this geometry lies inside the pitch-free cone widened by the fire cone. */
     public static boolean inCone(Airframe af, double hullY, double targetY, double horizontal, double fireCone) {
         double eps = StrictMath.atan2(hullY - targetY, Math.max(horizontal, 1.0E-6));

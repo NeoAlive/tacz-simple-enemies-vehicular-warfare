@@ -14,6 +14,7 @@ package com.neoalive.tacz_sewv.heli.guidance;
  *   a     a firing run is in progress                              -> FIRE_RUN (sticky)
  *   b     no line of sight                                         -> FIRE_LOOP (aspect change)
  *   c     guided weapon, vehicle target, wind and yaw envelopes ok -> FIRE_STILL
+ *   c'    a nose-aimed weapon (it cannot be pointed from a hover)    -> FIRE_RUN
  *   d     fast target                                              -> FIRE_RUN
  *   e     otherwise pick8e: FIRE_RUN or FIRE_LOOP
  *  9    live target, unarmed or empty    -> TRANSIT if a destination, else HOVER_HOLD   FREENAV
@@ -72,11 +73,11 @@ public final class ModeSelector {
     private static ProcedureId attack(Situation s) {
         if (s.inFiringRun) return ProcedureId.FIRE_RUN;
         if (!s.targetLos) return ProcedureId.FIRE_LOOP;
-        if (s.weaponGuided && s.targetCategory == Situation.TargetCategory.VEHICLE
+        if (s.weaponGuided && !s.noseAim && s.targetCategory == Situation.TargetCategory.VEHICLE
                 && s.windCeilingOk && s.yawStandoffOk) {
             return ProcedureId.FIRE_STILL;
         }
-        if (s.targetMotion == Situation.TargetMotion.FAST) return ProcedureId.FIRE_RUN;
+        if (s.noseAim || s.targetMotion == Situation.TargetMotion.FAST) return ProcedureId.FIRE_RUN;
         return pick8e(s.engageCycle, s.pilotId, s.targetId) ? ProcedureId.FIRE_RUN : ProcedureId.FIRE_LOOP;
     }
 

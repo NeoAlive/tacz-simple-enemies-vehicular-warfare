@@ -37,7 +37,7 @@ public final class Airframe {
             "autorotation.collective", "autorotation.kOmega", "autorotation.flareHeight",
             "aim.pitchFreeConeDeg.0", "aim.pitchFreeConeDeg.1",
             "aim.targetLatAccel.infantry", "aim.targetLatAccel.vehicle", "aim.targetLatAccel.air",
-            "procedures.cruiseSpeed", "procedures.orbitSpeed", "procedures.runSpeed", "procedures.reattackDeg",
+            "procedures.cruiseSpeed", "procedures.turnSpeed", "procedures.orbitSpeed", "procedures.runSpeed", "procedures.reattackDeg",
             "procedures.stillDwell", "procedures.loopTime", "procedures.evadeHealth", "procedures.evadeDistance",
             "procedures.patrol.rMin", "procedures.patrol.rMax");
 
@@ -53,7 +53,8 @@ public final class Airframe {
             Map.entry("aim.pitchFreeConeDeg.0", -3.0), Map.entry("aim.pitchFreeConeDeg.1", 3.0),
             Map.entry("aim.targetLatAccel.infantry", 2.0), Map.entry("aim.targetLatAccel.vehicle", 3.0),
             Map.entry("aim.targetLatAccel.air", 8.0),
-            Map.entry("procedures.cruiseSpeed", 17.5), Map.entry("procedures.orbitSpeed", 12.0),
+            Map.entry("procedures.cruiseSpeed", 17.5), Map.entry("procedures.turnSpeed", 8.0),
+            Map.entry("procedures.orbitSpeed", 12.0),
             Map.entry("procedures.runSpeed", 20.0), Map.entry("procedures.reattackDeg", 120.0),
             Map.entry("procedures.stillDwell", 8.0), Map.entry("procedures.loopTime", 30.0),
             Map.entry("procedures.evadeHealth", 0.3), Map.entry("procedures.evadeDistance", 150.0),
@@ -87,6 +88,8 @@ public final class Airframe {
     public final double coneLo, coneHi;
     /** Target lateral acceleration per category (infantry, vehicle, air), m/s^2. */
     public final double latAccInfantry, latAccVehicle, latAccAir;
+    /** Speed a rotorcraft slows to for a turn; path radius R_h = max(minTurnRadius, turnSpeed^2 / aLatMax). */
+    public final double turnSpeed;
     public final double cruiseSpeed, orbitSpeed, runSpeed, reattack, stillDwell, loopTime;
     public final double evadeHealth, evadeDistance, patrolRMin, patrolRMax;
 
@@ -187,6 +190,7 @@ public final class Airframe {
         latAccVehicle = v.get("aim.targetLatAccel.vehicle");
         latAccAir = v.get("aim.targetLatAccel.air");
         cruiseSpeed = v.get("procedures.cruiseSpeed");
+        turnSpeed = v.get("procedures.turnSpeed");
         orbitSpeed = v.get("procedures.orbitSpeed");
         runSpeed = v.get("procedures.runSpeed");
         reattack = StrictMath.toRadians(v.get("procedures.reattackDeg"));

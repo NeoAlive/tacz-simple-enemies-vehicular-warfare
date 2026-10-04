@@ -772,8 +772,15 @@ public final class VehicleWeapons {
      * from the muzzle to the target's bounding-box centre, degrees; NaN when either is degenerate.
      */
     public static double boresightAngleDeg(VehicleEntity vehicle, AbstractUnit unit, LivingEntity target) {
+        return boresightAngleDeg(vehicle, unit, target, null);
+    }
+
+    /** As above, against {@code aimPoint} when given (the point the gate was judged on). */
+    public static double boresightAngleDeg(VehicleEntity vehicle, AbstractUnit unit, LivingEntity target,
+                                           @javax.annotation.Nullable Vec3 aimPoint) {
         Vec3 shootDir = vehicle.getShootDirectionForHud(unit, 1.0F);
-        Vec3 toTarget = target.getBoundingBox().getCenter().subtract(vehicle.getShootPos(unit, 1.0F));
+        Vec3 aim = aimPoint != null ? aimPoint : target.getBoundingBox().getCenter();
+        Vec3 toTarget = aim.subtract(vehicle.getShootPos(unit, 1.0F));
         if (shootDir.lengthSqr() < 1.0E-6 || toTarget.lengthSqr() < 1.0E-6) return Double.NaN;
         return Math.toDegrees(Math.acos(Mth.clamp(shootDir.normalize().dot(toTarget.normalize()), -1.0, 1.0)));
     }

@@ -59,7 +59,9 @@ public final class HeliTrace {
             + "out_x,out_y,out_z,dm_applied_x,dm_applied_y,dm_applied_z,p_ent_x,p_ent_y,p_ent_z,"
             + "proc_age,fire_phase,fire_window,sit_targetValid,sit_armed,sit_ammoFrac,sit_targetCategory,"
             + "sit_targetDistance,sit_weaponGuided,sit_targetVy,target_x,target_y,target_z,target_vx,target_vy,target_vz,"
-            + "fire_event,fire_gate,boresight_vs_los_deg,fire_cone_deg,los_clear\n";
+            + "fire_event,fire_gate,boresight_vs_los_deg,fire_cone_deg,los_clear,sit_targetId,aim_x,aim_y,aim_z\n";
+    /** sit_targetId .. aim_z, blank. */
+    private static final String NO_TAIL = ",,,,";
     /** proc_age .. target_vz, blank. */
     private static final String NO_RUNTIME = ",".repeat(16);
     /** fire_event .. los_clear when the goal reported nothing this tick. */
@@ -75,7 +77,7 @@ public final class HeliTrace {
         /** The row has its post-move columns and waits for the next tick's p_ent. */
         boolean pending;
         /** Runtime columns (proc_age .. target_vz) and the goal's fire columns, written after p_ent. */
-        String extra = NO_RUNTIME, fire = NO_FIRE;
+        String extra = NO_RUNTIME, fire = NO_FIRE, tail = NO_TAIL;
 
         Row(Path file) {
             this.file = file;
@@ -88,7 +90,7 @@ public final class HeliTrace {
     public static boolean toggle(VehicleEntity hull) {
         Row old = TRACED.remove(hull.getId());
         if (old != null) {
-            if (old.pending) write(hull, old, old.line.append(",,,").append(old.extra).append(old.fire).append('\n'));
+            if (old.pending) write(hull, old, old.line.append(",,,").append(old.extra).append(old.fire).append(old.tail).append('\n'));
             return false;
         }
         Path file = file(hull);
@@ -114,12 +116,13 @@ public final class HeliTrace {
         StringBuilder s = row.line;
         if (row.pending) {
             cols(s, v.getX(), v.getY(), v.getZ());
-            s.append(row.extra).append(row.fire).append('\n');
+            s.append(row.extra).append(row.fire).append(row.tail).append('\n');
             if (!write(v, row, s)) return;
         }
         row.pending = false;
         row.extra = NO_RUNTIME;
         row.fire = NO_FIRE;
+        row.tail = NO_TAIL;
         s.setLength(0);
         var dm = v.getDeltaMovement();
         s.append(v.level().getGameTime()).append(',');
@@ -177,6 +180,10 @@ public final class HeliTrace {
             cols(e, sit.targetVy, sit.targetX, sit.targetY, sit.targetZ, sit.targetVx, sit.targetVy, sit.targetVz);
         }
         row.extra = e.toString();
+        if (sit != null) {
+            row.tail = "," + sit.targetId + "," + (Double.isNaN(sit.aimX) ? "" : sit.aimX) + ","
+                    + (Double.isNaN(sit.aimY) ? "" : sit.aimY) + "," + (Double.isNaN(sit.aimZ) ? "" : sit.aimZ);
+        }
     }
 
     /** True while {@code v} is being traced (cheap; lets callers skip work the trace alone needs). */

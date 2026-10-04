@@ -53,6 +53,8 @@ final class HeliAttackChecks {
             fireStill(cls);
             fireLoop(cls);
             fireRuns(cls);
+            buntRuns(cls);
+            unguided(cls);
         }
         targetLoss();
         froude();
@@ -525,6 +527,7 @@ final class HeliAttackChecks {
         Sim sim = new Sim(af).hover(-150, 34, 0, -90);
         List<Double> attackHeadings = new ArrayList<>();
         double worstHeading = 0, worstCross = 0, window = 0, longestWindow = 0, minClear = Double.MAX_VALUE;
+        double worstBore = 0, cone = Math.toDegrees(targetAt(0, 0).fireCone);
         FirePhase last = FirePhase.NONE;
         for (long tick = 0; tick < 20 * 150 && attackHeadings.size() < 3; tick++) {
             Situation s = targetAt(0, 0);
@@ -537,6 +540,10 @@ final class HeliAttackChecks {
                 double ux = sim.s.v.x / vh, uz = sim.s.v.z / vh, rx = -sim.s.p.x, rz = -sim.s.p.z;
                 worstCross = Math.max(worstCross, Math.abs(rx * uz - rz * ux));
                 worstHeading = Math.max(worstHeading, noseError(sim, 0, 0));
+                // What the fire gate judges: the nose against the 3D line to the target.
+                Vector3d nose = sim.s.q.transform(new Vector3d(0, 0, 1));
+                Vector3d los = new Vector3d(-sim.s.p.x, -sim.s.p.y, -sim.s.p.z).normalize();
+                worstBore = Math.max(worstBore, Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, nose.dot(los))))));
                 window += 1.0 / 20.0;
                 if (last != FirePhase.ATTACK) attackHeadings.add(Math.atan2(ux, uz));
             } else if (last == FirePhase.ATTACK) {
@@ -548,16 +555,149 @@ final class HeliAttackChecks {
         assert attackHeadings.size() == 3 : "R4 " + cls + ": only " + attackHeadings.size() + " passes in 150 s";
         assert worstHeading < 5.0 : "R4 " + cls + ": heading error in the window " + worstHeading;
         assert worstCross < 2.0 : "R4 " + cls + ": cross-track in the window " + worstCross;
-        int side = Parity.side(0);
+        int side = -Parity.side(0); // Phase 6: the next axis turns against the escape side
         for (int i = 1; i < attackHeadings.size(); i++) {
             double turn = Math.toDegrees(Math.IEEEremainder(attackHeadings.get(i) - attackHeadings.get(i - 1), 2 * Math.PI));
             assert Math.abs(turn - side * Math.toDegrees(af.reattack)) < 10.0
                     : "R4 " + cls + ": pass " + i + " axis turned " + turn + " deg";
         }
         assert minClear > 15.0 : "R4 " + cls + ": dropped to " + minClear + " m";
-        System.out.printf(Locale.ROOT, "  R4 %s: 3 passes, window <= %.2f s, heading +-%.2f deg, cross-track +-%.2f m, "
-                + "axis steps %+.0f deg, lowest %.1f m%n", cls, longestWindow, worstHeading, worstCross,
+        assert worstBore < cone : "R4 " + cls + ": fire window held the target " + worstBore + " deg off the nose (cone " + cone + ")";
+        assert longestWindow >= 2.0 : "R4 " + cls + ": fire window only " + longestWindow + " s";
+        System.out.printf(Locale.ROOT, "  R4 %s: 3 passes, window %.2f s, target <= %.1f deg off the nose (cone %.0f), heading +-%.2f deg, cross-track +-%.2f m, "
+                + "axis steps %+.0f deg, lowest %.1f m%n", cls, longestWindow, worstBore, cone, worstHeading, worstCross,
                 side * Math.toDegrees(af.reattack), minClear);
+    }
+
+    /**
+     * Bunt runs with a nose-aimed weapon (unguided cannon/rockets): the nose must actually reach the
+     * target (inside SBW's 4 deg AI gate) for long enough to shoot, and the pass must break off
+     * before it carries the hull over the target.
+     */
+    private static void buntRuns(String cls) {
+        Airframe af = Sim.airframe(cls);
+        Sim sim = new Sim(af).hover(-150, 20, 0, -90);
+        double onNose = 0, closest = Double.MAX_VALUE, lowest = Double.MAX_VALUE, best = 180;
+        int passes = 0;
+        FirePhase last = FirePhase.NONE;
+        for (long tick = 0; tick < 20 * 150 && passes < 3; tick++) {
+            Situation s = targetAt(0, 0);
+            s.noseAim = true;
+            s.groundRef = 0;
+            sim.tickGuided(s, tick, null);
+            FirePhase ph = sim.core.stack.firePhase();
+            if (ph == FirePhase.ATTACK) {
+                Vector3d nose = sim.s.q.transform(new Vector3d(0, 0, 1));
+                Vector3d los = new Vector3d(-sim.s.p.x, -sim.s.p.y, -sim.s.p.z).normalize();
+                double off = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, nose.dot(los)))));
+                best = Math.min(best, off);
+                if (off < 4.0) onNose += 1.0 / 20.0;
+            }
+            if (last == FirePhase.ATTACK && ph != FirePhase.ATTACK) passes++;
+            if (sim.core.stack.activeId() == ProcedureId.FIRE_RUN) closest = Math.min(closest, Math.hypot(sim.s.p.x, sim.s.p.z));
+            lowest = Math.min(lowest, sim.s.p.y);
+            last = ph;
+        }
+        assert passes == 3 : "bunt " + cls + ": " + passes + " passes";
+        assert onNose >= 2.5 : "bunt " + cls + ": target inside 4 deg of the nose for only " + onNose + " s over 3 passes (best " + best + ")";
+        assert closest > 28.0 : "bunt " + cls + ": run carried the hull within " + closest + " m of the target";
+        System.out.printf(Locale.ROOT, "  B %s: 3 bunt passes, target within 4 deg of the nose %.2f s in total, closest %.1f m, lowest %.1f m%n",
+                cls, onNose, closest, lowest);
+    }
+
+    // --- U: rotary-wing attack geometry (Phase 6) ----------------------------------------------------
+
+    private static final double ROCKET_SPEED = 180.0, ROCKET_GRAVITY = 8.0; // SBW small_rocket: 9 b/t, 0.02 b/t^2
+
+    /** One bunt engagement: target path {@code at(t)} (position, velocity), optional churn to a second target every 3 s. */
+    /** {@code churn}: 0 none, 1 swaps every 3 s held through a pass (the goal's commitment), 2 raw swaps mid-pass. */
+    private static double[] bunt(String cls, java.util.function.DoubleFunction<double[]> at, int churn, int seconds) {
+        Airframe af = Sim.airframe(cls);
+        Sim sim = new Sim(af).hover(-150, 20, 0, -90);
+        double onNose = 0, closest = Double.MAX_VALUE, farthest = 0, missSum = 0;
+        int passes = 0, shots = 0, reinstalls = 0;
+        FirePhase last = FirePhase.NONE;
+        Object proc = null;
+        boolean other = false;
+        for (long tick = 0; tick < 20L * seconds; tick++) {
+            double t = tick / 20.0;
+            double[] tg = at.apply(t);
+            // The crew's target swaps every 3 s; DriveHelicopterGoal's commitment holds a pass's target
+            // through INGRESS/ATTACK, so the swap reaches guidance only between passes.
+            boolean swap = churn != 0 && ((int) (t / 3.0)) % 2 == 1;
+            if (churn == 2 || (last != FirePhase.INGRESS && last != FirePhase.ATTACK)) other = swap;
+            Situation s = targetAt(tg[0] + (other ? 20 : 0), tg[1]);
+            s.targetVx = tg[2];
+            s.targetVz = tg[3];
+            s.targetId = other ? TARGET_ID + 1 : TARGET_ID;
+            s.noseAim = true;
+            s.groundRef = 0;
+            s.projSpeed = ROCKET_SPEED;
+            s.projGravity = ROCKET_GRAVITY;
+            sim.tickGuided(s, tick, null);
+            FirePhase ph = sim.core.stack.firePhase();
+            Object now = sim.core.stack.active();
+            if (proc != null && now != proc && (last == FirePhase.INGRESS || last == FirePhase.ATTACK)) reinstalls++;
+            proc = now;
+            double tx = s.targetX, tz = s.targetZ, range = Math.hypot(sim.s.p.x - tx, sim.s.p.z - tz);
+            farthest = Math.max(farthest, range);
+            if (sim.core.stack.activeId() == ProcedureId.FIRE_RUN) closest = Math.min(closest, range);
+            if (ph == FirePhase.ATTACK) {
+                Vector3d hull = new Vector3d(sim.s.p), tv = new Vector3d(s.targetVx, 0, s.targetVz);
+                Vector3d aim = com.neoalive.tacz_sewv.heli.guidance.Envelope.aimPoint(hull, new Vector3d(tx, 0, tz), tv,
+                        ROCKET_SPEED, ROCKET_GRAVITY);
+                Vector3d nose = sim.s.q.transform(new Vector3d(0, 0, 1));
+                double off = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, nose.dot(new Vector3d(aim).sub(hull).normalize())))));
+                if (off < 4.0) {
+                    onNose += 1.0 / 20.0;
+                    // U4: replay a rocket fired along the nose against the moving target.
+                    double best = Double.MAX_VALUE;
+                    Vector3d p = new Vector3d(hull), v = new Vector3d(nose).mul(ROCKET_SPEED);
+                    for (int k = 1; k <= 120; k++) {
+                        double dt = 1.0 / 120.0, tt = k * dt;
+                        v.y -= ROCKET_GRAVITY * dt;
+                        p.fma(dt, v);
+                        best = Math.min(best, p.distance(tx + s.targetVx * tt, 0, tz + s.targetVz * tt));
+                    }
+                    missSum += best;
+                    shots++;
+                }
+            }
+            if (last == FirePhase.ATTACK && ph != FirePhase.ATTACK) passes++;
+            last = ph;
+        }
+        return new double[] {passes, onNose, closest, farthest, reinstalls, shots == 0 ? Double.NaN : missSum / shots};
+    }
+
+    /**
+     * U1-U4 for one class: a static target (turn scale, excursions), target churn (no re-install, ever;
+     * with the goal's commitment, windows still reached), a 13 m/s road and an 8 m/s circle (target
+     * frame, lead), and the ballistic replay of every in-gate shot.
+     */
+    private static void unguided(String cls) {
+        double[] stat = bunt(cls, t -> new double[] {0, 0, 0, 0}, 0, 120);
+        double[] churn = bunt(cls, t -> new double[] {0, 0, 0, 0}, 1, 120);
+        double[] raw = bunt(cls, t -> new double[] {0, 0, 0, 0}, 2, 120);
+        double[] road = bunt(cls, t -> new double[] {13.0 * t - 600, 0, 13.0, 0}, 0, 120);
+        double[] circle = bunt(cls, t -> new double[] {80 * Math.sin(t / 10.0), 80 * Math.cos(t / 10.0),
+                8.0 * Math.cos(t / 10.0), -8.0 * Math.sin(t / 10.0)}, 0, 120);
+        String c = "U " + cls + ": ";
+        assert stat[0] >= 4 && stat[1] >= 5.0 : c + "static target, " + stat[0] + " passes, " + stat[1] + " s on the nose";
+        assert stat[3] <= 200.0 : c + "U1 excursion " + stat[3] + " m from the target";
+        assert churn[4] == 0 && raw[4] == 0 : c + "U2 a target change re-installed the run";
+        assert churn[0] >= 3 && churn[1] >= 3.0 : c + "U2 churn, " + churn[0] + " passes, " + churn[1] + " s";
+        assert road[0] >= 2 && road[1] >= 2.0 : c + "U3 road, " + road[0] + " passes, " + road[1] + " s";
+        assert circle[0] >= 3 && circle[1] >= 2.5 : c + "U3 circle, " + circle[0] + " passes, " + circle[1] + " s";
+        for (double[] r : new double[][] {stat, churn, road, circle}) {
+            assert !(r[5] > 4.5) : c + "U4 mean miss " + r[5] + " m";
+        }
+        for (double[] r : new double[][] {stat, road, circle}) {
+            assert r[2] >= 27.0 : c + "U3 closest approach " + r[2] + " m";
+        }
+        System.out.printf(Locale.ROOT, "  U %s: static %.0f passes / %.2f s on nose / farthest %.0f m / miss %.2f m; churn %.0f / %.2f s"
+                        + " (0 re-installs, raw churn too); road 13 m/s %.0f / %.2f s / miss %.2f m; circle 8 m/s %.0f / %.2f s / miss %.2f m;"
+                        + " closest to the target %.1f m%n", cls, stat[0], stat[1], stat[3], stat[5], churn[0], churn[1], road[0], road[1], road[5],
+                circle[0], circle[1], circle[5], Math.min(stat[2], Math.min(road[2], circle[2])));
     }
 
     /** R5: the target disappears mid-run: C1 across, the run flies its exit within grace + exit, then FreeNav. */

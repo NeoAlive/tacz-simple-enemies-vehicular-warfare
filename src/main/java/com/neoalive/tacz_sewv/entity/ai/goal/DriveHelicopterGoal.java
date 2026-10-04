@@ -21,6 +21,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3d;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
@@ -42,6 +43,7 @@ import com.neoalive.tacz_sewv.heli.HeliFlight;
 import com.neoalive.tacz_sewv.heli.HeliRuntime;
 import com.neoalive.tacz_sewv.heli.HeliTrace;
 import com.neoalive.tacz_sewv.heli.guidance.Envelope;
+import com.neoalive.tacz_sewv.heli.guidance.FirePhase;
 import com.neoalive.tacz_sewv.heli.guidance.ModeSelector;
 import com.neoalive.tacz_sewv.heli.guidance.OrderKind;
 import com.neoalive.tacz_sewv.heli.guidance.ProcedureId;
@@ -347,6 +349,7 @@ public class DriveHelicopterGoal extends Goal {
         this.runtime = null;
         clearWeaponHold();
         clearHold();
+        this.committed = null;
         if (this.runPhase != RunPhase.IDLE) setRunPhase(RunPhase.IDLE);
         clearRappelState();
         this.allyAssist.clear();
@@ -498,8 +501,20 @@ public class DriveHelicopterGoal extends Goal {
         sit.ammoFrac = sit.armed && heldWeaponDepleted(seat) ? 0.0 : 1.0;
         sit.weaponGuided = sit.armed && HeliArmament.isGuidedProjectile(
                 HeliArmament.readSignals(this.vehicle, seat, this.heldWeaponSlot).projectileId());
+        sit.noseAim = sit.armed && (!sit.weaponGuided || noseBeamRider());
         sit.weaponRange = sit.weaponGuided ? GUIDED_RANGE : UNGUIDED_RANGE;
         sit.groundRef = groundRefAround(target);
+        sit.aimDy = mover.getBbHeight() / 2.0;
+        if (sit.armed) {
+            sit.projSpeed = this.vehicle.getProjectileVelocity(this.unit) * 20.0;
+            sit.projGravity = this.vehicle.getProjectileGravity(this.unit) * 400.0;
+            if (sit.noseAim) {
+                Vec3 aim = aimPoint(target);
+                sit.aimX = aim.x;
+                sit.aimY = aim.y;
+                sit.aimZ = aim.z;
+            }
+        }
     }
 
     private static boolean isAirframe(VehicleEntity v) {
@@ -538,7 +553,7 @@ public class DriveHelicopterGoal extends Goal {
      * destination, else hold station where the hull is (or patrol, for RU/US).
      */
     private void duty(Situation sit) {
-        LivingEntity target = this.transportOnly ? null : this.unit.getTarget();
+        LivingEntity target = this.transportOnly ? null : committedTarget(this.unit.getTarget());
         boolean pinned = flightPinnedByOrder();
         sit.underOrders = pinned;
         if (target != null) {
@@ -744,7 +759,19 @@ public class DriveHelicopterGoal extends Goal {
      * over the target or, nose slightly down, into the ground short of it. So the pilot fires one only
      * with the nose on the target, inside SBW's own 4 deg AI gate, with no NPC cone floor.
      */
-    private static final double NOSE_BEAM_CONE_DEG = 4.0;
+    private static final double NOSE_AIM_CONE_DEG = 4.0;
+
+    /**
+     * The pilot's held weapon leaves along the nose: unguided cannon and rockets as much as the
+     * wire-guided missile above. The 35 deg NPC cone floor exists for turrets with splash at tank
+     * ranges; on a nose-fixed gun it fired rounds 20-29 deg high at 60-100 m (a live trace: 14 shots,
+     * no hits). These fire only with the nose within SBW's own 4 deg AI gate.
+     */
+    private boolean noseAimed() {
+        if (this.vehicle.getFirstPassenger() != this.unit || this.heldWeaponSlot < 0) return false;
+        return noseBeamRider() || !HeliArmament.isGuidedProjectile(
+                HeliArmament.readSignals(this.vehicle, this.vehicle.getSeatIndex(this.unit), this.heldWeaponSlot).projectileId());
+    }
 
     private boolean noseBeamRider() {
         return this.vehicle.getFirstPassenger() == this.unit
@@ -753,7 +780,7 @@ public class DriveHelicopterGoal extends Goal {
 
     /** The cone the fire assist actually applies this tick (trace column). */
     private double effectiveConeDeg() {
-        return noseBeamRider() ? NOSE_BEAM_CONE_DEG : VehicleWeapons.npcAssistConeDeg(fireConeDeg());
+        return noseAimed() ? NOSE_AIM_CONE_DEG : VehicleWeapons.npcAssistConeDeg(fireConeDeg());
     }
 
     private double fireConeDeg() {
@@ -763,12 +790,15 @@ public class DriveHelicopterGoal extends Goal {
     }
 
     private void fireAssist(LivingEntity target) {
-        VehicleWeapons.FireGate gate = noseBeamRider()
-                ? VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, null, NOSE_BEAM_CONE_DEG, false)
+        // A nose-aimed weapon is judged against its lead point (target motion over the time of flight,
+        // plus drop), the same point the bunt pitches and yaws the nose onto.
+        Vec3 aim = noseAimed() ? aimPoint(target) : null;
+        VehicleWeapons.FireGate gate = aim != null
+                ? VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, aim, NOSE_AIM_CONE_DEG, false)
                 : VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, fireConeDeg());
         if (HeliTrace.tracing(this.vehicle)) {
             HeliTrace.noteFire(this.vehicle, gate == VehicleWeapons.FireGate.FIRED, gate.name(),
-                    VehicleWeapons.boresightAngleDeg(this.vehicle, this.unit, target),
+                    VehicleWeapons.boresightAngleDeg(this.vehicle, this.unit, target, aim),
                     effectiveConeDeg(),
                     !((IAiFireTracker) this.vehicle).tacz_sewv$lineOfFireBlocked(this.unit, target));
         }
@@ -776,6 +806,41 @@ public class DriveHelicopterGoal extends Goal {
         LOGGER.info("[sewv heli] {}#{} {} slot={} target={}", this.vehicle.getName().getString(),
                 this.vehicle.getId(), gate == VehicleWeapons.FireGate.FIRED ? "FIRE" : "NOFIRE gate=" + gate,
                 this.heldWeaponSlot, target.getId());
+    }
+
+    /** Keep a firing pass on the target it began on (Phase 6) while that target is alive and in reach. */
+    private static final double COMMIT_RANGE = GUIDED_RANGE + 40.0;
+    @Nullable
+    private LivingEntity committed;
+
+    /**
+     * Target commitment for the length of a pass. SEM's scan and retaliation goals swap a crew's target
+     * every few seconds in a mixed fight; a run re-aimed at every swap never reaches its window (a
+     * live trace: 30 target changes in 70 s, no shot). During INGRESS/ATTACK the committed target is
+     * re-asserted; the swap takes effect when the pass ends. A veto (setTarget refused) releases it.
+     */
+    @Nullable
+    private LivingEntity committedTarget(@Nullable LivingEntity current) {
+        FirePhase ph = this.runtime.firePhase();
+        boolean inPass = ph == FirePhase.INGRESS || ph == FirePhase.ATTACK;
+        LivingEntity c = this.committed;
+        if (inPass && c != null && c != current && c.isAlive() && !c.isRemoved()
+                && c.distanceToSqr(this.vehicle) < COMMIT_RANGE * COMMIT_RANGE) {
+            this.unit.setTarget(c);
+            if (this.unit.getTarget() == c) return c;
+        }
+        this.committed = current;
+        return current;
+    }
+
+    /** Where the held weapon must be pointed to meet {@code target}: lead over the time of flight, plus drop. */
+    private Vec3 aimPoint(LivingEntity target) {
+        Entity mover = target.getVehicle() != null ? target.getVehicle() : target;
+        Vec3 c = mover.getBoundingBox().getCenter(), dm = mover.getDeltaMovement(), from = this.vehicle.getShootPos(this.unit, 1.0F);
+        double vp = this.vehicle.getProjectileVelocity(this.unit) * 20.0, gp = this.vehicle.getProjectileGravity(this.unit) * 400.0;
+        Vector3d l = Envelope.aimPoint(new Vector3d(from.x, from.y, from.z), new Vector3d(c.x, c.y, c.z),
+                new Vector3d(dm.x * 20.0, mover.onGround() ? 0.0 : dm.y * 20.0, dm.z * 20.0), vp, gp);
+        return new Vec3(l.x, l.y, l.z);
     }
 
     private boolean heldWeaponDepleted(int seat) {

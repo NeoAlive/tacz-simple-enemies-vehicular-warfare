@@ -6,7 +6,6 @@ import java.util.List;
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -21,7 +20,9 @@ import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 
 /**
  * Regulates SBW hull-container spills and (when tagged) SEM unit death loot via
- * {@link SewvConfig#VEHICLE_DEATH_DROPS}. {@code superbwarfare:creative_ammo_box} never drops.
+ * {@link SewvConfig#VEHICLE_DEATH_DROPS}. {@code superbwarfare:creative_ammo_box} never
+ * drops (hull or unit). Stamped system boxes are additionally scrubbed from players via
+ * {@link CreativeAmmoConsumable}.
  */
 public final class VehicleDrops {
 
@@ -114,7 +115,7 @@ public final class VehicleDrops {
      * {@code count / 4} (integer); a result of 0 drops nothing.
      */
     static ItemStack filterStack(ItemStack stack, String mode) {
-        if (stack.isEmpty() || isCreativeAmmoBox(stack)) return ItemStack.EMPTY;
+        if (stack.isEmpty() || CreativeAmmoConsumable.isCreativeAmmoBox(stack)) return ItemStack.EMPTY;
         if (MODE_REDUCED.equals(mode)) {
             int kept = stack.getCount() / 4;
             if (kept <= 0) return ItemStack.EMPTY;
@@ -122,9 +123,5 @@ public final class VehicleDrops {
         }
         // everything (and any unknown value): full stack, box already gated above
         return stack.copy();
-    }
-
-    private static boolean isCreativeAmmoBox(ItemStack stack) {
-        return stack.is(ModItems.CREATIVE_AMMO_BOX.get());
     }
 }

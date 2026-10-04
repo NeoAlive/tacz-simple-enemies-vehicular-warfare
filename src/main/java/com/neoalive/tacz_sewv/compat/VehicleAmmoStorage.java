@@ -13,6 +13,7 @@ import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
 import net.minecraftforge.items.ItemHandlerHelper;
 
+import com.neoalive.tacz_sewv.util.CreativeAmmoConsumable;
 import com.neoalive.tacz_sewv.util.RandomUtil;
 
 /**
@@ -73,12 +74,16 @@ public final class VehicleAmmoStorage {
         IItemHandler handler = handler(hull);
         if (!(handler instanceof IItemHandlerModifiable mod)) return;
         if (slot < 0 || slot >= mod.getSlots()) return;
-        mod.setStackInSlot(slot, stack == null ? ItemStack.EMPTY : stack);
+        // Stamp before write so addon handlers that are not VehicleContainerHandler still mark
+        // system creative ammo (FCP's VehicleInventory, etc.).
+        ItemStack toSet = stack == null ? ItemStack.EMPTY : CreativeAmmoConsumable.stamp(stack);
+        mod.setStackInSlot(slot, toSet);
     }
 
     /** Insert with stacking; returns the remainder. Never touches a slot past {@link #containerSlots}. */
     public static ItemStack insert(VehicleEntity hull, ItemStack stack) {
         if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
+        CreativeAmmoConsumable.stamp(stack);
         IItemHandler handler = handler(hull);
         int usable = containerSlots(hull);
         if (handler == null || usable <= 0) return stack;

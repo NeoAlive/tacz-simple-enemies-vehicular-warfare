@@ -42,6 +42,7 @@
     "MixinVehicleInteractLock",
     "MixinVehicleDamageRedirect",
     "MixinVehicleDeathDrops",
+    "MixinVehicleContainerHandler",
     "MixinVehicleDestroyNotify",
     "MixinVehicleAircraftTow",
     "MixinRangedGunAttackGoal",

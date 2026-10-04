@@ -24,18 +24,25 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.client.editor.GrenadePoolCatalog;
 import com.neoalive.tacz_sewv.client.editor.IdSearch;
+import com.neoalive.tacz_sewv.client.editor.PoolPresetApply;
+import com.neoalive.tacz_sewv.client.editor.PoolPresetApply.Mode;
 import com.neoalive.tacz_sewv.client.editor.VehiclePoolCatalog;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketUpdateVehiclePools;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.VehiclePackIndex;
+import com.neoalive.tacz_sewv.util.VehiclePackIndex.Assessment;
+import com.neoalive.tacz_sewv.util.VehiclePackIndex.Entry;
+import com.neoalive.tacz_sewv.util.VehiclePackPresets.Pack;
 import com.neoalive.tacz_sewv.util.VehiclePoolCatalogSource;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
 
 /**
  * Creative admin UI for world vehicle pools ({@code /sewv pool vehicles}), laid out like the loadout
  * manager: a sheet of entries with a status dot, class check and spawn chance, and an autofill
- * candidate list under the add box. Edits a local snapshot; Save pushes
- * {@link PacketUpdateVehiclePools}. Opened only via server {@code PacketOpenPoolEditor}.
+ * candidate list under the add box. A left rail holds the None/Add/Replace preset mode toggle and
+ * one button per present vehicle pack ({@link VehiclePackIndex}). Edits a local snapshot; Save
+ * pushes {@link PacketUpdateVehiclePools}. Opened only via server {@code PacketOpenPoolEditor}.
  *
  * <p>What the sheet knows that the old plain list did not, all of it read from the spawner's own
  * rules: an id that is not registered is skipped at spawn ({@code TankSpawner.pickVehicleType}
@@ -44,7 +51,9 @@ import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
  */
 public class PoolEditorScreen extends Screen {
 
-    private static final int PANEL_W_PREF = 460;
+    private static final int PANEL_W_PREF = 560;
+    private static final int RAIL_W = 140;
+    private static final int RAIL_GAP = 6;
     private static final int CAND_LINES = 3;
     private static final int CAND_H = 10;
     /** Label + add row, candidates, buttons and padding under the sheet. */
@@ -61,6 +70,7 @@ public class PoolEditorScreen extends Screen {
 
     private TankFaction faction = TankFaction.RU;
     private Category category = Category.GROUND;
+    private Mode presetMode = Mode.NONE;
 
     private final TabStrip factionStrip;
     private final TabStrip categoryStrip;
@@ -68,14 +78,18 @@ public class PoolEditorScreen extends Screen {
     private final HoverTips hoverTips = new HoverTips();
     private final Map<String, Info> infos = new HashMap<>();
     private final Map<String, String> names = new HashMap<>();
+    private final List<Button> packButtons = new ArrayList<>();
 
     private PoolVehicleIdEditBox filterBox;
+    private Button modeButton;
     private List<String> activeCatalogList = List.of();
     private List<String> candidates = List.of();
     private int catalogRetryTicks;
 
     private int left;
+    private int mainLeft;
     private int panelW;
+    private int mainW;
     private int summaryY;
     private int labelY;
     private int candTop;
@@ -230,19 +244,25 @@ public class PoolEditorScreen extends Screen {
     protected void init() {
         VehiclePoolCatalog.ensureLoaded();
         GrenadePoolCatalog.ensureLoaded();
+        VehiclePackIndex.rebuild();
         this.hoverTips.clear();
+        this.packButtons.clear();
         this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
         this.left = (this.width - this.panelW) / 2;
+        this.mainLeft = this.left + RAIL_W + RAIL_GAP;
+        this.mainW = Math.max(200, this.panelW - RAIL_W - RAIL_GAP);
+
+        layoutPresetRail();
 
         this.factionStrip.select(this.faction.ordinal());
         this.categoryStrip.select(this.category.ordinal());
-        int y = this.factionStrip.layout(this::addRenderableWidget, this.left, 22, Math.min(176, this.panelW));
-        y = this.categoryStrip.layout(this::addRenderableWidget, this.left, y, this.panelW);
+        int y = this.factionStrip.layout(this::addRenderableWidget, this.mainLeft, 22, Math.min(176, this.mainW));
+        y = this.categoryStrip.layout(this::addRenderableWidget, this.mainLeft, y, this.mainW);
 
         this.summaryY = y + 2;
         int headY = this.summaryY + 12;
         int rows = SheetTable.rowsFor(this.height, headY + SheetTable.HEAD_H, BELOW_GRID, 4, 14);
-        this.table.layout(this.left, headY, this.panelW, rows);
+        this.table.layout(this.mainLeft, headY, this.mainW, rows);
 
         this.labelY = this.table.bottom() + 4;
         int addY = this.labelY + 10;
@@ -250,7 +270,7 @@ public class PoolEditorScreen extends Screen {
         int buttonsY = this.candTop + CAND_LINES * CAND_H + 4;
 
         String previous = this.filterBox == null ? "" : this.filterBox.getValue();
-        this.filterBox = new PoolVehicleIdEditBox(this.font, this.left, addY, this.panelW - 88, 20,
+        this.filterBox = new PoolVehicleIdEditBox(this.font, this.mainLeft, addY, this.mainW - 88, 20,
                 Component.translatable("gui.tacz_sewv.pool.filter"));
         this.filterBox.setMaxLength(128);
         this.filterBox.setHint(Component.translatable("gui.tacz_sewv.pool.hint.search"));
@@ -262,19 +282,91 @@ public class PoolEditorScreen extends Screen {
         this.filterBox.setValue(previous);
 
         addRenderableWidget(tip(Button.builder(Component.translatable("gui.tacz_sewv.pool.add"), b -> addFromFilter())
-                .bounds(this.left + this.panelW - 84, addY, 84, 20).build(), "add"));
+                .bounds(this.mainLeft + this.mainW - 84, addY, 84, 20).build(), "add"));
 
-        int bw = (this.panelW - 2 * 4) / 3;
+        int bw = (this.mainW - 2 * 4) / 3;
         addRenderableWidget(tip(Button.builder(Component.translatable("gui.tacz_sewv.pool.remove"), b -> removeSelected())
-                .bounds(this.left, buttonsY, bw, 20).build(), "remove"));
+                .bounds(this.mainLeft, buttonsY, bw, 20).build(), "remove"));
         addRenderableWidget(tip(Button.builder(Component.translatable("gui.tacz_sewv.pool.reset"), b -> resetCurrent())
-                .bounds(this.left + bw + 4, buttonsY, bw, 20).build(), "reset"));
+                .bounds(this.mainLeft + bw + 4, buttonsY, bw, 20).build(), "reset"));
         addRenderableWidget(tip(Button.builder(Component.translatable("gui.tacz_sewv.pool.save"), b -> {
             NetworkHandler.CHANNEL.sendToServer(new PacketUpdateVehiclePools(this.pools));
             onClose();
-        }).bounds(this.left + 2 * (bw + 4), buttonsY, this.panelW - 2 * (bw + 4), 20).build(), "save"));
+        }).bounds(this.mainLeft + 2 * (bw + 4), buttonsY, this.mainW - 2 * (bw + 4), 20).build(), "save"));
 
         reloadCatalog();
+        refreshCandidates();
+    }
+
+    private void layoutPresetRail() {
+        this.modeButton = Button.builder(modeLabel(), b -> cycleMode())
+                .bounds(this.left, 22, RAIL_W, 20).build();
+        this.modeButton.setTooltip(Tooltip.create(Component.translatable(
+                "gui.tacz_sewv.pool.tip.preset.mode." + this.presetMode.name().toLowerCase(Locale.ROOT))));
+        addRenderableWidget(this.modeButton);
+
+        int y = 46;
+        for (Entry entry : VehiclePackIndex.present()) {
+            Pack pack = entry.pack();
+            Assessment a = entry.assessment();
+            String full = assessmentText(pack, a);
+            String shortLabel = this.font.plainSubstrByWidth(full, RAIL_W - 8);
+            Button btn = Button.builder(Component.literal(shortLabel), b -> applyPack(pack))
+                    .bounds(this.left, y, RAIL_W, 20).build();
+            btn.setTooltip(Tooltip.create(Component.translatable("gui.tacz_sewv.pool.tip.preset.pack",
+                    Component.translatable(pack.langKey),
+                    Component.literal(full),
+                    Component.translatable("gui.tacz_sewv.pool.preset.mode."
+                            + this.presetMode.name().toLowerCase(Locale.ROOT)))));
+            btn.active = this.presetMode != Mode.NONE;
+            addRenderableWidget(btn);
+            this.packButtons.add(btn);
+            y += 22;
+        }
+    }
+
+    private void cycleMode() {
+        this.presetMode = this.presetMode.next();
+        this.modeButton.setMessage(modeLabel());
+        this.modeButton.setTooltip(Tooltip.create(Component.translatable(
+                "gui.tacz_sewv.pool.tip.preset.mode." + this.presetMode.name().toLowerCase(Locale.ROOT))));
+        boolean active = this.presetMode != Mode.NONE;
+        for (Button b : this.packButtons) {
+            b.active = active;
+        }
+        // Refresh pack tooltips so they name the current mode.
+        layoutPresetRailRefreshTips();
+    }
+
+    private void layoutPresetRailRefreshTips() {
+        List<Entry> entries = VehiclePackIndex.present();
+        for (int i = 0; i < this.packButtons.size() && i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            String full = assessmentText(entry.pack(), entry.assessment());
+            this.packButtons.get(i).setTooltip(Tooltip.create(Component.translatable(
+                    "gui.tacz_sewv.pool.tip.preset.pack",
+                    Component.translatable(entry.pack().langKey),
+                    Component.literal(full),
+                    Component.translatable("gui.tacz_sewv.pool.preset.mode."
+                            + this.presetMode.name().toLowerCase(Locale.ROOT)))));
+        }
+    }
+
+    private Component modeLabel() {
+        return Component.translatable("gui.tacz_sewv.pool.preset.mode."
+                + this.presetMode.name().toLowerCase(Locale.ROOT));
+    }
+
+    private static String assessmentText(Pack pack, Assessment a) {
+        String name = Component.translatable(pack.langKey).getString();
+        return name + " · RU " + a.ru() + " / US " + a.us() + " / PMC " + a.pmc()
+                + " · " + a.live() + " live";
+    }
+
+    private void applyPack(Pack pack) {
+        if (this.presetMode == Mode.NONE) return;
+        PoolPresetApply.apply(this.presetMode, pack, this.pools);
+        this.table.reset();
         refreshCandidates();
     }
 
@@ -436,7 +528,7 @@ public class PoolEditorScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (this.table.mouseClicked(mouseX, mouseY)) return true;
-        if (mouseX >= this.left && mouseX < this.left + this.panelW
+        if (mouseX >= this.mainLeft && mouseX < this.mainLeft + this.mainW
                 && mouseY >= this.candTop && mouseY < this.candTop + CAND_LINES * CAND_H) {
             int i = (int) ((mouseY - this.candTop) / CAND_H);
             if (i >= 0 && i < this.candidates.size()) {
@@ -478,10 +570,10 @@ public class PoolEditorScreen extends Screen {
         renderSummary(g);
         this.table.render(g, this.font, mouseX, mouseY);
 
-        g.drawString(this.font, Component.translatable("gui.tacz_sewv.pool.lbl.add"), this.left, this.labelY, 0xFF909090, false);
+        g.drawString(this.font, Component.translatable("gui.tacz_sewv.pool.lbl.add"), this.mainLeft, this.labelY, 0xFF909090, false);
         if (!this.candidates.isEmpty()) {
             Component hint = Component.translatable("gui.tacz_sewv.pool.lbl.complete");
-            g.drawString(this.font, hint, this.left + this.panelW - this.font.width(hint), this.labelY, 0xFF909090, false);
+            g.drawString(this.font, hint, this.mainLeft + this.mainW - this.font.width(hint), this.labelY, 0xFF909090, false);
         }
         renderCandidates(g);
 
@@ -493,11 +585,11 @@ public class PoolEditorScreen extends Screen {
     private void renderSummary(GuiGraphics g) {
         Component cat = Component.translatable("gui.tacz_sewv.pool.cat." + this.category.name().toLowerCase(Locale.ROOT));
         g.drawString(this.font, Component.translatable("gui.tacz_sewv.pool.summary", this.faction.name(), cat,
-                currentPool().size(), this.liveCount), this.left, this.summaryY, 0xFFA0A0A0, false);
+                currentPool().size(), this.liveCount), this.mainLeft, this.summaryY, 0xFFA0A0A0, false);
         List<Component> flags = new ArrayList<>();
         if (this.badCount > 0) flags.add(Component.translatable("gui.tacz_sewv.pool.flag.unknown", this.badCount));
         if (this.warnCount > 0) flags.add(Component.translatable("gui.tacz_sewv.pool.flag.class", this.warnCount));
-        int x = this.left + this.panelW;
+        int x = this.mainLeft + this.mainW;
         for (Component f : flags) {
             x -= this.font.width(f) + 8;
             g.drawString(this.font, f, x, this.summaryY, this.badCount > 0 && f == flags.get(0) ? 0xFFFF6666 : 0xFFFFC04D, false);
@@ -509,19 +601,19 @@ public class PoolEditorScreen extends Screen {
         if (pending) {
             g.drawString(this.font, Component.translatable(this.catalog.isEmpty()
                     ? "gui.tacz_sewv.pool.catalog_empty" : "gui.tacz_sewv.pool.catalog_loading"),
-                    this.left + 2, this.candTop, 0xFFFFAA55, false);
+                    this.mainLeft + 2, this.candTop, 0xFFFFAA55, false);
             return;
         }
         for (int i = 0; i < this.candidates.size(); i++) {
             String id = this.candidates.get(i);
             String label = labelOf(id);
             String line = label.equals("?") ? id : id + "  -  " + label;
-            g.drawString(this.font, this.font.plainSubstrByWidth(line, this.panelW), this.left + 2,
+            g.drawString(this.font, this.font.plainSubstrByWidth(line, this.mainW), this.mainLeft + 2,
                     this.candTop + i * CAND_H, i == 0 ? 0xFFFFFF55 : 0xFFB0B0B0, false);
         }
         if (this.candidates.isEmpty() && !this.filterBox.getValue().isEmpty()) {
             g.drawString(this.font, Component.translatable("gui.tacz_sewv.pool.no_match"),
-                    this.left + 2, this.candTop, 0xFFFF6666, false);
+                    this.mainLeft + 2, this.candTop, 0xFFFF6666, false);
         }
     }
 

@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactSight;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness;
+import com.neoalive.tacz_sewv.entity.ai.sensor.VehicleScanBand;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowSupport;
 
@@ -207,13 +208,13 @@ if (EasyMode.vehicleTargetRequireLos()
         if (ContactBoard.holds(this.unit, target, DIRECT_FIRE_MIN)) return true;
 
         double dropRadius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get() * DROP_MULT;
-        double dropHalfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0 * DROP_MULT;
-        // A flying vehicle keeps its lock on targets all the way down to the ground —
-        // without the slack, climbing to cruise altitude would drop the very target
-        // the crew is engaging (the cylinder is centered on the hull).
+        // Drop band tracks the scan band (taller upward for ground AA) with the same 1.5× slack.
+        // Air keeps uncapped altitude slack so climbing to cruise does not drop a ground lock.
+        double up = VehicleScanBand.upward(this.vehicle) * DROP_MULT;
+        double down = (VehicleScanBand.halfHeight() + altitudeSlack(this.vehicle)) * DROP_MULT;
         return horizontalDistSq(this.vehicle, target) <= dropRadius * dropRadius
-                && target.getY() - this.vehicle.getY() <= dropHalfHeight
-                && this.vehicle.getY() - target.getY() <= dropHalfHeight + altitudeSlack(this.vehicle);
+                && target.getY() - this.vehicle.getY() <= up
+                && this.vehicle.getY() - target.getY() <= down;
     }
 
     @Override
@@ -370,12 +371,12 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
         if (!known.isEmpty()) {
             double wide = wideRadius(radius);
             double wideSq = wide * wide;
-            double halfHeight = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
-            double slack = altitudeSlack(v);
+            double up = VehicleScanBand.upward(v);
+            double down = VehicleScanBand.halfHeight() + altitudeSlack(v);
             for (LivingEntity e : known) {
                 if (out.contains(e)) continue;
                 double dy = e.getY() - v.getY();
-                if (dy > halfHeight || -dy > halfHeight + slack) continue;
+                if (dy > up || -dy > down) continue;
                 if (!isValidTarget(v, e)) continue;
                 double distSq = horizontalDistSq(v, e);
                 if (distSq > wideSq) continue;

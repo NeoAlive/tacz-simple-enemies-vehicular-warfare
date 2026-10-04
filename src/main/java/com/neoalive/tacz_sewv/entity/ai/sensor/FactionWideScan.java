@@ -77,10 +77,19 @@ public final class FactionWideScan {
         return Math.max(1, Math.min(configuredCadence, ContactBoard.Source.PROXIMITY.ttl(ttlBaseTicks) / 2));
     }
 
-    /** The close scan's vertical band: {@code halfHeight} up, {@code halfHeight + slack} down. */
+    /**
+     * The close scan's vertical band. Airborne observers ({@code observerSlack > 0}): {@code halfHeight}
+     * up. Ground observers: {@code groundUpward} up (AA). Downward is always
+     * {@code halfHeight + observerSlack}.
+     */
+    static boolean inCylinder(double observerY, double observerSlack, double subjectY,
+                              double halfHeight, double groundUpward) {
+        return VehicleScanBand.inBand(observerY, observerSlack, subjectY, halfHeight, groundUpward);
+    }
+
+    /** @deprecated use {@link #inCylinder(double, double, double, double, double)} */
     static boolean inCylinder(double observerY, double observerSlack, double subjectY, double halfHeight) {
-        double dy = subjectY - observerY;
-        return dy <= halfHeight && -dy <= halfHeight + observerSlack;
+        return inCylinder(observerY, observerSlack, subjectY, halfHeight, halfHeight);
     }
 
     /**
@@ -89,7 +98,7 @@ public final class FactionWideScan {
      * Each unordered observer/observer pair is evaluated once, from the lower id, in both directions.
      */
     static void evaluate(List<Entry> observers, List<Entry> subjects, double closeRadius, double wideRadius,
-                         double halfHeight, boolean closeDue, boolean wideDue,
+                         double halfHeight, double groundUpward, boolean closeDue, boolean wideDue,
                          Hostile hostile, Sink sink, PassStats out) {
         double closeSq = closeRadius * closeRadius;
         double wideSq = wideRadius * wideRadius;
@@ -104,16 +113,24 @@ public final class FactionWideScan {
                 if (d2 > wideSq) continue;
                 if (d2 <= closeSq ? !closeDue : !wideDue) continue;
                 out.pairs++;
-                if (inCylinder(o.y, o.altitudeSlack, s.y, halfHeight)) {
+                if (inCylinder(o.y, o.altitudeSlack, s.y, halfHeight, groundUpward)) {
                     out.predicateCalls++;
                     if (hostile.test(o, s) && sink.publish(o, s)) out.published++;
                 }
-                if (s.canObserve && inCylinder(s.y, s.altitudeSlack, o.y, halfHeight)) {
+                if (s.canObserve && inCylinder(s.y, s.altitudeSlack, o.y, halfHeight, groundUpward)) {
                     out.predicateCalls++;
                     if (hostile.test(s, o) && sink.publish(s, o)) out.published++;
                 }
             }
         }
+    }
+
+    /** Back-compat overload: ground upward equals {@code halfHeight} (pre-AA band). */
+    static void evaluate(List<Entry> observers, List<Entry> subjects, double closeRadius, double wideRadius,
+                         double halfHeight, boolean closeDue, boolean wideDue,
+                         Hostile hostile, Sink sink, PassStats out) {
+        evaluate(observers, subjects, closeRadius, wideRadius, halfHeight, halfHeight,
+                closeDue, wideDue, hostile, sink, out);
     }
 
     // --- glue --------------------------------------------------------------------------------------
@@ -124,6 +141,7 @@ public final class FactionWideScan {
         double closeR;
         double wideR;
         double halfH;
+        double groundUp;
         try {
             if (!SewvConfig.WIDE_SCAN_ENABLED.get() || !SewvConfig.CONTACT_BOARD_ENABLED.get()) return;
             closeInterval = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
@@ -138,7 +156,8 @@ public final class FactionWideScan {
             }
             closeR = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
             wideR = SewvConfig.WIDE_SCAN_RADIUS.get();
-            halfH = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
+            halfH = VehicleScanBand.halfHeight();
+            groundUp = VehicleScanBand.groundUpward();
         } catch (Throwable unbaked) {
             return;
         }
@@ -157,7 +176,7 @@ public final class FactionWideScan {
 
         PassStats stats = new PassStats();
         long t0 = System.nanoTime();
-        evaluate(observers, snap.subjects(), closeR, Math.max(wideR, closeR), halfH, closeDue, wideDue,
+        evaluate(observers, snap.subjects(), closeR, Math.max(wideR, closeR), halfH, groundUp, closeDue, wideDue,
                 (o, s) -> o.observer != null && o.observer.isAlive() && s.living != null && s.living.isAlive()
                         && VehicleTargeting.isValidHostileTarget(o.observer, s.living),
                 (o, s) -> ContactBoard.publishVetted(o.observer, s.living, ContactBoard.Source.PROXIMITY),

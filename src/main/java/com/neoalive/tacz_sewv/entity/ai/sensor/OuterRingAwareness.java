@@ -176,10 +176,13 @@ public final class OuterRingAwareness {
         double hi = bandHi(inner, outer, band);
         if (hi <= lo) return;
 
-        double halfH = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get() / 2.0;
+        // Ground AA looks farther up; downward stays the old half-height (no air slack here —
+        // this ring is for ground crews and must not change airborne observer boxes).
+        double halfH = VehicleScanBand.halfHeight();
+        double up = VehicleScanBand.upward(vehicle);
         AABB box = new AABB(
                 vehicle.getX() - hi, vehicle.getY() - halfH, vehicle.getZ() - hi,
-                vehicle.getX() + hi, vehicle.getY() + halfH, vehicle.getZ() + hi);
+                vehicle.getX() + hi, vehicle.getY() + up, vehicle.getZ() + hi);
 
         double loSq = lo * lo;
         double hiSq = hi * hi;

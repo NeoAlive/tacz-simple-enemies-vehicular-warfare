@@ -185,6 +185,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_HEIGHT;
+    /** Ground observers only: upward reach for AA / SPAA. Airborne hulls keep SCAN_HEIGHT. */
+    public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_AIR_HEIGHT;
     public static final ForgeConfigSpec.IntValue VEHICLE_TARGET_SCAN_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue VEHICLE_TARGET_REQUIRE_LOS;
     public static final ForgeConfigSpec.BooleanValue CONTACT_BOARD_ENABLED;
@@ -848,8 +850,16 @@ public final class SewvConfig {
                 .defineInRange("vehicleFormationSpacing", 12.0, 5.0, 32.0);
         VEHICLE_TARGET_SCAN_RADIUS = builder.comment("How far sideways (blocks) crewed vehicles look for enemies.")
                 .defineInRange("vehicleTargetScanRadius", 96.0, 8.0, 128.0);
-        VEHICLE_TARGET_SCAN_HEIGHT = builder.comment("How far up/down (blocks) crewed vehicles look for enemies.")
+        VEHICLE_TARGET_SCAN_HEIGHT = builder.comment(
+                        "How far up/down (blocks) crewed vehicles look for enemies.",
+                        "For ground hulls this is the downward half and the legacy upward half; upward for",
+                        "ground AA is vehicleTargetScanAirHeight. Helicopters and planes keep this band",
+                        "(plus their downward altitude slack) and do not use the air height.")
                 .defineInRange("vehicleTargetScanHeight", 128.0, 4.0, 128.0);
+        VEHICLE_TARGET_SCAN_AIR_HEIGHT = builder.comment(
+                        "How far UP (blocks) ground crews look for aircraft. Does not change helicopters or",
+                        "planes. Must be >= half of vehicleTargetScanHeight or the old band is kept.")
+                .defineInRange("vehicleTargetScanAirHeight", 192.0, 64.0, 384.0);
         VEHICLE_TARGET_SCAN_INTERVAL_TICKS = builder.comment("How often (game ticks) crewed vehicles refresh their target list.")
                 .defineInRange("vehicleTargetScanIntervalTicks", 30, 1, 200);
         VEHICLE_TARGET_REQUIRE_LOS = builder.comment("Crewed vehicles only lock enemies they can see (no wall hacks).")

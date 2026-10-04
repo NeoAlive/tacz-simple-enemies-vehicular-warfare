@@ -15,7 +15,7 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.FactionWideScan.PassStats;
  */
 public final class FactionWideScanSelfCheck {
 
-    private static final double R = 96.0, W = 256.0, HALF_H = 64.0;
+    private static final double R = 96.0, W = 256.0, HALF_H = 64.0, GROUND_UP = 192.0;
 
     public static void main(String[] args) {
         cadenceInvariant();
@@ -42,7 +42,7 @@ public final class FactionWideScanSelfCheck {
     private static PassStats run(List<Entry> observers, List<Entry> subjects, boolean close, boolean wide,
                                  List<String> calls, boolean hostile) {
         PassStats st = new PassStats();
-        FactionWideScan.evaluate(observers, subjects, R, W, HALF_H, close, wide,
+        FactionWideScan.evaluate(observers, subjects, R, W, HALF_H, GROUND_UP, close, wide,
                 (o, s) -> { calls.add(o.id + ">" + s.id); return hostile; },
                 (o, s) -> true, st);
         return st;
@@ -68,11 +68,17 @@ public final class FactionWideScanSelfCheck {
     }
 
     private static void cylinder() {
+        // Legacy 4-arg (ground up == halfHeight) still encodes the old symmetric band.
         assert FactionWideScan.inCylinder(64, 0, 64 + 63, HALF_H);
-        assert !FactionWideScan.inCylinder(64, 0, 64 + 65, HALF_H) : "too high";
+        assert !FactionWideScan.inCylinder(64, 0, 64 + 65, HALF_H) : "too high without ground-up";
         assert !FactionWideScan.inCylinder(64, 0, 64 - 65, HALF_H) : "too low without slack";
         assert FactionWideScan.inCylinder(64, 100, 64 - 150, HALF_H) : "an airborne observer looks further down";
         assert !FactionWideScan.inCylinder(64, 100, 64 + 65, HALF_H) : "slack is downward only";
+        // Ground AA: taller upward; air observers still capped at halfHeight up.
+        assert FactionWideScan.inCylinder(64, 0, 64 + 180, HALF_H, GROUND_UP) : "ground AA sees high air";
+        assert !FactionWideScan.inCylinder(64, 0, 64 + 200, HALF_H, GROUND_UP) : "ground AA still has a ceiling";
+        assert !FactionWideScan.inCylinder(64, 100, 64 + 180, HALF_H, GROUND_UP)
+                : "airborne observer must not inherit the ground-up band";
     }
 
     private static void pairsAreMutualAndEvaluateSameFaction() {
@@ -120,7 +126,13 @@ public final class FactionWideScanSelfCheck {
         assert calls.isEmpty() : "beyond wideScanRadius nothing is evaluated";
         List<Entry> high = List.of(hull(10, 0, 64, 0, true), hull(20, 100, 64 + 200, 0, true));
         run(high, high, true, true, calls, true);
-        assert calls.isEmpty() : "outside the vertical band";
+        assert calls.isEmpty() : "outside the ground-up ceiling (192)";
+        calls.clear();
+        // High subject has slack 0 (ground entry at altitude): only the ground→air direction fits the
+        // band. A real aircraft Entry carries altitudeSlack and can look back down.
+        List<Entry> aa = List.of(hull(10, 0, 64, 0, true), hull(20, 100, 64 + 180, 0, true));
+        run(aa, aa, true, true, calls, true);
+        assert calls.equals(List.of("10>20")) : "ground AA band reaches 180 up: " + calls;
     }
 
     private static void orderIsIdDerived() {

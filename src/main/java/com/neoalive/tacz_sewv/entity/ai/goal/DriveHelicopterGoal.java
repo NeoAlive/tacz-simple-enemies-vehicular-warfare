@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleMissileAim;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
@@ -532,7 +533,7 @@ public class DriveHelicopterGoal extends Goal {
                 fireAssist(target);
             } else if (HeliTrace.tracing(this.vehicle)) {
                 HeliTrace.noteFire(this.vehicle, false, "WINDOW", VehicleWeapons.boresightAngleDeg(this.vehicle, this.unit, target),
-                        VehicleWeapons.npcAssistConeDeg(fireConeDeg()),
+                        effectiveConeDeg(),
                         !((IAiFireTracker) this.vehicle).tacz_sewv$lineOfFireBlocked(this.unit, target));
             }
         } else {
@@ -720,6 +721,25 @@ public class DriveHelicopterGoal extends Goal {
         }
     }
 
+    /**
+     * The pilot's wire-guided missile rides the HULL's nose line, not a turret (WireGuideMissileEntity:
+     * an aircraft's own pilot gets {@code getViewVector}, everyone else the barrel; javap). Fired with
+     * the nose 25 deg above the target, the way a hovering FireStill holds it, the missile flies level
+     * over the target or, nose slightly down, into the ground short of it. So the pilot fires one only
+     * with the nose on the target, inside SBW's own 4 deg AI gate, with no NPC cone floor.
+     */
+    private static final double NOSE_BEAM_CONE_DEG = 4.0;
+
+    private boolean noseBeamRider() {
+        return this.vehicle.getFirstPassenger() == this.unit
+                && VehicleMissileAim.modeOfSelected(this.vehicle, this.unit) == VehicleMissileAim.AimMode.BEAM_RIDER;
+    }
+
+    /** The cone the fire assist actually applies this tick (trace column). */
+    private double effectiveConeDeg() {
+        return noseBeamRider() ? NOSE_BEAM_CONE_DEG : VehicleWeapons.npcAssistConeDeg(fireConeDeg());
+    }
+
     private double fireConeDeg() {
         double base = EasyMode.aiFireAssistConeDeg();
         double floor = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.heliConeFloorDeg(this.vehicle);
@@ -727,11 +747,13 @@ public class DriveHelicopterGoal extends Goal {
     }
 
     private void fireAssist(LivingEntity target) {
-        VehicleWeapons.FireGate gate = VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, fireConeDeg());
+        VehicleWeapons.FireGate gate = noseBeamRider()
+                ? VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, null, NOSE_BEAM_CONE_DEG, false)
+                : VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, fireConeDeg());
         if (HeliTrace.tracing(this.vehicle)) {
             HeliTrace.noteFire(this.vehicle, gate == VehicleWeapons.FireGate.FIRED, gate.name(),
                     VehicleWeapons.boresightAngleDeg(this.vehicle, this.unit, target),
-                    VehicleWeapons.npcAssistConeDeg(fireConeDeg()),
+                    effectiveConeDeg(),
                     !((IAiFireTracker) this.vehicle).tacz_sewv$lineOfFireBlocked(this.unit, target));
         }
         if (!ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) || gate == VehicleWeapons.FireGate.RPM_WAIT) return;

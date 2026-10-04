@@ -56,8 +56,14 @@ public final class VehicleMissileAim {
         Vec3 targetPos = target.getBoundingBox().getCenter();
 
         if (mode == AimMode.BEAM_RIDER) {
-            // Beam tracks the barrel every tick — leading aims at empty air.
-            return targetPos.subtract(shootPos);
+            // Beam tracks the barrel every tick — leading aims at empty air. The beam is NOT the line
+            // from the launcher: WireGuideMissileEntity steers onto shootPosForHud + s * barrel (javap),
+            // and a launcher is a pylon well away from that HUD point (mi_28's gunner: pylons ~2 m to the
+            // side, HUD point 4.2 m forward on the chin). Aiming the barrel from the pylon puts a beam
+            // parallel to the right line but offset by that gap, which in a 25-30 deg dive is ~2.5 m
+            // below the target: the missile flies a perfect beam into the ground just short of it.
+            // So the barrel is aimed from the beam's own origin.
+            return targetPos.subtract(vehicle.getShootPosForHud(controller, 1.0F));
         }
 
         // SEEKER: same solver SBW uses, but gravity 0 to match MissileProjectile flight.

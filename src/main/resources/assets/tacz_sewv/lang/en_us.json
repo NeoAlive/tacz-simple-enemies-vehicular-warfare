@@ -301,7 +301,7 @@
   "gui.tacz_sewv.formation.hint": "Scroll: Length\nShift+Scroll: Width\nCtrl+Scroll: Type",
   "gui.tacz_sewv.queue.title": "ORDER QUEUE",
   "gui.tacz_sewv.queue.empty": "(empty)",
-  "gui.tacz_sewv.queue.hint": "Ctrl+Scroll: Skip\nTab: Off (clears)",
+  "gui.tacz_sewv.queue.hint": "Scroll Down: Skip\nMiddle Click: Off (clears)",
   "gui.tacz_sewv.queue.on": "Queue Mode: ON",
   "gui.tacz_sewv.queue.off": "Queue Mode: OFF",
   "item.tacz_sewv.tactical_data_terminal": "Tactical Data Terminal",

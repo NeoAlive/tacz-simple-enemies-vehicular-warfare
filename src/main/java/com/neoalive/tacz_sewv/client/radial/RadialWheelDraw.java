@@ -30,12 +30,13 @@ final class RadialWheelDraw {
      */
     static void renderRing(GuiGraphics g, Font font, int cx, int cy, int innerR, int outerR,
                            java.util.List<WedgeEntry> wedges, float[] hotStrengths, float menuAlpha,
-                           int hubArgb, int labelArgb, int labelHotArgb, boolean[] enabled) {
+                           int labelArgb, int labelHotArgb, boolean[] enabled,
+                           double pointerX, double pointerY) {
         int n = wedges.size();
         float ringA = Mth.clamp(menuAlpha, 0.0f, 1.0f);
         if (n <= 0) {
-            drawHub(g, font, cx, cy, innerR, scaleAlpha(hubArgb, ringA), "•",
-                    scaleAlpha(labelHotArgb, ringA));
+            drawHub(g, cx, cy, innerR, pointerX, pointerY,
+                    scaleAlpha(labelArgb, ringA), scaleAlpha(labelHotArgb, ringA));
             return;
         }
 
@@ -112,7 +113,7 @@ final class RadialWheelDraw {
 
             double bx = (x1 + x2) * 0.5;
             double by = (y1 + y2) * 0.5;
-            double textR = wedgeOuter + Math.max(10, outerR * 0.22);
+            double textR = wedgeOuter + labelGap(outerR);
             double avgLen = Math.hypot(bx, by);
             double txOff = avgLen > 1.0e-6 ? (bx / avgLen) * textR : 0;
             double tyOff = avgLen > 1.0e-6 ? (by / avgLen) * textR : -textR;
@@ -132,18 +133,26 @@ final class RadialWheelDraw {
                     scaleAlpha(lerpArgb(coldLabel, hotLabel, hot), ringA), false);
         }
 
+        // The dot takes the hot wedge's tint once it leaves the deadzone.
         float hubHot = 0.0f;
         for (float h : hotStrengths) hubHot = Math.max(hubHot, h);
         int hotIdx = hottestIndex(hotStrengths, n);
         boolean hubOn = enabled == null || hotIdx >= enabled.length || enabled[hotIdx];
-        String hub = hubHot > 0.35f && n > 0 ? wedges.get(hotIdx).icon() : "•";
-        int hubGlyph = hubHot > 0.35f && n > 0
-                ? (hubOn
-                        ? withAccentTint(labelHotArgb, wedges.get(hotIdx).accentRgb())
-                        : 0xFFAAAAAA)
+        int dot = hubHot > 0.35f
+                ? (hubOn ? withAccentTint(labelHotArgb, wedges.get(hotIdx).accentRgb()) : 0xFFAAAAAA)
                 : labelHotArgb;
-        drawHub(g, font, cx, cy, innerR, scaleAlpha(hubArgb, ringA), hub,
-                scaleAlpha(hubGlyph, ringA));
+        drawHub(g, cx, cy, innerR, pointerX, pointerY,
+                scaleAlpha(labelArgb, ringA), scaleAlpha(dot, ringA));
+    }
+
+    /** Gap between a wedge's outer edge and its label. */
+    private static double labelGap(int outerR) {
+        return Math.max(10, outerR * 0.22);
+    }
+
+    /** Distance from the centre to the furthest label (hot wedge fully grown), for text placed clear of them. */
+    static int labelReach(int outerR) {
+        return (int) Math.ceil(outerR * (1.0 + HOT_GROW) + labelGap(outerR));
     }
 
     private static void drawScaledIcon(GuiGraphics g, Font font, String icon, int cx, int cy,
@@ -212,30 +221,40 @@ final class RadialWheelDraw {
         return (a << 24) | (argb & 0x00FFFFFF);
     }
 
-    private static void drawHub(GuiGraphics g, Font font, int cx, int cy, int innerR,
-                                int hubArgb, String glyph, int glyphArgb) {
-        // Soft disc via triangle fan (hub stays hollow-looking relative to the ring).
-        int steps = Math.max(16, innerR);
-        float r = Math.max(0, innerR - 3);
+    /**
+     * A thin ring and a dot showing the pointer delta to scale: the ring's edge is
+     * {@link RadialInputState#MAX_RADIUS}, so the dot touches it at full deflection.
+     */
+    private static void drawHub(GuiGraphics g, int cx, int cy, int innerR,
+                                double pointerX, double pointerY, int ringArgb, int dotArgb) {
+        float ringR = Math.max(4.0f, innerR * 0.42f);
+        fillAnnulus(g, cx, cy, ringR - 1.0f, ringR, ringArgb);
+        float dotR = Math.max(1.25f, innerR * 0.08f);
+        double scale = (ringR - 1.0f - dotR) / RadialInputState.MAX_RADIUS;
+        fillAnnulus(g, (float) (cx + pointerX * scale), (float) (cy + pointerY * scale), 0.0f, dotR, dotArgb);
+    }
+
+    /** Filled ring between two radii as a triangle strip; {@code rIn = 0} gives a disc. */
+    private static void fillAnnulus(GuiGraphics g, float cx, float cy, float rIn, float rOut, int argb) {
+        int steps = Math.max(24, (int) (rOut * 2.0f));
         Matrix4f matrix = g.pose().last().pose();
-        float a = ((hubArgb >> 24) & 0xFF) / 255f;
-        float rc = ((hubArgb >> 16) & 0xFF) / 255f;
-        float gc = ((hubArgb >> 8) & 0xFF) / 255f;
-        float bc = (hubArgb & 0xFF) / 255f;
+        float a = ((argb >> 24) & 0xFF) / 255f;
+        float r = ((argb >> 16) & 0xFF) / 255f;
+        float gc = ((argb >> 8) & 0xFF) / 255f;
+        float b = (argb & 0xFF) / 255f;
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
         BufferBuilder buffer = Tesselator.getInstance().getBuilder();
-        buffer.begin(VertexFormat.Mode.TRIANGLE_FAN, DefaultVertexFormat.POSITION_COLOR);
-        buffer.vertex(matrix, cx, cy, 0).color(rc, gc, bc, a).endVertex();
+        buffer.begin(VertexFormat.Mode.TRIANGLE_STRIP, DefaultVertexFormat.POSITION_COLOR);
         for (int s = 0; s <= steps; s++) {
             double t = (Math.PI * 2.0) * s / steps;
-            buffer.vertex(matrix, (float) (cx + Math.cos(t) * r), (float) (cy + Math.sin(t) * r), 0)
-                    .color(rc, gc, bc, a).endVertex();
+            float cos = (float) Math.cos(t);
+            float sin = (float) Math.sin(t);
+            buffer.vertex(matrix, cx + cos * rOut, cy + sin * rOut, 0).color(r, gc, b, a).endVertex();
+            buffer.vertex(matrix, cx + cos * rIn, cy + sin * rIn, 0).color(r, gc, b, a).endVertex();
         }
         BufferUploader.drawWithShader(buffer.end());
-
-        drawScaledIcon(g, font, glyph, cx, cy, glyphArgb);
     }
 
     static void renderQuad(GuiGraphics g,

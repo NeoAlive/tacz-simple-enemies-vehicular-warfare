@@ -69,8 +69,9 @@ public final class QuickCommandWheelScreen extends Screen {
 
     private boolean wasAttackDown;
     private boolean wasUseDown;
-    /** Starts true so a Tab already held when the wheel opens is not read as a press. */
+    /** Start true so a toggle input already held when the wheel opens is not read as a press. */
     private boolean wasTabDown = true;
+    private boolean wasMiddleDown = true;
 
     /** 0..1 highlight strength per wedge — lerps toward the current hot index. */
     private float[] wedgeHot = new float[0];
@@ -133,14 +134,18 @@ public final class QuickCommandWheelScreen extends Screen {
                 org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
         boolean useDown = org.lwjgl.glfw.GLFW.glfwGetMouseButton(window,
                 org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_RIGHT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
-        // Tab is polled like the mouse buttons: Screen.keyPressed never sees it while the wheel is up.
+        // Queue mode toggle: middle click (mouse-only, like the rest of the wheel) or Tab. Both
+        // polled like the other buttons: Screen.keyPressed never sees Tab while the wheel is up.
         boolean tabDown = org.lwjgl.glfw.GLFW.glfwGetKey(window, org.lwjgl.glfw.GLFW.GLFW_KEY_TAB)
                 == org.lwjgl.glfw.GLFW.GLFW_PRESS;
-        if (tabDown && !this.wasTabDown) {
+        boolean middleDown = org.lwjgl.glfw.GLFW.glfwGetMouseButton(window,
+                org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_MIDDLE) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+        if ((tabDown && !this.wasTabDown) || (middleDown && !this.wasMiddleDown)) {
             OrderQueueClient.toggle();
             playUi(OrderQueueClient.isOn() ? ModSounds.INTERACT_BEEP.get() : ModSounds.INTERACT_BEEP_BACK.get());
         }
         this.wasTabDown = tabDown;
+        this.wasMiddleDown = middleDown;
 
         boolean attackRising = attackDown && !this.wasAttackDown;
         boolean useRising = useDown && !this.wasUseDown;
@@ -174,7 +179,7 @@ public final class QuickCommandWheelScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         // Clicks are handled in tick() via GLFW so seated banHand still works; swallow here
         // to keep the Screen from propagating into the world (e.g. other keybinds) on close.
-        return button == 0 || button == 1 || super.mouseClicked(mouseX, mouseY, button);
+        return button == 0 || button == 1 || button == 2 || super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
@@ -208,9 +213,9 @@ public final class QuickCommandWheelScreen extends Screen {
         long window = mc != null ? mc.getWindow().getWindow() : 0L;
         boolean ctrl = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LCONTROL)
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RCONTROL));
-        // Ctrl+Scroll skips the running queued order — except in Formation, where it cycles the type.
-        if (ctrl && !inFormationSubmenu()) {
-            if (!OrderQueueClient.isOn() || OrderQueueClient.labels().isEmpty()) {
+        // Scroll down skips the running queued order — except in Formation, which owns the wheel.
+        if (!inFormationSubmenu()) {
+            if (delta >= 0.0 || !OrderQueueClient.isOn() || OrderQueueClient.labels().isEmpty()) {
                 return super.mouseScrolled(mouseX, mouseY, delta);
             }
             OrderQueueClient.skip();
@@ -588,7 +593,8 @@ public final class QuickCommandWheelScreen extends Screen {
             }
         }
         RadialWheelDraw.renderRing(g, this.font, cx, cy, inner, outer, wedges, this.wedgeHot,
-                this.menuAlpha, HUB_FILL, LABEL, LABEL_HOT, enabled);
+                this.menuAlpha, LABEL, LABEL_HOT, enabled,
+                this.input.accumX(), this.input.accumY());
 
         FormationShape previewShape = hotFormationShape();
         if (inFormationSubmenu() && previewShape != null && this.minecraft != null
@@ -608,8 +614,8 @@ public final class QuickCommandWheelScreen extends Screen {
             OrderQueueDraw.renderBox(g, this.font, cx, cy, outer, this.menuAlpha,
                     OrderQueueClient.labels(), HUB_FILL, LABEL);
         }
-        OrderQueueDraw.renderFlash(g, this.font, cx, cy, outer, OrderQueueClient.isOn(),
-                OrderQueueClient.toggledAtMs());
+        OrderQueueDraw.renderModeText(g, this.font, cx, cy, RadialWheelDraw.labelReach(outer),
+                this.menuAlpha, OrderQueueClient.isOn(), OrderQueueClient.toggledAtMs());
 
         super.render(g, mouseX, mouseY, partialTick);
     }

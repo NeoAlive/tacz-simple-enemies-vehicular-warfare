@@ -13,6 +13,11 @@ public final class RadialInputState {
 
     /** Radius of the neutral deadzone in accumulated-delta units. */
     public static final double DEADZONE_RADIUS = 24.0;
+    /**
+     * The pointer is clamped to this length, so a big swing does not have to be unwound before the
+     * opposite wedge can be picked — and the hub dot can show it to scale.
+     */
+    public static final double MAX_RADIUS = DEADZONE_RADIUS * 2.0;
 
     private final Deque<List<WedgeEntry>> stack = new ArrayDeque<>();
     private double accumX;
@@ -32,6 +37,11 @@ public final class RadialInputState {
     public void feedMouseDelta(double dx, double dy) {
         this.accumX += dx;
         this.accumY += dy;
+        double len = Math.hypot(this.accumX, this.accumY);
+        if (len > MAX_RADIUS) {
+            this.accumX *= MAX_RADIUS / len;
+            this.accumY *= MAX_RADIUS / len;
+        }
         recomputeHot();
     }
 

@@ -17,9 +17,7 @@ final class OrderQueueDraw {
     private static final int CURRENT = 0xFFFFD84A;
     private static final int MUTED = 0xFF8B98A5;
 
-    private static final long FLASH_IN_MS = 150;
-    private static final long FLASH_HOLD_MS = 1000;
-    private static final long FLASH_OUT_MS = 400;
+    private static final long FADE_MS = 250;
 
     private OrderQueueDraw() {}
 
@@ -60,17 +58,19 @@ final class OrderQueueDraw {
         }
     }
 
-    /** "Queue Mode: ON/OFF" above the wheel, fading in and out after each toggle. */
-    static void renderFlash(GuiGraphics g, Font font, int cx, int cy, int outerR, boolean on, long toggledAtMs) {
-        long t = System.currentTimeMillis() - toggledAtMs;
-        if (t < 0 || t > FLASH_IN_MS + FLASH_HOLD_MS + FLASH_OUT_MS) return;
-        float a = t < FLASH_IN_MS ? t / (float) FLASH_IN_MS
-                : t < FLASH_IN_MS + FLASH_HOLD_MS ? 1.0f
-                : 1.0f - (t - FLASH_IN_MS - FLASH_HOLD_MS) / (float) FLASH_OUT_MS;
+    /**
+     * "Queue Mode: ON/OFF", always shown above the top wedge label ({@code labelReach} out from the
+     * centre); fades in with the wheel and again on each toggle.
+     */
+    static void renderModeText(GuiGraphics g, Font font, int cx, int cy, int labelReach,
+                               float menuAlpha, boolean on, long toggledAtMs) {
+        float a = Mth.clamp(menuAlpha, 0.0f, 1.0f)
+                * Mth.clamp((System.currentTimeMillis() - toggledAtMs) / (float) FADE_MS, 0.0f, 1.0f);
         // Text with an alpha under ~4 is drawn opaque by vanilla, so stop before that.
         if (a < 0.05f) return;
         String text = I18n.get(on ? "gui.tacz_sewv.queue.on" : "gui.tacz_sewv.queue.off");
-        g.drawCenteredString(font, text, cx, cy - outerR - 28,
-                FormationPreviewDraw.scaleAlpha(on ? CURRENT : 0xFFE8ECF0, a));
+        int labelTop = cy - labelReach - 4;
+        g.drawCenteredString(font, text, cx, labelTop - font.lineHeight - 6,
+                FormationPreviewDraw.scaleAlpha(on ? CURRENT : MUTED, a));
     }
 }

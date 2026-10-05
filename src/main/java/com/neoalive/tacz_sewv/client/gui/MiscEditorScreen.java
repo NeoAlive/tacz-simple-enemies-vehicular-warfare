@@ -23,15 +23,24 @@ import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.client.editor.IdSearch;
+import com.neoalive.tacz_sewv.client.editor.MiscPresetApply;
+import com.neoalive.tacz_sewv.client.editor.PoolPresetApply.Mode;
 import com.neoalive.tacz_sewv.client.editor.VehiclePoolCatalog;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketUpdateVehicleClasses;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.MiscPackPresets;
+import com.neoalive.tacz_sewv.util.MiscPackPresets.Assessment;
+import com.neoalive.tacz_sewv.util.VehiclePackIndex;
+import com.neoalive.tacz_sewv.util.VehiclePackIndex.Entry;
+import com.neoalive.tacz_sewv.util.VehiclePackPresets.Pack;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
 
 /**
  * Admin UI for vehicle-class cues and faction armor ({@code /sewv pool misc}), laid out like the
- * loadout manager. Three kinds of sheet, because the three kinds of entry mean different things:
+ * loadout manager. A left rail holds the None/Add/Replace preset mode toggle and one button per
+ * present vehicle pack ({@link VehiclePackIndex}). Three kinds of sheet, because the three kinds of
+ * entry mean different things:
  *
  * <ul>
  *   <li><b>Vehicle clues</b> (IFV, anti-air, missile system, artillery) are substrings tested against
@@ -45,7 +54,9 @@ import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
  */
 public class MiscEditorScreen extends Screen {
 
-    private static final int PANEL_W_PREF = 460;
+    private static final int PANEL_W_PREF = 560;
+    private static final int RAIL_W = 140;
+    private static final int RAIL_GAP = 6;
     private static final int CAND_LINES = 3;
     private static final int CAND_H = 10;
     private static final int BELOW_GRID = 10 + 20 + 4 + CAND_LINES * CAND_H + 4 + 20 + 6;
@@ -69,12 +80,14 @@ public class MiscEditorScreen extends Screen {
     private final List<String> armorCatalog;
 
     private Tab tab = Tab.IFV;
+    private Mode presetMode = Mode.NONE;
     private final TabStrip clueStrip;
     private final TabStrip armorStrip;
     private final Map<Kind, SheetTable> tables = new EnumMap<>(Kind.class);
     private final HoverTips hoverTips = new HoverTips();
     private final Map<String, Match> matches = new HashMap<>();
     private final Map<String, String> armorNames = new HashMap<>();
+    private final List<Button> packButtons = new ArrayList<>();
 
     private List<String> vehicleIds;
     private List<String> vehicleIdsLower;
@@ -82,10 +95,13 @@ public class MiscEditorScreen extends Screen {
     private List<String> itemIdsLower;
 
     private PoolVehicleIdEditBox filterBox;
+    private Button modeButton;
     private List<String> candidates = List.of();
 
     private int left;
+    private int mainLeft;
     private int panelW;
+    private int mainW;
     private int summaryY;
     private int labelY;
     private int candTop;
@@ -207,19 +223,25 @@ public class MiscEditorScreen extends Screen {
     @Override
     protected void init() {
         VehiclePoolCatalog.ensureLoaded();
+        VehiclePackIndex.rebuild();
         this.hoverTips.clear();
+        this.packButtons.clear();
         this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
         this.left = (this.width - this.panelW) / 2;
+        this.mainLeft = this.left + RAIL_W + RAIL_GAP;
+        this.mainW = Math.max(200, this.panelW - RAIL_W - RAIL_GAP);
         ensureIdLists();
 
+        layoutPresetRail();
+
         syncStrips();
-        int y = this.clueStrip.layout(this::addRenderableWidget, this.left, 22, this.panelW);
-        y = this.armorStrip.layout(this::addRenderableWidget, this.left, y, Math.min(this.panelW, 3 * 112));
+        int y = this.clueStrip.layout(this::addRenderableWidget, this.mainLeft, 22, this.mainW);
+        y = this.armorStrip.layout(this::addRenderableWidget, this.mainLeft, y, Math.min(this.mainW, 3 * 112));
 
         this.summaryY = y + 2;
         int headY = this.summaryY + 12;
         int rows = SheetTable.rowsFor(this.height, headY + SheetTable.HEAD_H, BELOW_GRID, 4, 14);
-        this.tables.values().forEach(t -> t.layout(this.left, headY, this.panelW, rows));
+        this.tables.values().forEach(t -> t.layout(this.mainLeft, headY, this.mainW, rows));
 
         SheetTable any = table();
         this.labelY = any.bottom() + 4;
@@ -228,7 +250,7 @@ public class MiscEditorScreen extends Screen {
         int buttonsY = this.candTop + CAND_LINES * CAND_H + 4;
 
         String previous = this.filterBox == null ? "" : this.filterBox.getValue();
-        this.filterBox = new PoolVehicleIdEditBox(this.font, this.left, addY, this.panelW - 88, 20,
+        this.filterBox = new PoolVehicleIdEditBox(this.font, this.mainLeft, addY, this.mainW - 88, 20,
                 Component.translatable("gui.tacz_sewv.pool.filter"));
         this.filterBox.setMaxLength(128);
         this.filterBox.setResponder(s -> refreshCandidates());
@@ -239,16 +261,85 @@ public class MiscEditorScreen extends Screen {
         this.filterBox.setValue(previous);
 
         addRenderableWidget(tip(Button.builder(Component.translatable("gui.tacz_sewv.pool.add"), b -> addFromFilter())
-                .bounds(this.left + this.panelW - 84, addY, 84, 20).build(), "add"));
-        int bw = (this.panelW - 2 * 4) / 3;
+                .bounds(this.mainLeft + this.mainW - 84, addY, 84, 20).build(), "add"));
+        int bw = (this.mainW - 2 * 4) / 3;
         addRenderableWidget(tip(Button.builder(Component.translatable("gui.tacz_sewv.pool.remove"), b -> removeSelected())
-                .bounds(this.left, buttonsY, bw, 20).build(), "remove"));
+                .bounds(this.mainLeft, buttonsY, bw, 20).build(), "remove"));
         addRenderableWidget(tip(Button.builder(Component.translatable("gui.tacz_sewv.pool.reset"), b -> resetCurrent())
-                .bounds(this.left + bw + 4, buttonsY, bw, 20).build(), "reset"));
+                .bounds(this.mainLeft + bw + 4, buttonsY, bw, 20).build(), "reset"));
         addRenderableWidget(tip(Button.builder(Component.translatable("gui.tacz_sewv.pool.save"), b -> {
             NetworkHandler.CHANNEL.sendToServer(new PacketUpdateVehicleClasses(this.cues, this.armor));
             onClose();
-        }).bounds(this.left + 2 * (bw + 4), buttonsY, this.panelW - 2 * (bw + 4), 20).build(), "save"));
+        }).bounds(this.mainLeft + 2 * (bw + 4), buttonsY, this.mainW - 2 * (bw + 4), 20).build(), "save"));
+        refreshCandidates();
+    }
+
+    private void layoutPresetRail() {
+        this.modeButton = Button.builder(modeLabel(), b -> cycleMode())
+                .bounds(this.left, 22, RAIL_W, 20).build();
+        this.modeButton.setTooltip(Tooltip.create(Component.translatable(
+                "gui.tacz_sewv.misc.tip.preset.mode." + this.presetMode.name().toLowerCase(Locale.ROOT))));
+        addRenderableWidget(this.modeButton);
+
+        int y = 46;
+        for (Entry entry : VehiclePackIndex.present()) {
+            Pack pack = entry.pack();
+            Assessment a = MiscPackPresets.assess(pack);
+            String full = assessmentText(pack, a);
+            String shortLabel = this.font.plainSubstrByWidth(full, RAIL_W - 8);
+            Button btn = Button.builder(Component.literal(shortLabel), b -> applyPack(pack))
+                    .bounds(this.left, y, RAIL_W, 20).build();
+            btn.setTooltip(Tooltip.create(Component.translatable("gui.tacz_sewv.misc.tip.preset.pack",
+                    Component.translatable(pack.langKey),
+                    Component.literal(full),
+                    Component.translatable("gui.tacz_sewv.misc.preset.mode."
+                            + this.presetMode.name().toLowerCase(Locale.ROOT)))));
+            btn.active = this.presetMode != Mode.NONE;
+            addRenderableWidget(btn);
+            this.packButtons.add(btn);
+            y += 22;
+        }
+    }
+
+    private void cycleMode() {
+        this.presetMode = this.presetMode.next();
+        this.modeButton.setMessage(modeLabel());
+        this.modeButton.setTooltip(Tooltip.create(Component.translatable(
+                "gui.tacz_sewv.misc.tip.preset.mode." + this.presetMode.name().toLowerCase(Locale.ROOT))));
+        boolean active = this.presetMode != Mode.NONE;
+        for (Button b : this.packButtons) b.active = active;
+        layoutPresetRailRefreshTips();
+    }
+
+    private void layoutPresetRailRefreshTips() {
+        List<Entry> entries = VehiclePackIndex.present();
+        for (int i = 0; i < this.packButtons.size() && i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            String full = assessmentText(entry.pack(), MiscPackPresets.assess(entry.pack()));
+            this.packButtons.get(i).setTooltip(Tooltip.create(Component.translatable(
+                    "gui.tacz_sewv.misc.tip.preset.pack",
+                    Component.translatable(entry.pack().langKey),
+                    Component.literal(full),
+                    Component.translatable("gui.tacz_sewv.misc.preset.mode."
+                            + this.presetMode.name().toLowerCase(Locale.ROOT)))));
+        }
+    }
+
+    private Component modeLabel() {
+        return Component.translatable("gui.tacz_sewv.misc.preset.mode."
+                + this.presetMode.name().toLowerCase(Locale.ROOT));
+    }
+
+    private static String assessmentText(Pack pack, Assessment a) {
+        String name = Component.translatable(pack.langKey).getString();
+        return name + " · cues " + a.cues() + " · armor " + a.armor() + " · " + a.live() + " live";
+    }
+
+    private void applyPack(Pack pack) {
+        if (this.presetMode == Mode.NONE) return;
+        MiscPresetApply.apply(this.presetMode, pack, this.cues, this.armor);
+        this.matches.clear();
+        this.tables.values().forEach(SheetTable::reset);
         refreshCandidates();
     }
 
@@ -493,8 +584,9 @@ public class MiscEditorScreen extends Screen {
     }
 
     /**
-     * Armor: pieces that declare the same slot are alternatives, drawn at random per unit
-     * ({@code ArmorPick}), so every valid row is LIVE and the % column is its share of its slot.
+     * Armor: pieces that declare the same slot are alternatives ({@code ArmorPick}); known sets
+     * lock together when ≥2 pieces are in the list, otherwise the slot draws at random. Every
+     * valid row is LIVE and the % column is its share of its slot.
      * BAD = not a registered armor item.
      */
     private final class ArmorModel implements SheetTable.Model {
@@ -582,7 +674,7 @@ public class MiscEditorScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (table().mouseClicked(mouseX, mouseY)) return true;
-        if (isArmorTab() && mouseX >= this.left && mouseX < this.left + this.panelW
+        if (isArmorTab() && mouseX >= this.mainLeft && mouseX < this.mainLeft + this.mainW
                 && mouseY >= this.candTop && mouseY < this.candTop + CAND_LINES * CAND_H) {
             int i = (int) ((mouseY - this.candTop) / CAND_H);
             if (i >= 0 && i < this.candidates.size()) {
@@ -625,11 +717,11 @@ public class MiscEditorScreen extends Screen {
 
         Component label = Component.translatable(isArmorTab() ? "gui.tacz_sewv.misc.lbl.add.armor"
                 : "gui.tacz_sewv.misc.lbl.add.clue");
-        g.drawString(this.font, label, this.left, this.labelY, 0xFF909090, false);
+        g.drawString(this.font, label, this.mainLeft, this.labelY, 0xFF909090, false);
         if (!this.candidates.isEmpty()) {
             Component hint = Component.translatable(isArmorTab() ? "gui.tacz_sewv.pool.lbl.complete"
                     : "gui.tacz_sewv.misc.lbl.preview");
-            g.drawString(this.font, hint, this.left + this.panelW - this.font.width(hint), this.labelY, 0xFF909090, false);
+            g.drawString(this.font, hint, this.mainLeft + this.mainW - this.font.width(hint), this.labelY, 0xFF909090, false);
         }
         renderCandidates(g);
 
@@ -658,20 +750,20 @@ public class MiscEditorScreen extends Screen {
         } else {
             text = Component.translatable("gui.tacz_sewv.misc.summary.plane", tabLabel(this.tab), pool.size());
         }
-        g.drawString(this.font, text, this.left, this.summaryY, 0xFFA0A0A0, false);
+        g.drawString(this.font, text, this.mainLeft, this.summaryY, 0xFFA0A0A0, false);
     }
 
     private void renderCandidates(GuiGraphics g) {
         for (int i = 0; i < this.candidates.size(); i++) {
             String id = this.candidates.get(i);
             String line = isArmorTab() ? id + "  -  " + armorName(id) : id;
-            g.drawString(this.font, this.font.plainSubstrByWidth(line, this.panelW), this.left + 2,
+            g.drawString(this.font, this.font.plainSubstrByWidth(line, this.mainW), this.mainLeft + 2,
                     this.candTop + i * CAND_H, isArmorTab() && i == 0 ? 0xFFFFFF55 : 0xFFB0B0B0, false);
         }
         if (this.candidates.isEmpty() && !this.filterBox.getValue().isBlank()) {
             g.drawString(this.font, Component.translatable(isArmorTab()
                     ? "gui.tacz_sewv.pool.no_match" : "gui.tacz_sewv.misc.no_preview"),
-                    this.left + 2, this.candTop, isArmorTab() ? 0xFFFF6666 : 0xFFFFC04D, false);
+                    this.mainLeft + 2, this.candTop, isArmorTab() ? 0xFFFF6666 : 0xFFFFC04D, false);
         }
     }
 

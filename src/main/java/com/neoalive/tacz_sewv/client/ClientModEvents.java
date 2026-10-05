@@ -14,6 +14,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.nekoyuni.SimpleEnemyMod.compat.geckolib.GeckoCompat;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.gui.StockpileScreen;
@@ -40,11 +41,12 @@ import com.neoalive.tacz_sewv.init.ModMenus;
  *
  * <p>The layers exist because SEM's renderers only know how to draw SEM's own kit.
  * {@link BedrockArmorLayer} covers armor that supplies its own model (SBW's kit) — without it RU/US
- * armor is equipped and invisible; {@link SmallArmsLayer} covers SuperbWarfare guns, which is what
- * draws an engineer's repair tool (SEM's held-item layer returns immediately unless the item is a
- * TACZ gun); {@link HolsterLayer} draws a TACZ body-holstered gun via FIXED/{@code offhand_show};
- * {@link CuriosHeadLayer} draws Curios head items (thermal goggles) that Curios' own
- * player-only layer never reaches on SEM units.
+ * armor is equipped and invisible; {@link GeckoArmorLayer} covers GeoItem kits (DragonRise etc.) on
+ * every unit renderer except {@code pmcunit}, which already has SEM's gecko layer;
+ * {@link SmallArmsLayer} covers SuperbWarfare guns, which is what draws an engineer's repair tool
+ * (SEM's held-item layer returns immediately unless the item is a TACZ gun); {@link HolsterLayer}
+ * draws a TACZ body-holstered gun via FIXED/{@code offhand_show}; {@link CuriosHeadLayer} draws
+ * Curios head items (thermal goggles) that Curios' own player-only layer never reaches on SEM units.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientModEvents {
@@ -130,6 +132,10 @@ public class ClientModEvents {
         LivingEntityRenderer<T, EntityModel<T>> renderer = event.getRenderer(type);
         if (renderer != null) {
             renderer.addLayer(new BedrockArmorLayer<>(renderer));
+            // SEM's GeckoArmorLayerImpl is PMC-only; GeoItem kits (DragonRise) need this everywhere else.
+            if (GeckoCompat.LOADED && type != net.nekoyuni.SimpleEnemyMod.registry.ModEntities.PMCUNIT.get()) {
+                renderer.addLayer(new GeckoArmorLayer<>(renderer));
+            }
             renderer.addLayer(new SmallArmsLayer<>(renderer));
             renderer.addLayer(new HolsterLayer<>(renderer));
             renderer.addLayer(new CuriosHeadLayer<>(renderer));

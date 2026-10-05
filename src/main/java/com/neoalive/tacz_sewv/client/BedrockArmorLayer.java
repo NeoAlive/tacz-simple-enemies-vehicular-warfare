@@ -46,9 +46,10 @@ import net.nekoyuni.SimpleEnemyMod.compat.geckolib.GeckoCompatClient;
  * under a {@code fakeRoot} at (0,6,-1) and leaned 5°), so the armor lands on the body with no
  * fudge factors at all.
  *
- * <p>Only custom-model armor is drawn here. Plain texture armor is left to SEM's own layer, and
- * GeckoLib armor to SEM's GeckoLib one — neither of those exists on RU/US units, so ordinary armor
- * stays invisible on them; SBW's kit is bedrock and is the point of this.
+ * <p>Only custom-model (non-Gecko) armor is drawn here. Plain texture armor is left to SEM's own
+ * layer (PMC only). GeckoLib armor is skipped here on purpose — see {@link GeckoArmorLayer} for the
+ * RU/US / support / commander path, and SEM's own gecko layer for PMC. SBW's kit is bedrock and is
+ * the point of this layer.
  */
 public class BedrockArmorLayer<T extends LivingEntity, M extends EntityModel<T>> extends RenderLayer<T, M> {
 

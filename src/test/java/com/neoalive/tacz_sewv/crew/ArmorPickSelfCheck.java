@@ -9,13 +9,25 @@ import net.minecraft.world.entity.EquipmentSlot;
 
 /**
  * Headless check of {@link ArmorPick} (run: {@code ./gradlew selfCheckArmor}, needs {@code -ea}).
- * The point of the feature: pieces for one slot are a random draw, not first-listed-wins.
+ * The point of the feature: pieces for one slot are a random draw, not first-listed-wins; known
+ * sets lock together when ≥2 pieces are present.
  */
 public final class ArmorPickSelfCheck {
 
-    private static final Map<String, EquipmentSlot> SLOTS = Map.of(
-            "h1", EquipmentSlot.HEAD, "h2", EquipmentSlot.HEAD, "h3", EquipmentSlot.HEAD,
-            "c1", EquipmentSlot.CHEST, "l1", EquipmentSlot.LEGS, "b1", EquipmentSlot.FEET);
+    private static final Map<String, EquipmentSlot> SLOTS = Map.ofEntries(
+            Map.entry("h1", EquipmentSlot.HEAD), Map.entry("h2", EquipmentSlot.HEAD),
+            Map.entry("h3", EquipmentSlot.HEAD),
+            Map.entry("c1", EquipmentSlot.CHEST), Map.entry("c2", EquipmentSlot.CHEST),
+            Map.entry("l1", EquipmentSlot.LEGS), Map.entry("l2", EquipmentSlot.LEGS),
+            Map.entry("b1", EquipmentSlot.FEET),
+            Map.entry("set_h", EquipmentSlot.HEAD), Map.entry("set_c", EquipmentSlot.CHEST),
+            Map.entry("set_l", EquipmentSlot.LEGS),
+            Map.entry("other_h", EquipmentSlot.HEAD));
+
+    private static final List<List<String>> TEST_SETS = List.of(
+            List.of("set_h", "set_c", "set_l"),
+            List.of("c2", "l2") // incomplete set: chest+legs, no helmet
+    );
 
     private static final Predicate<EquipmentSlot> ANY = s -> true;
 
@@ -26,11 +38,18 @@ public final class ArmorPickSelfCheck {
         duplicateIdDoublesItsOdds();
         unwantedAndUnknownAreSkipped();
         emptyListIssuesNothing();
+        matchingSetLocksTogether();
+        incompleteSetFillsMissingSlotAtRandom();
+        noSetFallsBackToIndependentDraw();
         System.out.println("ArmorPickSelfCheck OK");
     }
 
     private static Map<EquipmentSlot, String> run(List<String> ids, Predicate<EquipmentSlot> wanted, Random r) {
-        return ArmorPick.choose(ids, SLOTS::get, wanted, r::nextInt);
+        return ArmorPick.choose(ids, SLOTS::get, wanted, r::nextInt, List.of());
+    }
+
+    private static Map<EquipmentSlot, String> runSets(List<String> ids, Random r) {
+        return ArmorPick.choose(ids, SLOTS::get, ANY, r::nextInt, TEST_SETS);
     }
 
     private static void singleCandidatePerSlotIsAlwaysIssued() {
@@ -82,6 +101,45 @@ public final class ArmorPickSelfCheck {
 
     private static void emptyListIssuesNothing() {
         check(run(List.of(), ANY, new Random(1)).isEmpty(), "an empty list issues nothing");
+    }
+
+    private static void matchingSetLocksTogether() {
+        Random r = new Random(42);
+        for (int i = 0; i < 50; i++) {
+            Map<EquipmentSlot, String> out = runSets(
+                    List.of("set_h", "set_c", "set_l", "h1", "c1", "l1"), r);
+            check(out.get(EquipmentSlot.HEAD).equals("set_h")
+                            && out.get(EquipmentSlot.CHEST).equals("set_c")
+                            && out.get(EquipmentSlot.LEGS).equals("set_l"),
+                    "a full matching set must lock all three slots together");
+        }
+    }
+
+    private static void incompleteSetFillsMissingSlotAtRandom() {
+        // c2+l2 is a set with no helmet — chest/legs lock, helmet rolls between other_h and h1.
+        boolean sawOther = false;
+        boolean sawH1 = false;
+        Random r = new Random(99);
+        for (int i = 0; i < 200; i++) {
+            Map<EquipmentSlot, String> out = runSets(List.of("c2", "l2", "other_h", "h1"), r);
+            check(out.get(EquipmentSlot.CHEST).equals("c2") && out.get(EquipmentSlot.LEGS).equals("l2"),
+                    "incomplete set must still lock the pieces it has");
+            String h = out.get(EquipmentSlot.HEAD);
+            if ("other_h".equals(h)) sawOther = true;
+            if ("h1".equals(h)) sawH1 = true;
+        }
+        check(sawOther && sawH1, "missing set slot must roll among the remaining helmets");
+    }
+
+    private static void noSetFallsBackToIndependentDraw() {
+        // Only one piece of each test set present — no set eligible; chest should still reach c1.
+        boolean sawC1 = false;
+        Random r = new Random(13);
+        for (int i = 0; i < 200 && !sawC1; i++) {
+            Map<EquipmentSlot, String> out = runSets(List.of("set_c", "c1", "h1"), r);
+            sawC1 = "c1".equals(out.get(EquipmentSlot.CHEST));
+        }
+        check(sawC1, "with no eligible set, slots fall back to an independent draw");
     }
 
     private static void check(boolean ok, String what) {

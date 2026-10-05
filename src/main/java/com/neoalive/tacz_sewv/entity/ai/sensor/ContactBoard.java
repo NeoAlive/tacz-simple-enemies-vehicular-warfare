@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -18,6 +19,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 
 /**
@@ -106,6 +108,8 @@ public final class ContactBoard {
     private static final long SWEEP_INTERVAL_TICKS = 600;
     private static final long PROBE_INTERVAL_TICKS = 20;
     private static long lastSweep = Long.MIN_VALUE;
+    /** IFV relay throttle: (ifvId << 32 | subjectId) -> next game time it may relay that pair again. */
+    private static final Map<Long, Long> RELAY_NEXT = new HashMap<>();
 
     private ContactBoard() {}
 
@@ -169,6 +173,7 @@ public final class ContactBoard {
 
     /** Drop every expired contact and every emptied key, so an owner who logged out leaves nothing. */
     static void sweep(long now) {
+        RELAY_NEXT.values().removeIf(next -> now >= next || next - now > ttl());
         for (Iterator<TreeMap<Integer, Contact>> it = BOARD.values().iterator(); it.hasNext();) {
             TreeMap<Integer, Contact> m = it.next();
             m.values().removeIf(c -> expired(c, now));
@@ -182,6 +187,7 @@ public final class ContactBoard {
 
     public static void clearAll() {
         BOARD.clear();
+        RELAY_NEXT.clear();
         lastSweep = Long.MIN_VALUE;
     }
 
@@ -302,6 +308,42 @@ public final class ContactBoard {
         }
         publish(unit, target,
                 unit.getSensing().hasLineOfSight(target) ? Source.DIRECT_SIGHT : Source.RELAYED);
+    }
+
+    /**
+     * IFV relay (an abstraction of a recon vehicle): when a crewed enemy locks someone riding an IFV, the
+     * attacker goes onto EVERY allied board in the {@link CombatantIndex} snapshot as PROXIMITY — no LoS,
+     * no distance. "Allied" = not hostile to the IFV's driver, AND able to engage the attacker, asked per
+     * observer, so diplomacy allies and invasion teammates are covered. A board is marked done only once it
+     * has been written, so a non-hostile observer cannot hide its key from a hostile one.
+     */
+    public static void relayIfvContact(AbstractUnit attacker, LivingEntity target) {
+        if (!enabled()) return;
+        if (!(attacker.getVehicle() instanceof VehicleEntity atkHull)) return;
+        if (!(target.getVehicle() instanceof VehicleEntity ifv) || !HullFacts.isIfvHull(ifv)) return;
+        if (!(ifv.getFirstPassenger() instanceof AbstractUnit ifvCrew)) return;
+        if (!(atkHull.getFirstPassenger() instanceof LivingEntity subject) || !subject.isAlive()) return;
+
+        long now = attacker.level().getGameTime();
+        long relayKey = ((long) ifv.getId() << 32) | (subject.getId() & 0xffffffffL);
+        Long next = RELAY_NEXT.get(relayKey);
+        // next > now + ttl: game time went backwards, ignore the stale deadline.
+        if (next != null && now < next && next - now <= ttl()) return;
+        RELAY_NEXT.put(relayKey, now + Math.max(1, ttl() / 4));
+
+        CombatantIndex.Snapshot snap = CombatantIndex.snapshot(attacker.level());
+        if (snap == null) return;
+        java.util.Set<Key> done = new java.util.HashSet<>();
+        for (CombatantIndex.Entry e : snap.subjects()) {
+            AbstractUnit observer = e.observer;
+            if (observer == null || !observer.isAlive()) continue;
+            Key key = keyOf(observer);
+            if (key == null || done.contains(key)) continue;
+            if (observer != ifvCrew && !VehicleTargeting.isNonHostile(observer, ifvCrew)) continue;
+            if (!VehicleTargeting.isValidHostileTarget(observer, subject)) continue;
+            publishVetted(observer, subject, Source.PROXIMITY);
+            done.add(key);
+        }
     }
 
     /**

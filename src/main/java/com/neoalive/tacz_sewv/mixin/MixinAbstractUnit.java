@@ -125,6 +125,7 @@ public abstract class MixinAbstractUnit implements IDelayedFire {
         AbstractUnit self = (AbstractUnit) (Object) this;
         if (self.level().isClientSide() || self.getTarget() != target) return; // HEAD veto cancelled it
         ContactBoard.onTargetAcquired(self, target);
+        ContactBoard.relayIfvContact(self, target);
     }
 
     /** After vetoes: owned PMC acquired a live hostile — rising-edge toast with cooldown. */

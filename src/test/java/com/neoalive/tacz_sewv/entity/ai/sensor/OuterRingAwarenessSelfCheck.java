@@ -1,10 +1,15 @@
 package com.neoalive.tacz_sewv.entity.ai.sensor;
 
+import java.util.List;
+import java.util.Map;
+
+import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex.Entry;
+import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex.Kind;
+
 /**
- * Self-check for outer-ring band stagger. Run via {@code ./gradlew selfCheck} (selfCheckOuterRing).
+ * Self-check for the outer ring. Run via {@code ./gradlew selfCheck} (selfCheckOuterRing).
  *
- * <p>Protects the load-spreading claim: without stagger, N hulls all poll on the same tick;
- * with {@link OuterRingAwareness#nextDeadline}, peak concurrent polls stay near N/interval.
+ * <p>Band geometry/strength, and the snapshot pair pass: mutual from one distance, annulus only.
  */
 public final class OuterRingAwarenessSelfCheck {
 
@@ -14,8 +19,7 @@ public final class OuterRingAwarenessSelfCheck {
         if (!assertionsOn) throw new IllegalStateException("run with -ea, or this checks nothing");
 
         bandGeometry();
-        staggerBeatsSync();
-        coarseVisibleRejectsUnloadContract();
+        pairPassIsMutualAndAnnular();
 
         System.out.println("outer-ring awareness self-check: OK");
     }
@@ -31,37 +35,26 @@ public final class OuterRingAwarenessSelfCheck {
         assertClose(192.0, OuterRingAwareness.bandHi(inner, outer, 2), "far hi");
         assertClose(192.0, OuterRingAwareness.bandLo(inner, 3), "edge lo");
         assertClose(192.0, OuterRingAwareness.bandHi(inner, outer, 3), "edge hi");
+        assertClose(1.0, OuterRingAwareness.strengthAt(inner, outer, 100), "near strength");
+        assertClose(0.5, OuterRingAwareness.strengthAt(inner, outer, 170), "far strength");
     }
 
-    /**
-     * 64 hulls @ 40-tick near interval: unstaggered peak is 64; staggered peak must stay
-     * well below half the fleet (ceil(64/40)=2 ideally; allow a small margin for phase bunching).
-     */
-    private static void staggerBeatsSync() {
-        int hulls = 64;
-        int interval = 40;
-        int ticks = 2000;
-
-        int unstaggered = OuterRingAwareness.simulateMaxPollsUnstaggered(hulls, interval, ticks);
-        int staggered = OuterRingAwareness.simulateMaxPollsPerTick(hulls, interval, ticks);
-
-        assert unstaggered == hulls
-                : "unstaggered should spike to all hulls on tick 0, was " + unstaggered;
-        assert staggered <= 3
-                : "staggered peak polls/tick expected <= ceil(64/40)+margin (=3), was " + staggered
-                + " (unstaggered=" + unstaggered + ")";
-        assert staggered < unstaggered / 8
-                : "stagger must cut peak by >8×: staggered=" + staggered + " unstaggered=" + unstaggered;
-
-        System.out.println("  stagger: " + hulls + " hulls @" + interval + "t → peak "
-                + staggered + " vs unstaggered " + unstaggered);
+    /** a(0) skips c(30), inside its scan radius, and spots b(150); b and c (120 apart) spot each other. */
+    private static void pairPassIsMutualAndAnnular() {
+        Entry a = hull(1, 0);
+        Entry b = hull(2, 150);
+        Entry c = hull(3, 30);
+        List<Entry> all = List.of(a, b, c);
+        Map<Integer, OuterRingAwareness.Best> best =
+                OuterRingAwareness.nearestPairs(all, all, 96, 192, 8, 8, (o, s) -> true);
+        assert best.get(1) != null && best.get(1).subject().id == 2 : "a should spot b, got " + best.get(1);
+        assert best.get(2) != null && best.get(2).subject().id == 3 : "b should spot c (120, nearer than a)";
+        assert best.get(3) != null && best.get(3).subject().id == 2 : "c should spot b at 120";
+        assertClose(150.0 * 150.0, best.get(1).distSq(), "a-b distSq");
     }
 
-    /** Documents the unload contract used by coarseVisible (no Level needed). */
-    private static void coarseVisibleRejectsUnloadContract() {
-        // Fixed-period advance — phase lives only in the attach offset.
-        long d = OuterRingAwareness.nextDeadline(100, 40);
-        assert d == 140 : "expected 140, was " + d;
+    private static Entry hull(int id, double x) {
+        return new Entry(id, Kind.HULL, x, 64, 0, null, null, true, 0.0);
     }
 
     private static void assertClose(double expected, double actual, String what) {

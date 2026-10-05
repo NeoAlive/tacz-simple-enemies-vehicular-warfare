@@ -24,6 +24,7 @@ import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.command.quick.OrderQueue;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
@@ -65,6 +66,11 @@ public abstract class MixinPacketIssueOrder {
     private static void tacz_sewv$orderVoice(Supplier<NetworkEvent.Context> ctx, PacketIssueOrder packet, CallbackInfo ci) {
         ServerPlayer sender = ctx.get().getSender();
         if (sender == null) return;
+        // Quick Wheel queue: Move To / Attack That picks are held and replayed when their turn comes.
+        if (OrderQueue.capture(sender, () -> PacketIssueOrder.handle(packet, ctx))) {
+            ci.cancel();
+            return;
+        }
         Entity ordered = sender.level().getEntity(((AccessorPacketIssueOrder) packet).tacz_sewv$entityId());
         // SEM drops an order it does not like and sends no reply, so these two are the whole reason
         // the client-side "order sent" ack had to go: it was printed before either was checked.

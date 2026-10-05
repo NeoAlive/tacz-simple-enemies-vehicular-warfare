@@ -65,6 +65,7 @@ public final class QuickCommandKeybind {
             wasDown = false;
             return;
         }
+        com.neoalive.tacz_sewv.client.radial.OrderQueueClient.tick();
 
         // While the wheel Screen is open, IN_GAME KeyMapping.isDown is always false — use GLFW.
         boolean down = mc.screen instanceof QuickCommandWheelScreen

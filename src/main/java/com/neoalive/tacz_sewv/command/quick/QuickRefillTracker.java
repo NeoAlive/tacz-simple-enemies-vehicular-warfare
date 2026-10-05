@@ -75,6 +75,10 @@ public final class QuickRefillTracker {
         return true;
     }
 
+    public static boolean isActive(UUID playerId) {
+        return ACTIVE.containsKey(playerId);
+    }
+
     private static ServerLevel resolveLevel(UUID playerId) {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return null;

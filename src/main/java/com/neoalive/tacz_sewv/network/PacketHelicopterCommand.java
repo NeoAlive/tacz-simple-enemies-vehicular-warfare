@@ -81,6 +81,7 @@ public class PacketHelicopterCommand {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
+            if (com.neoalive.tacz_sewv.command.quick.OrderQueue.capture(sp, () -> handle(ctx))) return;
 
             boolean emergency = this.command == IHelicopterPilot.HELI_CMD_EMERGENCY_LAND;
             boolean helipadLand = this.command == IHelicopterPilot.HELI_CMD_LAND_HELIPAD;

@@ -107,6 +107,15 @@ public final class QuickAirClient {
         return false;
     }
 
+    /** The aircraft pilots {@link #fire} would order, for the queue's completion check. */
+    public static List<Integer> pilotsFor(String pipelineId) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null) return List.of();
+        if (QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)) return findPilots(mc, true);
+        if (QuickCommandRegistry.ID_QUICK_LAND_HELIPAD.equals(pipelineId)) return findPilots(mc, false);
+        return findAircraftPilots(mc);
+    }
+
     private static boolean canSelfRappel(Minecraft mc) {
         if (!(mc.player.getVehicle() instanceof VehicleEntity hull)
                 || !HullFacts.isHelicopterHull(hull)) {

@@ -69,6 +69,8 @@ public final class QuickCommandWheelScreen extends Screen {
 
     private boolean wasAttackDown;
     private boolean wasUseDown;
+    /** Starts true so a Tab already held when the wheel opens is not read as a press. */
+    private boolean wasTabDown = true;
 
     /** 0..1 highlight strength per wedge — lerps toward the current hot index. */
     private float[] wedgeHot = new float[0];
@@ -131,6 +133,15 @@ public final class QuickCommandWheelScreen extends Screen {
                 org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
         boolean useDown = org.lwjgl.glfw.GLFW.glfwGetMouseButton(window,
                 org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_RIGHT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+        // Tab is polled like the mouse buttons: Screen.keyPressed never sees it while the wheel is up.
+        boolean tabDown = org.lwjgl.glfw.GLFW.glfwGetKey(window, org.lwjgl.glfw.GLFW.GLFW_KEY_TAB)
+                == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+        if (tabDown && !this.wasTabDown) {
+            OrderQueueClient.toggle();
+            playUi(OrderQueueClient.isOn() ? ModSounds.INTERACT_BEEP.get() : ModSounds.INTERACT_BEEP_BACK.get());
+        }
+        this.wasTabDown = tabDown;
+
         boolean attackRising = attackDown && !this.wasAttackDown;
         boolean useRising = useDown && !this.wasUseDown;
         this.wasAttackDown = attackDown;
@@ -167,6 +178,13 @@ public final class QuickCommandWheelScreen extends Screen {
     }
 
     @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        // Tab is toggled from tick() via GLFW; only swallow vanilla's focus cycling here.
+        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_TAB) return true;
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
     public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
         // Prefer tick()+GLFW for release — keyReleased can race open. Only close if this is
         // still our binding and GLFW agrees the key is up (avoids spurious closes).
@@ -186,13 +204,22 @@ public final class QuickCommandWheelScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (!inFormationSubmenu() || hotFormationShape() == null) {
-            return super.mouseScrolled(mouseX, mouseY, delta);
-        }
         Minecraft mc = this.minecraft;
         long window = mc != null ? mc.getWindow().getWindow() : 0L;
         boolean ctrl = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LCONTROL)
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RCONTROL));
+        // Ctrl+Scroll skips the running queued order — except in Formation, where it cycles the type.
+        if (ctrl && !inFormationSubmenu()) {
+            if (!OrderQueueClient.isOn() || OrderQueueClient.labels().isEmpty()) {
+                return super.mouseScrolled(mouseX, mouseY, delta);
+            }
+            OrderQueueClient.skip();
+            playUi(ModSounds.SCALE.get(), 0.92f + (float) (Math.random() * 0.16));
+            return true;
+        }
+        if (!inFormationSubmenu() || hotFormationShape() == null) {
+            return super.mouseScrolled(mouseX, mouseY, delta);
+        }
         boolean shift = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LSHIFT)
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RSHIFT));
 
@@ -224,9 +251,24 @@ public final class QuickCommandWheelScreen extends Screen {
     }
 
     private void onCommit() {
+        String hotLabel = hotLeafLabel();
         RadialInputState.CommitResult result = this.input.commitHot();
         if (result instanceof RadialInputState.CommitResult.FiredLeaf leaf) {
-            if (firePipeline(leaf.pipelineId())) {
+            String id = leaf.pipelineId();
+            if (OrderQueueClient.queueable(id) && this.minecraft != null) {
+                // Queue mode: the order's packets are bracketed and held server-side. The wheel
+                // stays open to queue more, unless the order needs a world pick first.
+                List<Integer> units = QuickAirClient.isAirClientAction(id)
+                        ? QuickAirClient.pilotsFor(id)
+                        : resolveUnits(this.minecraft, id);
+                OrderQueueClient.begin(id, hotLabel, units);
+                boolean fired = firePipeline(id);
+                OrderQueueClient.endOrAwaitPick();
+                if (fired && (net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer.isSelectingPosition
+                        || net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer.isSelectingTarget)) {
+                    closeQuiet();
+                }
+            } else if (firePipeline(id)) {
                 closeQuiet();
             }
             // Client-side reject (no selection, etc.): keep the wheel open.
@@ -402,6 +444,12 @@ public final class QuickCommandWheelScreen extends Screen {
         return out;
     }
 
+    private String hotLeafLabel() {
+        int hot = this.input.hotIndex();
+        List<WedgeEntry> wedges = this.input.currentWedges();
+        return hot >= 0 && hot < wedges.size() ? wedges.get(hot).label() : "";
+    }
+
     private boolean inFormationSubmenu() {
         if (this.input.depth() <= 1) return false;
         for (WedgeEntry e : this.input.currentWedges()) {
@@ -555,6 +603,13 @@ public final class QuickCommandWheelScreen extends Screen {
                     PacketVehicleFormation.DEFAULT_ROW_SIZE, formationFilter, this.filterLerp,
                     HUB_FILL, LABEL_HOT);
         }
+
+        if (OrderQueueClient.isOn()) {
+            OrderQueueDraw.renderBox(g, this.font, cx, cy, outer, this.menuAlpha,
+                    OrderQueueClient.labels(), HUB_FILL, LABEL);
+        }
+        OrderQueueDraw.renderFlash(g, this.font, cx, cy, outer, OrderQueueClient.isOn(),
+                OrderQueueClient.toggledAtMs());
 
         super.render(g, mouseX, mouseY, partialTick);
     }

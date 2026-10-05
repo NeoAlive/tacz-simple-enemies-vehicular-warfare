@@ -78,6 +78,7 @@ public class PacketVehicleFormation {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof net.minecraft.server.level.ServerPlayer sp)) return;
+            if (com.neoalive.tacz_sewv.command.quick.OrderQueue.capture(sp, () -> handle(ctx))) return;
 
             Direction axis = IFormationMember.directionOf(this.axis);
             if (axis == null) {

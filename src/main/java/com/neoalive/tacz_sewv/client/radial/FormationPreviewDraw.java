@@ -21,7 +21,7 @@ final class FormationPreviewDraw {
     private static final int PAD = 10;
     private static final int DOT = 3;
     /** Past wedge labels that stick out past the ring. */
-    private static final int RIGHT_OF_RING_GAP = 58;
+    static final int RIGHT_OF_RING_GAP = 58;
 
     private static final String[] MODE_LABELS = {"INFY.", "GRND.", "SHIP."};
 
@@ -122,7 +122,7 @@ final class FormationPreviewDraw {
         }
     }
 
-    private static int scaleAlpha(int argb, float a) {
+    static int scaleAlpha(int argb, float a) {
         int alpha = Mth.clamp(Math.round(((argb >>> 24) & 0xFF) * a), 0, 255);
         return (alpha << 24) | (argb & 0x00FFFFFF);
     }

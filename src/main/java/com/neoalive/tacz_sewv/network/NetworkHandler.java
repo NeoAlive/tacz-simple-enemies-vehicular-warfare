@@ -118,7 +118,8 @@ public class NetworkHandler {
     // 96: PacketHudNotification + NotificationKind (signal-ticket colours / icons).
     // 97: heli rework packet tweaks.
     // 98: PacketOpenMiscEditor drops armor catalog (client builds from ForgeRegistries).
-    private static final String PROTOCOL_VERSION = "98";
+    // 99: PacketOrderQueue (C->S) + PacketOrderQueueState (S->C) — Quick Wheel order queue.
+    private static final String PROTOCOL_VERSION = "99";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -739,6 +740,20 @@ public class NetworkHandler {
                 PacketEntityCamo::encode,
                 PacketEntityCamo::new,
                 PacketEntityCamo::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOrderQueue.class,
+                PacketOrderQueue::encode,
+                PacketOrderQueue::new,
+                PacketOrderQueue::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketOrderQueueState.class,
+                PacketOrderQueueState::encode,
+                PacketOrderQueueState::new,
+                PacketOrderQueueState::handle
         );
     }
 }

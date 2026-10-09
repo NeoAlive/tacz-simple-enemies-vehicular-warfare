@@ -242,7 +242,7 @@ repositories {
         name "Xaero's Maven"
     }
     flatDir {
-        dirs 'libs'
+        dirs 'libs', 'libs/backup-0.8.9'
     }
     exclusiveContent {
         forRepository {
@@ -270,7 +270,7 @@ repositories {
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-    implementation fg.deobf("blank:superbwarfare:1.0")
+    implementation fg.deobf("blank:superbwarfare-0.8.9:1.0")
     implementation fg.deobf("blank:curios:1.0")
     implementation fg.deobf("blank:geckolib:1.0")
     implementation fg.deobf("blank:kotlin:1.0")

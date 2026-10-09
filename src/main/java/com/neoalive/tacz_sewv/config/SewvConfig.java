@@ -101,6 +101,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_STRUCTURES;
 
     public static final ForgeConfigSpec.IntValue AI_FIRE_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.IntValue AI_FIRE_HESITATION_TICKS;
+    public static final ForgeConfigSpec.DoubleValue AI_FIRE_HESITATION_JITTER;
     public static final ForgeConfigSpec.IntValue AI_LOS_CACHE_TICKS;
     public static final ForgeConfigSpec.DoubleValue AI_FIRE_ASSIST_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue SMOKE_BLOCK_RADIUS;
@@ -645,6 +647,14 @@ public final class SewvConfig {
         builder.push("crew_ai");
         AI_FIRE_COOLDOWN_TICKS = builder.comment("Minimum wait between AI vehicle shots, in game ticks (20 = 1 second).")
                 .defineInRange("aiFireCooldownTicks", 5, 1, 200);
+        AI_FIRE_HESITATION_TICKS = builder.comment(
+                        "Pause before an AI ground/ship/emplacement crew fires on a newly acquired target, in game ticks.",
+                        "Helicopters, planes and artillery are exempt. 0 disables.")
+                .defineInRange("aiFireHesitationTicks", 12, 0, 200);
+        AI_FIRE_HESITATION_JITTER = builder.comment(
+                        "Per-crew spread on top of aiFireHesitationTicks (0.5 = each crew waits up to 50% longer),",
+                        "fixed per crew so a group does not fire in unison.")
+                .defineInRange("aiFireHesitationJitter", 0.5, 0.0, 1.0);
         AI_LOS_CACHE_TICKS = builder.comment(
                         "How long (game ticks) an AI crew reuses its last line-of-fire verdict.",
                         "Higher = fewer raycasts on automatic weapons; a target that breaks LOS mid-burst",
@@ -669,9 +679,9 @@ public final class SewvConfig {
                         "How often on-foot units throw grenades.",
                         "HE uses a closer band; M18 smoke may be thrown farther (no min range) to screen LOS.",
                         "default: HE 8-24 / smoke 0-40, ~5s; rare: HE 0-16 / smoke 0-32, ~12s;",
-                        "aggressive: HE 0-30 / smoke 0-48, ~2.5s.")
+                        "aggressive: HE 0-30 / smoke 0-48, ~2.5s; none: units never throw grenades.")
                 .defineInList("grenadeThrowCadence", "default",
-                        Arrays.asList("default", "rare", "aggressive"));
+                        Arrays.asList("default", "rare", "aggressive", "none"));
         GRENADE_MAX_HAND = builder.comment(
                         "Lifetime NBT cap: how many hand grenades (M67) one unit may throw in its life. 0 disables.")
                 .defineInRange("grenadeMaxHand", 3, 0, 64);

@@ -143,7 +143,6 @@ final class ConfigRegistryBootstrap {
         b.shortcut(ConfigScope.SERVER, "shortcuts", "pool", "pool");
         b.shortcut(ConfigScope.SERVER, "shortcuts", "misc", "misc");
         b.shortcut(ConfigScope.SERVER, "shortcuts", "target_priority", "target_priority");
-        b.shortcut(ConfigScope.SERVER, "shortcuts", "player_doctrine_info", "doctrine_info");
     }
 
     private static void registerBalancing(ConfigRegistry.Builder b) {
@@ -390,6 +389,10 @@ final class ConfigRegistryBootstrap {
     private static void registerCrewAi(ConfigRegistry.Builder b) {
         b.intRange(ConfigScope.SERVER, "crew_ai", "aiFireCooldownTicks", 1, 200,
                 SewvConfig.AI_FIRE_COOLDOWN_TICKS, SewvConfig.AI_FIRE_COOLDOWN_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "aiFireHesitationTicks", 0, 200,
+                SewvConfig.AI_FIRE_HESITATION_TICKS, SewvConfig.AI_FIRE_HESITATION_TICKS::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "aiFireHesitationJitter", 0.0, 1.0,
+                SewvConfig.AI_FIRE_HESITATION_JITTER, SewvConfig.AI_FIRE_HESITATION_JITTER::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "aiLosCacheTicks", 1, 40,
                 SewvConfig.AI_LOS_CACHE_TICKS, SewvConfig.AI_LOS_CACHE_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "aiFireAssistConeDeg", 4.0, 90.0,
@@ -404,7 +407,7 @@ final class ConfigRegistryBootstrap {
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "aiAimSpreadDegrees", 0.0, 30.0,
                 SewvConfig.AI_AIM_SPREAD_DEG, SewvConfig.AI_AIM_SPREAD_DEG::set);
         b.enumChoice(ConfigScope.SERVER, "crew_ai", "grenadeThrowCadence",
-                Arrays.asList("default", "rare", "aggressive"),
+                Arrays.asList("default", "rare", "aggressive", "none"),
                 SewvConfig.GRENADE_THROW_CADENCE, SewvConfig.GRENADE_THROW_CADENCE::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "grenadeMaxHand", 0, 64,
                 SewvConfig.GRENADE_MAX_HAND, SewvConfig.GRENADE_MAX_HAND::set);

@@ -39,6 +39,7 @@ public class GrenadeThrowGoal extends Goal {
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
         UnitHolster.sweepGrenadeStashIfStale(this.unit);
+        if (GrenadeSupport.Cadence.fromConfig() == GrenadeSupport.Cadence.NONE) return false;
 
         if (this.unit.getVehicle() instanceof VehicleEntity) return false;
         if (this.unit.isPassenger()) return false;

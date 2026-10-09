@@ -5,7 +5,8 @@ import java.util.Map;
 
 import net.minecraft.client.Minecraft;
 
-import com.neoalive.tacz_sewv.client.gui.config.ConfigUIScreen;
+import com.neoalive.tacz_sewv.client.gui.config.ConfigHomeScreen;
+import com.neoalive.tacz_sewv.client.gui.config.ConfigSession;
 import com.neoalive.tacz_sewv.config.ConfigApplier;
 import com.neoalive.tacz_sewv.config.ConfigWireCodec;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -40,6 +41,7 @@ public final class ConfigUIClient {
                 com.neoalive.tacz_sewv.config.ConfigScope.CLIENT)) {
             clientDraft.put(entry.index, entry.draftString());
         }
-        Minecraft.getInstance().setScreen(new ConfigUIScreen(canEditServer, clientDraft, serverDraft));
+        Minecraft.getInstance().setScreen(
+                new ConfigHomeScreen(new ConfigSession(canEditServer, clientDraft, serverDraft)));
     }
 }

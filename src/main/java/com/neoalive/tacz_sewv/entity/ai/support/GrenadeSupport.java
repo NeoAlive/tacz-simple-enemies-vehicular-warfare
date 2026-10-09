@@ -95,7 +95,9 @@ public final class GrenadeSupport {
         // from farther with no minimum standoff.
         DEFAULT(8.0, 24.0, 0.0, 40.0, 100),
         RARE(0.0, 16.0, 0.0, 32.0, 240),
-        AGGRESSIVE(0.0, 30.0, 0.0, 48.0, 50);
+        AGGRESSIVE(0.0, 30.0, 0.0, 48.0, 50),
+        /** Units never throw; ranges are unused. */
+        NONE(0.0, 0.0, 0.0, 0.0, Integer.MAX_VALUE);
 
         public final double heMinRange;
         public final double heMaxRange;
@@ -119,6 +121,7 @@ public final class GrenadeSupport {
             return switch (raw.trim().toLowerCase(Locale.ROOT)) {
                 case "rare" -> RARE;
                 case "aggressive" -> AGGRESSIVE;
+                case "none" -> NONE;
                 default -> DEFAULT;
             };
         }

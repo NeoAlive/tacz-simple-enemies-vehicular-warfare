@@ -5,11 +5,13 @@ import net.minecraft.world.entity.LivingEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
+import com.neoalive.tacz_sewv.bridge.IFireHesitation;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
@@ -39,7 +41,33 @@ import com.neoalive.tacz_sewv.notify.HudNotify;
  * — every goal that fights, chases or drives at something reads getTarget().
  */
 @Mixin(AbstractUnit.class)
-public abstract class MixinAbstractUnit implements IDelayedFire {
+public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation {
+
+    // FireHesitation state: the target the clock was started for, and when it may fire.
+    @Unique
+    private int tacz_sewv$hesTargetId = -1;
+    @Unique
+    private long tacz_sewv$hesReadyAt;
+
+    @Override
+    public int sewv$getHesTargetId() {
+        return this.tacz_sewv$hesTargetId;
+    }
+
+    @Override
+    public void sewv$setHesTargetId(int id) {
+        this.tacz_sewv$hesTargetId = id;
+    }
+
+    @Override
+    public long sewv$getHesReadyAt() {
+        return this.tacz_sewv$hesReadyAt;
+    }
+
+    @Override
+    public void sewv$setHesReadyAt(long gameTime) {
+        this.tacz_sewv$hesReadyAt = gameTime;
+    }
 
     static {
         // SynchedEntityData IDs must be allocated parent-before-child. UnitHolster's

@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
+import com.neoalive.tacz_sewv.entity.ai.support.FireHesitation;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.util.SmokeVision;
@@ -119,7 +120,11 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         }
 
         LivingEntity target = unit.getTarget();
-        if (target == null) return false;
+        if (target == null) {
+            FireHesitation.clear(unit);
+            return false;
+        }
+        if (FireHesitation.denies(unit, self, target, now)) return true;
 
         int losCacheTicks;
         try {

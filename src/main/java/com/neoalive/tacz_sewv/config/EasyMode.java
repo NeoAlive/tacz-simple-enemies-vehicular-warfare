@@ -69,6 +69,12 @@ public final class EasyMode {
         return SewvConfig.AI_FIRE_COOLDOWN_TICKS.get();
     }
 
+    public static int aiFireHesitationTicks() {
+        int v = SewvConfig.AI_FIRE_HESITATION_TICKS.get();
+        if (on(SewvConfig.EASY_SOFT_AI_ROF)) return Math.max(v, 25);
+        return v;
+    }
+
     public static int mortarFireCooldownTicks() {
         if (on(SewvConfig.EASY_SOFT_AI_ROF)) return 100;
         return SewvConfig.MORTAR_FIRE_COOLDOWN_TICKS.get();

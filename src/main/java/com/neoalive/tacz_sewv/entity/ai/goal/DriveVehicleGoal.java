@@ -414,6 +414,15 @@ public class DriveVehicleGoal extends Goal {
 
     /** Steer for {@code destination}, or park on station once inside the arrival ring. */
     private void driveTo(BlockPos destination) {
+        driveTo(destination, null);
+    }
+
+    /**
+     * As {@link #driveTo(BlockPos)}, arriving onto {@code facing} (null: the formation axis, if
+     * any — today's only arrival heading). Existing call sites use the 1-arg form; this overload is
+     * the seam for a caller that wants an arrival heading of its own.
+     */
+    private void driveTo(BlockPos destination, Vec3 facing) {
         double distanceSq = this.vehicle.distanceToSqr(
                 destination.getX() + 0.5, destination.getY(), destination.getZ() + 0.5);
 
@@ -427,8 +436,8 @@ public class DriveVehicleGoal extends Goal {
         if (dx * dx + dz * dz > arrive * arrive) {
             this.driver.navigateTo(destination, distanceSq);
         } else {
-            parkOnStation();
-            this.driver.clearRecovery(); // parked at destination
+            parkOnStation(facing);
+            this.driver.clearRecovery(); // parked at destination (the driver's arrival state survives it)
             tryPromoteReachGuard();
         }
     }
@@ -471,17 +480,11 @@ public class DriveVehicleGoal extends Goal {
     /**
      * Parked at the destination. Under a formation order that means holding the frozen axis, so
      * the wedge points where it was pointed and every hull's frontal armor and gun face the same
-     * way; any other order has no heading to hold and simply stops.
+     * way; any other order has no heading to hold and simply stops. A tracked hull pivots onto it;
+     * a wheeled one shuffles onto it (bounded) — see {@link VehicleDriver#holdStation}.
      */
-    private void parkOnStation() {
-        Vec3 axis = VehicleTargeting.formationForward(this.unit);
-        // Only a tracked hull can pivot in place. A wheeled one would sit holding a steering
-        // input it cannot act on, so it parks facing however it happened to arrive.
-        if (axis == null || !this.hull.isTracked()) {
-            this.driver.stop();
-            return;
-        }
-        this.driver.faceHeading(axis);
+    private void parkOnStation(Vec3 facing) {
+        this.driver.holdStation(facing != null ? facing : VehicleTargeting.formationForward(this.unit));
     }
 
     /**

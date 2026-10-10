@@ -19,6 +19,10 @@ import org.joml.Vector3f;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.maneuver.Maneuver;
+import com.neoalive.tacz_sewv.entity.ai.maneuver.ManeuverPlanner;
+import com.neoalive.tacz_sewv.entity.ai.maneuver.SweepCheck;
+import com.neoalive.tacz_sewv.entity.ai.maneuver.WheelTurnModel;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 import com.neoalive.tacz_sewv.entity.ai.sensor.GroundTerrainSensor;
@@ -69,9 +73,11 @@ public final class VehicleDriver {
     // the polyline so the car rolls an arc instead of trying to pivot onto each vertex.
     private static final double WHEEL_NODE_REACHED_SQ = 16.0;
     private static final double WHEEL_LOOKAHEAD_SQ = 100.0; // ~10 blocks along the path
-    // Past this bearing error a wheeled hull backs and fills instead of sweeping a U-turn
-    // (same manoeuvre DriveShipGoal uses — cars also cannot turn in place). Tracked pivot.
-    private static final double WHEEL_REVERSE_ANGLE_RAD = Math.toRadians(110.0);
+    // The LEGACY back-and-fill's own "lined up again" test, and nothing else. Which maneuver to
+    // start is ManeuverPlanner.classify's job (its ARC_MAX_BEARING_RAD happens to share the value);
+    // this stays so the legacy fallback ends exactly where it always did. Tuning one must not move
+    // the other.
+    private static final double LEGACY_BACK_AND_FILL_LINED_RAD = Math.toRadians(110.0);
     private static final int WHEEL_REVERSE_TICKS = 30;
     private static final int WHEEL_REVERSE_MAX_TICKS = 80;
     // Throttle duty through a wheeled turn: full ahead on mild curves, pulsed on hard ones so
@@ -238,6 +244,21 @@ public final class VehicleDriver {
     /** When true, forward throttle is duty-cycled ~half (infantry-cover pace). */
     private boolean infantryPace;
 
+    // Planned multi-point maneuvers (ManeuverPlanner). The route run is recovery-like state and
+    // clearRecovery drops it; the ARRIVAL state below must not live there, because DriveVehicleGoal
+    // calls clearRecovery after every parked tick and would wipe a shuffle mid-segment.
+    /** Whether the steer point last chosen is the destination or the path's last node. */
+    private boolean steerIsFinal;
+    private ManeuverRun routeRun;
+    private long maneuverWaitingSince = Long.MIN_VALUE;
+    private int maneuverCooldown;
+    // Arrival (holdStation) state: survives clearRecovery, reset by clear() and on leaving the
+    // ring by more than ManeuverPlanner.SHUFFLE_BOUND x arrival radius.
+    private boolean aligning;
+    private ManeuverRun arrivalRun;
+    private int arrivalPlans;
+    private int arrivalTicks;
+
     public VehicleDriver(AbstractUnit unit, HullFacts hull) {
         this.unit = unit;
         this.hull = hull;
@@ -256,6 +277,7 @@ public final class VehicleDriver {
     /** Age the pathfinding throttles. Call once per game tick before any steering. */
     public void tickTimers() {
         if (this.pathRecalcCooldown > 0) this.pathRecalcCooldown--;
+        if (this.maneuverCooldown > 0) this.maneuverCooldown--;
         this.pathAge++;
     }
 
@@ -270,6 +292,7 @@ public final class VehicleDriver {
     public void navigateTo(BlockPos dest, double distanceSq) {
         if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
         if (checkSubmergedFailsafe()) return;
+        if (tickArrivalHysteresis(dest)) return;
         dest = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjust(this.vehicle, dest);
         // Bank-lip reverse: face the blocked destination (usually into the water) and reverse off
         // the overhang. Abort if SBW reports wet — that is the existing escape-hatch case, not
@@ -343,6 +366,21 @@ public final class VehicleDriver {
                 this.unstickCooldown = UNSTICK_COOLDOWN;
             }
             return;
+        }
+
+        // Planned multi-point maneuver in progress — finish it before any other steer.
+        if (this.routeRun != null) {
+            int status = runManeuver(this.routeRun);
+            if (status == RUN_ACTIVE) return;
+            this.routeRun = null;
+            if (status == RUN_ABORTED) {
+                this.currentPath = null;
+                this.pathRecalcCooldown = 0;
+                this.maneuverCooldown = pathFailCooldown();
+                stop();
+                return;
+            }
+            // done: steer normally this same tick
         }
 
         // Wheeled back-and-fill in progress — finish the episode before any forward steer.
@@ -458,11 +496,15 @@ public final class VehicleDriver {
         this.wheelReverseTicks = 0;
         this.wheelReverseTotal = 0;
         this.wheelThrottlePhase = 0;
+        this.routeRun = null;
     }
 
     /** Forget the hull entirely, for a crew leaving its seat. */
     public void clear() {
         this.vehicle = null;
+        this.maneuverWaitingSince = Long.MIN_VALUE;
+        this.maneuverCooldown = 0;
+        resetArrival();
         this.currentPath = null;
         this.lastPathTarget = null;
         this.lastLoggedSteerTarget = null;
@@ -562,6 +604,7 @@ public final class VehicleDriver {
         }
         notePathNode(dest);
         logSteerTarget("directDest", dest);
+        this.steerIsFinal = true;
         return dest; // no usable path (or path exhausted) — steer straight at the goal
     }
 
@@ -571,11 +614,16 @@ public final class VehicleDriver {
      * Tracked hulls keep the next node (they can pivot onto it).
      */
     private BlockPos lookAheadSteer(BlockPos nextNode, BlockPos dest) {
+        // Final = the destination or the path's LAST node (a quantised path's last node counts).
+        // Only a final steer point may plan a multi-point maneuver — see ManeuverPlanner.
         if (!this.hull.isWheeled() || this.currentPath == null || this.currentPath.isDone()) {
+            this.steerIsFinal = this.currentPath == null || this.currentPath.isDone()
+                    || this.currentPath.getNextNodeIndex() == this.currentPath.getNodeCount() - 1;
             return nextNode;
         }
         int idx = this.currentPath.getNextNodeIndex();
         int count = this.currentPath.getNodeCount();
+        this.steerIsFinal = idx == count - 1;
         double vx = this.vehicle.getX();
         double vz = this.vehicle.getZ();
         BlockPos best = nextNode;
@@ -598,6 +646,7 @@ public final class VehicleDriver {
                 }
                 notePathNode(p);
                 logSteerTarget("wheelLookahead", p);
+                this.steerIsFinal = i == count - 1;
                 return p;
             }
         }
@@ -609,6 +658,7 @@ public final class VehicleDriver {
         BlockPos pick = destDsq > bestDsq ? dest : best;
         notePathNode(pick);
         logSteerTarget("wheelLookaheadEnd", pick);
+        this.steerIsFinal = true; // path shorter than the lookahead: the last node or dest itself
         return pick;
     }
 
@@ -698,6 +748,9 @@ public final class VehicleDriver {
                     Vector3f fwd = this.vehicle.getForwardDirection().normalize();
                     Vec3 stern = new Vec3(-fwd.x, 0, -fwd.z);
                     if (!avoidance || this.sensor.headingClear(stern, this.sensor.lookahead())) {
+                        // At the final steer point a planned turn (its arcs cleared by the sensor)
+                        // beats the blind legacy reverse; anywhere else legacy, as before.
+                        if (this.steerIsFinal && tryRoutePlan(fwd, targetPos, distanceSq)) return;
                         beginWheelReverse(VehicleTargeting.signedAngleTo(fwd, desired));
                         backAndFillWheeled(targetPos);
                         return;
@@ -715,26 +768,26 @@ public final class VehicleDriver {
 
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, steer);
+        double angleThreshold = getRotationStopAngle(distanceSq);
 
-        // Bearing behind the beam: wheeled three-point when the stern is clear. Tracked pivot —
-        // opening range asks ~180° behind and forcing reverse there made every tank reverse into
-        // the ally on its stern at once.
-        if (Math.abs(angle) > WHEEL_REVERSE_ANGLE_RAD) {
-            if (this.hull.isWheeled()) {
-                Vec3 stern = new Vec3(-forward.x, 0, -forward.z);
-                if (!avoidance || this.sensor.headingClear(stern, this.sensor.lookahead())) {
-                    beginWheelReverse(angle);
-                    backAndFillWheeled(targetPos);
-                    return;
-                }
-                stop();
+        // Which maneuver, from the pose (ManeuverPlanner). Classified on the bearing the fan chose
+        // at the target's distance, so an intermediate steer point lands in exactly the bands the
+        // old 110-degree test had; only the final point brings in the radius test.
+        double dist = Math.sqrt(horizontalDistSq(targetPos));
+        ManeuverPlanner.Decision decision = ManeuverPlanner.classify(maneuverInput(forward,
+                dist * Math.cos(angle), dist * Math.sin(angle), Double.NaN, -1.0,
+                this.steerIsFinal, !this.hull.isWheeled(), angleThreshold));
+        if (decision.state() == ManeuverPlanner.State.MULTI_POINT) {
+            if (decision.plan() && sternClearOrNoSensor(forward) && tryRoutePlan(forward, targetPos, distanceSq)) {
                 return;
             }
-            faceHeading(steer);
-            return;
+            // No plan (refused, cooling down, nothing clear): today's behaviour for this bearing.
+            if (!decision.plan() || Math.abs(angle) > ManeuverPlanner.ARC_MAX_BEARING_RAD) {
+                legacyBehindBeam(forward, steer, angle, targetPos, avoidance);
+                return;
+            }
+            // within the arc band: fall through to the roll-through, as before
         }
-
-        double angleThreshold = getRotationStopAngle(distanceSq);
         // Only translate when the direction the hull would actually move (its facing) is itself
         // clear — while it is still swinging toward the chosen detour bearing the nose may still
         // point at the hazard.
@@ -846,7 +899,7 @@ public final class VehicleDriver {
         desired = desired.normalize();
         Vector3f forward = this.vehicle.getForwardDirection().normalize();
         boolean lined = Math.abs(VehicleTargeting.signedAngleTo(forward, desired))
-                < WHEEL_REVERSE_ANGLE_RAD;
+                < LEGACY_BACK_AND_FILL_LINED_RAD;
         boolean clear = !this.sensor.enabled()
                 || this.sensor.headingClear(desired, this.sensor.lookahead());
         if (lined && clear) {
@@ -861,6 +914,265 @@ public final class VehicleDriver {
         } else {
             this.wheelReverseTicks = WHEEL_REVERSE_TICKS;
         }
+    }
+
+    /** Bearing behind the beam, the pre-planner way: wheeled three-point when the stern is clear,
+     * tracked pivot (opening range asks ~180° behind, and forcing reverse there made every tank
+     * reverse into the ally on its stern at once). Unchanged; now the fallback. */
+    private void legacyBehindBeam(Vector3f forward, Vec3 steer, double angle, BlockPos targetPos, boolean avoidance) {
+        if (this.hull.isWheeled()) {
+            Vec3 stern = new Vec3(-forward.x, 0, -forward.z);
+            if (!avoidance || this.sensor.headingClear(stern, this.sensor.lookahead())) {
+                beginWheelReverse(angle);
+                backAndFillWheeled(targetPos);
+                return;
+            }
+            stop();
+            return;
+        }
+        faceHeading(steer);
+    }
+
+    // ------------------------------------------------------------------ planned maneuvers
+
+    private static final int RUN_ACTIVE = 0;
+    private static final int RUN_DONE = 1;
+    private static final int RUN_ABORTED = 2;
+    /** Live contact probe while executing: the planner already cleared the swept arcs, so this
+     * only has to catch what moved into them, or a hull off the planning speed band. A full
+     * lookahead straight ahead would abort every forward leg of a turn made next to a wall. */
+    private static final double RUN_CONTACT_PROBE = 2.0;
+
+    /** One planned maneuver being driven: segment cursor plus the measured net yaw of the segment. */
+    private static final class ManeuverRun {
+        final Maneuver maneuver;
+        int seg;
+        double progress;
+        float lastYaw;
+        int ticks;
+
+        ManeuverRun(Maneuver maneuver, float yaw) {
+            this.maneuver = maneuver;
+            this.lastYaw = yaw;
+        }
+    }
+
+    /**
+     * Drive one tick of a planned maneuver. A segment ends on the MEASURED yaw change, not on the
+     * model's tick count. Astern a left bow swing is the right key (SBW flips yaw sense with power
+     * sign), mirrored exactly like {@link #backAndFillWheeled}.
+     */
+    private int runManeuver(ManeuverRun run) {
+        Maneuver m = run.maneuver;
+        int segs = m.dirs().length;
+        if (++run.ticks > ManeuverPlanner.MAX_MANEUVER_TICKS) {
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("multipoint MAX unit={}#{} vehicle={}#{} seg={} — abort",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(), run.seg);
+            }
+            return RUN_ABORTED;
+        }
+        float yaw = this.vehicle.getYRot();
+        double dyaw = Mth.wrapDegrees(yaw - run.lastYaw);
+        run.lastYaw = yaw;
+        // SBW yaw grows turning RIGHT; progress counts in this segment's bow-swing direction
+        run.progress += Math.toRadians(-dyaw) * (m.left()[run.seg] ? 1.0 : -1.0);
+        while (run.seg < segs && run.progress >= m.sweep()[run.seg]) {
+            double over = run.progress - m.sweep()[run.seg];
+            boolean wasLeft = m.left()[run.seg];
+            run.seg++;
+            if (run.seg < segs) run.progress = m.left()[run.seg] == wasLeft ? over : -over;
+        }
+        if (run.seg >= segs) return RUN_DONE;
+
+        boolean reverse = m.dirs()[run.seg] < 0;
+        if (this.sensor.enabled()) {
+            Vector3f fwd = this.vehicle.getForwardDirection().normalize();
+            Vec3 travel = reverse ? new Vec3(-fwd.x, 0, -fwd.z) : new Vec3(fwd.x, 0, fwd.z);
+            if (!this.sensor.headingClear(travel.normalize(), RUN_CONTACT_PROBE)) {
+                if (SewvDiag.groundPathingVerbose()) {
+                    SewvDiag.pathing("multipoint BLOCKED unit={}#{} vehicle={}#{} seg={} reverse={} — abort",
+                            this.unit.getClass().getSimpleName(), this.unit.getId(),
+                            this.vehicle.getName().getString(), this.vehicle.getId(), run.seg, reverse);
+                }
+                return RUN_ABORTED;
+            }
+        }
+        boolean keyLeft = m.left()[run.seg] != reverse;
+        this.vehicle.setForwardInputDown(!reverse);
+        this.vehicle.setBackInputDown(reverse);
+        this.vehicle.setLeftInputDown(keyLeft);
+        this.vehicle.setRightInputDown(!keyLeft);
+        return RUN_ACTIVE;
+    }
+
+    /** Planner input from the live hull. {@code ta/tl} local (forward / LEFT); {@code phi} NaN = none. */
+    private ManeuverPlanner.Input maneuverInput(Vector3f forward, double ta, double tl, double phi,
+                                                double arriveRadius, boolean finalPoint, boolean tracked,
+                                                double straightThreshold) {
+        double fx = forward.x;
+        double fz = forward.z;
+        double n = Math.sqrt(fx * fx + fz * fz);
+        if (n > 1.0E-6) {
+            fx /= n;
+            fz /= n;
+        }
+        double s = this.hull.steeringSpeed();
+        boolean fluid = this.vehicle.isInFluidType() && !this.vehicle.onGround();
+        double speed = this.vehicle.getDeltaMovement().horizontalDistance();
+        double planSpeed = Math.max(ManeuverPlanner.PLAN_SPEED_MIN, Math.min(ManeuverPlanner.PLAN_SPEED_MAX, speed));
+        return new ManeuverPlanner.Input(this.vehicle.getX(), this.vehicle.getZ(), fx, fz, ta, tl, phi,
+                arriveRadius, WheelTurnModel.rMin(s, fluid), s, fluid, planSpeed, tracked, straightThreshold,
+                finalPoint, this.aligning, (this.unit.getId() & 1) == 0);
+    }
+
+    private double horizontalDistSq(BlockPos p) {
+        double dx = p.getX() - this.vehicle.getX();
+        double dz = p.getZ() - this.vehicle.getZ();
+        return dx * dx + dz * dz;
+    }
+
+    private boolean sternClearOrNoSensor(Vector3f forward) {
+        return !this.sensor.enabled()
+                || this.sensor.headingClear(new Vec3(-forward.x, 0, -forward.z), this.sensor.lookahead());
+    }
+
+    /** A plan is one {@link PathBudget} slot, with its own starvation clock, so it can never starve
+     * the pathfinder it is usually called to rescue. */
+    private boolean acquirePlanSlot() {
+        if (this.maneuverCooldown > 0) return false;
+        if (!PathBudget.tryAcquire(this.unit.level(), this.maneuverWaitingSince, this.farIdle)) {
+            if (this.maneuverWaitingSince == Long.MIN_VALUE) this.maneuverWaitingSince = this.unit.level().getGameTime();
+            return false;
+        }
+        this.maneuverWaitingSince = Long.MIN_VALUE;
+        return true;
+    }
+
+    private Maneuver runPlanner(ManeuverPlanner.Input in, String why) {
+        SweepCheck check = this.sensor.enabled() ? this.sensor::sweepClear : (x, z, hx, hz, reverse) -> true;
+        long t0 = System.nanoTime();
+        Maneuver m = ManeuverPlanner.planMultiPoint(in, check);
+        PathingPerf.maneuverNanos += System.nanoTime() - t0;
+        PathingPerf.maneuverCalls++;
+        if (m == null) this.maneuverCooldown = pathFailCooldown();
+        if (SewvDiag.groundPathingVerbose()) {
+            SewvDiag.pathing("multipoint {} unit={}#{} vehicle={}#{} why={} pos={} target=({},{}) phi={} rMin={} -> {}",
+                    m == null ? "NONE" : "PLAN",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(), why,
+                    this.vehicle.blockPosition(), in.ta(), in.tl(), in.phi(), in.rMin(), m);
+        }
+        return m;
+    }
+
+    /** Plan a route multi-point turn toward the real target and start it. True when inputs are set. */
+    private boolean tryRoutePlan(Vector3f forward, BlockPos targetPos, double distanceSq) {
+        if (!acquirePlanSlot()) return false;
+        double dx = targetPos.getX() - this.vehicle.getX();
+        double dz = targetPos.getZ() - this.vehicle.getZ();
+        double n = Math.sqrt(forward.x * forward.x + forward.z * forward.z);
+        double fx = n > 1.0E-6 ? forward.x / n : forward.x;
+        double fz = n > 1.0E-6 ? forward.z / n : forward.z;
+        ManeuverPlanner.Input in = maneuverInput(forward, dx * fx + dz * fz, dx * fz - dz * fx, Double.NaN,
+                -1.0, true, false, getRotationStopAngle(distanceSq));
+        Maneuver m = runPlanner(in, "route");
+        if (m == null) return false;
+        this.wheelReverseTicks = 0;
+        this.wheelReverseTotal = 0;
+        this.routeRun = new ManeuverRun(m, this.vehicle.getYRot());
+        int status = runManeuver(this.routeRun);
+        if (status != RUN_ACTIVE) {
+            this.routeRun = null;
+            if (status == RUN_ABORTED) this.maneuverCooldown = pathFailCooldown();
+            stop();
+        }
+        return true;
+    }
+
+    /**
+     * Arrived at the destination: hold, or come onto {@code facing} first. Tracked hulls pivot
+     * (bands 8/8 — exactly the old faceHeading deadband); wheeled hulls run a bounded shuffle (at
+     * most 2 plans, {@link ManeuverPlanner#MAX_MANEUVER_TICKS} ticks per arrival, enter at 15,
+     * stay above 8), then accept what they have. A hull that is neither parks as it arrived.
+     * {@code facing} null = no heading to hold, which is a plain stop.
+     */
+    public void holdStation(Vec3 facing) {
+        if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
+        if (this.arrivalRun != null) {
+            tickArrivalRun();
+            return;
+        }
+        boolean tracked = this.hull.isTracked();
+        if (!tracked && !this.hull.isWheeled()) { stop(); return; }
+        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        double phi = facing == null || facing.horizontalDistanceSqr() < 1.0E-8
+                ? Double.NaN
+                : VehicleTargeting.signedAngleTo(forward, facing);
+        ManeuverPlanner.Input in = maneuverInput(forward, 0.0, 0.0, phi,
+                VehicleTargeting.arrivalDistance(this.unit, this.vehicle), true, tracked, 0.0);
+        ManeuverPlanner.Decision decision = ManeuverPlanner.classify(in);
+        boolean nowAligning = decision.state() == ManeuverPlanner.State.ALIGN;
+        if (nowAligning != this.aligning && SewvDiag.groundPathingVerbose()) {
+            SewvDiag.pathing("arrival {} unit={}#{} vehicle={}#{} phiDeg={} tracked={}",
+                    nowAligning ? "ALIGN" : "HOLD",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(),
+                    Math.toDegrees(phi), tracked);
+        }
+        this.aligning = nowAligning;
+        if (!nowAligning) { stop(); return; }
+        if (tracked) { faceHeading(facing); return; }
+        if (!decision.plan() || this.arrivalPlans >= 2
+                || this.arrivalTicks >= ManeuverPlanner.MAX_MANEUVER_TICKS || !acquirePlanSlot()) {
+            stop();
+            return;
+        }
+        this.arrivalPlans++;
+        Maneuver m = runPlanner(in, "shuffle");
+        if (m == null) { stop(); return; }
+        this.arrivalRun = new ManeuverRun(m, this.vehicle.getYRot());
+        tickArrivalRun();
+    }
+
+    private void tickArrivalRun() {
+        this.arrivalTicks++;
+        int status = runManeuver(this.arrivalRun);
+        if (status == RUN_ACTIVE) return;
+        this.arrivalRun = null;
+        if (status == RUN_ABORTED) this.maneuverCooldown = pathFailCooldown();
+        stop();
+    }
+
+    /**
+     * Ring hysteresis for the arrival state, at the top of {@link #navigateTo}. The goal only
+     * calls navigateTo outside the arrival ring; a shuffle legitimately backs the hull out of it,
+     * so up to {@link ManeuverPlanner#SHUFFLE_BOUND} x the radius the arrival state is kept and a
+     * running shuffle keeps driving. Past that the hull has really left. True when this tick's
+     * inputs were set here.
+     */
+    private boolean tickArrivalHysteresis(BlockPos dest) {
+        if (this.arrivalRun == null && !this.aligning && this.arrivalPlans == 0 && this.arrivalTicks == 0) {
+            return false;
+        }
+        double bound = ManeuverPlanner.SHUFFLE_BOUND * VehicleTargeting.arrivalDistance(this.unit, this.vehicle);
+        double dx = dest.getX() + 0.5 - this.vehicle.getX();
+        double dz = dest.getZ() + 0.5 - this.vehicle.getZ();
+        if (dx * dx + dz * dz > bound * bound) {
+            resetArrival();
+            return false;
+        }
+        if (this.arrivalRun == null) return false;
+        tickArrivalRun();
+        return true;
+    }
+
+    private void resetArrival() {
+        this.aligning = false;
+        this.arrivalRun = null;
+        this.arrivalPlans = 0;
+        this.arrivalTicks = 0;
     }
 
     /**

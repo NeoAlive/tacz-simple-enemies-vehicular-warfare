@@ -255,6 +255,15 @@ tasks.register('selfCheckHeli', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckManeuver', JavaExec) {
+    group = 'verification'
+    description = 'Runs the wheeled maneuver planner self-check (rudder model, classification, veto, mirror, purity).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.maneuver.ManeuverSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckHeliArmament', JavaExec) {
     group = 'verification'
     description = 'Runs the heli pilot armament discriminator self-check.'

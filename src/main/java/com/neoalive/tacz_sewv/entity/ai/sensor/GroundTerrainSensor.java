@@ -450,89 +450,156 @@ public final class GroundTerrainSensor extends TerrainSensor {
     }
 
     private Probe probeLine(Vec3 dir, double lateral, double distance, Vec3 side) {
-        Probe out = new Probe();
         Level level = this.unit.level();
         double startX = this.vehicle.getX();
         double startZ = this.vehicle.getZ();
         double half = halfWidth();
         obstacles(distance);
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        double floor = this.cachedCenterFloor;
-        boolean crossedDrop = false;
+        Walk w = new Walk(this.cachedCenterFloor);
 
         for (double d = half + 0.5; d <= half + distance; d += 1.0) {
             double sampleX = startX + dir.x * d + side.x * lateral;
             double sampleZ = startZ + dir.z * d + side.z * lateral;
-            if (isBlockedByHull(this.allyFootObstacles, sampleX, sampleZ)) {
-                out.hard = 1.0F;
-                out.reason = "ally";
-                return out;
-            }
-
-            int colX = Mth.floor(sampleX);
-            int colZ = Mth.floor(sampleZ);
-            Column col = cachedColumn(level, pos, colX, colZ);
-            out.waterDepth = Math.max(out.waterDepth, col.waterDepth);
-            if (col.lava) {
-                out.hard = 1.0F;
-                out.reason = "fluid";
-                return out;
-            }
-            float water = GroundMobility.waterDanger(col.waterDepth, this.amphibious);
-            if (water >= GroundMobility.HARD_CAP) {
-                out.hard = 1.0F;
-                out.reason = "fluid";
-                return out;
-            }
-            out.hard = Math.max(out.hard, water);
-
-            if (col.floorY == GroundMobility.NO_FLOOR) {
-                crossedDrop = true;
-                continue;
-            }
-            if (crossedDrop) {
-                floor = col.floorY;
-                crossedDrop = false;
-                continue;
-            }
-            if (floor != GroundMobility.NO_FLOOR) {
-                double step = col.floorY - floor;
-                out.stepDelta = step;
-                if (col.tree) {
-                    // Prefer around it, never hard-block: TreeFellingSupport clears it on real
-                    // contact, so a whisker treating it as an ordinary wall would steer the hull
-                    // away before it ever touches the tree it is meant to drive through.
-                    float treeDanger = SewvConfig.VEHICLE_TREE_SENSOR_DANGER.get().floatValue();
-                    if (treeDanger > out.hard) {
-                        out.hard = treeDanger;
-                        out.reason = "tree";
-                    }
-                } else {
-                    float stepD = GroundMobility.stepDanger(step, this.maxUpStep);
-                    if (stepD >= GroundMobility.HARD_CAP) {
-                        out.hard = 1.0F;
-                        out.reason = "step";
-                        return out;
-                    }
-                    if (stepD > out.hard) {
-                        out.hard = stepD;
-                        out.reason = "step";
-                    }
-                }
-            }
-            if (col.floorY != GroundMobility.NO_FLOOR
-                    && out.hard < GroundMobility.GRADE_FAN_MAX) {
-                float gradeD = GroundMobility.gradeDanger(cachedLocalGrade(level, colX, colZ));
-                if (gradeD > out.hard) {
-                    out.hard = gradeD;
-                    out.reason = "grade";
-                }
-            } else if (col.floorY != GroundMobility.NO_FLOOR) {
-                PathingPerf.gradeSkipped++;
-            }
-            floor = col.floorY;
+            if (sampleStep(w, level, sampleX, sampleZ)) return w.out;
         }
-        return out;
+        return w.out;
+    }
+
+    /** State of one walk along consecutive samples: the result so far and the footing it last stood on. */
+    private static final class Walk {
+        final Probe out = new Probe();
+        final BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        double floor;
+        boolean crossedDrop;
+
+        Walk(double startFloor) {
+            this.floor = startFloor;
+        }
+    }
+
+    /**
+     * One sample of a walk — ally feet, fluid, the STEP from the previous sample's footing, grade.
+     * The one copy of the step test: {@link #probeLine} and {@link #sweepClear} both walk through
+     * here. True when the walk is hard-blocked ({@code w.out} then says why).
+     */
+    private boolean sampleStep(Walk w, Level level, double sampleX, double sampleZ) {
+        Probe out = w.out;
+        if (isBlockedByHull(this.allyFootObstacles, sampleX, sampleZ)) {
+            out.hard = 1.0F;
+            out.reason = "ally";
+            return true;
+        }
+
+        int colX = Mth.floor(sampleX);
+        int colZ = Mth.floor(sampleZ);
+        Column col = cachedColumn(level, w.pos, colX, colZ);
+        out.waterDepth = Math.max(out.waterDepth, col.waterDepth);
+        if (col.lava) {
+            out.hard = 1.0F;
+            out.reason = "fluid";
+            return true;
+        }
+        float water = GroundMobility.waterDanger(col.waterDepth, this.amphibious);
+        if (water >= GroundMobility.HARD_CAP) {
+            out.hard = 1.0F;
+            out.reason = "fluid";
+            return true;
+        }
+        out.hard = Math.max(out.hard, water);
+
+        if (col.floorY == GroundMobility.NO_FLOOR) {
+            w.crossedDrop = true;
+            return false;
+        }
+        if (w.crossedDrop) {
+            w.floor = col.floorY;
+            w.crossedDrop = false;
+            return false;
+        }
+        if (w.floor != GroundMobility.NO_FLOOR) {
+            double step = col.floorY - w.floor;
+            out.stepDelta = step;
+            if (col.tree) {
+                // Prefer around it, never hard-block: TreeFellingSupport clears it on real
+                // contact, so a whisker treating it as an ordinary wall would steer the hull
+                // away before it ever touches the tree it is meant to drive through.
+                float treeDanger = SewvConfig.VEHICLE_TREE_SENSOR_DANGER.get().floatValue();
+                if (treeDanger > out.hard) {
+                    out.hard = treeDanger;
+                    out.reason = "tree";
+                }
+            } else {
+                float stepD = GroundMobility.stepDanger(step, this.maxUpStep);
+                if (stepD >= GroundMobility.HARD_CAP) {
+                    out.hard = 1.0F;
+                    out.reason = "step";
+                    return true;
+                }
+                if (stepD > out.hard) {
+                    out.hard = stepD;
+                    out.reason = "step";
+                }
+            }
+        }
+        if (col.floorY != GroundMobility.NO_FLOOR
+                && out.hard < GroundMobility.GRADE_FAN_MAX) {
+            float gradeD = GroundMobility.gradeDanger(cachedLocalGrade(level, colX, colZ));
+            if (gradeD > out.hard) {
+                out.hard = gradeD;
+                out.reason = "grade";
+            }
+        } else if (col.floorY != GroundMobility.NO_FLOOR) {
+            PathingPerf.gradeSkipped++;
+        }
+        w.floor = col.floorY;
+        return false;
+    }
+
+    /**
+     * Is a planned swept segment drivable? {@code x/z} are hull-centre positions in travel order,
+     * {@code hx/hz} the facing at each. Walks the leading edge (bow, or stern when {@code reverse})
+     * at the centreline and at +-halfWidth across each sample's own heading — the curved analogue of
+     * {@link #probeHeadingBeam} — through {@link #sampleStep}, and tests each centre against the
+     * peer hulls already cached by {@link #buildObstacles}. Adds no entity query of its own.
+     *
+     * <p>DEFERRED(sensor-entity-scan): {@code buildObstacles} itself still uses
+     * {@code getEntitiesOfClass}; moving it onto {@code CombatantIndex} is a separate change
+     * (staler peers, wrecks under 1.5 blocks drop out).
+     */
+    public boolean sweepClear(double[] x, double[] z, double[] hx, double[] hz, boolean reverse) {
+        if (x.length == 0) return true;
+        ensureCenter();
+        Level level = this.unit.level();
+        double half = halfWidth();
+        double reach = 0.0;
+        for (int i = 0; i < x.length; i++) {
+            double dx = x[i] - this.vehicle.getX();
+            double dz = z[i] - this.vehicle.getZ();
+            reach = Math.max(reach, Math.sqrt(dx * dx + dz * dz));
+        }
+        obstacles(reach + half);
+        double lead = reverse ? -(half + 0.5) : half + 0.5;
+        for (int k = -1; k <= 1; k++) {
+            Walk w = new Walk(this.cachedCenterFloor);
+            for (int i = 0; i < x.length; i++) {
+                // side = (-hz, hx), as sideOf
+                double sx = x[i] + hx[i] * lead - hz[i] * k * half;
+                double sz = z[i] + hz[i] * lead + hx[i] * k * half;
+                if (sampleStep(w, level, sx, sz)) {
+                    logBlockedHeading(new Vec3(hx[i], 0.0, hz[i]), i, "sweep-" + w.out.reason);
+                    return false;
+                }
+            }
+        }
+        for (VehicleOrca.Peer peer : this.peers) {
+            double clearance = peer.half() + half;
+            for (int i = 0; i < x.length; i++) {
+                double dx = x[i] - peer.x();
+                double dz = z[i] - peer.z();
+                if (dx * dx + dz * dz < clearance * clearance) return false;
+            }
+        }
+        return true;
     }
 
     private void applyRvo(Vec3 dir, Probe p) {

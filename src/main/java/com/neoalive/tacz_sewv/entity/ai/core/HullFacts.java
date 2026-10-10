@@ -16,6 +16,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.maneuver.WheelTurnModel;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
 
 /**
@@ -52,6 +53,8 @@ public final class HullFacts {
     private boolean missileSystem;
     private boolean antiAir;
     private boolean artillery;
+    /** SBW {@code SteeringSpeed} for a wheeled hull; NaN = unreadable (the maneuver planner refuses). */
+    private double steeringSpeed = Double.NaN;
     private Set<Integer> crewSeats = Set.of(0);
     private Set<Integer> climbSeats = Set.of();
 
@@ -69,6 +72,7 @@ public final class HullFacts {
         this.plane = computePlane(v);
         this.tracked = computeTracked(v);
         this.wheeled = computeWheeled(v);
+        this.steeringSpeed = this.wheeled ? computeSteeringSpeed(v) : Double.NaN;
         this.ship = computeShip(v);
         this.groundMobile = computeGroundMobile(v);
         this.ifv = computeIfv(v);
@@ -108,6 +112,15 @@ public final class HullFacts {
      */
     public boolean isWheeled() {
         return this.wheeled;
+    }
+
+    /**
+     * SBW {@code SteeringSpeed} of a wheeled hull, the one per-hull input to its turn radius (SBW
+     * has no wheelbase or steer angle; see {@code WheelTurnModel}). NaN when not wheeled or
+     * unreadable. An absent field is SBW's own default, which is what SBW really drives it at.
+     */
+    public double steeringSpeed() {
+        return this.steeringSpeed;
     }
 
     /** Wheel or track hulls only — excludes {@code FIXED} emplacements (they don't drive),
@@ -489,6 +502,21 @@ public final class HullFacts {
             return v.computed().getEngineType() == EngineType.WHEEL;
         } catch (Throwable ignored) {
             return false;
+        }
+    }
+
+    /** Same engine-info read as {@link #computeTracked}; no engine-type read. Absent field: SBW's
+     * default. Throws, or not a positive finite number: NaN, and the planner falls back to legacy. */
+    private static double computeSteeringSpeed(VehicleEntity v) {
+        try {
+            var data = v.data().compute();
+            if (data == null) return Double.NaN;
+            var value = data.getEngineInfo().get("SteeringSpeed");
+            if (value == null) return WheelTurnModel.SBW_DEFAULT_STEERING_SPEED;
+            double s = value.getAsDouble();
+            return s > 0.0 && !Double.isInfinite(s) ? s : Double.NaN;
+        } catch (Throwable ignored) {
+            return Double.NaN;
         }
     }
 

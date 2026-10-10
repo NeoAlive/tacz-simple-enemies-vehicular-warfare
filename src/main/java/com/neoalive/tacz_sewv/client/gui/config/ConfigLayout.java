@@ -35,7 +35,7 @@ public final class ConfigLayout {
                 "grenadeThrowCadence", "ifvDismountsEnabled", "autoBoardEnabled", "medicEnabled",
                 "pmcDownedEnabled", "npcArmorEnabled"));
         ESSENTIALS.put("essentials.world", List.of(
-                "tankSpawnChanceRu", "tankSpawnChanceUs", "convoyEventsEnabled", "largeCombatEventsEnabled",
+                "gracePeriodDays", "tankSpawnChanceRu", "tankSpawnChanceUs", "convoyEventsEnabled", "largeCombatEventsEnabled",
                 "shellingEventsEnabled", "factionInfiniteAmmo", "vehicleDeathDrops"));
         ESSENTIALS.put("essentials.display", List.of(
                 "mapMarkersEnabled", "notificationsEnabled", "factionColorsEnabled"));

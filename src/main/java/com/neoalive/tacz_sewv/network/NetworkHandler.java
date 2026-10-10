@@ -119,7 +119,8 @@ public class NetworkHandler {
     // 97: heli rework packet tweaks.
     // 98: PacketOpenMiscEditor drops armor catalog (client builds from ForgeRegistries).
     // 99: PacketOrderQueue (C->S) + PacketOrderQueueState (S->C) — Quick Wheel order queue.
-    private static final String PROTOCOL_VERSION = "99";
+    // 100: PacketGraceStart (S->C) — grace period popup.
+    private static final String PROTOCOL_VERSION = "100";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -754,6 +755,13 @@ public class NetworkHandler {
                 PacketOrderQueueState::encode,
                 PacketOrderQueueState::new,
                 PacketOrderQueueState::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketGraceStart.class,
+                PacketGraceStart::encode,
+                PacketGraceStart::new,
+                PacketGraceStart::handle
         );
     }
 }

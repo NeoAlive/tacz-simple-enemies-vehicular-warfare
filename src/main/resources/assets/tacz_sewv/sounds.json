@@ -287,5 +287,6 @@
   "scale": { "sounds": ["tacz_sewv:scale"] },
   "lock": { "sounds": ["tacz_sewv:lock"] },
   "attack": { "sounds": ["tacz_sewv:attack"] },
-  "fob_alarm": { "sounds": ["tacz_sewv:alarm"] }
+  "fob_alarm": { "sounds": ["tacz_sewv:alarm"] },
+  "grace_start": { "sounds": ["tacz_sewv:grace_start"] }
 }

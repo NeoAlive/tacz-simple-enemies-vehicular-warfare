@@ -40,6 +40,8 @@ import com.neoalive.tacz_sewv.entity.ai.support.SemRecruitCost;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 import com.neoalive.tacz_sewv.fob.FobTickHandler;
+import com.neoalive.tacz_sewv.grace.GracePeriodData;
+import com.neoalive.tacz_sewv.grace.GraceTickHandler;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModBlocks;
 import com.neoalive.tacz_sewv.init.ModCreativeTabs;
@@ -95,6 +97,7 @@ public class TaczSewv {
         // unconditionally — a client with no map mod simply ignores the packet.
         MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
         MinecraftForge.EVENT_BUS.register(FobTickHandler.class);
+        MinecraftForge.EVENT_BUS.register(GraceTickHandler.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.map.TrenchNetworksTracker.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionHudTracker.class);
@@ -216,6 +219,9 @@ public class TaczSewv {
             NpcNvg.issue(unit);
             if (unit instanceof PmcUnitEntity pmc) NpcIdentity.issue(pmc);
             SupportSpawner.maybeSpawnCompanions(unit);
+            if (GracePeriodData.active(unit.level()) && ModList.get().isLoaded(BerezkaStructureCompat.MODID)) {
+                BerezkaStructureCompat.purgeOnJoin((net.minecraft.server.level.ServerLevel) event.getLevel(), unit);
+            }
         } else if (event.getEntity() instanceof VehicleEntity hull) {
             CamoSupport.retrofitHull(hull);
         }

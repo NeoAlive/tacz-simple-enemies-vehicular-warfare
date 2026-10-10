@@ -1964,5 +1964,18 @@
   "message.tacz_sewv.fob.not_owner": "Only the FOB owner can place or break this.",
   "message.tacz_sewv.fob.route_sent": "Routed %1$s vehicle crew(s) and %2$s infantry to the FOB.",
   "message.tacz_sewv.order.failure.fob_command": "That unit is under FOB command — toggle it off at the quarters bench.",
-  "message.tacz_sewv.order.failure.route_active": "That unit is routing to the FOB — wait for arrival or cancel the route from the quarters bench."
+  "message.tacz_sewv.order.failure.route_active": "That unit is routing to the FOB — wait for arrival or cancel the route from the quarters bench.",
+  "config.tacz_sewv.gracePeriodDays": "Grace Period Days",
+  "config.tacz_sewv.gracePeriodDays.tooltip": "In-game days of peace a new world starts with: no ambient events, spawn probes and Berezka RU/US garrisons removed. 0 = off.",
+  "tacz_sewv.grace.title": "Gathering Storm",
+  "tacz_sewv.grace.days_left": "%s days left until forces arrive.",
+  "tacz_sewv.grace.over": "Hostile forces are arriving.",
+  "tacz_sewv.grace.popup.title": "Gathering Storm...",
+  "tacz_sewv.grace.popup.body": "It does not matter where you find yourself, you, alongside the very soil you are stepping on is being analyzed and evaluated for a fierce unprecedented chain reaction of battles. You sense that in %s something terrible will happen.",
+  "tacz_sewv.grace.popup.n_days": "%s days",
+  "tacz_sewv.grace.popup.tail": "You have %s Days before hostile forces arrive.",
+  "tacz_sewv.grace.query.active": "Grace period active: %s days (%s ticks) left.",
+  "tacz_sewv.grace.query.inactive": "No grace period active.",
+  "tacz_sewv.grace.started": "Grace period started: %s ticks.",
+  "tacz_sewv.grace.stopped": "Grace period stopped."
 }

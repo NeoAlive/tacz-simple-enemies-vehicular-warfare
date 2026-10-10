@@ -8,12 +8,19 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.berezka.berezka_api.API;
 import org.berezka.berezka_api.events.onStructureSpawned;
 
@@ -45,6 +52,37 @@ public final class BerezkaStructureCompat {
 
     public static void register() {
         MinecraftForge.EVENT_BUS.register(BerezkaStructureCompat.class);
+    }
+
+    private static final String TAG_GRACE_CHECKED = "sewv:grace_checked";
+    private static final ResourceLocation BEREZKA_STRUCTURE_TYPE =
+            new ResourceLocation(MODID, "berezka_structures_extra");
+
+    /**
+     * Grace period: an RU/US unit baked into a Berezka structure template is removed. Template
+     * entities join with {@code loadedFromDisk == true} like any saved unit, so the structure lookup
+     * is what tells them apart; the tag makes each unit pay for it once. Deferred to end-of-tick
+     * because the join fires mid chunk promotion, where a structure-start read could re-enter chunk
+     * loading.
+     */
+    public static void purgeOnJoin(ServerLevel level, AbstractUnit unit) {
+        if (!(unit instanceof RUunitEntity || unit instanceof USunitEntity)) return;
+        if (unit.getPersistentData().getBoolean(TAG_GRACE_CHECKED)) return;
+        unit.getPersistentData().putBoolean(TAG_GRACE_CHECKED, true);
+        level.getServer().execute(() -> {
+            if (unit.isAlive() && inBerezkaStructure(level, unit.blockPosition())) unit.discard();
+        });
+    }
+
+    private static boolean inBerezkaStructure(ServerLevel level, BlockPos pos) {
+        StructureManager manager = level.structureManager();
+        for (Structure structure : manager.getAllStructuresAt(pos).keySet()) {
+            if (BEREZKA_STRUCTURE_TYPE.equals(BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type()))
+                    && manager.getStructureWithPieceAt(pos, structure).isValid()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SubscribeEvent

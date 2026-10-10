@@ -256,6 +256,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.NAVAL_BASE_CHANCE, SewvConfig.NAVAL_BASE_CHANCE::set);
         b.doubleRange(ConfigScope.SERVER, "events", "navalFailureMultiplier", 0.0, 1.0,
                 SewvConfig.NAVAL_FAILURE_MULTIPLIER, SewvConfig.NAVAL_FAILURE_MULTIPLIER::set);
+        b.intRange(ConfigScope.SERVER, "events", "gracePeriodDays", 0, 365,
+                SewvConfig.GRACE_PERIOD_DAYS, SewvConfig.GRACE_PERIOD_DAYS::set);
         b.intRange(ConfigScope.SERVER, "events", "navalShipsPerSide", 0, 12,
                 SewvConfig.NAVAL_SHIPS_PER_SIDE, SewvConfig.NAVAL_SHIPS_PER_SIDE::set);
         b.bool(ConfigScope.SERVER, "events", "invasionEventsEnabled",

@@ -33,6 +33,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue NAVAL_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue NAVAL_FAILURE_MULTIPLIER;
     public static final ForgeConfigSpec.IntValue NAVAL_SHIPS_PER_SIDE;
+    public static final ForgeConfigSpec.IntValue GRACE_PERIOD_DAYS;
     public static final ForgeConfigSpec.BooleanValue INVASION_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue INVASION_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue INVASION_FAILURE_MULTIPLIER;
@@ -424,6 +425,9 @@ public final class SewvConfig {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
 
         builder.push("events");
+        GRACE_PERIOD_DAYS = builder.comment("In-game days of peace a new world starts with: no ambient events, spawn probes",
+                        "and Berezka RU/US garrisons are removed. 0 = off. Also /sewv graceperiod.")
+                .defineInRange("gracePeriodDays", 5, 0, 365);
         TANK_SPAWN_CHANCE_RU = builder.comment("Chance an RU tank appears when Simple Enemy Mod rolls a distant fight.",
                         "Turn tanks in events on/off with the sewvTanksInEvents gamerule.")
                 .defineInRange("tankSpawnChanceRu", 0.12, 0.0, 1.0);

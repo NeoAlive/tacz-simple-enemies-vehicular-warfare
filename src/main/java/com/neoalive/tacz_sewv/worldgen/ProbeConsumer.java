@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.SpawnProbeBlockEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.grace.GracePeriodData;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.worldgen.StructureLocator.Ownership;
 
@@ -113,6 +114,11 @@ public final class ProbeConsumer {
      */
     private static void consume(ServerLevel level, SpawnProbeBlockEntity probe) {
         BlockPos pos = probe.getBlockPos();
+        // Grace period: the probe is used up with nothing to show for it, for good.
+        if (GracePeriodData.active(level)) {
+            level.removeBlock(pos, false);
+            return;
+        }
         TankFaction faction = probe.getFactionType();
         Ownership ownership = StructureLocator.ownershipAt(level, pos);
         // An unidentified structure keeps every probe as authored; PMC belongs to no owner.

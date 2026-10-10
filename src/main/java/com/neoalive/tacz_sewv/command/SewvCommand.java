@@ -60,6 +60,8 @@ import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.support.DigFoxholeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SandbagSupport;
+import com.neoalive.tacz_sewv.grace.GracePeriodData;
+import com.neoalive.tacz_sewv.grace.GraceTickHandler;
 import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionHudTracker;
@@ -96,6 +98,21 @@ public class SewvCommand {
                 )
                 // Ungated (unlike spawn, above): any player can check on their own units.
                 .then(Commands.literal("status").executes(ctx -> status(ctx.getSource())))
+                // Grace period: query is open to everyone, start/stop are op-only.
+                .then(Commands.literal("graceperiod")
+                        .then(Commands.literal("query").executes(ctx -> graceQuery(ctx.getSource())))
+                        .then(Commands.literal("start")
+                                .requires(source -> source.hasPermission(2))
+                                .then(Commands.argument("amount", IntegerArgumentType.integer(1))
+                                        .executes(ctx -> graceStart(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "amount") * GracePeriodData.DAY_TICKS))
+                                        .then(Commands.literal("days").executes(ctx -> graceStart(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "amount") * GracePeriodData.DAY_TICKS)))
+                                        .then(Commands.literal("ticks").executes(ctx -> graceStart(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "amount"))))))
+                        .then(Commands.literal("stop")
+                                .requires(source -> source.hasPermission(2))
+                                .executes(ctx -> graceStop(ctx.getSource()))))
                 // Territory Mode debugging without the RTS panel (see TerritoryDebug).
                 .then(Commands.literal("territory")
                         .requires(source -> source.hasPermission(2))
@@ -886,6 +903,30 @@ public class SewvCommand {
                 }
             }
         }
+        return 1;
+    }
+
+    private static int graceQuery(CommandSourceStack source) {
+        GracePeriodData data = GracePeriodData.get(source.getServer());
+        long now = source.getServer().overworld().getGameTime();
+        if (data == null || !GracePeriodData.active(source.getServer().overworld())) {
+            source.sendSuccess(() -> Component.translatable("tacz_sewv.grace.query.inactive"), false);
+        } else {
+            source.sendSuccess(() -> Component.translatable("tacz_sewv.grace.query.active",
+                    data.daysLeft(now), data.ticksLeft(now)), false);
+        }
+        return 1;
+    }
+
+    private static int graceStart(CommandSourceStack source, long ticks) {
+        GraceTickHandler.start(source.getServer(), ticks);
+        source.sendSuccess(() -> Component.translatable("tacz_sewv.grace.started", ticks), true);
+        return 1;
+    }
+
+    private static int graceStop(CommandSourceStack source) {
+        GraceTickHandler.stop(source.getServer());
+        source.sendSuccess(() -> Component.translatable("tacz_sewv.grace.stopped"), true);
         return 1;
     }
 

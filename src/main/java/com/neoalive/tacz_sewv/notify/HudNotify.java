@@ -115,6 +115,11 @@ public final class HudNotify {
                         eventName, pos.getX(), pos.getY(), pos.getZ()));
     }
 
+    /** Grace period countdown / end notice, to every player alike. */
+    public static void grace(ServerPlayer player, Component title, Component body) {
+        send(player, NotificationKind.GENERIC, title, body);
+    }
+
     public static void medicCaptured(AbstractUnit medic, DamageSource source) {
         ServerPlayer notify = notifyPlayerFromSource(source);
         if (notify == null) return;

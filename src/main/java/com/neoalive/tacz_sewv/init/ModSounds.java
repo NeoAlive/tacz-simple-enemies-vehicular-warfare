@@ -101,6 +101,9 @@ public final class ModSounds {
     /** FOB scramble siren; one ~0.9 s clip, re-triggered every {@code ThreatEvaluator.ALARM_TICKS}. */
     public static final RegistryObject<SoundEvent> FOB_ALARM = register("fob_alarm");
 
+    /** Grace period start popup sting. */
+    public static final RegistryObject<SoundEvent> GRACE_START = register("grace_start");
+
     /** World-map Attack-this-unit confirm. */
     public static final RegistryObject<SoundEvent> ATTACK = register("attack");
 

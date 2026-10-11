@@ -211,6 +211,13 @@ public class TaczSewv {
     public void onEntityJoinLevel(EntityJoinLevelEvent event) {
         if (event.getLevel().isClientSide) return;
         if (event.getEntity() instanceof AbstractUnit unit) {
+            // Grace period: RU/US units baked into a Berezka structure never reach the level.
+            if (GracePeriodData.active(event.getLevel())
+                    && ModList.get().isLoaded(BerezkaStructureCompat.MODID)
+                    && BerezkaStructureCompat.refusesOnJoin(event.getLevel(), unit)) {
+                event.setCanceled(true);
+                return;
+            }
             // Prefer trench floors (TrenchPathTypes.TRENCH malus 0) over open ground.
             unit.setPathfindingMalus(BlockPathTypes.WALKABLE, TrenchPathTypes.OPEN_GROUND_MALUS);
             NpcSbwWeapon.issue(unit, event.loadedFromDisk());
@@ -219,9 +226,6 @@ public class TaczSewv {
             NpcNvg.issue(unit);
             if (unit instanceof PmcUnitEntity pmc) NpcIdentity.issue(pmc);
             SupportSpawner.maybeSpawnCompanions(unit);
-            if (GracePeriodData.active(unit.level()) && ModList.get().isLoaded(BerezkaStructureCompat.MODID)) {
-                BerezkaStructureCompat.purgeOnJoin((net.minecraft.server.level.ServerLevel) event.getLevel(), unit);
-            }
         } else if (event.getEntity() instanceof VehicleEntity hull) {
             CamoSupport.retrofitHull(hull);
         }

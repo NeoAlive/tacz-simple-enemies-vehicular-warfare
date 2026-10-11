@@ -8,12 +8,10 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.StructureManager;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
-import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
@@ -26,6 +24,7 @@ import org.berezka.berezka_api.events.onStructureSpawned;
 
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.grace.GracePeriodData;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 import com.neoalive.tacz_sewv.util.VehicleDrops;
@@ -54,42 +53,47 @@ public final class BerezkaStructureCompat {
         MinecraftForge.EVENT_BUS.register(BerezkaStructureCompat.class);
     }
 
-    private static final String TAG_GRACE_CHECKED = "sewv:grace_checked";
-    private static final ResourceLocation BEREZKA_STRUCTURE_TYPE =
-            new ResourceLocation(MODID, "berezka_structures_extra");
+    /** Grow each footprint a little: template entities can stand on a roof or just past a wall. */
+    private static final int GRACE_BOX_MARGIN = 4;
+    /** Footprints of Berezka structures generated during grace; their RU/US units are refused on join. */
+    private static final Queue<GraceBox> GRACE_BOXES = new ConcurrentLinkedQueue<>();
+
+    private record GraceBox(@Nullable ResourceKey<Level> dimension, BoundingBox box) {}
 
     /**
-     * Grace period: an RU/US unit baked into a Berezka structure template is removed. Template
-     * entities join with {@code loadedFromDisk == true} like any saved unit, so the structure lookup
-     * is what tells them apart; the tag makes each unit pay for it once. Deferred to end-of-tick
-     * because the join fires mid chunk promotion, where a structure-start read could re-enter chunk
-     * loading.
+     * Grace period: true for an RU/US unit inside a Berezka structure generated during grace, so
+     * the caller cancels its join. The footprint comes from {@link onStructureSpawned}, which berezka
+     * posts while the structure starts, before its template entities ever reach the level, so the
+     * join needs no world read (a structure lookup there runs mid chunk promotion).
      */
-    public static void purgeOnJoin(ServerLevel level, AbstractUnit unit) {
-        if (!(unit instanceof RUunitEntity || unit instanceof USunitEntity)) return;
-        if (unit.getPersistentData().getBoolean(TAG_GRACE_CHECKED)) return;
-        unit.getPersistentData().putBoolean(TAG_GRACE_CHECKED, true);
-        level.getServer().execute(() -> {
-            if (unit.isAlive() && inBerezkaStructure(level, unit.blockPosition())) unit.discard();
-        });
-    }
-
-    private static boolean inBerezkaStructure(ServerLevel level, BlockPos pos) {
-        StructureManager manager = level.structureManager();
-        for (Structure structure : manager.getAllStructuresAt(pos).keySet()) {
-            if (BEREZKA_STRUCTURE_TYPE.equals(BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type()))
-                    && manager.getStructureWithPieceAt(pos, structure).isValid()) {
-                return true;
-            }
+    public static boolean refusesOnJoin(Level level, AbstractUnit unit) {
+        if (!(unit instanceof RUunitEntity || unit instanceof USunitEntity)) return false;
+        BlockPos pos = unit.blockPosition();
+        for (GraceBox g : GRACE_BOXES) {
+            if ((g.dimension() == null || g.dimension() == level.dimension()) && g.box().isInside(pos)) return true;
         }
         return false;
     }
 
+    /** Grace is over: nothing generated from here on is purged. */
+    public static void clearGraceBoxes() {
+        GRACE_BOXES.clear();
+    }
+
+    private static void noteGraceBox(onStructureSpawned event, @Nullable ServerLevel level) {
+        if (level == null || !GracePeriodData.active(level)) return;
+        BoundingBox bounds = structureBounds(event.getPieces());
+        if (bounds == null && event.getBlockPos() != null) bounds = new BoundingBox(event.getBlockPos()).inflatedBy(48);
+        if (bounds == null) return;
+        GRACE_BOXES.add(new GraceBox(level.dimension(), bounds.inflatedBy(GRACE_BOX_MARGIN)));
+    }
+
     @SubscribeEvent
     public static void onStructureSpawned(onStructureSpawned event) {
+        ServerLevel level = API.getCurWorld();
+        noteGraceBox(event, level);
         if (!EasyMode.structureVehiclesEnabled()) return;
 
-        ServerLevel level = API.getCurWorld();
         if (level == null) {
             LOG.info("structure {} at {}: no current world, skipped", event.getStructureName(), event.getBlockPos());
             return;

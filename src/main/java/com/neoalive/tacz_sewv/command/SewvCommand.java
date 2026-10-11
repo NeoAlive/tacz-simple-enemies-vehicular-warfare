@@ -908,12 +908,11 @@ public class SewvCommand {
 
     private static int graceQuery(CommandSourceStack source) {
         GracePeriodData data = GracePeriodData.get(source.getServer());
-        long now = source.getServer().overworld().getGameTime();
         if (data == null || !GracePeriodData.active(source.getServer().overworld())) {
             source.sendSuccess(() -> Component.translatable("tacz_sewv.grace.query.inactive"), false);
         } else {
             source.sendSuccess(() -> Component.translatable("tacz_sewv.grace.query.active",
-                    data.daysLeft(now), data.ticksLeft(now)), false);
+                    data.daysLeft(), data.ticksLeft()), false);
         }
         return 1;
     }

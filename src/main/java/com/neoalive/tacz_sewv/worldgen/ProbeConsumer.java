@@ -101,7 +101,15 @@ public final class ProbeConsumer {
         for (BlockEntity be : new ArrayList<>(chunk.getBlockEntities().values())) {
             if (be instanceof SpawnProbeBlockEntity probe) {
                 if (job.isNew()) probe.markLive();
-                if (probe.isLive()) consume(level, probe);
+                if (probe.isLive()) {
+                    consume(level, probe);
+                } else if (GracePeriodData.active(level)
+                        && StructureLocator.ownershipAt(level, probe.getBlockPos()).identified()) {
+                    // Grace period: a probe inside a generated structure goes even when its chunk was
+                    // never flagged new, so no inert probe block is left standing where players see it.
+                    // Hand-placed authoring probes sit in no catalogued structure and are kept.
+                    level.removeBlock(probe.getBlockPos(), false);
+                }
             } else if (job.isNew() && be instanceof RandomizableContainerBlockEntity container) {
                 tidyChest(level, container);
             }

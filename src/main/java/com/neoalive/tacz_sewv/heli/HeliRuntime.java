@@ -224,7 +224,10 @@ public final class HeliRuntime {
     /** First contact: the entity's pose and SBW's engine flags become our state. */
     private void seatFull(VehicleEntity hull) {
         reseatPose(hull);
-        boolean running = hull.getEngineStartOver();
+        // SBW's engineStart/engineStartOver are plain fields, never saved: after a world reload every
+        // hull reads "engine off", and an airborne one would be seated as an engine-out and autorotate
+        // down. A fuelled hull already in the air can only have been flying, so seat it running.
+        boolean running = hull.getEngineStartOver() || (!hull.onGround() && hull.getEnergy() > 0);
         s.engine = running ? HeliState.Engine.RUN : HeliState.Engine.OFF;
         s.omega = running ? af.omegaN : 0.0;
         s.omegaTarget = s.omega;

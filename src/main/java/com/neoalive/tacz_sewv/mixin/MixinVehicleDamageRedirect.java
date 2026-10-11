@@ -28,8 +28,19 @@ import com.neoalive.tacz_sewv.util.vehiclemelee.VehicleFacts;
  * when {@code canMobsDamageVehicles} is on, so datapack {@code minecraft:mob_attack 0} immunities
  * no longer make hulls untouchable. Friendly-fire / {@code vehicle_immune} / bypass gates in
  * {@code hurt} still run first, upstream of this redirect.
+ *
+ * <p><b>Other mods redirect this same call</b> — Doggie's New Vehicle 1.1.39
+ * ({@code DnvVehicleArmorMixin}, {@code require = 1}) does, and two {@code @Redirect}s on one
+ * instruction is a hard Mixin error that takes the whole game down at load. So this one yields:
+ * on a redirect conflict Mixin keeps the HIGHER-priority redirector and skips the other, so
+ * {@code priority = 900} (below the default 1000) makes the other mod's redirect win
+ * deterministically, and {@code require = 0} lets this one then be skipped without crashing.
+ * (1100 was tried first and was backwards: it won, and DNV's {@code require = 1} crashed instead.) The cost is that ballistic translation and mob melee are inactive on such an
+ * install ({@code TaczSewv.commonSetup} logs it). The real fix is MixinExtras
+ * {@code @WrapOperation}, which chains with a foreign redirect instead of competing with it — it
+ * needs MixinExtras bundled via jarJar, which this build does not do yet.
  */
-@Mixin(VehicleEntity.class)
+@Mixin(value = VehicleEntity.class, priority = 900)
 public abstract class MixinVehicleDamageRedirect {
 
     // 0.8.9.1 passes the hurt hull as compute()'s first argument, so the redirect handler now
@@ -41,7 +52,8 @@ public abstract class MixinVehicleDamageRedirect {
                     target = "Lcom/atsuishio/superbwarfare/entity/vehicle/damage/DamageModifier;compute(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;F)F",
                     remap = false
             ),
-            remap = true
+            remap = true,
+            require = 0
     )
     private float tacz_sewv$redirectDamageCompute(DamageModifier modifier, net.minecraft.world.entity.Entity hurtEntity,
                                                   DamageSource source, float amount) {

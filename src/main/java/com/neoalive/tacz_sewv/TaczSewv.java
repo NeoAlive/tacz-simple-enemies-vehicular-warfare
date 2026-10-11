@@ -148,6 +148,12 @@ public class TaczSewv {
     // de.maxhenkel.corpse.*, and only after isLoaded().
     CorpseCompat.reportAvailability();
     com.neoalive.tacz_sewv.compat.NeoArmsCompat.bootstrap();
+    // MixinVehicleDamageRedirect yields the DamageModifier.compute call to DNV's own redirect
+    // (two @Redirects on one call is a load-time crash), so say what that turns off.
+    if (ModList.get().isLoaded("doggiesnewvehicle")) {
+        LOGGER.warn("[sewv] Doggie's New Vehicle owns SBW's vehicle damage hook - TaCZ ballistic "
+                + "translation and mob melee damage against vehicles are inactive on this install.");
+    }
     LOGGER.info("SEM<->SW vehicle bridge loading");
     }
 

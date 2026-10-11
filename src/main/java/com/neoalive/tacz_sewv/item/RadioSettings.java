@@ -3,27 +3,29 @@ package com.neoalive.tacz_sewv.item;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 
-/** Handheld-radio GUI state persisted on the item stack. */
+/**
+ * Handheld-radio GUI state persisted on the item stack. Entity vs grid designation is not a
+ * setting: the call's raycast decides it by what it hits ({@code RadioRaycast}).
+ */
 public final class RadioSettings {
 
     private static final String TAG = "sewv:radio";
 
+    private static final int DELAY_MIN = 20;
+    private static final int DELAY_MAX = 120;
+    private static final int DELAY_STEP = 10;
+
     private RadioSettings() {}
 
-    public record State(
-            RadioFrequency frequency,
-            boolean positionTarget,
-            int delaySeconds,
-            PlaneAttackMode planeMode) {
+    public record State(RadioFrequency frequency, int delaySeconds, PlaneAttackMode planeMode) {
 
         public static State defaults() {
-            return new State(RadioFrequency.MORTAR, false, 0, PlaneAttackMode.AUTO);
+            return new State(RadioFrequency.MORTAR, 0, PlaneAttackMode.AUTO);
         }
 
         public State withFrequency(RadioFrequency frequency) {
-            boolean position = frequency.supportsPositionTarget() && this.positionTarget;
             int delay = frequency.supportsDelay() ? this.delaySeconds : 0;
-            return new State(frequency, position, delay, this.planeMode);
+            return new State(frequency, delay, this.planeMode);
         }
     }
 
@@ -33,31 +35,30 @@ public final class RadioSettings {
         }
         CompoundTag tag = stack.getTag().getCompound(TAG);
         RadioFrequency frequency = RadioFrequency.values()[
-                MthClamp(tag.getInt("frequency"), 0, RadioFrequency.values().length - 1)];
-        boolean position = tag.getBoolean("position");
+                Math.max(0, Math.min(tag.getInt("frequency"), RadioFrequency.values().length - 1))];
         int delay = Math.max(0, tag.getInt("delay"));
         PlaneAttackMode planeMode = PlaneAttackMode.byOrdinal(tag.getInt("plane"));
-        return new State(frequency, position, delay, planeMode).withFrequency(frequency);
+        return new State(frequency, delay, planeMode).withFrequency(frequency);
     }
 
     public static void write(ItemStack stack, State state) {
-        CompoundTag root = stack.getOrCreateTag();
         CompoundTag tag = new CompoundTag();
         tag.putInt("frequency", state.frequency().ordinal());
-        tag.putBoolean("position", state.positionTarget());
         tag.putInt("delay", state.delaySeconds());
         tag.putInt("plane", state.planeMode().ordinal());
-        root.put(TAG, tag);
+        stack.getOrCreateTag().put(TAG, tag);
     }
 
-    /** Delay presets cycled by the GUI: OFF then 20–120 s in 10 s steps. */
+    /** Delay presets cycled by the panel button: OFF then 20–120 s in 10 s steps, wrapping. */
     public static int cycleDelay(int current) {
-        if (current <= 0) return 20;
-        if (current >= 120) return 0;
-        return current + 10;
+        return current >= DELAY_MAX ? 0 : stepDelay(current, 1);
     }
 
-    private static int MthClamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
+    /** One step along OFF, 20, 30 … 120 s, clamped at both ends (the wheel's Ctrl+scroll). */
+    public static int stepDelay(int current, int direction) {
+        if (direction > 0) {
+            return current <= 0 ? DELAY_MIN : Math.min(DELAY_MAX, current + DELAY_STEP);
+        }
+        return current <= DELAY_MIN ? 0 : current - DELAY_STEP;
     }
 }

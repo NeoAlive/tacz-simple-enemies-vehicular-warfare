@@ -182,6 +182,7 @@ public final class FireMissionSupport {
                 // faction-friendly toggles so a radio/utility call cannot put a friendly
                 // player/PMC onto an RU/US tube.
                 crew.setTarget(target);
+                ArtillerySupport.markDesignated(crew, target);
             }
         }
         return new Call(crews.size(), triggered);
@@ -226,8 +227,8 @@ public final class FireMissionSupport {
         int ordered = 0;
         if (posTarget != null) {
             for (SupportCrew support : crews) {
-                // Mortars and CAS both take a standing grid mark; TOW/artillery need a live lock.
-                if (support.kind != Kind.MORTAR && support.kind != Kind.CAS) continue;
+                // Mortars, artillery and CAS take a standing grid mark; a TOW needs a live lock.
+                if (support.kind == Kind.TOW) continue;
                 if (!(support.unit instanceof IMortarCrew crew)) continue;
                 triggered.add(support.kind);
                 ordered++;
@@ -253,6 +254,7 @@ public final class FireMissionSupport {
                     ordered++;
                 } else if (VehicleTargeting.mayAssignTarget(crew, entityTarget)) {
                     crew.setTarget(entityTarget);
+                    ArtillerySupport.markDesignated(crew, entityTarget);
                     ordered++;
                 }
             }

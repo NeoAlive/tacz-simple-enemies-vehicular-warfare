@@ -96,6 +96,24 @@ public class HandheldRadioItem extends Item {
         return false;
     }
 
+    /**
+     * The radio a player carries anywhere in their inventory — hands first, so the stack the
+     * panel was opened from is the one its settings land on. EMPTY when none.
+     */
+    public static ItemStack findCarried(Player player) {
+        if (player.getMainHandItem().is(ModItems.HANDHELD_RADIO.get())) return player.getMainHandItem();
+        if (player.getOffhandItem().is(ModItems.HANDHELD_RADIO.get())) return player.getOffhandItem();
+        for (ItemStack stack : player.getInventory().items) {
+            if (stack.is(ModItems.HANDHELD_RADIO.get())) return stack;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    /** May this player call support at all: a radio somewhere on them, or creative mode. */
+    public static boolean canCall(Player player) {
+        return player.isCreative() || !findCarried(player).isEmpty();
+    }
+
     /** Calls every crew in range off their fire mission. */
     private static void standDown(Player player) {
         int released = FireMissionSupport.standDown(

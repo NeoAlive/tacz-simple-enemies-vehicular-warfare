@@ -319,6 +319,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue MORTAR_REQUIRES_AMMO;
     public static final ForgeConfigSpec.BooleanValue MORTAR_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue ARTILLERY_CHUNK_LOADING;
+    public static final ForgeConfigSpec.DoubleValue ARTILLERY_AIM_TOLERANCE_DEG;
+    public static final ForgeConfigSpec.BooleanValue ARTILLERY_REDUCED_CHARGE;
+    public static final ForgeConfigSpec.DoubleValue ARTILLERY_ARC_ELEVATION_DEG;
     public static final ForgeConfigSpec.DoubleValue MORTAR_RADIO_RANGE;
 
     public static final ForgeConfigSpec.BooleanValue VEHICLE_VOICELINES_ENABLED;
@@ -1353,6 +1356,16 @@ public final class SewvConfig {
         ARTILLERY_CHUNK_LOADING = builder.comment(
                         "Keep crewed artillery vehicles loaded during long-range fire missions.")
                 .define("artilleryChunkLoading", true);
+        ARTILLERY_AIM_TOLERANCE_DEG = builder.comment(
+                        "How close (degrees) an AI artillery barrel must be to the firing solution before it fires.")
+                .defineInRange("artilleryAimToleranceDeg", 3.0, 0.5, 15.0);
+        ARTILLERY_REDUCED_CHARGE = builder.comment(
+                        "AI artillery fires a reduced charge so the shell lobs at artilleryArcElevationDeg",
+                        "instead of flying flat at full charge. Player gunners always use the full charge.")
+                .define("artilleryReducedCharge", true);
+        ARTILLERY_ARC_ELEVATION_DEG = builder.comment(
+                        "Preferred barrel elevation (degrees) for AI reduced-charge fire, clamped to each gun's limits.")
+                .defineInRange("artilleryArcElevationDeg", 45.0, 10.0, 85.0);
         MORTAR_RADIO_RANGE = builder.comment(
                         "How far (blocks) radios can designate targets and find support crews.",
                         "Needs to be long enough for mortar range (raise toward ~2000 for the longest guns).")

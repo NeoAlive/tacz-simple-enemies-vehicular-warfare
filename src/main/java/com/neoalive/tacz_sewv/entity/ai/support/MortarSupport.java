@@ -1,12 +1,9 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
-import java.util.List;
-
 import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.utils.VehicleVecUtils;
 import com.atsuishio.superbwarfare.init.ModItems;
 import com.atsuishio.superbwarfare.item.projectile.MortarShellItem;
-import com.atsuishio.superbwarfare.tools.TrajectoryCalculator;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -103,11 +100,13 @@ public final class MortarSupport {
         // first — that's the mortar arc, and the shallow one is under the turret's
         // elevation floor at all but extreme range. Taking the first that fits avoids
         // having to name either.
-        List<Vec3> solutions = TrajectoryCalculator.INSTANCE.calculateShootVectors(
-                mortar.getEyePosition(), aimPos.add(0.0, -1.0, 0.0),
+        Vec3 eye = mortar.getEyePosition();
+        Vec3 to = aimPos.add(0.0, -1.0, 0.0);
+        double[][] solutions = BallisticArc.roots(to.x - eye.x, to.y - eye.y, to.z - eye.z,
                 mortar.getProjectileVelocity(WEAPON), mortar.getProjectileGravity(WEAPON));
 
-        for (Vec3 launch : solutions) {
+        for (double[] r : solutions) {
+            Vec3 launch = new Vec3(r[0], r[1], r[2]);
             // getXRotFromVector is atan2(y, horizontal): positive is up, the opposite of
             // vanilla xRot. Negating puts it in the same space as TurretPitchRange.
             float pitch = (float) -VehicleVecUtils.getXRotFromVector(launch);

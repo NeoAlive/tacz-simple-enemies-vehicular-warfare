@@ -66,7 +66,13 @@ public final class OrderQueueClient {
                  QuickCommandRegistry.ID_PLATOON_AUTO_ORDERS,
                  QuickCommandRegistry.ID_REVIVE_CALL,
                  QuickCommandRegistry.ID_RAPPEL_SELF,
-                 QuickCommandRegistry.ID_RAPPEL_CREW -> false;
+                 QuickCommandRegistry.ID_RAPPEL_CREW,
+                 // A crosshair shot fired now; replaying it later would aim wherever the view went.
+                 QuickCommandRegistry.ID_SUPPORT_CARPET_BOMB,
+                 QuickCommandRegistry.ID_SUPPORT_AGM,
+                 QuickCommandRegistry.ID_SUPPORT_CANNON,
+                 QuickCommandRegistry.ID_SUPPORT_ARTILLERY,
+                 QuickCommandRegistry.ID_SUPPORT_MORTAR -> false;
             default -> mode;
         };
     }

@@ -10,12 +10,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
@@ -37,7 +34,6 @@ import com.neoalive.tacz_sewv.client.skin.VehicleSkinClient;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModItems;
-import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.RadioSettings;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketEntrench;
@@ -82,15 +78,6 @@ public class ClientEvents {
     // confirms (≥1) or cancels (empty). Armed from the ribbon — no units needed up front.
     private static boolean pendingLiveSelection = false;
 
-    // Handheld radio designation: same arm→click→confirm shape as Live Selection / Guard.
-    // Entity mode keeps at most one designatable id; position mode left-clicks a block.
-    private static boolean pendingRadioEntity = false;
-    private static boolean pendingRadioPosition = false;
-    @Nullable
-    private static RadioSettings.State pendingRadioSettings = null;
-    private static int pendingRadioEntityId = -1;
-    private static final double RADIO_PICK_RANGE = 256.0;
-
     // Join Platoon pick: same arm pattern as escort, but the target is a PmcCommanderEntity —
     // SEM's own CommanderRayTrace deliberately skips PMCs, so this needs its own raycast.
     private static boolean pendingJoinPlatoon = false;
@@ -109,7 +96,6 @@ public class ClientEvents {
         clearGuard();
         clearEntrench();
         clearLiveSelection();
-        clearRadioPick();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.escort.no_units");
@@ -126,7 +112,6 @@ public class ClientEvents {
         clearGuard();
         clearEntrench();
         clearLiveSelection();
-        clearRadioPick();
         clearJoinPlatoon();
         pendingTow = true;
         pendingTowPhase = TowPickPhase.VICTIM;
@@ -142,7 +127,6 @@ public class ClientEvents {
         clearEscort();
         clearEntrench();
         clearLiveSelection();
-        clearRadioPick();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.guard.no_units");
@@ -161,7 +145,6 @@ public class ClientEvents {
         clearEscort();
         clearGuard();
         clearLiveSelection();
-        clearRadioPick();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.entrench.no_units");
@@ -178,49 +161,20 @@ public class ClientEvents {
         clearEscort();
         clearGuard();
         clearEntrench();
-        clearRadioPick();
         pendingLiveSelection = true;
         promptCooldown = 0;
     }
 
     /**
-     * Arm radio ENTITY designation. Left-click selects exactly one designatable living entity
-     * (replaces any prior pick); right-click confirms the call or cancels if none selected.
+     * Calls a radio fire mission at the crosshair, right now. The client sends only its view; the
+     * server raycasts it ({@code RadioRaycast}) and what it hits — entity or block — picks the
+     * mission. Shared by the radio panel's CALL and the quick wheel's Support leaves.
      */
-    public static void armRadioEntity(RadioSettings.State settings) {
-        clearTow();
-        clearEscort();
-        clearGuard();
-        clearEntrench();
-        clearLiveSelection();
-        clearRadioPick();
-        pendingRadioEntity = true;
-        pendingRadioSettings = settings;
-        pendingRadioEntityId = -1;
-        promptCooldown = 0;
-    }
-
-    /**
-     * Arm radio POSITION designation. Left-click a block to call; right-click cancels.
-     */
-    public static void armRadioPosition(RadioSettings.State settings) {
-        clearTow();
-        clearEscort();
-        clearGuard();
-        clearEntrench();
-        clearLiveSelection();
-        clearRadioPick();
-        pendingRadioPosition = true;
-        pendingRadioSettings = settings;
-        promptCooldown = 0;
-    }
-
-    public static void clearRadioPick() {
-        pendingRadioEntity = false;
-        pendingRadioPosition = false;
-        pendingRadioSettings = null;
-        pendingRadioEntityId = -1;
-        promptCooldown = 0;
+    public static void callRadio(RadioSettings.State settings) {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+        NetworkHandler.CHANNEL.sendToServer(
+                new PacketRadioCommand(settings, player.getYRot(), player.getXRot()));
     }
 
     /**
@@ -235,7 +189,6 @@ public class ClientEvents {
         clearGuard();
         clearEntrench();
         clearLiveSelection();
-        clearRadioPick();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.platoon.no_units");
@@ -258,16 +211,6 @@ public class ClientEvents {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
-        if (pendingRadioEntity || pendingRadioPosition) {
-            if (event.isAttack()) {
-                radioPickClick(mc);
-                event.setCanceled(true);
-            } else if (event.isUseItem()) {
-                finishRadioPick();
-                event.setCanceled(true);
-            }
-            return;
-        }
 
         if (pendingLiveSelection) {
             if (event.isAttack()) {
@@ -390,7 +333,7 @@ public class ClientEvents {
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         if (!pendingEscort && !pendingTow && !pendingGuard && !pendingEntrench && !pendingLiveSelection
-                && !pendingRadioEntity && !pendingRadioPosition && !pendingJoinPlatoon) {
+                && !pendingJoinPlatoon) {
             return;
         }
 
@@ -402,7 +345,6 @@ public class ClientEvents {
                 clearGuard();
                 clearEntrench();
                 clearLiveSelection();
-                clearRadioPick();
                 clearJoinPlatoon();
             }
             return;
@@ -420,11 +362,7 @@ public class ClientEvents {
 
         if (--promptCooldown <= 0) {
             promptCooldown = PROMPT_REFRESH_TICKS;
-            if (pendingRadioEntity) {
-                hintRadioEntity();
-            } else if (pendingRadioPosition) {
-                hint("message.tacz_sewv.radio.pick_position");
-            } else if (pendingLiveSelection) {
+            if (pendingLiveSelection) {
                 hintLive();
             } else if (pendingEscort) {
                 hint("message.tacz_sewv.escort.select");
@@ -444,10 +382,6 @@ public class ClientEvents {
 
     private static void confirmPendingAttack(Minecraft mc) {
         if (mc.player == null) return;
-        if (pendingRadioEntity || pendingRadioPosition) {
-            radioPickClick(mc);
-            return;
-        }
         if (pendingLiveSelection) {
             liveSelectClick(mc);
             return;
@@ -493,9 +427,7 @@ public class ClientEvents {
     }
 
     private static void cancelPending() {
-        if (pendingRadioEntity || pendingRadioPosition) {
-            finishRadioPick();
-        } else if (pendingLiveSelection) {
+        if (pendingLiveSelection) {
             finishLiveSelection();
         } else if (pendingEscort) {
             clearEscort();
@@ -548,85 +480,6 @@ public class ClientEvents {
             }
         }
         return best;
-    }
-
-    private static void radioPickClick(Minecraft mc) {
-        if (mc.player == null || pendingRadioSettings == null) return;
-        if (pendingRadioPosition) {
-            HitResult hit = mc.player.pick(RADIO_PICK_RANGE, 0.0F, false);
-            if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
-                RadioSettings.State settings = pendingRadioSettings;
-                clearRadioPick();
-                NetworkHandler.CHANNEL.sendToServer(new PacketRadioCommand(settings, -1, bhr.getBlockPos()));
-            } else {
-                hint("message.tacz_sewv.radio.no_position");
-            }
-            return;
-        }
-
-        LivingEntity target = pickRadioEntity(mc.player);
-        if (target == null) {
-            hint("message.tacz_sewv.radio.no_target");
-            return;
-        }
-        // Single-select: replace any prior pick (never accumulate).
-        pendingRadioEntityId = target.getId();
-        promptCooldown = 0;
-        Player player = mc.player;
-        player.displayClientMessage(
-                Component.translatable("message.tacz_sewv.radio.entity_selected", target.getDisplayName())
-                        .withStyle(ChatFormatting.GREEN), true);
-    }
-
-    private static void finishRadioPick() {
-        if (pendingRadioPosition) {
-            clearRadioPick();
-            hint("message.tacz_sewv.radio.pick_cancelled");
-            return;
-        }
-        if (!pendingRadioEntity) return;
-        if (pendingRadioEntityId < 0 || pendingRadioSettings == null) {
-            clearRadioPick();
-            hint("message.tacz_sewv.radio.pick_cancelled");
-            return;
-        }
-        RadioSettings.State settings = pendingRadioSettings;
-        int entityId = pendingRadioEntityId;
-        clearRadioPick();
-        NetworkHandler.CHANNEL.sendToServer(new PacketRadioCommand(settings, entityId, null));
-    }
-
-    /**
-     * A hit on a bare hull resolves to one of its living crew — see
-     * {@link HandheldRadioItem#representativeCrew} — so aiming at the vehicle itself designates it,
-     * not just whichever crew hitbox happens to be reachable (often none, behind a hidden seat).
-     */
-    @Nullable
-    private static LivingEntity pickRadioEntity(Player player) {
-        Vec3 eye = player.getEyePosition();
-        Vec3 reach = player.getViewVector(1.0F).scale(RADIO_PICK_RANGE);
-        Vec3 end = eye.add(reach);
-        AABB search = player.getBoundingBox().expandTowards(reach).inflate(1.0);
-        EntityHitResult hit = ProjectileUtil.getEntityHitResult(
-                player, eye, end, search, HandheldRadioItem::isDesignatable, RADIO_PICK_RANGE * RADIO_PICK_RANGE);
-        if (hit == null) return null;
-        Entity entity = hit.getEntity();
-        if (entity instanceof VehicleEntity hull) return HandheldRadioItem.representativeCrew(hull);
-        return entity instanceof LivingEntity living ? living : null;
-    }
-
-    private static void hintRadioEntity() {
-        Player player = Minecraft.getInstance().player;
-        if (player == null) return;
-        if (pendingRadioEntityId < 0) {
-            hint("message.tacz_sewv.radio.pick_entity");
-            return;
-        }
-        Entity entity = player.level().getEntity(pendingRadioEntityId);
-        Component name = entity != null ? entity.getDisplayName() : Component.literal("?");
-        player.displayClientMessage(
-                Component.translatable("message.tacz_sewv.radio.entity_armed", name)
-                        .withStyle(ChatFormatting.GRAY), true);
     }
 
     private static void liveSelectClick(Minecraft mc) {
@@ -780,6 +633,16 @@ public class ClientEvents {
         promptCooldown = 0;
     }
 
+    /** SBW's projectile chunk loading is the usual cause of extreme lag; tell players the fix on join. */
+    @SubscribeEvent
+    public static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        if (!com.neoalive.tacz_sewv.config.ClientConfig.flag(com.neoalive.tacz_sewv.config.ClientConfig.SHOW_LAG_TIP)) {
+            return;
+        }
+        event.getPlayer().displayClientMessage(
+                Component.translatable("message.tacz_sewv.lag_tip").withStyle(ChatFormatting.GOLD), false);
+    }
+
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         MapMarkers.clear();
@@ -797,7 +660,6 @@ public class ClientEvents {
         clearGuard();
         clearEntrench();
         clearLiveSelection();
-        clearRadioPick();
         clearJoinPlatoon();
     }
 

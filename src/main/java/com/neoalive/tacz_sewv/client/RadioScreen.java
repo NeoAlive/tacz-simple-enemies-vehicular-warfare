@@ -10,12 +10,11 @@ import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModSounds;
+import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.item.RadioFrequency;
 import com.neoalive.tacz_sewv.item.RadioSettings;
@@ -24,9 +23,8 @@ import com.neoalive.tacz_sewv.item.RadioSettings;
  * Compact forward-observer panel for the handheld radio — same C2 palette and section colouring
  * as {@link TdtScreen}, smaller footprint, no world dim.
  *
- * <p>CALL MISSION does not designate from the crosshair while the screen is open: it closes and
- * arms the same in-world pick pattern as TDT Live Selection / Move-To ({@link ClientEvents}), so
- * mouse input never fights the panel.
+ * <p>CALL closes the panel and calls at the crosshair ({@link ClientEvents#callRadio}); the server
+ * raycast decides entity vs grid mission by what it hits.
  */
 public class RadioScreen extends Screen {
 
@@ -54,7 +52,7 @@ public class RadioScreen extends Screen {
     private static final int STRIPE_ACTION = 0x4D8FAA6B; // CREW green — commit
 
     private enum Action {
-        CYCLE_FREQ, TOGGLE_TARGET, CYCLE_DELAY, SET_PLANE, CANCEL, CALL
+        CYCLE_FREQ, CYCLE_DELAY, SET_PLANE, CANCEL, CALL
     }
 
     private record Btn(Action action, String label, int x, int y, int w, int h,
@@ -78,9 +76,8 @@ public class RadioScreen extends Screen {
     public static void open(@Nullable LivingEntity ignoredPrefill) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
-        ItemStack stack = findRadio(mc.player);
+        ItemStack stack = HandheldRadioItem.findCarried(mc.player);
         if (stack.isEmpty()) return;
-        ClientEvents.clearRadioPick();
         RadioScreen screen = new RadioScreen();
         screen.settings = RadioSettings.read(stack);
         mc.setScreen(screen);
@@ -97,7 +94,6 @@ public class RadioScreen extends Screen {
 
         this.panelW = com.neoalive.tacz_sewv.client.gui.GuiFit.panelW(PANEL_W_PREF, this.width);
         int innerW = this.panelW - PAD * 2;
-        int halfW = (innerW - CELL_GAP) / 2;
         int x0 = PAD;
         int y = PAD + 14; // below title
 
@@ -112,25 +108,17 @@ public class RadioScreen extends Screen {
         this.sections.add(new Section(STRIPE_FREQ, secTop, y - CELL_GAP, "gui.tacz_sewv.radio.section.frequency"));
         y += SECTION_GAP;
 
-        // --- TARGET / DELAY ---
+        // --- DELAY ---
         secTop = y;
         y += HEADER_H;
-        boolean position = this.settings.positionTarget();
-        boolean canPosition = this.settings.frequency().supportsPositionTarget();
-        String targetLabel = I18n.get(position
-                ? "gui.tacz_sewv.radio.target_mode_position"
-                : "gui.tacz_sewv.radio.target_mode_entity");
-        this.buttons.add(new Btn(Action.TOGGLE_TARGET, targetLabel,
-                x0, y, halfW, CELL_H, canPosition || !position, position, null));
-
         boolean canDelay = this.settings.frequency().supportsDelay();
         String delayLabel = !canDelay || this.settings.delaySeconds() <= 0
                 ? I18n.get("gui.tacz_sewv.radio.delay_off")
                 : I18n.get("gui.tacz_sewv.radio.delay_seconds", this.settings.delaySeconds());
         this.buttons.add(new Btn(Action.CYCLE_DELAY, delayLabel,
-                x0 + halfW + CELL_GAP, y, halfW, CELL_H, canDelay, this.settings.delaySeconds() > 0, null));
+                x0, y, innerW, CELL_H, canDelay, this.settings.delaySeconds() > 0, null));
         y += CELL_H + CELL_GAP;
-        this.sections.add(new Section(STRIPE_TARGET, secTop, y - CELL_GAP, "gui.tacz_sewv.radio.section.target"));
+        this.sections.add(new Section(STRIPE_TARGET, secTop, y - CELL_GAP, "gui.tacz_sewv.radio.delay"));
         y += SECTION_GAP;
 
         // --- PLANE MODE (AIR only) ---
@@ -262,17 +250,9 @@ public class RadioScreen extends Screen {
                 persist();
                 rebuildLayout();
             }
-            case TOGGLE_TARGET -> {
-                if (!this.settings.frequency().supportsPositionTarget()) return;
-                this.settings = new RadioSettings.State(
-                        this.settings.frequency(), !this.settings.positionTarget(),
-                        this.settings.delaySeconds(), this.settings.planeMode());
-                persist();
-                rebuildLayout();
-            }
             case CYCLE_DELAY -> {
                 this.settings = new RadioSettings.State(
-                        this.settings.frequency(), this.settings.positionTarget(),
+                        this.settings.frequency(),
                         RadioSettings.cycleDelay(this.settings.delaySeconds()), this.settings.planeMode());
                 persist();
                 rebuildLayout();
@@ -280,8 +260,7 @@ public class RadioScreen extends Screen {
             case SET_PLANE -> {
                 if (btn.planeMode() == null) return;
                 this.settings = new RadioSettings.State(
-                        this.settings.frequency(), this.settings.positionTarget(),
-                        this.settings.delaySeconds(), btn.planeMode());
+                        this.settings.frequency(), this.settings.delaySeconds(), btn.planeMode());
                 persist();
                 rebuildLayout();
             }
@@ -293,33 +272,18 @@ public class RadioScreen extends Screen {
     private void armCall() {
         Minecraft mc = this.minecraft;
         if (mc == null || mc.player == null) return;
-        ItemStack stack = findRadio(mc.player);
-        if (!stack.isEmpty()) {
-            RadioSettings.write(stack, this.settings);
-        }
+        persist();
         onClose();
-        if (this.settings.positionTarget()) {
-            ClientEvents.armRadioPosition(this.settings);
-        } else {
-            ClientEvents.armRadioEntity(this.settings);
-        }
+        ClientEvents.callRadio(this.settings);
     }
 
     private void persist() {
         Minecraft mc = this.minecraft;
         if (mc == null || mc.player == null) return;
-        ItemStack stack = findRadio(mc.player);
+        ItemStack stack = HandheldRadioItem.findCarried(mc.player);
         if (!stack.isEmpty()) {
             RadioSettings.write(stack, this.settings);
         }
-    }
-
-    private static ItemStack findRadio(Player player) {
-        ItemStack main = player.getMainHandItem();
-        if (main.is(ModItems.HANDHELD_RADIO.get())) return main;
-        ItemStack off = player.getOffhandItem();
-        if (off.is(ModItems.HANDHELD_RADIO.get())) return off;
-        return ItemStack.EMPTY;
     }
 
     private static void clickSound() {

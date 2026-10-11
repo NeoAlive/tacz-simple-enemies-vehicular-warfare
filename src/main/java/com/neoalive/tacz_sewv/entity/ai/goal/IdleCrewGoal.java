@@ -9,6 +9,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 
 /**
@@ -42,6 +43,8 @@ public class IdleCrewGoal extends Goal {
         if (!(this.unit.getVehicle() instanceof VehicleEntity v) || v.isWreck()) return false;
         if (this.unit.getTarget() != null) return false;
         if (v.getFirstPassenger() != this.unit && !isTurretController(v)) return false;
+        // One turret writer: while the gun is being laid, MixinVehicleMissileAim owns it.
+        if (ArtillerySupport.isLaying(v)) return false;
         this.vehicle = v;
         return true;
     }
@@ -51,7 +54,8 @@ public class IdleCrewGoal extends Goal {
         return this.vehicle != null
                 && this.unit.getVehicle() == this.vehicle
                 && !this.vehicle.isWreck()
-                && this.unit.getTarget() == null;
+                && this.unit.getTarget() == null
+                && !ArtillerySupport.isLaying(this.vehicle);
     }
 
     @Override
@@ -93,8 +97,14 @@ public class IdleCrewGoal extends Goal {
         }
     }
 
+    /** Hull id → game time of the last sweep write. Only filled while {@code /sewv debug artillery} is on. */
+    public static final java.util.Map<Integer, Long> DEBUG_LAST_SWEEP = new java.util.concurrent.ConcurrentHashMap<>();
+
     private void sweepTurret(long now) {
         if (!this.vehicle.hasTurret() || !isTurretController(this.vehicle)) return;
+        if (ArtillerySupport.debug) {
+            DEBUG_LAST_SWEEP.put(this.vehicle.getId(), now);
+        }
 
         Facts facts = null;
         if (this.vehicle.getFirstPassenger() instanceof AbstractUnit driver) {

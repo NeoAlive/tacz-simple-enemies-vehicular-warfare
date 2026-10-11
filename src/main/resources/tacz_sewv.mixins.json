@@ -26,6 +26,8 @@
     "MixinVehicleEngineMobility",
     "MixinAiAimSpread",
     "MixinVehicleMissileAim",
+    "MixinArtilleryShootVec",
+    "MixinArtilleryReducedCharge",
     "MixinSeekingWeaponWarning",
     "MixinMissileWarningDecoy",
     "MixinLevelAwarenessSound",

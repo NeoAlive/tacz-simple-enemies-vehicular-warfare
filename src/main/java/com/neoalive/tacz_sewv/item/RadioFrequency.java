@@ -27,12 +27,12 @@ public enum RadioFrequency {
     }
 
     /**
-     * Grid designation rather than a live entity. Mortars shell the mark; aircraft bomb it
-     * ({@link com.neoalive.tacz_sewv.bridge.FireMission} on the pilot). TOW / artillery stay
-     * entity-only — they need a lock, not a grid square.
+     * Grid designation rather than a live entity. Mortars and artillery shell the mark, aircraft
+     * bomb it ({@link com.neoalive.tacz_sewv.bridge.FireMission} on the crew). TOW stays
+     * entity-only — a wire-guided missile needs a lock, not a grid square.
      */
     public boolean supportsPositionTarget() {
-        return this == MORTAR || this == AIR;
+        return this != TOW;
     }
 
     /**

@@ -14,13 +14,13 @@ import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
 
 /**
- * Lays and fires an artillery-class hull ({@link ArtilleryEntity}) on a fire-mission / radio
- * designation. Does not free-fight: without an aimpoint this goal is idle.
+ * Fires an artillery-class hull ({@link ArtilleryEntity}) on a fire-mission / radio designation,
+ * once the real barrel is within {@code artilleryAimToleranceDeg} of the solution. It does not lay
+ * the gun — {@code MixinArtilleryShootVec} + {@code MixinVehicleMissileAim} do — and it does not
+ * free-fight: without an aimpoint this goal is idle.
  */
 public class ManArtilleryGoal extends Goal {
 
-    private static final String WEAPON = "Main";
-    private static final float AIM_TOLERANCE_DEG = 3.0F;
     private static final int CHUNK_REFRESH_TICKS = 60;
     private static final int SHOT_COOLDOWN_TICKS = 40;
 
@@ -68,20 +68,38 @@ public class ManArtilleryGoal extends Goal {
         Vec3 aim = ArtillerySupport.aimpoint(this.unit);
         if (aim == null) return;
 
+        // Re-solved every tick from the live aimpoint; the mixins lay the gun off the same solve.
+        // The gate is the REAL barrel, never shootVec (which is just the demand).
         LivingEntity shooter = this.unit;
-        Vec3 launch = ArtillerySupport.solveAndLay(hull, shooter, aim);
-        if (launch == null) return;
-        if (ArtillerySupport.aimErrorDeg(hull, launch) > AIM_TOLERANCE_DEG) return;
+        Vec3 launch = ArtillerySupport.solve(hull, shooter, aim);
+        if (launch == null) {
+            ArtillerySupport.debugLine(hull, this.unit, aim, null, "N:nosolution");
+            return;
+        }
+        double tolerance = SewvConfig.ARTILLERY_AIM_TOLERANCE_DEG.get();
+        if (ArtillerySupport.angleDeg(hull.getBarrelVector(1.0F), launch) > tolerance) {
+            ArtillerySupport.debugLine(hull, this.unit, aim, launch, "N:aim");
+            return;
+        }
 
         long now = this.unit.level().getGameTime();
-        if (now < this.nextShotTime) return;
+        if (now < this.nextShotTime) {
+            ArtillerySupport.debugLine(hull, this.unit, aim, launch, "N:cooldown");
+            return;
+        }
 
         try {
-            if (!hull.canShoot(shooter)) return;
-            hull.vehicleShoot(shooter, WEAPON, launch);
+            if (!hull.canShoot(shooter)) {
+                ArtillerySupport.debugLine(hull, this.unit, aim, launch, "N:canShoot");
+                return;
+            }
+            // Third argument is a target POSITION (missile guidance), not a direction.
+            hull.vehicleShoot(shooter, ArtillerySupport.weaponOf(hull, shooter), aim);
             this.nextShotTime = now + SHOT_COOLDOWN_TICKS;
+            ArtillerySupport.debugLine(hull, this.unit, aim, launch, "Y");
         } catch (Throwable ignored) {
             // Gun/ammo path unavailable — wait and retry.
+            ArtillerySupport.debugLine(hull, this.unit, aim, launch, "N:error");
         }
     }
 

@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import com.atsuishio.superbwarfare.entity.vehicle.base.ArtilleryEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.tools.EntityFindUtil;
 import net.minecraft.world.entity.Entity;
@@ -12,7 +13,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleMissileAim;
+import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
 
 /**
@@ -50,6 +53,16 @@ public abstract class MixinVehicleMissileAim {
 
         if (FcpMortarCompat.isMortarHull(vehicle)) {
             tacz_sewv$aimFcpMortar(vehicle, controller, targetUuid);
+            ci.cancel();
+            return;
+        }
+
+        // Artillery: the turret follows shootVec, which MixinArtilleryShootVec owns. Server only while
+        // laying (otherwise SBW's aim / the idle sweep is the writer); the client always, because
+        // there shootVec is the server's lay or the server's barrel, synced.
+        if (vehicle instanceof ArtilleryEntity artillery && HullFacts.isArtilleryHull(vehicle)
+                && (vehicle.level().isClientSide() || ArtillerySupport.isLaying(vehicle))) {
+            vehicle.turretAutoAimFromVector(new Vec3(artillery.getShootVec()));
             ci.cancel();
             return;
         }

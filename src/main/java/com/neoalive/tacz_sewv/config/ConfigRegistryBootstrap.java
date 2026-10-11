@@ -85,6 +85,8 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.NOTIFICATION_MAX_VISIBLE, ClientConfig.NOTIFICATION_MAX_VISIBLE::set);
         b.bool(ConfigScope.CLIENT, "overlay", "helmetGrayscale",
                 ClientConfig.HELMET_GRAYSCALE, ClientConfig.HELMET_GRAYSCALE::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "showLagTip",
+                ClientConfig.SHOW_LAG_TIP, ClientConfig.SHOW_LAG_TIP::set);
 
         b.bool(ConfigScope.CLIENT, "map", "mapMarkersEnabled",
                 ClientConfig.MAP_MARKERS_ENABLED, ClientConfig.MAP_MARKERS_ENABLED::set);
@@ -809,6 +811,12 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.MORTAR_CHUNK_LOADING, SewvConfig.MORTAR_CHUNK_LOADING::set);
         b.bool(ConfigScope.SERVER, "indirect_fire", "artilleryChunkLoading",
                 SewvConfig.ARTILLERY_CHUNK_LOADING, SewvConfig.ARTILLERY_CHUNK_LOADING::set);
+        b.doubleRange(ConfigScope.SERVER, "indirect_fire", "artilleryAimToleranceDeg", 0.5, 15.0,
+                SewvConfig.ARTILLERY_AIM_TOLERANCE_DEG, SewvConfig.ARTILLERY_AIM_TOLERANCE_DEG::set);
+        b.bool(ConfigScope.SERVER, "indirect_fire", "artilleryReducedCharge",
+                SewvConfig.ARTILLERY_REDUCED_CHARGE, SewvConfig.ARTILLERY_REDUCED_CHARGE::set);
+        b.doubleRange(ConfigScope.SERVER, "indirect_fire", "artilleryArcElevationDeg", 10.0, 85.0,
+                SewvConfig.ARTILLERY_ARC_ELEVATION_DEG, SewvConfig.ARTILLERY_ARC_ELEVATION_DEG::set);
         b.doubleRange(ConfigScope.SERVER, "indirect_fire", "mortarRadioRange", 16.0, 2048.0,
                 SewvConfig.MORTAR_RADIO_RANGE, SewvConfig.MORTAR_RADIO_RANGE::set);
     }

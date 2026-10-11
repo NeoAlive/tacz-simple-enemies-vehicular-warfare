@@ -12,6 +12,9 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import com.neoalive.tacz_sewv.client.radial.WedgeEntry;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.item.PlaneAttackMode;
+import com.neoalive.tacz_sewv.item.RadioFrequency;
+import com.neoalive.tacz_sewv.item.RadioSettings;
 
 /**
  * Static registry of quick-command pipelines and the root wedge tree the wheel opens on.
@@ -49,6 +52,22 @@ public final class QuickCommandRegistry {
     public static final String ID_FORM_LINE = "form_line";
     public static final String ID_FORM_ECHELON_LEFT = "form_echelon_left";
     public static final String ID_FORM_ECHELON_RIGHT = "form_echelon_right";
+    public static final String ID_SUPPORT_CARPET_BOMB = "support_carpet_bomb";
+    public static final String ID_SUPPORT_AGM = "support_agm";
+    public static final String ID_SUPPORT_CANNON = "support_cannon";
+    public static final String ID_SUPPORT_ARTILLERY = "support_artillery";
+    public static final String ID_SUPPORT_MORTAR = "support_mortar";
+
+    /** Handheld-radio fire missions. Signal orange; every aircraft order shares the airplane glyph. */
+    public static final int SUPPORT_ACCENT = 0xF08A24;
+    private static final String AIR_GLYPH = "\u2708";
+    public static final WedgeEntry.CategoryEntry SUPPORT_CATEGORY = new WedgeEntry.CategoryEntry(
+            "Support", "\u260E", SUPPORT_ACCENT, List.of(
+                    new WedgeEntry.PipelineEntry("Carpet Bomb", AIR_GLYPH, ID_SUPPORT_CARPET_BOMB, SUPPORT_ACCENT),
+                    new WedgeEntry.PipelineEntry("Anti Ground Missile", AIR_GLYPH, ID_SUPPORT_AGM, SUPPORT_ACCENT),
+                    new WedgeEntry.PipelineEntry("Cannon", AIR_GLYPH, ID_SUPPORT_CANNON, SUPPORT_ACCENT),
+                    new WedgeEntry.PipelineEntry("Artillery Fire", "\u2739", ID_SUPPORT_ARTILLERY, SUPPORT_ACCENT),
+                    new WedgeEntry.PipelineEntry("Mortar Shelling", "\u2604", ID_SUPPORT_MORTAR, SUPPORT_ACCENT)));
 
     private static final Map<String, QuickCommandPipeline> BY_ID = new HashMap<>();
     private static List<WedgeEntry> ROOT = List.of();
@@ -114,6 +133,7 @@ public final class QuickCommandRegistry {
                         leaf("Join Platoon", "\u2295", ID_PLATOON_JOIN, 0xE07AA6),
                         leaf("Exit Platoon", "\u2296", ID_PLATOON_EXIT, 0xE07AA6),
                         leaf("Toggle Orders", "\u21C4", ID_PLATOON_AUTO_ORDERS, 0xE07AA6))),
+                SUPPORT_CATEGORY,
                 leaf("Cancel", "\u2715", ID_QUICK_CANCEL, 0xE85A4A));
     }
 
@@ -132,6 +152,22 @@ public final class QuickCommandRegistry {
 
     public static List<WedgeEntry> rootWedges() {
         return ROOT;
+    }
+
+    /**
+     * The radio call a Support leaf makes, or null for any other id. Client-committed via
+     * {@code PacketRadioCommand} (not PacketQuickCommand); only the mortar takes the delay.
+     */
+    @Nullable
+    public static RadioSettings.State supportSettings(String pipelineId, int delaySeconds) {
+        return switch (pipelineId) {
+            case ID_SUPPORT_CARPET_BOMB -> new RadioSettings.State(RadioFrequency.AIR, 0, PlaneAttackMode.BOMB);
+            case ID_SUPPORT_AGM -> new RadioSettings.State(RadioFrequency.AIR, 0, PlaneAttackMode.GUIDED);
+            case ID_SUPPORT_CANNON -> new RadioSettings.State(RadioFrequency.AIR, 0, PlaneAttackMode.CANNON);
+            case ID_SUPPORT_ARTILLERY -> new RadioSettings.State(RadioFrequency.ARTILLERY, 0, PlaneAttackMode.AUTO);
+            case ID_SUPPORT_MORTAR -> new RadioSettings.State(RadioFrequency.MORTAR, delaySeconds, PlaneAttackMode.AUTO);
+            default -> null;
+        };
     }
 
     /** True when the pipeline needs on-foot PMCs only (board / mortar / refill walks). */

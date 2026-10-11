@@ -15,6 +15,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -34,6 +35,8 @@ import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
+import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.item.RadioSettings;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketClearBoarding;
 import com.neoalive.tacz_sewv.network.PacketExitPlatoon;
@@ -57,6 +60,8 @@ public final class QuickCommandWheelScreen extends Screen {
     private static float formationWidth = IFormationMember.DEFAULT_STRETCH;
     private static float formationLength = IFormationMember.DEFAULT_STRETCH;
     private static FormationComposition.Kind formationFilter = FormationComposition.Kind.GROUND;
+    /** Mortar Shelling delay (s, 0 = off); seeded from the carried radio on every open. */
+    private static int supportDelay = 0;
 
     /** Per-frame approach rate toward hot/cold (higher = snappier fade). */
     private static final float HOT_FADE_SPEED = 0.28f;
@@ -85,7 +90,20 @@ public final class QuickCommandWheelScreen extends Screen {
         if (QuickCommandRegistry.rootWedges().isEmpty()) {
             QuickCommandRegistry.init();
         }
-        this.input = new RadialInputState(QuickCommandRegistry.rootWedges());
+        this.input = new RadialInputState(visibleRoot());
+    }
+
+    /** Support is only offered to a player who could make the call: a radio on them, or creative. */
+    private static List<WedgeEntry> visibleRoot() {
+        Player player = Minecraft.getInstance().player;
+        if (player != null && HandheldRadioItem.canCall(player)) {
+            ItemStack radio = HandheldRadioItem.findCarried(player);
+            if (!radio.isEmpty()) supportDelay = RadioSettings.read(radio).delaySeconds();
+            return QuickCommandRegistry.rootWedges();
+        }
+        List<WedgeEntry> root = new ArrayList<>(QuickCommandRegistry.rootWedges());
+        root.remove(QuickCommandRegistry.SUPPORT_CATEGORY);
+        return root;
     }
 
     public RadialInputState inputState() {
@@ -213,6 +231,18 @@ public final class QuickCommandWheelScreen extends Screen {
         long window = mc != null ? mc.getWindow().getWindow() : 0L;
         boolean ctrl = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LCONTROL)
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RCONTROL));
+        // Ctrl+scroll in Support steps the mortar delay — and only while Mortar Shelling is hovered,
+        // the one order it applies to. Plain scroll keeps skipping the queue.
+        if (ctrl && inSupportSubmenu()) {
+            if (QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(hotPipelineId())) {
+                int next = RadioSettings.stepDelay(supportDelay, delta > 0.0 ? 1 : -1);
+                if (next != supportDelay) {
+                    supportDelay = next;
+                    playUi(ModSounds.SCALE.get(), 0.92f + (float) (Math.random() * 0.16));
+                }
+            }
+            return true;
+        }
         // Scroll down skips the running queued order — except in Formation, which owns the wheel.
         if (!inFormationSubmenu()) {
             if (delta >= 0.0 || !OrderQueueClient.isOn() || OrderQueueClient.labels().isEmpty()) {
@@ -351,6 +381,13 @@ public final class QuickCommandWheelScreen extends Screen {
             return true;
         }
 
+        // Support: a radio call at the crosshair (the view is frozen while the wheel is open).
+        RadioSettings.State support = QuickCommandRegistry.supportSettings(pipelineId, supportDelay);
+        if (support != null) {
+            ClientEvents.callRadio(support);
+            return true;
+        }
+
         // Air client actions: player rappel + radius takeoff/landing (no PacketQuickCommand).
         if (QuickAirClient.isAirClientAction(pipelineId)) {
             return QuickAirClient.fire(pipelineId);
@@ -464,6 +501,19 @@ public final class QuickCommandWheelScreen extends Screen {
             }
         }
         return false;
+    }
+
+    private boolean inSupportSubmenu() {
+        return this.input.depth() > 1
+                && this.input.currentWedges().equals(QuickCommandRegistry.SUPPORT_CATEGORY.children());
+    }
+
+    @javax.annotation.Nullable
+    private String hotPipelineId() {
+        int hot = this.input.hotIndex();
+        List<WedgeEntry> wedges = this.input.currentWedges();
+        if (hot < 0 || hot >= wedges.size()) return null;
+        return wedges.get(hot) instanceof WedgeEntry.PipelineEntry leaf ? leaf.pipelineId() : null;
     }
 
     @javax.annotation.Nullable
@@ -608,6 +658,15 @@ public final class QuickCommandWheelScreen extends Screen {
                     previewShape, slots, baseline, formationWidth, formationLength,
                     PacketVehicleFormation.DEFAULT_ROW_SIZE, formationFilter, this.filterLerp,
                     HUB_FILL, LABEL_HOT);
+        }
+
+        if (inSupportSubmenu()) {
+            int widest = 0;
+            for (WedgeEntry e : wedges) widest = Math.max(widest, this.font.width(e.label()));
+            SupportDelayDraw.render(g, this.font, cx, cy, this.width, outer, widest,
+                    this.menuAlpha, supportDelay,
+                    QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(hotPipelineId()),
+                    QuickCommandRegistry.SUPPORT_ACCENT, HUB_FILL, LABEL_HOT);
         }
 
         if (OrderQueueClient.isOn()) {

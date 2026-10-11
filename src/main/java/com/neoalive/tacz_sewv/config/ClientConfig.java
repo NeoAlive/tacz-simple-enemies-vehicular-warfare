@@ -35,6 +35,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
     public static final ForgeConfigSpec.IntValue NOTIFICATION_MAX_VISIBLE;
     public static final ForgeConfigSpec.BooleanValue HELMET_GRAYSCALE;
+    public static final ForgeConfigSpec.BooleanValue SHOW_LAG_TIP;
 
     // Formerly ModGameRules debug toggles — live via Config UI Client → Debug.
     public static final ForgeConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
@@ -103,6 +104,9 @@ public final class ClientConfig {
         HELMET_GRAYSCALE = builder
                 .comment("Desaturate only the PMC MICH DogTag UV to low-contrast grey (logo alpha kept).")
                 .define("helmetGrayscale", true);
+        SHOW_LAG_TIP = builder
+                .comment("On joining a world, print a chat tip on disabling SuperbWarfare's projectile chunk loading.")
+                .define("showLagTip", true);
         builder.pop();
 
         builder.push("map");

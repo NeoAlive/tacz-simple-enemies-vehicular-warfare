@@ -177,6 +177,8 @@ public class SewvCommand {
                                 .executes(ctx -> debugDump(ctx.getSource())))
                         .then(Commands.literal("perf")
                                 .executes(ctx -> debugPerf(ctx.getSource())))
+                        .then(Commands.literal("artillery")
+                                .executes(ctx -> debugArtillery(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
                                 .executes(ctx -> debugStartConfigFix(ctx.getSource())))
                         .then(Commands.literal("structureCatalog")
@@ -782,6 +784,14 @@ public class SewvCommand {
         }
         source.sendFailure(Component.literal(result));
         return 0;
+    }
+
+    /** Toggles the per-tick {@code [sewv-artillery]} log line (server log; silent for idle crews). */
+    private static int debugArtillery(CommandSourceStack source) {
+        boolean on = com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport.toggleDebug();
+        source.sendSuccess(() -> Component.literal("Artillery trace " + (on ? "ON" : "OFF")
+                + " ([sewv-artillery] lines in the server log)"), true);
+        return 1;
     }
 
     private static int debugPerf(CommandSourceStack source) {

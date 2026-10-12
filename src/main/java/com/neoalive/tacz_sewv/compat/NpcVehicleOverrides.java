@@ -115,13 +115,28 @@ public final class NpcVehicleOverrides {
      * so without this an idle rifleman walks to one, spends {@code BoardVehicleGoal}'s whole 20 s
      * timeout failing to mount, gives up, and is handed the same hull again on the next scan.
      * There is no readable signal to test instead: {@code canAddPassenger} is {@code protected}.
+     *
+     * <p><b>Doggie's New Vehicle ({@code doggievehicle:}) is matched by namespace</b>, because
+     * every hull it registers refuses an NPC, each for its own reason (verified against 1.1.39):
+     * the Apocalypse's {@code canAddPassenger} is {@code instanceof Player}, and its whole weapon
+     * pipeline (readiness, lock-on, fire) is {@code ServerPlayer}-typed, so even a forced mount
+     * would give a crew a tank that drives but never fires; the allied Apocalypse and the M1
+     * Yunlong return {@code false} outright (DNV's own AI, and a remote weapon station); the
+     * turrets and boss hulls have no seats at all. So this is not a list of known exceptions that
+     * a new DNV release could outgrow; it is DNV's design.
      */
     public static boolean refusesNpcRiders(@Nullable VehicleEntity hull) {
-        String id = entityId(hull);
-        if (id == null) return false;
+        return refusesNpcRiders(entityId(hull));
+    }
+
+    /** Id form of {@link #refusesNpcRiders(VehicleEntity)}, for config pool entries. */
+    public static boolean refusesNpcRiders(@Nullable String entityId) {
+        if (entityId == null) return false;
+        String id = entityId.toLowerCase(Locale.ROOT);
         return id.equals("ashvehicle:reaper")
                 || id.equals("ashvehicle:x-47b")
-                || id.equals("vvp:d30");
+                || id.equals("vvp:d30")
+                || id.startsWith("doggievehicle:");
     }
 
     public static boolean isT80bvKantemir(@Nullable VehicleEntity hull) {

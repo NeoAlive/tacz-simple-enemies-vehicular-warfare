@@ -6,11 +6,13 @@ import java.util.function.Supplier;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.entity.ai.support.BoardOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
@@ -49,6 +51,14 @@ public class PacketBoardVehicle {
         Entity hull = player.level().getEntity(this.vehicleId);
         if (!(hull instanceof VehicleEntity vehicle) || !vehicle.isAlive()) {
             OrderReport.fail(player, OrderFailure.VEHICLE_GONE);
+            return;
+        }
+        // Refused up front rather than left to BoardVehicleGoal's backstop: the player should
+        // hear why nobody moved, not watch the squad walk over and silently give up.
+        if (NpcVehicleOverrides.refusesNpcRiders(vehicle)) {
+            OrderReport.fail(player, OrderFailure.VEHICLE_PLAYER_ONLY);
+            NetworkHandler.sendOrderFeedback(player, Component.translatable(
+                    "message.tacz_sewv.board.player_only").withStyle(ChatFormatting.GRAY));
             return;
         }
 

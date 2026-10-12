@@ -189,6 +189,7 @@
   "message.tacz_sewv.board.ordered.single": "%s unit ordered to board.",
   "message.tacz_sewv.board.ordered.multiple": "%s units ordered to board.",
   "message.tacz_sewv.board.ordered.none": "No eligible units to board.",
+  "message.tacz_sewv.board.player_only": "Units cannot crew this vehicle: it only accepts players.",
   "message.tacz_sewv.board.cleared.single": "%s unit boarding.",
   "message.tacz_sewv.board.cleared.multiple": "%s units boarding.",
   "message.tacz_sewv.board.cleared.none": "No units waiting to board this vehicle.",

@@ -152,6 +152,7 @@ public final class TankSpawner {
         for (String id : pool) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
             if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
+            if (NpcVehicleOverrides.refusesNpcRiders(id)) continue; // a crew could never mount it
             EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
             if (type != null && isVehicleEntityType(level, rl, type)) return true;
         }
@@ -252,7 +253,7 @@ public final class TankSpawner {
     public static VehicleEntity spawnPlaneWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                    @Nullable UUID ownerId, @Nullable String vehicleId) {
         if (!spawnsEnabled(level, faction)) return null;
-        EntityType<?> planeType = selectVehicleType(faction.planePool(level), vehicleId, level.random);
+        EntityType<?> planeType = selectVehicleType(crewablePool(faction.planePool(level)), vehicleId, level.random);
         if (planeType == null) return null;
 
         boolean airborne = faction != TankFaction.PMC;
@@ -340,7 +341,7 @@ public final class TankSpawner {
                                                      List<? extends String> pool, boolean water,
                                                      boolean requireSpawnsEnabled, boolean exact) {
         if (requireSpawnsEnabled && !spawnsEnabled(level, faction)) return null;
-        EntityType<?> tankType = selectVehicleType(pool, vehicleId, level.random);
+        EntityType<?> tankType = selectVehicleType(crewablePool(pool), vehicleId, level.random);
         if (tankType == null) return null; // nothing valid configured/requested — bail safely
 
         BlockPos pos = water
@@ -792,6 +793,29 @@ public final class TankSpawner {
 
     // Resolve the vehicle to spawn: a specific pooled id when one is requested,
     // otherwise a random pick from the pool. A requested id that isn't actually in
+    /**
+     * {@code pool} minus the entries no NPC crew can mount ({@link NpcVehicleOverrides#refusesNpcRiders}),
+     * for the crewed spawn paths only. Without it such an entry is rolled like any other, the very
+     * first seat refuses its rider, and the spawn quietly discards the hull and returns null, so
+     * a pool holding one fails that share of its spawns with nothing in the log to say why. A
+     * requested id that is filtered out simply reads as "not in the pool". Player-driven and bare
+     * spawns keep the full pool: nobody needs to crew those.
+     */
+    private static List<? extends String> crewablePool(List<? extends String> pool) {
+        List<String> out = new ArrayList<>(pool.size());
+        for (String id : pool) {
+            if (NpcVehicleOverrides.refusesNpcRiders(id)) {
+                com.neoalive.tacz_sewv.util.WarnOnce.warn(com.neoalive.tacz_sewv.TaczSewv.LOGGER,
+                        "sewv-pool-player-only-" + id,
+                        "[sewv] Vehicle pool entry '" + id + "' only accepts players and can never "
+                                + "carry an NPC crew; skipping it for crewed spawns.");
+                continue;
+            }
+            out.add(id);
+        }
+        return out;
+    }
+
     // the configured pool is rejected (returns null) — the command must only spawn
     // what the config allows.
     @Nullable

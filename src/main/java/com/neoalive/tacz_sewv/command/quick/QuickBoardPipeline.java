@@ -21,6 +21,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.BoardOrders;
@@ -93,7 +94,7 @@ public final class QuickBoardPipeline implements QuickCommandPipeline {
         List<BoardSlot> out = new ArrayList<>();
 
         for (VehicleEntity hull : level.getEntitiesOfClass(VehicleEntity.class, box,
-                v -> v.isAlive() && !v.isWreck())) {
+                v -> v.isAlive() && !v.isWreck() && !NpcVehicleOverrides.refusesNpcRiders(v))) {
             if (hull.distanceToSqr(issuer) > r2) continue;
             if (hull instanceof MortarEntity mortar) {
                 if (MortarSupport.isMortarClaimed(mortar, null)) continue;

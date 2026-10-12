@@ -13,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.entity.ai.support.CommanderSeating;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.item.LockItem;
@@ -60,7 +61,7 @@ public class BoardVehicleGoal extends Goal {
         LAST_CANCEL_FEEDBACK.remove(ownerId);
     }
 
-    private enum CancelReason { FULL, WRECKED, TIMEOUT, GONE }
+    private enum CancelReason { FULL, WRECKED, TIMEOUT, GONE, PLAYER_ONLY }
 
     private final AbstractUnit unit;
     private VehicleEntity targetVehicle;
@@ -104,6 +105,12 @@ public class BoardVehicleGoal extends Goal {
         }
         if (LockItem.blocksNpc(v, this.unit)) {
             cancelBoarding(CancelReason.GONE);
+            return false;
+        }
+        // Backstop for every order writer: a hull that refuses NPC riders would otherwise
+        // be walked to and retried for the whole MAX_BOARDING_TICKS timeout.
+        if (NpcVehicleOverrides.refusesNpcRiders(v)) {
+            cancelBoarding(CancelReason.PLAYER_ONLY);
             return false;
         }
         if (isFull(v)) {
@@ -223,6 +230,7 @@ public class BoardVehicleGoal extends Goal {
             case WRECKED -> OrderFailure.VEHICLE_WRECKED;
             case TIMEOUT -> OrderFailure.UNREACHABLE;
             case GONE -> OrderFailure.VEHICLE_GONE;
+            case PLAYER_ONLY -> OrderFailure.VEHICLE_PLAYER_ONLY;
         }, this.unit);
     }
 

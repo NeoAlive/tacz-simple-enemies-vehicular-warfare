@@ -24,6 +24,7 @@ import com.neoalive.tacz_sewv.block.TrenchNetworks;
 import com.neoalive.tacz_sewv.bridge.IEntrenched;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.entity.ai.goal.BailOutVehicleGoal;
 
 /**
@@ -255,6 +256,8 @@ public final class EntrenchSupport {
     }
 
     private static boolean isFixedMount(VehicleEntity weapon) {
+        // A FIXED hull that refuses NPC riders (DNV's turrets, VVP's D-30) is not a crew post.
+        if (NpcVehicleOverrides.refusesNpcRiders(weapon)) return false;
         try {
             return weapon.computed().getEngineType()
                     == com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType.FIXED;

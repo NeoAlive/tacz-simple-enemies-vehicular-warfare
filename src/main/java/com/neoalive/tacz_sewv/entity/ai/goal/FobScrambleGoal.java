@@ -13,6 +13,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.fob.FobDebug;
 import com.neoalive.tacz_sewv.fob.FobInstance;
@@ -105,6 +106,7 @@ public class FobScrambleGoal extends Goal {
         for (UUID id : fob.assignedVehicles) {
             if (!(level.getEntity(id) instanceof VehicleEntity hull)) continue;
             if (!hull.isAlive() || hull.isWreck()) continue;
+            if (NpcVehicleOverrides.refusesNpcRiders(hull)) continue; // would refuse the crew
             int occupied = hull.getPassengers().size();
             if (occupied >= Math.max(1, hull.getMaxPassengers())) continue;
             boolean empty = occupied == 0;

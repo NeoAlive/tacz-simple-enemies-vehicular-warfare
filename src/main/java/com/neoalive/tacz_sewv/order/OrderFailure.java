@@ -55,6 +55,7 @@ public enum OrderFailure {
     VEHICLE_FULL,
     VEHICLE_WRECKED,
     VEHICLE_GONE,
+    VEHICLE_PLAYER_ONLY,
     UNREACHABLE,
 
     // --- Permission: the player may not give this order ---

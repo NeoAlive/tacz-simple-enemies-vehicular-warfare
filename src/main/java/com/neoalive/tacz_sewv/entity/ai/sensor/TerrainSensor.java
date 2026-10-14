@@ -3,11 +3,15 @@ package com.neoalive.tacz_sewv.entity.ai.sensor;
 import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 
+import com.neoalive.tacz_sewv.entity.ai.core.HullInput;
+import com.neoalive.tacz_sewv.entity.ai.core.HullProfile;
+import com.neoalive.tacz_sewv.entity.ai.core.SbwHullInput;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 
 /**
@@ -41,7 +45,11 @@ public abstract class TerrainSensor {
     private static final double HARD_TURN_DEG = 25.0;
 
     protected final AbstractUnit unit;
-    protected VehicleEntity vehicle;
+    protected Entity vehicle;
+    /** Facing comes from here, so a non-SBW hull answers it its own way. */
+    protected HullInput input;
+    /** Non-null only for a hull attached through a {@link HullProfile} (not an SBW hull). */
+    protected HullProfile profile;
 
     private long obstacleCacheTime = Long.MIN_VALUE;
     private double obstacleCacheReach = -1.0;
@@ -55,12 +63,26 @@ public abstract class TerrainSensor {
     public final void attach(VehicleEntity v) {
         if (this.vehicle == v) return;
         this.vehicle = v;
+        this.input = new SbwHullInput(v);
+        this.profile = null;
         onAttach(v);
+        dropCache();
+    }
+
+    /** A hull that is not an SBW one; its size and mobility come from {@code p}. */
+    public final void attach(Entity hull, HullInput in, HullProfile p) {
+        if (this.vehicle == hull) return;
+        this.vehicle = hull;
+        this.input = in;
+        this.profile = p;
+        onAttachProfile(hull, p);
         dropCache();
     }
 
     public final void clear() {
         this.vehicle = null;
+        this.input = null;
+        this.profile = null;
         dropCache();
     }
 
@@ -71,6 +93,9 @@ public abstract class TerrainSensor {
 
     /** Hook for per-hull facts a subclass resolves once rather than per probe. */
     protected void onAttach(VehicleEntity v) {}
+
+    /** {@link #onAttach} for a profiled (non-SBW) hull. */
+    protected void onAttachProfile(Entity hull, HullProfile p) {}
 
     /**
      * The nearest clear bearing to {@code desired}, or null when the whole forward cone is
@@ -101,7 +126,7 @@ public abstract class TerrainSensor {
     }
 
     private boolean isHardTurn(Vec3 desired) {
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        Vector3f forward = this.input.forwardDirection().normalize();
         return Math.abs(Math.toDegrees(VehicleTargeting.signedAngleTo(forward, desired))) >= HARD_TURN_DEG;
     }
 
@@ -122,7 +147,7 @@ public abstract class TerrainSensor {
     }
 
     protected final double halfWidth() {
-        return this.vehicle.getBbWidth() / 2.0;
+        return (this.profile != null ? this.profile.width() : this.vehicle.getBbWidth()) / 2.0;
     }
 
     private void dropCache() {

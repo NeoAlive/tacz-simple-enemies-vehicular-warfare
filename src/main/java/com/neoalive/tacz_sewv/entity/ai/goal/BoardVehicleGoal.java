@@ -14,6 +14,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.CommanderSeating;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.item.LockItem;
@@ -91,6 +92,8 @@ public class BoardVehicleGoal extends Goal {
 
         Entity e = this.unit.level().getEntity(mountId);
         if (e == null) return false; // not resolvable right now — keep the order pending
+        // A Limitless Vehicles hull: LvBoardGoal owns that order, so leave it standing.
+        if (LvCompat.isLvHull(e)) return false;
 
         // The target resolved but can't be boarded (destroyed, wrecked, or full): drop the
         // order instead of leaving the boarding flag latched — otherwise the unit would

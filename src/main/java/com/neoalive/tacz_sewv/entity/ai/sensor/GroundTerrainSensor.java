@@ -153,10 +153,20 @@ public final class GroundTerrainSensor extends TerrainSensor {
 
     @Override
     protected void onAttach(VehicleEntity v) {
-        this.amphibious = GroundMobility.isAmphibious(v);
-        this.maxUpStep = GroundMobility.maxUpStepOf(v);
-        this.gradeHalfSpan = Math.max(1, Mth.floor(v.getBbWidth() * 0.5F));
-        this.hullTop = Math.max(1, Mth.ceil(v.getBbHeight()) - 1);
+        resetForHull(GroundMobility.isAmphibious(v), GroundMobility.maxUpStepOf(v), v.getBbWidth(), v.getBbHeight());
+    }
+
+    @Override
+    protected void onAttachProfile(net.minecraft.world.entity.Entity hull,
+                                   com.neoalive.tacz_sewv.entity.ai.core.HullProfile p) {
+        resetForHull(p.amphibious(), Math.max(1.0F, p.maxUpStep()), p.width(), p.height());
+    }
+
+    private void resetForHull(boolean amphibious, float maxUpStep, double width, double height) {
+        this.amphibious = amphibious;
+        this.maxUpStep = maxUpStep;
+        this.gradeHalfSpan = Math.max(1, Mth.floor(width * 0.5));
+        this.hullTop = Math.max(1, Mth.ceil(height) - 1);
         this.centerCacheTick = Long.MIN_VALUE;
         this.columnCacheTick = Long.MIN_VALUE;
         this.columnCache.clear();
@@ -244,7 +254,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
 
     /** Desired is nearly ahead and a single beam probe says the hull fits — skip the 7-slot map. */
     private boolean canShortCircuit(Vec3 desired, double probeDistance) {
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        Vector3f forward = this.input.forwardDirection().normalize();
         if (Math.abs(VehicleTargeting.signedAngleTo(forward, desired)) > FAN_SHORTCIRCUIT_YAW_RAD) {
             return false;
         }
@@ -283,7 +293,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
     }
 
     private boolean[] fillMaps(Vec3 desired, double probeDistance) {
-        var forward = this.vehicle.getForwardDirection().normalize();
+        var forward = this.input.forwardDirection().normalize();
         // Desired-center first: when open and no ORCA peers, skip the six flank centerlines.
         Vec3 centerDir = VehicleTargeting.rotateY(desired, Math.toRadians(GroundMobility.SLOTS_DEG[CENTER_SLOT]));
         Probe center = probeHeading(centerDir, probeDistance, false);

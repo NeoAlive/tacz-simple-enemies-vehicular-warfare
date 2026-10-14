@@ -13,6 +13,7 @@ import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.BoardOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
@@ -49,13 +50,20 @@ public class PacketBoardVehicle {
         if (player == null) return;
 
         Entity hull = player.level().getEntity(this.vehicleId);
-        if (!(hull instanceof VehicleEntity vehicle) || !vehicle.isAlive()) {
+        // A Limitless Vehicles hull takes the same order; LvBoardGoal executes it. Its own
+        // refusals (aircraft, wrecks, no free seat) read as "gone" — there is no hull to board.
+        boolean lv = LvCompat.isLvHull(hull);
+        if (lv && !LvCompat.boardable(hull)) {
+            OrderReport.fail(player, OrderFailure.VEHICLE_GONE);
+            return;
+        }
+        if (!lv && (!(hull instanceof VehicleEntity vehicle) || !vehicle.isAlive())) {
             OrderReport.fail(player, OrderFailure.VEHICLE_GONE);
             return;
         }
         // Refused up front rather than left to BoardVehicleGoal's backstop: the player should
         // hear why nobody moved, not watch the squad walk over and silently give up.
-        if (NpcVehicleOverrides.refusesNpcRiders(vehicle)) {
+        if (hull instanceof VehicleEntity vehicle && NpcVehicleOverrides.refusesNpcRiders(vehicle)) {
             OrderReport.fail(player, OrderFailure.VEHICLE_PLAYER_ONLY);
             NetworkHandler.sendOrderFeedback(player, Component.translatable(
                     "message.tacz_sewv.board.player_only").withStyle(ChatFormatting.GRAY));

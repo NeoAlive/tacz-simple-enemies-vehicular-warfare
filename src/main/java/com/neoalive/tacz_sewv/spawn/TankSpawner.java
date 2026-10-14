@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
@@ -28,6 +29,7 @@ import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.roles.utils.UnitRole;
@@ -767,8 +769,8 @@ public final class TankSpawner {
         return ammo;
     }
 
-    /** Package-visible so {@link EmplacementSpawner} crews mortars/TOWs the same way. */
-    static AbstractUnit createCrewUnit(ServerLevel level, TankFaction faction, @Nullable UUID ownerId) {
+    /** Public so {@link EmplacementSpawner} and the Limitless Vehicles spawner crew the same way. */
+    public static AbstractUnit createCrewUnit(ServerLevel level, TankFaction faction, @Nullable UUID ownerId) {
         switch (faction) {
             case RU: {
                 RUunitEntity unit = new RUunitEntity(ModEntities.RUUNIT.get(), level);
@@ -858,6 +860,13 @@ public final class TankSpawner {
      */
     @Nullable
     public static BlockPos findClearSpawn(ServerLevel level, BlockPos pos, EntityType<?> type) {
+        return findClearSpawn(level, pos, at -> type.getDimensions().makeBoundingBox(at));
+    }
+
+    /** {@link #findClearSpawn} for a hull whose footprint is not its entity type's ({@code boxAt}
+     * maps a feet-centre point to the hull's box there) — a Limitless Vehicles hull. */
+    @Nullable
+    public static BlockPos findClearSpawn(ServerLevel level, BlockPos pos, Function<Vec3, AABB> boxAt) {
         for (int r = 0; r <= SNAP_RADIUS; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
@@ -866,7 +875,7 @@ public final class TankSpawner {
                     // Never sync-load: noCollision/getBlockState force-generate an unloaded column.
                     if (!level.hasChunk(x >> 4, z >> 4)) continue;
                     int gy = groundY(level, x, z, pos.getY()) + 1; // +1 lift: hull drops onto the surface
-                    var box = type.getDimensions().makeBoundingBox(x + 0.5, gy, z + 0.5);
+                    var box = boxAt.apply(new Vec3(x + 0.5, gy, z + 0.5));
                     if (level.noCollision(box)) return new BlockPos(x, gy, z);
                 }
             }
@@ -909,6 +918,12 @@ public final class TankSpawner {
      */
     @Nullable
     public static BlockPos findClearWaterSpawn(ServerLevel level, BlockPos pos, EntityType<?> type) {
+        return findClearWaterSpawn(level, pos, at -> type.getDimensions().makeBoundingBox(at));
+    }
+
+    /** {@link #findClearWaterSpawn} with a caller-supplied footprint, as {@link #findClearSpawn(ServerLevel, BlockPos, Function)}. */
+    @Nullable
+    public static BlockPos findClearWaterSpawn(ServerLevel level, BlockPos pos, Function<Vec3, AABB> boxAt) {
         for (int r = 0; r <= SNAP_RADIUS; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
@@ -918,7 +933,7 @@ public final class TankSpawner {
                     int rawY = groundY(level, x, z, pos.getY());
                     if (!isWaterSurface(level, x, rawY, z)) continue; // dry column — never fall back to land
                     int gy = rawY + 1;
-                    var box = type.getDimensions().makeBoundingBox(x + 0.5, gy, z + 0.5);
+                    var box = boxAt.apply(new Vec3(x + 0.5, gy, z + 0.5));
                     if (level.noCollision(box)) return new BlockPos(x, gy, z);
                 }
             }

@@ -10,6 +10,7 @@ import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
+import com.neoalive.tacz_sewv.spawn.EventVehicleSpawns;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -125,7 +126,9 @@ public final class LargeCombatEvent extends DynamicEvent {
             int back = VEHICLE_BACKSET * facing;
             int along = (i - wanted / 2) * VEHICLE_SPACING;
             BlockPos pos = alongX ? anchor.offset(back, 0, along) : anchor.offset(along, 0, back);
-            if (TankSpawner.spawnCombatVehicleWithCrew(level, TankSpawner.adjustHeight(level, pos), faction, null) != null) {
+            BlockPos ground = TankSpawner.adjustHeight(level, pos);
+            if (EventVehicleSpawns.spawnCrewed(level, ground, faction, false,
+                    () -> TankSpawner.spawnCombatVehicleWithCrew(level, ground, faction, null) != null)) {
                 spawned++;
             }
         }

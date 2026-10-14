@@ -113,6 +113,15 @@ config="tacz_sewv.minecolonies.mixins.json"
     ordering="AFTER"
     side="CLIENT"
 
+# Soft compat: Limitless Vehicles — crews drive and gun its wheeled, tracked and boat hulls
+# (compat/lv). Everything LV-typed sits behind LvCompat; no mixins into LV.
+[[dependencies.tacz_sewv]]
+    modId="ywzj_vehicle"
+    mandatory=false
+    versionRange="[0.6.0,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Soft compat: Coltan + GemRender — SBW vehicles/armor via GemRender. Sticky faction paint and
 # crew armor skins re-bound through ColtanVehicleSkins / ColtanArmorSkins (see ColtanSkinBridge /
 # ColtanArmorBridge). SEM-held TACZ stays on stock GunLayer. Prefer one vehicle accelerator stack

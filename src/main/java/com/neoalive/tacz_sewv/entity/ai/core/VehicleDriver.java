@@ -6,6 +6,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.PathNavigationRegion;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -205,7 +206,13 @@ public final class VehicleDriver {
     /** Idle and far from every player ({@code groundFarLodBlocks}); set by the drive goal each tick. */
     private boolean farIdle;
 
-    private VehicleEntity vehicle;
+    // The hull, as the Entity every positional read needs. Steering goes through `input` only, so
+    // a non-SBW hull (compat/lv) is driven by the same code; `sbw` is the same hull when it is an
+    // SBW one and gates the collaborators that only exist there (repair lock, tow recovery, pods).
+    private Entity vehicle;
+    private VehicleEntity sbw;
+    private HullInput input;
+    private HullProfile profile;
 
     private Path currentPath;
     private int pathRecalcCooldown;
@@ -270,8 +277,33 @@ public final class VehicleDriver {
     }
 
     public void attach(VehicleEntity v) {
+        if (this.sbw != v || this.input == null) this.input = new SbwHullInput(v);
         this.vehicle = v;
+        this.sbw = v;
+        this.profile = null;
         this.sensor.attach(v);
+    }
+
+    /** Drive a hull that is not an SBW {@code VehicleEntity}: steering through {@code in}, size
+     * and mobility from {@code p}. SBW-only recovery hooks are skipped for it. */
+    public void attach(Entity hull, HullInput in, HullProfile p) {
+        this.vehicle = hull;
+        this.sbw = null;
+        this.input = in;
+        this.profile = p;
+        this.sensor.attach(hull, in, p);
+    }
+
+    private boolean repairLocked() {
+        return this.sbw != null && RepairLockSupport.isLocked(this.sbw);
+    }
+
+    private boolean amphibious() {
+        return this.profile != null ? this.profile.amphibious() : GroundMobility.isAmphibious(this.sbw);
+    }
+
+    private double hullWidth() {
+        return this.profile != null ? this.profile.width() : this.vehicle.getBbWidth();
     }
 
     /** Age the pathfinding throttles. Call once per game tick before any steering. */
@@ -290,10 +322,10 @@ public final class VehicleDriver {
      * which reset the turn ramp constantly and left the tank pivoting in place forever.
      */
     public void navigateTo(BlockPos dest, double distanceSq) {
-        if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
+        if (repairLocked()) { stop(); return; }
         if (checkSubmergedFailsafe()) return;
         if (tickArrivalHysteresis(dest)) return;
-        dest = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjust(this.vehicle, dest);
+        dest = this.sbw != null ? com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjust(this.sbw, dest) : dest;
         // Bank-lip reverse: face the blocked destination (usually into the water) and reverse off
         // the overhang. Abort if SBW reports wet — that is the existing escape-hatch case, not
         // this recovery.
@@ -358,10 +390,7 @@ public final class VehicleDriver {
                 stop();
                 return;
             }
-            this.vehicle.setForwardInputDown(false);
-            this.vehicle.setBackInputDown(true);
-            this.vehicle.setLeftInputDown(false);
-            this.vehicle.setRightInputDown(false);
+            this.input.setInputs(false, true, false, false);
             if (this.unstickTicksLeft == 0) {
                 this.unstickCooldown = UNSTICK_COOLDOWN;
             }
@@ -403,7 +432,7 @@ public final class VehicleDriver {
                 return;
             }
         } else if (updateStuck()) {
-            TowRecoverySupport.onStuckThresholdReached(this.vehicle);
+            if (this.sbw != null) TowRecoverySupport.onStuckThresholdReached(this.sbw);
             this.unstickTicksLeft = UNSTICK_DURATION;
             this.stuckTicks = 0;
             if (SewvDiag.groundPathingVerbose()) {
@@ -426,9 +455,9 @@ public final class VehicleDriver {
      * hull avoidance and rocked left/right on a bare angle sign test.
      */
     public void retreatFrom(BlockPos targetPos, double retreatRadius, double distanceSq) {
-        if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
+        if (repairLocked()) { stop(); return; }
         if (checkSubmergedFailsafe()) return;
-        navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, targetPos, retreatRadius),
+        navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, this.input::forwardDirection, targetPos, retreatRadius, 0.0),
                 distanceSq);
     }
 
@@ -439,25 +468,19 @@ public final class VehicleDriver {
      * a plain deadband is correct there since {@code steer} is known-good, not a scan for one.
      */
     public void faceHeading(Vec3 dir) {
-        if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        if (repairLocked()) { stop(); return; }
+        Vector3f forward = this.input.forwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, dir);
         if (Math.abs(angle) < FACING_DEADBAND_RAD) {
             stop();
             return;
         }
-        this.vehicle.setForwardInputDown(false);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(angle > 0);
-        this.vehicle.setRightInputDown(angle < 0);
+        this.input.setInputs(false, false, angle > 0, angle < 0);
     }
 
     /** Release every steering input. An instruction to hold, not the absence of one. */
     public void stop() {
-        this.vehicle.setForwardInputDown(false);
-        this.vehicle.setBackInputDown(false);
-        this.vehicle.setLeftInputDown(false);
-        this.vehicle.setRightInputDown(false);
+        this.input.setInputs(false, false, false, false);
     }
 
     /** True while the hull is wedged and stuck recovery is counting or running. */
@@ -502,6 +525,9 @@ public final class VehicleDriver {
     /** Forget the hull entirely, for a crew leaving its seat. */
     public void clear() {
         this.vehicle = null;
+        this.sbw = null;
+        this.input = null;
+        this.profile = null;
         this.maneuverWaitingSince = Long.MIN_VALUE;
         this.maneuverCooldown = 0;
         resetArrival();
@@ -745,7 +771,7 @@ public final class VehicleDriver {
                 // Wheeled last resort: three-point when the stern is clear. Tracked hold — they
                 // can pivot next tick; forcing reverse here packed allies into mutual reverse.
                 if (this.hull.isWheeled()) {
-                    Vector3f fwd = this.vehicle.getForwardDirection().normalize();
+                    Vector3f fwd = this.input.forwardDirection().normalize();
                     Vec3 stern = new Vec3(-fwd.x, 0, -fwd.z);
                     if (!avoidance || this.sensor.headingClear(stern, this.sensor.lookahead())) {
                         // At the final steer point a planned turn (its arcs cleared by the sensor)
@@ -766,7 +792,7 @@ public final class VehicleDriver {
         }
         this.bankLipFanBlockedTicks = 0;
 
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        Vector3f forward = this.input.forwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, steer);
         double angleThreshold = getRotationStopAngle(distanceSq);
 
@@ -798,10 +824,7 @@ public final class VehicleDriver {
             if (facingClear) {
                 boolean throttle = !this.infantryPace
                         || (this.unit.level().getGameTime() & 1L) == 0L;
-                this.vehicle.setForwardInputDown(throttle);
-                this.vehicle.setBackInputDown(false);
-                this.vehicle.setLeftInputDown(false);
-                this.vehicle.setRightInputDown(false);
+                this.input.setInputs(throttle, false, false, false);
             } else {
                 // steer is a real, clear heading; the hull just hasn't finished turning onto it
                 // yet, so keep turning — not a stuck case, faceHeading's plain deadband is enough.
@@ -822,12 +845,9 @@ public final class VehicleDriver {
                 }
             }
         } else {
-            this.vehicle.setLeftInputDown(angle > 0);
-            this.vehicle.setRightInputDown(angle < 0);
             // Wheeled: throttle through the turn (duty-cycled on hard bends). Tracked pivots stopped.
             boolean roll = this.hull.isWheeled() && facingClear;
-            this.vehicle.setForwardInputDown(roll && wheelThrottleTick(Math.abs(angle)));
-            this.vehicle.setBackInputDown(false);
+            this.input.setInputs(roll && wheelThrottleTick(Math.abs(angle)), false, angle > 0, angle < 0);
         }
     }
 
@@ -866,11 +886,8 @@ public final class VehicleDriver {
 
         this.wheelReverseTicks--;
         this.wheelReverseTotal++;
-        this.vehicle.setForwardInputDown(false);
-        this.vehicle.setBackInputDown(true);
         // Inverted while reversing.
-        this.vehicle.setLeftInputDown(!this.wheelReverseSwingLeft);
-        this.vehicle.setRightInputDown(this.wheelReverseSwingLeft);
+        this.input.setInputs(false, true, !this.wheelReverseSwingLeft, this.wheelReverseSwingLeft);
 
         if (this.wheelReverseTicks > 0) return;
 
@@ -897,7 +914,7 @@ public final class VehicleDriver {
             return;
         }
         desired = desired.normalize();
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        Vector3f forward = this.input.forwardDirection().normalize();
         boolean lined = Math.abs(VehicleTargeting.signedAngleTo(forward, desired))
                 < LEGACY_BACK_AND_FILL_LINED_RAD;
         boolean clear = !this.sensor.enabled()
@@ -988,7 +1005,7 @@ public final class VehicleDriver {
 
         boolean reverse = m.dirs()[run.seg] < 0;
         if (this.sensor.enabled()) {
-            Vector3f fwd = this.vehicle.getForwardDirection().normalize();
+            Vector3f fwd = this.input.forwardDirection().normalize();
             Vec3 travel = reverse ? new Vec3(-fwd.x, 0, -fwd.z) : new Vec3(fwd.x, 0, fwd.z);
             if (!this.sensor.headingClear(travel.normalize(), RUN_CONTACT_PROBE)) {
                 if (SewvDiag.groundPathingVerbose()) {
@@ -1000,10 +1017,7 @@ public final class VehicleDriver {
             }
         }
         boolean keyLeft = m.left()[run.seg] != reverse;
-        this.vehicle.setForwardInputDown(!reverse);
-        this.vehicle.setBackInputDown(reverse);
-        this.vehicle.setLeftInputDown(keyLeft);
-        this.vehicle.setRightInputDown(!keyLeft);
+        this.input.setInputs(!reverse, reverse, keyLeft, !keyLeft);
         return RUN_ACTIVE;
     }
 
@@ -1099,19 +1113,19 @@ public final class VehicleDriver {
      * {@code facing} null = no heading to hold, which is a plain stop.
      */
     public void holdStation(Vec3 facing) {
-        if (RepairLockSupport.isLocked(this.vehicle)) { stop(); return; }
+        if (repairLocked()) { stop(); return; }
         if (this.arrivalRun != null) {
             tickArrivalRun();
             return;
         }
         boolean tracked = this.hull.isTracked();
         if (!tracked && !this.hull.isWheeled()) { stop(); return; }
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        Vector3f forward = this.input.forwardDirection().normalize();
         double phi = facing == null || facing.horizontalDistanceSqr() < 1.0E-8
                 ? Double.NaN
                 : VehicleTargeting.signedAngleTo(forward, facing);
         ManeuverPlanner.Input in = maneuverInput(forward, 0.0, 0.0, phi,
-                VehicleTargeting.arrivalDistance(this.unit, this.vehicle), true, tracked, 0.0);
+                VehicleTargeting.arrivalDistance(this.unit, hullWidth()), true, tracked, 0.0);
         ManeuverPlanner.Decision decision = ManeuverPlanner.classify(in);
         boolean nowAligning = decision.state() == ManeuverPlanner.State.ALIGN;
         if (nowAligning != this.aligning && SewvDiag.groundPathingVerbose()) {
@@ -1156,7 +1170,7 @@ public final class VehicleDriver {
         if (this.arrivalRun == null && !this.aligning && this.arrivalPlans == 0 && this.arrivalTicks == 0) {
             return false;
         }
-        double bound = ManeuverPlanner.SHUFFLE_BOUND * VehicleTargeting.arrivalDistance(this.unit, this.vehicle);
+        double bound = ManeuverPlanner.SHUFFLE_BOUND * VehicleTargeting.arrivalDistance(this.unit, hullWidth());
         double dx = dest.getX() + 0.5 - this.vehicle.getX();
         double dz = dest.getZ() + 0.5 - this.vehicle.getZ();
         if (dx * dx + dz * dz > bound * bound) {
@@ -1202,7 +1216,7 @@ public final class VehicleDriver {
         this.bankLipFanBlockedTicks = 0;
         this.reverseFaceTurn = 0;
         if (this.vehicle.isInWater()) {
-            TowRecoverySupport.onBankLipStuck(this.vehicle);
+            if (this.sbw != null) TowRecoverySupport.onBankLipStuck(this.sbw);
         }
         SewvDiag.waterEvent(
                 "bankLip reverse START unit={}#{} vehicle={}#{} pos={} inWater={} desired={} "
@@ -1230,7 +1244,7 @@ public final class VehicleDriver {
     private boolean armFanReverse(Vec3 desired, String trigger) {
         Vec3 retreatBase = desired.scale(-1.0);
         if (retreatBase.lengthSqr() < 1.0E-8) {
-            Vector3f forward = this.vehicle.getForwardDirection().normalize();
+            Vector3f forward = this.input.forwardDirection().normalize();
             retreatBase = new Vec3(-forward.x, 0, -forward.z);
         } else {
             retreatBase = retreatBase.normalize();
@@ -1280,7 +1294,7 @@ public final class VehicleDriver {
     /** True when reverse translation is safe (or the sensor is off). */
     private boolean sternClear() {
         if (!this.sensor.enabled()) return true;
-        Vector3f fwd = this.vehicle.getForwardDirection().normalize();
+        Vector3f fwd = this.input.forwardDirection().normalize();
         return this.sensor.headingClear(new Vec3(-fwd.x, 0, -fwd.z), this.sensor.lookahead());
     }
 
@@ -1294,10 +1308,10 @@ public final class VehicleDriver {
     private void driveFaceAndReverse(Vec3 face) {
         Vec3 away = face;
         if (away == null || away.lengthSqr() < 1.0E-8) {
-            Vector3f forward = this.vehicle.getForwardDirection().normalize();
+            Vector3f forward = this.input.forwardDirection().normalize();
             away = new Vec3(forward.x, 0, forward.z);
         }
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        Vector3f forward = this.input.forwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, away);
         boolean aligned = Math.abs(angle) < FACING_DEADBAND_RAD;
         boolean left;
@@ -1309,10 +1323,7 @@ public final class VehicleDriver {
             left = angle > 0;
         }
         this.reverseFaceTurn = aligned ? 0 : (left ? 1 : -1);
-        this.vehicle.setLeftInputDown(!aligned && left);
-        this.vehicle.setRightInputDown(!aligned && !left);
-        this.vehicle.setForwardInputDown(false);
-        this.vehicle.setBackInputDown(true);
+        this.input.setInputs(false, true, !aligned && left, !aligned && !left);
     }
 
     /**
@@ -1321,14 +1332,14 @@ public final class VehicleDriver {
      * {@link #SUBMERGED_ESCAPE_RADIUS} blocks. Returns true when it took over steering this tick.
      */
     private boolean checkSubmergedFailsafe() {
-        if (GroundMobility.isAmphibious(this.vehicle) || !isFullySubmerged()) {
+        if (amphibious() || !isFullySubmerged()) {
             this.submergedStrandedTicks = 0;
             this.lastSubmergedPos = null;
             return false;
         }
         BlockPos escape = nearestDryCell();
         if (escape == null) {
-            TowRecoverySupport.onSubmergedFailsafeExhausted(this.vehicle);
+            if (this.sbw != null) TowRecoverySupport.onSubmergedFailsafeExhausted(this.sbw);
             noteSubmergedStuck();
             stop();
             return true;
@@ -1363,7 +1374,7 @@ public final class VehicleDriver {
         }
         this.submergedStrandedTicks++;
         if (this.submergedStrandedTicks > STUCK_TICKS_THRESHOLD) {
-            TowRecoverySupport.onSubmergedNoProgress(this.vehicle);
+            if (this.sbw != null) TowRecoverySupport.onSubmergedNoProgress(this.sbw);
             this.submergedStrandedTicks = 0;
         }
     }
@@ -1428,18 +1439,12 @@ public final class VehicleDriver {
                 targetPos.getZ() + 0.5 - this.vehicle.getZ());
         if (desired.lengthSqr() < 1.0E-8) { stop(); return; }
         desired = desired.normalize();
-        Vector3f forward = this.vehicle.getForwardDirection().normalize();
+        Vector3f forward = this.input.forwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, desired);
         if (Math.abs(angle) < FACING_DEADBAND_RAD) {
-            this.vehicle.setForwardInputDown(true);
-            this.vehicle.setBackInputDown(false);
-            this.vehicle.setLeftInputDown(false);
-            this.vehicle.setRightInputDown(false);
+            this.input.setInputs(true, false, false, false);
         } else {
-            this.vehicle.setLeftInputDown(angle > 0);
-            this.vehicle.setRightInputDown(angle < 0);
-            this.vehicle.setForwardInputDown(this.hull.isWheeled());
-            this.vehicle.setBackInputDown(false);
+            this.input.setInputs(this.hull.isWheeled(), false, angle > 0, angle < 0);
         }
     }
 

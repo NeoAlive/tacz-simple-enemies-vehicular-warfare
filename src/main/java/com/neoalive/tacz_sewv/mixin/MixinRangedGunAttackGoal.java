@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 import com.neoalive.tacz_sewv.entity.ai.support.GrenadeSupport;
@@ -39,7 +40,7 @@ public abstract class MixinRangedGunAttackGoal {
 
     @Inject(method = "canUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$blockGunWhenCrewingVehicle(CallbackInfoReturnable<Boolean> cir) {
-        if (VehicleWeapons.controlsVehicleWeapon(this.mob)) {
+        if (VehicleWeapons.controlsVehicleWeapon(this.mob) || LvCompat.controlsWeapon(this.mob)) {
             cir.setReturnValue(false);
             return;
         }
@@ -50,7 +51,7 @@ public abstract class MixinRangedGunAttackGoal {
 
     @Inject(method = "canContinueToUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$stopGunWhenCrewingVehicle(CallbackInfoReturnable<Boolean> cir) {
-        if (VehicleWeapons.controlsVehicleWeapon(this.mob)) {
+        if (VehicleWeapons.controlsVehicleWeapon(this.mob) || LvCompat.controlsWeapon(this.mob)) {
             cir.setReturnValue(false);
             return;
         }

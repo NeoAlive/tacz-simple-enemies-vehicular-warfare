@@ -134,7 +134,8 @@ public class BailOutVehicleGoal extends Goal {
 
     /** Queue a foot scramble away from a frag. Crews stay seated. Downed and captured units stay put. */
     public static void requestGrenadeBail(AbstractUnit unit, Vec3 threat, double clearance) {
-        if (unit.getVehicle() instanceof VehicleEntity) return;
+        if (unit.getVehicle() instanceof VehicleEntity
+                || com.neoalive.tacz_sewv.compat.lv.LvCompat.isLvHull(unit.getVehicle())) return;
         if (unit instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) return;
         if (unit instanceof IMedicCaptured captured && captured.sewv$isCapturedSynced()) return;
         CompoundTag tag = unit.getPersistentData();
@@ -162,7 +163,8 @@ public class BailOutVehicleGoal extends Goal {
     @Override
     public boolean canUse() {
         if (hasGrenadeBail(this.unit)) {
-            if (this.unit.getVehicle() instanceof VehicleEntity) {
+            if (this.unit.getVehicle() instanceof VehicleEntity
+                    || com.neoalive.tacz_sewv.compat.lv.LvCompat.isLvHull(this.unit.getVehicle())) {
                 clearGrenadeBail(this.unit);
                 return false;
             }

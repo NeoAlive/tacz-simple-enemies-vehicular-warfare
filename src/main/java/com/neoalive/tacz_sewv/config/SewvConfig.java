@@ -98,6 +98,12 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_MAX_COUNT;
     public static final ForgeConfigSpec.IntValue STRUCTURE_VEHICLE_RAMP_DAYS;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_STRUCTURES;
+    // Limitless Vehicles (ywzj_vehicle, optional) — read only when that mod is loaded.
+    public static final ForgeConfigSpec.BooleanValue LV_AI_ENABLED;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_LV_POOL;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_LV_POOL;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_LV_POOL;
+    public static final ForgeConfigSpec.DoubleValue LV_POOL_MIX_CHANCE;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_STRUCTURES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_STRUCTURES;
 
@@ -1665,6 +1671,25 @@ public final class SewvConfig {
         EASY_PLAYER_PRIORITY_SOFT = builder.comment(
                         "Easy Mode: AI prefers non-player targets and grants a short post-respawn acquire grace.")
                 .define("easyPlayerPrioritySoft", true);
+        builder.pop();
+
+        builder.push("limitless_vehicles");
+        LV_AI_ENABLED = builder.comment(
+                        "Crews drive and gun Limitless Vehicles hulls (ground and boats). Needs ywzj_vehicle installed.")
+                .define("lvAiEnabled", true);
+        RU_LV_POOL = builder.comment(
+                        "Limitless Vehicles ids RU crews spawn in (vehicle data ids, e.g. ywzj_vehicle:ztz99a).",
+                        "Wheeled, tracked and boat hulls only; aircraft and fixed mounts are skipped.")
+                .defineList("ruLvPool", List.of("ywzj_vehicle:ztz99a", "ywzj_vehicle:ztl11"), SewvConfig::isValidResourceId);
+        US_LV_POOL = builder.comment("Limitless Vehicles ids US crews spawn in.")
+                .defineList("usLvPool", List.of("ywzj_vehicle:m1a2", "ywzj_vehicle:lav_ad"), SewvConfig::isValidResourceId);
+        PMC_LV_POOL = builder.comment("Limitless Vehicles ids PMC crews spawn in.")
+                .defineList("pmcLvPool", List.of("ywzj_vehicle:atv_mrzr4", "ywzj_vehicle:hiace", "ywzj_vehicle:assault_boat"),
+                        SewvConfig::isValidResourceId);
+        LV_POOL_MIX_CHANCE = builder.comment(
+                        "Chance an event's crewed vehicle comes from the Limitless Vehicles pool instead of the",
+                        "Superb Warfare one (0 = never). Only used when ywzj_vehicle is installed.")
+                .defineInRange("lvPoolMixChance", 0.0, 0.0, 1.0);
         builder.pop();
 
         SPEC = builder.build();

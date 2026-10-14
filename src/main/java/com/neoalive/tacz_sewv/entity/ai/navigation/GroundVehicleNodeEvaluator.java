@@ -12,6 +12,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.PathNavigationRegion;
@@ -26,9 +27,11 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.core.HullProfile;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 
 /**
@@ -174,7 +177,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             this.entityHeight = Mth.floor(vehicle.getBbHeight() + 1.0F);
             this.entityDepth = Mth.floor(vehicle.getBbWidth() + 1.0F);
             if (mob instanceof AbstractUnit unit) {
-                latchPeers(vehicle, unit);
+                latchPeers(vehicle, vehicle.getBbWidth(), unit);
             }
             if (SewvDiag.groundPathingVerbose()) {
                 SewvDiag.water("prepare vehicle={}#{} amphibious={} maxUpStep={} size={}x{}x{} pos={}",
@@ -182,12 +185,27 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                         this.maxUpStep, this.entityWidth, this.entityHeight, this.entityDepth,
                         vehicle.blockPosition());
             }
+        } else {
+            // A hull from another vehicle mod (compat/lv): the same sizing, from its profile,
+            // because its getBbWidth() need not be its real width.
+            HullProfile p = LvCompat.profileOf(mob.getVehicle());
+            if (p != null) {
+                this.amphibious = p.amphibious();
+                this.maxUpStep = Math.max(1.0F, p.maxUpStep());
+                this.gradeHalfSpan = Math.max(1, Mth.floor(p.width() * 0.5));
+                this.entityWidth = Mth.floor(p.width() + 1.0);
+                this.entityHeight = Mth.floor(p.height() + 1.0);
+                this.entityDepth = Mth.floor(p.width() + 1.0);
+                if (mob instanceof AbstractUnit unit) {
+                    latchPeers(mob.getVehicle(), p.width(), unit);
+                }
+            }
         }
     }
 
     /** One entity scan per path search — never per node. */
-    private void latchPeers(VehicleEntity self, AbstractUnit unit) {
-        double half = self.getBbWidth() * 0.5;
+    private void latchPeers(Entity self, double selfWidth, AbstractUnit unit) {
+        double half = selfWidth * 0.5;
         double reach = VehiclePeerSpacing.SOFT_DISTANCE + half + 4.0;
         AABB search = self.getBoundingBox().inflate(reach, 2.0, reach);
         List<VehicleEntity> found = unit.level().getEntitiesOfClass(VehicleEntity.class, search,

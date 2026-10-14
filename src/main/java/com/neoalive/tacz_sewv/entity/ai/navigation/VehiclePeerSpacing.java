@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.navigation;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.world.entity.Entity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -24,7 +25,7 @@ public final class VehiclePeerSpacing {
     private VehiclePeerSpacing() {}
 
     /** Wrecks and allied crewed hulls — soft path cost only. */
-    public static boolean isPeer(VehicleEntity self, AbstractUnit crew, VehicleEntity other) {
+    public static boolean isPeer(Entity self, AbstractUnit crew, VehicleEntity other) {
         if (other == self || !other.isAlive()) return false;
         if (other.isWreck()) return true;
         return other.getFirstPassenger() instanceof AbstractUnit driver
@@ -35,7 +36,7 @@ public final class VehiclePeerSpacing {
      * Steer-time ORCA set: any crewed hull or wreck, including hostiles.
      * Soft A* spacing stays {@link #isPeer} so routes toward an enemy remain cheap.
      */
-    public static boolean isCollisionPeer(VehicleEntity self, AbstractUnit crew, VehicleEntity other) {
+    public static boolean isCollisionPeer(Entity self, AbstractUnit crew, VehicleEntity other) {
         if (other == self || !other.isAlive()) return false;
         if (other.isWreck()) return true;
         return other.getFirstPassenger() instanceof AbstractUnit;

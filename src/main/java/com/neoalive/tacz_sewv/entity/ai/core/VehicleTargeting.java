@@ -244,12 +244,18 @@ public final class VehicleTargeting {
      * reaches the ordered point.
      */
     public static double arrivalDistance(AbstractUnit unit, VehicleEntity vehicle) {
+        return arrivalDistance(unit, vehicle.getBbWidth());
+    }
+
+    /** {@link #arrivalDistance(AbstractUnit, VehicleEntity)} for a hull whose width is supplied
+     * (a non-SBW hull's {@code getBbWidth()} need not be its real width — see {@link HullProfile}). */
+    public static double arrivalDistance(AbstractUnit unit, double hullWidth) {
         if (unit instanceof PmcUnitEntity pmc) {
             // Route-to-FOB is MOVE_TO_POSITION aimed at the parking-block center. The tight MOVE
             // stop would leave every hull past the first grinding into an occupied pad forever;
             // use the generic band so "near the pad" stands the hull down and arrival can finish.
             if (FobSupport.hasRoutePending(pmc)) {
-                return vehicle.getBbWidth() - 1.0 + STOP_DISTANCE;
+                return hullWidth - 1.0 + STOP_DISTANCE;
             }
             OrderType order = pmc.getOrder();
             if (order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN) {
@@ -263,10 +269,10 @@ public final class VehicleTargeting {
                 return FORMATION_ARRIVE_RADIUS;
             }
             if (order == OrderType.MOVE_TO_POSITION) {
-                return Math.max(vehicle.getBbWidth() * 0.5, MOVE_STOP_DISTANCE);
+                return Math.max(hullWidth * 0.5, MOVE_STOP_DISTANCE);
             }
         }
-        return vehicle.getBbWidth() - 1.0 + STOP_DISTANCE;
+        return hullWidth - 1.0 + STOP_DISTANCE;
     }
 
     /**
@@ -345,6 +351,12 @@ public final class VehicleTargeting {
     // firing solution from here goes looking for ground it can shoot from.
     public static BlockPos computeStandoffPoint(VehicleEntity vehicle, BlockPos targetPos,
                                                 double radius, double bearingOffsetRad) {
+        return computeStandoffPoint(vehicle, vehicle::getForwardDirection, targetPos, radius, bearingOffsetRad);
+    }
+
+    /** The same ring for any hull; {@code facing} is only read when the hull sits on the target. */
+    public static BlockPos computeStandoffPoint(Entity vehicle, java.util.function.Supplier<Vector3f> facing,
+                                                BlockPos targetPos, double radius, double bearingOffsetRad) {
         double cx = targetPos.getX() + 0.5;
         double cz = targetPos.getZ() + 0.5;
         double dx = vehicle.getX() - cx;
@@ -352,7 +364,7 @@ public final class VehicleTargeting {
         double len = Math.sqrt(dx * dx + dz * dz);
         if (len < 1.0E-3) {
             // Practically on top of the target — flee along the current facing
-            Vector3f forward = vehicle.getForwardDirection().normalize();
+            Vector3f forward = facing.get().normalize();
             dx = forward.x;
             dz = forward.z;
             len = 1.0;
@@ -1014,7 +1026,7 @@ public final class VehicleTargeting {
      * as the vehicle scan, only on LOF-cache miss ({@code MixinVehicleFireCooldown}'s 3-tick
      * window). Per candidate: faction test + inflated AABB clip — no raycasts.
      */
-    public static boolean alliedInLineOfFire(AbstractUnit shooter, VehicleEntity self, Vec3 from, Vec3 to) {
+    public static boolean alliedInLineOfFire(AbstractUnit shooter, Entity self, Vec3 from, Vec3 to) {
         AABB corridor = new AABB(from, to).inflate(FRIENDLY_FIRE_MARGIN);
         for (VehicleEntity v : self.level().getEntitiesOfClass(VehicleEntity.class, corridor,
                 veh -> veh != self && !veh.isWreck())) {
@@ -1022,6 +1034,11 @@ public final class VehicleTargeting {
             if (v.getBoundingBox().inflate(FRIENDLY_FIRE_MARGIN).clip(from, to).isPresent()) {
                 return true;
             }
+        }
+        // Limitless Vehicles hulls are not VehicleEntity; the facade answers false when LV is absent.
+        if (com.neoalive.tacz_sewv.compat.lv.LvCompat.alliedHullInCorridor(shooter, self, corridor, from, to,
+                FRIENDLY_FIRE_MARGIN)) {
+            return true;
         }
         LivingEntity target = shooter.getTarget();
         for (AbstractUnit ally : self.level().getEntitiesOfClass(AbstractUnit.class, corridor,
@@ -1078,7 +1095,8 @@ public final class VehicleTargeting {
 
     // A hull counts as friendly when any occupant is a same-faction unit. A hull is
     // not a LivingEntity and carries no faction of its own, so its crew defines it.
-    private static boolean isAlliedVehicle(AbstractUnit shooter, VehicleEntity vehicle) {
+    /** Any same-faction unit aboard. Takes any hull: only its passenger list is read. */
+    public static boolean isAlliedVehicle(AbstractUnit shooter, Entity vehicle) {
         for (Entity passenger : vehicle.getPassengers()) {
             if (passenger instanceof AbstractUnit crew && isSameFaction(shooter, crew)) return true;
         }

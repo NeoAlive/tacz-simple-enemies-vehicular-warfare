@@ -13,6 +13,7 @@ import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
+import com.neoalive.tacz_sewv.spawn.EventVehicleSpawns;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -112,7 +113,8 @@ public final class NavalBattleEvent extends DynamicEvent {
             Integer surface = WaterSupport.surfaceY(level, pos.getX(), pos.getZ());
             if (surface == null) continue; // that spot is land; the rest of the line may still float
             BlockPos onWater = new BlockPos(pos.getX(), surface, pos.getZ());
-            if (TankSpawner.spawnShipWithCrew(level, onWater, faction, null, null) != null) spawned++;
+            if (EventVehicleSpawns.spawnCrewed(level, onWater, faction, true,
+                    () -> TankSpawner.spawnShipWithCrew(level, onWater, faction, null, null) != null)) spawned++;
         }
         return spawned;
     }

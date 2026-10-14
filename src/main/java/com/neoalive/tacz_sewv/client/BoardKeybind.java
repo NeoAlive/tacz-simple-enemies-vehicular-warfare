@@ -17,6 +17,7 @@ import net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -50,6 +51,9 @@ public class BoardKeybind {
                 NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, target.getId()));
             } else if (target instanceof VehicleEntity vehicle) {
                 NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId(), passengerOnly));
+            } else if (LvCompat.isCrewableHull(target)) {
+                // A Limitless Vehicles hull: same order, same packet; the server routes it.
+                NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, target.getId(), passengerOnly));
             } else {
                 hint(player, "message.tacz_sewv.board.no_vehicle");
             }

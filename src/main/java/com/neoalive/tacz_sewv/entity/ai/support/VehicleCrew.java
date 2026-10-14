@@ -4,6 +4,8 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
+
 /**
  * Shared seat test for goals that must not run infantry pathfinding while a unit is crewing an
  * SBW hull. Mortars are seatless and stand beside the tube — they are not passengers, so they
@@ -14,9 +16,9 @@ public final class VehicleCrew {
     private VehicleCrew() {
     }
 
-    /** True when the mob is riding any SuperbWarfare {@link VehicleEntity}. */
+    /** True when the mob is riding any SuperbWarfare {@link VehicleEntity} or Limitless Vehicles hull. */
     public static boolean suppressOnFootAi(Mob mob) {
-        return mob != null && mob.getVehicle() instanceof VehicleEntity;
+        return mob != null && (mob.getVehicle() instanceof VehicleEntity || LvCompat.isLvHull(mob.getVehicle()));
     }
 
     /** Overload for callers that already hold an {@link Entity}. */

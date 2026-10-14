@@ -42,7 +42,8 @@ public final class HullFacts {
     /** Substrings that look like IFV clues but are softskin technicals. */
     private static final List<String> IFV_DENY = List.of("hilux_bmp", "toyota_hilux_bmp");
 
-    private VehicleEntity vehicle;
+    /** Identity only: an SBW {@code VehicleEntity}, or a profiled hull (see {@link #attachProfile}). */
+    private Object hullKey;
     private boolean helicopter;
     private boolean plane;
     private boolean tracked;
@@ -66,8 +67,8 @@ public final class HullFacts {
     private static final Map<VehicleEntity, EngineType> ENGINE_TYPE_CACHE = new WeakHashMap<>();
 
     public void attach(VehicleEntity v) {
-        if (this.vehicle == v) return;
-        this.vehicle = v;
+        if (this.hullKey == v) return;
+        this.hullKey = v;
         this.helicopter = computeHelicopter(v);
         this.plane = computePlane(v);
         this.tracked = computeTracked(v);
@@ -81,6 +82,30 @@ public final class HullFacts {
         this.artillery = computeArtillery(v);
         this.crewSeats = this.ifv ? computeCrewSeats(v) : Set.of(0);
         this.climbSeats = SewvConfig.TANK_RIDER_DISMOUNT_ENABLED.get() ? computeClimbSeats(v) : Set.of();
+    }
+
+    /**
+     * Facts for a hull that is not an SBW one (compat/lv). Only the locomotion class is known;
+     * every role a hull's SBW data would reveal (IFV, artillery, AA, missile system) reads false,
+     * the crew is the driver alone, and steering speed is NaN so the maneuver planner refuses and
+     * the legacy back-and-fill turns a wheeled hull.
+     */
+    public void attachProfile(Entity hull, HullProfile p) {
+        if (this.hullKey == hull) return;
+        this.hullKey = hull;
+        this.helicopter = false;
+        this.plane = false;
+        this.tracked = p.tracked();
+        this.wheeled = p.wheeled();
+        this.steeringSpeed = p.steeringSpeed();
+        this.ship = p.ship();
+        this.groundMobile = p.tracked() || p.wheeled();
+        this.ifv = false;
+        this.missileSystem = false;
+        this.antiAir = false;
+        this.artillery = false;
+        this.crewSeats = Set.of(0);
+        this.climbSeats = Set.of();
     }
 
     /**

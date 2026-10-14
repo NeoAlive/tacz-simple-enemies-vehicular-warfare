@@ -11,6 +11,8 @@ import net.minecraft.world.level.PathNavigationRegion;
 import net.minecraft.world.level.pathfinder.Node;
 import net.minecraft.world.level.pathfinder.SwimNodeEvaluator;
 
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
+import com.neoalive.tacz_sewv.entity.ai.core.HullProfile;
 import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
 
 /**
@@ -35,6 +37,14 @@ public class ShipVehicleNodeEvaluator extends SwimNodeEvaluator {
             this.entityWidth = Mth.floor(vehicle.getBbWidth() + 1.0F);
             this.entityHeight = Mth.floor(vehicle.getBbHeight() + 1.0F);
             this.entityDepth = Mth.floor(vehicle.getBbWidth() + 1.0F);
+        } else {
+            // A hull from another vehicle mod (compat/lv): sized from its profile, not getBbWidth().
+            HullProfile p = LvCompat.profileOf(mob.getVehicle());
+            if (p != null) {
+                this.entityWidth = Mth.floor(p.width() + 1.0);
+                this.entityHeight = Mth.floor(p.height() + 1.0);
+                this.entityDepth = Mth.floor(p.width() + 1.0);
+            }
         }
     }
 

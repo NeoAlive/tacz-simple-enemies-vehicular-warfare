@@ -528,10 +528,19 @@ tasks.register('selfCheckMiscPacks', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckLv', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Limitless Vehicles steering-translation and isolation self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.compat.lv.LvSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckTaskedDestination', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckTaskedDestination', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckLv'
 }
 
 mixin {
@@ -745,6 +754,22 @@ dependencies {
     compileOnly fg.deobf("blank:corpse:1.0")
     if (project.hasProperty('withCorpse')) {
         runtimeOnly fg.deobf("blank:corpse:1.0")
+    }
+    // Soft: compile against Limitless Vehicles (ywzj_vehicle). libs/ywzj_vehicle.jar is LV's own
+    // reobfuscated build of the shipped 0.6.0 (commit 796babe5; `gradlew build` → build/libs/).
+    // Only compat/lv/* may import org.ywzj.* — everything else goes through
+    // LvCompat. There are deliberately NO mixins into LV classes: transforming its AbstractVehicle
+    // recomputes frames that name client-only LocalVehiclePlayer, which crashes a dedicated server.
+    // Off the run classpath by default; opt in with:
+    //   ./gradlew runClient -PwithLv
+    // LV jar-in-jars ApricityUI, rhino and MixinExtras, which a dev run does not unpack, so they
+    // come along under the same flag (copied out of LV's META-INF/jarjar into libs/).
+    compileOnly fg.deobf("blank:ywzj_vehicle:1.0")
+    if (project.hasProperty('withLv')) {
+        runtimeOnly fg.deobf("blank:ywzj_vehicle:1.0")
+        runtimeOnly fg.deobf("blank:apricityui:1.0")
+        runtimeOnly "blank:rhino:1.0"
+        runtimeOnly "blank:mixinextras:1.0"
     }
     // Soft: compile against Enhanced Falling Trees (MC 1.20/Forge 46, github.com/addavriance/
     // EnhancedFallingTrees). libs/efallingtrees.jar is its Forge release jar, same flatDir

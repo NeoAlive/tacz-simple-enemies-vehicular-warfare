@@ -13,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.mixin.MixinVehicleInteractLock;
 import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
 
@@ -40,11 +41,11 @@ public final class EnemyCrewInteractGuard {
     }
 
     private static void handle(PlayerInteractEvent event, Entity target) {
-        if (!(target instanceof VehicleEntity hull)) return;
+        if (!(target instanceof VehicleEntity) && !LvCompat.isLvHull(target)) return;
         Player player = event.getEntity();
         if (player.level().isClientSide()) return;
 
-        if (hasEnemyCrew(hull)) {
+        if (hasEnemyCrew(target)) {
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.FAIL);
             player.displayClientMessage(
@@ -52,10 +53,11 @@ public final class EnemyCrewInteractGuard {
                             .withStyle(ChatFormatting.GRAY), true);
             return;
         }
-        VehicleEngineLoot.tryApplyOnUnlock(hull);
+        if (target instanceof VehicleEntity hull) VehicleEngineLoot.tryApplyOnUnlock(hull);
     }
 
-    public static boolean hasEnemyCrew(VehicleEntity hull) {
+    /** Any RU/US unit aboard. Takes any hull — SBW or Limitless Vehicles — since only passengers are read. */
+    public static boolean hasEnemyCrew(Entity hull) {
         for (Entity passenger : hull.getPassengers()) {
             if (passenger instanceof RUunitEntity || passenger instanceof USunitEntity) {
                 return true;

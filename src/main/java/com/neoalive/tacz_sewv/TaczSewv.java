@@ -147,6 +147,8 @@ public class TaczSewv {
     // Soft compat: Corpse is compileOnly; only CorpseCompat.Access may touch
     // de.maxhenkel.corpse.*, and only after isLoaded().
     CorpseCompat.reportAvailability();
+    // Limitless Vehicles: LvCompat imports no LV type, so this is safe with the mod absent.
+    com.neoalive.tacz_sewv.compat.lv.LvCompat.reportAvailability();
     com.neoalive.tacz_sewv.compat.NeoArmsCompat.bootstrap();
     // MixinVehicleDamageRedirect yields the DamageModifier.compute call to DNV's own redirect
     // (two @Redirects on one call is a load-time crash), so say what that turns off.

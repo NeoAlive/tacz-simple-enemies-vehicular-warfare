@@ -85,7 +85,9 @@ public abstract class MixinVillageGarrisonHandler {
         // seeded roll and the "already has one" dedupe still hold across the 2-4 deferred calls.
         level.getServer().execute(() -> {
             // Already has one (or a second villager's garrison put one here) — nothing to add.
-            if (!level.getEntitiesOfClass(VehicleEntity.class, new AABB(basePos).inflate(TACZ_SEWV$RADIUS)).isEmpty()) {
+            AABB around = new AABB(basePos).inflate(TACZ_SEWV$RADIUS);
+            if (!level.getEntitiesOfClass(VehicleEntity.class, around).isEmpty()
+                    || com.neoalive.tacz_sewv.compat.lv.LvCompat.anyHullIn(level, around)) {
                 return;
             }
 
@@ -98,7 +100,8 @@ public abstract class MixinVillageGarrisonHandler {
             if (!level.isLoaded(spot)) return;
             TankSpawner.TankFaction faction = isRu ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
             // Crewed: fuelled by the faction-energy rule and never scavenged. See the class doc.
-            TankSpawner.spawnTankWithCrew(level, spot, faction, null);
+            com.neoalive.tacz_sewv.spawn.EventVehicleSpawns.spawnCrewed(level, spot, faction, false,
+                    () -> TankSpawner.spawnTankWithCrew(level, spot, faction, null) != null);
         });
     }
 

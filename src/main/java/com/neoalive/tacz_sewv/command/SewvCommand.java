@@ -1009,6 +1009,10 @@ public class SewvCommand {
                         TankSpawner::spawnHeliWithCrew, true, false))
                 .then(emplacementSpawn("mortar", faction, Emplacement.MORTAR, TankFaction::mortarPool))
                 .then(emplacementSpawn("tow", faction, Emplacement.TOW, TankFaction::towPool));
+        // Limitless Vehicles hulls from the faction's LV pool; the literal only exists with LV loaded.
+        if (com.neoalive.tacz_sewv.compat.lv.LvCompat.present()) {
+            node.then(com.neoalive.tacz_sewv.compat.lv.LvCommands.node(faction));
+        }
         if (faction == TankFaction.PMC) {
             node.then(commanderSpawn("commander"));
         } else {

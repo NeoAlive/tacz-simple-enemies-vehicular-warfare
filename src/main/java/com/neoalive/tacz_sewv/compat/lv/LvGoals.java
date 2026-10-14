@@ -16,6 +16,7 @@ public final class LvGoals {
         unit.goalSelector.addGoal(0, new LvBailOutGoal(unit));
         unit.goalSelector.addGoal(1, new LvDriveGoal(unit));
         unit.goalSelector.addGoal(1, new LvShipGoal(unit));
+        unit.goalSelector.addGoal(1, new LvRotorGoal(unit));
         unit.goalSelector.addGoal(1, new LvGunnerGoal(unit));
         unit.goalSelector.addGoal(1, new LvBoardGoal(unit));
         unit.targetSelector.addGoal(2, new LvTargetScanGoal(unit));

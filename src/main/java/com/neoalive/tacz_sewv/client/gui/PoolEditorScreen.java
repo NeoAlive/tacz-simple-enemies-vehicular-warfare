@@ -22,12 +22,12 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.ForgeRegistries;
 
-import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.client.editor.GrenadePoolCatalog;
 import com.neoalive.tacz_sewv.client.editor.IdSearch;
 import com.neoalive.tacz_sewv.client.editor.PoolPresetApply;
 import com.neoalive.tacz_sewv.client.editor.PoolPresetApply.Mode;
 import com.neoalive.tacz_sewv.client.editor.VehiclePoolCatalog;
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketUpdateVehiclePools;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;

@@ -25,6 +25,7 @@ public final class VehiclePackPresetsSelfCheck {
         noDuplicatesWithinFactionCategory();
         factionCountsMatchTables();
         knownModIds();
+        legacyPoolKeysMigrate();
         noneIsNoOp();
         addUnionsWithoutRemoving();
         replaceOverwritesDefinedCategoriesOnly();
@@ -148,6 +149,23 @@ public final class VehiclePackPresetsSelfCheck {
         check(neo.get(TankFaction.US).get(Category.GROUND).contains("neoarms:leopard_2a7v"), "neo US leo");
         check(!neo.get(TankFaction.PMC).get(Category.GROUND).contains("neoarms:leopard_2a7v"),
                 "PMC skips tip-tier leo");
+    }
+
+    /** A world saved before SHIP/HELI became SURFACE/ROTOR loads its edited lists under the new names. */
+    private static void legacyPoolKeysMigrate() {
+        net.minecraft.nbt.CompoundTag nbt = new net.minecraft.nbt.CompoundTag();
+        net.minecraft.nbt.ListTag ship = new net.minecraft.nbt.ListTag();
+        ship.add(net.minecraft.nbt.StringTag.valueOf("test:legacy_boat"));
+        nbt.put("ru_ship", ship);
+        net.minecraft.nbt.ListTag heli = new net.minecraft.nbt.ListTag();
+        heli.add(net.minecraft.nbt.StringTag.valueOf("test:legacy_heli"));
+        nbt.put("ru_heli", heli);
+        WorldVehiclePools pools = WorldVehiclePools.load(nbt);
+        check(pools.list(TankFaction.RU, Category.SURFACE).equals(List.of("test:legacy_boat")), "ru_ship -> SURFACE");
+        check(pools.list(TankFaction.RU, Category.ROTOR).equals(List.of("test:legacy_heli")), "ru_heli -> ROTOR");
+        net.minecraft.nbt.CompoundTag saved = pools.save(new net.minecraft.nbt.CompoundTag());
+        check(saved.contains("ru_surface") && saved.contains("ru_rotor"), "saved under new keys");
+        check(!saved.contains("ru_ship") && !saved.contains("ru_heli"), "legacy keys not re-written");
     }
 
     private static Map<TankFaction, Map<Category, List<String>>> blankPools() {

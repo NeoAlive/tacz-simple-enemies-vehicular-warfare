@@ -143,7 +143,8 @@ public final class BailOutSupport {
         return escape;
     }
 
-    private static void issueParachute(AbstractUnit unit) {
+    /** A parachute in the unit's back slot when it is high enough to need one. Public for the LV bail-out. */
+    public static void issueParachute(AbstractUnit unit) {
         Level level = unit.level();
         BlockPos ground = level.getHeightmapPos(
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, unit.blockPosition());

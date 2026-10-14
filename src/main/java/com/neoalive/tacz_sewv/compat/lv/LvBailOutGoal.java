@@ -41,6 +41,8 @@ final class LvBailOutGoal extends Goal {
 
     @Override
     public void start() {
+        // Out of a helicopter this is a long way down; SBW's own canopy flies it for a mob.
+        com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport.issueParachute(this.unit);
         this.unit.stopRiding();
         // A pending board order would walk the unit straight back into the burning hull.
         if (this.unit instanceof IVehicleBoarder boarder) {

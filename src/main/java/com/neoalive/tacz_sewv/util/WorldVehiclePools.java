@@ -280,7 +280,12 @@ public class WorldVehiclePools extends SavedData {
     private static void loadLegacyPoolsOnce() {
         if (legacyPoolsLoaded) return;
         legacyPoolsLoaded = true;
-        var path = FMLPaths.CONFIGDIR.get().resolve(LEGACY_COMMON_CONFIG);
+        java.nio.file.Path path;
+        try {
+            path = FMLPaths.CONFIGDIR.get().resolve(LEGACY_COMMON_CONFIG);
+        } catch (Throwable notUnderFml) {
+            return; // headless (self-checks): there is no config dir to seed from
+        }
         if (!java.nio.file.Files.isRegularFile(path)) return;
 
         try (CommentedFileConfig config = CommentedFileConfig.builder(path).sync().build()) {

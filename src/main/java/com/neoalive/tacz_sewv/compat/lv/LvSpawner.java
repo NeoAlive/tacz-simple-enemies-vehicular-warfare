@@ -1,7 +1,5 @@
 package com.neoalive.tacz_sewv.compat.lv;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import javax.annotation.Nullable;

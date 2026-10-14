@@ -77,6 +77,7 @@ public final class MiscPackPresets {
         out.put(Pack.DRAGONRISE, dragonrise());
         out.put(Pack.ULTIMA_RATIO, ultima());
         out.put(Pack.NEO_ARMS, empty());
+        out.put(Pack.LIMITLESS_VEHICLES, empty()); // vehicles only: no armour items, no class cues
         return Collections.unmodifiableMap(out);
     }
 

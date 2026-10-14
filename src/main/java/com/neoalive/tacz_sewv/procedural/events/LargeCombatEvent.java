@@ -10,8 +10,8 @@ import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
-import com.neoalive.tacz_sewv.spawn.EventVehicleSpawns;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
 /**
  * SEM's {@code far_combat} at three times the scale, with armour: two full platoons of infantry
@@ -82,10 +82,9 @@ public final class LargeCombatEvent extends DynamicEvent {
     @Override
     public boolean execute(ServerLevel level, ServerPlayer player, BlockPos centerPos) {
         if (!EventSpawns.placeable(level, centerPos)) return false;
-        // Both sides field armour here, so both pools have to be usable — unlike the one-sided
-        // events, there is no "pick whichever faction works" fallback that still makes a battle.
-        if (!TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.RU)
-                || !TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.US)) {
+        // Both sides field vehicles here, so each needs a usable ground or rotor pool — unlike the
+        // one-sided events, there is no "pick whichever faction works" fallback that still makes a battle.
+        if (!fieldsVehicles(level, TankSpawner.TankFaction.RU) || !fieldsVehicles(level, TankSpawner.TankFaction.US)) {
             return false;
         }
 
@@ -108,6 +107,27 @@ public final class LargeCombatEvent extends DynamicEvent {
         return true;
     }
 
+    /** Room behind the armour line for the helicopter line. */
+    private static final int ROTOR_BACKSET = 12;
+
+    private static boolean fieldsVehicles(ServerLevel level, TankSpawner.TankFaction faction) {
+        return TankSpawner.groundEventsAllowed(level, faction) || TankSpawner.rotorEventsAllowed(level, faction);
+    }
+
+    /** {@code wanted} crewed vehicles of one pool class abreast, {@code back} blocks behind the anchor. */
+    private static int deployLine(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction,
+                                  boolean alongX, int back, int wanted, WorldVehiclePools.Category category) {
+        int spawned = 0;
+        for (int i = 0; i < wanted; i++) {
+            int along = (i - wanted / 2) * VEHICLE_SPACING;
+            BlockPos pos = alongX ? anchor.offset(back, 0, along) : anchor.offset(along, 0, back);
+            if (TankSpawner.spawnFromPool(level, TankSpawner.adjustHeight(level, pos), faction, category, null, null) != null) {
+                spawned++;
+            }
+        }
+        return spawned;
+    }
+
     /**
      * One side's deployment: riflemen on the line, armour a short way behind them, and the rare
      * crew-served weapon out on a flank. {@code facing} is +1/-1 for which way "behind" is.
@@ -120,17 +140,15 @@ public final class LargeCombatEvent extends DynamicEvent {
             EventSpawns.infantry(level, anchor, faction, INFANTRY_SCATTER);
         }
 
-        int wanted = SewvConfig.LARGE_COMBAT_VEHICLES.get();
         int spawned = 0;
-        for (int i = 0; i < wanted; i++) {
-            int back = VEHICLE_BACKSET * facing;
-            int along = (i - wanted / 2) * VEHICLE_SPACING;
-            BlockPos pos = alongX ? anchor.offset(back, 0, along) : anchor.offset(along, 0, back);
-            BlockPos ground = TankSpawner.adjustHeight(level, pos);
-            if (EventVehicleSpawns.spawnCrewed(level, ground, faction, false,
-                    () -> TankSpawner.spawnCombatVehicleWithCrew(level, ground, faction, null) != null)) {
-                spawned++;
-            }
+        if (TankSpawner.groundEventsAllowed(level, faction)) {
+            spawned += deployLine(level, anchor, faction, alongX, VEHICLE_BACKSET * facing,
+                    SewvConfig.LARGE_COMBAT_GROUND_VEHICLES.get(), WorldVehiclePools.Category.GROUND);
+        }
+        // Helicopters form a second line further back, so they lift off behind the armour.
+        if (TankSpawner.rotorEventsAllowed(level, faction)) {
+            spawned += deployLine(level, anchor, faction, alongX, (VEHICLE_BACKSET + ROTOR_BACKSET) * facing,
+                    SewvConfig.LARGE_COMBAT_ROTOR_VEHICLES.get(), WorldVehiclePools.Category.ROTOR);
         }
 
         if (level.random.nextDouble() < SewvConfig.LARGE_COMBAT_EMPLACEMENT_CHANCE.get()) {

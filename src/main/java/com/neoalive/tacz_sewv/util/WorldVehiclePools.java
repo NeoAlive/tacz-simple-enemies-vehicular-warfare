@@ -34,10 +34,10 @@ public class WorldVehiclePools extends SavedData {
             "superbwarfare:m_1a_2", "superbwarfare:bradley");
     private static final List<String> DEFAULT_PMC_GROUND = List.of(
             "superbwarfare:t_90a");
-    private static final List<String> DEFAULT_RU_HELI = List.of("superbwarfare:mi_28");
-    private static final List<String> DEFAULT_US_HELI = List.of("superbwarfare:ah_6");
-    private static final List<String> DEFAULT_PMC_HELI = List.of("superbwarfare:ah_6");
-    private static final List<String> DEFAULT_SHIPS = List.of("superbwarfare:speedboat");
+    private static final List<String> DEFAULT_RU_ROTOR = List.of("superbwarfare:mi_28");
+    private static final List<String> DEFAULT_US_ROTOR = List.of("superbwarfare:ah_6");
+    private static final List<String> DEFAULT_PMC_ROTOR = List.of("superbwarfare:ah_6");
+    private static final List<String> DEFAULT_SURFACE = List.of("superbwarfare:speedboat");
     private static final List<String> DEFAULT_RU_PLANES = List.of("superbwarfare:kv_16");
     private static final List<String> DEFAULT_US_PLANES = List.of("superbwarfare:a_10a");
     private static final List<String> DEFAULT_PMC_PLANES = List.of("superbwarfare:a_10a");
@@ -56,8 +56,24 @@ public class WorldVehiclePools extends SavedData {
     private static Map<TankFaction, Map<Category, List<String>>> legacyPools;
     private static boolean legacyPoolsLoaded;
 
+    /**
+     * Pool classes. GROUND = wheeled/tracked hulls (and fixed mounts that crew like one), SURFACE =
+     * boats, ROTOR = helicopters, PLANE = fixed wing. Any of GROUND / SURFACE / ROTOR may also hold
+     * Limitless Vehicles data ids when that mod is loaded — {@code TankSpawner.spawnFromPool} routes
+     * them. Order is the wire order of the pool-editor packets: append, never reorder.
+     */
     public enum Category {
-        GROUND, SHIP, PLANE, HELI, TOW, MORTAR, GRENADE
+        GROUND, SURFACE, PLANE, ROTOR, TOW, MORTAR, GRENADE;
+
+        /** The NBT/lang key this category was saved under before the ship→surface / heli→rotor rename. */
+        @javax.annotation.Nullable
+        String legacyKey() {
+            return switch (this) {
+                case SURFACE -> "ship";
+                case ROTOR -> "heli";
+                default -> null;
+            };
+        }
     }
 
     private final Map<TankFaction, Map<Category, List<String>>> pools = new EnumMap<>(TankFaction.class);
@@ -71,9 +87,12 @@ public class WorldVehiclePools extends SavedData {
         data.pools.clear();
         for (TankFaction faction : TankFaction.values()) {
             Map<Category, List<String>> byCat = new EnumMap<>(Category.class);
-            boolean heliFromNbt = nbt.contains(key(faction, Category.HELI), Tag.TAG_LIST);
+            boolean rotorFromNbt = nbt.contains(key(faction, Category.ROTOR), Tag.TAG_LIST)
+                    || nbt.contains(legacyKey(faction, Category.ROTOR), Tag.TAG_LIST);
             for (Category cat : Category.values()) {
+                // Worlds saved before the rename hold ru_ship / ru_heli; read them under the new name.
                 String key = key(faction, cat);
+                if (!nbt.contains(key, Tag.TAG_LIST) && cat.legacyKey() != null) key = legacyKey(faction, cat);
                 List<String> list = new ArrayList<>();
                 if (nbt.contains(key, Tag.TAG_LIST)) {
                     ListTag tags = nbt.getList(key, Tag.TAG_STRING);
@@ -85,19 +104,19 @@ public class WorldVehiclePools extends SavedData {
                 }
                 byCat.put(cat, list);
             }
-            if (!heliFromNbt) {
+            if (!rotorFromNbt) {
                 migrateHelisFromGround(byCat);
             }
             data.pools.put(faction, byCat);
         }
-        data.setDirty(); // persist HELI keys / migration even if nothing else changed
+        data.setDirty(); // persist ROTOR / SURFACE keys and migrations even if nothing else changed
         return data;
     }
 
-    /** Move heli-looking ids out of GROUND into HELI (once, when HELI NBT was absent). */
+    /** Move heli-looking ids out of GROUND into ROTOR (once, when no rotor/heli NBT existed). */
     private static void migrateHelisFromGround(Map<Category, List<String>> byCat) {
         List<String> ground = byCat.get(Category.GROUND);
-        List<String> heli = byCat.computeIfAbsent(Category.HELI, c -> new ArrayList<>());
+        List<String> heli = byCat.computeIfAbsent(Category.ROTOR, c -> new ArrayList<>());
         if (ground == null) return;
         Iterator<String> it = ground.iterator();
         while (it.hasNext()) {
@@ -204,7 +223,7 @@ public class WorldVehiclePools extends SavedData {
             for (Category cat : Category.values()) {
                 byCat.put(cat, new ArrayList<>(initialDefaults(faction, cat)));
             }
-            // Legacy GROUND may still list helis — peel them into HELI.
+            // Legacy GROUND may still list helis — peel them into ROTOR.
             migrateHelisFromGround(byCat);
             pools.put(faction, byCat);
         }
@@ -214,6 +233,10 @@ public class WorldVehiclePools extends SavedData {
         return faction.name().toLowerCase() + "_" + category.name().toLowerCase();
     }
 
+    private static String legacyKey(TankFaction faction, Category category) {
+        return faction.name().toLowerCase() + "_" + category.legacyKey();
+    }
+
     public static List<String> builtInDefaults(TankFaction faction, Category category) {
         return switch (category) {
             case GROUND -> switch (faction) {
@@ -221,13 +244,13 @@ public class WorldVehiclePools extends SavedData {
                 case US -> DEFAULT_US_GROUND;
                 case PMC -> DEFAULT_PMC_GROUND;
             };
-            case HELI -> switch (faction) {
-                case RU -> DEFAULT_RU_HELI;
-                case US -> DEFAULT_US_HELI;
-                case PMC -> DEFAULT_PMC_HELI;
+            case ROTOR -> switch (faction) {
+                case RU -> DEFAULT_RU_ROTOR;
+                case US -> DEFAULT_US_ROTOR;
+                case PMC -> DEFAULT_PMC_ROTOR;
             };
-            case SHIP -> switch (faction) {
-                case RU, US, PMC -> DEFAULT_SHIPS;
+            case SURFACE -> switch (faction) {
+                case RU, US, PMC -> DEFAULT_SURFACE;
             };
             case PLANE -> switch (faction) {
                 case RU -> DEFAULT_RU_PLANES;
@@ -266,15 +289,15 @@ public class WorldVehiclePools extends SavedData {
             loadLegacy(loaded, TankFaction.RU, Category.GROUND, config, "vehicle_pools.ruVehiclePool");
             loadLegacy(loaded, TankFaction.US, Category.GROUND, config, "vehicle_pools.usVehiclePool");
             loadLegacy(loaded, TankFaction.PMC, Category.GROUND, config, "vehicle_pools.pmcVehiclePool");
-            loadLegacy(loaded, TankFaction.RU, Category.SHIP, config, "vehicle_pools.ruShipPool");
-            loadLegacy(loaded, TankFaction.US, Category.SHIP, config, "vehicle_pools.usShipPool");
-            loadLegacy(loaded, TankFaction.PMC, Category.SHIP, config, "vehicle_pools.pmcShipPool");
+            loadLegacy(loaded, TankFaction.RU, Category.SURFACE, config, "vehicle_pools.ruShipPool");
+            loadLegacy(loaded, TankFaction.US, Category.SURFACE, config, "vehicle_pools.usShipPool");
+            loadLegacy(loaded, TankFaction.PMC, Category.SURFACE, config, "vehicle_pools.pmcShipPool");
             loadLegacy(loaded, TankFaction.RU, Category.PLANE, config, "vehicle_pools.ruPlanePool");
             loadLegacy(loaded, TankFaction.US, Category.PLANE, config, "vehicle_pools.usPlanePool");
             loadLegacy(loaded, TankFaction.PMC, Category.PLANE, config, "vehicle_pools.pmcPlanePool");
-            loadLegacy(loaded, TankFaction.RU, Category.HELI, config, "vehicle_pools.ruHeliPool");
-            loadLegacy(loaded, TankFaction.US, Category.HELI, config, "vehicle_pools.usHeliPool");
-            loadLegacy(loaded, TankFaction.PMC, Category.HELI, config, "vehicle_pools.pmcHeliPool");
+            loadLegacy(loaded, TankFaction.RU, Category.ROTOR, config, "vehicle_pools.ruHeliPool");
+            loadLegacy(loaded, TankFaction.US, Category.ROTOR, config, "vehicle_pools.usHeliPool");
+            loadLegacy(loaded, TankFaction.PMC, Category.ROTOR, config, "vehicle_pools.pmcHeliPool");
             legacyPools = loaded.isEmpty() ? null : loaded;
         } catch (RuntimeException ignored) {
             legacyPools = null;

@@ -120,7 +120,9 @@ public class NetworkHandler {
     // 98: PacketOpenMiscEditor drops armor catalog (client builds from ForgeRegistries).
     // 99: PacketOrderQueue (C->S) + PacketOrderQueueState (S->C) — Quick Wheel order queue.
     // 100: PacketGraceStart (S->C) — grace period popup.
-    private static final String PROTOCOL_VERSION = "101";
+    // 102: vehicle pool categories SHIP/HELI renamed SURFACE/ROTOR (same wire order); pools may hold
+    //      Limitless Vehicles ids.
+    private static final String PROTOCOL_VERSION = "102";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

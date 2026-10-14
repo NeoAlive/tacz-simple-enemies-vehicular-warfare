@@ -31,9 +31,6 @@ public final class ModGameRules {
     public static final GameRules.Key<GameRules.BooleanValue> PMC_AMBIENT_SPAWNS =
             GameRules.register("sewvPmcAmbientSpawns", GameRules.Category.SPAWNING, GameRules.BooleanValue.create(true));
 
-    public static final GameRules.Key<GameRules.BooleanValue> TANKS_IN_EVENTS =
-            GameRules.register("sewvTanksInEvents", GameRules.Category.SPAWNING, GameRules.BooleanValue.create(true));
-
     /**
      * When on, mob melee against SuperbWarfare hulls uses SEWV's score-based damage instead of
      * datapack {@code DamageModifiers} that zero {@code minecraft:mob_attack}.

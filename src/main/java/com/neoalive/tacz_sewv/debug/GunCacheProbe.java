@@ -56,14 +56,14 @@ public final class GunCacheProbe {
     /** @return a single-line PASS/FAIL report */
     public static String run(ServerLevel level, BlockPos near) {
         // Prefer a ground hull with a multi-ammo cannon — the RU pool can roll a heli.
-        VehicleEntity hull = TankSpawner.spawnTankWithCrew(
+        VehicleEntity hull = TankSpawner.spawnGroundWithCrew(
                 level, near, TankFaction.RU, null, "superbwarfare:bmp_2");
         if (hull == null) {
-            hull = TankSpawner.spawnTankWithCrew(
+            hull = TankSpawner.spawnGroundWithCrew(
                     level, near, TankFaction.RU, null, "superbwarfare:t_90a");
         }
         if (hull == null) {
-            hull = TankSpawner.spawnTankWithCrew(level, near, TankFaction.RU, null);
+            hull = TankSpawner.spawnGroundWithCrew(level, near, TankFaction.RU, null);
         }
         if (hull == null) {
             return "FAIL spawn: no RU pool vehicle";

@@ -121,8 +121,12 @@ public final class SewvDebugDump {
             sb.append("error=SPEC not loaded\n\n");
             return;
         }
-        sb.append("tankSpawnChanceRu=").append(SewvConfig.TANK_SPAWN_CHANCE_RU.get()).append('\n');
-        sb.append("tankSpawnChanceUs=").append(SewvConfig.TANK_SPAWN_CHANCE_US.get()).append('\n');
+        sb.append("groundInEvents=").append(SewvConfig.GROUND_IN_EVENTS.get()).append('\n');
+        sb.append("groundSpawnChanceRu=").append(SewvConfig.GROUND_SPAWN_CHANCE_RU.get()).append('\n');
+        sb.append("groundSpawnChanceUs=").append(SewvConfig.GROUND_SPAWN_CHANCE_US.get()).append('\n');
+        sb.append("rotorInEvents=").append(SewvConfig.ROTOR_IN_EVENTS.get()).append('\n');
+        sb.append("rotorSpawnChanceRu=").append(SewvConfig.ROTOR_SPAWN_CHANCE_RU.get()).append('\n');
+        sb.append("rotorSpawnChanceUs=").append(SewvConfig.ROTOR_SPAWN_CHANCE_US.get()).append('\n');
         sb.append("planesInEvents=").append(SewvConfig.PLANES_IN_EVENTS.get()).append('\n');
         sb.append("planeSpawnChanceRu=").append(SewvConfig.PLANE_SPAWN_CHANCE_RU.get()).append('\n');
         sb.append("planeSpawnChanceUs=").append(SewvConfig.PLANE_SPAWN_CHANCE_US.get()).append('\n');
@@ -149,7 +153,6 @@ public final class SewvDebugDump {
         sb.append("sewvUsSpawns=").append(level.getGameRules().getBoolean(ModGameRules.US_SPAWNS)).append('\n');
         sb.append("sewvAmbientSpawns=").append(level.getGameRules().getBoolean(ModGameRules.AMBIENT_SPAWNS)).append('\n');
         sb.append("sewvPmcAmbientSpawns=").append(level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)).append('\n');
-        sb.append("sewvTanksInEvents=").append(level.getGameRules().getBoolean(ModGameRules.TANKS_IN_EVENTS)).append('\n');
         sb.append("farEventSpawns=").append(SewvConfig.FAR_EVENT_SPAWNS.get()).append('\n');
         sb.append("canMobsDamageVehicles=")
                 .append(level.getGameRules().getBoolean(ModGameRules.CAN_MOBS_DAMAGE_VEHICLES)).append('\n');

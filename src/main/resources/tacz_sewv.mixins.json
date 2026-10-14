@@ -7,6 +7,7 @@
   "plugin": "com.neoalive.tacz_sewv.mixin.SbwVersionMixinPlugin",
   "mixins": [
     "MixinAbstractUnit",
+    "MixinForgeConfigSpec",
     "MixinUnitFactionTags",
     "MixinUnitVoicelines",
     "MixinVehicleVoicelines",

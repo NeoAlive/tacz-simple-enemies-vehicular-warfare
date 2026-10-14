@@ -1,6 +1,6 @@
 package com.neoalive.tacz_sewv.procedural.events;
 
-import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -9,6 +9,7 @@ import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
 /**
  * A standalone SEM event for a single-faction military convoy. It is deliberately
@@ -68,7 +69,9 @@ public final class ConvoyEvent extends DynamicEvent {
             int offset = i * VEHICLE_SPACING * direction;
             BlockPos vehiclePos = alongX ? centerPos.offset(offset, 0, 0) : centerPos.offset(0, 0, offset);
             vehiclePos = TankSpawner.adjustHeight(level, vehiclePos);
-            VehicleEntity vehicle = TankSpawner.spawnCombatVehicleWithCrew(level, vehiclePos, faction, null);
+            // Ground only: a convoy is on the road; helicopters have their own event slots.
+            Entity vehicle = TankSpawner.spawnFromPool(level, vehiclePos, faction,
+                    WorldVehiclePools.Category.GROUND, null, null);
             if (vehicle != null) {
                 spawnedVehicles++;
                 if (firstVehiclePos == null) firstVehiclePos = vehiclePos;

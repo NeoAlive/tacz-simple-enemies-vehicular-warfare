@@ -1,11 +1,14 @@
 package com.neoalive.tacz_sewv.compat.lv;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
 import javax.annotation.Nullable;
 
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -15,7 +18,13 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 import org.ywzj.vehicle.api.YwzjVehicleAPI;
 import org.ywzj.vehicle.custom.vehicle.BaseVehicleData;
+import org.ywzj.vehicle.custom.vehicle.FixedWingVehicleData;
+import org.ywzj.vehicle.custom.vehicle.RotaryWingVehicleData;
+import org.ywzj.vehicle.custom.vehicle.TrackedVehicleData;
+import org.ywzj.vehicle.custom.vehicle.VesselVehicleData;
+import org.ywzj.vehicle.custom.vehicle.WheeledVehicleData;
 import org.ywzj.vehicle.entity.vehicle.AbstractVehicle;
+import org.ywzj.vehicle.entity.vehicle.RotaryWingVehicle;
 import org.ywzj.vehicle.entity.vehicle.TrackedVehicle;
 import org.ywzj.vehicle.entity.vehicle.VesselVehicle;
 import org.ywzj.vehicle.entity.vehicle.WheeledVehicle;
@@ -25,6 +34,7 @@ import org.ywzj.vehicle.vehicle.part.WeaponUnit;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullProfile;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
 /**
  * Everything that needs an LV type to answer, behind {@link LvCompat}. Never reached unless LV is
@@ -40,7 +50,7 @@ final class LvHulls {
     /** Profiles never change for a hull's life (its data is fixed at construction). */
     private static final Map<Entity, HullProfile> PROFILES = new WeakHashMap<>();
 
-    enum Kind { WHEELED, TRACKED, VESSEL }
+    enum Kind { WHEELED, TRACKED, VESSEL, ROTARY }
 
     private LvHulls() {}
 
@@ -53,7 +63,88 @@ final class LvHulls {
         if (e instanceof TrackedVehicle) return Kind.TRACKED;
         if (e instanceof WheeledVehicle) return Kind.WHEELED;
         if (e instanceof VesselVehicle) return Kind.VESSEL;
-        return null; // rotary / fixed wing / NoneVehicle mounts: not ours to crew
+        if (e instanceof RotaryWingVehicle rotor && !isUav(rotor)) return Kind.ROTARY;
+        return null; // fixed wing / UAV / NoneVehicle mounts: not ours to crew
+    }
+
+    // ---------------------------------------------------------------- data ids (pools, editor)
+
+    /** The hull has no public uav getter; its data does (a HashMap read). */
+    private static boolean isUav(AbstractVehicle v) {
+        BaseVehicleData<?> d = v.getVehicleId() == null ? null : data(v.getVehicleId().toString());
+        return d != null && d.isUav();
+    }
+
+    @Nullable
+    private static BaseVehicleData<?> data(String id) {
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        if (rl == null) return null;
+        try {
+            return YwzjVehicleAPI.getVehicleDataManager().getVehicleData(rl).orElse(null);
+        } catch (Throwable t) {
+            return null; // data manager not up yet (early client), or a broken pack
+        }
+    }
+
+    /** The hull class a data id builds, read off LV's data class — no entity is constructed. */
+    @Nullable
+    static Kind kindOfData(@Nullable BaseVehicleData<?> data) {
+        if (data instanceof TrackedVehicleData) return Kind.TRACKED;
+        if (data instanceof WheeledVehicleData) return Kind.WHEELED;
+        if (data instanceof VesselVehicleData) return Kind.VESSEL;
+        // A UAV (LV's quadcopter) is flown remotely through a fake operator, not crewed.
+        if (data instanceof RotaryWingVehicleData && !data.isUav()) return Kind.ROTARY;
+        return null;
+    }
+
+    static boolean isVehicleId(String id) {
+        return data(id) != null;
+    }
+
+    @Nullable
+    static WorldVehiclePools.Category categoryOf(String id) {
+        Kind kind = kindOfData(data(id));
+        if (kind == null) return null;
+        return switch (kind) {
+            case WHEELED, TRACKED -> WorldVehiclePools.Category.GROUND;
+            case VESSEL -> WorldVehiclePools.Category.SURFACE;
+            case ROTARY -> WorldVehiclePools.Category.ROTOR;
+        };
+    }
+
+    static boolean isCrewableId(String id, WorldVehiclePools.Category category) {
+        return categoryOf(id) == category;
+    }
+
+    static List<String> catalogIds() {
+        List<String> out = new ArrayList<>();
+        try {
+            for (Map.Entry<ResourceLocation, BaseVehicleData> e
+                    : YwzjVehicleAPI.getVehicleDataManager().getVehicleData().entrySet()) {
+                if (kindOfData(e.getValue()) != null) out.add(e.getKey().toString());
+            }
+        } catch (Throwable ignored) {
+            // data manager not up yet — the catalog simply has no LV entries this time
+        }
+        out.sort(String::compareTo);
+        return out;
+    }
+
+    @Nullable
+    static String[] describe(String id) {
+        BaseVehicleData<?> d = data(id);
+        if (d == null) return null;
+        Kind kind = kindOfData(d);
+        String label = kind == null
+                ? (d instanceof FixedWingVehicleData ? "Plane" : "Fixed")
+                : switch (kind) {
+                    case WHEELED -> "Wheel";
+                    case TRACKED -> "Track";
+                    case VESSEL -> "Boat";
+                    case ROTARY -> "Rotor";
+                };
+        String name = d.getName() != null ? d.getName().getString() : id;
+        return new String[] {name, label};
     }
 
     static boolean isDestroyed(Entity e) {
@@ -126,6 +217,7 @@ final class LvHulls {
         if (!(e instanceof AbstractVehicle v)) return null;
         Kind kind = kindOf(v);
         if (kind == null) return null;
+        if (kind == Kind.ROTARY) return null; // flown by LvRotorGoal, never through the ground/ship helm
         HullProfile cached = PROFILES.get(v);
         if (cached != null) return cached;
         if (v.getMainCubeOBB() == null) return null; // data not initialised yet — ask again next tick

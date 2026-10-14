@@ -95,7 +95,16 @@ public final class VehiclePackPresetsSelfCheck {
         check(Pack.DRAGONRISE.modId.equals("dragonrise_reforge"), "dr modId");
         check(Pack.ULTIMA_RATIO.modId.equals("ultimaratio"), "ur modId");
         check(Pack.NEO_ARMS.modId.equals("neoarms"), "neoarms modId");
-        check(VehiclePackPresets.packs().length == 5, "five packs");
+        check(Pack.LIMITLESS_VEHICLES.modId.equals("ywzj_vehicle"), "limitless modId");
+        check(VehiclePackPresets.packs().length == 6, "six packs");
+        // LV ids go in the ground / surface / rotor pools only — never plane, TOW or mortar.
+        Map<TankFaction, Map<Category, List<String>>> lv = VehiclePackPresets.tables(Pack.LIMITLESS_VEHICLES);
+        for (TankFaction f : TankFaction.values()) {
+            for (Category c : List.of(Category.PLANE, Category.TOW, Category.MORTAR, Category.GRENADE)) {
+                check(lv.get(f).get(c).isEmpty(), "limitless " + f + " " + c + " must be empty");
+            }
+        }
+        check(lv.get(TankFaction.US).get(Category.ROTOR).contains("ywzj_vehicle:ah64d"), "limitless US rotor");
     }
 
     private static void noneIsNoOp() {
@@ -135,7 +144,7 @@ public final class VehiclePackPresetsSelfCheck {
         check(fcp.get(TankFaction.RU).get(Category.GROUND).contains("fcp:t72av"), "RU t72av");
         check(fcp.get(TankFaction.PMC).get(Category.GROUND).contains("fcp:t72av"), "PMC t72av dupe");
         Map<TankFaction, Map<Category, List<String>>> neo = VehiclePackPresets.tables(Pack.NEO_ARMS);
-        check(neo.get(TankFaction.RU).get(Category.SHIP).contains("neoarms:steregushchiy"), "neo RU ship");
+        check(neo.get(TankFaction.RU).get(Category.SURFACE).contains("neoarms:steregushchiy"), "neo RU surface");
         check(neo.get(TankFaction.US).get(Category.GROUND).contains("neoarms:leopard_2a7v"), "neo US leo");
         check(!neo.get(TankFaction.PMC).get(Category.GROUND).contains("neoarms:leopard_2a7v"),
                 "PMC skips tip-tier leo");

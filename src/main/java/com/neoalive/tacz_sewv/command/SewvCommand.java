@@ -79,6 +79,7 @@ import com.neoalive.tacz_sewv.spawn.EmplacementSpawner.Emplacement;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner.SupportRole;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.VehicleDrops;
 
@@ -992,27 +993,23 @@ public class SewvCommand {
     }
 
     // One faction node under /sewv spawn, holding every vehicle/unit TYPE for that faction as its
-    // own literal (tank/ship/plane/heli/mortar/tow, plus medic/engineer/combatengineer for RU/US
+    // own literal (ground/surface/plane/rotor/mortar/tow, plus medic/engineer/combatengineer for RU/US
     // and commander for PMC — SEM gives neither RU nor US a commander-equivalent, and medic/
     // engineer/combatengineer are SupportRole-only for PMC, held rather than spawned, so PMC gets
     // no support-unit literals here).
     private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> factionSpawn(
             String literal, TankFaction faction) {
         var node = Commands.literal(literal)
-                .then(vehicleSpawn("tank", faction, TankFaction::vehiclePool,
-                        TankSpawner::spawnTankWithCrew, true, false))
-                .then(vehicleSpawn("ship", faction, TankFaction::shipPool,
-                        TankSpawner::spawnShipWithCrew, false, true))
+                .then(vehicleSpawn("ground", faction, TankFaction::groundPool,
+                        WorldVehiclePools.Category.GROUND, true, false))
+                .then(vehicleSpawn("surface", faction, TankFaction::surfacePool,
+                        WorldVehiclePools.Category.SURFACE, false, true))
                 .then(vehicleSpawn("plane", faction, TankFaction::planePool,
-                        TankSpawner::spawnPlaneWithCrew, true, true))
-                .then(vehicleSpawn("heli", faction, TankFaction::heliPool,
-                        TankSpawner::spawnHeliWithCrew, true, false))
+                        WorldVehiclePools.Category.PLANE, true, true))
+                .then(vehicleSpawn("rotor", faction, TankFaction::rotorPool,
+                        WorldVehiclePools.Category.ROTOR, true, false))
                 .then(emplacementSpawn("mortar", faction, Emplacement.MORTAR, TankFaction::mortarPool))
                 .then(emplacementSpawn("tow", faction, Emplacement.TOW, TankFaction::towPool));
-        // Limitless Vehicles hulls from the faction's LV pool; the literal only exists with LV loaded.
-        if (com.neoalive.tacz_sewv.compat.lv.LvCompat.present()) {
-            node.then(com.neoalive.tacz_sewv.compat.lv.LvCommands.node(faction));
-        }
         if (faction == TankFaction.PMC) {
             node.then(commanderSpawn("commander"));
         } else {
@@ -1161,7 +1158,7 @@ public class SewvCommand {
     private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> vehicleSpawn(
             String literal, TankFaction faction,
             BiFunction<TankFaction, ServerLevel, List<? extends String>> pool,
-            SpawnWithCrewFn spawner, boolean snapToGround, boolean reportActualPos) {
+            WorldVehiclePools.Category spawner, boolean snapToGround, boolean reportActualPos) {
         return Commands.literal(literal)
                 .executes(ctx -> spawnVehicle(ctx.getSource(), faction, pool, spawner,
                         snapToGround, reportActualPos, null, null))
@@ -1182,12 +1179,6 @@ public class SewvCommand {
                                 StringArgumentType.getString(ctx, "vehicle"), null)));
     }
 
-    @FunctionalInterface
-    private interface SpawnWithCrewFn {
-        VehicleEntity spawn(ServerLevel level, BlockPos pos, TankFaction faction,
-                            UUID ownerId, String vehicleId);
-    }
-
     private static CompletableFuture<Suggestions> suggestPool(CommandSourceStack source,
                                                               BiFunction<TankFaction, ServerLevel, List<? extends String>> pool,
                                                               TankFaction faction,
@@ -1198,7 +1189,7 @@ public class SewvCommand {
 
     private static int spawnVehicle(CommandSourceStack source, TankFaction faction,
                                     BiFunction<TankFaction, ServerLevel, List<? extends String>> pool,
-                                    SpawnWithCrewFn spawner, boolean snapToGround,
+                                    WorldVehiclePools.Category spawner, boolean snapToGround,
                                     boolean reportActualPos,
                                     @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
         ServerLevel level = source.getLevel();
@@ -1224,14 +1215,15 @@ public class SewvCommand {
                 : snapToGround
                 ? TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()))
                 : BlockPos.containing(source.getPosition());
-        VehicleEntity hull = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
-                () -> spawner.spawn(level, pos, faction, ownerId, vehicleId));
+        // Through the pool: an SBW id or a Limitless Vehicles id, whichever the pool entry is.
+        net.minecraft.world.entity.Entity hull = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
+                () -> TankSpawner.spawnFromPool(level, pos, faction, spawner, ownerId, vehicleId));
 
         if (hull == null) {
             source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
             return 0;
         }
-        VehicleDrops.markCrewAndHull(hull);
+        if (hull instanceof VehicleEntity sbwHull) VehicleDrops.markCrewAndHull(sbwHull);
 
         BlockPos reported = reportActualPos ? hull.blockPosition() : pos;
         source.sendSuccess(() -> Component.translatable(

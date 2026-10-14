@@ -32,7 +32,7 @@ import com.neoalive.tacz_sewv.util.VehicleDrops;
 /**
  * Soft compat with <b>berezka_api</b>: when one of its structures generates, field faction
  * vehicles from the config pools at it. Every faction — RU, US and PMC — gets a crewed, armed,
- * fuelled hull ({@link TankSpawner#spawnTankWithCrew}), like a village garrison; a PMC structure
+ * fuelled hull ({@link TankSpawner#spawnGroundWithCrew}), like a village garrison; a PMC structure
  * fields friendly (ownerless) PMC crew. (Earlier PMC structures spawned a bare hull for the
  * player to capture; they are crewed now so a friendly camp is actually defended.)
  *
@@ -169,12 +169,12 @@ public final class BerezkaStructureCompat {
                 LOG.info("  hull {} at {} not loaded, skipped", i, pos);
                 continue;
             }
-            // Ground only: spawnCombatVehicleWithCrew can roll a heli, which takeoffs with a
+            // Ground only (SBW-typed): a rotor-pool heli, which takeoffs with a
             // ticking Forge chunk ticket and streams terrain forever along its flight path —
             // the other half of the "chunks permanently freeze loading" report with big packs.
-            VehicleEntity hull = TankSpawner.spawnTankWithCrew(level, pos, faction, null);
+            VehicleEntity hull = TankSpawner.spawnGroundWithCrew(level, pos, faction, null);
             if (hull != null) VehicleDrops.markCrewAndHull(hull);
-            else LOG.info("  hull {} at {}: spawnTankWithCrew returned null", i, pos);
+            else LOG.info("  hull {} at {}: spawnGroundWithCrew returned null", i, pos);
         }
     }
 

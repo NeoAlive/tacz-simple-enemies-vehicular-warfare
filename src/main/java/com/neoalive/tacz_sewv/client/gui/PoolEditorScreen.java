@@ -22,6 +22,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.client.editor.GrenadePoolCatalog;
 import com.neoalive.tacz_sewv.client.editor.IdSearch;
 import com.neoalive.tacz_sewv.client.editor.PoolPresetApply;
@@ -35,6 +36,7 @@ import com.neoalive.tacz_sewv.util.VehiclePackIndex.Assessment;
 import com.neoalive.tacz_sewv.util.VehiclePackIndex.Entry;
 import com.neoalive.tacz_sewv.util.VehiclePackPresets.Pack;
 import com.neoalive.tacz_sewv.util.VehiclePoolCatalogSource;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
 
 /**
@@ -186,6 +188,15 @@ public class PoolEditorScreen extends Screen {
             Item item = ForgeRegistries.ITEMS.getValue(rl);
             return new Info(item == null ? "?" : item.getDescription().getString(), "-", SheetTable.LIVE, null);
         }
+        // A Limitless Vehicles data id (several of which are no entity type at all): its own name
+        // and hull class, checked against this pool the same way.
+        String[] lv = LvCompat.describe(id);
+        if (lv != null) {
+            WorldVehiclePools.Category fits = LvCompat.categoryOf(id);
+            Component note = fits == this.category ? null : Component.translatable("gui.tacz_sewv.pool.note.mismatch",
+                    lv[1], Component.translatable("gui.tacz_sewv.pool.cat." + this.category.name().toLowerCase(Locale.ROOT)));
+            return new Info(lv[0], lv[1], note == null ? SheetTable.LIVE : SheetTable.WARN, note);
+        }
         if (!ForgeRegistries.ENTITY_TYPES.containsKey(rl)) return unregistered();
         EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
         String name = type == null ? "?" : type.getDescription().getString();
@@ -203,8 +214,8 @@ public class PoolEditorScreen extends Screen {
         return switch (e) {
             case WHEEL -> "Wheel";
             case TRACK -> "Track";
-            case HELICOPTER -> "Heli";
-            case SHIP -> "Ship";
+            case HELICOPTER -> "Rotor";
+            case SHIP -> "Boat";
             case AIRCRAFT -> "Plane";
             case FIXED -> "Fixed";
             case EMPTY -> "None";
@@ -219,7 +230,7 @@ public class PoolEditorScreen extends Screen {
     @Nullable
     private Component mismatch(@Nullable EngineType e) {
         boolean checked = switch (this.category) {
-            case GROUND, SHIP, PLANE, HELI -> true;
+            case GROUND, SURFACE, PLANE, ROTOR -> true;
             default -> false;
         };
         if (!checked) return null;
@@ -229,9 +240,9 @@ public class PoolEditorScreen extends Screen {
         boolean fits = switch (this.category) {
             case GROUND -> e != EngineType.HELICOPTER && e != EngineType.SHIP
                     && e != EngineType.AIRCRAFT && e != EngineType.AIRSHIP;
-            case SHIP -> e == EngineType.SHIP;
+            case SURFACE -> e == EngineType.SHIP;
             case PLANE -> e == EngineType.AIRCRAFT;
-            case HELI -> e == EngineType.HELICOPTER;
+            case ROTOR -> e == EngineType.HELICOPTER;
             default -> true;
         };
         return fits ? null : Component.translatable("gui.tacz_sewv.pool.note.mismatch", engineLabel(e),

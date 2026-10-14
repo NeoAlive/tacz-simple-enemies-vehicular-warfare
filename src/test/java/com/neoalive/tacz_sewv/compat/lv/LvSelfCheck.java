@@ -28,7 +28,7 @@ public final class LvSelfCheck {
     /** Loadable with LV absent — must not name an LV type. */
     private static final Set<String> LV_FREE = Set.of(
             "LvCompat.java", "LvEvents.java", "LvPendingCrews.java", "LvSteering.java",
-            "LvGoals.java", "LvCommands.java");
+            "LvGoals.java");
 
     public static void main(String[] args) throws IOException {
         steering();

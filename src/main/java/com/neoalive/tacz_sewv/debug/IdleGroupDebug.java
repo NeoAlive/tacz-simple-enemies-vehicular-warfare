@@ -145,7 +145,7 @@ public final class IdleGroupDebug {
             int offset = (i - count / 2) * spacing;
             BlockPos pos = anchor.offset(offset, 0, 0);
             VehicleEntity hull = SupportSpawner.withoutCompanions(
-                    () -> TankSpawner.spawnTankWithCrew(level, pos, faction, owner));
+                    () -> TankSpawner.spawnGroundWithCrew(level, pos, faction, owner));
             if (hull == null) continue;
             VehicleDrops.markCrewAndHull(hull);
             if (hull.getFirstPassenger() instanceof AbstractUnit unit) {

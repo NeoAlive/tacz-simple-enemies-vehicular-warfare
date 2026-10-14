@@ -87,33 +87,34 @@ final class EventSpawns {
     }
 
     /**
-     * RU or US at random, restricted to a faction that actually has a usable vehicle pool, or null
-     * when neither does. PMC is never a candidate: these events are world events, and a PMC crew
-     * without an owner is friendly scenery rather than a fight.
+     * RU or US at random, restricted to a faction whose ground vehicles events may field
+     * ({@link TankSpawner#groundEventsAllowed}), or null when neither may. PMC is never a candidate:
+     * these events are world events, and a PMC crew without an owner is friendly scenery rather
+     * than a fight. Ground only — the convoy and the invasion both arrive by road.
      */
     @Nullable
     static TankSpawner.TankFaction pickVehicleFaction(ServerLevel level) {
         return coinFlip(level,
-                TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.RU),
-                TankSpawner.hasSpawnableCombatVehicle(level, TankSpawner.TankFaction.US));
+                TankSpawner.groundEventsAllowed(level, TankSpawner.TankFaction.RU),
+                TankSpawner.groundEventsAllowed(level, TankSpawner.TankFaction.US));
     }
 
     /**
      * Derelict-only: RU/US with a ground pool, plus ownerless PMC when ambient PMC spawns are on.
-     * Uses {@link TankSpawner#hasSpawnableVehicle} (ground) because derelicts come from
-     * {@link TankSpawner#spawnBareVehicle}, not the combat (ground|heli) mix.
+     * Uses {@link TankSpawner#hasSpawnableGround} (ground) because derelicts come from
+     * {@link TankSpawner#spawnBareVehicle}, not a crewed spawn.
      */
     @Nullable
     static TankSpawner.TankFaction pickDerelictFaction(ServerLevel level) {
         List<TankSpawner.TankFaction> candidates = new ArrayList<>(3);
-        if (TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.RU)) {
+        if (TankSpawner.hasSpawnableGround(level, TankSpawner.TankFaction.RU)) {
             candidates.add(TankSpawner.TankFaction.RU);
         }
-        if (TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.US)) {
+        if (TankSpawner.hasSpawnableGround(level, TankSpawner.TankFaction.US)) {
             candidates.add(TankSpawner.TankFaction.US);
         }
         if (level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)
-                && TankSpawner.hasSpawnableVehicle(level, TankSpawner.TankFaction.PMC)) {
+                && TankSpawner.hasSpawnableGround(level, TankSpawner.TankFaction.PMC)) {
             candidates.add(TankSpawner.TankFaction.PMC);
         }
         if (candidates.isEmpty()) return null;

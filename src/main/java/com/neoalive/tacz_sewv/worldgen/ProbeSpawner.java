@@ -91,7 +91,7 @@ final class ProbeSpawner {
         }
         List<String> pool = List.of(id);
         VehicleEntity hull = payload.preCrewed()
-                ? TankSpawner.spawnTankWithCrewFromPoolAt(level, pos, faction, null, id, pool)
+                ? TankSpawner.spawnGroundWithCrewFromPoolAt(level, pos, faction, null, id, pool)
                 : TankSpawner.spawnBareVehicleFromPool(level, pos, pool, true);
         if (hull == null) LOGGER.debug("[tacz_sewv] spawn probe at {} found no room for {}", pos, id);
     }

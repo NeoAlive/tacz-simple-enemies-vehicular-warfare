@@ -43,6 +43,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.compat.AshAmmoCompat;
 import com.neoalive.tacz_sewv.compat.McspAmmoCompat;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
+import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.compat.VvpAmmoCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
@@ -71,14 +72,14 @@ public final class TankSpawner {
         }
 
         /** Ground armour / IFV pool for this world (COMMON config is the seed only). */
-        public List<? extends String> vehiclePool(ServerLevel level) {
+        public List<? extends String> groundPool(ServerLevel level) {
             return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.GROUND);
         }
 
-        /** The faction's ship pool — a dedicated list, not appended to {@link #vehiclePool},
-         * since a ship needs a water-adjacent spawn position a ground pool pick never does. */
-        public List<? extends String> shipPool(ServerLevel level) {
-            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.SHIP);
+        /** The faction's surface (boat) pool — a dedicated list, not appended to {@link #groundPool},
+         * since a boat needs a water spawn position a ground pool pick never does. */
+        public List<? extends String> surfacePool(ServerLevel level) {
+            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.SURFACE);
         }
 
         /** The faction's plane pool — dedicated like ships; RU/US spawn airborne, PMC on the ground. */
@@ -86,20 +87,24 @@ public final class TankSpawner {
             return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.PLANE);
         }
 
-        /** Rotary-wing pool — land spawn + takeoff, separate from {@link #vehiclePool}. */
-        public List<? extends String> heliPool(ServerLevel level) {
-            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.HELI);
+        /** Rotary-wing pool — land spawn + takeoff, separate from {@link #groundPool}. */
+        public List<? extends String> rotorPool(ServerLevel level) {
+            return WorldVehiclePools.get(level).list(this, WorldVehiclePools.Category.ROTOR);
+        }
+
+        public List<? extends String> pool(ServerLevel level, WorldVehiclePools.Category category) {
+            return WorldVehiclePools.get(level).list(this, category);
         }
     }
 
     /**
      * Spawns a faction vehicle picked at random from the faction's configured pool.
-     * Equivalent to {@link #spawnTankWithCrew(ServerLevel, BlockPos, TankFaction, UUID, String)}
+     * Equivalent to {@link #spawnGroundWithCrew(ServerLevel, BlockPos, TankFaction, UUID, String)}
      * with no specific vehicle requested.
      */
     @Nullable
-    public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos pos, TankFaction faction, @Nullable UUID ownerId) {
-        return spawnTankWithCrew(level, pos, faction, ownerId, null);
+    public static VehicleEntity spawnGroundWithCrew(ServerLevel level, BlockPos pos, TankFaction faction, @Nullable UUID ownerId) {
+        return spawnGroundWithCrew(level, pos, faction, ownerId, null);
     }
 
     // Resolved once per unique pool entry and cached for the server's lifetime. Pool lists can
@@ -110,35 +115,54 @@ public final class TankSpawner {
         return VEHICLE_TYPE_CACHE.computeIfAbsent(rl, k -> type.create(level) instanceof VehicleEntity);
     }
 
-    /** True when the faction's configured pool contains at least one loadable SW vehicle. */
-    public static boolean hasSpawnableVehicle(ServerLevel level, TankFaction faction) {
-        if (!spawnsEnabled(level, faction)) return false;
-        return hasSpawnable(level, faction.vehiclePool(level));
+    /** True when the faction's ground pool holds at least one hull a crew can be spawned in. */
+    public static boolean hasSpawnableGround(ServerLevel level, TankFaction faction) {
+        return hasSpawnable(level, faction, WorldVehiclePools.Category.GROUND);
     }
 
-    /** Ground or heli pool non-empty — events that roll combat vehicles use this gate. */
-    public static boolean hasSpawnableCombatVehicle(ServerLevel level, TankFaction faction) {
-        if (!spawnsEnabled(level, faction)) return false;
-        return hasSpawnable(level, faction.vehiclePool(level))
-                || hasSpawnable(level, faction.heliPool(level));
-    }
-
-    /** The same, for the faction's separate ship pool — see {@link #spawnShipWithCrew}. */
-    public static boolean hasSpawnableShip(ServerLevel level, TankFaction faction) {
-        if (!spawnsEnabled(level, faction)) return false;
-        return hasSpawnable(level, faction.shipPool(level));
+    /** The same, for the faction's separate surface pool — see {@link #spawnSurfaceWithCrew}. */
+    public static boolean hasSpawnableSurface(ServerLevel level, TankFaction faction) {
+        return hasSpawnable(level, faction, WorldVehiclePools.Category.SURFACE);
     }
 
     /** The same, for the faction's separate plane pool — see {@link #spawnPlaneWithCrew}. */
     public static boolean hasSpawnablePlane(ServerLevel level, TankFaction faction) {
-        if (!spawnsEnabled(level, faction)) return false;
-        return hasSpawnable(level, faction.planePool(level));
+        return hasSpawnable(level, faction, WorldVehiclePools.Category.PLANE);
     }
 
-    /** The same, for the faction's helicopter pool — see {@link #spawnHeliWithCrew}. */
-    public static boolean hasSpawnableHeli(ServerLevel level, TankFaction faction) {
+    /** The same, for the faction's rotor pool — see {@link #spawnRotorWithCrew}. */
+    public static boolean hasSpawnableRotor(ServerLevel level, TankFaction faction) {
+        return hasSpawnable(level, faction, WorldVehiclePools.Category.ROTOR);
+    }
+
+    /**
+     * Events may bring a ground vehicle for {@code faction}: {@code groundInEvents} is on and the
+     * ground pool holds something spawnable. Every event that fields armour asks this, so the one
+     * switch really does turn ground vehicles off everywhere.
+     */
+    public static boolean groundEventsAllowed(ServerLevel level, TankFaction faction) {
+        return com.neoalive.tacz_sewv.config.SewvConfig.GROUND_IN_EVENTS.get() && hasSpawnableGround(level, faction);
+    }
+
+    /** The same for helicopters: {@code rotorInEvents} and a spawnable rotor pool. */
+    public static boolean rotorEventsAllowed(ServerLevel level, TankFaction faction) {
+        return com.neoalive.tacz_sewv.config.SewvConfig.ROTOR_IN_EVENTS.get() && hasSpawnableRotor(level, faction);
+    }
+
+    /** Spawns enabled for the faction and its {@code category} pool holds a crewable SBW or LV entry. */
+    public static boolean hasSpawnable(ServerLevel level, TankFaction faction, WorldVehiclePools.Category category) {
         if (!spawnsEnabled(level, faction)) return false;
-        return hasSpawnable(level, faction.heliPool(level));
+        List<? extends String> pool = faction.pool(level, category);
+        return hasSpawnable(level, pool) || hasSpawnableLv(pool, category);
+    }
+
+    /** A Limitless Vehicles entry of the right class — only GROUND / SURFACE / ROTOR may hold them. */
+    private static boolean hasSpawnableLv(List<? extends String> pool, WorldVehiclePools.Category category) {
+        if (!LvCompat.aiEnabled()) return false;
+        for (String id : pool) {
+            if (LvCompat.isCrewableId(id, category)) return true;
+        }
+        return false;
     }
 
     /** Per-world spawn gate ({@code /gamerule sewvRuSpawns} / {@code sewvUsSpawns}). PMC is always on here. */
@@ -155,6 +179,7 @@ public final class TankSpawner {
             ResourceLocation rl = ResourceLocation.tryParse(id);
             if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
             if (NpcVehicleOverrides.refusesNpcRiders(id)) continue; // a crew could never mount it
+            if (LvCompat.isLvVehicleId(id)) continue; // not an SBW hull, even where it is an entity type
             EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
             if (type != null && isVehicleEntityType(level, rl, type)) return true;
         }
@@ -172,61 +197,93 @@ public final class TankSpawner {
      * is empty, or SW isn't loaded).
      */
     @Nullable
-    public static VehicleEntity spawnTankWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
-                                                  @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.vehiclePool(level),
+    public static VehicleEntity spawnGroundWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                    @Nullable UUID ownerId, @Nullable String vehicleId) {
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.groundPool(level),
                 false, true);
     }
 
     /**
-     * Same contract as {@link #spawnTankWithCrew(ServerLevel, BlockPos, TankFaction, UUID, String)},
-     * for the faction's ship pool instead — the only real difference is spawn positioning: a ship
+     * Same contract as {@link #spawnGroundWithCrew(ServerLevel, BlockPos, TankFaction, UUID, String)},
+     * for the faction's surface pool instead — the only real difference is spawn positioning: a boat
      * is placed via {@link #findClearWaterSpawn} rather than {@link #findClearSpawn}, since it
-     * must float rather than stand. Crew mounting, ammo/energy stocking and the (no-op for ships)
+     * must float rather than stand. Crew mounting, ammo/energy stocking and the (no-op for boats)
      * helicopter takeoff order are all identical and shared with the ground path below.
      */
     @Nullable
-    public static VehicleEntity spawnShipWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
-                                                  @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.shipPool(level),
+    public static VehicleEntity spawnSurfaceWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                     @Nullable UUID ownerId, @Nullable String vehicleId) {
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.surfacePool(level),
                 true, true);
     }
 
     /**
-     * Same contract as {@link #spawnTankWithCrew} against the helicopter pool. Land spawn; seat-0
+     * Same contract as {@link #spawnGroundWithCrew} against the rotor pool. Land spawn; seat-0
      * takeoff is applied inside {@code spawnCrewedVehicle} when the hull is {@code HELICOPTER}.
      */
     @Nullable
-    public static VehicleEntity spawnHeliWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
-                                                 @Nullable UUID ownerId) {
-        return spawnHeliWithCrew(level, requestedPos, faction, ownerId, null);
+    public static VehicleEntity spawnRotorWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                   @Nullable UUID ownerId) {
+        return spawnRotorWithCrew(level, requestedPos, faction, ownerId, null);
     }
 
     @Nullable
-    public static VehicleEntity spawnHeliWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
-                                                 @Nullable UUID ownerId, @Nullable String vehicleId) {
-        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.heliPool(level),
+    public static VehicleEntity spawnRotorWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                                   @Nullable UUID ownerId, @Nullable String vehicleId) {
+        return spawnCrewedVehicle(level, requestedPos, faction, ownerId, vehicleId, faction.rotorPool(level),
                 false, true);
     }
 
     /**
-     * Event/structure helper: pick GROUND or HELI uniformly among non-empty pools, then spawn.
-     * Existing chance/count knobs stay unchanged — only the pool category may vary per slot.
+     * A crewed hull from one of the faction's GROUND / SURFACE / ROTOR / PLANE pools, whichever mod the
+     * entry belongs to — what the spawn events and {@code /sewv spawn} use. The pick is uniform over
+     * every entry that can actually be spawned: SBW hulls through the typed spawns above, Limitless
+     * Vehicles data ids through {@link LvCompat#spawnCrewed} (only when that mod is loaded and its AI
+     * enabled).
+     *
+     * <p>Returns {@code Entity}, not {@code VehicleEntity}, because an LV hull is not one. Callers
+     * that need an SBW hull (a march objective, team bases, structure probes) use the typed spawns,
+     * which skip LV entries. {@code vehicleId}, when given, must be in the pool.
      */
     @Nullable
-    public static VehicleEntity spawnCombatVehicleWithCrew(ServerLevel level, BlockPos requestedPos,
-                                                           TankFaction faction, @Nullable UUID ownerId) {
-        boolean ground = hasSpawnable(level, faction.vehiclePool(level));
-        boolean heli = hasSpawnable(level, faction.heliPool(level));
-        if (!ground && !heli) return null;
-        if (ground && heli) {
-            return level.random.nextBoolean()
-                    ? spawnTankWithCrew(level, requestedPos, faction, ownerId, null)
-                    : spawnHeliWithCrew(level, requestedPos, faction, ownerId, null);
+    public static Entity spawnFromPool(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                       WorldVehiclePools.Category category, @Nullable UUID ownerId,
+                                       @Nullable String vehicleId) {
+        if (!spawnsEnabled(level, faction)) return null;
+        List<? extends String> pool = faction.pool(level, category);
+        if (vehicleId != null && !pool.contains(vehicleId)) return null;
+        String id = vehicleId != null ? vehicleId : pickSpawnable(level, pool, category);
+        if (id == null) return null;
+        if (LvCompat.isLvVehicleId(id)) {
+            return LvCompat.aiEnabled() ? LvCompat.spawnCrewed(level, requestedPos, faction, ownerId, id, category) : null;
         }
-        return ground
-                ? spawnTankWithCrew(level, requestedPos, faction, ownerId, null)
-                : spawnHeliWithCrew(level, requestedPos, faction, ownerId, null);
+        return switch (category) {
+            case GROUND -> spawnGroundWithCrew(level, requestedPos, faction, ownerId, id);
+            case SURFACE -> spawnSurfaceWithCrew(level, requestedPos, faction, ownerId, id);
+            case ROTOR -> spawnRotorWithCrew(level, requestedPos, faction, ownerId, id);
+            case PLANE -> spawnPlaneWithCrew(level, requestedPos, faction, ownerId, id);
+            default -> null;
+        };
+    }
+
+    /** A uniform pick over the entries of {@code pool} that could be spawned now, SBW or LV. */
+    @Nullable
+    private static String pickSpawnable(ServerLevel level, List<? extends String> pool,
+                                        WorldVehiclePools.Category category) {
+        List<String> ok = new ArrayList<>(pool.size());
+        boolean lv = LvCompat.aiEnabled();
+        for (String id : pool) {
+            if (NpcVehicleOverrides.refusesNpcRiders(id)) continue;
+            if (LvCompat.isLvVehicleId(id)) {
+                if (lv && LvCompat.isCrewableId(id, category)) ok.add(id);
+                continue;
+            }
+            ResourceLocation rl = ResourceLocation.tryParse(id);
+            if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
+            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            if (type != null && isVehicleEntityType(level, rl, type)) ok.add(id);
+        }
+        return ok.isEmpty() ? null : ok.get(level.random.nextInt(ok.size()));
     }
 
     /**
@@ -240,7 +297,7 @@ public final class TankSpawner {
     private static final double PLANE_AIR_SPAWN_SPEED = 0.55;
 
     /**
-     * Same contract as {@link #spawnTankWithCrew} for the faction's plane pool. RU/US planes spawn
+     * Same contract as {@link #spawnGroundWithCrew} for the faction's plane pool. RU/US planes spawn
      * already airborne (gear up, modest forward speed, flight command NONE → DrivePlaneGoal loiters):
      * they cannot be player-ordered to take off, and SBW needs airspeed to stay up. PMC planes spawn
      * on the ground with TAKEOFF like helicopters — the player can order flight themselves.
@@ -405,7 +462,7 @@ public final class TankSpawner {
         // Read from computed() (the STATIC datapack data, valid the instant the entity exists),
         // NOT getEngineInfo() — that field is lazily populated inside travel() on the hull's first
         // baseTick, one tick AFTER addFreshEntity, so it is null for every hull at this exact spot
-        // in spawnTankWithCrew. Same gotcha DerelictVehicleEvent already works around; this call
+        // in spawnGroundWithCrew. Same gotcha DerelictVehicleEvent already works around; this call
         // site never got the fix, so no helicopter spawned through TankSpawner ever took off.
         try {
             EngineType engine = tank.computed().getEngineType();
@@ -428,11 +485,11 @@ public final class TankSpawner {
     }
 
     /**
-     * Like {@link #spawnTankWithCrew} but draws from an explicit pool list (e.g. a team_base's
+     * Like {@link #spawnGroundWithCrew} but draws from an explicit pool list (e.g. a team_base's
      * configured entries) instead of the world faction pool.
      */
     @Nullable
-    public static VehicleEntity spawnTankWithCrewFromPool(ServerLevel level, BlockPos requestedPos,
+    public static VehicleEntity spawnGroundWithCrewFromPool(ServerLevel level, BlockPos requestedPos,
                                                           TankFaction faction, @Nullable UUID ownerId,
                                                           @Nullable String vehicleId,
                                                           List<? extends String> pool) {
@@ -440,12 +497,12 @@ public final class TankSpawner {
     }
 
     /**
-     * {@link #spawnTankWithCrewFromPool} placed at {@code exactPos}'s own height rather than on the
+     * {@link #spawnGroundWithCrewFromPool} placed at {@code exactPos}'s own height rather than on the
      * heightmap surface. For structure spawn probes, which sit inside buildings and on towers where
      * the surface is the roof.
      */
     @Nullable
-    public static VehicleEntity spawnTankWithCrewFromPoolAt(ServerLevel level, BlockPos exactPos,
+    public static VehicleEntity spawnGroundWithCrewFromPoolAt(ServerLevel level, BlockPos exactPos,
                                                             TankFaction faction, @Nullable UUID ownerId,
                                                             @Nullable String vehicleId,
                                                             List<? extends String> pool) {
@@ -528,7 +585,7 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnBareVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction) {
         if (!spawnsEnabled(level, faction)) return null;
-        return spawnBareVehicleFromPool(level, requestedPos, faction.vehiclePool(level), false);
+        return spawnBareVehicleFromPool(level, requestedPos, faction.groundPool(level), false);
     }
 
     /**
@@ -806,6 +863,7 @@ public final class TankSpawner {
     private static List<? extends String> crewablePool(List<? extends String> pool) {
         List<String> out = new ArrayList<>(pool.size());
         for (String id : pool) {
+            if (LvCompat.isLvVehicleId(id)) continue; // spawned through spawnFromPool, never as an SBW type
             if (NpcVehicleOverrides.refusesNpcRiders(id)) {
                 com.neoalive.tacz_sewv.util.WarnOnce.warn(com.neoalive.tacz_sewv.TaczSewv.LOGGER,
                         "sewv-pool-player-only-" + id,

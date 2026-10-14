@@ -58,6 +58,7 @@ final class LvHullInput implements HullInput {
             case WHEELED -> LvSteering.Kind.WHEELED;
             case TRACKED -> LvSteering.Kind.TRACKED;
             case VESSEL -> LvSteering.Kind.VESSEL;
+            case ROTARY -> throw new IllegalArgumentException("rotorcraft are flown by LvRotorGoal, not steered by keys");
         };
     }
 }

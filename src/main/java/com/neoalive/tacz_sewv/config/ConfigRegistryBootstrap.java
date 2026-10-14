@@ -158,8 +158,8 @@ final class ConfigRegistryBootstrap {
         b.bool(ConfigScope.SERVER, cat, "easyDisableLargeCombat",
                 SewvConfig.EASY_DISABLE_LARGE_COMBAT, SewvConfig.EASY_DISABLE_LARGE_COMBAT::set,
                 req, null);
-        b.bool(ConfigScope.SERVER, cat, "easyNoFarCombatTanks",
-                SewvConfig.EASY_NO_FAR_COMBAT_TANKS, SewvConfig.EASY_NO_FAR_COMBAT_TANKS::set,
+        b.bool(ConfigScope.SERVER, cat, "easyNoFarCombatVehicles",
+                SewvConfig.EASY_NO_FAR_COMBAT_VEHICLES, SewvConfig.EASY_NO_FAR_COMBAT_VEHICLES::set,
                 req, null);
         b.bool(ConfigScope.SERVER, cat, "easyNoWorldArmor",
                 SewvConfig.EASY_NO_WORLD_ARMOR, SewvConfig.EASY_NO_WORLD_ARMOR::set,
@@ -208,7 +208,6 @@ final class ConfigRegistryBootstrap {
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.us_spawns", ModGameRules.US_SPAWNS);
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.pmc_ambient_spawns",
                 ModGameRules.PMC_AMBIENT_SPAWNS);
-        b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.tanks_in_events", ModGameRules.TANKS_IN_EVENTS);
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.can_mobs_damage_vehicles",
                 ModGameRules.CAN_MOBS_DAMAGE_VEHICLES);
         if (isExterminationLoaded() && ModGameRules.INVASION_OVERRIDES != null) {
@@ -218,10 +217,18 @@ final class ConfigRegistryBootstrap {
     }
 
     private static void registerEvents(ConfigRegistry.Builder b) {
-        b.doubleRange(ConfigScope.SERVER, "events", "tankSpawnChanceRu", 0.0, 1.0,
-                SewvConfig.TANK_SPAWN_CHANCE_RU, SewvConfig.TANK_SPAWN_CHANCE_RU::set);
-        b.doubleRange(ConfigScope.SERVER, "events", "tankSpawnChanceUs", 0.0, 1.0,
-                SewvConfig.TANK_SPAWN_CHANCE_US, SewvConfig.TANK_SPAWN_CHANCE_US::set);
+        b.bool(ConfigScope.SERVER, "events", "groundInEvents",
+                SewvConfig.GROUND_IN_EVENTS, SewvConfig.GROUND_IN_EVENTS::set);
+        b.doubleRange(ConfigScope.SERVER, "events", "groundSpawnChanceRu", 0.0, 1.0,
+                SewvConfig.GROUND_SPAWN_CHANCE_RU, SewvConfig.GROUND_SPAWN_CHANCE_RU::set);
+        b.doubleRange(ConfigScope.SERVER, "events", "groundSpawnChanceUs", 0.0, 1.0,
+                SewvConfig.GROUND_SPAWN_CHANCE_US, SewvConfig.GROUND_SPAWN_CHANCE_US::set);
+        b.bool(ConfigScope.SERVER, "events", "rotorInEvents",
+                SewvConfig.ROTOR_IN_EVENTS, SewvConfig.ROTOR_IN_EVENTS::set);
+        b.doubleRange(ConfigScope.SERVER, "events", "rotorSpawnChanceRu", 0.0, 1.0,
+                SewvConfig.ROTOR_SPAWN_CHANCE_RU, SewvConfig.ROTOR_SPAWN_CHANCE_RU::set);
+        b.doubleRange(ConfigScope.SERVER, "events", "rotorSpawnChanceUs", 0.0, 1.0,
+                SewvConfig.ROTOR_SPAWN_CHANCE_US, SewvConfig.ROTOR_SPAWN_CHANCE_US::set);
         b.bool(ConfigScope.SERVER, "events", "farEventSpawns",
                 SewvConfig.FAR_EVENT_SPAWNS, SewvConfig.FAR_EVENT_SPAWNS::set);
         b.bool(ConfigScope.SERVER, "events", "planesInEvents",
@@ -246,8 +253,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.LARGE_COMBAT_BASE_CHANCE, SewvConfig.LARGE_COMBAT_BASE_CHANCE::set);
         b.doubleRange(ConfigScope.SERVER, "events", "largeCombatFailureMultiplier", 0.0, 1.0,
                 SewvConfig.LARGE_COMBAT_FAILURE_MULTIPLIER, SewvConfig.LARGE_COMBAT_FAILURE_MULTIPLIER::set);
-        b.intRange(ConfigScope.SERVER, "events", "largeCombatVehicles", 0, 8,
-                SewvConfig.LARGE_COMBAT_VEHICLES, SewvConfig.LARGE_COMBAT_VEHICLES::set);
+        b.intRange(ConfigScope.SERVER, "events", "largeCombatGroundVehicles", 0, 8,
+                SewvConfig.LARGE_COMBAT_GROUND_VEHICLES, SewvConfig.LARGE_COMBAT_GROUND_VEHICLES::set);
+        b.intRange(ConfigScope.SERVER, "events", "largeCombatRotorVehicles", 0, 8,
+                SewvConfig.LARGE_COMBAT_ROTOR_VEHICLES, SewvConfig.LARGE_COMBAT_ROTOR_VEHICLES::set);
         b.doubleRange(ConfigScope.SERVER, "events", "largeCombatEmplacementChance", 0.0, 1.0,
                 SewvConfig.LARGE_COMBAT_EMPLACEMENT_CHANCE, SewvConfig.LARGE_COMBAT_EMPLACEMENT_CHANCE::set);
         b.doubleRange(ConfigScope.SERVER, "events", "largeCombatPlaneChance", 0.0, 1.0,
@@ -260,8 +269,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.NAVAL_FAILURE_MULTIPLIER, SewvConfig.NAVAL_FAILURE_MULTIPLIER::set);
         b.intRange(ConfigScope.SERVER, "events", "gracePeriodDays", 0, 365,
                 SewvConfig.GRACE_PERIOD_DAYS, SewvConfig.GRACE_PERIOD_DAYS::set);
-        b.intRange(ConfigScope.SERVER, "events", "navalShipsPerSide", 0, 12,
-                SewvConfig.NAVAL_SHIPS_PER_SIDE, SewvConfig.NAVAL_SHIPS_PER_SIDE::set);
+        b.intRange(ConfigScope.SERVER, "events", "navalSurfacePerSide", 0, 12,
+                SewvConfig.NAVAL_SURFACE_PER_SIDE, SewvConfig.NAVAL_SURFACE_PER_SIDE::set);
         b.bool(ConfigScope.SERVER, "events", "invasionEventsEnabled",
                 SewvConfig.INVASION_EVENTS_ENABLED, SewvConfig.INVASION_EVENTS_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "events", "invasionBaseChance", 0.0, 1.0,

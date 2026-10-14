@@ -35,7 +35,8 @@ public final class ConfigLayout {
                 "grenadeThrowCadence", "ifvDismountsEnabled", "autoBoardEnabled", "medicEnabled",
                 "pmcDownedEnabled", "npcArmorEnabled"));
         ESSENTIALS.put("essentials.world", List.of(
-                "gracePeriodDays", "tankSpawnChanceRu", "tankSpawnChanceUs", "convoyEventsEnabled", "largeCombatEventsEnabled",
+                "gracePeriodDays", "groundSpawnChanceRu", "groundSpawnChanceUs", "rotorSpawnChanceRu", "rotorSpawnChanceUs",
+                "convoyEventsEnabled", "largeCombatEventsEnabled",
                 "shellingEventsEnabled", "factionInfiniteAmmo", "vehicleDeathDrops"));
         ESSENTIALS.put("essentials.display", List.of(
                 "mapMarkersEnabled", "notificationsEnabled", "factionColorsEnabled"));
@@ -76,7 +77,8 @@ public final class ConfigLayout {
         rule("crew_ai", "idle", "idle");
         rule("crew_ai", "crew", "vehicleSkin", "camo", "ifv", "semCrew", "tankRider");
 
-        rule("events", "spawns", "tankSpawn", "planeSpawn", "farEvent", "planesIn", "garrison");
+        rule("events", "spawns", "groundSpawn", "groundIn", "rotorSpawn", "rotorIn", "planeSpawn", "farEvent", "planesIn",
+                "garrison");
         rule("events", "structures", "structures", "nativeStructures");
         rule("events", "convoy", "convoy");
         rule("events", "large_combat", "largeCombat");

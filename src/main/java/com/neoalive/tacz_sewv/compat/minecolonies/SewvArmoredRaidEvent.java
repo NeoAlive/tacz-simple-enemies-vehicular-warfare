@@ -136,11 +136,11 @@ public class SewvArmoredRaidEvent implements IColonyRaidEvent {
             // Fan the hulls out a little so they do not spawn inside one another; TankSpawner's
             // own clear-spawn search handles the rest.
             BlockPos at = TankSpawner.adjustHeight(level, spawnPoint.offset((i % 3) * 4 - 4, 0, (i / 3) * 4));
-            // The ground pool specifically, not spawnCombatVehicleWithCrew's ground-or-rotary
+            // The ground pool specifically, and the SBW-typed spawn, not the rotor pool or an LV hull
             // pick: the march below is read by the ground crew's destination resolver, and a
             // helicopter — which has its own flight goal and never consults it — would take off
             // and loiter over its spawn instead of raiding anything.
-            VehicleEntity hull = TankSpawner.spawnTankWithCrew(level, at, faction, null);
+            VehicleEntity hull = TankSpawner.spawnGroundWithCrew(level, at, faction, null);
             if (hull == null) continue;
             VehicleDrops.markCrewAndHull(hull);
             MarchObjective.set(hull, objective);

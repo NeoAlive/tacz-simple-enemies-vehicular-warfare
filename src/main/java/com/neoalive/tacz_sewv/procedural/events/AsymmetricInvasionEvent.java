@@ -8,8 +8,8 @@ import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
-import com.neoalive.tacz_sewv.spawn.EventVehicleSpawns;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
 /**
  * An armoured thrust against a dug-in position: one faction brings two or three vehicles and
@@ -97,9 +97,8 @@ public final class AsymmetricInvasionEvent extends DynamicEvent {
             BlockPos pos = alongX
                     ? centerPos.offset(approach, 0, abreast)
                     : centerPos.offset(abreast, 0, approach);
-            BlockPos ground = TankSpawner.adjustHeight(level, pos);
-            if (EventVehicleSpawns.spawnCrewed(level, ground, attacker, false,
-                    () -> TankSpawner.spawnTankWithCrew(level, ground, attacker, null) != null)) {
+            if (TankSpawner.spawnFromPool(level, TankSpawner.adjustHeight(level, pos), attacker,
+                    WorldVehiclePools.Category.GROUND, null, null) != null) {
                 spawned++;
             }
         }

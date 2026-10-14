@@ -33,8 +33,8 @@ public final class EasyMode {
         return SewvConfig.LARGE_COMBAT_EVENTS_ENABLED.get();
     }
 
-    public static boolean farCombatTanksAllowed() {
-        return !on(SewvConfig.EASY_NO_FAR_COMBAT_TANKS);
+    public static boolean farCombatVehiclesAllowed() {
+        return !on(SewvConfig.EASY_NO_FAR_COMBAT_VEHICLES);
     }
 
     public static boolean garrisonVehiclesEnabled() {

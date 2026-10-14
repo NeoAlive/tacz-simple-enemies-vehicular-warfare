@@ -100,8 +100,9 @@ public abstract class MixinVillageGarrisonHandler {
             if (!level.isLoaded(spot)) return;
             TankSpawner.TankFaction faction = isRu ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
             // Crewed: fuelled by the faction-energy rule and never scavenged. See the class doc.
-            com.neoalive.tacz_sewv.spawn.EventVehicleSpawns.spawnCrewed(level, spot, faction, false,
-                    () -> TankSpawner.spawnTankWithCrew(level, spot, faction, null) != null);
+            if (!TankSpawner.groundEventsAllowed(level, faction)) return;
+            TankSpawner.spawnFromPool(level, spot, faction,
+                    com.neoalive.tacz_sewv.util.WorldVehiclePools.Category.GROUND, null, null);
         });
     }
 

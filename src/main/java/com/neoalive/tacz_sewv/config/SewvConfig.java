@@ -13,8 +13,12 @@ public final class SewvConfig {
     // Minecraft keeps your existing config file. Delete it (or individual keys) to pick up new defaults.
     public static final ForgeConfigSpec SPEC;
 
-    public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_RU;
-    public static final ForgeConfigSpec.DoubleValue TANK_SPAWN_CHANCE_US;
+    public static final ForgeConfigSpec.BooleanValue GROUND_IN_EVENTS;
+    public static final ForgeConfigSpec.DoubleValue GROUND_SPAWN_CHANCE_RU;
+    public static final ForgeConfigSpec.DoubleValue GROUND_SPAWN_CHANCE_US;
+    public static final ForgeConfigSpec.BooleanValue ROTOR_IN_EVENTS;
+    public static final ForgeConfigSpec.DoubleValue ROTOR_SPAWN_CHANCE_RU;
+    public static final ForgeConfigSpec.DoubleValue ROTOR_SPAWN_CHANCE_US;
     /** When on, SEM event spawn min/max distance is multiplied by 2.5. Formerly gamerule sewvFarEventSpawns. */
     public static final ForgeConfigSpec.BooleanValue FAR_EVENT_SPAWNS;
     public static final ForgeConfigSpec.BooleanValue PLANES_IN_EVENTS;
@@ -26,13 +30,14 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue LARGE_COMBAT_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_FAILURE_MULTIPLIER;
-    public static final ForgeConfigSpec.IntValue LARGE_COMBAT_VEHICLES;
+    public static final ForgeConfigSpec.IntValue LARGE_COMBAT_GROUND_VEHICLES;
+    public static final ForgeConfigSpec.IntValue LARGE_COMBAT_ROTOR_VEHICLES;
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_EMPLACEMENT_CHANCE;
     public static final ForgeConfigSpec.DoubleValue LARGE_COMBAT_PLANE_CHANCE;
     public static final ForgeConfigSpec.BooleanValue NAVAL_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue NAVAL_BASE_CHANCE;
     public static final ForgeConfigSpec.DoubleValue NAVAL_FAILURE_MULTIPLIER;
-    public static final ForgeConfigSpec.IntValue NAVAL_SHIPS_PER_SIDE;
+    public static final ForgeConfigSpec.IntValue NAVAL_SURFACE_PER_SIDE;
     public static final ForgeConfigSpec.IntValue GRACE_PERIOD_DAYS;
     public static final ForgeConfigSpec.BooleanValue INVASION_EVENTS_ENABLED;
     public static final ForgeConfigSpec.DoubleValue INVASION_BASE_CHANCE;
@@ -100,10 +105,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_STRUCTURES;
     // Limitless Vehicles (ywzj_vehicle, optional) — read only when that mod is loaded.
     public static final ForgeConfigSpec.BooleanValue LV_AI_ENABLED;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_LV_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_LV_POOL;
-    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_LV_POOL;
-    public static final ForgeConfigSpec.DoubleValue LV_POOL_MIX_CHANCE;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_STRUCTURES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_STRUCTURES;
 
@@ -408,7 +409,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue EASY_MODE;
     public static final ForgeConfigSpec.BooleanValue EASY_DISABLE_SHELLING;
     public static final ForgeConfigSpec.BooleanValue EASY_DISABLE_LARGE_COMBAT;
-    public static final ForgeConfigSpec.BooleanValue EASY_NO_FAR_COMBAT_TANKS;
+    public static final ForgeConfigSpec.BooleanValue EASY_NO_FAR_COMBAT_VEHICLES;
     public static final ForgeConfigSpec.BooleanValue EASY_NO_WORLD_ARMOR;
     public static final ForgeConfigSpec.BooleanValue EASY_LOWER_EVENT_ESCALATION;
     public static final ForgeConfigSpec.BooleanValue EASY_SOFT_AI_AIM;
@@ -437,12 +438,22 @@ public final class SewvConfig {
         GRACE_PERIOD_DAYS = builder.comment("In-game days of peace a new world starts with: no ambient events, spawn probes",
                         "and Berezka RU/US garrisons are removed. 0 = off. Also /sewv graceperiod.")
                 .defineInRange("gracePeriodDays", 5, 0, 365);
-        TANK_SPAWN_CHANCE_RU = builder.comment("Chance an RU tank appears when Simple Enemy Mod rolls a distant fight.",
-                        "Turn tanks in events on/off with the sewvTanksInEvents gamerule.")
-                .defineInRange("tankSpawnChanceRu", 0.12, 0.0, 1.0);
-        TANK_SPAWN_CHANCE_US = builder.comment("Chance a US tank appears when Simple Enemy Mod rolls a distant fight.",
-                        "Turn tanks in events on/off with the sewvTanksInEvents gamerule.")
-                .defineInRange("tankSpawnChanceUs", 0.12, 0.0, 1.0);
+        GROUND_IN_EVENTS = builder.comment(
+                        "Allow ground vehicles (ground pool) in events: distant fights, large battles, convoys,",
+                        "invasions and village garrisons.")
+                .define("groundInEvents", true);
+        GROUND_SPAWN_CHANCE_RU = builder.comment("Chance an RU ground vehicle appears when Simple Enemy Mod rolls a distant fight.")
+                .defineInRange("groundSpawnChanceRu", 0.12, 0.0, 1.0);
+        GROUND_SPAWN_CHANCE_US = builder.comment("Chance a US ground vehicle appears when Simple Enemy Mod rolls a distant fight.")
+                .defineInRange("groundSpawnChanceUs", 0.12, 0.0, 1.0);
+        ROTOR_IN_EVENTS = builder.comment("Allow helicopters (rotor pool) in events: distant fights and large battles.")
+                .define("rotorInEvents", true);
+        ROTOR_SPAWN_CHANCE_RU = builder.comment("Chance an RU helicopter appears when Simple Enemy Mod rolls a distant fight.",
+                        "Rolled separately from the ground vehicle, so a fight can bring both.")
+                .defineInRange("rotorSpawnChanceRu", 0.06, 0.0, 1.0);
+        ROTOR_SPAWN_CHANCE_US = builder.comment("Chance a US helicopter appears when Simple Enemy Mod rolls a distant fight.",
+                        "Rolled separately from the ground vehicle, so a fight can bring both.")
+                .defineInRange("rotorSpawnChanceUs", 0.06, 0.0, 1.0);
         FAR_EVENT_SPAWNS = builder.comment(
                         "Multiply SEM event spawn distance by 2.5 for wider, more spread-out fights.",
                         "(This mod's events and SEM's own.) Off restores packed base ranges.")
@@ -462,8 +473,10 @@ public final class SewvConfig {
                 .defineInRange("largeCombatBaseChance", 0.02, 0.0, 1.0);
         LARGE_COMBAT_FAILURE_MULTIPLIER = builder.comment("How much the large-battle chance grows after each miss.")
                 .defineInRange("largeCombatFailureMultiplier", 0.02, 0.0, 1.0);
-        LARGE_COMBAT_VEHICLES = builder.comment("How many vehicles each side gets in a large battle.")
-                .defineInRange("largeCombatVehicles", 2, 0, 8);
+        LARGE_COMBAT_GROUND_VEHICLES = builder.comment("How many ground vehicles each side gets in a large battle.")
+                .defineInRange("largeCombatGroundVehicles", 2, 0, 8);
+        LARGE_COMBAT_ROTOR_VEHICLES = builder.comment("How many helicopters each side gets in a large battle.")
+                .defineInRange("largeCombatRotorVehicles", 1, 0, 8);
         LARGE_COMBAT_EMPLACEMENT_CHANCE = builder.comment("Per side: chance to also spawn a mortar or TOW launcher.")
                 .defineInRange("largeCombatEmplacementChance", 0.04, 0.0, 1.0);
         LARGE_COMBAT_PLANE_CHANCE = builder.comment("Per side: chance to also spawn a plane.")
@@ -473,8 +486,8 @@ public final class SewvConfig {
                 .defineInRange("navalBaseChance", 0.05, 0.0, 1.0);
         NAVAL_FAILURE_MULTIPLIER = builder.comment("How much the naval-battle chance grows after each miss.")
                 .defineInRange("navalFailureMultiplier", 0.05, 0.0, 1.0);
-        NAVAL_SHIPS_PER_SIDE = builder.comment("How many ships each side gets in a naval battle.")
-                .defineInRange("navalShipsPerSide", 4, 0, 12);
+        NAVAL_SURFACE_PER_SIDE = builder.comment("How many boats (surface pool) each side gets in a naval battle.")
+                .defineInRange("navalSurfacePerSide", 4, 0, 12);
         INVASION_EVENTS_ENABLED = builder.comment("Allow invasion events (attackers vs a defended position).").define("invasionEventsEnabled", true);
         INVASION_BASE_CHANCE = builder.comment("Starting chance each time Simple Enemy Mod checks for an invasion.")
                 .defineInRange("invasionBaseChance", 0.03, 0.0, 1.0);
@@ -1636,8 +1649,9 @@ public final class SewvConfig {
                 .define("easyDisableShelling", true);
         EASY_DISABLE_LARGE_COMBAT = builder.comment("Easy Mode: disable large multi-vehicle battles.")
                 .define("easyDisableLargeCombat", true);
-        EASY_NO_FAR_COMBAT_TANKS = builder.comment("Easy Mode: no tanks injected into SEM far_combat events.")
-                .define("easyNoFarCombatTanks", true);
+        EASY_NO_FAR_COMBAT_VEHICLES = builder.comment(
+                        "Easy Mode: no ground vehicles or helicopters injected into SEM far_combat events.")
+                .define("easyNoFarCombatVehicles", true);
         EASY_NO_WORLD_ARMOR = builder.comment(
                         "Easy Mode: no village garrison tanks and no Berezka structure vehicles.")
                 .define("easyNoWorldArmor", true);
@@ -1675,21 +1689,9 @@ public final class SewvConfig {
 
         builder.push("limitless_vehicles");
         LV_AI_ENABLED = builder.comment(
-                        "Crews drive and gun Limitless Vehicles hulls (ground and boats). Needs ywzj_vehicle installed.")
+                        "Crews drive, fly and gun Limitless Vehicles hulls (ground, boats, rotorcraft). Needs ywzj_vehicle.",
+                        "LV vehicle ids go in the ordinary ground / surface / rotor pools (pool editor preset: Limitless Vehicles).")
                 .define("lvAiEnabled", true);
-        RU_LV_POOL = builder.comment(
-                        "Limitless Vehicles ids RU crews spawn in (vehicle data ids, e.g. ywzj_vehicle:ztz99a).",
-                        "Wheeled, tracked and boat hulls only; aircraft and fixed mounts are skipped.")
-                .defineList("ruLvPool", List.of("ywzj_vehicle:ztz99a", "ywzj_vehicle:ztl11"), SewvConfig::isValidResourceId);
-        US_LV_POOL = builder.comment("Limitless Vehicles ids US crews spawn in.")
-                .defineList("usLvPool", List.of("ywzj_vehicle:m1a2", "ywzj_vehicle:lav_ad"), SewvConfig::isValidResourceId);
-        PMC_LV_POOL = builder.comment("Limitless Vehicles ids PMC crews spawn in.")
-                .defineList("pmcLvPool", List.of("ywzj_vehicle:atv_mrzr4", "ywzj_vehicle:hiace", "ywzj_vehicle:assault_boat"),
-                        SewvConfig::isValidResourceId);
-        LV_POOL_MIX_CHANCE = builder.comment(
-                        "Chance an event's crewed vehicle comes from the Limitless Vehicles pool instead of the",
-                        "Superb Warfare one (0 = never). Only used when ywzj_vehicle is installed.")
-                .defineInRange("lvPoolMixChance", 0.0, 0.0, 1.0);
         builder.pop();
 
         SPEC = builder.build();

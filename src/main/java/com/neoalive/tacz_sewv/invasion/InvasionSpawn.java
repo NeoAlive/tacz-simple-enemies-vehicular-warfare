@@ -335,7 +335,7 @@ public final class InvasionSpawn {
             String vehicleId = pickRandom(pool, level);
             BlockPos at = offsetInRadius(level, base.getBlockPos(), base.getRadiusInBlocks(),
                     spawned + (int) (level.getGameTime() & 0x7fff));
-            VehicleEntity hull = TankSpawner.spawnTankWithCrewFromPool(
+            VehicleEntity hull = TankSpawner.spawnGroundWithCrewFromPool(
                     level, at, faction, ownerId, vehicleId, pool);
             if (hull == null) {
                 SewvDiag.invasion("spawnFail AI base={} id={}", base.getBlockPos(), vehicleId);

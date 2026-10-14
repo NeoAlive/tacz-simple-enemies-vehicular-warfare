@@ -21,8 +21,13 @@ public final class VehiclePoolCatalogSource {
 
     public static List<String> scan() {
         List<String> filtered = scanInternal(true);
-        if (!filtered.isEmpty()) return filtered;
-        return scanInternal(false);
+        List<String> out = filtered.isEmpty() ? scanInternal(false) : filtered;
+        // Limitless Vehicles data ids (empty without LV): they go in the same pools as SBW hulls.
+        for (String id : com.neoalive.tacz_sewv.compat.lv.LvCompat.catalogIds()) {
+            if (!out.contains(id)) out.add(id);
+        }
+        out.sort(String::compareTo);
+        return out;
     }
 
     private static List<String> scanInternal(boolean applyEngineFilter) {

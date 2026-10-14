@@ -23,66 +23,46 @@ import org.ywzj.vehicle.vehicle.part.WeaponUnit;
 import org.ywzj.vehicle.vehicle.weapon.AbstractVehicleWeapon;
 
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WarnOnce;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
 /**
- * {@code TankSpawner.spawnCrewedVehicle} for Limitless Vehicles: an LV hull from the faction's
- * LV pool, fuelled and loaded, with one unit per seat.
+ * {@code TankSpawner.spawnCrewedVehicle} for Limitless Vehicles: an LV hull picked from one of the
+ * faction's ordinary pools by {@code TankSpawner.spawnFromPool}, fuelled and loaded, with one unit
+ * per seat.
  *
  * <p>The crew is <b>not</b> mounted here. On its first server tick an LV hull throws every
  * passenger out ({@code AbstractVehicle.tick}, {@code tickCount == 1}); {@link LvEvents} exempts
  * our units from that, but the spawn does not lean on it where it can do without — the crew is
  * queued in {@link LvPendingCrews} and boards once that tick has passed.
  *
- * <p>Pool entries are LV <em>vehicle data</em> ids, which are not entity types (several data ids
+ * <p>LV pool entries are <em>vehicle data</em> ids, which are not entity types (several data ids
  * build the same generic {@code tracked_vehicle} entity), so they are resolved through LV's data
- * manager, and anything that is not a wheeled / tracked / boat hull is skipped with a warning.
+ * manager, and an id sitting in the wrong class of pool is skipped with a warning.
  */
 final class LvSpawner {
 
     private LvSpawner() {}
 
-    static List<? extends String> pool(TankFaction faction) {
-        return switch (faction) {
-            case RU -> SewvConfig.RU_LV_POOL.get();
-            case US -> SewvConfig.US_LV_POOL.get();
-            case PMC -> SewvConfig.PMC_LV_POOL.get();
-        };
-    }
-
     /**
-     * @param water null = any crewable hull (the command); true = boats only; false = land only
-     *              (an event placing on water or on ground draws from the same mixed pool)
+     * Spawn a crewed hull from LV data id {@code id} into pool class {@code category}: a GROUND id
+     * must build a wheeled or tracked hull, SURFACE a boat, ROTOR a rotorcraft (landed; its pilot
+     * takes off once it has somewhere to go). Anything else is refused with a one-time warning.
      */
     @Nullable
     static Entity spawnCrewed(ServerLevel level, BlockPos requestedPos, TankFaction faction,
-                              @Nullable UUID ownerId, @Nullable String vehicleId, @Nullable Boolean water) {
-        List<? extends String> pool = pool(faction);
-        if (vehicleId != null && !pool.contains(vehicleId)) return null; // only what the config allows
-        List<String> candidates = new ArrayList<>();
-        for (String id : vehicleId != null ? List.of(vehicleId) : pool) {
-            if (resolve(id) != null) candidates.add(id);
+                              @Nullable UUID ownerId, String id, WorldVehiclePools.Category category) {
+        if (LvHulls.categoryOf(id) != category) {
+            WarnOnce.warn(TaczSewv.LOGGER, "sewv-lv-wrong-pool-" + id + "-" + category,
+                    "[sewv] Limitless Vehicles id '" + id + "' is not a " + category.name().toLowerCase()
+                            + " hull for crewed spawns; skipping it.");
+            return null;
         }
-        // Random order, first that builds a hull of the wanted class.
-        AbstractVehicle hull = null;
-        LvHulls.Kind kind = null;
-        while (!candidates.isEmpty() && hull == null) {
-            String id = candidates.remove(level.random.nextInt(candidates.size()));
-            AbstractVehicle built = build(level, requestedPos, id);
-            LvHulls.Kind k = built == null ? null : LvHulls.kindOf(built);
-            if (k == null || built.getMainCubeOBB() == null) {
-                WarnOnce.warn(TaczSewv.LOGGER, "sewv-lv-not-crewable-" + id,
-                        "[sewv] Limitless Vehicles pool entry '" + id + "' is not a wheeled, tracked or boat hull; skipping it.");
-                continue;
-            }
-            if (water != null && water != (k == LvHulls.Kind.VESSEL)) continue;
-            hull = built;
-            kind = k;
-        }
-        if (hull == null) return null;
+        AbstractVehicle hull = build(level, requestedPos, id);
+        if (hull == null || hull.getMainCubeOBB() == null || LvHulls.kindOf(hull) == null) return null;
+        LvHulls.Kind kind = LvHulls.kindOf(hull);
 
         Vector3f ext = hull.getMainCubeOBB().obb().extents();
         double half = Math.max(ext.x, ext.z);

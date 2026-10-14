@@ -13,8 +13,8 @@ import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
-import com.neoalive.tacz_sewv.spawn.EventVehicleSpawns;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
 /**
  * Two flotillas fighting it out offshore: four ships a side, drawn from the faction ship pools.
@@ -81,13 +81,13 @@ public final class NavalBattleEvent extends DynamicEvent {
         // The half of EventSpawns.placeable this event can use — a colony can be built on a coast
         // and claim the water off it.
         if (!AmbientSpawnGate.allowsAt(level, centerPos)) return false;
-        if (!TankSpawner.hasSpawnableShip(level, TankSpawner.TankFaction.RU)
-                || !TankSpawner.hasSpawnableShip(level, TankSpawner.TankFaction.US)) {
+        if (!TankSpawner.hasSpawnableSurface(level, TankSpawner.TankFaction.RU)
+                || !TankSpawner.hasSpawnableSurface(level, TankSpawner.TankFaction.US)) {
             return false;
         }
 
         boolean alongX = level.random.nextBoolean();
-        int perSide = SewvConfig.NAVAL_SHIPS_PER_SIDE.get();
+        int perSide = SewvConfig.NAVAL_SURFACE_PER_SIDE.get();
 
         int ru = deployLine(level, centerPos, TankSpawner.TankFaction.RU, alongX, 1, perSide);
         int us = deployLine(level, centerPos, TankSpawner.TankFaction.US, alongX, -1, perSide);
@@ -99,8 +99,8 @@ public final class NavalBattleEvent extends DynamicEvent {
     }
 
     /**
-     * One line of ships abreast, {@code facing} blocks off the centre. Each hull is placed through
-     * {@link TankSpawner#spawnShipWithCrew}, which spirals for real water around the requested
+     * One line of boats abreast, {@code facing} blocks off the centre. Each hull is placed through
+     * {@link TankSpawner#spawnFromPool} (surface pool), which spirals for real water around the requested
      * point — so an island or a sandbar in the middle of the line costs that hull, not the event.
      */
     private static int deployLine(ServerLevel level, BlockPos centre, TankSpawner.TankFaction faction,
@@ -113,8 +113,8 @@ public final class NavalBattleEvent extends DynamicEvent {
             Integer surface = WaterSupport.surfaceY(level, pos.getX(), pos.getZ());
             if (surface == null) continue; // that spot is land; the rest of the line may still float
             BlockPos onWater = new BlockPos(pos.getX(), surface, pos.getZ());
-            if (EventVehicleSpawns.spawnCrewed(level, onWater, faction, true,
-                    () -> TankSpawner.spawnShipWithCrew(level, onWater, faction, null, null) != null)) spawned++;
+            if (TankSpawner.spawnFromPool(level, onWater, faction, WorldVehiclePools.Category.SURFACE,
+                    null, null) != null) spawned++;
         }
         return spawned;
     }

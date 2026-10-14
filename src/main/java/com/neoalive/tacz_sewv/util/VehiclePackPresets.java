@@ -22,7 +22,8 @@ public final class VehiclePackPresets {
         FCP("fcp", "gui.tacz_sewv.pool.preset.pack.fcp"),
         DRAGONRISE("dragonrise_reforge", "gui.tacz_sewv.pool.preset.pack.dragonrise"),
         ULTIMA_RATIO("ultimaratio", "gui.tacz_sewv.pool.preset.pack.ultimaratio"),
-        NEO_ARMS("neoarms", "gui.tacz_sewv.pool.preset.pack.neoarms");
+        NEO_ARMS("neoarms", "gui.tacz_sewv.pool.preset.pack.neoarms"),
+        LIMITLESS_VEHICLES("ywzj_vehicle", "gui.tacz_sewv.pool.preset.pack.limitless");
 
         public final String modId;
         public final String langKey;
@@ -75,6 +76,7 @@ public final class VehiclePackPresets {
         out.put(Pack.DRAGONRISE, dragonrise());
         out.put(Pack.ULTIMA_RATIO, ultima());
         out.put(Pack.NEO_ARMS, neoarms());
+        out.put(Pack.LIMITLESS_VEHICLES, limitless());
         return Collections.unmodifiableMap(out);
     }
 
@@ -121,23 +123,23 @@ public final class VehiclePackPresets {
         String ns = "superbwarfare";
         return new Builder()
                 .put(TankFaction.RU, Category.GROUND, ns, "t_90a", "bmp_2", "ztz_99a", "plz_05", "yx_100")
-                .put(TankFaction.RU, Category.HELI, ns, "mi_28")
+                .put(TankFaction.RU, Category.ROTOR, ns, "mi_28")
                 .put(TankFaction.RU, Category.PLANE, ns, "j_16", "kv_16")
-                .put(TankFaction.RU, Category.SHIP, ns, "speedboat")
+                .put(TankFaction.RU, Category.SURFACE, ns, "speedboat")
                 .put(TankFaction.RU, Category.TOW, ns, "tow", "hpj_11")
                 .put(TankFaction.RU, Category.MORTAR, ns, "mortar", "type_63")
                 .put(TankFaction.US, Category.GROUND, ns, "m_1a_2", "bradley", "lav_150", "lav_25", "lav_ad",
                         "fh_77bw", "truck")
-                .put(TankFaction.US, Category.HELI, ns, "ah_6")
+                .put(TankFaction.US, Category.ROTOR, ns, "ah_6")
                 .put(TankFaction.US, Category.PLANE, ns, "a_10a", "ac_130h", "ju_87")
-                .put(TankFaction.US, Category.SHIP, ns, "speedboat")
+                .put(TankFaction.US, Category.SURFACE, ns, "speedboat")
                 .put(TankFaction.US, Category.TOW, ns, "tow", "mk_42", "hpj_11")
                 .put(TankFaction.US, Category.MORTAR, ns, "mortar")
                 .put(TankFaction.PMC, Category.GROUND, ns, "bradley", "lav_150", "t_90a", "truck",
                         "sodayo_pick_up", "sodayo_pick_up_hmg", "sodayo_pick_up_rocket", "sodayo_pick_up_tow")
-                .put(TankFaction.PMC, Category.HELI, ns, "ah_6")
+                .put(TankFaction.PMC, Category.ROTOR, ns, "ah_6")
                 .put(TankFaction.PMC, Category.PLANE, ns, "a_10a")
-                .put(TankFaction.PMC, Category.SHIP, ns, "speedboat")
+                .put(TankFaction.PMC, Category.SURFACE, ns, "speedboat")
                 .put(TankFaction.PMC, Category.TOW, ns, "tow")
                 .put(TankFaction.PMC, Category.MORTAR, ns, "mortar")
                 .freeze();
@@ -158,7 +160,7 @@ public final class VehiclePackPresets {
                         "ural", "ural_fuel", "ural_grad", "ural_kung",
                         "toyota_hilux", "toyota_hilux_bmp", "toyota_hilux_mortar", "toyota_hilux_rocket_pod",
                         "toyota_hilux_spg9", "toyota_hilux_zu23")
-                .put(TankFaction.RU, Category.HELI, ns,
+                .put(TankFaction.RU, Category.ROTOR, ns,
                         "mi8", "mi8_amtsh", "mi8_door_guns", "mi8_mtv", "mi17", "mi17_door_guns")
                 .put(TankFaction.RU, Category.TOW, ns, "empl_kornet", "empl_dshk", "empl_ags17", "empl_zis3")
                 .put(TankFaction.US, Category.GROUND, ns,
@@ -171,7 +173,7 @@ public final class VehiclePackPresets {
                         "hmmwv_unarmored_unarmed",
                         "matv", "matv_9in1", "matv_crow", "matv_tow",
                         "m109", "m939", "man_hx58", "man_hx58_mg3", "fmtv", "rg_33", "dpv_m240", "dpv_minigun")
-                .put(TankFaction.US, Category.HELI, ns,
+                .put(TankFaction.US, Category.ROTOR, ns,
                         "huey", "huey_m134_door_guns", "huey_m134_gunship", "huey_m60_door_guns",
                         "huey_m60_gunship", "huey_rockets", "littlebird", "littlebird_armed", "littlebird_heavy",
                         "uh60", "uh60_minigun", "venom", "venom_door_guns", "venom_gunship", "viper", "oh1",
@@ -181,7 +183,7 @@ public final class VehiclePackPresets {
                         "t72av", "bmp2_noatgm", "brdm2", "btr80", "lav25", "stryker_m2", "matv", "matv_tow",
                         "hmmwv_armored_m2", "hmmwv_unarmored_tow", "gaz_tigr_mg", "toyota_hilux_spg9",
                         "toyota_hilux_zu23", "uaz_dshka", "rg_33", "dpv_minigun")
-                .put(TankFaction.PMC, Category.HELI, ns,
+                .put(TankFaction.PMC, Category.ROTOR, ns,
                         "huey_m60_gunship", "littlebird_armed", "uh60", "mi17", "mi8_door_guns", "venom")
                 .put(TankFaction.PMC, Category.TOW, ns, "empl_tow", "empl_kornet", "empl_dshk")
                 .freeze();
@@ -198,7 +200,7 @@ public final class VehiclePackPresets {
                         "tunguska", "ural4320", "ural4320_supply", "ural4320_zu23", "vt4a1", "vt4b", "wlsc",
                         "zbd04a", "zbd05", "zbl08", "zlt11", "zsl10", "zsu234", "ztd05", "ztq15", "ztz59a",
                         "ztz96a", "ztz99a", "ztz99ah")
-                .put(TankFaction.RU, Category.HELI, ns, "ka50", "mi24v", "z10a", "z10me", "z20", "z9")
+                .put(TankFaction.RU, Category.ROTOR, ns, "ka50", "mi24v", "z10a", "z10me", "z20", "z9")
                 .put(TankFaction.RU, Category.PLANE, ns,
                         "j8", "j10", "j10c", "j11", "j15t", "j16", "j20", "j20vtol", "j35", "jf17", "q5", "su24m")
                 .put(TankFaction.RU, Category.TOW, ns, "9m133", "hj8", "dshk", "zu23", "wlhgzu23", "akm")
@@ -208,14 +210,14 @@ public final class VehiclePackPresets {
                         "m1a1hc", "m1a2sepv2", "m2", "m270", "m3a3", "m3stuart", "m4a2", "m4a2_105", "markv",
                         "mv3", "mv3_armed", "mv3_supply", "pershing", "strv103", "type100", "type3", "type97",
                         "type97q")
-                .put(TankFaction.US, Category.HELI, ns, "ah1f", "ah64", "ec665", "nh90", "uh60")
+                .put(TankFaction.US, Category.ROTOR, ns, "ah1f", "ah64", "ec665", "nh90", "uh60")
                 .put(TankFaction.US, Category.PLANE, ns,
                         "ac130", "av8b", "f14", "f15e", "f16c", "f4u", "fa18e", "jas39e", "refale", "refaleaa")
                 .put(TankFaction.US, Category.TOW, ns, "mk19", "pak40", "npds114", "npds514", "npds810")
                 .put(TankFaction.PMC, Category.GROUND, ns,
                         "t72b3", "bmp3", "bmd4m", "cv90", "m2", "m113", "humvee", "humveetow", "mv3_armed",
                         "ural4320_zu23", "zbl08", "amx56", "type97", "panzer4", "tiger")
-                .put(TankFaction.PMC, Category.HELI, ns, "uh60", "mi24v", "ah1f", "z9")
+                .put(TankFaction.PMC, Category.ROTOR, ns, "uh60", "mi24v", "ah1f", "z9")
                 .put(TankFaction.PMC, Category.PLANE, ns, "f16c", "jas39e", "jf17", "su24m", "av8b")
                 .put(TankFaction.PMC, Category.TOW, ns, "dshk", "mk19", "hj8", "9m133")
                 .freeze();
@@ -238,12 +240,34 @@ public final class VehiclePackPresets {
     private static Map<TankFaction, Map<Category, List<String>>> neoarms() {
         String ns = "neoarms";
         return new Builder()
-                .put(TankFaction.RU, Category.SHIP, ns, "steregushchiy")
+                .put(TankFaction.RU, Category.SURFACE, ns, "steregushchiy")
                 .put(TankFaction.US, Category.GROUND, ns,
                         "c1_ariete", "leopard_1a4", "leopard_2a7v", "leopard_2a7v_bare")
-                .put(TankFaction.US, Category.SHIP, ns, "aircraft_carrier", "k_130")
+                .put(TankFaction.US, Category.SURFACE, ns, "aircraft_carrier", "k_130")
                 .put(TankFaction.PMC, Category.GROUND, ns, "c1_ariete", "leopard_1a4", "leopard_2a7v_bare")
-                .put(TankFaction.PMC, Category.SHIP, ns, "k_130")
+                .put(TankFaction.PMC, Category.SURFACE, ns, "k_130")
+                .freeze();
+    }
+
+    // ---------------------------------------------------------------- Limitless Vehicles
+
+    /**
+     * LV's bundled 0.6.0 vehicles (data ids, not entity types). Fixed wing ({@code j10c}, {@code j36},
+     * {@code rafale}), the {@code bgm_71_tow} mount and the remote-flown {@code quadcopter} are left
+     * out: crews do not fly LV planes or drones. The PLA hulls stand in for RU, as elsewhere.
+     */
+    private static Map<TankFaction, Map<Category, List<String>>> limitless() {
+        String ns = "ywzj_vehicle";
+        return new Builder()
+                .put(TankFaction.RU, Category.GROUND, ns, "ztz99a", "ztl11", "cssa5", "htf5980")
+                .put(TankFaction.RU, Category.ROTOR, ns, "z10")
+                .put(TankFaction.RU, Category.SURFACE, ns, "assault_boat")
+                .put(TankFaction.US, Category.GROUND, ns, "m1a2", "lav_ad", "atv_mrzr4")
+                .put(TankFaction.US, Category.ROTOR, ns, "ah64d", "ah_6")
+                .put(TankFaction.US, Category.SURFACE, ns, "assault_boat")
+                .put(TankFaction.PMC, Category.GROUND, ns, "atv_mrzr4", "atv_coyoto", "cssa5", "hiace", "motorcycle")
+                .put(TankFaction.PMC, Category.ROTOR, ns, "ah_6")
+                .put(TankFaction.PMC, Category.SURFACE, ns, "assault_boat")
                 .freeze();
     }
 }

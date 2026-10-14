@@ -108,10 +108,10 @@ public abstract class MixinRaidManager {
         // itself the moment it tries to spawn.
         TankSpawner.TankFaction faction = level.random.nextBoolean()
                 ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
-        if (!TankSpawner.hasSpawnableVehicle(level, faction)) {
+        if (!TankSpawner.hasSpawnableGround(level, faction)) {
             faction = faction == TankSpawner.TankFaction.RU
                     ? TankSpawner.TankFaction.US : TankSpawner.TankFaction.RU;
-            if (!TankSpawner.hasSpawnableVehicle(level, faction)) return;
+            if (!TankSpawner.hasSpawnableGround(level, faction)) return;
         }
 
         SewvArmoredRaidEvent event = new SewvArmoredRaidEvent(colony);

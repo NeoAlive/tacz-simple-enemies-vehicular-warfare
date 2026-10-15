@@ -346,7 +346,7 @@ public final class TacticalBrain {
         }
     }
 
-    /** Live outer-ring / sound cue, or contact memory still worth searching. */
+    /** Live foliage / gunfire cue, or contact memory still worth searching. */
     private boolean investigating() {
         return this.facts.outerSpotFresh
                 || this.facts.memory.hasFreshContact(this.lastSampledTick);

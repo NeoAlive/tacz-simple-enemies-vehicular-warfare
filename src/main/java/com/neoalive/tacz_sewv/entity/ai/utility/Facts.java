@@ -246,7 +246,7 @@ public final class Facts {
     public double confidence = Confidence.NEUTRAL;
 
     /**
-     * Outer-ring and sound awareness (never an engageable lock). Written by {@link com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues};
+     * Foliage-contact and heard-gunfire awareness (never an engageable lock). Written by {@link com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues};
      * independent of {@link #enemies} / force-ratio math.
      */
     public boolean outerSpotFresh;
@@ -254,15 +254,6 @@ public final class Facts {
     public double outerSpotDist = Double.MAX_VALUE;
     /** 0..1 band strength for {@link Signal#DISTANT_CONTACT}; 0 when no fresh spot. */
     public double outerSpotStrength;
-    /**
-     * Fixed look vector for a one-shot cosmetic turret glance after an outer poll spot.
-     * Null when no glance is armed. Consumed by {@link com.neoalive.tacz_sewv.entity.ai.goal.IdleCrewGoal} only —
-     * never setTarget / fire.
-     */
-    @Nullable
-    public Vec3 outerGlanceBearing;
-    /** Game time when {@link #outerGlanceBearing} expires; {@link Long#MIN_VALUE} if none. */
-    public long outerGlanceUntil = Long.MIN_VALUE;
 
     // ---- individual tactics / cover (written by TacticalPosture after refresh) ----
     /** 0..1 exposure to threat from cover cache; 1 when no threat / fully exposed. */
@@ -295,7 +286,7 @@ public final class Facts {
         // between two refreshes still has to be remembered, and these are all free field reads.
         this.memory.observe(unit, now);
 
-        // First schedule is staggered by hull id (same pattern as OuterRingAwareness) so a wave of
+        // First schedule is staggered by hull id so a wave of
         // crews that attach on the same tick do not all pay the expensive gather together.
         if (this.nextRefresh == Long.MIN_VALUE) {
             int interval = Math.max(1, SewvConfig.UTILITY_REFRESH_INTERVAL_TICKS.get());
@@ -687,8 +678,6 @@ public final class Facts {
         this.outerSpotFresh = false;
         this.outerSpotDist = Double.MAX_VALUE;
         this.outerSpotStrength = 0.0;
-        this.outerGlanceBearing = null;
-        this.outerGlanceUntil = Long.MIN_VALUE;
         this.exposure = 1.0;
         this.inCover = 0.0;
         this.keyholeQuality = 0.0;
@@ -752,7 +741,7 @@ public final class Facts {
         }
 
         /**
-         * Record an outer-ring (or other non-lock) sighting. Does not set a combat target.
+         * Record a non-lock sighting (foliage contact or heard gunfire). Does not set a combat target.
          *
          * <p>Callers must not overwrite a live engagement: {@link com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues}
          * only invokes this when {@code getTarget() == null}.

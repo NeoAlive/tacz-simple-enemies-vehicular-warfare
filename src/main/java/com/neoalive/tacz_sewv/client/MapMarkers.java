@@ -8,7 +8,6 @@ import javax.annotation.Nullable;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
-import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 import com.neoalive.tacz_sewv.map.FobMarker;
 import com.neoalive.tacz_sewv.map.HelipadMarker;
@@ -46,8 +45,6 @@ public final class MapMarkers {
     private static final Int2ObjectOpenHashMap<VehicleMarker> BY_DRIVER_ID = new Int2ObjectOpenHashMap<>();
     private static List<BattleFieldMarker> battleFields = List.of();
     @Nullable
-    private static SweepOverlayState sweepOverlay;
-    @Nullable
     private static FobMarker fobMarker;
     private static List<HelipadMarker> helipads = List.of();
     /** Selected hull network ids — survives driver dismount and sync refreshes. */
@@ -55,17 +52,8 @@ public final class MapMarkers {
 
     private MapMarkers() {}
 
-    public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields) {
-        accept(incoming, fields, null);
-    }
-
     public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields,
-                              @Nullable SweepOverlayState sweep) {
-        accept(incoming, fields, sweep, null);
-    }
-
-    public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields,
-                              @Nullable SweepOverlayState sweep, @Nullable FobMarker fob) {
+                              @Nullable FobMarker fob) {
         markers = List.copyOf(incoming);
         BY_VEHICLE_ID.clear();
         BY_DRIVER_ID.clear();
@@ -76,7 +64,6 @@ public final class MapMarkers {
             }
         }
         battleFields = List.copyOf(fields);
-        sweepOverlay = sweep;
         fobMarker = fob;
         SELECTED.removeIf(vehicleId -> !BY_VEHICLE_ID.containsKey(vehicleId));
     }
@@ -87,7 +74,6 @@ public final class MapMarkers {
         BY_VEHICLE_ID.clear();
         BY_DRIVER_ID.clear();
         battleFields = List.of();
-        sweepOverlay = null;
         fobMarker = null;
         helipads = List.of();
         SELECTED.clear();
@@ -124,12 +110,6 @@ public final class MapMarkers {
     /** Debug BattleField overlays synced with the vehicle markers — empty when none populated. */
     public static List<BattleFieldMarker> battleFields() {
         return battleFields;
-    }
-
-    /** Active Sweep &amp; Advance rect overlay for this player, or null when none. */
-    @Nullable
-    public static SweepOverlayState sweepOverlay() {
-        return sweepOverlay;
     }
 
     public static boolean isSelected(VehicleMarker marker) {

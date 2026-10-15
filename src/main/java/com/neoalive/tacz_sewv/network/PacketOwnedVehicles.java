@@ -14,7 +14,6 @@ import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
-import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 import com.neoalive.tacz_sewv.map.FobMarker;
 import com.neoalive.tacz_sewv.map.MarkerOrder;
@@ -37,24 +36,12 @@ public class PacketOwnedVehicles {
     private final List<VehicleMarker> markers;
     private final List<BattleFieldMarker> battleFields;
     @Nullable
-    private final SweepOverlayState sweepOverlay;
-    @Nullable
     private final FobMarker fobMarker;
 
-    public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields) {
-        this(markers, battleFields, null, null);
-    }
-
     public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields,
-                               @Nullable SweepOverlayState sweepOverlay) {
-        this(markers, battleFields, sweepOverlay, null);
-    }
-
-    public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields,
-                               @Nullable SweepOverlayState sweepOverlay, @Nullable FobMarker fobMarker) {
+                               @Nullable FobMarker fobMarker) {
         this.markers = markers;
         this.battleFields = battleFields;
-        this.sweepOverlay = sweepOverlay;
         this.fobMarker = fobMarker;
     }
 
@@ -101,7 +88,6 @@ public class PacketOwnedVehicles {
                     buf.readUtf(64)));
         }
         this.battleFields = bfs;
-        this.sweepOverlay = SweepOverlayState.decodeOptional(buf);
         if (buf.readBoolean()) {
             this.fobMarker = new FobMarker(
                     buf.readBlockPos(),
@@ -157,7 +143,6 @@ public class PacketOwnedVehicles {
             buf.writeDouble(bf.flankRightZ());
             buf.writeUtf(bf.playLabel() != null ? bf.playLabel() : "", 64);
         }
-        SweepOverlayState.encodeOptional(buf, this.sweepOverlay);
         buf.writeBoolean(this.fobMarker != null);
         if (this.fobMarker != null) {
             buf.writeBlockPos(this.fobMarker.commandPos());
@@ -171,8 +156,7 @@ public class PacketOwnedVehicles {
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() ->
                 DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                        () -> () -> MapMarkers.accept(this.markers, this.battleFields, this.sweepOverlay,
-                                this.fobMarker)));
+                        () -> () -> MapMarkers.accept(this.markers, this.battleFields, this.fobMarker)));
         ctx.get().setPacketHandled(true);
     }
 }

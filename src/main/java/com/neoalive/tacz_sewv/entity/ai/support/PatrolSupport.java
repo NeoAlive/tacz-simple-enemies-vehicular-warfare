@@ -295,14 +295,13 @@ public final class PatrolSupport {
         task.sewv$clearPatrol();
         if (mode == IVehiclePatrol.MODE_SWEEP || hadSweepRect) {
             SewvDiag.sweep(
-                    "areaTaskClear ONLY (not membership) unit={}#{} priorMode={} hadRect={} "
-                            + "— SweepAdvancement assignees UNCHANGED; claim is NOT this path",
+                    "areaTaskClear unit={}#{} priorMode={} hadRect={}",
                     pmc.getClass().getSimpleName(), pmc.getId(), mode, hadSweepRect);
         }
     }
 
     /**
-     * Dismiss / SEM order / bail / dismount: drop area task + infantry sweep + operation assignee.
+     * Dismiss / SEM order / bail / dismount: drop area task + infantry sweep.
      * {@code reason} is logged so a live run can tell cancel-without-claim from completion.
      */
     public static void clearSweepMembership(PmcUnitEntity pmc, String reason) {
@@ -310,14 +309,12 @@ public final class PatrolSupport {
                 || ((IVehiclePatrol) pmc).sewv$hasSweepRect();
         boolean hadInf = ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep();
         SewvDiag.sweep(
-                "clearSweepMembership reason={} unit={}#{} hadMountedTask={} hadInfSweep={} "
-                        + "→ unregisterUnit (cancel op if last assignee; NO claim)",
+                "clearSweepMembership reason={} unit={}#{} hadMountedTask={} hadInfSweep={}",
                 reason, pmc.getClass().getSimpleName(), pmc.getId(), hadMounted, hadInf);
         clear(pmc);
         if (hadInf) {
             ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$clearInfantrySweep();
         }
-        com.neoalive.tacz_sewv.invasion.SweepAdvancement.unregisterUnit(pmc, reason);
     }
 
     /** @deprecated use {@link #clearSweepMembership(PmcUnitEntity, String)} */
@@ -409,10 +406,9 @@ public final class PatrolSupport {
 
         int exhaustedMode = task.sewv$getPatrolMode();
         SewvDiag.sweep(
-                "sectorExhausted → areaTaskClear unit={}#{} modeWas={} — units go idle/FREE here; "
-                        + "claim still depends on SweepAdvancement quiet+defensive (assignees kept)",
+                "sectorExhausted → areaTaskClear unit={}#{} modeWas={} — units go idle/FREE here",
                 pmc.getClass().getSimpleName(), pmc.getId(), exhaustedMode);
-        clear(pmc); // sector swept — ends the area task only; Sweep & Advance claim is independent
+        clear(pmc); // sector swept — ends the area task
         return null;
     }
 

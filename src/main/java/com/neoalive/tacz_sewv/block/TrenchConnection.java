@@ -130,18 +130,4 @@ public enum TrenchConnection implements StringRepresentable {
         };
     }
 
-    public static void main(String[] args) {
-        assert fromNeighbors(false, true, true, true) == TCROSS_NORTH;
-        assert fromNeighbors(true, false, true, true) == TCROSS_EAST;
-        assert fromNeighbors(true, true, false, true) == TCROSS_SOUTH;
-        assert fromNeighbors(true, true, true, false) == TCROSS_WEST;
-        assert fromNeighbors(false, true, true, false) == CORNER_SE;
-        assert fromNeighbors(true, true, false, false) == CORNER_NE;
-        assert fromNeighbors(true, false, true, false) == MID_NS;
-        assert fromNeighbors(false, true, false, true) == MID_EW;
-        assert fromNeighbors(false, false, false, false) == LONE;
-        assert fromNeighbors(true, true, true, true) == PLINTH;
-        assert !PLINTH.wallNorth() && !PLINTH.wallEast();
-        System.out.println("TrenchConnection self-check OK");
-    }
 }

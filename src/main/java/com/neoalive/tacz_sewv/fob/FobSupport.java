@@ -139,15 +139,6 @@ public final class FobSupport {
         return BlockPos.of(entity.getPersistentData().getLong(TAG_ROUTE));
     }
 
-    public static boolean withinMasterAabb(FobInstance fob, Entity entity, Level level) {
-        AABB box = fob.cachedMasterAabb;
-        if (box == null) {
-            refreshCachedAabbs(fob, level);
-            box = fob.cachedMasterAabb;
-        }
-        return box != null && box.contains(entity.getX(), entity.getY(), entity.getZ());
-    }
-
     @Nullable
     public static FobInstance fobForEntity(Entity entity, Level level) {
         BlockPos cmd = stampPos(entity);

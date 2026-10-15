@@ -16,15 +16,14 @@ import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.BoardVehicleGoal;
+import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
-import com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.ReviveClaims;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.map.PreferredPathwayData;
-import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Central leave-level / server-stop / logout eviction for static AI and feedback caches that would
@@ -49,7 +48,7 @@ public final class CacheEviction {
         if (entity instanceof VehicleEntity) {
             HullLocalScan.invalidate(id);
             VehicleDarknessAccuracy.invalidate(id);
-            OuterRingAwareness.forget(id);
+            AwarenessCues.forget(id);
         }
         if (entity instanceof AbstractUnit unit) {
             Facts.unbindIfPresent(id);
@@ -90,7 +89,6 @@ public final class CacheEviction {
         var uuid = event.getEntity().getUUID();
         BoardVehicleGoal.clearCancelFeedback(uuid);
         PreferredPathwayData.clearCatalogCache(uuid);
-        OrderReport.clearVetoFloor(uuid);
         DroneSupport.forgetOwner(uuid);
     }
 }

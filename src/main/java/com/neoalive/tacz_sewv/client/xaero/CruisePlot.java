@@ -63,27 +63,6 @@ public final class CruisePlot {
         NODES.remove(drop);
     }
 
-    /**
-     * Drop the node nearest {@code x,z} within {@code reach} blocks, falling back to the last one
-     * laid — a right-click that misses everything reads as undo rather than as nothing.
-     */
-    public static void removeNear(double x, double z, double reach) {
-        if (NODES.isEmpty()) return;
-        int best = NODES.size() - 1;
-        double bestDistSq = reach * reach;
-        for (int i = 0; i < NODES.size(); i++) {
-            BlockPos node = NODES.get(i);
-            double dx = node.getX() + 0.5 - x;
-            double dz = node.getZ() + 0.5 - z;
-            double distSq = dx * dx + dz * dz;
-            if (distSq <= bestDistSq) {
-                bestDistSq = distSq;
-                best = i;
-            }
-        }
-        NODES.remove(best);
-    }
-
     public static void cancel() {
         armed = false;
         crews = List.of();

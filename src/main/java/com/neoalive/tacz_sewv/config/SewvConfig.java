@@ -194,7 +194,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue COMBAT_ENGINEER_DIG_ENABLED;
     public static final ForgeConfigSpec.BooleanValue AUTO_ENTRENCH_ENABLED;
     public static final ForgeConfigSpec.DoubleValue AUTO_ENTRENCH_SCAN_RADIUS;
-    public static final ForgeConfigSpec.DoubleValue VEHICLE_FORMATION_SPACING;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue VEHICLE_TARGET_SCAN_HEIGHT;
     /** Ground observers only: upward reach for AA / SPAA. Airborne hulls keep SCAN_HEIGHT. */
@@ -249,10 +248,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue UTILITY_REFRESH_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
-    public static final ForgeConfigSpec.BooleanValue OUTER_RING_ENABLED;
-    public static final ForgeConfigSpec.DoubleValue OUTER_RING_MAX_BLOCKS;
     public static final ForgeConfigSpec.BooleanValue AWARENESS_CUES_ENABLED;
-    // outerRingDebugLogging → ClientConfig (Config UI Client → Debug).
 
     public static final ForgeConfigSpec.BooleanValue COVER_CACHE_ENABLED;
     public static final ForgeConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
@@ -277,7 +273,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue TACTICAL_SCALE;
 
     public static final ForgeConfigSpec.DoubleValue HELI_ENGAGE_RADIUS;
-    public static final ForgeConfigSpec.DoubleValue HELI_MAX_DEPRESSION_DEG;
     public static final ForgeConfigSpec.DoubleValue HELI_MIN_STANDOFF;
     // heliCombatDebug/heliFlightDebug → ClientConfig (Config UI Client → Debug).
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
@@ -338,8 +333,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue IDLE_VOICELINE_REPEAT_JITTER_TICKS;
     public static final ForgeConfigSpec.DoubleValue IDLE_VOICELINE_HEALTH_FRACTION;
 
-    // orderFailureDebug/targetVetoDebug → ClientConfig (Config UI Client → Debug).
-    public static final ForgeConfigSpec.IntValue TARGET_VETO_COOLDOWN_TICKS;
 
     public static final ForgeConfigSpec.DoubleValue BOARD_SCAN_RADIUS;
     public static final ForgeConfigSpec.DoubleValue QUICK_EVAC_HELI_SEARCH_RADIUS;
@@ -355,8 +348,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
-    public static final ForgeConfigSpec.IntValue SWEEP_QUIET_SECONDS;
-    public static final ForgeConfigSpec.IntValue SWEEP_MAX_CHUNK_AREA;
     public static final ForgeConfigSpec.IntValue ADVANCE_PLAN_MAX_CHUNKS;
 
     /** Invasion HUD colours (hex RGB). Team A/B match the left/right bases on the layout. */
@@ -892,8 +883,6 @@ public final class SewvConfig {
         AUTO_ENTRENCH_SCAN_RADIUS = builder.comment(
                         "How far (blocks) they look for trench cells, emplacements, or sandbags.")
                 .defineInRange("autoEntrenchScanRadius", 48.0, 8.0, 128.0);
-        VEHICLE_FORMATION_SPACING = builder.comment("Spacing (blocks) between vehicles in a formation.")
-                .defineInRange("vehicleFormationSpacing", 12.0, 5.0, 32.0);
         VEHICLE_TARGET_SCAN_RADIUS = builder.comment("How far sideways (blocks) crewed vehicles look for enemies.")
                 .defineInRange("vehicleTargetScanRadius", 96.0, 8.0, 128.0);
         VEHICLE_TARGET_SCAN_HEIGHT = builder.comment(
@@ -1056,17 +1045,8 @@ public final class SewvConfig {
                 .define("factionOrganicComms", true);
         SUPPORT_CALL_INTERVAL_TICKS = builder.comment("Minimum wait (game ticks) between support call attempts.")
                 .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
-        OUTER_RING_ENABLED = builder.comment(
-                        "Let crews notice enemies farther out than their normal scan range.",
-                        "Awareness only — they will not open fire at that distance by themselves.",
-                        "Default off: wide LivingEntity scans on idle hulls; enable when you want long-range awareness.")
-                .define("outerRingEnabled", false);
-        OUTER_RING_MAX_BLOCKS = builder.comment(
-                        "Max distance (blocks) for that long-range awareness. Also limited by the server's view/simulation distance.")
-                .defineInRange("outerRingMaxBlocks", 192.0, 96.0, 512.0);
         AWARENESS_CUES_ENABLED = builder.comment(
-                        "Let idle crews investigate sounds (vehicle engines, cannon fire, crew radio).",
-                        "Independent of outerRingEnabled — entity band polling can be off while hearing stays on.")
+                        "Let idle crews investigate gunfire and cannon fire they hear, and contacts seen only through leaves.")
                 .define("awarenessCuesEnabled", true);
         COVER_CACHE_ENABLED = builder.comment(
                         "Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).",
@@ -1134,10 +1114,6 @@ public final class SewvConfig {
                         "Closest range (blocks) at which a helicopter firing run opens its fire window.",
                         "The window is sized to stay open ~3 s, so it usually opens further out than this.")
                 .defineInRange("heliEngageRadius", 32.0, 12.0, 64.0);
-        HELI_MAX_DEPRESSION_DEG = builder.comment(
-                        "IGNORED since the helicopter flight rework: the pitch-free firing cone is per airframe",
-                        "(aim.pitchFreeConeDeg in data/tacz_sewv/sewv/heli/airframes.json). Kept so existing tomls load.")
-                .defineInRange("heliMaxDepressionDeg", 45.0, 20.0, 55.0);
         HELI_MIN_STANDOFF = builder.comment(
                         "Floor (blocks) under the helicopter hover-attack and orbit standoff; the airframe's",
                         "yaw authority and the target's height can push it further out, never closer.")
@@ -1413,14 +1389,6 @@ public final class SewvConfig {
                 .defineInRange("idleVoicelineHealthFraction", 0.3, 0.0, 1.0);
         builder.pop();
 
-        builder.push("orderFeedback");
-        // orderFailureDebug/targetVetoDebug moved to gamerules sewvOrderFailureDebug/
-        // sewvTargetVetoDebug (both still default true — silent until something fails/refuses).
-        TARGET_VETO_COOLDOWN_TICKS = builder.comment(
-                        "Minimum game ticks between two reports of the SAME reason from the SAME unit.")
-                .defineInRange("targetVetoCooldownTicks", 200, 20, 12000);
-        builder.pop();
-
         builder.push("interaction");
         BOARD_SCAN_RADIUS = builder.comment("How far (blocks) nearby units can be selected for boarding and similar orders.")
                 .defineInRange("boardScanRadius", 64.0, 8.0, 128.0);
@@ -1457,15 +1425,6 @@ public final class SewvConfig {
                 .defineInRange("mapSyncIntervalTicks", 20, 5, 200);
         MAP_SPOT_RADIUS = builder.comment("How far (blocks) your side can spot enemy markers (via you or your crews).")
                 .defineInRange("mapSpotRadius", 128.0, 0.0, 512.0);
-        builder.pop();
-
-        builder.push("sweep");
-        SWEEP_QUIET_SECONDS = builder.comment(
-                        "Seconds of no fighting before a Sweep & Advance counts the area clear and claims it.")
-                .defineInRange("quietSeconds", 15, 1, 300);
-        SWEEP_MAX_CHUNK_AREA = builder.comment(
-                        "Largest map selection (width × height in chunks) allowed for Sweep & Advance.")
-                .defineInRange("maxChunkArea", 256, 1, 1024);
         builder.pop();
 
         builder.push("territory");

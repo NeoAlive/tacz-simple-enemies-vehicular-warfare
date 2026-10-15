@@ -70,7 +70,7 @@ public final class ConfigLayout {
         rule("crew_ai", "support", "engineer", "commanderSidearm", "drone", "combatEngineer", "supportDedupe",
                 "supportCall", "factionOrganicComms");
         rule("crew_ai", "boarding", "autoBoard", "tow", "autoManMortar", "autoEntrench");
-        rule("crew_ai", "awareness", "vehicleTarget", "contactBoard", "wideScan", "combatantIndex", "outerRing",
+        rule("crew_ai", "awareness", "vehicleTarget", "contactBoard", "wideScan", "combatantIndex",
                 "awarenessCues", "individualTactics", "utilityRefresh");
         rule("crew_ai", "movement", "path", "sensor", "tree", "cover", "groundFarLod", "vehicleTerrain",
                 "vehicleFormation", "patrol");

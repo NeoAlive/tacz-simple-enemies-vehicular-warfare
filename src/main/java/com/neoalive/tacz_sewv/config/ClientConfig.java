@@ -41,14 +41,12 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
     public static final ForgeConfigSpec.BooleanValue SHIP_PATHING_DEBUG;
     public static final ForgeConfigSpec.BooleanValue SEWV_DIAG_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue OUTER_RING_DEBUG_LOGGING;
     public static final ForgeConfigSpec.BooleanValue HELI_COMBAT_DEBUG;
     public static final ForgeConfigSpec.BooleanValue HELI_FLIGHT_DEBUG;
     public static final ForgeConfigSpec.BooleanValue PLANE_COMBAT_DEBUG;
     public static final ForgeConfigSpec.BooleanValue MORTAR_DEBUG_LOGGING;
     public static final ForgeConfigSpec.BooleanValue BALLISTIC_TRANSLATION_DEBUG;
     public static final ForgeConfigSpec.BooleanValue ORDER_FAILURE_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue TARGET_VETO_DEBUG;
     public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_FLARE_ALWAYS_ON;
     public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_WIREFRAME;
     public static final ForgeConfigSpec.BooleanValue SHOW_SPAWN_PROBES;
@@ -143,8 +141,6 @@ public final class ClientConfig {
                 .define("shipPathingDebug", false);
         SEWV_DIAG_DEBUG = builder.comment("General [sewv-diag] channels (targeting, scan, claim, …).")
                 .define("sewvDiagDebug", false);
-        OUTER_RING_DEBUG_LOGGING = builder.comment("Log outer-ring awareness / cue polls.")
-                .define("outerRingDebugLogging", false);
         HELI_COMBAT_DEBUG = builder.comment("Helicopter combat / run-phase diagnosis (logs + overlay).")
                 .define("heliCombatDebug", false);
         HELI_FLIGHT_DEBUG = builder.comment("Helicopter flight-stack telemetry: one [sewv heli] line per hull per second",
@@ -158,8 +154,6 @@ public final class ClientConfig {
                 .define("ballisticTranslationDebug", false);
         ORDER_FAILURE_DEBUG = builder.comment("Log refused orders (default on — silent until something fails).")
                 .define("orderFailureDebug", true);
-        TARGET_VETO_DEBUG = builder.comment("Log target vetoes (the noisy half of order-failure reporting).")
-                .define("targetVetoDebug", true);
         TRIPOD_SHIELD_FLARE_ALWAYS_ON = builder.comment("Extermination: keep pod-shield flare sparks always on.")
                 .define("tripodShieldFlareAlwaysOn", false);
         TRIPOD_SHIELD_WIREFRAME = builder.comment("Extermination: draw pod-shield debug wireframe.")

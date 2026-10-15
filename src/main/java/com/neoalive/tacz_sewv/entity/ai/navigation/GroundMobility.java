@@ -3,14 +3,11 @@ package com.neoalive.tacz_sewv.entity.ai.navigation;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.phys.shapes.VoxelShape;
 
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.util.WarnOnce;
@@ -188,22 +185,6 @@ public final class GroundMobility {
             depth++;
         }
         return depth;
-    }
-
-    /**
-     * First non-empty collision scanning {@code fromY} down to {@code toY}, as an unfloored
-     * world Y (block Y + shape max). {@link #NO_FLOOR} if nothing solid.
-     */
-    public static double footingTop(BlockGetter level, BlockPos.MutableBlockPos pos,
-                                   int x, int z, int fromY, int toY) {
-        for (int y = fromY; y >= toY; y--) {
-            BlockState state = level.getBlockState(pos.set(x, y, z));
-            VoxelShape shape = state.getCollisionShape(level, pos);
-            if (!shape.isEmpty()) {
-                return y + shape.max(Direction.Axis.Y);
-            }
-        }
-        return NO_FLOOR;
     }
 
     public static void blendMaps(float[] prev, float[] cur) {

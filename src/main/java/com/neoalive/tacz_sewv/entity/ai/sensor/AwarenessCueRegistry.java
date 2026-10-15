@@ -6,149 +6,96 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
 
-import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 
 /**
- * Level-scoped sound-cue store for idle-crew investigation. Register is event-driven; consume
+ * Level-scoped gunfire-cue store for idle-crew investigation. Register is event-driven; consume
  * walks sparse chunk buckets from {@link AwarenessCues}.
  */
 public final class AwarenessCueRegistry {
-
-    private static final Logger LOG = LogUtils.getLogger();
 
     private static final double CELL_SIZE = 4.0;
     /** Coarser grid for TaCZ autofire — one cell covers a firefight footprint. */
     private static final double TACZ_CELL_SIZE = 16.0;
     private static final int MAX_CUES_PER_CHUNK = 8;
-    /**
-     * Index = {@link TriggerKind#ordinal()}. TaCZ fire uses a very long interval (6 s) because
-     * full-auto posts {@code GunFireEvent} every shot.
-     */
-    private static final int[] DEDUPE_INTERVAL = {
-            0,   // OUTER_ENTITY
-            40,  // VEHICLE_ENGINE
-            10,  // VEHICLE_CANNON
-            60,  // CREW_VOICE
-            120, // TACZ_FIRE — 6 s hard throttle
-            60,  // DRONE
-            40,  // PLAYER_HURT
-            80   // PLAYER_EAT
-    };
 
-    /**
-     * Sound / outer triggers. Hear radii match the investigate plan; {@link #maxHearRadius()}
-     * bounds the consume chunk window.
-     */
+    /** Gunfire a crew can hear. Hear radius, deterministic trigger chance, merge strength, dedupe ticks. */
     public enum TriggerKind {
-        OUTER_ENTITY(0, 1.0, 1.0),
-        VEHICLE_ENGINE(30, 0.30, 0.35),
-        VEHICLE_CANNON(128, 1.0, 0.85),
-        CREW_VOICE(20, 0.15, 0.25),
-        /** TaCZ infantry fire — registered from {@code GunFireEvent}, not Level.playSound. */
-        TACZ_FIRE(64, 0.45, 0.55),
-        DRONE(48, 0.50, 0.40),
-        PLAYER_HURT(24, 0.55, 0.50),
-        PLAYER_EAT(16, 0.30, 0.20);
+        VEHICLE_CANNON(128, 1.0, 0.85, 10),
+        /**
+         * TaCZ infantry fire — registered from {@code GunFireEvent}, not Level.playSound. The 6 s
+         * dedupe is a hard throttle: full-auto posts an event every shot.
+         */
+        TACZ_FIRE(64, 0.45, 0.55, 120);
 
         public final int hearRadius;
         public final double triggerChance;
         public final double strength;
+        final int dedupeTicks;
 
-        TriggerKind(int hearRadius, double triggerChance, double strength) {
+        TriggerKind(int hearRadius, double triggerChance, double strength, int dedupeTicks) {
             this.hearRadius = hearRadius;
             this.triggerChance = triggerChance;
             this.strength = strength;
+            this.dedupeTicks = dedupeTicks;
         }
 
-        /** Largest hear radius among sound kinds — consume chunk scan bound. */
+        /** Largest hear radius — consume chunk scan bound. */
         public static int maxHearRadius() {
             int max = 0;
-            for (TriggerKind k : values()) {
-                if (k != OUTER_ENTITY) max = Math.max(max, k.hearRadius);
-            }
+            for (TriggerKind k : values()) max = Math.max(max, k.hearRadius);
             return max;
         }
-    }
-
-    /** Why a cue was not audible to a hull this tick (debug tallies). */
-    public enum Reject {
-        EXPIRED,
-        RANGE,
-        SAME_FACTION,
-        FRIENDLY_SOURCE,
-        CHANCE,
-        GATED_COMBAT,
-        GATED_ORDERS
     }
 
     static final class SoundCue {
         final BlockPos pos;
         final TriggerKind kind;
-        final double strength;
         @Nullable
         final CrewFacts.Faction sourceFaction;
         final int sourceUnitId;
         final long heardAt;
-        /** Stable identity for per-hull chance latch: pos + kind. */
-        final long cueKey;
 
         SoundCue(BlockPos pos, TriggerKind kind, @Nullable CrewFacts.Faction sourceFaction,
                 int sourceUnitId, long heardAt) {
             this.pos = pos;
             this.kind = kind;
-            this.strength = kind.strength;
             this.sourceFaction = sourceFaction;
             this.sourceUnitId = sourceUnitId;
             this.heardAt = heardAt;
-            this.cueKey = pos.asLong() ^ ((long) kind.ordinal() << 48);
         }
     }
 
     private static final Map<ServerLevel, AwarenessCueRegistry> LEVELS = new WeakHashMap<>();
-    private static final Map<ServerLevel, AwarenessCueRegistry> LEVELS_SYNC =
-            java.util.Collections.synchronizedMap(LEVELS);
 
     final Map<Long, List<SoundCue>> chunkCues = new ConcurrentHashMap<>();
     private final Map<Long, Long> dedupeDeadline = new ConcurrentHashMap<>();
 
     static AwarenessCueRegistry of(ServerLevel level) {
-        synchronized (LEVELS_SYNC) {
+        synchronized (LEVELS) {
             return LEVELS.computeIfAbsent(level, ignored -> new AwarenessCueRegistry());
         }
     }
 
     void register(BlockPos pos, TriggerKind kind, @Nullable CrewFacts.Faction sourceFaction,
             int sourceUnitId, long now) {
-        pruneExpiredDedupe(now);
+        this.dedupeDeadline.entrySet().removeIf(e -> e.getValue() <= now);
         long cellKey = cellKey(pos, kind);
-        int interval = kind.ordinal() < DEDUPE_INTERVAL.length ? DEDUPE_INTERVAL[kind.ordinal()] : 0;
-        if (interval > 0) {
-            Long next = this.dedupeDeadline.get(cellKey);
-            if (next != null && now < next) return;
-            this.dedupeDeadline.put(cellKey, now + interval);
-        }
+        Long next = this.dedupeDeadline.get(cellKey);
+        if (next != null && now < next) return;
+        this.dedupeDeadline.put(cellKey, now + kind.dedupeTicks);
 
-        int cx = pos.getX() >> 4;
-        int cz = pos.getZ() >> 4;
-        long ck = chunkKey(cx, cz);
+        long ck = chunkKey(pos.getX() >> 4, pos.getZ() >> 4);
         List<SoundCue> list = this.chunkCues.computeIfAbsent(ck, ignored -> new ArrayList<>(2));
         if (list.size() >= MAX_CUES_PER_CHUNK) {
             list.remove(0);
         }
         list.add(new SoundCue(pos.immutable(), kind, sourceFaction, sourceUnitId, now));
-        debug("register kind={} pos={} faction={}", kind, pos, sourceFaction);
-    }
-
-    private void pruneExpiredDedupe(long now) {
-        this.dedupeDeadline.entrySet().removeIf(e -> e.getValue() <= now);
     }
 
     static long chunkKey(int cx, int cz) {
@@ -168,10 +115,7 @@ public final class AwarenessCueRegistry {
 
     /** Package-visible for self-check dedupe tests. */
     boolean wouldDedupe(BlockPos pos, TriggerKind kind, long now) {
-        long cellKey = cellKey(pos, kind);
-        int interval = kind.ordinal() < DEDUPE_INTERVAL.length ? DEDUPE_INTERVAL[kind.ordinal()] : 0;
-        if (interval <= 0) return false;
-        Long next = this.dedupeDeadline.get(cellKey);
+        Long next = this.dedupeDeadline.get(cellKey(pos, kind));
         return next != null && now < next;
     }
 
@@ -179,14 +123,8 @@ public final class AwarenessCueRegistry {
         register(pos, kind, null, -1, now);
     }
 
-    /** Drop expired cues while iterating; remove empty chunk buckets. */
     static boolean expired(SoundCue cue, long now) {
         return Facts.ticksSince(cue.heardAt, now) >= Facts.CONTACT_MEMORY_TICKS;
-    }
-
-    private static void debug(String msg, Object... args) {
-        if (!ClientConfig.flag(ClientConfig.OUTER_RING_DEBUG_LOGGING)) return;
-        LOG.info("[sewv-cues] " + msg, args);
     }
 
     /** Package-visible empty registry for headless self-check (no ServerLevel). */

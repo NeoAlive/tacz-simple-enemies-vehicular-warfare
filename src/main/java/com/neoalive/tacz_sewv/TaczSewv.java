@@ -29,7 +29,6 @@ import com.neoalive.tacz_sewv.compat.CorpseCompat;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.ClientConfig;
-import com.neoalive.tacz_sewv.config.ConfigMigration;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.NpcArmor;
 import com.neoalive.tacz_sewv.crew.NpcIdentity;
@@ -107,12 +106,10 @@ public class TaczSewv {
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.crew.PlayerJoinHandler.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.VehicleDrops.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.CreativeAmmoConsumable.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.SweepAdvancement.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.TerritoryManager.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.AdvancePlanManager.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.LegacySweepCleanup.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.order.OrderReport.class);
-        com.neoalive.tacz_sewv.debug.GunCacheProbe.registerBootProbe();
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, SewvConfig.SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
         // SEM is loaded before this bridge (see mods.toml), so these become normal
@@ -199,7 +196,6 @@ public class TaczSewv {
         // equally unsafe to touch from an AI tick before it has been baked.
         Doctrine.refreshPresets();
         WorldTargetPriority.refreshCatalog();
-        ConfigMigration.applyServer();
         // SEM's recruit economy (used by medic capture feature).
         SemRecruitCost.refresh();
     }

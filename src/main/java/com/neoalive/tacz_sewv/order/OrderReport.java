@@ -11,7 +11,6 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -21,10 +20,7 @@ import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.config.ClientConfig;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
@@ -50,18 +46,7 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
  */
 public final class OrderReport {
 
-    /** Per unit + reason, so one unit cannot flood; the player floor below then caps the rest. */
-    private static final String VETO_KEY = "tacz_sewv:veto_";
-    /**
-     * Minimum gap between two veto-derived flushes for one player. The per-unit cooldown alone is
-     * not enough: a squad of twenty units each obeying its own 200-tick timer still averages a line
-     * every ten ticks.
-     */
-    private static final int VETO_PLAYER_FLOOR_TICKS = 60;
-
     private static final Map<UUID, Pending> PENDING = new HashMap<>();
-    /** Survives the flush, unlike {@link #PENDING} — it is the thing being rate-limited. */
-    private static final Map<UUID, Long> NEXT_VETO_LINE = new HashMap<>();
 
     private OrderReport() {}
 
@@ -69,7 +54,6 @@ public final class OrderReport {
         final List<Component> successes = new ArrayList<>(2);
         final Map<String, Integer> accepted = new LinkedHashMap<>();
         final EnumMap<OrderFailure, Integer> failures = new EnumMap<>(OrderFailure.class);
-        boolean fromVeto;
     }
 
     /**
@@ -109,41 +93,6 @@ public final class OrderReport {
         p.failures.merge(why, 1, Integer::sum);
     }
 
-    /**
-     * A unit refused a target on its own account, from the {@code setTarget} veto path.
-     *
-     * <p>PMC-only, and that needs no faction switch: an RU/US unit has no owner, so there is nobody
-     * to report to and the work is dropped before any of it happens. Throttled twice — see the two
-     * constants above — because the default target-priority table excludes every category but
-     * {@code monster}, so {@code TARGET_EXCLUDED} fires many times a second per unit otherwise.
-     */
-    public static void veto(AbstractUnit unit, OrderFailure why) {
-        if (!(unit instanceof PmcUnitEntity pmc)) return;
-        if (unit.level().isClientSide) return;
-        // Gates the spoken reply as well as the log line, deliberately: this flag means "report
-        // refusals a unit made on its own account", and a squad of medics answering aloud every
-        // time they decline a target is the same spam in a different medium.
-        if (!ClientConfig.flag(ClientConfig.TARGET_VETO_DEBUG)) return;
-
-        UUID ownerId = pmc.getOwnerUUID();
-        if (ownerId == null) return;
-        MinecraftServer server = unit.getServer();
-        if (server == null) return;
-        ServerPlayer owner = server.getPlayerList().getPlayer(ownerId);
-        if (owner == null) return;
-
-        long now = unit.level().getGameTime();
-        if (now < NEXT_VETO_LINE.getOrDefault(ownerId, Long.MIN_VALUE)) return;
-
-        CompoundTag data = unit.getPersistentData();
-        String key = VETO_KEY + why.name();
-        if (now < data.getLong(key)) return;
-        data.putLong(key, now + SewvConfig.TARGET_VETO_COOLDOWN_TICKS.get());
-
-        pending(owner).fromVeto = true;
-        fail(owner, why, unit);
-    }
-
     private static Pending pending(ServerPlayer player) {
         return PENDING.computeIfAbsent(player.getUUID(), id -> new Pending());
     }
@@ -153,14 +102,9 @@ public final class OrderReport {
         if (event.phase != TickEvent.Phase.END || PENDING.isEmpty()) return;
 
         MinecraftServer server = event.getServer();
-        long now = server.overworld().getGameTime();
         for (Map.Entry<UUID, Pending> entry : PENDING.entrySet()) {
-            Pending p = entry.getValue();
             ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
-            if (player != null) emit(player, p);
-            // Advanced only for veto traffic: a player issuing orders by hand should never be
-            // rate-limited by chatter their units produced on their own.
-            if (p.fromVeto) NEXT_VETO_LINE.put(entry.getKey(), now + VETO_PLAYER_FLOOR_TICKS);
+            if (player != null) emit(player, entry.getValue());
         }
         PENDING.clear();
     }
@@ -198,11 +142,5 @@ public final class OrderReport {
 
     private static void reset() {
         PENDING.clear();
-        NEXT_VETO_LINE.clear();
-    }
-
-    /** Drop one player's veto floor on logout (dedicated-server uptime hygiene). */
-    public static void clearVetoFloor(UUID ownerId) {
-        NEXT_VETO_LINE.remove(ownerId);
     }
 }

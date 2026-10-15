@@ -24,7 +24,6 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3d;
 import org.slf4j.Logger;
 
-import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.EasyMode;
@@ -41,7 +40,6 @@ import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.heli.HeliFlight;
 import com.neoalive.tacz_sewv.heli.HeliRuntime;
-import com.neoalive.tacz_sewv.heli.HeliTrace;
 import com.neoalive.tacz_sewv.heli.guidance.Envelope;
 import com.neoalive.tacz_sewv.heli.guidance.FirePhase;
 import com.neoalive.tacz_sewv.heli.guidance.ModeSelector;
@@ -567,10 +565,6 @@ public class DriveHelicopterGoal extends Goal {
             // line of fire and smoke. The attack procedure's window gates the assist on top.
             if (this.runtime.fireWindow()) {
                 fireAssist(target);
-            } else if (HeliTrace.tracing(this.vehicle)) {
-                HeliTrace.noteFire(this.vehicle, false, "WINDOW", VehicleWeapons.boresightAngleDeg(this.vehicle, this.unit, target),
-                        effectiveConeDeg(),
-                        !((IAiFireTracker) this.vehicle).tacz_sewv$lineOfFireBlocked(this.unit, target));
             }
         } else {
             clearWeaponHold();
@@ -805,12 +799,6 @@ public class DriveHelicopterGoal extends Goal {
         VehicleWeapons.FireGate gate = aim != null
                 ? VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, aim, NOSE_AIM_CONE_DEG, false)
                 : VehicleWeapons.tryAiFireAssistResult(this.vehicle, this.unit, target, fireConeDeg());
-        if (HeliTrace.tracing(this.vehicle)) {
-            HeliTrace.noteFire(this.vehicle, gate == VehicleWeapons.FireGate.FIRED, gate.name(),
-                    VehicleWeapons.boresightAngleDeg(this.vehicle, this.unit, target, aim),
-                    effectiveConeDeg(),
-                    !((IAiFireTracker) this.vehicle).tacz_sewv$lineOfFireBlocked(this.unit, target));
-        }
         if (!ClientConfig.flag(ClientConfig.HELI_COMBAT_DEBUG) || gate == VehicleWeapons.FireGate.RPM_WAIT) return;
         LOGGER.info("[sewv heli] {}#{} {} slot={} target={}", this.vehicle.getName().getString(),
                 this.vehicle.getId(), gate == VehicleWeapons.FireGate.FIRED ? "FIRE" : "NOFIRE gate=" + gate,

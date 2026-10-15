@@ -23,12 +23,11 @@ import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
  * Player → server ENTRENCHED order: assign owned units into the trench network at {@code hitPos}.
- * {@link #MODE_DISMISS} clears the task without moving crews.
+ * Dismissing an entrench task goes through {@code PacketPatrolVehicle.MODE_DISMISS}.
  */
 public class PacketEntrench {
 
     public static final int MODE_ASSIGN = 0;
-    public static final int MODE_DISMISS = -1;
 
     private final List<Integer> unitIds;
     private final int mode;
@@ -38,10 +37,6 @@ public class PacketEntrench {
         this.unitIds = unitIds;
         this.mode = mode;
         this.hitPos = hitPos;
-    }
-
-    public static PacketEntrench dismiss(List<Integer> unitIds) {
-        return new PacketEntrench(unitIds, MODE_DISMISS, BlockPos.ZERO);
     }
 
     public PacketEntrench(FriendlyByteBuf buf) {
@@ -79,15 +74,6 @@ public class PacketEntrench {
             }
             if (units.isEmpty()) {
                 NetworkHandler.orderFeedback(sp, "order.tacz_sewv.entrench", 0, ChatFormatting.GRAY);
-                return;
-            }
-
-            if (this.mode == MODE_DISMISS) {
-                for (AbstractUnit unit : units) {
-                    EntrenchSupport.clear(unit);
-                }
-                NetworkHandler.orderFeedback(sp, "order.tacz_sewv.entrench.dismiss", units.size(),
-                        ChatFormatting.YELLOW);
                 return;
             }
 

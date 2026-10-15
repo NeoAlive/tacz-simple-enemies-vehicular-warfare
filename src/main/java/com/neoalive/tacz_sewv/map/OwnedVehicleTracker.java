@@ -63,8 +63,6 @@ import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionHostility;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
-import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
-import com.neoalive.tacz_sewv.invasion.SweepOverlayState;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHelipadMarkers;
 import com.neoalive.tacz_sewv.network.PacketOwnedVehicles;
@@ -176,21 +174,10 @@ public final class OwnedVehicleTracker {
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                     new PacketHelipadMarkers(helipads));
             List<VehicleMarker> markers = markersFor(player, candidates, spotRadiusSq);
-            SweepOverlayState sweep = sweepOverlayFor(player);
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                    new PacketOwnedVehicles(markers, battleFieldsFor(markers, allFields), sweep,
+                    new PacketOwnedVehicles(markers, battleFieldsFor(markers, allFields),
                             fobMarkerFor(player)));
         }
-    }
-
-    @Nullable
-    private static SweepOverlayState sweepOverlayFor(ServerPlayer player) {
-        SweepAdvancement.OverlayState snap = SweepAdvancement.overlaySnapshot(player);
-        if (snap == null) return null;
-        SweepAdvancement.ChunkRect r = snap.rect();
-        return new SweepOverlayState(
-                snap.dim(), r.left(), r.top(), r.right(), r.bottom(),
-                snap.quietSeconds(), snap.quietNeed(), snap.contested());
     }
 
     /**

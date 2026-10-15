@@ -58,8 +58,7 @@ public final class HeliArmament {
     private HeliArmament() {}
 
     /**
-     * Classify a weapon from readable signals. Does not know seat ownership —
-     * {@link #classifyPilotSlot} applies {@link Kind#UNREACHABLE} for non-driver seats.
+     * Classify a weapon from readable signals. Does not know seat ownership.
      */
     public static Kind classifySignals(Signals s, boolean realWeapon) {
         if (!realWeapon) return Kind.PLACEHOLDER;
@@ -134,15 +133,6 @@ public final class HeliArmament {
             if (guided >= 0) return guided;
         }
         return ground.get(0).slot;
-    }
-
-    public static Kind classifyPilotSlot(VehicleEntity vehicle, int driverSeat, int seatIndex, int weaponIndex) {
-        if (seatIndex != driverSeat) {
-            if (!VehicleWeapons.isRealWeapon(vehicle, seatIndex, weaponIndex)) return Kind.PLACEHOLDER;
-            return Kind.UNREACHABLE;
-        }
-        if (!VehicleWeapons.isRealWeapon(vehicle, seatIndex, weaponIndex)) return Kind.PLACEHOLDER;
-        return classifySignals(readSignals(vehicle, seatIndex, weaponIndex), true);
     }
 
     private enum Pref { GUIDED, ROCKET, OTHER_UNGUIDED }

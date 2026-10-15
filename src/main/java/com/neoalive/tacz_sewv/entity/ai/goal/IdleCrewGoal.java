@@ -113,12 +113,6 @@ public class IdleCrewGoal extends Goal {
         if (facts == null) {
             facts = Facts.of(this.unit.getId());
         }
-        if (facts != null && facts.outerGlanceBearing != null && now < facts.outerGlanceUntil) {
-            this.vehicle.turretAutoAimFromVector(facts.outerGlanceBearing);
-            this.nextSweep = Math.max(this.nextSweep, facts.outerGlanceUntil);
-            return;
-        }
-
         if (now >= this.nextSweep) {
             this.nextSweep = now + SWEEP_TICKS + this.unit.getRandom().nextInt(SWEEP_JITTER);
             float yaw = this.unit.getRandom().nextFloat() * 360.0F;

@@ -32,7 +32,6 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
-import com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwareness;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
@@ -102,9 +101,7 @@ public class DriveVehicleGoal extends Goal {
     // Mutual support scanner (idle crew reinforces an allied crew in combat), shared with
     // DriveHelicopterGoal via VehicleTargeting.
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
-    /** Outer awareness ring — spots only, never setTarget. See {@link OuterRingAwareness}. */
-    private final OuterRingAwareness outerRing = new OuterRingAwareness();
-    /** Merges outer spots + sound cues into Facts investigate fields. */
+    /** Merges foliage contacts + heard gunfire into Facts investigate fields. */
     private final AwarenessCues awareness = new AwarenessCues();
     /** Whether this crew already reached its command-tier role point. See {@link #taskedDestination}. */
     private final TaskedDestination.Latch taskLatch = new TaskedDestination.Latch();
@@ -210,7 +207,6 @@ public class DriveVehicleGoal extends Goal {
         // between targets with nowhere to go, and resetting them re-ran the run start (log line + smoke volley)
         // on the same point. The latch forgets on its own when the role, side or point changes.
         this.smokeUntil = Long.MIN_VALUE;
-        this.outerRing.clear();
         this.awareness.clear();
         this.brain.facts().unbind(this.unit);
         this.brain.clear();
@@ -263,12 +259,9 @@ public class DriveVehicleGoal extends Goal {
 
         // Spots before re-score so DISTANT_CONTACT sees this tick's outer fields. noteSpot is
         // gated on getTarget()==null; observe (inside update) still owns Memory when locked.
-        // Order is load-bearing: OuterRing offers → AwarenessCues publishes → brain samples.
         // facts.underOrders here may be one Facts-refresh stale; acceptable. clearFacts must
         // never wipe Memory.
-        Facts facts = this.brain.facts();
-        this.outerRing.tick(this.unit, this.vehicle, this.awareness, facts.underOrders);
-        this.awareness.tick(this.unit, this.vehicle, facts);
+        this.awareness.tick(this.unit, this.vehicle, this.brain.facts());
         // Re-read the battlefield and, on its own ~1s cadence, re-decide. Cheap on the ticks it
         // does nothing, which is most of them.
         this.brain.update(this.unit, this.vehicle, this.posture);

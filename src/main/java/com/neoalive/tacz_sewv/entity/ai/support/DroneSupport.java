@@ -312,18 +312,6 @@ public final class DroneSupport {
                 .explode();
     }
 
-    /**
-     * Nearest hostile-crewed vehicle with a real {@link EngineType} (not {@code EMPTY}).
-     * @deprecated use {@link #findDiveTarget} — kept for any external callers.
-     */
-    @Nullable
-    @Deprecated
-    public static VehicleEntity findHostileVehicle(DroneEntity drone, AbstractUnit owner) {
-        LivingEntity dive = findDiveTarget(drone, owner);
-        if (dive != null && dive.getVehicle() instanceof VehicleEntity hull) return hull;
-        return null;
-    }
-
     /** {@code EngineType != EMPTY} — excludes Type:Drone hulls (default EMPTY) and bare placeholders. */
     private static boolean hasRealEngine(VehicleEntity hull) {
         try {

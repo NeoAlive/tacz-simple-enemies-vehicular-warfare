@@ -27,7 +27,6 @@ final class ConfigRegistryBootstrap {
         registerFlight(b);
         registerIndirectFire(b);
         registerVoicelines(b);
-        registerOrders(b);
         registerBoarding(b);
         registerMapIntel(b);
         registerSweep(b);
@@ -107,8 +106,6 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.SHIP_PATHING_DEBUG, ClientConfig.SHIP_PATHING_DEBUG::set);
         b.bool(ConfigScope.CLIENT, "debug", "sewvDiagDebug",
                 ClientConfig.SEWV_DIAG_DEBUG, ClientConfig.SEWV_DIAG_DEBUG::set);
-        b.bool(ConfigScope.CLIENT, "debug", "outerRingDebugLogging",
-                ClientConfig.OUTER_RING_DEBUG_LOGGING, ClientConfig.OUTER_RING_DEBUG_LOGGING::set);
         b.bool(ConfigScope.CLIENT, "debug", "heliCombatDebug",
                 ClientConfig.HELI_COMBAT_DEBUG, ClientConfig.HELI_COMBAT_DEBUG::set);
         b.bool(ConfigScope.CLIENT, "debug", "heliFlightDebug",
@@ -121,8 +118,6 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.BALLISTIC_TRANSLATION_DEBUG, ClientConfig.BALLISTIC_TRANSLATION_DEBUG::set);
         b.bool(ConfigScope.CLIENT, "debug", "orderFailureDebug",
                 ClientConfig.ORDER_FAILURE_DEBUG, ClientConfig.ORDER_FAILURE_DEBUG::set);
-        b.bool(ConfigScope.CLIENT, "debug", "targetVetoDebug",
-                ClientConfig.TARGET_VETO_DEBUG, ClientConfig.TARGET_VETO_DEBUG::set);
         b.bool(ConfigScope.CLIENT, "debug", "tripodShieldFlareAlwaysOn",
                 ClientConfig.TRIPOD_SHIELD_FLARE_ALWAYS_ON, ClientConfig.TRIPOD_SHIELD_FLARE_ALWAYS_ON::set);
         b.bool(ConfigScope.CLIENT, "debug", "tripodShieldWireframe",
@@ -566,8 +561,6 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.AUTO_ENTRENCH_ENABLED, SewvConfig.AUTO_ENTRENCH_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "autoEntrenchScanRadius", 8.0, 128.0,
                 SewvConfig.AUTO_ENTRENCH_SCAN_RADIUS, SewvConfig.AUTO_ENTRENCH_SCAN_RADIUS::set);
-        b.doubleRange(ConfigScope.SERVER, "crew_ai", "vehicleFormationSpacing", 5.0, 32.0,
-                SewvConfig.VEHICLE_FORMATION_SPACING, SewvConfig.VEHICLE_FORMATION_SPACING::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "vehicleTargetScanRadius", 8.0, 128.0,
                 SewvConfig.VEHICLE_TARGET_SCAN_RADIUS, SewvConfig.VEHICLE_TARGET_SCAN_RADIUS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "vehicleTargetScanHeight", 4.0, 128.0,
@@ -666,10 +659,6 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.FACTION_ORGANIC_COMMS, SewvConfig.FACTION_ORGANIC_COMMS::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "supportCallIntervalTicks", 20, 2400,
                 SewvConfig.SUPPORT_CALL_INTERVAL_TICKS, SewvConfig.SUPPORT_CALL_INTERVAL_TICKS::set);
-        b.bool(ConfigScope.SERVER, "crew_ai", "outerRingEnabled",
-                SewvConfig.OUTER_RING_ENABLED, SewvConfig.OUTER_RING_ENABLED::set);
-        b.doubleRange(ConfigScope.SERVER, "crew_ai", "outerRingMaxBlocks", 96.0, 512.0,
-                SewvConfig.OUTER_RING_MAX_BLOCKS, SewvConfig.OUTER_RING_MAX_BLOCKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "awarenessCuesEnabled",
                 SewvConfig.AWARENESS_CUES_ENABLED, SewvConfig.AWARENESS_CUES_ENABLED::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "coverCacheEnabled",
@@ -723,8 +712,6 @@ final class ConfigRegistryBootstrap {
     private static void registerFlight(ConfigRegistry.Builder b) {
         b.doubleRange(ConfigScope.SERVER, "flight", "heliEngageRadius", 12.0, 64.0,
                 SewvConfig.HELI_ENGAGE_RADIUS, SewvConfig.HELI_ENGAGE_RADIUS::set);
-        b.doubleRange(ConfigScope.SERVER, "flight", "heliMaxDepressionDeg", 20.0, 55.0,
-                SewvConfig.HELI_MAX_DEPRESSION_DEG, SewvConfig.HELI_MAX_DEPRESSION_DEG::set);
         b.doubleRange(ConfigScope.SERVER, "flight", "heliMinStandoff", 16.0, 96.0,
                 SewvConfig.HELI_MIN_STANDOFF, SewvConfig.HELI_MIN_STANDOFF::set);
         b.bool(ConfigScope.SERVER, "flight", "heliChunkLoading",
@@ -845,10 +832,6 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.IDLE_VOICELINE_HEALTH_FRACTION, SewvConfig.IDLE_VOICELINE_HEALTH_FRACTION::set);
     }
 
-    private static void registerOrders(ConfigRegistry.Builder b) {
-        b.intRange(ConfigScope.SERVER, "orders", "targetVetoCooldownTicks", 20, 12000,
-                SewvConfig.TARGET_VETO_COOLDOWN_TICKS, SewvConfig.TARGET_VETO_COOLDOWN_TICKS::set);
-    }
 
     private static void registerBoarding(ConfigRegistry.Builder b) {
         b.doubleRange(ConfigScope.SERVER, "boarding", "boardScanRadius", 8.0, 128.0,
@@ -875,10 +858,6 @@ final class ConfigRegistryBootstrap {
     }
 
     private static void registerSweep(ConfigRegistry.Builder b) {
-        b.intRange(ConfigScope.SERVER, "sweep", "quietSeconds", 1, 300,
-                SewvConfig.SWEEP_QUIET_SECONDS, SewvConfig.SWEEP_QUIET_SECONDS::set);
-        b.intRange(ConfigScope.SERVER, "sweep", "maxChunkArea", 1, 1024,
-                SewvConfig.SWEEP_MAX_CHUNK_AREA, SewvConfig.SWEEP_MAX_CHUNK_AREA::set);
     }
 
     private static void registerTerritory(ConfigRegistry.Builder b) {

@@ -21,7 +21,7 @@ import com.neoalive.tacz_sewv.client.territory.TerritoryClient;
 public class PacketTerritoryState {
 
     /** Roster status: why a unit cannot be posted. {@code OK} = eligible; ordinals are wire values. */
-    public static final byte ST_OK = 0, ST_FOB = 1, ST_AIR = 2, ST_CREW = 3, ST_DOWNED = 4, ST_SWEEP = 5;
+    public static final byte ST_OK = 0, ST_FOB = 1, ST_AIR = 2, ST_CREW = 3, ST_DOWNED = 4;
 
     /** {@code kind}: 0 on foot, 1 driving a hull. */
     public record Row(int id, String name, byte kind, float health, byte status,

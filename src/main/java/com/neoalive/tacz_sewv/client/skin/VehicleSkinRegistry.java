@@ -133,19 +133,6 @@ public final class VehicleSkinRegistry {
         return entry.numbered.get(variant);
     }
 
-    /** Factions that have a loaded PNG (plain or any numbered) for this hull registry path. */
-    public static List<CrewFacts.Faction> factionsFor(String vehiclePath) {
-        List<CrewFacts.Faction> out = new ArrayList<>(3);
-        if (vehiclePath == null) return out;
-        for (CrewFacts.Faction faction : CrewFacts.Faction.values()) {
-            Entry entry = ENTRIES.get(key(vehiclePath, faction));
-            if (entry != null && entry.hasAny()) {
-                out.add(faction);
-            }
-        }
-        return out;
-    }
-
     /**
      * Every selectable skin for the spray GUI — one row per plain file or per numbered pool
      * member, not one row per faction.

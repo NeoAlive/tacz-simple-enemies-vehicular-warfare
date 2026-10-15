@@ -33,7 +33,6 @@
     "MixinMissileWarningDecoy",
     "MixinLevelAwarenessSound",
     "MixinSoundToolAwareness",
-    "MixinVehicleAwarenessEngine",
     "MixinVehicleTurretNaN",
     "MixinNpcHullYaw",
     "MixinVehiclePassengerNaN",

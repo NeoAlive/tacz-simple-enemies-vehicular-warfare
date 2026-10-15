@@ -345,18 +345,9 @@ tasks.register('selfCheckWideScan', JavaExec) {
     jvmArgs '-ea'
 }
 
-tasks.register('selfCheckOuterRing', JavaExec) {
-    group = 'verification'
-    description = 'Runs the outer-ring band stagger self-check.'
-    dependsOn tasks.named('testClasses')
-    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
-    mainClass = 'com.neoalive.tacz_sewv.entity.ai.sensor.OuterRingAwarenessSelfCheck'
-    jvmArgs '-ea'
-}
-
 tasks.register('selfCheckCues', JavaExec) {
     group = 'verification'
-    description = 'Runs awareness cue classification, merge, dedupe, and roll self-check.'
+    description = 'Runs gunfire cue classification, merge, dedupe, and roll self-check.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
     mainClass = 'com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCuesSelfCheck'
@@ -540,7 +531,7 @@ tasks.register('selfCheckLv', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckOuterRing', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckTaskedDestination', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckLv'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckTaskedDestination', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckLv'
 }
 
 mixin {

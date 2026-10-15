@@ -17,7 +17,6 @@ import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
-import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.territory.TerritoryManager;
@@ -199,7 +198,6 @@ public final class TerritorySupport {
      * the whole operation. The caller reports that to the player; they must stop the sweep first.
      */
     public static boolean post(PmcUnitEntity pmc, int chunkX, int chunkZ) {
-        if (SweepAdvancement.isAssignee(pmc)) return false;
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
         PatrolSupport.clearSweepMembership(pmc, "TerritoryPost");
         ((IPathwayInfantry) pmc).sewv$clearPathway();

@@ -1339,7 +1339,6 @@ public final class RtsPanel {
             case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_FOB -> new Chip("gui.tacz_sewv.rts.chip.fob", 0xFF3F6FB0, CHIP_LIGHT);
             case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_AIR -> new Chip("gui.tacz_sewv.rts.chip.air", 0xFF7FB2E5, CHIP_DARK);
             case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_DOWNED -> new Chip("gui.tacz_sewv.rts.chip.downed", 0xFFC44536, CHIP_LIGHT);
-            case com.neoalive.tacz_sewv.network.PacketTerritoryState.ST_SWEEP -> new Chip("gui.tacz_sewv.rts.chip.sweep", 0xFF2E8B8B, CHIP_LIGHT);
             default -> null;
         };
     }

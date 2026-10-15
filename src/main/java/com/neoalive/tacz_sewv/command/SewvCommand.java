@@ -10,7 +10,6 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -45,11 +44,8 @@ import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
-import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.ConfigApplier;
-import com.neoalive.tacz_sewv.config.ConfigPersistence;
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.debug.GunCacheProbe;
 import com.neoalive.tacz_sewv.debug.IdleGroupDebug;
 import com.neoalive.tacz_sewv.debug.PerfProbe;
 import com.neoalive.tacz_sewv.debug.SewvConfigFix;
@@ -146,8 +142,6 @@ public class SewvCommand {
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("rappel")
                                 .executes(ctx -> debugRappel(ctx.getSource())))
-                        .then(Commands.literal("heliTrace")
-                                .executes(ctx -> debugHeliTrace(ctx.getSource())))
                         .then(Commands.literal("notificationTest")
                                 .executes(ctx -> debugNotificationTest(ctx.getSource(),
                                         NotificationKind.GENERIC,
@@ -168,8 +162,6 @@ public class SewvCommand {
                                                                 NotificationKind.parse(StringArgumentType.getString(ctx, "kind")),
                                                                 StringArgumentType.getString(ctx, "title"),
                                                                 StringArgumentType.getString(ctx, "body")))))))
-                        .then(Commands.literal("guncache")
-                                .executes(ctx -> debugGunCache(ctx.getSource())))
                         .then(Commands.literal("reloadSkins")
                                 .executes(ctx -> debugReloadSkins(ctx.getSource(), false)))
                         .then(Commands.literal("poolSkinResetToDefault")
@@ -196,14 +188,6 @@ public class SewvCommand {
                                 .executes(ctx -> debugInvasionResetTeamBlockCounter(ctx.getSource())))
                         .then(Commands.literal("InvasionResetAllPoints")
                                 .executes(ctx -> debugInvasionResetAllPoints(ctx.getSource())))
-                        .then(Commands.literal("ShowSpawnProbes")
-                                .then(Commands.argument("value", BoolArgumentType.bool())
-                                        .executes(ctx -> debugShowSpawnProbes(ctx.getSource(),
-                                                BoolArgumentType.getBool(ctx, "value")))))
-                        .then(Commands.literal("IndividualTactics")
-                                .then(Commands.argument("value", BoolArgumentType.bool())
-                                        .executes(ctx -> debugIndividualTactics(ctx.getSource(),
-                                                BoolArgumentType.getBool(ctx, "value")))))
                         .then(Commands.literal("idleStatus")
                                 .executes(ctx -> IdleGroupDebug.status(ctx.getSource(), 64.0))
                                 .then(Commands.argument("radius", DoubleArgumentType.doubleArg(8.0, 128.0))
@@ -568,24 +552,6 @@ public class SewvCommand {
         return 1;
     }
 
-    /** Toggle the Phase 0 engine trace (heli.HeliTrace) on the helicopter you look at or ride. */
-    private static int debugHeliTrace(CommandSourceStack source) {
-        if (!(source.getEntity() instanceof ServerPlayer player)) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.debug.rappel.player_only"));
-            return 0;
-        }
-        VehicleEntity heli = findDebugHelicopter(player);
-        if (heli == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.debug.rappel.none"));
-            return 0;
-        }
-        boolean on = com.neoalive.tacz_sewv.heli.HeliTrace.toggle(heli);
-        java.nio.file.Path file = com.neoalive.tacz_sewv.heli.HeliTrace.file(heli);
-        source.sendSuccess(() -> Component.literal("Heli trace " + (on ? "ON" : "OFF") + " for "
-                + heli.getDisplayName().getString() + " #" + heli.getId() + " -> " + file), true);
-        return 1;
-    }
-
     /**
      * Force a nearby Combat Engineer to place {@code grass_trench_1}, bypassing autonomous
      * age / ground-eligibility / hasDug gates. Still marks {@code sewv:hasDugFoxhole} on success.
@@ -737,54 +703,6 @@ public class SewvCommand {
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.debug.InvasionResetAllPoints.ok", n), true);
         return 1;
-    }
-
-    private static int debugShowSpawnProbes(CommandSourceStack source, boolean value) {
-        ClientConfig.SHOW_SPAWN_PROBES.set(value);
-        ConfigPersistence.saveClient();
-        source.sendSuccess(() -> Component.translatable(
-                value ? "command.tacz_sewv.debug.ShowSpawnProbes.on"
-                        : "command.tacz_sewv.debug.ShowSpawnProbes.off"), true);
-        return 1;
-    }
-
-    private static int debugIndividualTactics(CommandSourceStack source, boolean value) {
-        ClientConfig.INDIVIDUAL_TACTICS_DEBUG.set(value);
-        ConfigPersistence.saveClient();
-        source.sendSuccess(() -> Component.translatable(
-                value ? "command.tacz_sewv.debug.IndividualTactics.on"
-                        : "command.tacz_sewv.debug.IndividualTactics.off"), true);
-        return 1;
-    }
-
-    /**
-     * Spawns a temporary RU crewed hull (or probes the nearest vehicle) and verifies the
-     * per-tick gun-map cache stays coherent across weapon-index and ammo switches.
-     */
-    private static int debugGunCache(CommandSourceStack source) {
-        ServerLevel level = source.getLevel();
-        BlockPos near = source.getEntity() != null
-                ? source.getEntity().blockPosition()
-                : level.getSharedSpawnPos();
-        VehicleEntity existing = null;
-        double best = 32.0 * 32.0;
-        for (VehicleEntity v : level.getEntitiesOfClass(VehicleEntity.class,
-                new AABB(near).inflate(32.0), Entity::isAlive)) {
-            double d = v.distanceToSqr(near.getX() + 0.5, near.getY(), near.getZ() + 0.5);
-            if (d < best) {
-                best = d;
-                existing = v;
-            }
-        }
-        String result = existing != null
-                ? GunCacheProbe.probeHull(existing)
-                : GunCacheProbe.run(level, near);
-        if (result.startsWith("PASS")) {
-            source.sendSuccess(() -> Component.literal(result), true);
-            return 1;
-        }
-        source.sendFailure(Component.literal(result));
-        return 0;
     }
 
     /** Toggles the per-tick {@code [sewv-artillery]} log line (server log; silent for idle crews). */

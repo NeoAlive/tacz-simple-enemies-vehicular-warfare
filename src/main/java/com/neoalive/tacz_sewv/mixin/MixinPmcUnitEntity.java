@@ -56,7 +56,6 @@ import com.neoalive.tacz_sewv.entity.ai.goal.PlatoonCohesionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlayerReviveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcAmmoWatchGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcCaptureMedicGoal;
-import com.neoalive.tacz_sewv.entity.ai.goal.PmcCombatDebugGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcReviveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
@@ -397,9 +396,6 @@ public abstract class MixinPmcUnitEntity
         // Platoon regroup: same priority band — it only ever engages when idle (no target, no
         // standing order), which is mutually exclusive with what the other MOVE goals here gate on.
         ((Mob) self).goalSelector.addGoal(1, new PlatoonCohesionGoal(self));
-        // Diagnostic only (off unless pmcCombatDebugLogging is set): logs why an owned PMC that was
-        // just shot isn't shooting back. Claims no flags and always declines to run — see the class.
-        ((Mob) self).goalSelector.addGoal(1, new PmcCombatDebugGoal(self));
         // TDT "Capture Medic" dispatch: chase down a medic and subdue/convert it. Player-ordered
         // only (see ICaptureMedic), gated on getTarget()==null like RepairGoal/MedicGoal — same
         // priority-2 band as those, and it MUST be <=2: SEM's own CommanderOrderGoal/

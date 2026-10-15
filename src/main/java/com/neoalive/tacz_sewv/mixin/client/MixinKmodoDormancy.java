@@ -27,7 +27,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * {@code "required": false}), not crash.
  *
  * <p>Escape hatch: {@code -Dsewv.komodoDormancy=false} disables this injection's effect at
- * startup (same JVM-flag shape as {@code GunCacheProbe}'s {@code sewv.guncacheProbe}) — a way to
+ * startup — a way to
  * rule this compat in or out of a client crash without rebuilding, by isolating whether Komodo's
  * own dormancy code path is stable under the case it never gets exercised by a plain install
  * (many AI-crewed hulls going dormant together, vs. one player-abandoned vehicle at a time).

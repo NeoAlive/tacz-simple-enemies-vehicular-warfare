@@ -12,7 +12,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
@@ -72,10 +71,6 @@ public final class CrewRadio {
 
         boolean bypassOverlap() {
             return this == VEHICLE_BAIL;
-        }
-
-        boolean registersAwareness() {
-            return this != VEHICLE_IDLE && this != UNIT_HEAL && this != UNIT_REPAIR && this != UNIT_DIG;
         }
 
         String cooldownKey() {
@@ -239,9 +234,6 @@ public final class CrewRadio {
         hull.level().playSound(null, hull, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
         if (line.soft() && hull.level() instanceof ServerLevel sl) {
             recordAirtime(sl, hull.position(), now);
-        }
-        if (line.registersAwareness() && hull.level() instanceof ServerLevel sl) {
-            AwarenessCues.registerCrewVoice(sl, speaker, hull.blockPosition());
         }
         return true;
     }

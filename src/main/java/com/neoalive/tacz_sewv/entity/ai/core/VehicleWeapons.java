@@ -14,7 +14,6 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.util.Mth;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -867,32 +866,4 @@ public final class VehicleWeapons {
         }
     }
 
-    /**
-     * Formerly gunship doctrine ({@link DriveHelicopterGoal}): pick a RANDOM slot.
-     * Helicopter combat v1 now uses {@link #selectWeaponForTarget}; this remains for
-     * any caller that still wants a uniform real-slot pick. Bounded by the seat's
-     * real weapon count — setWeaponIndex() doesn't bounds-check and an invalid index
-     * silently disarms the seat.
-     *
-     * <p>Placeholder slots are excluded (see isRealWeapon): a uniform pick over every
-     * slot would sooner or later land on one and permanently freeze the turret.
-     */
-    public static void selectRandomWeapon(VehicleEntity vehicle, int seatIndex, RandomSource random) {
-        if (seatIndex < 0) return;
-        SeatInfo seat = vehicle.getSeat(seatIndex);
-        int weaponCount = seat == null ? 0 : seat.weapons().size();
-        if (weaponCount <= 0) return;
-
-        // Reservoir pick over the real slots only — one pass, no allocation, and it
-        // stays uniform without needing to know the usable count up front.
-        int chosen = -1;
-        int seen = 0;
-        for (int w = 0; w < weaponCount; w++) {
-            if (!isRealWeapon(vehicle, seatIndex, w)) continue;
-            seen++;
-            if (random.nextInt(seen) == 0) chosen = w;
-        }
-        if (chosen < 0) return; // every slot is a placeholder — leave the index alone
-        vehicle.setWeaponIndex(seatIndex, chosen);
-    }
 }

@@ -57,7 +57,8 @@ import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
  *   <li>{@code armor_skins/} — {@code <faction>_<piece>[_camo[_rng]].png}</li>
  *   <li>{@code unit_skins/} — SEM-native layout: {@code ru_unit/ru_unit_default.png}, role folders
  *       ({@code ru_medic/ru_medic_default.png}), optional {@code camo/} for armor-matched uniforms</li>
- *   <li>{@code skin_pools/} — legacy alias; same camo filenames, deprecated</li>
+ *   <li>{@code skin_pools/} — legacy alias; same camo filenames, deprecated. Read if present, never seeded:
+ *       the shipped camo set already loads from {@code unit_skins/}</li>
  * </ul>
  *
  * <p>Body resolution order in {@link #bodySkin}: camo-synced pool → SEM variant index → role
@@ -70,7 +71,6 @@ public final class CrewSkinRegistry {
     private static final String LOG_PREFIX = "[sewv-crew-skins]";
 
     private static final String ARMOR_DEFAULTS = "armor_skins_defaults";
-    private static final String SKIN_POOL_DEFAULTS = "skin_pools_defaults";
     private static final String UNIT_SKIN_DEFAULTS = "unit_skins_defaults";
 
     private static final EquipmentSlot[] ARMOR_SLOTS = {
@@ -133,7 +133,7 @@ public final class CrewSkinRegistry {
         if (Files.isDirectory(skinPoolDirectory())) {
             LOGGER.info("{} skin_pools/ is deprecated; use unit_skins/ (still loaded for compatibility)",
                     LOG_PREFIX);
-            load(skinPoolDirectory(), SKIN_POOL_DEFAULTS, resources, true);
+            load(skinPoolDirectory(), null, resources, true);
         }
 
         LOGGER.info("{} loaded {} skin file(s) / {} camo entries / {} variant sets / {} role defaults",
@@ -151,14 +151,15 @@ public final class CrewSkinRegistry {
         reload(resources);
     }
 
-    private static void load(Path dir, String defaultsRoot, ResourceManager resources, boolean recursive) {
+    /** @param defaultsRoot jar folder to seed missing files from, or null to read {@code dir} as-is */
+    private static void load(Path dir, @Nullable String defaultsRoot, ResourceManager resources, boolean recursive) {
         try {
             Files.createDirectories(dir);
         } catch (Exception e) {
             LOGGER.warn("{} could not create {}: {}", LOG_PREFIX, dir, e.toString());
             return;
         }
-        SkinFiles.seed(dir, defaultsRoot, resources, LOG_PREFIX);
+        if (defaultsRoot != null) SkinFiles.seed(dir, defaultsRoot, resources, LOG_PREFIX);
 
         if (recursive) {
             try (Stream<Path> tree = Files.walk(dir)) {

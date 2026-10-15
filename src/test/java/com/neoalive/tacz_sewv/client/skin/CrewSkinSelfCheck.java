@@ -107,7 +107,6 @@ public final class CrewSkinSelfCheck {
 
         checkCamo(assets.resolve("armor_skins_defaults"), problems, false);
         checkCamo(assets.resolve("unit_skins_defaults/camo"), problems, true);
-        checkCamo(assets.resolve("skin_pools_defaults"), problems, true);
 
         if (!problems.isEmpty()) {
             throw new IllegalStateException("crew skin defaults: " + String.join("; ", problems));

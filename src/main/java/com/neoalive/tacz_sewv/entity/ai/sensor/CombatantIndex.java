@@ -248,7 +248,6 @@ public final class CombatantIndex {
             if (FactionWideScan.due(now, st.nextRebuild, interval)) {
                 st.nextRebuild = now + interval;
                 st.snapshot = rebuild(level, now, st);
-                OuterRingAwareness.runPass(level, st.snapshot);
             }
             if (st.snapshot != null) FactionWideScan.run(level, st, now);
         }

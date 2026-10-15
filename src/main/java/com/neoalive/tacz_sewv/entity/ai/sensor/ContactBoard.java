@@ -55,7 +55,7 @@ public final class ContactBoard {
     public enum Source {
         /** Told by someone else (radio, delegation) or locked without the observer's own eyes. */
         RELAYED(1, 30),
-        /** Aware without line of sight: an outer-ring spot. */
+        /** Aware without line of sight: a foliage contact or heard gunfire. */
         PROXIMITY(2, 60),
         /** The observer had line of sight when it published. */
         DIRECT_SIGHT(3, 100);

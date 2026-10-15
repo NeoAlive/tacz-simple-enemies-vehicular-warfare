@@ -34,7 +34,6 @@ import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TerritorySupport;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
-import com.neoalive.tacz_sewv.invasion.SweepAdvancement;
 import com.neoalive.tacz_sewv.network.PacketHudNotification;
 import com.neoalive.tacz_sewv.network.PacketTerritoryCommand;
 import com.neoalive.tacz_sewv.network.PacketTerritoryState;
@@ -58,7 +57,7 @@ import com.neoalive.tacz_sewv.notify.NotificationKind;
 public final class TerritoryManager {
 
     /** Why a unit cannot be posted; ordinals are not wire values (see {@code PacketTerritoryState.ST_*}). */
-    public enum Status { OK, FOB, AIR, CREW, DOWNED, SWEEP }
+    public enum Status { OK, FOB, AIR, CREW, DOWNED }
 
     private static final int PASS_TICKS = 20;
     /**
@@ -98,7 +97,6 @@ public final class TerritoryManager {
         } else if (MortarSupport.hasMortarClaim(pmc)) {
             return Status.CREW;
         }
-        if (SweepAdvancement.isAssignee(pmc)) return Status.SWEEP;
         return Status.OK;
     }
 
@@ -187,21 +185,15 @@ public final class TerritoryManager {
      */
     private static Selection selectEligible(ServerPlayer player, ServerLevel level, List<Integer> ids) {
         List<PmcUnitEntity> selected = new ArrayList<>();
-        int inSweep = 0;
         Set<Integer> selectedIds = new HashSet<>();
         for (int id : ids) {
             if (!(level.getEntity(id) instanceof PmcUnitEntity u) || !u.isAlive()
                     || !PmcOwnerSupport.isOwner(player, u) || !selectedIds.add(id)) continue;
             Status s = status(u);
             if (s == Status.OK) selected.add(u);
-            else if (s == Status.SWEEP) inSweep++;
         }
         if (selected.isEmpty()) {
-            if (inSweep > 0) {
-                notify(player, "in_sweep", "", Component.translatable("notification.tacz_sewv.territory.in_sweep", inSweep));
-            } else {
-                notify(player, "select_units", "", Component.translatable("notification.tacz_sewv.territory.select_units"));
-            }
+            notify(player, "select_units", "", Component.translatable("notification.tacz_sewv.territory.select_units"));
             return null;
         }
         return new Selection(selected, selectedIds);
@@ -476,7 +468,6 @@ public final class TerritoryManager {
             case AIR -> PacketTerritoryState.ST_AIR;
             case CREW -> PacketTerritoryState.ST_CREW;
             case DOWNED -> PacketTerritoryState.ST_DOWNED;
-            case SWEEP -> PacketTerritoryState.ST_SWEEP;
         };
     }
 

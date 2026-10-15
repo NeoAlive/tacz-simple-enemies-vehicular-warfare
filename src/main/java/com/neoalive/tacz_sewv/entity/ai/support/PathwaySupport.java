@@ -376,20 +376,6 @@ public final class PathwaySupport {
         return best;
     }
 
-    static boolean isParallelToSegment(List<BlockPos> waypoints, int segmentIndex, Vec3 direction) {
-        if (segmentIndex < 0 || segmentIndex >= waypoints.size() - 1) return false;
-        BlockPos a = waypoints.get(segmentIndex);
-        BlockPos b = waypoints.get(segmentIndex + 1);
-        double sx = b.getX() - a.getX();
-        double sz = b.getZ() - a.getZ();
-        double segLen = Math.sqrt(sx * sx + sz * sz);
-        if (segLen < 1.0e-4) return false;
-        double moveLen = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
-        if (moveLen < MIN_SPEED) return false;
-        double dot = (direction.x * sx + direction.z * sz) / (moveLen * segLen);
-        return dot >= PARALLEL_DOT;
-    }
-
     private static int nearestParallelSegmentStep(List<BlockPos> waypoints, double ex, double ez,
                                                   Vec3 direction) {
         int bestStep = -1;

@@ -1,7 +1,5 @@
 package com.neoalive.tacz_sewv.compat;
 
-import java.util.ArrayList;
-import java.util.List;
 
 import javax.annotation.Nullable;
 
@@ -96,18 +94,6 @@ public final class VehicleAmmoStorage {
         for (int i = 0; i < mod.getSlots(); i++) {
             mod.setStackInSlot(i, ItemStack.EMPTY);
         }
-    }
-
-    /** Snapshot of every non-empty stack (copies). */
-    public static List<ItemStack> copyContents(VehicleEntity hull) {
-        List<ItemStack> out = new ArrayList<>();
-        IItemHandler handler = handler(hull);
-        if (handler == null) return out;
-        for (int i = 0; i < handler.getSlots(); i++) {
-            ItemStack stack = handler.getStackInSlot(i);
-            if (!stack.isEmpty()) out.add(stack.copy());
-        }
-        return out;
     }
 
     public static void scramble(VehicleEntity hull, RandomSource random) {

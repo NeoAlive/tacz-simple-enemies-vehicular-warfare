@@ -84,8 +84,6 @@ final class ConfigRegistryBootstrap {
 
         b.bool(ConfigScope.CLIENT, "map", "mapMarkersEnabled",
                 ClientConfig.MAP_MARKERS_ENABLED, ClientConfig.MAP_MARKERS_ENABLED::set);
-        b.bool(ConfigScope.CLIENT, "map", "mapTrenchMarkersEnabled",
-                ClientConfig.MAP_TRENCH_MARKERS_ENABLED, ClientConfig.MAP_TRENCH_MARKERS_ENABLED::set);
         b.bool(ConfigScope.CLIENT, "map", "mapLive",
                 ClientConfig.MAP_LIVE, ClientConfig.MAP_LIVE::set);
         b.bool(ConfigScope.CLIENT, "map", "mapShowIcons",

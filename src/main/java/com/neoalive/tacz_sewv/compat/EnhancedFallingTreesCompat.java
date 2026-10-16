@@ -32,7 +32,8 @@ public final class EnhancedFallingTreesCompat {
     static final ResourceLocation TREE_ENTITY_ID = new ResourceLocation(MODID, "tree");
 
     /** Only latch {@code true}; an early false during registry bootstrap must not stick forever. */
-    private static boolean resolvedPresent;
+    /** Mod known absent — final for the session, so the check stops asking ModList. */
+    private static boolean absent;
     private static boolean available;
 
     private EnhancedFallingTreesCompat() {}
@@ -47,15 +48,12 @@ public final class EnhancedFallingTreesCompat {
     }
 
     private static void resolve() {
-        if (resolvedPresent && available) return;
+        if (available || absent) return;
         if (!present()) {
-            resolvedPresent = true;
-            available = false;
+            absent = true;
             return;
         }
+        // Present but not registered yet (early call): ask again next time.
         available = ForgeRegistries.ENTITY_TYPES.containsKey(TREE_ENTITY_ID);
-        if (available) {
-            resolvedPresent = true;
-        }
     }
 }

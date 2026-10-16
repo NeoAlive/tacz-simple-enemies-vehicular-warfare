@@ -10,8 +10,8 @@ import xaero.map.gui.GuiMap;
 import com.neoalive.tacz_sewv.client.PreferredPathwaysClient;
 
 /**
- * Soft compat with <b>Xaero's World Map</b>: hangs {@link VehicleMarkerElements},
- * {@link TrenchMarkerElements} and {@link InvasionZoneMarkerElements} on the map's element renderer.
+ * Soft compat with <b>Xaero's World Map</b>: hangs {@link VehicleMarkerElements} and
+ * {@link InvasionZoneMarkerElements} on the map's element renderer.
  *
  * <p>No mixin is needed for this half — {@code WorldMap.mapElementRenderHandler} is a public static
  * field and {@code add} is public, the same door Xaero's own waypoint and player-tracker renderers
@@ -50,7 +50,6 @@ public final class XaeroMapCompat {
         if (WorldMap.mapElementRenderHandler == null) return; // Xaero failed to load; leave it alone
         if (hungOn == WorldMap.mapElementRenderHandler) return; // already on this handler instance
         WorldMap.mapElementRenderHandler.add(VehicleMarkerElements.INSTANCE);
-        WorldMap.mapElementRenderHandler.add(TrenchMarkerElements.INSTANCE);
         WorldMap.mapElementRenderHandler.add(InvasionZoneMarkerElements.INSTANCE);
         WorldMap.mapElementRenderHandler.add(FobMarkerElements.INSTANCE);
         WorldMap.mapElementRenderHandler.add(HelipadMarkerElements.INSTANCE);

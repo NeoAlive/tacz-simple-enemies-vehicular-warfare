@@ -53,7 +53,7 @@ public final class MapMarkers {
     private MapMarkers() {}
 
     public static void accept(List<VehicleMarker> incoming, List<BattleFieldMarker> fields,
-                              @Nullable FobMarker fob) {
+                              @Nullable FobMarker fob, List<HelipadMarker> pads) {
         markers = List.copyOf(incoming);
         BY_VEHICLE_ID.clear();
         BY_DRIVER_ID.clear();
@@ -65,6 +65,7 @@ public final class MapMarkers {
         }
         battleFields = List.copyOf(fields);
         fobMarker = fob;
+        helipads = List.copyOf(pads);
         SELECTED.removeIf(vehicleId -> !BY_VEHICLE_ID.containsKey(vehicleId));
     }
 
@@ -77,10 +78,6 @@ public final class MapMarkers {
         fobMarker = null;
         helipads = List.of();
         SELECTED.clear();
-    }
-
-    public static void acceptHelipads(List<HelipadMarker> incoming) {
-        helipads = List.copyOf(incoming);
     }
 
     public static List<HelipadMarker> helipads() {

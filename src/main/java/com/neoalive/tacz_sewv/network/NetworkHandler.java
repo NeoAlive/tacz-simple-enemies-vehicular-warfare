@@ -122,7 +122,9 @@ public class NetworkHandler {
     // 100: PacketGraceStart (S->C) — grace period popup.
     // 102: vehicle pool categories SHIP/HELI renamed SURFACE/ROTOR (same wire order); pools may hold
     //      Limitless Vehicles ids.
-    private static final String PROTOCOL_VERSION = "102";
+    // 103: bloat pass — sweep overlay, capture medic, trench + helipad marker packets removed;
+    //      helipads ride PacketOwnedVehicles; NotificationKind.MEDIC_CAPTURED dropped.
+    private static final String PROTOCOL_VERSION = "103";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -348,13 +350,6 @@ public class NetworkHandler {
                 PacketUpdateVehicleClasses::handle
         );
 
-        CHANNEL.registerMessage(
-                nextId(),
-                PacketTrenchNetworks.class,
-                PacketTrenchNetworks::encode,
-                PacketTrenchNetworks::new,
-                PacketTrenchNetworks::handle
-        );
 
         CHANNEL.registerMessage(
                 nextId(),
@@ -692,13 +687,6 @@ public class NetworkHandler {
                 PacketHelipadAction::encode,
                 PacketHelipadAction::new,
                 PacketHelipadAction::handle
-        );
-        CHANNEL.registerMessage(
-                nextId(),
-                PacketHelipadMarkers.class,
-                PacketHelipadMarkers::encode,
-                PacketHelipadMarkers::new,
-                PacketHelipadMarkers::handle
         );
         CHANNEL.registerMessage(
                 nextId(),

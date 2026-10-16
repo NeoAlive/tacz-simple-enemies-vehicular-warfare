@@ -16,12 +16,13 @@ import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 import com.neoalive.tacz_sewv.map.FobMarker;
+import com.neoalive.tacz_sewv.map.HelipadMarker;
 import com.neoalive.tacz_sewv.map.MarkerOrder;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
  * Server→client map sync: crewed vehicles one player's side can see, optional debug
- * {@link BattleFieldMarker}s, and optional active Sweep &amp; Advance overlay state.
+ * {@link BattleFieldMarker}s, the player's FOB, and every cleared helipad.
  *
  * <p>Each player gets their own hulls plus whatever their side has spotted, and <b>never</b> another
  * player's units — a client cannot learn where anyone else's PMC is. Ordering is
@@ -37,12 +38,14 @@ public class PacketOwnedVehicles {
     private final List<BattleFieldMarker> battleFields;
     @Nullable
     private final FobMarker fobMarker;
+    private final List<HelipadMarker> helipads;
 
     public PacketOwnedVehicles(List<VehicleMarker> markers, List<BattleFieldMarker> battleFields,
-                               @Nullable FobMarker fobMarker) {
+                               @Nullable FobMarker fobMarker, List<HelipadMarker> helipads) {
         this.markers = markers;
         this.battleFields = battleFields;
         this.fobMarker = fobMarker;
+        this.helipads = helipads;
     }
 
     public PacketOwnedVehicles(FriendlyByteBuf buf) {
@@ -98,6 +101,12 @@ public class PacketOwnedVehicles {
         } else {
             this.fobMarker = null;
         }
+        int padCount = buf.readVarInt();
+        List<HelipadMarker> pads = new ArrayList<>(padCount);
+        for (int i = 0; i < padCount; i++) {
+            pads.add(new HelipadMarker(buf.readBlockPos(), buf.readResourceKey(Registries.DIMENSION)));
+        }
+        this.helipads = pads;
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -151,12 +160,17 @@ public class PacketOwnedVehicles {
             buf.writeVarInt(this.fobMarker.assignedVehicles());
             buf.writeBoolean(this.fobMarker.routeReady());
         }
+        buf.writeVarInt(this.helipads.size());
+        for (HelipadMarker pad : this.helipads) {
+            buf.writeBlockPos(pad.pos());
+            buf.writeResourceKey(pad.dimension());
+        }
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() ->
                 DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                        () -> () -> MapMarkers.accept(this.markers, this.battleFields, this.fobMarker)));
+                        () -> () -> MapMarkers.accept(this.markers, this.battleFields, this.fobMarker, this.helipads)));
         ctx.get().setPacketHandled(true);
     }
 }

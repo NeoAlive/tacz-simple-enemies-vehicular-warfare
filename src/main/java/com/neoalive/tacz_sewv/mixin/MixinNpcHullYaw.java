@@ -21,8 +21,8 @@ public abstract class MixinNpcHullYaw {
     @Inject(method = "baseTick", at = @At("TAIL"))
     private void tacz_sewv$forceKantemirYaw(CallbackInfo ci) {
         VehicleEntity hull = (VehicleEntity) (Object) this;
-        if (!NpcVehicleOverrides.isT80bvKantemir(hull)) return;
         if (!(hull.getFirstPassenger() instanceof AbstractUnit unit)) return;
+        if (!NpcVehicleOverrides.isT80bvKantemir(hull)) return;
         float yaw = unit.getYRot();
         if (!Float.isFinite(yaw)) return;
         if (!Float.isFinite(hull.getYRot())) {

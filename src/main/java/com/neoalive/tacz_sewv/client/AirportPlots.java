@@ -24,7 +24,7 @@ import net.minecraft.world.level.Level;
  * merely opened on a strip that is still good, which is what restores the shading after a relog
  * without a sync. It is deliberately not persisted — the runway block is the durable record.
  *
- * <p>Free of Xaero types, like {@link MapTrenchMarkers}, so it is safe to touch without the map mod.
+ * <p>Free of Xaero types, so it is safe to touch without the map mod.
  */
 public final class AirportPlots {
 

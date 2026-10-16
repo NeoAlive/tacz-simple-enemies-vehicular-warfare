@@ -96,7 +96,6 @@ public class TaczSewv {
         MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
         MinecraftForge.EVENT_BUS.register(FobTickHandler.class);
         MinecraftForge.EVENT_BUS.register(GraceTickHandler.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.map.TrenchNetworksTracker.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionHudTracker.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator.class);

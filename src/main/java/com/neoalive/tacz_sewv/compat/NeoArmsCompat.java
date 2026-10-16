@@ -19,8 +19,13 @@ public final class NeoArmsCompat {
 
     private NeoArmsCompat() {}
 
+    /** Cached: several per-tick hull hooks ask, and the mod list cannot change mid-session. */
+    private static Boolean present;
+
     public static boolean present() {
-        return ModList.get().isLoaded(MODID);
+        Boolean p = present;
+        if (p == null) present = p = ModList.get().isLoaded(MODID);
+        return p;
     }
 
     public static void bootstrap() {

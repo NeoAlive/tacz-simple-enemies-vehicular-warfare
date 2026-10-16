@@ -64,7 +64,6 @@ import com.neoalive.tacz_sewv.invasion.InvasionHostility;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketHelipadMarkers;
 import com.neoalive.tacz_sewv.network.PacketOwnedVehicles;
 
 /**
@@ -171,12 +170,10 @@ public final class OwnedVehicleTracker {
             }
         }
         for (ServerPlayer player : players) {
-            NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                    new PacketHelipadMarkers(helipads));
             List<VehicleMarker> markers = markersFor(player, candidates, spotRadiusSq);
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                     new PacketOwnedVehicles(markers, battleFieldsFor(markers, allFields),
-                            fobMarkerFor(player)));
+                            fobMarkerFor(player), helipads));
         }
     }
 

@@ -19,20 +19,27 @@ import com.neoalive.tacz_sewv.compat.NeoArmsCarrierAccess;
 import com.neoalive.tacz_sewv.compat.NeoArmsCompat;
 
 /**
- * Opens the carrier plane-ops GUI while seated. Mode toggle is owned by Neo Arms (J).
+ * Opens the carrier plane-ops GUI while seated. Mode toggle is owned by Neo Arms (J). Registered only
+ * with Neo Arms installed, so the key does not sit in the controls list doing nothing.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class CarrierOpsKeybind {
 
-    private static final String CATEGORY = "key.categories." + TaczSewv.MODID;
+    /**
+     * Holder, so the mapping is only constructed with Neo Arms present: a {@code KeyMapping} enters
+     * vanilla's key table on construction whether or not Forge ever registers it (see {@code RtsKeybind}).
+     */
+    private static final class Keys {
+        /** Default U — separate from Neo Arms mode toggle (J). */
+        static final KeyMapping OPEN_OPS = new KeyMapping(
+                "key." + TaczSewv.MODID + ".carrier_ops",
+                KeyConflictContext.IN_GAME,
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_U,
+                "key.categories." + TaczSewv.MODID);
 
-    /** Default U — separate from Neo Arms mode toggle (J). */
-    public static final KeyMapping OPEN_OPS = new KeyMapping(
-            "key." + TaczSewv.MODID + ".carrier_ops",
-            KeyConflictContext.IN_GAME,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_U,
-            CATEGORY);
+        private Keys() {}
+    }
 
     private CarrierOpsKeybind() {}
 
@@ -42,28 +49,21 @@ public final class CarrierOpsKeybind {
 
         @SubscribeEvent
         public static void onRegister(RegisterKeyMappingsEvent event) {
-            event.register(OPEN_OPS);
+            if (NeoArmsCompat.present()) event.register(Keys.OPEN_OPS);
         }
     }
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+        if (event.phase != TickEvent.Phase.END || !NeoArmsCompat.present()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null || mc.screen != null) return;
 
         boolean pressed = false;
-        while (OPEN_OPS.consumeClick()) {
+        while (Keys.OPEN_OPS.consumeClick()) {
             pressed = true;
         }
         if (!pressed) return;
-
-        if (!NeoArmsCompat.present()) {
-            mc.player.displayClientMessage(
-                    Component.translatable("message.tacz_sewv.carrier_ops.no_neoarms")
-                            .withStyle(ChatFormatting.GRAY), true);
-            return;
-        }
 
         Entity vehicle = mc.player.getVehicle();
         if (!NeoArmsCarrierAccess.isCarrier(vehicle)) {

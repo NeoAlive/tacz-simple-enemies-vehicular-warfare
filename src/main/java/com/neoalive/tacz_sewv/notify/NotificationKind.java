@@ -23,9 +23,7 @@ public enum NotificationKind {
     PMC_ENERGY(0xFF6B7280, "\u26FD"),
     /** Owned unit engaging a contact. */
     PMC_ENGAGING(0xFF6B7280, "\u2694"),
-    /** Enemy medic captured by the player / PMC. */
-    MEDIC_CAPTURED(0xFF6B7280, "\u25C6"),
-    /** Territory / Advance Plan / legacy sweep status. */
+    /** Territory / Advance Plan status. */
     TERRITORY(0xFF6B7280, "\u25C6"),
     /** Faction-vs-faction world event nearby. */
     EVENT_EVE(0xFF2563EB, "\u2691"),

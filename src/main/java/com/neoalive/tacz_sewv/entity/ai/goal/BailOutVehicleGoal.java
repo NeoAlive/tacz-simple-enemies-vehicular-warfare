@@ -26,7 +26,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.config.EasyMode;
@@ -137,7 +136,6 @@ public class BailOutVehicleGoal extends Goal {
         if (unit.getVehicle() instanceof VehicleEntity
                 || com.neoalive.tacz_sewv.compat.lv.LvCompat.isLvHull(unit.getVehicle())) return;
         if (unit instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) return;
-        if (unit instanceof IMedicCaptured captured && captured.sewv$isCapturedSynced()) return;
         CompoundTag tag = unit.getPersistentData();
         if (tag.getBoolean(TAG_GRENADE_BAIL)) return;
         tag.putBoolean(TAG_GRENADE_BAIL, true);

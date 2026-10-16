@@ -19,7 +19,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEntrenched;
 import com.neoalive.tacz_sewv.bridge.IEscort;
@@ -55,7 +54,6 @@ import com.neoalive.tacz_sewv.entity.ai.goal.PathwayPassiveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlatoonCohesionGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PlayerReviveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcAmmoWatchGoal;
-import com.neoalive.tacz_sewv.entity.ai.goal.PmcCaptureMedicGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.PmcReviveGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RadioObserverGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.RepairGoal;
@@ -78,7 +76,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 public abstract class MixinPmcUnitEntity
         implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, IFormationMember,
         IVehiclePatrol, IEscort, ITowRecovery, ISweepInfantry, IPathwayInfantry, ICaptureOrder, IMedicTreat, IEntrenched,
-        IPmcDowned, ICaptureMedic, IFobAssigned, ITerritoryPost {
+        IPmcDowned, IFobAssigned, ITerritoryPost {
 
     @Unique
     private static final EntityDataAccessor<Boolean> tacz_sewv$TREATING;
@@ -132,12 +130,6 @@ public abstract class MixinPmcUnitEntity
 
     @Unique
     private int tacz_sewv$mortarTargetId = IMortarCrew.NO_MORTAR;
-
-    // Player-issued "go capture a medic" dispatch (TDT Capture Medic button). Transient, like the
-    // escort order above — dropped on reload, and cleared once PmcCaptureMedicGoal finishes or is
-    // interrupted.
-    @Unique
-    private boolean tacz_sewv$captureMedicOrdered = false;
 
     @Override
     public void tacz_sewv$setMountTargetId(int id) {
@@ -227,16 +219,6 @@ public abstract class MixinPmcUnitEntity
     @Override
     public void sewv$setTreating(boolean treating) {
         ((Entity) (Object) this).getEntityData().set(tacz_sewv$TREATING, treating);
-    }
-
-    @Override
-    public void tacz_sewv$setCaptureMedicOrdered(boolean ordered) {
-        this.tacz_sewv$captureMedicOrdered = ordered;
-    }
-
-    @Override
-    public boolean tacz_sewv$isCaptureMedicOrdered() {
-        return this.tacz_sewv$captureMedicOrdered;
     }
 
     @Override
@@ -396,15 +378,6 @@ public abstract class MixinPmcUnitEntity
         // Platoon regroup: same priority band — it only ever engages when idle (no target, no
         // standing order), which is mutually exclusive with what the other MOVE goals here gate on.
         ((Mob) self).goalSelector.addGoal(1, new PlatoonCohesionGoal(self));
-        // TDT "Capture Medic" dispatch: chase down a medic and subdue/convert it. Player-ordered
-        // only (see ICaptureMedic), gated on getTarget()==null like RepairGoal/MedicGoal — same
-        // priority-2 band as those, and it MUST be <=2: SEM's own CommanderOrderGoal/
-        // MoveToAttackRangeGoal sit at priority 3, and a goal at the SAME priority can never take a
-        // flag away from one already running (canBeReplacedBy needs a STRICTLY lower number) — an
-        // idle PMC always has CommanderOrderGoal holding MOVE already, so priority 3 here meant this
-        // goal could win canUse() and still never actually move. See FollowCommanderGoal's class doc
-        // for the same fight fought at priority 1.
-        ((Mob) self).goalSelector.addGoal(2, new PmcCaptureMedicGoal(self));
         ((Mob) self).goalSelector.addGoal(5, new PmcAmmoWatchGoal(self));
         // BoardVehicleGoal is NOT here any more: it moved into addDriveGoals once RU/US units
         // gained IVehicleBoarder for scavenging. It never cared where an order came from.

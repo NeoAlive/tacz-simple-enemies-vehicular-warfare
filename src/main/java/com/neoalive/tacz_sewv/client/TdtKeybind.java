@@ -69,7 +69,6 @@ public final class TdtKeybind {
             event.register(OPEN_TDT);
             event.register(MapMarkersKeybind.TOGGLE_MAP_MARKERS);
             event.register(NotificationDismissKeybind.DISMISS);
-            event.register(RadioZoom.ZOOM);
             event.register(QuickCommandKeybind.OPEN_WHEEL);
         }
     }

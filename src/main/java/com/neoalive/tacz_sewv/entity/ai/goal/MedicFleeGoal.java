@@ -11,13 +11,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
-import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 
 /**
  * Make an RU/US medic flee when it spots a nearby hostile. Runs at priority 1 so it outranks
- * the MedicGoal (priority 2) but is preempted by the MedicCapturedGoal (priority 0). Reuses
+ * the MedicGoal (priority 2). Reuses
  * the ring-sample-and-standable-ground idiom from {@code BailOutVehicleGoal} but implements
  * it independently — this is a threat-avoidance flee, not a wreck-clearance scramble.
  *
@@ -44,11 +43,6 @@ public class MedicFleeGoal extends Goal {
     public boolean canUse() {
         // Medic-type check via VehicleTargeting.isMedic (airtight, reused, not reinvented).
         if (!VehicleTargeting.isMedic(this.medic)) {
-            return false;
-        }
-
-        // Skip scan if currently captured — the MedicCapturedGoal outranks us anyway.
-        if (this.medic instanceof IMedicCaptured captured && captured.sewv$isCaptured()) {
             return false;
         }
 

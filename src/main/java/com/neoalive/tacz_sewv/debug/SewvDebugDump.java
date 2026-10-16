@@ -156,11 +156,6 @@ public final class SewvDebugDump {
         sb.append("farEventSpawns=").append(SewvConfig.FAR_EVENT_SPAWNS.get()).append('\n');
         sb.append("canMobsDamageVehicles=")
                 .append(level.getGameRules().getBoolean(ModGameRules.CAN_MOBS_DAMAGE_VEHICLES)).append('\n');
-        if (ModGameRules.INVASION_OVERRIDES != null) {
-            sb.append("sewvInvasionOverrides=")
-                    .append(level.getGameRules().getBoolean(ModGameRules.INVASION_OVERRIDES))
-                    .append('\n');
-        }
         sb.append("note=Spawn gates remain gamerules; farEventSpawns is server config; debug is client config.\n");
         sb.append("individualTacticsDebug=")
                 .append(ClientConfig.flag(ClientConfig.INDIVIDUAL_TACTICS_DEBUG)).append('\n');

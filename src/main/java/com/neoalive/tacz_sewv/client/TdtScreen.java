@@ -25,11 +25,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
-import net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
-import net.nekoyuni.SimpleEnemyMod.network.ModNetworking;
-import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -109,7 +104,6 @@ public class TdtScreen extends Screen {
     private static final int GROUP_STRIPE_W = 3;
 
     // Muted category block stripes (~30% alpha) — All-view grouping only.
-    private static final int STRIPE_ORDERS = 0x4D7C8CD9;
     private static final int STRIPE_CREW = 0x4D8FAA6B;
     private static final int STRIPE_AREA = 0x4DC9A15A;
     private static final int STRIPE_AIR = 0x4DB57ED1;
@@ -117,7 +111,7 @@ public class TdtScreen extends Screen {
     private static final int STRIPE_IDENTITY = 0x4D6BD9A1;
 
     enum Category {
-        ALL, ORDERS, CREW, AREA, AIR, PLATOON, IDENTITY
+        ALL, CREW, AREA, AIR, PLATOON, IDENTITY
     }
 
     private enum StepperKind { PATROL, SEARCH, ALTITUDE }
@@ -296,15 +290,6 @@ public class TdtScreen extends Screen {
 
     private void buildCatalog() {
         this.catalog.clear();
-        add(Category.ORDERS, "gui.tacz_sewv.tdt.hold", null, true, () -> issueSemOrder(OrderType.HOLD_POSITION));
-        add(Category.ORDERS, "gui.tacz_sewv.tdt.follow", null, true, () -> issueSemOrder(OrderType.FOLLOW_COMMANDER));
-        add(Category.ORDERS, "gui.tacz_sewv.tdt.move_to", "gui.tacz_sewv.tdt.move_to.tip", false, this::armMoveTo);
-        add(Category.ORDERS, "gui.tacz_sewv.tdt.attack", "gui.tacz_sewv.tdt.attack.tip", false, this::armAttack);
-        add(Category.ORDERS, "gui.tacz_sewv.tdt.cease_fire", null, true, () -> issueSemOrder(OrderType.CEASE_FIRE));
-        add(Category.ORDERS, "gui.tacz_sewv.tdt.free_fire", null, true, () -> issueSemOrder(OrderType.FREE_FIRE));
-        add(Category.ORDERS, "gui.tacz_sewv.tdt.route_to_fob", "gui.tacz_sewv.tdt.route_to_fob.tip", true,
-                FobClientRoute::sendRoute);
-
         add(Category.CREW, "gui.tacz_sewv.tdt.board", "gui.tacz_sewv.tdt.board.tip", true,
                 () -> BoardKeybind.orderBoard(liveBoardTarget(), false));
         add(Category.CREW, "gui.tacz_sewv.tdt.board_passenger", "gui.tacz_sewv.tdt.board_passenger.tip", true,
@@ -316,8 +301,6 @@ public class TdtScreen extends Screen {
         add(Category.CREW, "gui.tacz_sewv.tdt.tow", "gui.tacz_sewv.tdt.tow.tip", true, ClientEvents::armTowRecovery);
         add(Category.CREW, "gui.tacz_sewv.tdt.set_guard", "gui.tacz_sewv.tdt.set_guard.tip", true, ClientEvents::armGuardPosition);
         add(Category.CREW, "gui.tacz_sewv.tdt.reach_guard", "gui.tacz_sewv.tdt.reach_guard.tip", true, this::orderReachGuard);
-        add(Category.CREW, "gui.tacz_sewv.tdt.capture_medic", "gui.tacz_sewv.tdt.capture_medic.tip", true,
-                BoardKeybind::orderCaptureMedic);
 
         add(Category.AREA, "gui.tacz_sewv.tdt.patrol", "gui.tacz_sewv.tdt.patrol.tip", false,
                 () -> orderAreaTask(patrolRadius, IVehiclePatrol.MODE_PATROL), StepperKind.PATROL);
@@ -441,7 +424,7 @@ public class TdtScreen extends Screen {
         int cellW = (innerW - CELL_GAP * (GRID_COLS - 1)) / GRID_COLS;
 
         Category[] order = allView
-                ? new Category[]{Category.ORDERS, Category.CREW, Category.AREA, Category.AIR,
+                ? new Category[]{Category.CREW, Category.AREA, Category.AIR,
                     Category.PLATOON, Category.IDENTITY}
                 : new Category[]{this.category};
 
@@ -502,7 +485,6 @@ public class TdtScreen extends Screen {
 
     private static int stripeFor(Category cat) {
         return switch (cat) {
-            case ORDERS -> STRIPE_ORDERS;
             case CREW -> STRIPE_CREW;
             case AREA -> STRIPE_AREA;
             case AIR -> STRIPE_AIR;
@@ -517,40 +499,6 @@ public class TdtScreen extends Screen {
     }
 
     // --- SEM / area helpers -------------------------------------------------
-
-    private void issueSemOrder(OrderType order) {
-        if (!ensureUnitsSelected()) return;
-        List<Integer> ids = new ArrayList<>(TdtSelection.resolve(TdtSelection.SCAN_RADIUS));
-        ids.sort((a, b) -> Integer.compare(b, a));
-        for (int i = 0; i < ids.size(); i++) {
-            ModNetworking.sendToServer(new PacketIssueOrder(ids.get(i), order, Vec3.ZERO, i, -1));
-        }
-        // No ack here on purpose. SEM validates ownership server-side and silently drops what it
-        // rejects, so a count printed at send time was a guess that contradicted every real refusal
-        // arriving after it. MixinPacketIssueOrder now answers with the count that actually took.
-    }
-
-    private void armMoveTo() {
-        if (!ensureUnitsSelected()) return;
-        TdtSelection.writeSnapshot();
-        CommanderOverlayRenderer.isSelectingPosition = true;
-        if (this.minecraft != null && this.minecraft.player != null) {
-            this.minecraft.player.displayClientMessage(
-                    Component.translatable("message.tacz_sewv.tdt.select_position").withStyle(ChatFormatting.GREEN), true);
-        }
-        onClose();
-    }
-
-    private void armAttack() {
-        if (!ensureUnitsSelected()) return;
-        TdtSelection.writeSnapshot();
-        CommanderOverlayRenderer.isSelectingTarget = true;
-        if (this.minecraft != null && this.minecraft.player != null) {
-            this.minecraft.player.displayClientMessage(
-                    Component.translatable("message.tacz_sewv.tdt.select_target").withStyle(ChatFormatting.GREEN), true);
-        }
-        onClose();
-    }
 
     private boolean ensureUnitsSelected() {
         if (!TdtSelection.resolve(TdtSelection.SCAN_RADIUS).isEmpty()) return true;
@@ -1108,9 +1056,6 @@ public class TdtScreen extends Screen {
     private boolean isInactive(OrderEntry entry) {
         if ("gui.tacz_sewv.tdt.reach_guard".equals(entry.labelKey())) {
             return !reachGuardActive();
-        }
-        if ("gui.tacz_sewv.tdt.route_to_fob".equals(entry.labelKey())) {
-            return !FobClientRoute.canRoute();
         }
         return false;
     }

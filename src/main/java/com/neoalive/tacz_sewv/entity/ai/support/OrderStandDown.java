@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.ICaptureMedic;
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
@@ -35,9 +34,6 @@ public final class OrderStandDown {
 
         if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) {
             capture.sewv$clearCaptureOrder();
-        }
-        if (pmc instanceof ICaptureMedic medic && medic.tacz_sewv$isCaptureMedicOrdered()) {
-            medic.tacz_sewv$setCaptureMedicOrdered(false);
         }
 
         MortarSupport.releaseClaim(pmc);

@@ -21,7 +21,7 @@ import org.slf4j.Logger;
  * calls {@link #revive} once instead.
  *
  * <p>Off the run classpath by default (opt in with {@code ./gradlew runClient -PwithPlayerRevive}),
- * same shape as {@code Extermination}/{@code Configured} — see build.gradle.
+ * same shape as {@code Configured} — see build.gradle.
  */
 public final class PlayerReviveCompat {
 

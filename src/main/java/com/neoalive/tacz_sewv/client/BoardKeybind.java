@@ -23,7 +23,6 @@ import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketBailOutVehicle;
 import com.neoalive.tacz_sewv.network.PacketBoardVehicle;
-import com.neoalive.tacz_sewv.network.PacketCaptureMedic;
 import com.neoalive.tacz_sewv.network.PacketDismountVehicle;
 import com.neoalive.tacz_sewv.network.PacketManMortar;
 import com.neoalive.tacz_sewv.network.PacketParatroop;
@@ -81,16 +80,6 @@ public class BoardKeybind {
     public static void orderParatroop() {
         withOwnedUnits(pmc -> pmc.getVehicle() != null, "message.tacz_sewv.paratroop.none",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketParatroop(unitIds)));
-    }
-
-    /**
-     * TDT "Capture Medic": selected units are dispatched to walk to the nearest medic — captured or
-     * still running — subdue it if needed, then auto-convert it using the owner's currency. See
-     * {@code PmcCaptureMedicGoal}/{@code ICaptureMedic}.
-     */
-    public static void orderCaptureMedic() {
-        withOwnedUnits(pmc -> true, "message.tacz_sewv.board.no_units",
-                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketCaptureMedic(unitIds)));
     }
 
     /**

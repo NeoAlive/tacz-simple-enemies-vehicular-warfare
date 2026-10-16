@@ -21,8 +21,7 @@ import com.neoalive.tacz_sewv.entity.ai.plane.DubinsPath;
  * Debug wireframe for the plane Dubins landing entry: the straight fix->pad line the "existing LERP
  * approach" (see {@code DrivePlaneGoal.landFinal}) actually flies, in one color, and the computed
  * Dubins turn-in arc onto the alignment line in another, plus a marker + arrow at the hand-off point.
- * Gated on the {@code sewvPlaneCombatDebug} gamerule, same pattern as
- * {@link ExterminationShieldDebugRenderer}. Draws straight from {@link PlaneLandingDebugClient}'s
+ * Gated on the {@code sewvPlaneCombatDebug} gamerule. Draws straight from {@link PlaneLandingDebugClient}'s
  * synced state, not from a world entity scan.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)

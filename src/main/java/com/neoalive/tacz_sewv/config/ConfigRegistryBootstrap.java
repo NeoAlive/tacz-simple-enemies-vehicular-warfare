@@ -54,11 +54,6 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.FOB_PERIODIC_REFILL_TICKS, SewvConfig.FOB_PERIODIC_REFILL_TICKS::set);
     }
 
-    private static boolean isExterminationLoaded() {
-        var list = net.minecraftforge.fml.ModList.get();
-        return list != null && list.isLoaded("extermination");
-    }
-
     private static void registerClient(ConfigRegistry.Builder b) {
         b.bool(ConfigScope.CLIENT, "interaction", "showOrderFeedback",
                 ClientConfig.SHOW_ORDER_FEEDBACK, ClientConfig.SHOW_ORDER_FEEDBACK::set);
@@ -118,10 +113,6 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.BALLISTIC_TRANSLATION_DEBUG, ClientConfig.BALLISTIC_TRANSLATION_DEBUG::set);
         b.bool(ConfigScope.CLIENT, "debug", "orderFailureDebug",
                 ClientConfig.ORDER_FAILURE_DEBUG, ClientConfig.ORDER_FAILURE_DEBUG::set);
-        b.bool(ConfigScope.CLIENT, "debug", "tripodShieldFlareAlwaysOn",
-                ClientConfig.TRIPOD_SHIELD_FLARE_ALWAYS_ON, ClientConfig.TRIPOD_SHIELD_FLARE_ALWAYS_ON::set);
-        b.bool(ConfigScope.CLIENT, "debug", "tripodShieldWireframe",
-                ClientConfig.TRIPOD_SHIELD_WIREFRAME, ClientConfig.TRIPOD_SHIELD_WIREFRAME::set);
         b.bool(ConfigScope.CLIENT, "debug", "showSpawnProbes",
                 ClientConfig.SHOW_SPAWN_PROBES, ClientConfig.SHOW_SPAWN_PROBES::set);
         b.bool(ConfigScope.CLIENT, "debug", "individualTacticsDebug",
@@ -205,10 +196,6 @@ final class ConfigRegistryBootstrap {
                 ModGameRules.PMC_AMBIENT_SPAWNS);
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.can_mobs_damage_vehicles",
                 ModGameRules.CAN_MOBS_DAMAGE_VEHICLES);
-        if (isExterminationLoaded() && ModGameRules.INVASION_OVERRIDES != null) {
-            b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.invasion_overrides",
-                    ModGameRules.INVASION_OVERRIDES);
-        }
     }
 
     private static void registerEvents(ConfigRegistry.Builder b) {
@@ -477,20 +464,12 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.PMC_DOWNED_BLEED_TICKS, SewvConfig.PMC_DOWNED_BLEED_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "pmcDownedReviveHealth", 1.0, 40.0,
                 SewvConfig.PMC_DOWNED_REVIVE_HEALTH, SewvConfig.PMC_DOWNED_REVIVE_HEALTH::set);
-        b.bool(ConfigScope.SERVER, "crew_ai", "medicCaptureEnabled",
-                SewvConfig.MEDIC_CAPTURE_ENABLED, SewvConfig.MEDIC_CAPTURE_ENABLED::set);
-        b.doubleRange(ConfigScope.SERVER, "crew_ai", "medicCapturedHealth", 1.0, 20.0,
-                SewvConfig.MEDIC_CAPTURED_HEALTH, SewvConfig.MEDIC_CAPTURED_HEALTH::set);
-        b.intRange(ConfigScope.SERVER, "crew_ai", "medicCaptureDurationTicks", 100, 12000,
-                SewvConfig.MEDIC_CAPTURE_DURATION_TICKS, SewvConfig.MEDIC_CAPTURE_DURATION_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "medicFleeDetectionRadius", 4.0, 64.0,
                 SewvConfig.MEDIC_FLEE_DETECTION_RADIUS, SewvConfig.MEDIC_FLEE_DETECTION_RADIUS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "medicFleeMinDistance", 2.0, 32.0,
                 SewvConfig.MEDIC_FLEE_MIN_DISTANCE, SewvConfig.MEDIC_FLEE_MIN_DISTANCE::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "medicFleeMaxDistance", 4.0, 64.0,
                 SewvConfig.MEDIC_FLEE_MAX_DISTANCE, SewvConfig.MEDIC_FLEE_MAX_DISTANCE::set);
-        b.doubleRange(ConfigScope.SERVER, "crew_ai", "pmcCaptureMedicRadius", 8.0, 128.0,
-                SewvConfig.PMC_CAPTURE_MEDIC_RADIUS, SewvConfig.PMC_CAPTURE_MEDIC_RADIUS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "healthMobilityEnabled",
                 SewvConfig.HEALTH_MOBILITY_ENABLED, SewvConfig.HEALTH_MOBILITY_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "healthMobilityFloor", 0.05, 1.0,
@@ -927,24 +906,5 @@ final class ConfigRegistryBootstrap {
         // Komodo (client mixin, value lives in server/common toml)
         b.bool(ConfigScope.SERVER, "compat", "komodoRenderFixEnabled",
                 SewvConfig.KOMODO_RENDER_FIX_ENABLED, SewvConfig.KOMODO_RENDER_FIX_ENABLED::set);
-
-        if (isExterminationLoaded()) {
-            b.bool(ConfigScope.SERVER, "compat", "tripodShieldEnabled",
-                    SewvConfig.TRIPOD_SHIELD_ENABLED, SewvConfig.TRIPOD_SHIELD_ENABLED::set);
-            b.doubleRange(ConfigScope.SERVER, "compat", "tripodHpMultiplier", 1.0, 10.0,
-                    SewvConfig.TRIPOD_HP_MULTIPLIER, SewvConfig.TRIPOD_HP_MULTIPLIER::set);
-            b.doubleRange(ConfigScope.SERVER, "compat", "tripodShieldBreakDamage", 1.0, 100000.0,
-                    SewvConfig.TRIPOD_SHIELD_BREAK_DAMAGE, SewvConfig.TRIPOD_SHIELD_BREAK_DAMAGE::set);
-            b.intRange(ConfigScope.SERVER, "compat", "tripodShieldRegenTicks", 0, 72000,
-                    SewvConfig.TRIPOD_SHIELD_REGEN_TICKS, SewvConfig.TRIPOD_SHIELD_REGEN_TICKS::set);
-            b.intRange(ConfigScope.SERVER, "compat", "tripodShieldFlareTicks", 1, 100,
-                    SewvConfig.TRIPOD_SHIELD_FLARE_TICKS, SewvConfig.TRIPOD_SHIELD_FLARE_TICKS::set);
-            b.doubleRange(ConfigScope.SERVER, "compat", "tripodShieldAxisScale", 0.25, 4.0,
-                    SewvConfig.TRIPOD_SHIELD_AXIS_SCALE, SewvConfig.TRIPOD_SHIELD_AXIS_SCALE::set);
-            b.doubleRange(ConfigScope.SERVER, "compat", "invasionPodAvoidRadius", 8.0, 128.0,
-                    SewvConfig.INVASION_POD_AVOID_RADIUS, SewvConfig.INVASION_POD_AVOID_RADIUS::set);
-            b.doubleRange(ConfigScope.SERVER, "compat", "heatRaySpeed", 3.5, 40.0,
-                    SewvConfig.HEAT_RAY_SPEED, SewvConfig.HEAT_RAY_SPEED::set);
-        }
     }
 }

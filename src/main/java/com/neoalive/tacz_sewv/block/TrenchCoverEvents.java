@@ -11,6 +11,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.TickEvent;
@@ -22,7 +23,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.compat.ExterminationCompat;
 
 /**
  * Trench cover combat gates, plus sneak speed while manually crouching in a trench
@@ -46,8 +46,15 @@ public final class TrenchCoverEvents {
     private TrenchCoverEvents() {}
 
     public static boolean isBallisticOrBlast(DamageSource source) {
-        if (ExterminationCompat.isRanged(source)) return true;
-        return source.is(DamageTypeTags.IS_EXPLOSION);
+        return isRanged(source) || source.is(DamageTypeTags.IS_EXPLOSION);
+    }
+
+    /** A projectile, or any TaCZ / SBW damage type (their gunfire is not always tagged as projectile). */
+    private static boolean isRanged(DamageSource source) {
+        if (source.is(DamageTypeTags.IS_PROJECTILE)) return true;
+        if (source.getDirectEntity() instanceof Projectile) return true;
+        String ns = source.typeHolder().unwrapKey().map(k -> k.location().getNamespace()).orElse(null);
+        return "tacz".equals(ns) || "superbwarfare".equals(ns);
     }
 
     /** Feet sit in a regular / x-cross trench. */

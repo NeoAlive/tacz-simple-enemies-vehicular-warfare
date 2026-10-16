@@ -120,17 +120,6 @@ public final class HudNotify {
         send(player, NotificationKind.GENERIC, title, body);
     }
 
-    public static void medicCaptured(AbstractUnit medic, DamageSource source) {
-        ServerPlayer notify = notifyPlayerFromSource(source);
-        if (notify == null) return;
-        Component faction = factionLabel(CrewFacts.factionOfCrew(medic));
-        BlockPos pos = medic.blockPosition();
-        send(notify, NotificationKind.MEDIC_CAPTURED,
-                Component.translatable("notification.tacz_sewv.medic_captured.title", faction),
-                Component.translatable("notification.tacz_sewv.medic_captured.body",
-                        faction, pos.getX(), pos.getY(), pos.getZ()));
-    }
-
     // --- Ammo / engage / energy -----------------------------------------------------------
 
     private static final String TAG_AMMO_OUT = "sewv:ammo_out_notified";

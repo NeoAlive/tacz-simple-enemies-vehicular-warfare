@@ -325,7 +325,6 @@ public final class VehicleDriver {
         if (repairLocked()) { stop(); return; }
         if (checkSubmergedFailsafe()) return;
         if (tickArrivalHysteresis(dest)) return;
-        dest = this.sbw != null ? com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjust(this.sbw, dest) : dest;
         // Bank-lip reverse: face the blocked destination (usually into the water) and reverse off
         // the overhang. Abort if SBW reports wet — that is the existing escape-hatch case, not
         // this recovery.

@@ -463,15 +463,6 @@ public class NetworkHandler {
                 PacketHoldRevive::handle
         );
 
-        // C->S, TDT "Capture Medic" (PmcCaptureMedicGoal / ICaptureMedic).
-        CHANNEL.registerMessage(
-                nextId(),
-                PacketCaptureMedic.class,
-                PacketCaptureMedic::encode,
-                PacketCaptureMedic::new,
-                PacketCaptureMedic::handle
-        );
-
         // C->S, TDT "Identity" category "Full Names" control (NamePreference / NpcIdentity).
         CHANNEL.registerMessage(
                 nextId(),

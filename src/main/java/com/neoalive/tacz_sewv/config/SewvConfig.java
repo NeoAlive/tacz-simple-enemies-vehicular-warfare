@@ -152,14 +152,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PMC_DOWNED_HEALTH;
     public static final ForgeConfigSpec.IntValue PMC_DOWNED_BLEED_TICKS;
     public static final ForgeConfigSpec.DoubleValue PMC_DOWNED_REVIVE_HEALTH;
-    public static final ForgeConfigSpec.BooleanValue MEDIC_CAPTURE_ENABLED;
-    public static final ForgeConfigSpec.DoubleValue MEDIC_CAPTURED_HEALTH;
-    public static final ForgeConfigSpec.IntValue MEDIC_CAPTURE_DURATION_TICKS;
     public static final ForgeConfigSpec.DoubleValue MEDIC_FLEE_DETECTION_RADIUS;
     public static final ForgeConfigSpec.DoubleValue MEDIC_FLEE_MIN_DISTANCE;
     public static final ForgeConfigSpec.DoubleValue MEDIC_FLEE_MAX_DISTANCE;
-    public static final ForgeConfigSpec.BooleanValue MEDIC_CAPTURE_DEBUG_LOGGING;
-    public static final ForgeConfigSpec.DoubleValue PMC_CAPTURE_MEDIC_RADIUS;
     public static final ForgeConfigSpec.BooleanValue HEALTH_MOBILITY_ENABLED;
     public static final ForgeConfigSpec.DoubleValue HEALTH_MOBILITY_FLOOR;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SPAWN_CHANCE;
@@ -357,18 +352,6 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_NEUTRAL_COLOR;
 
     public static final ForgeConfigSpec.IntValue[][] DOCTRINE;
-
-    // Optional Extermination support: Tripod shield, HP, and hit flare.
-    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_ENABLED;
-    public static final ForgeConfigSpec.DoubleValue TRIPOD_HP_MULTIPLIER;
-    public static final ForgeConfigSpec.DoubleValue TRIPOD_SHIELD_BREAK_DAMAGE;
-    public static final ForgeConfigSpec.IntValue TRIPOD_SHIELD_REGEN_TICKS;
-    public static final ForgeConfigSpec.IntValue TRIPOD_SHIELD_FLARE_TICKS;
-    // tripodShieldFlareDebugAlwaysOn/tripodShieldDebugWireframe moved to gamerules
-    // sewvTripodShieldFlareAlwaysOn/sewvTripodShieldWireframe.
-    public static final ForgeConfigSpec.DoubleValue TRIPOD_SHIELD_AXIS_SCALE;
-    public static final ForgeConfigSpec.DoubleValue INVASION_POD_AVOID_RADIUS;
-    public static final ForgeConfigSpec.DoubleValue HEAT_RAY_SPEED;
 
     public static final ForgeConfigSpec.BooleanValue TACZ_BALLISTIC_TRANSLATION_ENABLED;
     public static final ForgeConfigSpec.DoubleValue TACZ_BALLISTIC_GLOBAL_SCALE;
@@ -783,25 +766,12 @@ public final class SewvConfig {
                 .defineInRange("pmcDownedBleedTicks", 1200, 100, 6000);
         PMC_DOWNED_REVIVE_HEALTH = builder.comment("Health a PMC is restored to when successfully revived.")
                 .defineInRange("pmcDownedReviveHealth", 6.0, 1.0, 40.0);
-        MEDIC_CAPTURE_ENABLED = builder.comment("RU/US medics may be captured (defeated) and converted to PMC units for a cost.")
-                .define("medicCaptureEnabled", true);
-        MEDIC_CAPTURED_HEALTH = builder.comment("Health an RU/US medic is left with the moment it is captured.")
-                .defineInRange("medicCapturedHealth", 4.0, 1.0, 20.0);
-        MEDIC_CAPTURE_DURATION_TICKS = builder.comment("Ticks a captured medic has before escaping. 2400 = 2 minutes.")
-                .defineInRange("medicCaptureDurationTicks", 2400, 100, 12000);
         MEDIC_FLEE_DETECTION_RADIUS = builder.comment("How far (blocks) medics look for a nearby hostile before fleeing.")
                 .defineInRange("medicFleeDetectionRadius", 16.0, 4.0, 64.0);
         MEDIC_FLEE_MIN_DISTANCE = builder.comment("Minimum distance (blocks) a fleeing medic tries to reach from the threat.")
                 .defineInRange("medicFleeMinDistance", 8.0, 2.0, 32.0);
         MEDIC_FLEE_MAX_DISTANCE = builder.comment("Maximum distance (blocks) sampled for a fleeing medic's escape point.")
                 .defineInRange("medicFleeMaxDistance", 16.0, 4.0, 64.0);
-        MEDIC_CAPTURE_DEBUG_LOGGING = builder.comment(
-                        "Log medic capture trigger/expiry and PMC chase-medic dispatch to console. Off by default.")
-                .define("medicCaptureDebugLogging", false);
-        PMC_CAPTURE_MEDIC_RADIUS = builder.comment(
-                        "How far (blocks) a PMC ordered to Capture Medic looks for a medic — captured",
-                        "or still running — to subdue and convert.")
-                .defineInRange("pmcCaptureMedicRadius", 48.0, 8.0, 128.0);
         HEALTH_MOBILITY_ENABLED = builder.comment("Damaged AI vehicles move more slowly.")
                 .define("healthMobilityEnabled", true);
         HEALTH_MOBILITY_FLOOR = builder.comment("Slowest a wrecked hull still moves (0.4 = 40% of normal speed).")
@@ -1462,40 +1432,6 @@ public final class SewvConfig {
             }
             builder.pop();
         }
-        builder.pop();
-
-        builder.push("extermination");
-        TRIPOD_SHIELD_ENABLED = builder.comment(
-                        "If the Extermination mod is installed: pods get a shield against bullets and shells.",
-                        "Melee still hurts them. Shield breaks after soaking tripodShieldBreakDamage.",
-                        "Does nothing if Extermination is not installed.")
-                .define("tripodShieldEnabled", true);
-        TRIPOD_HP_MULTIPLIER = builder.comment(
-                        "Multiply Tripod max health when it spawns (2.0 = double health).")
-                .defineInRange("tripodHpMultiplier", 2.0, 1.0, 10.0);
-        TRIPOD_SHIELD_BREAK_DAMAGE = builder.comment(
-                        "Total ranged damage the shield can soak before it breaks.",
-                        "While the shield is up those hits do no HP damage; after it breaks, guns work normally.")
-                .defineInRange("tripodShieldBreakDamage", 400.0, 1.0, 100000.0);
-        TRIPOD_SHIELD_REGEN_TICKS = builder.comment(
-                        "Wait after the shield breaks before it comes back, in game ticks (20 = 1 second).",
-                        "0 = shield stays down for the rest of the fight.")
-                .defineInRange("tripodShieldRegenTicks", 600, 0, 72000);
-        TRIPOD_SHIELD_FLARE_TICKS = builder.comment(
-                        "How long the hit-spark effect lasts after a blocked shot, in game ticks (~8 ≈ 0.4 s).")
-                .defineInRange("tripodShieldFlareTicks", 8, 1, 100);
-        // tripodShieldFlareDebugAlwaysOn/tripodShieldDebugWireframe moved to gamerules
-        // sewvTripodShieldFlareAlwaysOn/sewvTripodShieldWireframe.
-        TRIPOD_SHIELD_AXIS_SCALE = builder.comment(
-                        "Size of the shield bubble for sparks/debug outline (1.0 = matches the hitbox).")
-                .defineInRange("tripodShieldAxisScale", 1.0, 0.25, 4.0);
-        INVASION_POD_AVOID_RADIUS = builder.comment(
-                        "With gamerule sewvInvasionOverrides on: AI vehicles stay this many blocks away",
-                        "from Extermination combat pods.")
-                .defineInRange("invasionPodAvoidRadius", 48.0, 8.0, 128.0);
-        HEAT_RAY_SPEED = builder.comment(
-                        "Speed of Extermination heat-ray shots. The original mod uses 3.5; default 10.5 is triple that.")
-                .defineInRange("heatRaySpeed", 10.5, 3.5, 40.0);
         builder.pop();
 
         builder.push("tacz_ballistics");

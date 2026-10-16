@@ -2,9 +2,7 @@ package com.neoalive.tacz_sewv.init;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.GameRules;
-import net.minecraftforge.fml.ModList;
 import net.minecraftforge.server.ServerLifecycleHooks;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Per-world boolean gates formerly in {@code SewvConfig} spawn_gates / tanksInEvents.
@@ -38,13 +36,6 @@ public final class ModGameRules {
     public static final GameRules.Key<GameRules.BooleanValue> CAN_MOBS_DAMAGE_VEHICLES =
             GameRules.register("canMobsDamageVehicles", GameRules.Category.MOBS, GameRules.BooleanValue.create(true));
 
-    /**
-     * Extermination softcompat only — registered in {@link #bootstrap()} when that mod is loaded.
-     * Gates vehicle keep-out of pods, emperor/uber body-glow suppress, and related invasion tweaks.
-     */
-    @Nullable
-    public static GameRules.Key<GameRules.BooleanValue> INVASION_OVERRIDES;
-
     private ModGameRules() {}
 
     /**
@@ -60,11 +51,5 @@ public final class ModGameRules {
 
     /** Force class init so {@link GameRules#register} runs before any world loads. */
     public static void bootstrap() {
-        if (INVASION_OVERRIDES == null && ModList.get().isLoaded("extermination")) {
-            INVASION_OVERRIDES = GameRules.register(
-                    "sewvInvasionOverrides",
-                    GameRules.Category.MOBS,
-                    GameRules.BooleanValue.create(true));
-        }
     }
 }

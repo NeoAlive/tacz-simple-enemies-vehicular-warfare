@@ -39,12 +39,13 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_FOLLOW = "quick_follow";
     public static final String ID_QUICK_DISMOUNT = "quick_dismount";
     public static final String ID_QUICK_HOLD = "quick_hold";
+    public static final String ID_QUICK_CEASE_FIRE = "quick_cease_fire";
+    public static final String ID_QUICK_FREE_FIRE = "quick_free_fire";
     public static final String ID_QUICK_ATTACK = "quick_attack";
     public static final String ID_QUICK_MOVE = "quick_move";
     public static final String ID_PLATOON_JOIN = "platoon_join";
     public static final String ID_PLATOON_EXIT = "platoon_exit";
     public static final String ID_PLATOON_AUTO_ORDERS = "platoon_auto_orders";
-    public static final String ID_QUICK_CAPTURE_MEDIC = "quick_capture_medic";
     public static final String ID_QUICK_ROUTE_FOB = "quick_route_fob";
     public static final String ID_REVIVE_CALL = "revive_call";
     public static final String ID_FORM_WEDGE = "form_wedge";
@@ -86,9 +87,12 @@ public final class QuickCommandRegistry {
                 "message.tacz_sewv.quick_follow.started"));
         register(ID_QUICK_HOLD, new QuickSemOrderPipeline(OrderType.HOLD_POSITION,
                 "message.tacz_sewv.quick_hold.started"));
+        register(ID_QUICK_CEASE_FIRE, new QuickSemOrderPipeline(OrderType.CEASE_FIRE,
+                "message.tacz_sewv.quick_cease_fire.started"));
+        register(ID_QUICK_FREE_FIRE, new QuickSemOrderPipeline(OrderType.FREE_FIRE,
+                "message.tacz_sewv.quick_free_fire.started"));
         register(ID_QUICK_DISMOUNT, new QuickDismountPipeline());
         register(ID_QUICK_ATTACK, (issuer, ctx) -> {}); // client-armed; server no-op
-        register(ID_QUICK_CAPTURE_MEDIC, new QuickCaptureMedicPipeline());
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());
         register(ID_REVIVE_CALL, new QuickReviveCallPipeline());
         // Formation leaves are client-committed via PacketVehicleFormation (not PacketQuickCommand).
@@ -101,6 +105,8 @@ public final class QuickCommandRegistry {
         general.add(leaf("Quick Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A));
         general.add(leaf("Move To", "\u27A4", ID_QUICK_MOVE, 0xE8B84A));
         general.add(leaf("Attack That", "\u2694", ID_QUICK_ATTACK, 0xE8B84A));
+        general.add(leaf("Cease Fire", "\u2298", ID_QUICK_CEASE_FIRE, 0xE8B84A));
+        general.add(leaf("Free Fire", "\u26A1", ID_QUICK_FREE_FIRE, 0xE8B84A));
         if (PlayerReviveCompat.isLoaded()) {
             general.add(leaf("Revive Call", "\u271A", ID_REVIVE_CALL, 0xE8B84A));
         }
@@ -110,7 +116,6 @@ public final class QuickCommandRegistry {
                 new WedgeEntry.CategoryEntry("Land", "\u26F0", 0x6BA84A, List.of(
                         leaf("Quick Entrench", "\u26F0", ID_QUICK_ENTRENCH, 0x6BA84A),
                         leaf("Quick Refill", "\u21BB", ID_QUICK_REFILL, 0x6BA84A),
-                        leaf("Capture Medic", "\u271A", ID_QUICK_CAPTURE_MEDIC, 0x6BA84A),
                         leaf("Route to FOB", "\u2302", ID_QUICK_ROUTE_FOB, 0x6BA84A))),
                 new WedgeEntry.CategoryEntry("Air", "\u2708", 0x4AB8E8, List.of(
                         leaf("Quick Takeoff", "\u2191", ID_QUICK_TAKEOFF, 0x4AB8E8),

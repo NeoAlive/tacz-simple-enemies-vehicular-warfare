@@ -726,7 +726,7 @@ dependencies {
     // CreativeMD's own Forge 1.20.1 release jar, same flatDir pattern as the other libs/*.jar deps.
     // No mixin needed — PlayerReviveServer.revive/isBleeding are plain static methods taking only
     // vanilla Player, called directly from PlayerReviveCompat.
-    // Same "off by default, opt in for local testing" shape as Extermination/Configured below: the
+    // Same "off by default, opt in for local testing" shape as Configured below: the
     // jar is off the run classpath unless requested, so PlayerReviveCompat.isLoaded() is false and
     // PlayerReviveGoal is never added by default. PlayerReviveMod itself hard-requires CreativeCore
     // (libs/creativecore.jar) to load at all, so that comes along under the same flag rather than
@@ -768,7 +768,7 @@ dependencies {
     // TreeType/TreeEntity) is Architectury-free, so this compileOnly alone is enough to build —
     // see EnhancedFallingTreesCompat's class javadoc.
     compileOnly fg.deobf("blank:efallingtrees:1.0")
-    // Same "off by default, opt in for local testing" shape as Extermination/Configured below:
+    // Same "off by default, opt in for local testing" shape as Configured below:
     // EFT itself mandates Architectury API + Cloth Config (its own mods.toml), so both are pulled
     // in here too, under the same flag, rather than being separate toggles nobody would remember
     // to pair up correctly. Fetched from Modrinth (the real published, player-facing jars).
@@ -791,13 +791,6 @@ dependencies {
         runtimeOnly fg.deobf("blank:efallingtrees:1.0")
         runtimeOnly "maven.modrinth:architectury-api:9.2.14+forge"
         runtimeOnly "maven.modrinth:cloth-config:11.1.136+forge"
-    }
-    // Soft: Extermination Tripod shield compat. No compileOnly — we never reference
-    // Extermination types (registry-id only). Softcompat code stays; the jar is off the
-    // run classpath by default ("good enough" for now). Opt back in with:
-    //   ./gradlew runClient -PwithExtermination
-    if (project.hasProperty('withExtermination')) {
-        runtimeOnly fg.deobf("blank:extermination:1.0")
     }
     // Soft: Configured (in-game ForgeConfigSpec GUI). No compileOnly / no Java references —
     // declaration-only; Configured reads ConfigTracker for SERVER SewvConfig. Jar off the run

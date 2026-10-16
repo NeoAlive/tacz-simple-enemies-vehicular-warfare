@@ -66,7 +66,7 @@ public final class ConfigLayout {
                 "vehicleAllyAssist");
         rule("crew_ai", "grenades", "grenade");
         rule("crew_ai", "infantry_weapons", "atWeapon", "atAir", "atSecond", "atBackup", "atEngage", "sbw");
-        rule("crew_ai", "medics", "medic", "pmcRevive", "pmcDowned", "pmcCapture", "healthMobility");
+        rule("crew_ai", "medics", "medic", "pmcRevive", "pmcDowned", "healthMobility");
         rule("crew_ai", "support", "engineer", "commanderSidearm", "drone", "combatEngineer", "supportDedupe",
                 "supportCall", "factionOrganicComms");
         rule("crew_ai", "boarding", "autoBoard", "tow", "autoManMortar", "autoEntrench");
@@ -95,7 +95,6 @@ public final class ConfigLayout {
         rule("compat", "ballistics", "tacZBallistic");
         rule("compat", "trees", "vehicleTree");
         rule("compat", "minecolonies", "minecolonies");
-        rule("compat", "extermination", "tripod", "invasionPod", "heatRay");
         rule("compat", "rendering", "komodo");
     }
 

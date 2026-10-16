@@ -30,8 +30,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
  * it.
  *
  * <p>Steering goes through {@link HullInput} only. {@code sbw} is the same hull when it is an SBW
- * one and gates the collaborators that exist only there (extermination-pod avoidance, beached-hull
- * tow recovery).
+ * one and gates the collaborators that exist only there (beached-hull tow recovery).
  */
 public final class ShipHelm {
 
@@ -124,9 +123,6 @@ public final class ShipHelm {
     }
 
     public void navigateTo(BlockPos dest) {
-        if (this.sbw != null) {
-            dest = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjust(this.sbw, dest);
-        }
         if (this.reverseTicks > 0) {
             backAndFill(dest);
             return;

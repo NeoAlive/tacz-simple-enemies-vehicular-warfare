@@ -18,7 +18,7 @@ import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
  * Registers SEWV sticky faction paint on Coltan's {@code ColtanVehicleSkins} resolver.
  *
  * <p>Reached only after {@link ColtanCompat#bridgeActive()} is true. Uses reflection so this class does
- * not hard-link Coltan types (same soft-dep discipline as Extermination — Coltan may be absent on
+ * not hard-link Coltan types (Coltan may be absent on
  * the compile classpath of a clean CI checkout that has not copied {@code libs/coltan.jar}).
  *
  * <p>Coltan's {@code skipVanillaRender(true)} bypasses {@code GeoVehicleRenderer}, so

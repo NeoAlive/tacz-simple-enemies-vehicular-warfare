@@ -185,14 +185,6 @@ config="tacz_sewv.minecolonies.mixins.json"
     ordering="NONE"
     side="BOTH"
 
-# Soft compat: Tripod shield (ranged block + HP + cosmetic flare). Optional — absent installs skip all ExterminationCompat paths.
-[[dependencies.tacz_sewv]]
-    modId="extermination"
-    mandatory=false
-    versionRange="[0,)"
-    ordering="NONE"
-    side="BOTH"
-
 # Soft compat: Enhanced Falling Trees. Ground vehicles fell whole trees they drive into instead
 # of routing around every trunk. Optional — absent installs skip all EnhancedFallingTreesCompat
 # paths and trees stay ordinary hard obstacles.

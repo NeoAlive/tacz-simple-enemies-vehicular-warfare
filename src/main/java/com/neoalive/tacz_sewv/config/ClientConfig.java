@@ -47,8 +47,6 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue MORTAR_DEBUG_LOGGING;
     public static final ForgeConfigSpec.BooleanValue BALLISTIC_TRANSLATION_DEBUG;
     public static final ForgeConfigSpec.BooleanValue ORDER_FAILURE_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_FLARE_ALWAYS_ON;
-    public static final ForgeConfigSpec.BooleanValue TRIPOD_SHIELD_WIREFRAME;
     public static final ForgeConfigSpec.BooleanValue SHOW_SPAWN_PROBES;
     public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_TACTICS_DEBUG;
     public static final ForgeConfigSpec.BooleanValue COLLECTIVE_AI_DEBUG;
@@ -154,10 +152,6 @@ public final class ClientConfig {
                 .define("ballisticTranslationDebug", false);
         ORDER_FAILURE_DEBUG = builder.comment("Log refused orders (default on — silent until something fails).")
                 .define("orderFailureDebug", true);
-        TRIPOD_SHIELD_FLARE_ALWAYS_ON = builder.comment("Extermination: keep pod-shield flare sparks always on.")
-                .define("tripodShieldFlareAlwaysOn", false);
-        TRIPOD_SHIELD_WIREFRAME = builder.comment("Extermination: draw pod-shield debug wireframe.")
-                .define("tripodShieldWireframe", false);
         SHOW_SPAWN_PROBES = builder.comment("Render spawn_probe blocks with the barrier placeholder texture.")
                 .define("showSpawnProbes", false);
         INDIVIDUAL_TACTICS_DEBUG = builder.comment("Log cover-cache bake and per-crew posture.")

@@ -11,7 +11,6 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingDropsEvent;
@@ -26,7 +25,6 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.bridge.IMedicCaptured;
 import com.neoalive.tacz_sewv.bridge.ISemCorpse;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.UnitCorpseAppearance;
@@ -78,7 +76,6 @@ public final class CorpseCompat {
         if (event.isCanceled()) return;
         if (!(event.getEntity() instanceof AbstractUnit unit)) return;
         if (unit.level().isClientSide) return;
-        if (shouldSkipNotTrulyDead(unit)) return;
         if (!(unit instanceof PmcUnitEntity) || !SewvConfig.UNIT_CORPSE_PMC.get()) return;
 
         UnitCorpseLoot.PmcSnapshot snap = UnitCorpseLoot.snapshotPmc(unit);
@@ -92,7 +89,6 @@ public final class CorpseCompat {
         if (!isLoaded() || !SewvConfig.UNIT_CORPSE_COMPAT.get()) return;
         if (!(event.getEntity() instanceof AbstractUnit unit)) return;
         if (unit.level().isClientSide) return;
-        if (shouldSkipNotTrulyDead(unit)) return;
         if (!factionEnabled(unit)) {
             PMC_SNAPSHOTS.remove(unit.getId());
             return;
@@ -115,12 +111,6 @@ public final class CorpseCompat {
                 UnitCorpseLoot.clearPmcHandler(unit);
             }
         }
-    }
-
-    private static boolean shouldSkipNotTrulyDead(LivingEntity unit) {
-        // Medic capture cancels LivingDeathEvent; this is a belt-and-suspenders guard.
-        // Do NOT gate on IPmcDowned — bleed-out death keeps isDowned=true and must still spawn.
-        return unit instanceof IMedicCaptured captured && captured.sewv$isCaptured();
     }
 
     /**

@@ -1251,11 +1251,6 @@ public class DrivePlaneGoal extends Goal {
 
     /** As above, with a descent allowed steeper than the cruise bound — see the ingress dive. */
     private void flyToward(double destX, double destZ, double desiredY, float maxNoseDownDeg) {
-        Vec3 avoid = com.neoalive.tacz_sewv.compat.ExterminationPodAvoidance.adjustHorizontal(
-                this.vehicle, destX, destZ);
-        destX = avoid.x;
-        destZ = avoid.z;
-
         this.control.throttleUp();
 
         double dx = destX - this.vehicle.getX();

@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.entity.ai.command;
 
 import java.util.Arrays;
 
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationFrame;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 
@@ -19,8 +20,6 @@ public final class PlayGeometry {
     static final double BOF_STEP = 8.0;
     static final double WITHDRAW_STEP = 24.0;
     static final double ADVANCE_STEP = 20.0;
-    /** Spacing of support tanks laid on a firing line across the axis. */
-    static final double LINE_SPACING = 16.0;
 
     private PlayGeometry() {}
 
@@ -29,8 +28,8 @@ public final class PlayGeometry {
         int n = group.size();
         Integer[] idx = new Integer[n];
         for (int i = 0; i < n; i++) idx[i] = i;
-        double leftX = -bf.axisZ;
-        double leftZ = bf.axisX;
+        double leftX = FormationFrame.battleLeftX(bf.axisX, bf.axisZ);
+        double leftZ = FormationFrame.battleLeftZ(bf.axisX, bf.axisZ);
         double ox = bf.friendlyCentroidX;
         double oz = bf.friendlyCentroidZ;
         Arrays.sort(idx, (a, b) -> {

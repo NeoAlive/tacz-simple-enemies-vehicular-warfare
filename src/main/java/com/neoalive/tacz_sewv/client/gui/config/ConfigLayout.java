@@ -73,7 +73,7 @@ public final class ConfigLayout {
         rule("crew_ai", "awareness", "vehicleTarget", "contactBoard", "wideScan", "combatantIndex",
                 "awarenessCues", "individualTactics", "utilityRefresh");
         rule("crew_ai", "movement", "path", "sensor", "tree", "cover", "groundFarLod", "vehicleTerrain",
-                "vehicleFormation", "patrol");
+                "patrol");
         rule("crew_ai", "idle", "idle");
         rule("crew_ai", "crew", "vehicleSkin", "camo", "ifv", "semCrew", "tankRider");
 

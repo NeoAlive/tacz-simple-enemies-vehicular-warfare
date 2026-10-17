@@ -2,6 +2,8 @@ package com.neoalive.tacz_sewv.entity.ai.command;
 
 import java.util.List;
 
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationFrame;
+
 /**
  * Coarse allocentric influence grid for one battle group.
  *
@@ -338,8 +340,8 @@ public final class InfluenceMap {
         double az = out.axisZ;
         if (ax * ax + az * az < 1.0e-12) return;
 
-        double leftX = -az;
-        double leftZ = ax;
+        double leftX = FormationFrame.battleLeftX(ax, az);
+        double leftZ = FormationFrame.battleLeftZ(ax, az);
         out.openFlankLeft = true;
         out.openFlankRight = true;
         if (out.pocketCount == 1) return;

@@ -237,7 +237,7 @@ public final class VehicleTargeting {
      * How close the hull must be to its resolved destination to count as arrived.
      *
      * <p>A formation slot needs a tight arrival that nothing else does. Slots sit
-     * vehicleFormationSpacing apart, while the generic answer is a hull width plus
+     * {@code FormationComposition.SPACING_VEHICLE} apart, while the generic answer is a hull width plus
      * {@link #STOP_DISTANCE} — for a 4.62-wide T-90A that is 11.62 blocks, wider than the whole
      * formation, so every hull would read "arrived" from anywhere in it and the wedge would
      * collapse onto the point man. A player MOVE click uses a tighter stop so the hull actually

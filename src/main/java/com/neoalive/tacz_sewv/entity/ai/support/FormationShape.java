@@ -29,6 +29,15 @@ public enum FormationShape {
         return id >= 0 && id < shapes.length ? shapes[id] : WEDGE;
     }
 
+    /** The same shape reflected across the heading: the echelons swap, everything else is symmetric. */
+    public FormationShape mirror() {
+        return switch (this) {
+            case ECHELON_LEFT -> ECHELON_RIGHT;
+            case ECHELON_RIGHT -> ECHELON_LEFT;
+            default -> this;
+        };
+    }
+
     /**
      * The SEM order a formation of this shape rides. It only has to land the unit in SEM's FORM set
      * (so the follow-while-fighting leash and our resolveDestination both recognise it); the shape

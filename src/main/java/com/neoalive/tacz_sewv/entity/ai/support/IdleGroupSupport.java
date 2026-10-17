@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 
@@ -123,7 +124,6 @@ public final class IdleGroupSupport {
         TRAVEL_INVALIDATE_SCANS.reset();
     }
 
-    private static final int MAX_SLOT_RISE = 16;
     private static final double STUCK_MOVE_EPS = 1.5;
 
     /** One vehicle's view of its idle group for a Facts refresh window. */
@@ -869,8 +869,7 @@ public final class IdleGroupSupport {
 
     static double groundY(Level level, double x, double z, double anchorY) {
         GROUND_Y_PROBES.increment();
-        int probed = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(x), Mth.floor(z));
-        return Math.abs(probed - anchorY) > MAX_SLOT_RISE ? anchorY : probed;
+        return GroundSnap.groundY(level, x, z, anchorY);
     }
 
     /** Heightmap probe cached on the hull until destination XZ cell changes. */

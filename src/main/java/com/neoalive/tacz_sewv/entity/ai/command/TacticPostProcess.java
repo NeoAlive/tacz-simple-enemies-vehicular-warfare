@@ -1,18 +1,17 @@
 package com.neoalive.tacz_sewv.entity.ai.command;
 
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.DoubleBinaryOperator;
 
 import javax.annotation.Nullable;
 
+
 /**
  * Group tactics applied to a play's roles after selection, in {@code CommandCoordinator} order: leapfrog,
- * firing line, commander back, cover points. Pure — positions and the exposure lookup are passed in — so each is
+ * formation slots ({@link PlayFormations}), commander back, cover points. Pure — positions and the exposure lookup are passed in — so each is
  * headless-testable. Roles in, roles out; unchanged input comes back as the same instance.
  */
 final class TacticPostProcess {
@@ -22,6 +21,8 @@ final class TacticPostProcess {
     static final double COVER_FAR = 16.0;
     /** A candidate must beat the original point's exposure by this much to move it. */
     private static final double COVER_MIN_GAIN = 0.05;
+    /** Distinct points cover-searched per group pass. */
+    static final int MAX_COVER_SEARCHES = 16;
 
     private static final Set<Assignment.Role> HOLDING =
             EnumSet.of(Assignment.Role.BASE_OF_FIRE, Assignment.Role.OVERWATCH, Assignment.Role.HOLD);
@@ -66,46 +67,8 @@ final class TacticPostProcess {
     }
 
     /**
-     * Firing line: base-of-fire and overwatch members that share one point are spread across the axis through
-     * it, {@code spacing} apart, in lateral order — instead of all converging on the same spot.
-     */
-    static Roles firingLine(BattleField bf, Roles roles, GroupSnapshot g, double spacing) {
-        if (roles == null) return null;
-        Assignment[] out = roles.assignments.clone();
-        boolean changed = false;
-        for (Assignment.Role role : new Assignment.Role[] {Assignment.Role.BASE_OF_FIRE, Assignment.Role.OVERWATCH}) {
-            List<Integer> idx = new ArrayList<>();
-            for (int k = 0; k < out.length; k++) {
-                if (out[k].role == role && Double.isFinite(out[k].destX) && indexOf(g, out[k].unitId) >= 0) {
-                    idx.add(k);
-                }
-            }
-            if (idx.size() < 2) continue;
-            double leftX = -bf.axisZ;
-            double leftZ = bf.axisX;
-            idx.sort((p, q) -> {
-                int ip = indexOf(g, out[p].unitId);
-                int iq = indexOf(g, out[q].unitId);
-                int c = Double.compare(g.x[ip] * leftX + g.z[ip] * leftZ, g.x[iq] * leftX + g.z[iq] * leftZ);
-                return c != 0 ? c : Integer.compare(out[p].unitId, out[q].unitId);
-            });
-            double cx = out[idx.get(0)].destX;
-            double cz = out[idx.get(0)].destZ;
-            int n = idx.size();
-            for (int s = 0; s < n; s++) {
-                Assignment a = out[idx.get(s)];
-                double offset = (s - (n - 1) / 2.0) * spacing;
-                out[idx.get(s)] = new Assignment(a.unitId, a.role, a.priorityTargetId, a.flankSide,
-                        cx + leftX * offset, cz + leftZ * offset);
-            }
-            changed = true;
-        }
-        return changed ? new Roles(out) : roles;
-    }
-
-    /**
-     * Commander back: an elected commander never leads a flank, a bound or a withdrawal — it swaps role, side and
-     * destination with the nearest member holding a base-of-fire / overwatch / hold role.
+     * Commander back: an elected commander never leads a flank, a bound or a withdrawal — it swaps its whole task
+     * (role, side, slot, facing) with the nearest member holding a base-of-fire / overwatch / hold role.
      */
     static Roles commanderBack(Roles roles, GroupSnapshot g, int commanderId) {
         if (roles == null) return null;
@@ -133,8 +96,8 @@ final class TacticPostProcess {
         if (best < 0) return roles;
         Assignment other = roles.assignments[best];
         Assignment[] out = roles.assignments.clone();
-        out[c] = new Assignment(cmd.unitId, other.role, cmd.priorityTargetId, other.flankSide, other.destX, other.destZ);
-        out[best] = new Assignment(other.unitId, cmd.role, other.priorityTargetId, cmd.flankSide, cmd.destX, cmd.destZ);
+        out[c] = cmd.withTaskOf(other);
+        out[best] = other.withTaskOf(cmd);
         return new Roles(out);
     }
 
@@ -144,24 +107,60 @@ final class TacticPostProcess {
      * Each distinct point is searched once, so members sharing a point stay together.
      */
     static Roles coverPoints(Roles roles, double near, double far, DoubleBinaryOperator exposure) {
+        return coverPoints(roles, near, far, 0.0, exposure);
+    }
+
+    /**
+     * As above, for formation slots: a candidate closer than {@code minSeparation} to any other member's current
+     * point — settled or not yet searched — is refused, so a slot can neither fold onto a neighbour's slot nor
+     * onto the cover a neighbour already took. (Checking only the members already searched let the first slot
+     * of a line snap onto cover beside the second, which then stayed put four blocks away.) Members keep their
+     * own point whenever no candidate qualifies, so slots laid {@code minSeparation} apart stay that far apart.
+     * At most {@link #MAX_COVER_SEARCHES} searches run per pass (each is 17 exposure reads); the rest keep their
+     * point. With {@code minSeparation <= 0} each distinct point is searched once and members sharing it move
+     * together.
+     */
+    static Roles coverPoints(Roles roles, double near, double far, double minSeparation,
+                             DoubleBinaryOperator exposure) {
         if (roles == null) return null;
-        Map<Long, double[]> snapped = new HashMap<>();
         Assignment[] out = roles.assignments.clone();
+        double[][] at = new double[out.length][];
+        for (int k = 0; k < out.length; k++) {
+            if (snaps(out[k])) at[k] = new double[] {out[k].destX, out[k].destZ};
+        }
+        boolean spread = minSeparation > 0.0;
+        Map<Long, double[]> shared = new HashMap<>();
+        int searches = 0;
         boolean changed = false;
         for (int k = 0; k < out.length; k++) {
+            if (at[k] == null) continue;
             Assignment a = out[k];
-            if (!(HOLDING.contains(a.role) || a.role == Assignment.Role.WITHDRAW) || !Double.isFinite(a.destX)) continue;
+            double[] p;
             long key = Double.doubleToLongBits(a.destX) * 31 + Double.doubleToLongBits(a.destZ);
-            double[] p = snapped.computeIfAbsent(key, x -> bestCover(a.destX, a.destZ, near, far, exposure));
+            if (!spread && shared.containsKey(key)) {
+                p = shared.get(key);
+            } else if (searches < MAX_COVER_SEARCHES) {
+                searches++;
+                p = bestCover(a.destX, a.destZ, near, far, spread ? minSeparation : 0.0, at, k, exposure);
+                shared.put(key, p);
+            } else {
+                p = at[k];
+            }
+            at[k] = p;
             if (p[0] != a.destX || p[1] != a.destZ) {
-                out[k] = new Assignment(a.unitId, a.role, a.priorityTargetId, a.flankSide, p[0], p[1]);
+                out[k] = a.withDest(p[0], p[1]);
                 changed = true;
             }
         }
         return changed ? new Roles(out) : roles;
     }
 
-    private static double[] bestCover(double x, double z, double near, double far, DoubleBinaryOperator exposure) {
+    private static boolean snaps(Assignment a) {
+        return (HOLDING.contains(a.role) || a.role == Assignment.Role.WITHDRAW) && Double.isFinite(a.destX);
+    }
+
+    private static double[] bestCover(double x, double z, double near, double far, double minSeparation,
+                                      double[][] at, int self, DoubleBinaryOperator exposure) {
         double bestX = x;
         double bestZ = z;
         double best = exposure.applyAsDouble(x, z) - COVER_MIN_GAIN;
@@ -170,6 +169,7 @@ final class TacticPostProcess {
                 double ang = b * Math.PI / 4.0;
                 double px = x + Math.cos(ang) * r;
                 double pz = z + Math.sin(ang) * r;
+                if (crowds(px, pz, minSeparation, at, self)) continue;
                 double e = exposure.applyAsDouble(px, pz);
                 if (e < best) {
                     best = e;
@@ -179,6 +179,19 @@ final class TacticPostProcess {
             }
         }
         return new double[] {bestX, bestZ};
+    }
+
+    /** True when {@code (x, z)} is within {@code minSeparation} of any other member's current point. */
+    private static boolean crowds(double x, double z, double minSeparation, double[][] at, int self) {
+        if (minSeparation <= 0.0) return false;
+        double minSq = minSeparation * minSeparation;
+        for (int j = 0; j < at.length; j++) {
+            if (j == self || at[j] == null) continue;
+            double dx = at[j][0] - x;
+            double dz = at[j][1] - z;
+            if (dx * dx + dz * dz < minSq) return true;
+        }
+        return false;
     }
 
     @Nullable

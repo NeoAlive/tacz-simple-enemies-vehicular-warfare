@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.map;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationFrame;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
 
 /**
@@ -32,16 +33,13 @@ public record BattleFieldMarker(
     /** World-block offset of an open-flank mark from the enemy centroid along the axis perpendicular. */
     public static final double FLANK_MARK_OFFSET = 28.0;
 
-    /**
-     * Axis-relative left unit in XZ: rotate enemy→us 90° CCW. Same convention as
-     * {@code InfluenceMap.scoreFlanks}.
-     */
+    /** Axis-relative left unit in XZ — {@link FormationFrame#battleLeftX}, the one shared definition. */
     public static double leftX(double axisX, double axisZ) {
-        return -axisZ;
+        return FormationFrame.battleLeftX(axisX, axisZ);
     }
 
     public static double leftZ(double axisX, double axisZ) {
-        return axisX;
+        return FormationFrame.battleLeftZ(axisX, axisZ);
     }
 
     /**

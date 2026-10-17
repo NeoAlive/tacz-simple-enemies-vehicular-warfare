@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -29,6 +30,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.cover.CoverQuery;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates;
 import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
@@ -420,6 +422,14 @@ public final class CommandCoordinator {
         if (playChanged) {
             SewvDiag.command("play group={} {} play={}",
                     group.groupId(), result.reason(), result.play().key);
+            if (roles != null) {
+                for (Assignment a : roles.assignments) {
+                    SewvDiag.command("formation group={} unit={} role={} side={} slot={} point={},{} facing={},{}",
+                            group.groupId(), a.unitId, a.role, a.flankSide, a.slot,
+                            String.format(Locale.ROOT, "%.0f", a.destX), String.format(Locale.ROOT, "%.0f", a.destZ),
+                            String.format(Locale.ROOT, "%.2f", a.facingX), String.format(Locale.ROOT, "%.2f", a.facingZ));
+                }
+            }
             group.commitPlay(result.play(), roles, nowTick);
         } else {
             // Keep start tick; refresh roles for moving geometry.
@@ -430,7 +440,8 @@ public final class CommandCoordinator {
 
     /**
      * Group tactics on top of the selected roles, in order: leapfrog (same play only — it reads the previous pass's
-     * committed roles), firing line, commander back, cover points. See {@link TacticPostProcess}.
+     * committed roles), formation slots, commander back, cover points. See {@link TacticPostProcess} and
+     * {@link PlayFormations}.
      */
     private static Roles applyTactics(ServerLevel level, BattleGroup group, GroupSnapshot snap,
                                       PlaySelection.Result result) {
@@ -447,7 +458,8 @@ public final class CommandCoordinator {
             }
             roles = swapped;
         }
-        roles = TacticPostProcess.firingLine(bf, roles, snap, TacticalScale.of(PlayGeometry.LINE_SPACING));
+        FormationTemplates templates = FormationTemplates.active();
+        roles = PlayFormations.lay(result.play(), bf, roles, group.currentRoles(), snap, templates, TacticalScale.get());
         if (group.hasCommander()) {
             Roles back = TacticPostProcess.commanderBack(roles, snap, group.commanderId());
             if (back != roles) {
@@ -458,8 +470,10 @@ public final class CommandCoordinator {
         }
         double ex = bf.enemyCentroidX;
         double ez = bf.enemyCentroidZ;
+        // Half the tightest spacing: cover may bend a formation, never fold two slots onto one spot.
         return TacticPostProcess.coverPoints(roles,
                 TacticalScale.of(TacticPostProcess.COVER_NEAR), TacticalScale.of(TacticPostProcess.COVER_FAR),
+                TacticalScale.of(templates.minSpacing()) * 0.5,
                 (x, z) -> CoverQuery.exposure(level, x, z, ex, ez));
     }
 
@@ -474,7 +488,7 @@ public final class CommandCoordinator {
         Assignment[] out = new Assignment[roles.assignments.length];
         for (int i = 0; i < roles.assignments.length; i++) {
             Assignment a = roles.assignments[i];
-            out[i] = new Assignment(a.unitId, a.role, focus, a.flankSide, a.destX, a.destZ);
+            out[i] = a.withPriorityTarget(focus);
         }
         return new Roles(out);
     }

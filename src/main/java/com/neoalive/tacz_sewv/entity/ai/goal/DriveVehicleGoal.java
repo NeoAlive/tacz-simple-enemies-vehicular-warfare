@@ -562,7 +562,7 @@ public class DriveVehicleGoal extends Goal {
                     distanceSq);
 
             case HOLD -> {
-                this.driver.stop();
+                holdTaskedStation();
                 this.driver.clearRecovery(); // holding on purpose — not stuck
             }
 
@@ -589,6 +589,20 @@ public class DriveVehicleGoal extends Goal {
             // Hold the standoff band for the target's type: close when beyond it, open when
             // inside it, sit still on it and let the turret work.
             case ATTACK -> maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+        }
+    }
+
+    /**
+     * HOLD on a play role's slot squares up to the role's facing — a firing line that parked at random angles
+     * would show the enemy flanks and rears. Without a published facing it is the plain stop it always was.
+     * {@code holdStation} is an input every tick (it stops once aligned), so this branch never goes silent.
+     */
+    private void holdTaskedStation() {
+        CrewAssignment.Snapshot assign = CrewAssignment.of(this.unit.getId());
+        if (assign != null && assign.hasFacing() && TaskedDestination.pointFor(assign, Action.HOLD) != null) {
+            this.driver.holdStation(new Vec3(assign.facingX(), 0.0, assign.facingZ()));
+        } else {
+            this.driver.stop();
         }
     }
 

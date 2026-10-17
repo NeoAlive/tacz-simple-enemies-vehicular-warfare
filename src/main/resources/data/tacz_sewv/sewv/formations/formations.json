@@ -1,0 +1,13 @@
+{
+  "base_of_fire": { "shape": "line", "spacing": 16, "rowSize": 0, "placement": "centred", "facing": "axis" },
+  "overwatch": { "shape": "line", "spacing": 16, "rowSize": 0, "placement": "centred", "facing": "axis" },
+  "hold": { "shape": "line", "spacing": 16, "rowSize": 0, "placement": "centred", "facing": "axis" },
+  "reserve": { "shape": "line", "spacing": 16, "rowSize": 0, "placement": "centred", "facing": "axis" },
+  "withdraw": { "shape": "line", "spacing": 16, "rowSize": 0, "placement": "centred", "facing": "axis" },
+
+  "maneuver": { "shape": "wedge", "spacing": 16, "placement": "centred", "facing": "axis" },
+  "maneuver_left": { "shape": "echelon_left", "spacing": 16, "placement": "centred", "facing": "enemy" },
+  "maneuver_right": { "shape": "echelon_right", "spacing": 16, "placement": "centred", "facing": "enemy" },
+
+  "pursuit/maneuver": { "shape": "wedge", "spacing": 16, "placement": "trail", "facing": "axis" }
+}

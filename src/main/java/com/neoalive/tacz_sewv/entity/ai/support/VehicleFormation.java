@@ -11,22 +11,26 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationFrame;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationGeometry;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationSpec;
+import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
 
 /**
  * The shape of a Combined Arms formation and who stands where in it.
  *
  * <p>Geometry is SEM-inspired (column / wedge) plus LINE and echelons, laid out against a frozen
  * cardinal ({@link IFormationMember}) with hardcoded baseline spacing and WIDTH/LENGTH stretch.
+ * The slot maths itself lives in {@link FormationGeometry}, shared with the AI's formations; this
+ * class is the player-order half — per-unit state, anchor resolution and numbering.
  *
  * <p>Server-side only for terrain projection. Preview math ({@link #slotCenter}) is pure vector
  * work and is safe on the client.
@@ -42,16 +46,6 @@ import com.neoalive.tacz_sewv.bridge.IFormationMember;
 public final class VehicleFormation {
 
     private VehicleFormation() {}
-
-    /**
-     * SEM's wedge widens 1.25x as fast as it deepens (FormationUtils: 2.5 lateral against 2.0
-     * back). Keeping it as a ratio rather than a second spacing is what makes one baseline scale
-     * the whole shape without changing its proportions.
-     */
-    private static final double LATERAL_RATIO = 2.5 / 2.0;
-
-    /** A terrain probe further than this from the commander's own level is not believable. */
-    private static final int MAX_SLOT_RISE = 16;
 
     /** LINE units-per-row fallback for a unit whose stored row size predates that field. */
     private static final int DEFAULT_ROW_SIZE = 4;
@@ -71,46 +65,10 @@ public final class VehicleFormation {
     public static Vec3 slotCenter(Vec3 anchor, Direction axis, FormationShape shape, int index,
                                   int rowSize, double baselineSpacing,
                                   float widthStretch, float lengthStretch) {
-        double spacing = baselineSpacing;
-        double w = IFormationMember.clampStretch(widthStretch);
-        double l = IFormationMember.clampStretch(lengthStretch);
-        Vec3 forward = forward(axis);
-        Vec3 perp = new Vec3(-forward.z, 0.0, forward.x);
-
-        double back;
-        double lateral;
-        switch (shape) {
-            case COLUMN -> {
-                back = spacing * (1 + index) * l;
-                lateral = 0.0;
-            }
-            case LINE -> {
-                int cols = Math.max(1, rowSize);
-                int row = index / cols;
-                int col = index % cols;
-                back = spacing * (1 + row) * l;
-                lateral = (col - (cols - 1) / 2.0) * spacing * w;
-            }
-            case ECHELON_RIGHT -> {
-                back = spacing * (1 + index) * l;
-                lateral = spacing * index * w;
-            }
-            case ECHELON_LEFT -> {
-                back = spacing * (1 + index) * l;
-                lateral = -spacing * index * w;
-            }
-            default -> { // WEDGE
-                if (index == 0) {
-                    back = spacing * l;
-                    lateral = 0.0;
-                } else {
-                    int rank = (index - 1) / 2 + 1;
-                    back = spacing * (1 + rank) * l;
-                    lateral = (index % 2 != 0 ? -1 : 1) * spacing * LATERAL_RATIO * rank * w;
-                }
-            }
-        }
-        return anchor.add(forward.scale(-back)).add(perp.scale(lateral));
+        FormationSpec spec = new FormationSpec(shape, baselineSpacing,
+                IFormationMember.clampStretch(widthStretch), IFormationMember.clampStretch(lengthStretch),
+                rowSize, FormationSpec.Placement.TRAIL);
+        return FormationGeometry.slot(FormationFrame.ofCardinal(anchor, axis), spec, index, index + 1);
     }
 
     /** Drive-to point for a slot: its centre, dropped onto the terrain underneath it. */
@@ -120,12 +78,7 @@ public final class VehicleFormation {
                                    FormationComposition.Kind kind) {
         Vec3 center = slotCenter(anchor, axis, shape, index, rowSize,
                 baselineSpacing, widthStretch, lengthStretch);
-        BlockPos xz = BlockPos.containing(center.x, anchor.y, center.z);
-        if (kind == FormationComposition.Kind.SHIP) {
-            BlockPos water = WaterSupport.projectToWater(level, xz);
-            if (water != null) return water;
-        }
-        return BlockPos.containing(center.x, groundY(level, center.x, center.z, anchor.y), center.z);
+        return GroundSnap.snap(level, center, anchor.y, kind == FormationComposition.Kind.SHIP);
     }
 
     /**
@@ -170,16 +123,6 @@ public final class VehicleFormation {
             }
         }
         return hulls + loose;
-    }
-
-    /**
-     * The surface a hull would come to rest on. NO_LEAVES because a canopy is not ground.
-     *
-     * <p>SERVER ONLY: ClientLevel chunks carry only MOTION_BLOCKING and WORLD_SURFACE.
-     */
-    private static double groundY(Level level, double x, double z, double anchorY) {
-        int probed = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, Mth.floor(x), Mth.floor(z));
-        return Math.abs(probed - anchorY) > MAX_SLOT_RISE ? anchorY : probed;
     }
 
     /**

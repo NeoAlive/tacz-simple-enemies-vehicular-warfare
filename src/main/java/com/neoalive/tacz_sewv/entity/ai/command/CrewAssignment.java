@@ -23,22 +23,35 @@ public final class CrewAssignment {
     /**
      * Immutable view of one driver's assignment. {@code flankSide} is set only for a flank
      * maneuver; {@code priorityTargetId} is soft focus-fire (may be stale — readers re-validate).
-     * {@code destX}/{@code destZ} are optional world coordinates (NaN when unset).
+     * {@code destX}/{@code destZ} are optional world coordinates (NaN when unset), and
+     * {@code facingX}/{@code facingZ} the heading to hold on them (NaN when the role has none).
      */
     public record Snapshot(
             Assignment.Role role,
             @Nullable Assignment.FlankSide flankSide,
             @Nullable Integer priorityTargetId,
             double destX,
-            double destZ
+            double destZ,
+            double facingX,
+            double facingZ
     ) {
+        public Snapshot(Assignment.Role role, @Nullable Assignment.FlankSide flankSide,
+                        @Nullable Integer priorityTargetId, double destX, double destZ) {
+            this(role, flankSide, priorityTargetId, destX, destZ, Double.NaN, Double.NaN);
+        }
+
         public boolean hasDest() {
             return Double.isFinite(destX) && Double.isFinite(destZ);
+        }
+
+        public boolean hasFacing() {
+            return Double.isFinite(facingX) && Double.isFinite(facingZ);
         }
     }
 
     public static void publish(Assignment a) {
-        LIVE.put(a.unitId, new Snapshot(a.role, a.flankSide, a.priorityTargetId, a.destX, a.destZ));
+        LIVE.put(a.unitId, new Snapshot(a.role, a.flankSide, a.priorityTargetId, a.destX, a.destZ,
+                a.facingX, a.facingZ));
     }
 
     public static void clear(int unitId) {

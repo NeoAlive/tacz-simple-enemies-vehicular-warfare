@@ -24,11 +24,10 @@ import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
  * Two unrelated fixes to SEM's commander-order goal, both gated so a plain SEM infantry
  * squad is untouched.
  *
- * <p><b>1. Vehicle-formation spacing.</b> The loose infantry of a VEHICLE formation share one
- * numbering with the hulls, so they have to share one geometry: left alone, SEM sends them to
- * its own 2.0/2.5-block slots laid out on the commander's live body yaw, which land inside the
- * vehicle-spaced ones — a rifleman standing where a tank is about to park. The two formation
- * injections no-op unless the unit is actually in one of our formations.
+ * <p><b>1. Formation geometry.</b> An infantry formation ordered from the Quick Wheel carries its
+ * own shape, stretch and frozen cardinal; left alone, SEM would send the unit to its own
+ * 2.0/2.5-block wedge/column laid out on the commander's live body yaw, ignoring all three. The
+ * two formation injections no-op unless the unit is actually in one of our formations.
  *
  * <p><b>2. Follow while fighting.</b> This goal abandons its follow / hold / formation order
  * the moment the unit has a live target — canUse, canContinueToUse and tick all bail on the

@@ -170,6 +170,8 @@ public class TaczSewv {
         event.addListener(new UtilityWeights.Loader());
         // Helicopter airframe rows (physics rework); see com.neoalive.tacz_sewv.heli.data.HeliAirframes.
         event.addListener(new com.neoalive.tacz_sewv.heli.data.HeliAirframes.Loader());
+        // Which formation each play role takes; see com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates.
+        event.addListener(new com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates.Loader());
         // See com.neoalive.tacz_sewv.ballistics.TranslationTable.
         event.addListener(new com.neoalive.tacz_sewv.ballistics.TranslationTable.Loader());
         // See com.neoalive.tacz_sewv.crew.NamePools.

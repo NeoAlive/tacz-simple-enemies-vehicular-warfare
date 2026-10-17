@@ -1,9 +1,11 @@
 package com.neoalive.tacz_sewv.client.xaero;
 
+import java.io.InputStream;
 import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
@@ -12,6 +14,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.world.level.Level;
 import xaero.map.element.render.ElementReader;
 import xaero.map.element.render.ElementRenderInfo;
@@ -47,7 +50,8 @@ import com.neoalive.tacz_sewv.map.VehicleMarker;
  * eats the dashed frames that carry half the meaning.
  *
  * <p>Symbols are deliberately drawn <b>upright</b>. APP-6 never rotates a symbol — heading is a
- * separate direction-of-movement line, which is what {@link Renderer#drawHeading} is.
+ * separate direction-of-movement marker ({@link Renderer#drawHeading}), drawn as a small triangle
+ * pointing along the hull's look direction.
  */
 public final class VehicleMarkerElements {
 
@@ -61,12 +65,20 @@ public final class VehicleMarkerElements {
      */
     private static final int TEXTURE_SIZE = 64;
     private static final int HIT_BOX = 13;
-    private static final int RENDER_BOX = 20;
+    /** Must clear {@link #HEADING_END} plus outline so Xaero does not clip the tip. */
+    private static final int RENDER_BOX = 28;
 
-    /** Direction-of-movement line: from the symbol's edge out to this radius, this thick. */
+    /**
+     * Look-direction triangle: tip at {@link #HEADING_END} (forward), base at {@link #HEADING_START}
+     * (near the icon edge), half-width of the base. End sits proud of the old 19px tip so bearing
+     * reads at a glance; outline thickness is measured from APP-6 black strokes (see
+     * {@link #headingOutlinePx()}).
+     */
     private static final int HEADING_START = 12;
-    private static final int HEADING_END = 19;
-    private static final int HEADING_HALF_WIDTH = 1;
+    private static final int HEADING_END = 24;
+    private static final int HEADING_HALF_BASE = 4;
+    /** Pure black — same channel as APP-6 frame/ring strokes (multiply leaves them at 0). */
+    private static final int HEADING_OUTLINE_COLOR = 0xFF000000;
 
     private static final int BAR_W = 22;
     private static final int BAR_H = 3;
@@ -74,10 +86,22 @@ public final class VehicleMarkerElements {
 
     private static final int SELECTION_COLOR = 0xFFFFFFFF;
     private static final int SELECTION_SHADE = 0x60000000;
-    /** Fog-of-war unknown fill — neutral grey so faction colour cannot leak identity. */
-    private static final int UNKNOWN_COLOR = 0xFF888888;
+    /**
+     * Fallback heading colour for unknowns when the texture cannot be polled. Prefer
+     * {@link #unknownGrey()} — average of non-black greys from the unknown icon.
+     */
+    private static final int UNKNOWN_COLOR_FALLBACK = 0xFF888888;
+    /** Channels at or below this count as black (strokes / dither dots) and are skipped. */
+    private static final int UNKNOWN_BLACK_MAX = 40;
+    /** Alpha below this is transparent / ignored. */
+    private static final int UNKNOWN_ALPHA_MIN = 16;
 
     private static final Map<VehicleMarker.Kind, ResourceLocation> TEXTURES = new EnumMap<>(VehicleMarker.Kind.class);
+
+    /** Lazy: 0 until first {@link #unknownGrey()} poll. */
+    private static int unknownGreyArgb = 0;
+    /** Lazy: 0 until first {@link #headingOutlinePx()} measure (−1 = not yet). */
+    private static int headingOutlinePx = -1;
 
     static {
         for (VehicleMarker.Kind kind : VehicleMarker.Kind.values()) {
@@ -102,8 +126,119 @@ public final class VehicleMarkerElements {
     }
 
     public static int markerColor(VehicleMarker marker) {
-        if (marker.kind() == VehicleMarker.Kind.UNKNOWN) return UNKNOWN_COLOR;
+        // Unknown icon is already grey art — white multiply keeps it as authored; heading uses
+        // {@link #unknownGrey()} separately so it matches the panel greys without darkening the blit.
+        if (marker.kind() == VehicleMarker.Kind.UNKNOWN) return 0xFFFFFFFF;
         return FactionColors.displayArgb(marker.faction(), marker.tintRgb());
+    }
+
+    /**
+     * Average RGB of opaque non-black greys in {@code xaeros_icon_unknown.png}. Skips the question
+     * mark / dither blacks so the look-direction marker matches the panel fill, not a darkened mix.
+     */
+    public static int unknownGrey() {
+        if (unknownGreyArgb != 0) return unknownGreyArgb;
+        unknownGreyArgb = pollUnknownGrey();
+        return unknownGreyArgb;
+    }
+
+    private static int pollUnknownGrey() {
+        ResourceLocation loc = TEXTURES.get(VehicleMarker.Kind.UNKNOWN);
+        if (loc == null) return UNKNOWN_COLOR_FALLBACK;
+        try {
+            Resource res = Minecraft.getInstance().getResourceManager().getResource(loc).orElse(null);
+            if (res == null) return UNKNOWN_COLOR_FALLBACK;
+            try (InputStream in = res.open(); NativeImage img = NativeImage.read(in)) {
+                long sumR = 0, sumG = 0, sumB = 0;
+                int n = 0;
+                int w = img.getWidth(), h = img.getHeight();
+                for (int y = 0; y < h; y++) {
+                    for (int x = 0; x < w; x++) {
+                        // NativeImage.getPixelRGBA is ABGR despite the name.
+                        int abgr = img.getPixelRGBA(x, y);
+                        int a = (abgr >>> 24) & 0xFF;
+                        if (a < UNKNOWN_ALPHA_MIN) continue;
+                        int b = (abgr >>> 16) & 0xFF;
+                        int g = (abgr >>> 8) & 0xFF;
+                        int r = abgr & 0xFF;
+                        if (r <= UNKNOWN_BLACK_MAX && g <= UNKNOWN_BLACK_MAX && b <= UNKNOWN_BLACK_MAX) {
+                            continue;
+                        }
+                        sumR += r;
+                        sumG += g;
+                        sumB += b;
+                        n++;
+                    }
+                }
+                if (n == 0) return UNKNOWN_COLOR_FALLBACK;
+                return 0xFF000000
+                        | ((int) (sumR / n) << 16)
+                        | ((int) (sumG / n) << 8)
+                        | (int) (sumB / n);
+            }
+        } catch (Exception e) {
+            return UNKNOWN_COLOR_FALLBACK;
+        }
+    }
+
+    /**
+     * Outline thickness in map pixels, matched to APP-6 black stroke weight. Scans the armour
+     * symbol's mid-row for short black runs (the ring / frame — not solid fills), averages their
+     * texel width, then scales by {@code ICON_SIZE / TEXTURE_SIZE}. Floored at 1 so the tip never
+     * loses its rim on light map tiles.
+     */
+    private static int headingOutlinePx() {
+        if (headingOutlinePx >= 0) return headingOutlinePx;
+        headingOutlinePx = measureIconBlackStrokePx();
+        return headingOutlinePx;
+    }
+
+    private static int measureIconBlackStrokePx() {
+        ResourceLocation loc = TEXTURES.get(VehicleMarker.Kind.ARMOR);
+        if (loc == null) return 1;
+        try {
+            Resource res = Minecraft.getInstance().getResourceManager().getResource(loc).orElse(null);
+            if (res == null) return 1;
+            try (InputStream in = res.open(); NativeImage img = NativeImage.read(in)) {
+                int w = img.getWidth();
+                int h = img.getHeight();
+                int y = h / 2;
+                int runSum = 0;
+                int runN = 0;
+                int run = 0;
+                // Ignore runs longer than ~1/4 of the art — those are fills, not strokes.
+                int maxStroke = Math.max(2, w / 4);
+                for (int x = 0; x <= w; x++) {
+                    boolean black = false;
+                    if (x < w) {
+                        int abgr = img.getPixelRGBA(x, y);
+                        int a = (abgr >>> 24) & 0xFF;
+                        int b = (abgr >>> 16) & 0xFF;
+                        int g = (abgr >>> 8) & 0xFF;
+                        int r = abgr & 0xFF;
+                        black = a >= UNKNOWN_ALPHA_MIN
+                                && r <= UNKNOWN_BLACK_MAX
+                                && g <= UNKNOWN_BLACK_MAX
+                                && b <= UNKNOWN_BLACK_MAX;
+                    }
+                    if (black) {
+                        run++;
+                    } else if (run > 0) {
+                        if (run <= maxStroke) {
+                            runSum += run;
+                            runN++;
+                        }
+                        run = 0;
+                    }
+                }
+                if (runN == 0) return 1;
+                float texels = runSum / (float) runN;
+                int px = Math.round(texels * ICON_SIZE / (float) TEXTURE_SIZE);
+                return Math.max(1, px);
+            }
+        } catch (Exception e) {
+            return 1;
+        }
     }
 
     /**
@@ -166,7 +301,8 @@ public final class VehicleMarkerElements {
             }
 
             int color = markerColor(marker);
-            drawHeading(guiGraphics, marker, color);
+            int headingColor = marker.kind() == VehicleMarker.Kind.UNKNOWN ? unknownGrey() : color;
+            drawHeading(guiGraphics, marker, headingColor);
             if (ClientConfig.MAP_SHOW_ICONS.get()) {
                 drawSymbol(guiGraphics, marker, color);
             }
@@ -332,17 +468,40 @@ public final class VehicleMarkerElements {
         }
 
         /**
-         * APP-6's direction-of-movement line: a stick out of the symbol along the hull's heading.
-         * Yaw 0 faces south, which is down on the map, so the line is drawn pointing up and given a
-         * half turn — map bearings run clockwise the same way yaw does, so nothing else is needed.
+         * Look-direction marker: a triangle pointing along yaw, outlined in the same black as APP-6
+         * strokes ({@link #headingOutlinePx()}). Tip sits proud of the icon so bearing reads clearly.
+         * Yaw 0 faces south / down on the map — tip drawn "up" locally, then +180°.
          */
         private void drawHeading(GuiGraphics guiGraphics, VehicleMarker marker, int color) {
             PoseStack pose = guiGraphics.pose();
             pose.pushPose();
             pose.mulPose(Axis.ZP.rotationDegrees(marker.yaw() + 180.0F));
-            guiGraphics.fill(-HEADING_HALF_WIDTH, -HEADING_END, HEADING_HALF_WIDTH, -HEADING_START,
-                    0xFF000000 | color);
+            int outline = headingOutlinePx();
+            int fill = 0xFF000000 | (color & 0x00FFFFFF);
+            // Outline first (expanded), then fill — rim stays visible on light and dark map tiles.
+            fillHeadingTriangle(guiGraphics,
+                    HEADING_END + outline, Math.max(0, HEADING_START - outline),
+                    HEADING_HALF_BASE + outline, HEADING_OUTLINE_COLOR);
+            fillHeadingTriangle(guiGraphics, HEADING_END, HEADING_START, HEADING_HALF_BASE, fill);
             pose.popPose();
+        }
+
+        /**
+         * Tip at {@code (0, -tipDist)}, base from {@code (-halfBase, -baseDist)} to
+         * {@code (+halfBase, -baseDist)}. Scanline fill — GuiGraphics has no triangle primitive.
+         */
+        private static void fillHeadingTriangle(GuiGraphics guiGraphics, int tipDist, int baseDist,
+                                                int halfBase, int argb) {
+            int yTip = -tipDist;
+            int yBase = -baseDist;
+            int height = yBase - yTip;
+            if (height <= 0 || halfBase <= 0) return;
+            for (int y = yTip; y <= yBase; y++) {
+                float t = (y - yTip) / (float) height;
+                int half = Math.max(y == yTip ? 1 : 0, Math.round(halfBase * t));
+                if (half <= 0) continue;
+                guiGraphics.fill(-half, y, half + 1, y + 1, argb);
+            }
         }
 
         @Override

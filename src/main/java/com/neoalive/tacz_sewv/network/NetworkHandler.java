@@ -124,7 +124,8 @@ public class NetworkHandler {
     //      Limitless Vehicles ids.
     // 103: bloat pass — sweep overlay, capture medic, trench + helipad marker packets removed;
     //      helipads ride PacketOwnedVehicles; NotificationKind.MEDIC_CAPTURED dropped.
-    private static final String PROTOCOL_VERSION = "103";
+    // 104: VehicleMarker.Kind.UNKNOWN (map fog of war).
+    private static final String PROTOCOL_VERSION = "104";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

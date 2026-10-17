@@ -114,7 +114,12 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
         INFANTRY_COMBAT_ENGINEER("infantry_combat_engineer"),
         DRONE("drone"),
         /** Player-owned Forward Operating Base command post. */
-        FOB("fob");
+        FOB("fob"),
+        /**
+         * Fog-of-war placeholder: presence without identity. Wire ordinal only — never resolved
+         * from a hull; the tracker substitutes this when the viewing player has not ID'd the contact.
+         */
+        UNKNOWN("unknown");
 
         private static final Kind[] VALUES = values();
         private final String texture;

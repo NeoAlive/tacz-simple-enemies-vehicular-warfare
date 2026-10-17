@@ -832,6 +832,12 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.MAP_SYNC_INTERVAL_TICKS, SewvConfig.MAP_SYNC_INTERVAL_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "map_intel", "mapSpotRadius", 0.0, 512.0,
                 SewvConfig.MAP_SPOT_RADIUS, SewvConfig.MAP_SPOT_RADIUS::set);
+        b.bool(ConfigScope.SERVER, "map_intel", "mapFogOfWarEnabled",
+                SewvConfig.MAP_FOG_OF_WAR_ENABLED, SewvConfig.MAP_FOG_OF_WAR_ENABLED::set);
+        b.doubleRange(ConfigScope.SERVER, "map_intel", "mapIdentityRadius", 0.0, 512.0,
+                SewvConfig.MAP_IDENTITY_RADIUS, SewvConfig.MAP_IDENTITY_RADIUS::set);
+        b.intRange(ConfigScope.SERVER, "map_intel", "mapIdentityTtlTicks", 40, 6000,
+                SewvConfig.MAP_IDENTITY_TTL_TICKS, SewvConfig.MAP_IDENTITY_TTL_TICKS::set);
     }
 
     private static void registerSweep(ConfigRegistry.Builder b) {

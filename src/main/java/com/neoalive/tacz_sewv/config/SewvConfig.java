@@ -343,6 +343,9 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_INFANTRY_ENABLED;
     public static final ForgeConfigSpec.IntValue MAP_SYNC_INTERVAL_TICKS;
     public static final ForgeConfigSpec.DoubleValue MAP_SPOT_RADIUS;
+    public static final ForgeConfigSpec.BooleanValue MAP_FOG_OF_WAR_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue MAP_IDENTITY_RADIUS;
+    public static final ForgeConfigSpec.IntValue MAP_IDENTITY_TTL_TICKS;
     public static final ForgeConfigSpec.IntValue ADVANCE_PLAN_MAX_CHUNKS;
 
     /** Invasion HUD colours (hex RGB). Team A/B match the left/right bases on the layout. */
@@ -1395,6 +1398,20 @@ public final class SewvConfig {
                 .defineInRange("mapSyncIntervalTicks", 20, 5, 200);
         MAP_SPOT_RADIUS = builder.comment("How far (blocks) your side can spot enemy markers (via you or your crews).")
                 .defineInRange("mapSpotRadius", 128.0, 0.0, 512.0);
+        MAP_FOG_OF_WAR_ENABLED = builder.comment(
+                        "Fog of war on map markers: non-owned contacts show as unknown until you",
+                        "(or an OpenPAC ally) identify them by being close enough or by a friendly lock.")
+                .define("mapFogOfWarEnabled", true);
+        MAP_IDENTITY_RADIUS = builder.comment(
+                        "How close (blocks) YOU must be to auto-identify a contact's class on the map.",
+                        "Presence still uses mapSpotRadius (crews can radio a contact farther out as unknown).",
+                        "Must stay well below mapSpotRadius or fog never shows — 0 disables player-sight ID",
+                        "(combat locks only).")
+                .defineInRange("mapIdentityRadius", 32.0, 0.0, 512.0);
+        MAP_IDENTITY_TTL_TICKS = builder.comment(
+                        "How long (server ticks) a combat identification sticks on the map after a",
+                        "friendly unit locks that contact. 400 = 20 seconds. Player-local sight needs no TTL.")
+                .defineInRange("mapIdentityTtlTicks", 400, 40, 6000);
         builder.pop();
 
         builder.push("territory");

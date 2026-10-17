@@ -74,6 +74,8 @@ public final class VehicleMarkerElements {
 
     private static final int SELECTION_COLOR = 0xFFFFFFFF;
     private static final int SELECTION_SHADE = 0x60000000;
+    /** Fog-of-war unknown fill — neutral grey so faction colour cannot leak identity. */
+    private static final int UNKNOWN_COLOR = 0xFF888888;
 
     private static final Map<VehicleMarker.Kind, ResourceLocation> TEXTURES = new EnumMap<>(VehicleMarker.Kind.class);
 
@@ -100,6 +102,7 @@ public final class VehicleMarkerElements {
     }
 
     public static int markerColor(VehicleMarker marker) {
+        if (marker.kind() == VehicleMarker.Kind.UNKNOWN) return UNKNOWN_COLOR;
         return FactionColors.displayArgb(marker.faction(), marker.tintRgb());
     }
 
@@ -266,6 +269,8 @@ public final class VehicleMarkerElements {
          * symbol; values come from the live polled hull state on the wire.
          */
         private void drawPmcVitals(GuiGraphics guiGraphics, VehicleMarker marker) {
+            // Unknown contacts must not leak class via vitals chrome.
+            if (marker.kind() == VehicleMarker.Kind.UNKNOWN) return;
             if (marker.faction() != CrewFacts.Faction.PMC) return;
             // Vehicles only — on-foot PMC markers stay clean.
             if (marker.kind().isInfantry()) return;

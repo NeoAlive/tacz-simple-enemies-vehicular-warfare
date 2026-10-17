@@ -18,6 +18,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
+import com.neoalive.tacz_sewv.map.MapIdentity;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 
 /**
@@ -146,6 +147,7 @@ public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation
     /**
      * After vetoes: every accepted lock, of any unit type, goes on the faction contact board. One hook
      * covers infantry, crews, radio orders and delegation, so no unit type needs its own publisher.
+     * Map fog-of-war sticky ID rides the same rising edge — next marker sync rewrites Kind.
      */
     @Inject(method = "setTarget", at = @At("TAIL"))
     private void tacz_sewv$publishContact(LivingEntity target, CallbackInfo ci) {
@@ -154,6 +156,7 @@ public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation
         if (self.level().isClientSide() || self.getTarget() != target) return; // HEAD veto cancelled it
         ContactBoard.onTargetAcquired(self, target);
         ContactBoard.relayIfvContact(self, target);
+        MapIdentity.onTargetAcquired(self, target);
     }
 
     /** After vetoes: owned PMC acquired a live hostile — rising-edge toast with cooldown. */

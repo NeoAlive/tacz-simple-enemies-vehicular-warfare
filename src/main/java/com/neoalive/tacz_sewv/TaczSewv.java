@@ -48,6 +48,7 @@ import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModMenus;
 import com.neoalive.tacz_sewv.init.ModSounds;
+import com.neoalive.tacz_sewv.map.MapIdentity;
 import com.neoalive.tacz_sewv.map.OwnedVehicleTracker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.procedural.events.AsymmetricInvasionEvent;
@@ -94,6 +95,7 @@ public class TaczSewv {
         // Server-side half of the map markers: it only ever SENDS, so it is registered
         // unconditionally — a client with no map mod simply ignores the packet.
         MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
+        MinecraftForge.EVENT_BUS.register(MapIdentity.class);
         MinecraftForge.EVENT_BUS.register(FobTickHandler.class);
         MinecraftForge.EVENT_BUS.register(GraceTickHandler.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);

@@ -162,6 +162,10 @@ public final class OwnedVehicleTracker {
 
         double spotRadius = SewvConfig.MAP_SPOT_RADIUS.get();
         double spotRadiusSq = spotRadius * spotRadius;
+        // Identity radius is deliberately smaller than spot: otherwise anything the player
+        // themselves brings onto the map is always IDd and fog never appears in normal play.
+        double identityRadius = SewvConfig.MAP_IDENTITY_RADIUS.get();
+        double identityRadiusSq = identityRadius * identityRadius;
         List<CommandCoordinator.BattleFieldDebug> allFields = CommandCoordinator.battleFieldsDebug();
         List<HelipadMarker> helipads = new ArrayList<>();
         for (ServerLevel level : event.getServer().getAllLevels()) {
@@ -170,7 +174,7 @@ public final class OwnedVehicleTracker {
             }
         }
         for (ServerPlayer player : players) {
-            List<VehicleMarker> markers = markersFor(player, candidates, spotRadiusSq);
+            List<VehicleMarker> markers = markersFor(player, candidates, spotRadiusSq, identityRadiusSq);
             NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                     new PacketOwnedVehicles(markers, battleFieldsFor(markers, allFields),
                             fobMarkerFor(player), helipads));
@@ -482,16 +486,22 @@ public final class OwnedVehicleTracker {
      *
      * <p>Another player's PMC hulls are only sent when OpenPAC says they are the same party or
      * allied (Stage 2) <b>and</b> spotted — never as {@link VehicleMarker.Allegiance#OWN}.
+     *
+     * <p>Fog of war splits <b>presence</b> ({@code spotRadius}) from <b>identity</b>
+     * ({@code identityRadius} + combat ID). OpenPAC party mates stay fully IDd; everything else
+     * is {@link VehicleMarker.Kind#UNKNOWN} until the player is close enough or a friendly locks it.
      */
     private static List<VehicleMarker> markersFor(ServerPlayer player, List<Candidate> candidates,
-                                                  double spotRadiusSq) {
+                                                  double spotRadiusSq, double identityRadiusSq) {
         List<VehicleMarker> markers = new ArrayList<>();
         List<Candidate> own = new ArrayList<>();
+        int nowTick = player.server.getTickCount();
+        boolean fog = MapIdentity.enabled();
 
         for (Candidate c : candidates) {
             if (isOwn(player, c)) {
                 own.add(c);
-                markers.add(marker(c, VehicleMarker.Allegiance.OWN));
+                markers.add(marker(c, VehicleMarker.Allegiance.OWN, true));
             }
         }
 
@@ -503,7 +513,8 @@ public final class OwnedVehicleTracker {
             if (c.pmcOwner() != null) {
                 if (!OpenPacCompat.allied(player.server, player.getUUID(), c.pmcOwner())) continue;
                 if (!spotted(player, own, c, spotRadiusSq)) continue;
-                markers.add(marker(c, VehicleMarker.Allegiance.FRIENDLY));
+                // Party mates are never fogged — shared force picture.
+                markers.add(marker(c, VehicleMarker.Allegiance.FRIENDLY, true));
                 continue;
             }
             if (c.pmcOwnerTeam() != null && PmcOwnerSupport.playerOnTeam(player, c.pmcOwnerTeam())) {
@@ -511,7 +522,10 @@ public final class OwnedVehicleTracker {
                 continue;
             }
             if (!spotted(player, own, c, spotRadiusSq)) continue;
-            markers.add(marker(c, allegianceOf(player, c)));
+            boolean identified = !fog
+                    || (identityRadiusSq > 0.0 && playerSighted(player, c, identityRadiusSq))
+                    || MapIdentity.identified(player.getUUID(), c.vehicleId(), nowTick);
+            markers.add(marker(c, allegianceOf(player, c), identified));
         }
         return markers;
     }
@@ -533,16 +547,19 @@ public final class OwnedVehicleTracker {
     }
 
     private static boolean spotted(ServerPlayer player, List<Candidate> own, Candidate c, double radiusSq) {
-        if (player.level().dimension().equals(c.dimension())
-                && player.distanceToSqr(c.x(), c.y(), c.z()) <= radiusSq) {
-            return true;
-        }
+        if (playerSighted(player, c, radiusSq)) return true;
         for (Candidate eye : own) {
             if (!eye.dimension().equals(c.dimension())) continue;
             double dx = eye.x() - c.x(), dy = eye.y() - c.y(), dz = eye.z() - c.z();
             if (dx * dx + dy * dy + dz * dz <= radiusSq) return true;
         }
         return false;
+    }
+
+    /** Viewing player within {@code radiusSq} of the contact (not merely an OWN crew). */
+    private static boolean playerSighted(ServerPlayer player, Candidate c, double radiusSq) {
+        return player.level().dimension().equals(c.dimension())
+                && player.distanceToSqr(c.x(), c.y(), c.z()) <= radiusSq;
     }
 
     /**
@@ -564,7 +581,7 @@ public final class OwnedVehicleTracker {
         return c.factionFriendly() ? VehicleMarker.Allegiance.FRIENDLY : VehicleMarker.Allegiance.HOSTILE;
     }
 
-    private static VehicleMarker marker(Candidate c, VehicleMarker.Allegiance allegiance) {
+    private static VehicleMarker marker(Candidate c, VehicleMarker.Allegiance allegiance, boolean identified) {
         // The order preview is only for units you command — a FRIENDLY garrison or a HOSTILE crew
         // has no player order to draw, and sending one would leak intent it should not.
         MarkerOrder order = allegiance == VehicleMarker.Allegiance.OWN ? c.order() : MarkerOrder.NONE;
@@ -579,8 +596,9 @@ public final class OwnedVehicleTracker {
         VehicleMarker.PlayRole playRole = playRoleOf(CommandCoordinator.assignmentRoleForDriver(c.driverId()));
         // Platoon/commander cues are owner-only — never leaked on a FRIENDLY/HOSTILE marker.
         boolean own = allegiance == VehicleMarker.Allegiance.OWN;
+        VehicleMarker.Kind kind = identified ? c.kind() : VehicleMarker.Kind.UNKNOWN;
         return new VehicleMarker(c.driverId(), c.vehicleId(), c.x(), c.y(), c.z(), c.yaw(),
-                c.kind(), allegiance, c.faction(), order, c.dimension(),
+                kind, allegiance, c.faction(), order, c.dimension(),
                 c.healthFrac(), c.energyFrac(), role, groupId, playRole, c.tintRgb(), c.hasGuard(),
                 own ? c.platoonColorRgb() : 0, own && c.isCommanderUnit());
     }

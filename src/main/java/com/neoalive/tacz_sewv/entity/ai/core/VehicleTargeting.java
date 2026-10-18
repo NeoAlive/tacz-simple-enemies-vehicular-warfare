@@ -6,7 +6,6 @@ import java.util.function.Predicate;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -315,8 +314,7 @@ public final class VehicleTargeting {
         boolean formationOrder = order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN
                 || order == OrderType.FOLLOW_COMMANDER || order == OrderType.MOVE_TO_POSITION;
         if (!formationOrder) return null;
-        Direction axis = ((IFormationMember) pmc).sewv$getFormationDirection();
-        return axis == null ? null : VehicleFormation.forward(axis);
+        return VehicleFormation.forwardOf(pmc);
     }
 
     private static Player commander(PmcUnitEntity pmc) {

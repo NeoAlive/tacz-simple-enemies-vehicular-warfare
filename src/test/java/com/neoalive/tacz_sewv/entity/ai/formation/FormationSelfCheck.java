@@ -18,6 +18,12 @@ public final class FormationSelfCheck {
 
     private static final Direction[] CARDINALS = {Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};
     private static final float[] STRETCHES = {0.5f, 1.0f, 1.7f, 3.0f};
+    /**
+     * The shapes the player formation had before the kernel — the ones the legacy parity copy covers. RING came
+     * with the kernel; its parity is against the old idle polygon, pinned by {@code IdleGroupSupportSelfCheck}.
+     */
+    private static final FormationShape[] LINEAR_SHAPES = {FormationShape.WEDGE, FormationShape.COLUMN,
+            FormationShape.LINE, FormationShape.ECHELON_RIGHT, FormationShape.ECHELON_LEFT};
 
     public static void main(String[] args) {
         boolean on = false;
@@ -28,6 +34,7 @@ public final class FormationSelfCheck {
         noOverlap();
         frameBasis();
         battleLeftParity();
+        ring();
         matcherOptimal();
         matcherSticky();
         templateParsing();
@@ -38,7 +45,7 @@ public final class FormationSelfCheck {
     private static void legacyParity() {
         Vec3 anchor = new Vec3(103.25, 64.0, -47.5);
         for (Direction axis : CARDINALS) {
-            for (FormationShape shape : FormationShape.values()) {
+            for (FormationShape shape : LINEAR_SHAPES) {
                 for (int rowSize = 1; rowSize <= 5; rowSize++) {
                     for (float w : STRETCHES) {
                         for (float l : STRETCHES) {
@@ -77,7 +84,7 @@ public final class FormationSelfCheck {
 
                 FormationSpec trail = new FormationSpec(shape, 12.0, 1.0, 1.0, 4, FormationSpec.Placement.TRAIL);
                 for (Vec3 p : FormationGeometry.slots(f, trail, n)) {
-                    assert f.ahead(p.x, p.z) < 0.0 : "trail slot ahead of its anchor " + shape;
+                    assert shape == FormationShape.RING || f.ahead(p.x, p.z) < 0.0 : "trail slot ahead of its anchor " + shape;
                 }
             }
         }
@@ -86,7 +93,7 @@ public final class FormationSelfCheck {
     /** At the smallest stretch no two slots crowd closer than the player-order overlap floor. */
     private static void noOverlap() {
         FormationFrame f = FormationFrame.facing(0.0, 0.0, 0.0, 1.0, 1.0);
-        for (FormationShape shape : FormationShape.values()) {
+        for (FormationShape shape : LINEAR_SHAPES) {
             for (int rowSize = 1; rowSize <= 6; rowSize++) {
                 FormationSpec spec = new FormationSpec(shape, 12.0, 0.5, 0.5, rowSize, FormationSpec.Placement.CENTRED);
                 Vec3[] s = FormationGeometry.slots(f, spec, 12);
@@ -129,6 +136,25 @@ public final class FormationSelfCheck {
             FormationFrame f = FormationFrame.ofBattleAxis(0.0, 0.0, 0.0, a[0], a[1]);
             assert near(f.leftX(), -a[1]) && near(f.leftZ(), a[0]);
         }
+    }
+
+    /** A RING puts every slot on its radius, evenly spaced, slot 0 dead ahead; a lone member sits on the centre. */
+    private static void ring() {
+        FormationFrame f = FormationFrame.facing(5.0, 0.0, -3.0, 0.0, 1.0);
+        FormationSpec ring = new FormationSpec(FormationShape.RING, 20.0, 1.0, 1.0, 1, FormationSpec.Placement.CENTRED);
+        Vec3 solo = FormationGeometry.slots(f, ring, 1)[0];
+        assert near(solo.x, 5.0) && near(solo.z, -3.0) : "one member holds the centre";
+        for (int n = 2; n <= 8; n++) {
+            Vec3[] s = FormationGeometry.slots(f, ring, n);
+            assert near(f.ahead(s[0].x, s[0].z), 20.0) && near(f.lateral(s[0].x, s[0].z), 0.0) : "slot 0 ahead";
+            double chord = 2.0 * 20.0 * Math.sin(Math.PI / n);
+            for (int i = 0; i < n; i++) {
+                assert near(Math.hypot(s[i].x - 5.0, s[i].z + 3.0), 20.0) : "n=" + n + " slot " + i + " off radius";
+                Vec3 next = s[(i + 1) % n];
+                assert near(Math.hypot(next.x - s[i].x, next.z - s[i].z), chord) : "n=" + n + " uneven spacing";
+            }
+        }
+        assert FormationShape.RING.mirror() == FormationShape.RING;
     }
 
     /** Hungarian equals brute force on every small case; greedy still yields a permutation. */

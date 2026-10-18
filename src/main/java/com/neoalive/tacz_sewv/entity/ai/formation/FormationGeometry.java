@@ -23,22 +23,29 @@ public final class FormationGeometry {
 
     private FormationGeometry() {}
 
-    /** Slot {@code index}'s distance behind the anchor, before placement. */
-    public static double back(FormationSpec spec, int index) {
+    /**
+     * Slot {@code index}'s distance behind the anchor, before placement. {@code count} is only read by
+     * {@code RING}, whose angles depend on how many share it.
+     */
+    public static double back(FormationSpec spec, int index, int count) {
         double s = spec.spacing();
         double l = spec.length();
         return switch (spec.shape()) {
+            // Written as -(cos·r) so that -back is exactly cos·r: the idle hold polygon this replaced was
+            // cos·r + scramble, and its self-check pins the numbers.
+            case RING -> count <= 1 ? 0.0 : -(Math.cos(ringAngle(index, count)) * s * spec.width());
             case COLUMN, ECHELON_RIGHT, ECHELON_LEFT -> s * (1 + index) * l;
             case LINE -> s * (1 + index / Math.max(1, spec.rowSize())) * l;
             default -> index == 0 ? s * l : s * (1 + wedgeRank(index)) * l; // WEDGE
         };
     }
 
-    /** Slot {@code index}'s distance to the right of the anchor, before placement. */
-    public static double lateral(FormationSpec spec, int index) {
+    /** Slot {@code index}'s distance to the right of the anchor, before placement. See {@link #back}. */
+    public static double lateral(FormationSpec spec, int index, int count) {
         double s = spec.spacing();
         double w = spec.width();
         return switch (spec.shape()) {
+            case RING -> count <= 1 ? 0.0 : Math.sin(ringAngle(index, count)) * s * w;
             case COLUMN -> 0.0;
             case LINE -> {
                 int cols = Math.max(1, spec.rowSize());
@@ -48,6 +55,14 @@ public final class FormationGeometry {
             case ECHELON_LEFT -> -s * index * w;
             default -> index == 0 ? 0.0 : (index % 2 != 0 ? -1 : 1) * s * LATERAL_RATIO * wedgeRank(index) * w;
         };
+    }
+
+    /**
+     * Slot 0 dead ahead, then evenly round to the right. Spacing is the RING's radius, not a gap between
+     * neighbours: a hold polygon is sized by how far out its points sit.
+     */
+    private static double ringAngle(int index, int count) {
+        return index * (Math.PI * 2.0 / count);
     }
 
     private static int wedgeRank(int index) {
@@ -60,8 +75,8 @@ public final class FormationGeometry {
      * formation, which pays for the centring once.
      */
     public static Vec3 slot(FormationFrame f, FormationSpec spec, int index, int count) {
-        double back = back(spec, index);
-        double lat = lateral(spec, index);
+        double back = back(spec, index, count);
+        double lat = lateral(spec, index, count);
         if (spec.placement() == FormationSpec.Placement.CENTRED) {
             double[] mean = meanOffset(spec, count);
             back -= mean[0];
@@ -81,7 +96,7 @@ public final class FormationGeometry {
             ml = mean[1];
         }
         for (int i = 0; i < out.length; i++) {
-            out[i] = place(f, back(spec, i) - mb, lateral(spec, i) - ml);
+            out[i] = place(f, back(spec, i, out.length) - mb, lateral(spec, i, out.length) - ml);
         }
         return out;
     }
@@ -91,8 +106,8 @@ public final class FormationGeometry {
         double b = 0.0;
         double l = 0.0;
         for (int i = 0; i < count; i++) {
-            b += back(spec, i);
-            l += lateral(spec, i);
+            b += back(spec, i, count);
+            l += lateral(spec, i, count);
         }
         return new double[] {b / count, l / count};
     }

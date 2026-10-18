@@ -16,7 +16,12 @@ public enum FormationShape {
     COLUMN,
     LINE,
     ECHELON_RIGHT,
-    ECHELON_LEFT;
+    ECHELON_LEFT,
+    /**
+     * Evenly round a centre, spacing = radius. The idle hold polygon; not offered to players (the Quick
+     * Wheel has no leaf for it), so a wire id of 5 only arrives from a malformed packet.
+     */
+    RING;
 
     /** Wire/NBT id. */
     public int id() {

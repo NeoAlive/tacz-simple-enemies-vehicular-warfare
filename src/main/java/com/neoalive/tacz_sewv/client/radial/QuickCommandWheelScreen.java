@@ -458,7 +458,15 @@ public final class QuickCommandWheelScreen extends Screen {
                     true);
             return false;
         }
-        Direction axis = Direction.fromYRot(mc.player.getYRot());
+        // The heading the player is looking along, snapped to 45° so a formation lines up with the obvious
+        // compass points; the axis is that heading's nearest cardinal and still marks the unit as formed.
+        float yaw = Mth.wrapDegrees(Math.round(mc.player.getYRot() / 45.0f) * 45.0f);
+        Direction axis = Direction.fromYRot(yaw);
+        // Alt anchors the formation where the player stands now instead of following them.
+        long window = mc.getWindow().getWindow();
+        FormationAnchorMode anchorMode = InputConstants.isKeyDown(window, InputConstants.KEY_LALT)
+                || InputConstants.isKeyDown(window, InputConstants.KEY_RALT)
+                ? FormationAnchorMode.POSITION : FormationAnchorMode.PLAYER;
         int rowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
         double baseline = FormationComposition.baselineSpacing(kind);
         int slots = VehicleFormation.slotCountFor(units);
@@ -472,8 +480,8 @@ public final class QuickCommandWheelScreen extends Screen {
         }
         List<Integer> filteredIds = new ArrayList<>(units.size());
         for (PmcUnitEntity pmc : units) filteredIds.add(pmc.getId());
-        BoardKeybind.orderFormation(filteredIds, shape, IFormationMember.axisOf(axis), rowSize,
-                formationWidth, formationLength, FormationAnchorMode.PLAYER);
+        BoardKeybind.orderFormation(filteredIds, shape, IFormationMember.axisOf(axis), yaw, rowSize,
+                formationWidth, formationLength, anchorMode);
         return true;
     }
 

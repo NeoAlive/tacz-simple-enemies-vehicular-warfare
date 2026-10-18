@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -25,6 +26,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOrderQueueState;
 
@@ -125,7 +127,11 @@ public final class OrderQueue {
                 new PacketOrderQueueState(labels));
     }
 
-    /** Self-completing orders; anything not listed here (follow, hold, patrol, formation...) waits for a skip. */
+    /**
+     * Self-completing orders; anything not listed here (follow, hold, patrol...) waits for a skip. A formation
+     * completes once it has formed up — the shape itself stays on the units, so the next queued order (a move,
+     * say) carries it on rather than replacing it.
+     */
     private static boolean done(ServerPlayer player, Entry e) {
         switch (e.pipelineId) {
             case QuickCommandRegistry.ID_QUICK_DISMOUNT:
@@ -149,8 +155,32 @@ public final class OrderQueue {
                 }
                 return true;
             default:
-                return false;
+                return QuickCommandRegistry.isFormationPipeline(e.pipelineId) && formedUp(player, e);
         }
+    }
+
+    /** Every live unit of the order is on its slot (or no longer in a formation, which nothing will fix). */
+    private static boolean formedUp(ServerPlayer player, Entry e) {
+        Vec3 commander = player.position();
+        for (int id : e.units) {
+            if (!(player.level().getEntity(id) instanceof PmcUnitEntity pmc) || !pmc.isAlive()) continue;
+            Entity body = pmc.getRootVehicle();
+            double reach;
+            Vec3 slot;
+            if (body instanceof VehicleEntity hull) {
+                BlockPos p = VehicleFormation.formationSlotPos(player.level(), pmc, commander);
+                slot = p == null ? null : Vec3.atBottomCenterOf(p);
+                reach = VehicleTargeting.arrivalDistance(pmc, hull) + 2.0;
+            } else {
+                slot = VehicleFormation.formationSlotCenter(pmc, commander);
+                reach = FOOT_ARRIVAL;
+            }
+            if (slot == null) continue;
+            double dx = body.getX() - slot.x;
+            double dz = body.getZ() - slot.z;
+            if (dx * dx + dz * dz > reach * reach) return false;
+        }
+        return true;
     }
 
     private static boolean unitDone(String pipelineId, PmcUnitEntity pmc) {

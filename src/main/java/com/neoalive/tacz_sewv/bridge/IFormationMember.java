@@ -46,6 +46,14 @@ public interface IFormationMember {
     String TAG_FORMATION_ANCHOR_Z = "tacz_sewv_formation_anchor_z";
     /** One-shot: armed by {@code MixinPacketIssueOrder}, consumed by {@code MixinPmcUnitEntity}. */
     String TAG_FORMATION_CARRY = "tacz_sewv_formation_carry";
+    /** Baseline spacing frozen at assignment, so mounting or dismounting mid-formation cannot rescale a slot. */
+    String TAG_FORMATION_SPACING = "tacz_sewv_formation_spacing";
+    /** {@code FormationComposition.Kind} ordinal + 1 at assignment; 0 = predates the field. */
+    String TAG_FORMATION_KIND = "tacz_sewv_formation_kind";
+    /** Which formation this unit was ordered into, so the survivors of one can close up after a loss. */
+    String TAG_FORMATION_GROUP = "tacz_sewv_formation_group";
+    /** Free heading in degrees (Minecraft yaw); absent means "face the axis", which old saves always do. */
+    String TAG_FORMATION_YAW = "tacz_sewv_formation_yaw";
 
     float DEFAULT_STRETCH = 1.0f;
 
@@ -123,6 +131,44 @@ public interface IFormationMember {
         if (!tag.getBoolean(TAG_FORMATION_ANCHOR_SET)) return null;
         return new Vec3(tag.getDouble(TAG_FORMATION_ANCHOR_X), tag.getDouble(TAG_FORMATION_ANCHOR_Y),
                 tag.getDouble(TAG_FORMATION_ANCHOR_Z));
+    }
+
+    // Spacing, kind, group and yaw are id-free and persist like the rest. Zero / absent means "not recorded":
+    // a formation saved before these fields existed falls back to the live reads it always used.
+    default void sewv$setFormationSpacing(double spacing) {
+        ((Entity) this).getPersistentData().putDouble(TAG_FORMATION_SPACING, spacing);
+    }
+
+    default double sewv$getFormationSpacing() {
+        return ((Entity) this).getPersistentData().getDouble(TAG_FORMATION_SPACING);
+    }
+
+    default void sewv$setFormationKind(int kindOrdinalPlusOne) {
+        ((Entity) this).getPersistentData().putInt(TAG_FORMATION_KIND, kindOrdinalPlusOne);
+    }
+
+    default int sewv$getFormationKind() {
+        return ((Entity) this).getPersistentData().getInt(TAG_FORMATION_KIND);
+    }
+
+    default void sewv$setFormationGroup(long group) {
+        ((Entity) this).getPersistentData().putLong(TAG_FORMATION_GROUP, group);
+    }
+
+    default long sewv$getFormationGroup() {
+        return ((Entity) this).getPersistentData().getLong(TAG_FORMATION_GROUP);
+    }
+
+    default void sewv$setFormationYaw(float yaw) {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        if (Float.isFinite(yaw)) tag.putFloat(TAG_FORMATION_YAW, yaw);
+        else tag.remove(TAG_FORMATION_YAW);
+    }
+
+    /** NaN when no free heading was set — the unit faces its cardinal axis. */
+    default float sewv$getFormationYaw() {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        return tag.contains(TAG_FORMATION_YAW) ? tag.getFloat(TAG_FORMATION_YAW) : Float.NaN;
     }
 
     /**

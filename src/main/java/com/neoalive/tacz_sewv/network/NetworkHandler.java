@@ -125,7 +125,8 @@ public class NetworkHandler {
     // 103: bloat pass — sweep overlay, capture medic, trench + helipad marker packets removed;
     //      helipads ride PacketOwnedVehicles; NotificationKind.MEDIC_CAPTURED dropped.
     // 104: VehicleMarker.Kind.UNKNOWN (map fog of war).
-    private static final String PROTOCOL_VERSION = "104";
+    // 105: PacketVehicleFormation carries a free yaw (45° from the wheel) after the axis.
+    private static final String PROTOCOL_VERSION = "105";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

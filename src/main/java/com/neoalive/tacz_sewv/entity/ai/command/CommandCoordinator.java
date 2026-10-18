@@ -19,6 +19,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -31,8 +32,10 @@ import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.cover.CoverQuery;
 import com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates;
+import com.neoalive.tacz_sewv.entity.ai.formation.SlotMatcher;
 import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
+import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
@@ -74,6 +77,7 @@ public final class CommandCoordinator {
         CommandEligibility.clearCache();
         CrewAssignment.clearAll();
         IDLE_TASKED_KEEP.clear();
+        IdleGroupSupport.clearPublished();
     }
 
     @SubscribeEvent
@@ -83,6 +87,7 @@ public final class CommandCoordinator {
         CommandEligibility.clearCache();
         CrewAssignment.clearAll();
         IDLE_TASKED_KEEP.clear();
+        IdleGroupSupport.clearPublished();
     }
 
     @SubscribeEvent
@@ -95,6 +100,7 @@ public final class CommandCoordinator {
                     CommandEligibility.clearCache();
                     CrewAssignment.clearAll();
                     IDLE_TASKED_KEEP.clear();
+                    IdleGroupSupport.clearPublished();
                 }
                 return;
             }
@@ -111,6 +117,7 @@ public final class CommandCoordinator {
         }
         nextScan = now + interval;
         IDLE_TASKED_KEEP.clear();
+        IdleGroupSupport.beginPublish();
 
         GroupParams params;
         int maxUnits;
@@ -758,7 +765,7 @@ public final class CommandCoordinator {
      * contested. Destination is the cluster centroid (hold center / travel aim).
      */
     private static void publishIdleAssignments(ServerLevel level, List<Candidate> drivers) {
-        if (!com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport.hybridEnabled()) return;
+        if (!IdleGroupSupport.hybridEnabled()) return;
         double radius;
         try {
             radius = SewvConfig.IDLE_GROUP_RADIUS.get();
@@ -785,41 +792,42 @@ public final class CommandCoordinator {
         for (int i = 0; i < idle.size(); i++) {
             if (used[i]) continue;
             List<Candidate> cluster = new ArrayList<>();
-            cluster.add(idle.get(i));
+            Candidate a = idle.get(i);
+            cluster.add(a);
             used[i] = true;
+            // Running sums: the centroid used to be recomputed from scratch inside this loop, once per candidate.
+            double sumX = a.x;
+            double sumZ = a.z;
             for (int j = i + 1; j < idle.size(); j++) {
                 if (used[j]) continue;
-                Candidate a = idle.get(i);
                 Candidate b = idle.get(j);
                 if (a.faction != b.faction) continue;
                 double dx = a.x - b.x;
                 double dz = a.z - b.z;
                 if (dx * dx + dz * dz > radiusSq) continue;
                 // Also require proximity to cluster centroid as it grows.
-                double cx = 0, cz = 0;
-                for (Candidate m : cluster) { cx += m.x; cz += m.z; }
-                cx /= cluster.size();
-                cz /= cluster.size();
-                double dx2 = b.x - cx;
-                double dz2 = b.z - cz;
+                double dx2 = b.x - sumX / cluster.size();
+                double dz2 = b.z - sumZ / cluster.size();
                 if (dx2 * dx2 + dz2 * dz2 > radiusSq) continue;
                 cluster.add(b);
+                sumX += b.x;
+                sumZ += b.z;
                 used[j] = true;
             }
 
-            double cx = 0, cz = 0;
-            for (Candidate m : cluster) { cx += m.x; cz += m.z; }
-            cx /= cluster.size();
-            cz /= cluster.size();
+            double cx = sumX / cluster.size();
+            double cz = sumZ / cluster.size();
 
-            Assignment.Role role = cluster.size() > 5
-                    ? Assignment.Role.IDLE_TRAVEL
-                    : Assignment.Role.IDLE_HOLD;
+            boolean travel = cluster.size() > IdleGroupSupport.MAX_HOLD_SIZE;
+            Assignment.Role role = travel ? Assignment.Role.IDLE_TRAVEL : Assignment.Role.IDLE_HOLD;
+            int[] ids = new int[cluster.size()];
+            for (int k = 0; k < ids.length; k++) ids[k] = cluster.get(k).unitId;
+            int[] slots = travel ? marching(ids.length) : holdSlots(cluster, cx, cz);
+            IdleGroupSupport.publishCluster(ids, slots);
             if (SewvDiag.collectiveAiVerbose()) {
-                SewvDiag.command("idle cluster dim={} role={} members={} centre={},{}",
-                        level.dimension().location(), role,
-                        cluster.stream().map(Candidate::unitId).toList(),
-                        String.format("%.0f", cx), String.format("%.0f", cz));
+                SewvDiag.command("idle cluster dim={} role={} members={} slots={} centre={},{}",
+                        level.dimension().location(), role, Arrays.toString(ids), Arrays.toString(slots),
+                        String.format(Locale.ROOT, "%.0f", cx), String.format(Locale.ROOT, "%.0f", cz));
             }
             for (Candidate m : cluster) {
                 CrewAssignment.publish(new Assignment(
@@ -827,6 +835,38 @@ public final class CommandCoordinator {
                 IDLE_TASKED_KEEP.add(m.unitId);
             }
         }
+    }
+
+    /**
+     * Hold slots round the cluster centre, matched to members by least squared travel, with last pass's slot
+     * defended for one ring radius squared — the same hysteresis {@link PlayFormations} gives a battle line.
+     * Cluster members are in id order, which {@link IdleGroupSupport#publishCluster} relies on.
+     */
+    private static int[] holdSlots(List<Candidate> cluster, double cx, double cz) {
+        int n = cluster.size();
+        Vec3[] ring = IdleGroupSupport.holdRing(cx, cz, n);
+        double[] mx = new double[n];
+        double[] mz = new double[n];
+        double[] sx = new double[n];
+        double[] sz = new double[n];
+        int[] prev = new int[n];
+        for (int k = 0; k < n; k++) {
+            Candidate c = cluster.get(k);
+            mx[k] = c.x;
+            mz[k] = c.z;
+            sx[k] = ring[k].x;
+            sz[k] = ring[k].z;
+            int p = IdleGroupSupport.previousSlot(c.unitId);
+            prev[k] = p < n ? p : -1;
+        }
+        double r = IdleGroupSupport.holdRadius(n);
+        return SlotMatcher.match(mx, mz, sx, sz, prev, PlayFormations.STICKINESS * r * r);
+    }
+
+    private static int[] marching(int n) {
+        int[] slots = new int[n];
+        Arrays.fill(slots, -1);
+        return slots;
     }
 
     private static List<Candidate> collectDrivers(ServerLevel level) {

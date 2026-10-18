@@ -2,8 +2,10 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -31,17 +33,25 @@ import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationFrame;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationGeometry;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationSpec;
 import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 
 /**
- * Decentralized idle-group coordination for ground vehicles: polygon {@code IDLE_HOLD} and
- * constant-bearing {@code IDLE_TRAVEL} column.
+ * Idle-group coordination for ground vehicles: polygon {@code IDLE_HOLD} and constant-bearing
+ * {@code IDLE_TRAVEL} column.
  *
- * <p>No central manager — each crew builds the same membership list (friendly idle ground drivers
- * within radius, sorted by entity id), derives its slot/leader locally, and steers via the normal
- * pathfinder. State lives on the hull's persistent NBT so a crew change inherits it.
+ * <p><b>Membership has one source.</b> {@code CommandCoordinator} clusters idle drivers each pass and
+ * hands each cluster here ({@link #publishCluster}) with every member's hold slot already matched
+ * ({@code SlotMatcher}). {@link #scan} reads that membership when there is one and only falls back to its
+ * own local view (friendly idle drivers within radius of THIS crew) when the coordinator is off. Two crews
+ * deriving membership locally can disagree — each sees a different radius — and then both number
+ * themselves into the same slot; that was the reason for the split. The slot geometry itself is the
+ * shared formation kernel ({@code RING} for the hold, {@code COLUMN} for the march). State lives on the
+ * hull's persistent NBT so a crew change inherits it.
  */
 public final class IdleGroupSupport {
 
@@ -73,7 +83,8 @@ public final class IdleGroupSupport {
     private static final String CONTACT_PLAYER_KEY = "tacz_sewv:idle_contact_player";
     private static final String CONTACT_VEHICLE_KEY = "tacz_sewv:idle_contact_vehicle";
 
-    private static final int MAX_HOLD_SIZE = 5;
+    /** Largest group that holds a polygon; a bigger one marches. The coordinator reads the same number. */
+    public static final int MAX_HOLD_SIZE = 5;
     private static final int OPEN_GROUND_SAMPLES = 8;
     private static final double OPEN_GROUND_STEP = 16.0;
 
@@ -84,6 +95,17 @@ public final class IdleGroupSupport {
     private static final LongAdder TRAVEL_INVALIDATE_SCANS = new LongAdder();
 
     private static final ConcurrentHashMap<ClusterCacheKey, CachedCluster> CLUSTER_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * The coordinator's clusters, by member unit id. Replaced wholesale every command pass ({@link #beginPublish}
+     * moves the live set to {@link #PREVIOUS_PUBLISHED}, where the next pass reads last pass's slots for
+     * stickiness). Both run on the server thread inside one tick event, so no AI tick ever sees it half-built.
+     */
+    private static volatile Map<Integer, Published> PUBLISHED = new HashMap<>();
+    private static volatile Map<Integer, Published> PREVIOUS_PUBLISHED = new HashMap<>();
+
+    /** One unit's cluster as the coordinator dealt it: sorted member ids, and its hold slot (-1 when marching). */
+    private record Published(int[] memberIds, int slot) {}
     private static long lastClusterCacheGen = Long.MIN_VALUE;
 
     private record ClusterCacheKey(int leaderUnitId, long refreshGen, ResourceKey<Level> dimension) {}
@@ -105,6 +127,51 @@ public final class IdleGroupSupport {
             this.peerVehicle = peerVehicle;
             this.playerNearby = playerNearby;
         }
+    }
+
+    /** Start a command pass: last pass's clusters become the stickiness reference, the live set empties. */
+    public static void beginPublish() {
+        PREVIOUS_PUBLISHED = PUBLISHED;
+        PUBLISHED = new HashMap<>();
+    }
+
+    /** Forget everything — server start/stop, or the command system switched off. */
+    public static void clearPublished() {
+        PUBLISHED = new HashMap<>();
+        PREVIOUS_PUBLISHED = new HashMap<>();
+    }
+
+    /**
+     * Record one coordinator cluster. {@code memberIds} sorted ascending; {@code slots[i]} is member i's hold
+     * slot, or -1 for every member of a marching cluster.
+     */
+    public static void publishCluster(int[] memberIds, int[] slots) {
+        int[] ids = memberIds.clone();
+        for (int i = 0; i < ids.length; i++) {
+            PUBLISHED.put(ids[i], new Published(ids, slots[i]));
+        }
+    }
+
+    /** The hold slot {@code unitId} held last pass, or -1. */
+    public static int previousSlot(int unitId) {
+        Published p = PREVIOUS_PUBLISHED.get(unitId);
+        return p == null ? -1 : p.slot();
+    }
+
+    /** Hold slot centres for an {@code n}-member cluster around {@code (cx, cz)}, scramble not applied. */
+    public static Vec3[] holdRing(double cx, double cz, int n) {
+        Vec3[] out = new Vec3[n];
+        for (int i = 0; i < n; i++) {
+            Vec3 off = holdSlotOffset(i, n, formationBaseRadius(), formationRadiusMin(), formationRadiusMax(), 0.0, 0.0);
+            out[i] = new Vec3(cx + off.x, 0.0, cz + off.z);
+        }
+        return out;
+    }
+
+    /** Ring radius for an {@code n}-member hold — the stickiness scale the coordinator matches with. */
+    public static double holdRadius(int n) {
+        int k = Math.min(Math.max(n, 1), MAX_HOLD_SIZE);
+        return Mth.clamp(formationBaseRadius() * (1.0 + 0.2 * (k - 1)), formationRadiusMin(), formationRadiusMax());
     }
 
     /** Idle perf counters for {@code /sewv debug perf}. */
@@ -131,6 +198,12 @@ public final class IdleGroupSupport {
         public final List<Member> members;
         public final int size;
         public final int index;
+        /**
+         * Hold slot: the coordinator's matched slot when this snapshot came from a published cluster, else
+         * {@link #index}. Distinct from {@code index}, which is the position in {@link #members} and is what
+         * leadership reads.
+         */
+        public final int slot;
         public final int leaderId;
         public final boolean isLeader;
         public final double centerX;
@@ -141,9 +214,15 @@ public final class IdleGroupSupport {
 
         Snapshot(List<Member> members, int index, double centerX, double centerY, double centerZ,
                  boolean peerVehicleNearby, boolean playerNearby) {
+            this(members, index, index, centerX, centerY, centerZ, peerVehicleNearby, playerNearby);
+        }
+
+        Snapshot(List<Member> members, int index, int slot, double centerX, double centerY, double centerZ,
+                 boolean peerVehicleNearby, boolean playerNearby) {
             this.members = members;
             this.size = members.size();
             this.index = index;
+            this.slot = slot;
             this.leaderId = members.isEmpty() ? -1 : members.get(0).unitId;
             this.isLeader = !members.isEmpty() && members.get(index).unitId == this.leaderId;
             this.centerX = centerX;
@@ -233,6 +312,18 @@ public final class IdleGroupSupport {
 
         members.sort(Comparator.comparingInt(m -> m.unitId));
 
+        // The coordinator's cluster overrides the local view — see the class doc. A member it named that is no
+        // longer eligible is dropped, and then its numbering no longer holds, so the slot falls back to index.
+        Published published = PUBLISHED.get(unit.getId());
+        int publishedSlot = -1;
+        if (published != null) {
+            List<Member> resolved = resolvePublished(unit, hull, published, members);
+            if (resolved != null) {
+                members = resolved;
+                if (resolved.size() == published.memberIds().length) publishedSlot = published.slot();
+            }
+        }
+
         long refreshGen = refreshGeneration(level);
         maybePruneClusterCache(refreshGen);
         int leaderUnitId = members.get(0).unitId;
@@ -286,7 +377,36 @@ public final class IdleGroupSupport {
             cz = assign.destZ();
         }
 
-        return new Snapshot(members, index, cx, cy, cz, peerVehicle, playerNearby);
+        return new Snapshot(members, index, publishedSlot >= 0 ? publishedSlot : index, cx, cy, cz,
+                peerVehicle, playerNearby);
+    }
+
+    /**
+     * The published cluster as live members, in id order. Locally scanned members are reused; the rest (the
+     * coordinator clusters on centroid distance, so a member can be beyond this crew's own radius) are looked
+     * up by id and re-checked for eligibility. Null if this unit itself is not among them.
+     */
+    @Nullable
+    private static List<Member> resolvePublished(AbstractUnit unit, VehicleEntity hull, Published published,
+                                                 List<Member> local) {
+        java.util.Map<Integer, Member> byId = new java.util.HashMap<>();
+        for (Member m : local) byId.put(m.unitId, m);
+        List<Member> out = new ArrayList<>(published.memberIds().length);
+        boolean self = false;
+        for (int id : published.memberIds()) {
+            Member m = byId.get(id);
+            if (m == null && hull.level().getEntity(id) instanceof AbstractUnit other
+                    && other.getVehicle() instanceof VehicleEntity otherHull
+                    && otherHull.getFirstPassenger() == other
+                    && isGroundIdleEligible(other, otherHull)
+                    && VehicleTargeting.isFriendly(unit, other)) {
+                m = new Member(other, otherHull);
+            }
+            if (m == null) continue;
+            if (m.unitId == unit.getId()) self = true;
+            out.add(m);
+        }
+        return self ? out : null;
     }
 
     private static boolean sameMembership(List<Member> a, List<Member> b) {
@@ -338,25 +458,28 @@ public final class IdleGroupSupport {
         return new Detect(peer, player);
     }
 
-    /** Pure polygon slot math — used by destinations and headless self-check. */
+    /**
+     * Polygon slot offset — a {@code RING} from the formation kernel, laid in a frame facing +X so slot 0 sits
+     * east of centre and the rest go round towards +Z, as this always has. Pure; the self-check pins it.
+     */
     public static Vec3 holdSlotOffset(int index, int size, double baseRadius, double radiusMin,
                                       double radiusMax, double scrambleX, double scrambleZ) {
         int n = Math.min(Math.max(size, 1), MAX_HOLD_SIZE);
-        if (n == 1) {
-            return new Vec3(scrambleX, 0.0, scrambleZ);
-        }
-        double angle = index * (Math.PI * 2.0 / n);
         double radius = Mth.clamp(baseRadius * (1.0 + 0.2 * (n - 1)), radiusMin, radiusMax);
-        return new Vec3(Math.cos(angle) * radius + scrambleX, 0.0, Math.sin(angle) * radius + scrambleZ);
+        FormationSpec ring = new FormationSpec(FormationShape.RING, radius, 1.0, 1.0, 1, FormationSpec.Placement.TRAIL);
+        return FormationGeometry.slot(new FormationFrame(scrambleX, 0.0, scrambleZ, 1.0, 0.0), ring, index, n);
     }
 
-    /** Column offset behind the lead along a unit bearing: index 0 at origin, i behind by i*spacing. */
+    /**
+     * Column offset behind the lead along a bearing ({@code atan2(dx, dz)}, forward = (sin, cos)): index 0 at
+     * the lead, member i {@code i * spacing} behind. The kernel's {@code COLUMN} starts one spacing back, so
+     * member i is its slot i - 1.
+     */
     public static Vec3 travelColumnOffset(int index, double bearingRad, double spacing) {
         if (index <= 0) return Vec3.ZERO;
-        // Bearing stored as atan2(dx, dz): direction (sin, cos) in XZ.
-        double fx = Math.sin(bearingRad);
-        double fz = Math.cos(bearingRad);
-        return new Vec3(-fx * spacing * index, 0.0, -fz * spacing * index);
+        FormationSpec column = new FormationSpec(FormationShape.COLUMN, spacing, 1.0, 1.0, 1,
+                FormationSpec.Placement.TRAIL);
+        return FormationGeometry.slot(FormationFrame.ofBearing(0.0, 0.0, 0.0, bearingRad), column, index - 1, index);
     }
 
     public static byte modeOf(VehicleEntity hull) {
@@ -461,7 +584,7 @@ public final class IdleGroupSupport {
     private static void ensureScramble(AbstractUnit unit, VehicleEntity hull, Snapshot snap) {
         CompoundTag data = hull.getPersistentData();
         int leader = snap.leaderId;
-        int index = snap.index;
+        int index = snap.slot;
         if (data.contains(SCRAMBLE_X_KEY)
                 && data.getInt(SLOT_LEADER_KEY) == leader
                 && data.getInt(SLOT_INDEX_KEY) == index) {
@@ -745,7 +868,7 @@ public final class IdleGroupSupport {
         CompoundTag data = hull.getPersistentData();
         double sx = data.getDouble(SCRAMBLE_X_KEY);
         double sz = data.getDouble(SCRAMBLE_Z_KEY);
-        Vec3 off = holdSlotOffset(snap.index, snap.size, formationBaseRadius(),
+        Vec3 off = holdSlotOffset(snap.slot, snap.size, formationBaseRadius(),
                 formationRadiusMin(), formationRadiusMax(), sx, sz);
         double x = snap.centerX + off.x;
         double z = snap.centerZ + off.z;

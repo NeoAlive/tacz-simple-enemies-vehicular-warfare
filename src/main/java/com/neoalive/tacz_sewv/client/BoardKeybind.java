@@ -105,17 +105,17 @@ public class BoardKeybind {
                                       FormationAnchorMode anchorMode) {
         withOwnedUnits(pmc -> true, "message.tacz_sewv.board.no_units",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
-                        new PacketVehicleFormation(unitIds, shape, axisInt, rowSize,
+                        new PacketVehicleFormation(unitIds, shape, axisInt, Float.NaN, rowSize,
                                 widthStretch, lengthStretch, anchorMode)));
     }
 
     /** Quick-wheel path: explicit unit ids already resolved by the wheel. */
-    public static void orderFormation(List<Integer> unitIds, FormationShape shape, int axisInt,
+    public static void orderFormation(List<Integer> unitIds, FormationShape shape, int axisInt, float yaw,
                                       int rowSize, float widthStretch, float lengthStretch,
                                       FormationAnchorMode anchorMode) {
         if (unitIds.isEmpty()) return;
         NetworkHandler.CHANNEL.sendToServer(
-                new PacketVehicleFormation(unitIds, shape, axisInt, rowSize,
+                new PacketVehicleFormation(unitIds, shape, axisInt, yaw, rowSize,
                         widthStretch, lengthStretch, anchorMode));
     }
 

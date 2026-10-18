@@ -226,19 +226,35 @@ public final class MarchRegistry {
         // Cohesion: the anchor waits for whoever is furthest behind. Hysteresis so it does not stutter on the edge.
         double hullLimit = hullLimit(march);
         double footLimit = straggleDistance();
+        // A member that has fallen hopelessly behind (stuck, fighting its own fight) is let go rather than waited
+        // for: one rifleman lost 50 blocks back otherwise holds a whole line still until it stalls.
         double worst = 0.0;
+        List<Integer> lost = new ArrayList<>();
         StringBuilder lags = SewvDiag.collectiveAiVerbose() ? new StringBuilder() : null;
         for (int k = 0; k < march.hulls.length; k++) {
             AbstractUnit u = drivers.get(k);
             double lag = behind(u.getVehicle().getX(), u.getVehicle().getZ(), march.hullSlot(k, now));
+            if (march.lost(lag / hullLimit)) {
+                lost.add(u.getId());
+                continue;
+            }
             worst = Math.max(worst, lag / hullLimit);
             if (lags != null) appendLag(lags, u.getId(), lag, u.getVehicle());
         }
         for (int i = 0; i < march.infantry.length; i++) {
             AbstractUnit u = walkers.get(i);
             double lag = behind(u.getX(), u.getZ(), march.infantrySlot(i, now));
+            if (march.lost(lag / footLimit)) {
+                lost.add(u.getId());
+                continue;
+            }
             worst = Math.max(worst, lag / footLimit);
             if (lags != null) appendLag(lags, u.getId(), lag, u);
+        }
+        if (!lost.isEmpty()) {
+            SewvDiag.command("march id={} lets go of stragglers {}", march.id, lost);
+            for (int id : lost) leave(id);
+            if (!MARCHES.containsKey(march.id)) return "no hulls";
         }
         boolean pause = March.shouldPause(march.paused(), worst, RESUME_FRACTION);
         if (pause != march.paused()) march.setPaused(pause, now);

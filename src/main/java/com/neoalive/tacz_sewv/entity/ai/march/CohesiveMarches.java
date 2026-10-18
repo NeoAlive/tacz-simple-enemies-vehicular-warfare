@@ -43,7 +43,12 @@ public final class CohesiveMarches {
     public static March form(ServerLevel level, CrewFacts.Faction faction, int[] hulls, double cx, double cy,
                              double cz, double fx, double fz, double length, double spacing, double atHulls,
                              long now) {
-        if (hulls.length == 0 || length < RouteScout.LEG) return null;
+        if (hulls.length == 0) return null;
+        if (length < RouteScout.LEG) {
+            SewvDiag.command("cohesive line refused hulls={} (only {} blocks to advance)", Arrays.toString(hulls),
+                    String.format(Locale.ROOT, "%.0f", length));
+            return null;
+        }
         double bearing = Math.atan2(fx, fz);
         MarchRoute route = new MarchRoute(cx, cz, fx, fz);
         RouteScout.extend(level, route, bearing, Math.min(length, MarchRegistry.ROAD_AHEAD), length);

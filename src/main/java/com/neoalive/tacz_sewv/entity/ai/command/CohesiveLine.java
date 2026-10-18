@@ -9,7 +9,7 @@ import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
  * plays take over.
  *
  * <p>Feasible when the group is confident (it outweighs what it faces) and has its infantry with it: at least one
- * rifleman per hull close to the hulls. The play only deals the role; the line itself — pace, slots, the infantry
+ * rifleman per hull close to the hulls — and while there is still room to advance. The play only deals the role; the line itself — pace, slots, the infantry
  * files, waiting for stragglers — is a {@code COHESIVE_LINE} march the coordinator keeps for the group while this
  * play stands ({@code entity/ai/march}).
  */
@@ -20,8 +20,12 @@ public final class CohesiveLine implements Play {
     static final double CONFIDENT_BALANCE = 1.2;
     /** Below this the advance is no longer supported and the play aborts. */
     static final double HOLD_BALANCE = 1.0;
-    /** The line starts only from further out than this (blocks, × tactical scale)... */
-    static final double START_DISTANCE = 40.0;
+    /**
+     * The line starts only from further out than this (blocks, × tactical scale)... It must leave a real advance
+     * before {@link #HANDOVER_DISTANCE}: at 40 against 35 the road was shorter than one scouted leg, the march was
+     * refused, and the play flapped in and out every pass.
+     */
+    static final double START_DISTANCE = 60.0;
     /** ...and hands over to the fighting plays once inside this. */
     static final double HANDOVER_DISTANCE = 35.0;
 

@@ -119,6 +119,14 @@ public final class MarchSelfCheck {
         assert m.stalledFor(2.45, 800L) == 400L : "under a twentieth closer: still stalling";
         m.setPaused(false, 900L);
         assert m.stalledFor(2.4, 900L) == 0L : "moving again resets";
+
+        March fresh = new March(2, March.Kind.COHESIVE_LINE, new int[] {1}, new int[0], r, 0.0, 100.0, 16.0, 0.14,
+                0.0, 0L);
+        fresh.setPaused(true, 0L);
+        assert !fresh.lost(5.0) : "forming up: far is not lost";
+        fresh.setPaused(false, 100L);
+        assert !fresh.lost(2.9) : "formed up: within three limits it is waited for";
+        assert fresh.lost(3.1) : "formed up: past three limits it is let go";
     }
 
     private static void lineIsCentredAndDistinct() {

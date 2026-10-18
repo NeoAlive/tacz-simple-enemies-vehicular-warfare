@@ -313,6 +313,8 @@ public final class PlaySelfCheck {
         assertTrue(!CohesiveLine.INSTANCE.stillValid(bf, three, null), "outweighed: the line aborts");
         bf.forceBalance = 1.5;
         assertTrue(!CohesiveLine.INSTANCE.feasible(bf, group(1, 0, 40)), "a line needs 2+ hulls");
+        assertTrue(CohesiveLine.START_DISTANCE - CohesiveLine.HANDOVER_DISTANCE >= 24.0,
+                "a line that may start must have at least one road leg (24 blocks) before it hands over");
 
         // At the shipped weights it beats every other play feasible in the same picture.
         UtilityWeights w = shippedWeights();

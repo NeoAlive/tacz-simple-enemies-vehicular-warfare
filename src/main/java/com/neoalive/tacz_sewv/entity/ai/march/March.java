@@ -48,6 +48,8 @@ public final class March {
     private long pausedSince = Long.MIN_VALUE;
     /** The route can no longer be extended; the march ends when the anchor reaches its end. */
     boolean routeClosed;
+    /** It has set off at least once: everyone was in place. Before that, distance is form-up, not straggling. */
+    boolean formedUp;
 
     March(int id, Kind kind, int[] hulls, int[] infantry, MarchRoute route, double bearing, double maxLength,
           double spacing, double pace, double progress, long now) {
@@ -77,7 +79,10 @@ public final class March {
         this.progress = anchorAt(now);
         this.lastAdvance = now;
         if (paused && !this.paused) this.pausedSince = now;
-        if (!paused) this.pausedSince = Long.MIN_VALUE;
+        if (!paused) {
+            this.pausedSince = Long.MIN_VALUE;
+            this.formedUp = true;
+        }
         this.paused = paused;
     }
 
@@ -94,6 +99,17 @@ public final class March {
         if (worst > 1.0) return true;
         return paused && worst > resume;
     }
+
+    /**
+     * Has a member this far behind (as a fraction of its straggle limit) left the march for good? Only once the
+     * march has formed up — a scattered group forming a line starts out many limits away and is still coming.
+     */
+    boolean lost(double behindFraction) {
+        return this.formedUp && behindFraction > LOST_LIMITS;
+    }
+
+    /** Straggle limits behind at which a member is given up on rather than waited for. */
+    static final double LOST_LIMITS = 3.0;
 
     /** Ticks the anchor has been waiting, 0 while moving. */
     long pausedFor(long now) {

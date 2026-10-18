@@ -53,9 +53,10 @@ public final class SmallArmsSupport {
 
     /**
      * Marks a unit as already counted as an AT gunner. Needed because
-     * {@link DriveVehicleGoal#dismountSquad} runs on <b>every</b> combat tick with no done-flag,
-     * so without this a crewman who re-boarded and dismounted again would be re-issued — and the
-     * counter that caps a squad at two gunners would be counting the same man twice.
+     * a squad can be dismounted more than once ({@link DismountSequence} re-runs whenever someone
+     * is back in the troop compartment on an armour contact), so without this a crewman who
+     * re-boarded and dismounted again would be re-issued — and the counter that caps a squad at
+     * two gunners would be counting the same man twice.
      *
      * <p>Persistent rather than transient, for the same reason {@code NpcArmor}'s flag is: a
      * gunner is still a gunner after a save/load, and re-issuing on every chunk load would hand

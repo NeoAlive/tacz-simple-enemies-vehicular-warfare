@@ -146,7 +146,7 @@ public class SeekAbandonedVehicleGoal extends Goal {
         // exactly what stops an IFV's dismount squad from climbing straight back into the hull
         // that just put them out. That hull's troop-compartment seats are ordinary (non-Climb)
         // seats, so hasFreeClimbSeat answers false for it and the no-recall rule in
-        // DriveVehicleGoal.dismountSquad holds exactly as before; loosening this to "has a free
+        // DismountSequence holds exactly as before; loosening this to "has a free
         // seat" of ANY kind would silently reintroduce that recall.
         if (!hull.getPassengers().isEmpty() && !HullFacts.hasFreeClimbSeat(hull)) return false;
 

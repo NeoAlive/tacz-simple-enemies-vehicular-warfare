@@ -173,7 +173,7 @@ public final class HullFacts {
 
     /**
      * Carries a dismount squad rather than just a crew, so it puts its infantry on the ground when
-     * the shooting starts — see {@link DriveVehicleGoal#dismountSquad}.
+     * the shooting starts — see {@link com.neoalive.tacz_sewv.entity.ai.support.DismountSequence}.
      */
     public boolean isIfv() {
         return this.ifv;
@@ -290,7 +290,7 @@ public final class HullFacts {
      * True when {@code v} has at least one unoccupied seat and EVERY unoccupied seat is a
      * {@link #climbSeats} seat — the signal {@code SeekAbandonedVehicleGoal} uses to let a
      * still-crewed tank-rider hull count as worth boarding without reintroducing the IFV recall
-     * ({@code DriveVehicleGoal#dismountSquad}'s troop-compartment seats are never {@code Climb}-posed,
+     * ({@code DismountSequence}'s troop-compartment seats are never {@code Climb}-posed,
      * so they never match this and stay excluded exactly as before). A vacant DRIVER/gunner/commander
      * seat does not qualify — this is refilling a hitchhiker slot, not reinforcing a partial crew.
      *

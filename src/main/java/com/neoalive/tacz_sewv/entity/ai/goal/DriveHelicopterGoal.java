@@ -259,7 +259,7 @@ public class DriveHelicopterGoal extends Goal {
     private long rappelEngageSince = Long.MIN_VALUE;
     /** Don't autonomous-rappel again before this game time (set on every exitRappel). */
     private long rappelAutonomousCooldownUntil = Long.MIN_VALUE;
-    /** AT launchers handed out this RAPPEL session (mirrors IFV {@code dismountSquad} armed count). */
+    /** AT launchers handed out this RAPPEL session (mirrors the IFV {@code DismountSequence} armed count). */
     private int rappelAtIssued;
 
     /** When true, transit/land/rappel only — no combat (unarmed troop-lift hulls). */
@@ -1006,7 +1006,7 @@ public class DriveHelicopterGoal extends Goal {
             int id = rider.getId();
             if (id == this.rappelRopeMinusId || id == this.rappelRopePlusId) continue;
 
-            // Same AT issue seam as DriveVehicleGoal.dismountSquad — first always, second rolls.
+            // Same AT issue seam as the IFV DismountSequence — first always, second rolls.
             if (this.rappelAtIssued == 0 || (this.rappelAtIssued < EasyMode.maxAtGunners()
                     && rider.getRandom().nextDouble() < EasyMode.atSecondGunnerChance())) {
                 if (SmallArmsSupport.issueAtWeapon(rider)) this.rappelAtIssued++;

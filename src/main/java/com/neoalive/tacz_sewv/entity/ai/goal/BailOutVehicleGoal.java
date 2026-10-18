@@ -53,6 +53,10 @@ import com.neoalive.tacz_sewv.invasion.InvasionTags;
  *
  * <p>Sandbag leave reuses the same scramble for RU/US only ({@link #requestSandbagScramble})
  * so auto-leave / dismiss does not stack infantry on the bag they just vacated.
+ *
+ * <p>The point scramble ({@link #TAG_POINT_SCRAMBLE}) runs an on-foot unit away from a point: a
+ * live frag ({@link #requestGrenadeBail}), or the IFV an RU/US squad has just stepped off the
+ * corners of ({@link #requestDismountScramble}).
  */
 public class BailOutVehicleGoal extends Goal {
 
@@ -64,12 +68,16 @@ public class BailOutVehicleGoal extends Goal {
     /** Pending RU/US scramble after leaving a sandbag — absolute, no vehicle required. */
     public static final String TAG_SANDBAG_SCRAMBLE = "sewv:sandbag_scramble";
 
-    /** Pending on-foot scramble away from a live frag. Faction-blind. Crews are not tagged. */
-    public static final String TAG_GRENADE_BAIL = "sewv:grenade_bail";
-    private static final String TAG_GRENADE_X = "sewv:grenade_x";
-    private static final String TAG_GRENADE_Y = "sewv:grenade_y";
-    private static final String TAG_GRENADE_Z = "sewv:grenade_z";
-    private static final String TAG_GRENADE_CLEAR = "sewv:grenade_clear";
+    /**
+     * Pending on-foot scramble away from a point: a live frag (any faction) or the hull an RU/US
+     * squad just stepped off. One tag set for both so {@link #canUse}, which every unit on the
+     * map evaluates, costs no extra lookup. Keys keep their grenade-era names so saves carry over.
+     */
+    public static final String TAG_POINT_SCRAMBLE = "sewv:grenade_bail";
+    private static final String TAG_POINT_X = "sewv:grenade_x";
+    private static final String TAG_POINT_Y = "sewv:grenade_y";
+    private static final String TAG_POINT_Z = "sewv:grenade_z";
+    private static final String TAG_POINT_CLEAR = "sewv:grenade_clear";
 
     // Scramble just clear of the hull hitbox — get out of the wreck volume fast without
     // running across the map. Radii are added on top of the hull's half-extent.
@@ -133,37 +141,51 @@ public class BailOutVehicleGoal extends Goal {
 
     /** Queue a foot scramble away from a frag. Crews stay seated. Downed and captured units stay put. */
     public static void requestGrenadeBail(AbstractUnit unit, Vec3 threat, double clearance) {
+        requestPointScramble(unit, threat, clearance);
+    }
+
+    /**
+     * Queue the scramble out from a hull an IFV squad has just stepped off
+     * ({@code DismountSequence}). RU/US only: a PMC keeps the standing order its player gave it.
+     */
+    public static void requestDismountScramble(AbstractUnit unit, Vec3 hull, double clearance) {
+        if (unit instanceof PmcUnitEntity) return;
+        requestPointScramble(unit, hull, clearance);
+    }
+
+    /** First request wins until the scramble starts; both kinds mean "run from this point". */
+    private static void requestPointScramble(AbstractUnit unit, Vec3 from, double clearance) {
         if (unit.getVehicle() instanceof VehicleEntity
                 || com.neoalive.tacz_sewv.compat.lv.LvCompat.isLvHull(unit.getVehicle())) return;
         if (unit instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) return;
         CompoundTag tag = unit.getPersistentData();
-        if (tag.getBoolean(TAG_GRENADE_BAIL)) return;
-        tag.putBoolean(TAG_GRENADE_BAIL, true);
-        tag.putDouble(TAG_GRENADE_X, threat.x);
-        tag.putDouble(TAG_GRENADE_Y, threat.y);
-        tag.putDouble(TAG_GRENADE_Z, threat.z);
-        tag.putDouble(TAG_GRENADE_CLEAR, clearance);
+        if (tag.getBoolean(TAG_POINT_SCRAMBLE)) return;
+        tag.putBoolean(TAG_POINT_SCRAMBLE, true);
+        tag.putDouble(TAG_POINT_X, from.x);
+        tag.putDouble(TAG_POINT_Y, from.y);
+        tag.putDouble(TAG_POINT_Z, from.z);
+        tag.putDouble(TAG_POINT_CLEAR, clearance);
     }
 
-    private static boolean hasGrenadeBail(AbstractUnit unit) {
-        return unit.getPersistentData().getBoolean(TAG_GRENADE_BAIL);
+    private static boolean hasPointScramble(AbstractUnit unit) {
+        return unit.getPersistentData().getBoolean(TAG_POINT_SCRAMBLE);
     }
 
-    private static void clearGrenadeBail(AbstractUnit unit) {
+    private static void clearPointScramble(AbstractUnit unit) {
         CompoundTag tag = unit.getPersistentData();
-        tag.remove(TAG_GRENADE_BAIL);
-        tag.remove(TAG_GRENADE_X);
-        tag.remove(TAG_GRENADE_Y);
-        tag.remove(TAG_GRENADE_Z);
-        tag.remove(TAG_GRENADE_CLEAR);
+        tag.remove(TAG_POINT_SCRAMBLE);
+        tag.remove(TAG_POINT_X);
+        tag.remove(TAG_POINT_Y);
+        tag.remove(TAG_POINT_Z);
+        tag.remove(TAG_POINT_CLEAR);
     }
 
     @Override
     public boolean canUse() {
-        if (hasGrenadeBail(this.unit)) {
+        if (hasPointScramble(this.unit)) {
             if (this.unit.getVehicle() instanceof VehicleEntity
                     || com.neoalive.tacz_sewv.compat.lv.LvCompat.isLvHull(this.unit.getVehicle())) {
-                clearGrenadeBail(this.unit);
+                clearPointScramble(this.unit);
                 return false;
             }
             return true;
@@ -238,22 +260,14 @@ public class BailOutVehicleGoal extends Goal {
         clearSandbagScramble(this.unit);
         BailOutSupport.clearManualBail(this.unit);
 
-        if (hasGrenadeBail(this.unit)) {
+        if (hasPointScramble(this.unit)) {
             CompoundTag tag = this.unit.getPersistentData();
-            Vec3 threat = new Vec3(tag.getDouble(TAG_GRENADE_X), tag.getDouble(TAG_GRENADE_Y),
-                    tag.getDouble(TAG_GRENADE_Z));
-            double clearance = tag.getDouble(TAG_GRENADE_CLEAR);
-            clearGrenadeBail(this.unit);
+            Vec3 from = new Vec3(tag.getDouble(TAG_POINT_X), tag.getDouble(TAG_POINT_Y),
+                    tag.getDouble(TAG_POINT_Z));
+            double clearance = tag.getDouble(TAG_POINT_CLEAR);
+            clearPointScramble(this.unit);
             this.sandbagScramble = false;
-            EntrenchSupport.clear(this.unit);
-            this.escapePos = BailOutSupport.escapeFrom(this.unit, threat, clearance);
-            applyScrambleSpeed();
-            if (this.unit instanceof PmcUnitEntity pmc && this.escapePos != null) {
-                pmc.setMoveToTarget(Vec3.atBottomCenterOf(this.escapePos));
-            }
-            if (!this.commandable && this.escapePos != null) {
-                moveToEscapePos();
-            }
+            startPointScramble(from, clearance);
             return;
         }
 
@@ -312,6 +326,22 @@ public class BailOutVehicleGoal extends Goal {
         if (!this.commandable) this.unit.getNavigation().stop();
         this.escapePos = null;
         this.scrambleTicks = 0;
+    }
+
+    /**
+     * Run {@code clearance} out from {@code from}, on the unit's own side of it. From a hull's rear
+     * corner that bearing is the corner's diagonal, which is why the dismount needs no geometry here.
+     */
+    private void startPointScramble(Vec3 from, double clearance) {
+        EntrenchSupport.clear(this.unit);
+        this.escapePos = BailOutSupport.escapeFrom(this.unit, from, clearance);
+        applyScrambleSpeed();
+        if (this.unit instanceof PmcUnitEntity pmc && this.escapePos != null) {
+            pmc.setMoveToTarget(Vec3.atBottomCenterOf(this.escapePos));
+        }
+        if (!this.commandable && this.escapePos != null) {
+            moveToEscapePos();
+        }
     }
 
     private void applyScrambleSpeed() {

@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.BailOutVehicleGoal;
 import com.neoalive.tacz_sewv.order.OrderGuard;
 
@@ -111,8 +112,9 @@ public final class BailOutSupport {
     }
 
     /**
-     * Radio, parachute, dismount, and full stand-down. Returns the scramble point when one was
-     * found — the caller issues movement (PMC order or direct navigation).
+     * Radio, parachute, dismount (SBW ejection out of an aircraft), and full stand-down. Returns
+     * the scramble point when one was found — the caller issues movement (PMC order or direct
+     * navigation).
      */
     @Nullable
     public static BlockPos triggerVehicleBail(AbstractUnit unit, VehicleEntity vehicle) {
@@ -121,7 +123,13 @@ public final class BailOutSupport {
         BlockPos escape = findEscapePos(unit, vehicle);
         issueParachute(unit);
         TowRecoverySupport.clearOrder(unit, vehicle);
-        unit.stopRiding();
+        // Aircraft go out through SBW's own ejection (seat-data gated; it falls back to a plain
+        // dismount on a seat that declares none) — see VehicleEject.
+        if (HullFacts.isPlaneHull(vehicle) || HullFacts.isHelicopterHull(vehicle)) {
+            VehicleEject.eject(unit, vehicle);
+        } else {
+            unit.stopRiding();
+        }
 
         IVehicleBoarder boarder = (IVehicleBoarder) unit;
         boarder.tacz_sewv$setBoarding(false);
@@ -149,7 +157,15 @@ public final class BailOutSupport {
         BlockPos ground = level.getHeightmapPos(
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, unit.blockPosition());
         if (unit.getY() - ground.getY() < PARACHUTE_MIN_HEIGHT) return;
+        equipParachute(unit);
+    }
 
+    /**
+     * A parachute in the back slot whatever the height — for an ejection, which throws the unit
+     * high enough to need one even off a parked aircraft. The canopy still only arms on a real
+     * fall ({@code ParachuteItem.curioTick}: falling fast and {@code fallDistance > 4}).
+     */
+    public static void equipParachute(AbstractUnit unit) {
         CuriosApi.getCuriosInventory(unit).ifPresent(curios -> {
             ICurioStacksHandler back = curios.getStacksHandler(PARACHUTE_SLOT).orElse(null);
             if (back == null || back.getSlots() < 1) return;
@@ -237,16 +253,22 @@ public final class BailOutSupport {
 
         BlockPos pos = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, column);
         if (Math.abs(pos.getY() - hullY) > MAX_ESCAPE_ELEVATION) return null;
-
-        BlockPos below = pos.below();
-        BlockState ground = level.getBlockState(below);
-        if (!ground.isFaceSturdy(level, below, Direction.UP)) return null;
-        if (ground.getFluidState().is(FluidTags.LAVA)) return null;
-
-        return isPassable(level, pos) && isPassable(level, pos.above()) ? pos : null;
+        return isStandable(level, pos) ? pos : null;
     }
 
-    private static boolean isPassable(Level level, BlockPos pos) {
+    /**
+     * A unit can stand with its feet in {@code feet}: a sturdy, non-lava top under it and two
+     * passable blocks for the body. Shared with {@link DismountSequence}'s exit probe.
+     */
+    public static boolean isStandable(Level level, BlockPos feet) {
+        BlockPos below = feet.below();
+        BlockState ground = level.getBlockState(below);
+        if (!ground.isFaceSturdy(level, below, Direction.UP)) return false;
+        if (ground.getFluidState().is(FluidTags.LAVA)) return false;
+        return isPassable(level, feet) && isPassable(level, feet.above());
+    }
+
+    public static boolean isPassable(Level level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         return state.getCollisionShape(level, pos).isEmpty()
                 && !state.getFluidState().is(FluidTags.LAVA);

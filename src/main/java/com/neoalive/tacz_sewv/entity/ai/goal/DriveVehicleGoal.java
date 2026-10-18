@@ -37,12 +37,12 @@ import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.DismountSequence;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TreeFellingSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
@@ -127,6 +127,8 @@ public class DriveVehicleGoal extends Goal {
 
     /** Everything about actually making the hull go somewhere. See {@link VehicleDriver}. */
     private final VehicleDriver driver;
+    /** IFV squad dismount: halt, staggered rear-corner exit, scramble. See {@link #maybeBeginDismount}. */
+    private final DismountSequence dismount = new DismountSequence();
 
     private VehicleEntity vehicle;
 
@@ -188,7 +190,10 @@ public class DriveVehicleGoal extends Goal {
                 && this.vehicle != null
                 && this.vehicle.getFirstPassenger() == this.unit
                 && !this.vehicle.isWreck()
-                && (TowRecoverySupport.hasTowOrder(this.unit)
+                // A started dismount is committed, like a rope slide: the squad finishes getting
+                // out even if the target that triggered it dies mid-sequence.
+                && (this.dismount.active()
+                        || TowRecoverySupport.hasTowOrder(this.unit)
                         || seekCoverWantsDrive()
                         || getTargetPos() != null);
     }
@@ -208,6 +213,7 @@ public class DriveVehicleGoal extends Goal {
         this.lastSpokenPlan = Action.HOLD;
         this.pendingDispatchPlan = null;
         this.pendingDispatchSince = Long.MIN_VALUE;
+        this.dismount.abort(this.unit.level().getGameTime());
         this.driver.stop();
         this.vehicle.setDecoyInputDown(false);
         this.vehicle = null;
@@ -282,25 +288,23 @@ public class DriveVehicleGoal extends Goal {
         this.brain.update(this.unit, this.vehicle, this.posture);
         HudNotify.watchPmcVehicle(this.unit, this.vehicle);
 
+        LivingEntity target = this.unit.getTarget();
+
+        // An IFV halts and puts its squad out against ARMOUR. Ahead of the posture steers on
+        // purpose: once the halt has started, nothing may drive the hull off until the last man
+        // is out. Deliberately NOT screened with smoke first: it would fire on every such contact,
+        // and the battlefield would end up permanently fogged.
+        if (this.dismount.active() || maybeBeginDismount(target)) {
+            dismountTick(target);
+            return;
+        }
+
         // Posture hard steers on the main tick so area-hold / lost-target still honour them.
         if (trySteerSeekCover()) return;
         if (trySteerPostureManeuvers()) return;
 
         Action plan = idlePlan();
         maybePlanDispatch(plan);
-
-        LivingEntity target = this.unit.getTarget();
-
-        // Runs off the same "the driver holds a target" signal fightTick does, and deliberately
-        // ABOVE the destination check below: standing the squad back up happens on quiet ticks,
-        // which are exactly the ticks that can have no destination at all.
-        // An IFV puts its squad on the ground against ARMOUR only — see dismountSquad. Deliberately
-        // NOT screened with smoke first: it would fire on every such contact, and the battlefield
-        // would end up permanently fogged.
-        if (target != null && this.hull.isIfv()
-                && VehicleWeapons.classifyTarget(target) == TargetCategory.VEHICLE) {
-            dismountSquad();
-        }
 
         // Tank-rider ("Climb" pose) seats: a utilization fix, not an anti-armor tactic, so it
         // triggers on ANY held target rather than being armor-gated like the IFV dismount above —
@@ -885,74 +889,47 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
-     * Puts everyone who isn't crew out of an IFV, so the squad fights on foot while the hull keeps
-     * working its gun. Who stays is {@link HullFacts#crewSeats} — the driver and the turret.
-     *
-     * <p>Only against a SuperbWarfare hull, which is what {@link TargetCategory#VEHICLE} means:
-     * <b>a VehicleEntity is not a LivingEntity and can never be a mob's target</b>, so the test
-     * that matters is whether the thing we are shooting at is RIDING one
-     * ({@link VehicleWeapons#classifyTarget}). Testing the target itself for {@code VehicleEntity}
-     * would be false forever and this would never fire. Against infantry the squad stays aboard —
-     * the hull's own cannon and MGs already cover that, and it is armour that makes a loaded
-     * troop compartment a liability worth emptying. Addon hulls (fcp/mcsp/…) subclass
-     * {@code VehicleEntity}, so they count too, which a check on the {@code superbwarfare}
-     * namespace would have missed.
-     *
-     * <p>One or two of them draw an anti-tank launcher on the way out ({@link SmallArmsSupport}),
-     * which is what makes the whole feature worth having: the squad is being put on the ground
-     * precisely because the hull met armour, and a TACZ rifle cannot scratch armour. RU/US only —
-     * a PMC's loadout belongs to the player who filled its inventory.
-     *
-     * <p>Once out they stay out: they revert to ordinary SEM infantry and are simply picked up
-     * again by whatever puts a unit in a seat. There is no recall, deliberately — a walk-back
-     * state machine is a lot of moving parts for infantry that has already done its job. Note
-     * this survived the arrival of vehicle scavenging ({@code SeekAbandonedVehicleGoal}) only
-     * because that goal takes <em>completely empty</em> hulls: the IFV they left still holds its
-     * driver and gunner, so it is never a candidate and the squad cannot drift back aboard.
-     *
-     * <p>Runs on every combat tick rather than once, which needs no "have I done this" flag: after
-     * the first pass the only passengers left are in crew seats, and that is exactly what the size
-     * check short-circuits on. It also means a unit that boards a rear seat mid-fight is put back
-     * out. Players are never ejected, whatever seat they took.
+     * Today's trigger, cheapest test first: an IFV ({@link HullFacts#isIfv}, cached) carrying more
+     * passengers than crew seats (each passenger holds a distinct seat, so that means somebody is
+     * in the back), holding a target that rides armour. Everything about the sequence itself —
+     * who gets out, where, the AT issue, why there is no recall — is {@link DismountSequence}.
      */
-    private void dismountSquad() {
-        Set<Integer> crew = this.hull.crewSeats();
-        // Each passenger holds a distinct seat, so "no more passengers than crew seats" is a
-        // sound way of saying the squad is already off.
-        if (this.vehicle.getPassengers().size() <= crew.size()) return;
+    private boolean maybeBeginDismount(LivingEntity target) {
+        if (!this.hull.isIfv()) return false;
+        if (this.vehicle.getPassengers().size() <= this.hull.crewSeats().size()) return false;
+        if (target == null || VehicleWeapons.classifyTarget(target) != TargetCategory.VEHICLE) return false;
+        return this.dismount.begin(this.unit, this.vehicle, this.hull.crewSeats(), target);
+    }
 
-        int armed = 0;
-        // Copied because stopRiding() mutates the passenger list underneath us.
-        for (Entity passenger : List.copyOf(this.vehicle.getPassengers())) {
-            if (!(passenger instanceof AbstractUnit rider) || rider == this.unit) continue;
-            int seat = this.vehicle.getSeatIndex(rider);
-            if (seat < 0 || crew.contains(seat)) continue;
-
-            // The first man out always draws a launcher, the second rolls for it, and nobody
-            // after that gets one — a squad fields one or two AT gunners, never a whole section
-            // of them. issueAtWeapon answers false for a PMC (whose loadout is the player's),
-            // for a unit already carrying one, and for a blank config id, so the count tracks
-            // weapons actually handed out rather than attempts. That is also what keeps this
-            // honest across the every-tick re-entry above: an already-armed man cannot consume
-            // one of the two slots a second time.
-            if (armed == 0 || (armed < EasyMode.maxAtGunners()
-                    && rider.getRandom().nextDouble() < EasyMode.atSecondGunnerChance())) {
-                if (SmallArmsSupport.issueAtWeapon(rider)) armed++;
-            }
-            rider.stopRiding();
+    /**
+     * A halted hull putting its squad out. Every steering input released every tick — an
+     * instruction, not the absence of one — while the turret keeps working: the same "fight from
+     * where you stand" the Call actions use.
+     */
+    private void dismountTick(LivingEntity target) {
+        this.driver.stop();
+        this.driver.clearRecovery();
+        // The decoy is latched; a DEPLOY_SMOKE plan interrupted by the halt must not keep volleying.
+        if (this.unit.level().getGameTime() >= this.smokeUntil) {
+            this.vehicle.setDecoyInputDown(false);
         }
+        if (target != null) {
+            selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
+            fireAssistIfSpecial(target);
+        }
+        this.dismount.tick(this.unit, this.vehicle);
     }
 
     /**
      * Empties out the tank-rider ("Climb" pose) seats once the driver holds any target — see
-     * {@link HullFacts#climbSeats} for why "Climb" and not "no weapon" is the test. Unlike
-     * {@link #dismountSquad}: triggers on ANY contact (utilization, not an anti-armor tactic), never
+     * {@link HullFacts#climbSeats} for why "Climb" and not "no weapon" is the test. Unlike the IFV
+     * dismount ({@link DismountSequence}): no halt and no staggered exit — riders cling to the
+     * outside and there is no door to sequence. It also triggers on ANY contact (utilization, not an anti-armor tactic), never
      * issues an AT launcher (these are spare hitchhikers, not a designated element), and is NOT
      * one-way — {@code SeekAbandonedVehicleGoal} lets any idle unit reclaim a free Climb seat once
      * things are quiet, rather than tracking and recalling the specific rider who got off.
      *
-     * <p>Runs every combat tick with no "have I done this" flag, same reasoning as
-     * {@link #dismountSquad}: once a seat is empty there is nobody left in it to find on the next
+     * <p>Runs every combat tick with no "have I done this" flag: once a seat is empty there is nobody left in it to find on the next
      * pass, so re-running costs one more iteration over a short passenger list.
      */
     private void dismountClimbers() {

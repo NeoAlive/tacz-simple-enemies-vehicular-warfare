@@ -300,16 +300,18 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             VehicleEntity self, Vec3 from, LivingEntity target, Vec3 center) {
         // LoadedClip, never Level.clip: a long shot crosses chunks nobody has loaded, and
         // Level.clip would load each one synchronously (7.5 ms/tick in a large battle).
-        if (LoadedClip.clip(self.level(), new ClipContext(from, center,
-                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, self))
+        // Not even with the hull as the ray's context: SBW's collision-shape hook would read the
+        // world through it and load the chunk all the same. See LoadedClip.clipAsVehicle.
+        if (LoadedClip.clipAsVehicle(self.level(), from, center,
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE)
                 .getType() == HitResult.Type.MISS) {
             return false;
         }
         if (Math.abs(target.getEyeY() - center.y) < 2.0) {
             return true;
         }
-        return LoadedClip.clip(self.level(), new ClipContext(from, target.getEyePosition(),
-                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, self))
+        return LoadedClip.clipAsVehicle(self.level(), from, target.getEyePosition(),
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE)
                 .getType() != HitResult.Type.MISS;
     }
 }

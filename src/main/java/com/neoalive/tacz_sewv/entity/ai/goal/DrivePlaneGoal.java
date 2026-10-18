@@ -420,7 +420,7 @@ public class DrivePlaneGoal extends Goal {
     private final HullFacts hull = new HullFacts();
     private final AirTerrainSensor sensor;
     private final DecoyEpisode flares = new DecoyEpisode();
-    private final ChunkTicket chunkTicket = new ChunkTicket();
+    private final ChunkTicket chunkTicket = new ChunkTicket(ChunkTicket.Kind.PLANE);
     private final PlaneKinematics kinematics = new PlaneKinematics();
     private final PlaneTerrain terrain = new PlaneTerrain();
     private final PlaneLeash leash = new PlaneLeash();

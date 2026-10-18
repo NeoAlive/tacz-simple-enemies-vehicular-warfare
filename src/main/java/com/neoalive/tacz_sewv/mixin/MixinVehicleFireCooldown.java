@@ -25,6 +25,7 @@ import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.core.LineOfFireCache;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 import com.neoalive.tacz_sewv.entity.ai.support.FireHesitation;
@@ -46,26 +47,21 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         return this.tacz_sewv$lastAiShotTick;
     }
 
-    // Cache for the line-of-fire verdict, valid for a small rolling window rather than just the
-    // current tick: SBW's AI fire loop consults canShoot at least twice per seat per fire
-    // attempt, and for a fast automatic weapon (see tacz_sewv$effectiveCooldown) the AI cooldown
-    // gate above stops blocking the call after 1 tick, which would otherwise re-run the full
-    // verdict (occupancy check, allied LOF check, 2 block clips, a smoke entity query) every
-    // single tick for as long as the weapon keeps firing. Terrain/smoke occlusion does not change
-    // meaningfully within a few ticks, so aiLosCacheTicks trades a small amount of staleness
-    // (a target that fully breaks LOS mid-burst can draw up to that many extra ticks of fire) for
-    // a large cut in raycast frequency on high-RPM weapons. Keyed on the shooter too — different
-    // seats track different targets.
+    // Line-of-fire verdicts, one slot per seat, each valid for aiLosCacheTicks rather than just
+    // the current tick: SBW's AI fire loop consults canShoot for every Mob seat on every tick,
+    // and for a fast automatic weapon (see tacz_sewv$effectiveCooldown) the AI cooldown gate
+    // above stops blocking the call after 1 tick, which would otherwise re-run the full verdict
+    // (occupancy check, allied LOF check, 2 block clips, a smoke entity query) every single tick
+    // for as long as the weapon keeps firing. Terrain/smoke occlusion does not change
+    // meaningfully within a few ticks, so the window trades a small amount of staleness (a
+    // target that fully breaks LOS mid-burst can draw up to that many extra ticks of fire) for
+    // a large cut in raycast frequency. Per SEAT, not one shared slot: a shared slot was
+    // overwritten by every other gunner on the same hull in turn, so a BMP's firing ports never
+    // hit it at all. Each slot is also keyed on the shooter and the target, so a seat swap or a
+    // retarget inside the window (the contact board makes that routine) never inherits a
+    // stale verdict.
     @Unique
-    private long tacz_sewv$lineCacheTick = Long.MIN_VALUE;
-    @Unique
-    private int tacz_sewv$lineCacheShooterId;
-    // Also keyed on the target: a crew that retargets inside the window (the contact board makes
-    // this routine) must not inherit the previous target's verdict.
-    @Unique
-    private int tacz_sewv$lineCacheTargetId;
-    @Unique
-    private boolean tacz_sewv$lineCacheBlocked;
+    private LineOfFireCache tacz_sewv$lofCache = new LineOfFireCache();
 
     // The AI-crew gate lives on canShoot: SBW's AI fire loop (VehicleEntity.baseTick
     // and each tank's muzzle-flash override) checks it before every shot, for every
@@ -132,16 +128,17 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         } catch (Throwable ignored) {
             losCacheTicks = 8;
         }
-        boolean lineCacheExpired = this.tacz_sewv$lineCacheTick == Long.MIN_VALUE
-                || now - this.tacz_sewv$lineCacheTick >= losCacheTicks;
-        if (lineCacheExpired || living.getId() != this.tacz_sewv$lineCacheShooterId
-                || target.getId() != this.tacz_sewv$lineCacheTargetId) {
-            this.tacz_sewv$lineCacheTick = now;
-            this.tacz_sewv$lineCacheShooterId = living.getId();
-            this.tacz_sewv$lineCacheTargetId = target.getId();
-            this.tacz_sewv$lineCacheBlocked = tacz_sewv$lineOfFireBlocked(self, living, target);
-        }
-        return this.tacz_sewv$lineCacheBlocked;
+        int seat = self.getSeatIndex(living);
+        int cached = this.tacz_sewv$lofCache.lookup(seat, living.getId(), target.getId(), now, losCacheTicks);
+        if (cached != LineOfFireCache.MISS) return cached == LineOfFireCache.HIT_BLOCKED;
+
+        // SBW asks canShoot before it checks the seat has a gun, so a weaponless rear seat
+        // holding a target came through here too. SBW's own canShoot is already false for it
+        // (getGunData(seat) is null), so skip the raycasts and let SBW say no.
+        boolean blocked = (seat < 0 || self.hasWeapon(seat))
+                && tacz_sewv$lineOfFireBlocked(self, living, target);
+        this.tacz_sewv$lofCache.store(seat, living.getId(), target.getId(), now, blocked);
+        return blocked;
     }
 
     @Override

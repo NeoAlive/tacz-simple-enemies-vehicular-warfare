@@ -1,3 +1,4 @@
 {
-  "message.tacz_sewv.lag_tip": "En cas de lag extrême, veuillez exécuter la commande '/superbwarfare config projectileChunkLoading false' ou demander à un administrateur."
+  "message.tacz_sewv.lag_tip": "En cas de lag extrême, veuillez exécuter la commande '/superbwarfare config projectileChunkLoading false' ou demander à un administrateur.",
+  "message.tacz_sewv.lag_tip_ladder": "Grandes batailles sur cartes plates ou ouvertes : mettez enableLadderFallback = false dans config/sem-common.toml pour éviter les coûteuses recherches d'itinéraire par échelle de Simple Enemy Mod."
 }

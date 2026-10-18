@@ -25,7 +25,7 @@ public class ManArtilleryGoal extends Goal {
     private static final int SHOT_COOLDOWN_TICKS = 40;
 
     private final AbstractUnit unit;
-    private final ChunkTicket hullChunk = new ChunkTicket();
+    private final ChunkTicket hullChunk = new ChunkTicket(ChunkTicket.Kind.ARTILLERY);
 
     private long nextShotTime;
     private long nextChunkRefresh;

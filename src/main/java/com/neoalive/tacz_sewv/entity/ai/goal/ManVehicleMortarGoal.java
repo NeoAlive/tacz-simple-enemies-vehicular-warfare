@@ -39,7 +39,7 @@ public class ManVehicleMortarGoal extends Goal {
     private final AbstractUnit unit;
     private VehicleEntity hull;
 
-    private final ChunkTicket hullChunk = new ChunkTicket();
+    private final ChunkTicket hullChunk = new ChunkTicket(ChunkTicket.Kind.VEHICLE_MORTAR);
 
     /** Game time before the next shot may leave the tube. */
     private long nextShotTime;

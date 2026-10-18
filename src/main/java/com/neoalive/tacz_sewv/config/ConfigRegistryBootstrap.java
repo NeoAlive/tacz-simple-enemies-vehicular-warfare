@@ -26,6 +26,7 @@ final class ConfigRegistryBootstrap {
         registerPlatoon(b);
         registerFlight(b);
         registerIndirectFire(b);
+        registerChunkTickets(b);
         registerVoicelines(b);
         registerBoarding(b);
         registerMapIntel(b);
@@ -796,6 +797,19 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.ARTILLERY_ARC_ELEVATION_DEG, SewvConfig.ARTILLERY_ARC_ELEVATION_DEG::set);
         b.doubleRange(ConfigScope.SERVER, "indirect_fire", "mortarRadioRange", 16.0, 2048.0,
                 SewvConfig.MORTAR_RADIO_RANGE, SewvConfig.MORTAR_RADIO_RANGE::set);
+    }
+
+    private static void registerChunkTickets(ConfigRegistry.Builder b) {
+        b.bool(ConfigScope.SERVER, "chunk_tickets", "ticketSkipWhenPlayerTicking",
+                SewvConfig.TICKET_SKIP_WHEN_PLAYER_TICKING, SewvConfig.TICKET_SKIP_WHEN_PLAYER_TICKING::set);
+        b.intRange(ConfigScope.SERVER, "chunk_tickets", "ticketReleaseMarginChunks", 2, 8,
+                SewvConfig.TICKET_RELEASE_MARGIN_CHUNKS, SewvConfig.TICKET_RELEASE_MARGIN_CHUNKS::set);
+        b.intRange(ConfigScope.SERVER, "chunk_tickets", "ticketAcquireMarginChunks", 1, 6,
+                SewvConfig.TICKET_ACQUIRE_MARGIN_CHUNKS, SewvConfig.TICKET_ACQUIRE_MARGIN_CHUNKS::set);
+        b.intRange(ConfigScope.SERVER, "chunk_tickets", "ticketLingerTicks", 0, 1200,
+                SewvConfig.TICKET_LINGER_TICKS, SewvConfig.TICKET_LINGER_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "chunk_tickets", "ticketMaxLingering", 0, 4,
+                SewvConfig.TICKET_MAX_LINGERING, SewvConfig.TICKET_MAX_LINGERING::set);
     }
 
     private static void registerVoicelines(ConfigRegistry.Builder b) {

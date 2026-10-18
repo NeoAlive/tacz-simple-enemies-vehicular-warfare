@@ -31,6 +31,8 @@
     "MixinArtilleryReducedCharge",
     "MixinSeekingWeaponWarning",
     "MixinMissileWarningDecoy",
+    "MixinMissileDecoyGate",
+    "MixinLevelObbHitIndex",
     "MixinLevelAwarenessSound",
     "MixinSoundToolAwareness",
     "MixinVehicleTurretNaN",

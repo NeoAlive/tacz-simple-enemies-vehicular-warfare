@@ -103,8 +103,8 @@ public class ManMortarGoal extends Goal {
      * chunk boundary from it — holding only the mortar would let the crew freeze next to a
      * perfectly well-loaded mortar.
      */
-    private final ChunkTicket unitChunk = new ChunkTicket();
-    private final ChunkTicket mortarChunk = new ChunkTicket();
+    private final ChunkTicket unitChunk = new ChunkTicket(ChunkTicket.Kind.MORTAR_CREW);
+    private final ChunkTicket mortarChunk = new ChunkTicket(ChunkTicket.Kind.MORTAR_TUBE);
 
     public ManMortarGoal(AbstractUnit unit) {
         this.unit = unit;

@@ -53,8 +53,8 @@ public class ManType63Goal extends Goal {
     private FireMission fireMission;
     private String lastHold = "";
 
-    private final ChunkTicket unitChunk = new ChunkTicket();
-    private final ChunkTicket launcherChunk = new ChunkTicket();
+    private final ChunkTicket unitChunk = new ChunkTicket(ChunkTicket.Kind.TYPE63_CREW);
+    private final ChunkTicket launcherChunk = new ChunkTicket(ChunkTicket.Kind.TYPE63_LAUNCHER);
 
     public ManType63Goal(AbstractUnit unit) {
         this.unit = unit;

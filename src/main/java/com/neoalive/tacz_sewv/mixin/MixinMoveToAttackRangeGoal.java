@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.entity.ai.support.FollowLeash;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleCrew;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 
 /**
@@ -26,6 +27,11 @@ import com.neoalive.tacz_sewv.fob.FobSupport;
  * <p>Paired with {@link MixinCommanderOrderGoal}, which keeps the follow goal itself live
  * through combat — without that half this suppression alone would leave the unit standing
  * in place rather than actually following.
+ *
+ * <p>A unit crewing a hull is gated off too ({@link VehicleCrew#suppressOnFootAi}, the same test
+ * the other SEM on-foot tactical goals use): a seated unit cannot walk, yet the goal's
+ * {@code start} still ran SEM's ground path and ladder-route search toward its target every time
+ * it fired — measured at ~2.35% of the server thread in a large battle.
  */
 @Mixin(MoveToAttackRangeGoal.class)
 public abstract class MixinMoveToAttackRangeGoal {
@@ -37,14 +43,16 @@ public abstract class MixinMoveToAttackRangeGoal {
 
     @Inject(method = "canUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$holdWhenLeashed(CallbackInfoReturnable<Boolean> cir) {
-        if (FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)) {
+        if (VehicleCrew.suppressOnFootAi(this.mob)
+                || FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)) {
             cir.setReturnValue(false);
         }
     }
 
     @Inject(method = "canContinueToUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$stopWhenLeashed(CallbackInfoReturnable<Boolean> cir) {
-        if (FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)) {
+        if (VehicleCrew.suppressOnFootAi(this.mob)
+                || FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)) {
             cir.setReturnValue(false);
         }
     }

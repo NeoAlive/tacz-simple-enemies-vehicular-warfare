@@ -225,7 +225,7 @@ public class DriveHelicopterGoal extends Goal {
     private final HullFacts hull = new HullFacts();
     private final DecoyEpisode flares = new DecoyEpisode();
     // Held on the airframe so it keeps flying with no player nearby (config-gated).
-    private final ChunkTicket chunkTicket = new ChunkTicket();
+    private final ChunkTicket chunkTicket = new ChunkTicket(ChunkTicket.Kind.HELI);
 
     private VehicleEntity vehicle;
     private HeliRuntime runtime;

@@ -19,14 +19,40 @@ import com.neoalive.tacz_sewv.debug.PlanePerf;
  * kept alive — the crew AND the tube for a mortar, since the AI lives on the crew and it
  * can stand across a chunk boundary from the weapon.
  *
+ * <p>Two refinements, both under the {@code chunk_tickets} config section and both bounded by
+ * {@link ChunkTicketPolicy}'s constraint that the owner's own chunk must stay entity-ticking:
+ * <ul>
+ *   <li><b>Suspension</b> — while a player already entity-ticks the owner's chunk the ticket is
+ *       dropped, and {@link ChunkTicketCoverage} takes it back before that stops being true;
+ *   <li><b>Linger</b> — a chunk the owner has just left stays forced for a short while, so an
+ *       aircraft circling across the same boundary re-adopts it instead of reloading it and
+ *       re-saving it on every pass.
+ * </ul>
+ *
  * <p>Entity-owned tickets are self-cleaning: they are not restored across a world reload
  * without a validation callback, which suits a live-operation aid rather than persistent
  * world state.
  */
 public final class ChunkTicket {
 
+    /** Who holds the ticket, for the per-kind gauge in {@code /sewv debug perf}. */
+    public enum Kind {
+        HELI, PLANE, MORTAR_CREW, MORTAR_TUBE, VEHICLE_MORTAR, ARTILLERY, TYPE63_CREW, TYPE63_LAUNCHER
+    }
+
+    private final Kind kind;
+
     @Nullable
     private ChunkPos held;
+
+    /** Dropped because a player covers the owner; registered with {@link ChunkTicketCoverage}. */
+    private boolean suspended;
+
+    private final ChunkTicketPolicy.Linger linger = new ChunkTicketPolicy.Linger();
+
+    public ChunkTicket(Kind kind) {
+        this.kind = kind;
+    }
 
     /** True while this instance has a forced chunk recorded locally. */
     public boolean isHeld() {
@@ -41,28 +67,49 @@ public final class ChunkTicket {
         PlanePerf.ticketFollowCalls++;
         if (!(owner.level() instanceof ServerLevel level)) return;
 
+        long now = level.getGameTime();
+        if (this.linger.size() > 0) {
+            PlanePerf.ticketLingerExpiries += this.linger.expire(now, c -> force(level, owner, c, false));
+        }
+
         ChunkPos want = new ChunkPos(owner.blockPosition());
+        boolean coverage = ChunkTicketCoverage.enabled();
+        if (coverage && ChunkTicketCoverage.wantSuspended(this.suspended, level, want)) {
+            if (!this.suspended) suspend(level, owner, want);
+            PlanePerf.ticketFollowNoops++;
+            return;
+        }
+        if (this.suspended) unsuspend();
+
         if (want.equals(this.held)) {
             PlanePerf.ticketFollowNoops++;
             return;
         }
 
         PlanePerf.ticketFollowCrosses++;
-        boolean acquiring = this.held == null;
-        if (this.held != null) force(level, owner, this.held, false);
-        force(level, owner, want, true);
-        this.held = want;
-        if (acquiring) PlanePerf.ticketHeldNow++;
+        // Adopt before pushing the old chunk: at the cap, a push evicts the oldest lingering
+        // chunk, which could be the very one being re-entered.
+        boolean adopted = this.linger.adopt(want.toLong());
+        if (this.held != null) {
+            int ttl = ChunkTicketCoverage.lingerTicks();
+            int cap = ttl > 0 ? ChunkTicketCoverage.maxLingering() : 0;
+            this.linger.push(this.held.toLong(), now + ttl, cap, c -> force(level, owner, c, false));
+        }
+        if (adopted) PlanePerf.ticketLingerAdopts++;
+        else force(level, owner, want.toLong(), true);
+        setHeld(want);
     }
 
     /** Hands the chunk back. A null owner (already gone) just drops the record. */
     public void release(@Nullable Entity owner) {
+        if (this.suspended) unsuspend();
+        ServerLevel level = owner != null && owner.level() instanceof ServerLevel l ? l : null;
+        this.linger.releaseAll(c -> {
+            if (level != null) force(level, owner, c, false);
+        });
         if (this.held == null) return;
-        if (owner != null && owner.level() instanceof ServerLevel level) {
-            force(level, owner, this.held, false);
-        }
-        this.held = null;
-        if (PlanePerf.ticketHeldNow > 0) PlanePerf.ticketHeldNow--;
+        if (level != null) force(level, owner, this.held.toLong(), false);
+        setHeld(null);
     }
 
     /**
@@ -78,11 +125,62 @@ public final class ChunkTicket {
      * owns that gauge once it records {@code held}.
      */
     public static void bootstrap(ServerLevel level, Entity owner) {
-        force(level, owner, new ChunkPos(owner.blockPosition()), true);
+        force(level, owner, new ChunkPos(owner.blockPosition()).toLong(), true);
     }
 
-    private static void force(ServerLevel level, Entity owner, ChunkPos chunk, boolean add) {
-        ForgeChunkManager.forceChunk(level, TaczSewv.MODID, owner, chunk.x, chunk.z, add, true);
+    private void suspend(ServerLevel level, Entity owner, ChunkPos current) {
+        this.linger.releaseAll(c -> force(level, owner, c, false));
+        // With nothing recorded yet, the chunk may still carry the bootstrap ticket.
+        long drop = this.held != null ? this.held.toLong() : current.toLong();
+        force(level, owner, drop, false);
+        setHeld(null);
+        this.suspended = true;
+        PlanePerf.ticketSuspendedNow++;
+        PlanePerf.ticketSuspends++;
+        ChunkTicketCoverage.register(this, owner);
+    }
+
+    private void unsuspend() {
+        ChunkTicketCoverage.unregister(this);
+        clearSuspension();
+        PlanePerf.ticketResumes++;
+    }
+
+    /** Coverage lost while the owner may not be ticking: re-force from the server tick. */
+    void resumeFromCoverage(ServerLevel level, Entity owner) {
+        clearSuspension();
+        PlanePerf.ticketResumes++;
+        ChunkPos want = new ChunkPos(owner.blockPosition());
+        force(level, owner, want.toLong(), true);
+        setHeld(want);
+    }
+
+    /** The owner is gone: nothing to re-force, just forget the suspension. */
+    void dropSuspension() {
+        clearSuspension();
+    }
+
+    private void clearSuspension() {
+        if (!this.suspended) return;
+        this.suspended = false;
+        if (PlanePerf.ticketSuspendedNow > 0) PlanePerf.ticketSuspendedNow--;
+    }
+
+    private void setHeld(@Nullable ChunkPos pos) {
+        int k = this.kind.ordinal();
+        if (this.held == null && pos != null) {
+            PlanePerf.ticketHeldNow++;
+            PlanePerf.ticketHeldByKind[k]++;
+        } else if (this.held != null && pos == null) {
+            if (PlanePerf.ticketHeldNow > 0) PlanePerf.ticketHeldNow--;
+            if (PlanePerf.ticketHeldByKind[k] > 0) PlanePerf.ticketHeldByKind[k]--;
+        }
+        this.held = pos;
+    }
+
+    private static void force(ServerLevel level, Entity owner, long chunk, boolean add) {
+        ForgeChunkManager.forceChunk(level, TaczSewv.MODID, owner,
+                ChunkPos.getX(chunk), ChunkPos.getZ(chunk), add, true);
         if (add) PlanePerf.ticketForceAdds++;
         else PlanePerf.ticketForceRemoves++;
     }

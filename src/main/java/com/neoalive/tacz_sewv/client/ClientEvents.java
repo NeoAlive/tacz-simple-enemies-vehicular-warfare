@@ -633,7 +633,12 @@ public class ClientEvents {
         promptCooldown = 0;
     }
 
-    /** SBW's projectile chunk loading is the usual cause of extreme lag; tell players the fix on join. */
+    /**
+     * SBW's projectile chunk loading is the usual cause of extreme lag; tell players the fix on join.
+     * While SEM's ladder fallback is on, also point at it: in large battles it re-runs a block-column
+     * ladder search every time a rifleman paths at a target 3+ blocks above it (a hull's crew, a
+     * helicopter), which is pure cost on open maps. Both are the player's call, so this only says so.
+     */
     @SubscribeEvent
     public static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
         if (!com.neoalive.tacz_sewv.config.ClientConfig.flag(com.neoalive.tacz_sewv.config.ClientConfig.SHOW_LAG_TIP)) {
@@ -641,6 +646,11 @@ public class ClientEvents {
         }
         event.getPlayer().displayClientMessage(
                 Component.translatable("message.tacz_sewv.lag_tip").withStyle(ChatFormatting.GOLD), false);
+        if (com.neoalive.tacz_sewv.compat.SemConfigProbe.ladderFallbackEnabled()) {
+            event.getPlayer().displayClientMessage(
+                    Component.translatable("message.tacz_sewv.lag_tip_ladder").withStyle(ChatFormatting.GOLD),
+                    false);
+        }
     }
 
     @SubscribeEvent

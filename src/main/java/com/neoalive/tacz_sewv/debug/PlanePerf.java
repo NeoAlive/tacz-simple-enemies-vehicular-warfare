@@ -54,6 +54,15 @@ public final class PlanePerf {
     public static long ticketForceRemoves;
     /** Live count of ChunkTicket instances with a forced chunk. */
     public static int ticketHeldNow;
+    /** Live count per {@code ChunkTicket.Kind} ordinal — which owners hold the tickets. */
+    public static final int[] ticketHeldByKind = new int[com.neoalive.tacz_sewv.util.ChunkTicket.Kind.values().length];
+    /** Live count of tickets dropped because a player already entity-ticks the owner's chunk. */
+    public static int ticketSuspendedNow;
+    public static long ticketSuspends;
+    public static long ticketResumes;
+    /** Crossings back into a chunk still lingering from a previous pass (no reload). */
+    public static long ticketLingerAdopts;
+    public static long ticketLingerExpiries;
 
     private PlanePerf() {}
 
@@ -110,7 +119,8 @@ public final class PlanePerf {
                         + "allyBody avg=%.3fms/%d] "
                         + "playerNearCache=%d/%d | "
                         + "planeTicketsHeld=%d heldTicks=%d | "
-                        + "ticket follow=%d (noop=%d cross=%d) force +%d/-%d heldNow=%d",
+                        + "ticket follow=%d (noop=%d cross=%d) force +%d/-%d heldNow=%d [%s] "
+                        + "suspended=%d (+%d/-%d) linger adopt=%d expire=%d",
                 nearNanos / 1.0e6, nearCalls, avgMs(nearNanos, nearCalls),
                 avgMs(nearParkedNanos, nearParkedCalls), nearParkedCalls,
                 avgMs(nearActiveNanos, nearActiveCalls), nearActiveCalls,
@@ -121,7 +131,9 @@ public final class PlanePerf {
                 playerNearHits, playerNearHits + playerNearMisses,
                 planeTicketsHeld, planeTicketHeldTicks,
                 ticketFollowCalls, ticketFollowNoops, ticketFollowCrosses,
-                ticketForceAdds, ticketForceRemoves, ticketHeldNow);
+                ticketForceAdds, ticketForceRemoves, ticketHeldNow, heldByKind(),
+                ticketSuspendedNow, ticketSuspends, ticketResumes,
+                ticketLingerAdopts, ticketLingerExpiries);
         nearNanos = 0;
         nearCalls = 0;
         nearParkedNanos = 0;
@@ -144,8 +156,23 @@ public final class PlanePerf {
         ticketFollowCrosses = 0;
         ticketForceAdds = 0;
         ticketForceRemoves = 0;
-        // planeTicketsHeld and ticketHeldNow are live gauges — do not reset.
+        ticketSuspends = 0;
+        ticketResumes = 0;
+        ticketLingerAdopts = 0;
+        ticketLingerExpiries = 0;
+        // planeTicketsHeld, ticketHeldNow, ticketHeldByKind and ticketSuspendedNow are live gauges — do not reset.
         return s;
+    }
+
+    private static String heldByKind() {
+        StringBuilder sb = new StringBuilder();
+        com.neoalive.tacz_sewv.util.ChunkTicket.Kind[] kinds = com.neoalive.tacz_sewv.util.ChunkTicket.Kind.values();
+        for (int i = 0; i < kinds.length; i++) {
+            if (ticketHeldByKind[i] == 0) continue;
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(kinds[i].name().toLowerCase(java.util.Locale.ROOT)).append('=').append(ticketHeldByKind[i]);
+        }
+        return sb.length() == 0 ? "-" : sb.toString();
     }
 
     private static double avgMs(long nanos, long calls) {

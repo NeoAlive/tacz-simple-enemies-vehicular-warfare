@@ -318,6 +318,13 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue MORTAR_REQUIRES_AMMO;
     public static final ForgeConfigSpec.BooleanValue MORTAR_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue ARTILLERY_CHUNK_LOADING;
+
+    // chunk_tickets — how the entity-owned chunk tickets above are held (util/ChunkTicket)
+    public static final ForgeConfigSpec.BooleanValue TICKET_SKIP_WHEN_PLAYER_TICKING;
+    public static final ForgeConfigSpec.IntValue TICKET_RELEASE_MARGIN_CHUNKS;
+    public static final ForgeConfigSpec.IntValue TICKET_ACQUIRE_MARGIN_CHUNKS;
+    public static final ForgeConfigSpec.IntValue TICKET_LINGER_TICKS;
+    public static final ForgeConfigSpec.IntValue TICKET_MAX_LINGERING;
     public static final ForgeConfigSpec.DoubleValue ARTILLERY_AIM_TOLERANCE_DEG;
     public static final ForgeConfigSpec.BooleanValue ARTILLERY_REDUCED_CHARGE;
     public static final ForgeConfigSpec.DoubleValue ARTILLERY_ARC_ELEVATION_DEG;
@@ -1106,21 +1113,21 @@ public final class SewvConfig {
         HELI_CHUNK_LOADING = builder.comment(
                         "Keep AI helicopters active even when no player is nearby (uses chunk tickets).",
                         "Default true (matches mortarChunkLoading). Existing installs keep whatever",
-                        "value is already in tacz_sewv-common.toml until that file is deleted.")
+                        "value is already in serverconfig/tacz_sewv-server.toml until that file is deleted.")
                 .define("heliChunkLoading", true);
         PLANE_CHUNK_LOADING = builder.comment(
                         "Keep AI planes active even when no player is nearby (uses chunk tickets).",
                         "Default true (matches mortarChunkLoading). Existing installs keep whatever",
-                        "value is already in tacz_sewv-common.toml until that file is deleted.")
+                        "value is already in serverconfig/tacz_sewv-server.toml until that file is deleted.")
                 .define("planeChunkLoading", true);
         PLANE_FAR_LOD_BLOCKS = builder.comment(
                         "Past this distance (blocks) from every player, a ticketed plane in cruise/hold/",
                         "RTB/ingress uses cheaper terrain and ally scans. Combat, takeoff and landing",
-                        "always stay full fidelity. Delete tacz_sewv-common.toml to pick up a new default.")
+                        "always stay full fidelity. Delete serverconfig/tacz_sewv-server.toml to pick up a new default.")
                 .defineInRange("planeFarLodBlocks", 256.0, 64.0, 1024.0);
         HELI_FAR_LOD_BLOCKS = builder.comment(
                         "Same FAR band for AI helicopters (ground-cache TTL only; heli terrain is already",
-                        "shorter than planes). Delete tacz_sewv-common.toml to pick up a new default.")
+                        "shorter than planes). Delete serverconfig/tacz_sewv-server.toml to pick up a new default.")
                 .defineInRange("heliFarLodBlocks", 128.0, 64.0, 1024.0);
         PLANE_COMMAND_RADIUS = builder.comment("Max distance (blocks) for player orders to aircraft.",
                         "Doubles as the soft leash: past this a plane finishes its pass and returns to you.",
@@ -1350,6 +1357,29 @@ public final class SewvConfig {
                         "How far (blocks) radios can designate targets and find support crews.",
                         "Needs to be long enough for mortar range (raise toward ~2000 for the longest guns).")
                 .defineInRange("mortarRadioRange", 768.0, 16.0, 2048.0);
+        builder.pop();
+
+        builder.push("chunk_tickets");
+        TICKET_SKIP_WHEN_PLAYER_TICKING = builder.comment(
+                        "Drop a helicopter/plane/mortar/artillery chunk ticket while a player is already",
+                        "close enough to keep that chunk ticking, and take it back before they leave.",
+                        "Saves ticket churn near players; never lets the owner stop ticking.")
+                .define("ticketSkipWhenPlayerTicking", true);
+        TICKET_RELEASE_MARGIN_CHUNKS = builder.comment(
+                        "Drop the ticket once the owner is this many chunks inside a player's",
+                        "entity-ticking range (simulation distance - 2).")
+                .defineInRange("ticketReleaseMarginChunks", 4, 2, 8);
+        TICKET_ACQUIRE_MARGIN_CHUNKS = builder.comment(
+                        "Take the ticket back once the owner is within this many chunks of the edge of",
+                        "that range. Always kept below ticketReleaseMarginChunks.")
+                .defineInRange("ticketAcquireMarginChunks", 2, 1, 6);
+        TICKET_LINGER_TICKS = builder.comment(
+                        "Keep a chunk the owner just left loaded this long (game ticks), so circling",
+                        "aircraft do not reload and re-save the same chunks every pass. 0 disables.")
+                .defineInRange("ticketLingerTicks", 100, 0, 1200);
+        TICKET_MAX_LINGERING = builder.comment(
+                        "At most this many recently left chunks kept per ticket owner.")
+                .defineInRange("ticketMaxLingering", 2, 0, 4);
         builder.pop();
 
         builder.push("voicelines");

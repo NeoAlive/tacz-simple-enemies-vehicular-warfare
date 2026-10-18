@@ -116,9 +116,7 @@ public final class AsymmetricInvasionEvent extends DynamicEvent {
      */
     private static void deployDefence(ServerLevel level, BlockPos position, TankSpawner.TankFaction faction) {
         int infantry = SewvConfig.INVASION_DEFENDER_INFANTRY.get();
-        for (int i = 0; i < infantry; i++) {
-            EventSpawns.infantry(level, position, faction, DEFENCE_SCATTER);
-        }
+        EventSpawns.squad(level, position, faction, DEFENCE_SCATTER, infantry);
 
         int tows = SewvConfig.INVASION_DEFENDER_TOWS.get();
         for (int i = 0; i < tows; i++) {

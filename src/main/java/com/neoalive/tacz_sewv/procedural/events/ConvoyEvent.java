@@ -4,8 +4,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
 
+import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -64,6 +66,7 @@ public final class ConvoyEvent extends DynamicEvent {
         int direction = level.random.nextBoolean() ? 1 : -1;
         int spawnedVehicles = 0;
         BlockPos firstVehiclePos = null;
+        Entity firstVehicle = null;
 
         for (int i = 0; i < desiredVehicles; i++) {
             int offset = i * VEHICLE_SPACING * direction;
@@ -74,7 +77,10 @@ public final class ConvoyEvent extends DynamicEvent {
                     WorldVehiclePools.Category.GROUND, null, null);
             if (vehicle != null) {
                 spawnedVehicles++;
-                if (firstVehiclePos == null) firstVehiclePos = vehiclePos;
+                if (firstVehiclePos == null) {
+                    firstVehiclePos = vehiclePos;
+                    firstVehicle = vehicle;
+                }
             }
         }
 
@@ -82,8 +88,10 @@ public final class ConvoyEvent extends DynamicEvent {
         // lets SEM retry this event on a later cycle.
         if (spawnedVehicles == 0 || firstVehiclePos == null) return false;
 
-        for (int i = 0; i < INFANTRY_COUNT; i++) {
-            EventSpawns.infantry(level, firstVehiclePos, faction, INFANTRY_SCATTER);
+        // The riflemen escort the lead vehicle in two files along its flanks (EscortGoal). They are a squad as
+        // well: the escort is transient, so after a reload they fall back to moving together on foot.
+        for (AbstractUnit rifleman : EventSpawns.squad(level, firstVehiclePos, faction, INFANTRY_SCATTER, INFANTRY_COUNT)) {
+            if (rifleman instanceof IEscort escort) escort.tacz_sewv$setEscortTargetId(firstVehicle.getId());
         }
         return true;
     }

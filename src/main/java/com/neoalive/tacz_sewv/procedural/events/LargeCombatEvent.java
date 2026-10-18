@@ -136,9 +136,7 @@ public final class LargeCombatEvent extends DynamicEvent {
     private static int deploySide(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction,
                                   boolean alongX, int facing) {
         int squad = SQUAD_MIN + level.random.nextInt(SQUAD_VARIANCE);
-        for (int i = 0; i < squad; i++) {
-            EventSpawns.infantry(level, anchor, faction, INFANTRY_SCATTER);
-        }
+        EventSpawns.squad(level, anchor, faction, INFANTRY_SCATTER, squad);
 
         int spawned = 0;
         if (TankSpawner.groundEventsAllowed(level, faction)) {

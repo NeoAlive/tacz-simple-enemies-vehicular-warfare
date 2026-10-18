@@ -130,9 +130,7 @@ public final class MortarShellingEvent extends DynamicEvent {
         // climbing and retry, rather than burning the roll on a battery that isn't there.
         if (placed == 0) return false;
 
-        for (int i = 0; i < SewvConfig.SHELLING_GUARDS.get(); i++) {
-            EventSpawns.infantry(level, centerPos, faction, GUARD_SPREAD);
-        }
+        EventSpawns.squad(level, centerPos, faction, GUARD_SPREAD, SewvConfig.SHELLING_GUARDS.get());
         return true;
     }
 

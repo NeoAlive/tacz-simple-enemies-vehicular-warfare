@@ -13,12 +13,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEntrenched;
+import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.ITowRecovery;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.goal.CasRelayGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.InfantrySquadGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 
@@ -46,10 +49,25 @@ import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 @Mixin({RUunitEntity.class, USunitEntity.class})
 public abstract class MixinFactionUnitEntity
         implements IVehicleBoarder, IHelicopterPilot, IMortarCrew, IIssuedAmmo, ICaptureOrder, IEntrenched,
-        ITowRecovery {
+        ITowRecovery, IEscort {
 
     @Unique
     private int tacz_sewv$mountTargetId = -1;
+
+    // IEscort: a convoy rifleman guards its lead vehicle (ConvoyEvent). Transient for the same reason as the
+    // board order — a network id — so after a reload the rifleman falls back to its squad.
+    @Unique
+    private int tacz_sewv$escortTargetId = -1;
+
+    @Override
+    public void tacz_sewv$setEscortTargetId(int id) {
+        this.tacz_sewv$escortTargetId = id;
+    }
+
+    @Override
+    public int tacz_sewv$getEscortTargetId() {
+        return this.tacz_sewv$escortTargetId;
+    }
 
     @Unique
     private boolean tacz_sewv$boarding = false;
@@ -151,6 +169,10 @@ public abstract class MixinFactionUnitEntity
         // Organic comms relay — any RU/US contact with a live target can task fixed-wing CAS in
         // range. Claims no flags; see CasRelayGoal.
         mob.goalSelector.addGoal(1, new CasRelayGoal(self));
+        // Event infantry move as squads and guard what they were sent with. Both priority-1 MOVE, out of
+        // contact only (escort excepted, by design), and the squad goal yields to every other order goal.
+        mob.goalSelector.addGoal(1, new EscortGoal(self));
+        mob.goalSelector.addGoal(1, new InfantrySquadGoal(self));
 
         // SEM's own plain HurtByTargetGoal (RU/US retaliation, priority 1) never excludes a
         // same-faction attacker — see MixinPmcUnitEntity's identical fix for the PMC side and

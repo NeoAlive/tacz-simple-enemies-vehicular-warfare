@@ -130,9 +130,7 @@ public final class DerelictVehicleEvent extends DynamicEvent {
         // would refuel the very hull this event exists to leave dry.
         int maxSurvivors = SewvConfig.DERELICT_GUARDS.get();
         int survivors = maxSurvivors <= 0 ? 0 : 1 + level.random.nextInt(maxSurvivors);
-        for (int i = 0; i < survivors; i++) {
-            EventSpawns.infantry(level, hullPos, faction, GUARD_SCATTER);
-        }
+        EventSpawns.squad(level, hullPos, faction, GUARD_SCATTER, survivors);
         return true;
     }
 }

@@ -17,6 +17,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
 import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
+import com.neoalive.tacz_sewv.entity.ai.support.InfantrySquads;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -84,6 +85,21 @@ final class EventSpawns {
         unit.finalizeSpawn(level, level.getCurrentDifficultyAt(unit.blockPosition()), MobSpawnType.EVENT, null, null);
         level.addFreshEntity(unit);
         return unit;
+    }
+
+    /**
+     * {@code count} riflemen around {@code anchor}, stamped into squads ({@link InfantrySquads}) so they move
+     * as units rather than drifting apart. Returns whoever actually spawned.
+     */
+    static List<AbstractUnit> squad(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction,
+                                    int scatter, int count) {
+        List<AbstractUnit> spawned = new ArrayList<>(Math.max(0, count));
+        for (int i = 0; i < count; i++) {
+            AbstractUnit unit = infantry(level, anchor, faction, scatter);
+            if (unit != null) spawned.add(unit);
+        }
+        InfantrySquads.stamp(spawned);
+        return spawned;
     }
 
     /**

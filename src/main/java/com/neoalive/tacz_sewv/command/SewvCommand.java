@@ -46,6 +46,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
 import com.neoalive.tacz_sewv.config.ConfigApplier;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.EntityCleanup;
 import com.neoalive.tacz_sewv.debug.IdleGroupDebug;
 import com.neoalive.tacz_sewv.debug.PerfProbe;
 import com.neoalive.tacz_sewv.debug.SewvConfigFix;
@@ -217,6 +218,13 @@ public class SewvCommand {
                                                 .executes(ctx -> IdleGroupDebug.spawnCluster(ctx.getSource(),
                                                         IntegerArgumentType.getInteger(ctx, "count"),
                                                         parseTankFaction(StringArgumentType.getString(ctx, "faction"))))))))
+                        .then(Commands.literal("cleanup")
+                                .then(Commands.literal("ALL")
+                                        .executes(ctx -> EntityCleanup.run(ctx.getSource(), true)))
+                                .then(Commands.literal("NEARBY")
+                                        .executes(ctx -> EntityCleanup.run(ctx.getSource(), false)))
+                                .then(Commands.literal("TARGET")
+                                        .executes(ctx -> EntityCleanup.target(ctx.getSource()))))
                 .then(Commands.literal("diplomacy")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("add")

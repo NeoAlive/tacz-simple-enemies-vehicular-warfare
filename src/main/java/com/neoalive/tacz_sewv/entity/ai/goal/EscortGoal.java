@@ -5,10 +5,19 @@ import java.util.UUID;
 
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.phys.Vec3;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
+import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationFrame;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationGeometry;
+import com.neoalive.tacz_sewv.entity.ai.formation.FormationSpec;
+import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -33,23 +42,45 @@ import com.neoalive.tacz_sewv.order.OrderReport;
  * chase goal, so the unit fights from beside the vehicle (the rifle goal is a separate LOOK flag and
  * fires concurrently) instead of running 90 blocks after an enemy. That is the bodyguard behaviour
  * asked for.
+ *
+ * <h2>Each bodyguard has a slot</h2>
+ * Every escort of one entity used to path to the entity itself, so a section of riflemen escorting a
+ * tank piled onto its hull. They now hold two files down its flanks ({@link #escortSlot}), ranked by
+ * entity id among the escorts of the same target — every escort ranks the same set the same way, so no
+ * two choose one slot. The files clear the target's own width, so a tank and a jeep are flanked alike.
+ *
+ * <h2>RU/US too</h2>
+ * A convoy's riflemen escort its lead vehicle ({@code ConvoyEvent}), so the goal is typed to
+ * {@link AbstractUnit}. The PMC-only parts — the territory-post gate and reporting a lost VIP to the
+ * owner — apply only to a PMC. It yields while the unit has a board order (an RU/US scavenging an empty
+ * hull) rather than holding MOVE against {@code BoardVehicleGoal} at the same priority.
  */
 public class EscortGoal extends Goal {
 
     // Mirrors SEM's own follow tuning (CommanderOrderGoal 1.1 / 10 / 3), a touch tighter — a
     // bodyguard should sit closer to the VIP than a squad trails its commander.
     private static final double SPEED = 1.15;
-    private static final double START_FOLLOW_DISTANCE = 8.0;
-    private static final double STOP_FOLLOW_DISTANCE = 3.0;
+    /** On the slot inside this; start walking again past {@link #RESUME_DISTANCE}. */
+    private static final double SETTLE_DISTANCE = 1.5;
+    private static final double RESUME_DISTANCE = 4.0;
+    /** Gap between a file and the target's side, and between ranks along it. */
+    private static final double FILE_GAP = 2.5;
+    private static final double RANK_STEP = 3.0;
+    /** Escorts of the same target further than this from it are not ranked with the rest. */
+    private static final double RANK_REACH = 32.0;
+    private static final int RERANK_EVERY_REPATHS = 4;
     // Re-path cadence. The escorted entity moves, so the destination is refreshed — but not every
     // tick (that thrashes the navigator); a few blocks of lag behind a moving vehicle is fine.
     private static final int REPATH_INTERVAL = 10;
 
-    private final PmcUnitEntity unit;
+    private final AbstractUnit unit;
     private Entity escortTarget;
     private int repathCooldown;
+    private int repaths;
+    private int rank;
+    private boolean settled;
 
-    public EscortGoal(PmcUnitEntity unit) {
+    public EscortGoal(AbstractUnit unit) {
         this.unit = unit;
         this.setFlags(EnumSet.of(Flag.MOVE));
     }
@@ -65,17 +96,19 @@ public class EscortGoal extends Goal {
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
-        if (((ITerritoryPost) this.unit).sewv$hasTerritoryPost()) return false; // a post owns MOVE at this priority
+        if (hasPost()) return false; // a post owns MOVE at this priority
         if (this.unit.isPassenger()) return false; // riding something itself — not on foot to escort
-        if (escortId() == -1) return false;
+        if (escortId() == -1 || boarding()) return false;
 
         Entity target = this.unit.level().getEntity(escortId());
         if (target == null || !target.isAlive() || target == this.unit) {
             clearEscort(); // the VIP is gone or nonsense — free the unit
             // Reported once, not every tick: the id is now -1, so canUse bails above on the next.
-            UUID owner = this.unit.getOwnerUUID();
-            OrderReport.fail(owner != null ? this.unit.level().getPlayerByUUID(owner) : null,
-                    OrderFailure.TARGET_GONE, this.unit);
+            if (this.unit instanceof PmcUnitEntity pmc) {
+                UUID owner = pmc.getOwnerUUID();
+                OrderReport.fail(owner != null ? this.unit.level().getPlayerByUUID(owner) : null,
+                        OrderFailure.TARGET_GONE, this.unit);
+            }
             return false;
         }
         this.escortTarget = target;
@@ -84,16 +117,28 @@ public class EscortGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return !((ITerritoryPost) this.unit).sewv$hasTerritoryPost()
+        return !hasPost()
+                && !boarding()
                 && escortId() != -1
                 && this.escortTarget != null
                 && this.escortTarget.isAlive()
                 && !this.unit.isPassenger();
     }
 
+    private boolean hasPost() {
+        return this.unit instanceof ITerritoryPost post && post.sewv$hasTerritoryPost();
+    }
+
+    private boolean boarding() {
+        return this.unit instanceof IVehicleBoarder b && b.tacz_sewv$getMountTargetId() != -1;
+    }
+
     @Override
     public void start() {
         this.repathCooldown = 0;
+        this.repaths = 0;
+        this.settled = false;
+        this.rank = rankAmongEscorts();
     }
 
     @Override
@@ -110,20 +155,51 @@ public class EscortGoal extends Goal {
         // it isn't actively pathing.
         this.unit.getLookControl().setLookAt(this.escortTarget, 30.0F, 30.0F);
 
-        double distSq = this.unit.distanceToSqr(this.escortTarget);
-        if (distSq <= STOP_FOLLOW_DISTANCE * STOP_FOLLOW_DISTANCE) {
-            // Close enough — hold, so the unit doesn't jitter into the hull.
+        if (--this.repathCooldown > 0) return;
+        this.repathCooldown = REPATH_INTERVAL;
+        if (++this.repaths % RERANK_EVERY_REPATHS == 0) this.rank = rankAmongEscorts();
+
+        Vec3 slot = escortSlot(this.escortTarget.position(), this.escortTarget.getYRot(),
+                this.escortTarget.getBbWidth(), this.rank);
+        double y = GroundSnap.groundY(this.unit.level(), slot.x, slot.z, this.escortTarget.getY());
+        double distSq = this.unit.distanceToSqr(slot.x, y, slot.z);
+        // Hysteresis: settle inside the small ring, only walk again once outside the larger one, so a unit
+        // on its slot beside a creeping vehicle does not stutter.
+        if (distSq <= SETTLE_DISTANCE * SETTLE_DISTANCE
+                || (this.settled && distSq <= RESUME_DISTANCE * RESUME_DISTANCE)) {
+            this.settled = true;
             this.unit.getNavigation().stop();
             return;
         }
-        if (distSq <= START_FOLLOW_DISTANCE * START_FOLLOW_DISTANCE && this.unit.getNavigation().isDone()) {
-            return; // inside the follow band and already parked — nothing to do
-        }
+        this.settled = false;
+        this.unit.getNavigation().moveTo(slot.x, y, slot.z, SPEED);
+    }
 
-        // Beyond the band (or still parked short of it): re-path toward the moving VIP, throttled.
-        if (--this.repathCooldown <= 0) {
-            this.repathCooldown = REPATH_INTERVAL;
-            this.unit.getNavigation().moveTo(this.escortTarget, SPEED);
+    /** This unit's rank among everyone escorting the same entity, by id — the same answer for all of them. */
+    private int rankAmongEscorts() {
+        if (this.escortTarget == null) return 0;
+        int target = this.escortTarget.getId();
+        int rank = 0;
+        for (AbstractUnit other : this.unit.level().getEntitiesOfClass(AbstractUnit.class,
+                this.escortTarget.getBoundingBox().inflate(RANK_REACH),
+                u -> u != this.unit && u.isAlive() && u instanceof IEscort e && e.tacz_sewv$getEscortTargetId() == target)) {
+            if (other.getId() < this.unit.getId()) rank++;
         }
+        return rank;
+    }
+
+    /**
+     * Slot {@code rank} beside an escorted entity at {@code vip} facing {@code yaw}: two files, left and right,
+     * {@link #FILE_GAP} clear of its sides, ranks {@link #RANK_STEP} apart starting level with its middle and
+     * running aft. Pure — the self-check pins it.
+     */
+    public static Vec3 escortSlot(Vec3 vip, float yaw, double vipWidth, int rank) {
+        double fileSpacing = vipWidth + 2.0 * FILE_GAP;
+        FormationSpec spec = new FormationSpec(FormationShape.LINE, fileSpacing, 1.0, RANK_STEP / fileSpacing, 2,
+                FormationSpec.Placement.TRAIL);
+        Vec3 f = VehicleFormation.forwardOfYaw(yaw);
+        // TRAIL puts the first rank one step aft of the anchor; anchoring one step ahead lines it up with the middle.
+        FormationFrame frame = FormationFrame.facing(vip.x + f.x * RANK_STEP, vip.y, vip.z + f.z * RANK_STEP, f.x, f.z);
+        return FormationGeometry.slot(frame, spec, rank, rank + 1);
     }
 }

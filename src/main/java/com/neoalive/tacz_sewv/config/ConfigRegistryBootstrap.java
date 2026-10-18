@@ -27,6 +27,7 @@ final class ConfigRegistryBootstrap {
         registerFlight(b);
         registerIndirectFire(b);
         registerChunkTickets(b);
+        registerUnitLod(b);
         registerVoicelines(b);
         registerBoarding(b);
         registerMapIntel(b);
@@ -810,6 +811,21 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.TICKET_LINGER_TICKS, SewvConfig.TICKET_LINGER_TICKS::set);
         b.intRange(ConfigScope.SERVER, "chunk_tickets", "ticketMaxLingering", 0, 4,
                 SewvConfig.TICKET_MAX_LINGERING, SewvConfig.TICKET_MAX_LINGERING::set);
+    }
+
+    private static void registerUnitLod(ConfigRegistry.Builder b) {
+        b.bool(ConfigScope.SERVER, "unit_lod", "unitLodEnabled",
+                SewvConfig.UNIT_LOD_ENABLED, SewvConfig.UNIT_LOD_ENABLED::set);
+        b.doubleRange(ConfigScope.SERVER, "unit_lod", "unitLodNearBlocks", 32.0, 512.0,
+                SewvConfig.UNIT_LOD_NEAR_BLOCKS, SewvConfig.UNIT_LOD_NEAR_BLOCKS::set);
+        b.doubleRange(ConfigScope.SERVER, "unit_lod", "unitLodFarBlocks", 64.0, 1024.0,
+                SewvConfig.UNIT_LOD_FAR_BLOCKS, SewvConfig.UNIT_LOD_FAR_BLOCKS::set);
+        b.intRange(ConfigScope.SERVER, "unit_lod", "unitLodMidStride", 2, 16,
+                SewvConfig.UNIT_LOD_MID_STRIDE, SewvConfig.UNIT_LOD_MID_STRIDE::set);
+        b.intRange(ConfigScope.SERVER, "unit_lod", "unitLodFarStride", 2, 16,
+                SewvConfig.UNIT_LOD_FAR_STRIDE, SewvConfig.UNIT_LOD_FAR_STRIDE::set);
+        b.intRange(ConfigScope.SERVER, "unit_lod", "unitLodWakeTicks", 0, 200,
+                SewvConfig.UNIT_LOD_WAKE_TICKS, SewvConfig.UNIT_LOD_WAKE_TICKS::set);
     }
 
     private static void registerVoicelines(ConfigRegistry.Builder b) {

@@ -11,6 +11,8 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.util.LoadedClip;
+
 /**
  * Three-way block sight for contacts: clear engage, foliage-only (uncertain — something is
  * there but identity is not), or hard-blocked.
@@ -47,7 +49,8 @@ public final class ContactSight {
         boolean foliage = false;
 
         for (int i = 0; i < MAX_SKIPS; i++) {
-            HitResult hit = level.clip(new ClipContext(
+            // Never loads a chunk: a wide-scan sight line can span hundreds of blocks.
+            HitResult hit = LoadedClip.clip(level, new ClipContext(
                     cursor, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, context));
             if (hit.getType() == HitResult.Type.MISS) {
                 return foliage ? Kind.UNCERTAIN : Kind.CLEAR;

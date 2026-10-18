@@ -332,6 +332,13 @@ public final class CombatantIndex {
                     observer, observer != null, altitudeSlack(level, hull)));
         }
 
+        // Unit AI LOD rides this pass: it has every live unit in hand already.
+        List<LivingEntity> units = new ArrayList<>();
+        for (Entry e : living) {
+            if (e.kind != Kind.SOFT && e.living != null) units.add(e.living);
+        }
+        com.neoalive.tacz_sewv.entity.ai.support.UnitLod.assignTiers(level, units, now);
+
         Snapshot snap = new Snapshot(now, living, hulls, wrecks);
         st.rebuilds++;
         st.lastRebuildNanos = System.nanoTime() - t0;

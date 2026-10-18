@@ -325,6 +325,14 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue TICKET_ACQUIRE_MARGIN_CHUNKS;
     public static final ForgeConfigSpec.IntValue TICKET_LINGER_TICKS;
     public static final ForgeConfigSpec.IntValue TICKET_MAX_LINGERING;
+
+    // unit_lod — distance-based AI throttling for SEM units (entity/ai/support/UnitLod)
+    public static final ForgeConfigSpec.BooleanValue UNIT_LOD_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue UNIT_LOD_NEAR_BLOCKS;
+    public static final ForgeConfigSpec.DoubleValue UNIT_LOD_FAR_BLOCKS;
+    public static final ForgeConfigSpec.IntValue UNIT_LOD_MID_STRIDE;
+    public static final ForgeConfigSpec.IntValue UNIT_LOD_FAR_STRIDE;
+    public static final ForgeConfigSpec.IntValue UNIT_LOD_WAKE_TICKS;
     public static final ForgeConfigSpec.DoubleValue ARTILLERY_AIM_TOLERANCE_DEG;
     public static final ForgeConfigSpec.BooleanValue ARTILLERY_REDUCED_CHARGE;
     public static final ForgeConfigSpec.DoubleValue ARTILLERY_ARC_ELEVATION_DEG;
@@ -1380,6 +1388,30 @@ public final class SewvConfig {
         TICKET_MAX_LINGERING = builder.comment(
                         "At most this many recently left chunks kept per ticket owner.")
                 .defineInRange("ticketMaxLingering", 2, 0, 4);
+        builder.pop();
+
+        builder.push("unit_lod");
+        UNIT_LOD_ENABLED = builder.comment(
+                        "Soldiers far from every player decide what to do less often. They keep walking,",
+                        "shooting and taking damage, but fights far away play out slower, for both sides.",
+                        "Mounted crews, PMC, mortar crews and units boarding or escorting are never throttled.")
+                .define("unitLodEnabled", true);
+        UNIT_LOD_NEAR_BLOCKS = builder.comment(
+                        "Full-rate AI within this many blocks of a player.")
+                .defineInRange("unitLodNearBlocks", 128.0, 32.0, 512.0);
+        UNIT_LOD_FAR_BLOCKS = builder.comment(
+                        "Beyond this many blocks from every player, the far rate applies (never below unitLodNearBlocks).")
+                .defineInRange("unitLodFarBlocks", 256.0, 64.0, 1024.0);
+        UNIT_LOD_MID_STRIDE = builder.comment(
+                        "Between the two distances, decide every this many ticks (vanilla is 2; odd values round up).")
+                .defineInRange("unitLodMidStride", 4, 2, 16);
+        UNIT_LOD_FAR_STRIDE = builder.comment(
+                        "Beyond unitLodFarBlocks, decide every this many ticks (never finer than the mid rate).")
+                .defineInRange("unitLodFarStride", 8, 2, 16);
+        UNIT_LOD_WAKE_TICKS = builder.comment(
+                        "A throttled soldier that is hurt or spots a new enemy runs at full rate this long (game ticks).",
+                        "0 disables the wake-up.")
+                .defineInRange("unitLodWakeTicks", 40, 0, 200);
         builder.pop();
 
         builder.push("voicelines");

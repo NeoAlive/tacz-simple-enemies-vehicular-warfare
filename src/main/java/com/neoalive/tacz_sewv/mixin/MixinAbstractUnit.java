@@ -12,12 +12,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.bridge.IFireHesitation;
+import com.neoalive.tacz_sewv.bridge.ILodUnit;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
+import com.neoalive.tacz_sewv.entity.ai.support.UnitLod;
 import com.neoalive.tacz_sewv.map.MapIdentity;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 
@@ -42,7 +44,7 @@ import com.neoalive.tacz_sewv.notify.HudNotify;
  * — every goal that fights, chases or drives at something reads getTarget().
  */
 @Mixin(AbstractUnit.class)
-public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation {
+public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation, ILodUnit {
 
     // FireHesitation state: the target the clock was started for, and when it may fire.
     @Unique
@@ -68,6 +70,52 @@ public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation
     @Override
     public void sewv$setHesReadyAt(long gameTime) {
         this.tacz_sewv$hesReadyAt = gameTime;
+    }
+
+    // UnitLod state: tier + when it was assigned, and the full-rate wake window.
+    @Unique
+    private byte tacz_sewv$lodTier;
+    @Unique
+    private long tacz_sewv$lodStamp;
+    @Unique
+    private long tacz_sewv$lodWakeUntil;
+    @Unique
+    private int tacz_sewv$lodWakeTargetId = -1;
+
+    @Override
+    public byte sewv$lodTier() {
+        return this.tacz_sewv$lodTier;
+    }
+
+    @Override
+    public long sewv$lodStamp() {
+        return this.tacz_sewv$lodStamp;
+    }
+
+    @Override
+    public void sewv$setLod(byte tier, long gameTime) {
+        this.tacz_sewv$lodTier = tier;
+        this.tacz_sewv$lodStamp = gameTime;
+    }
+
+    @Override
+    public long sewv$lodWakeUntil() {
+        return this.tacz_sewv$lodWakeUntil;
+    }
+
+    @Override
+    public void sewv$setLodWakeUntil(long gameTime) {
+        this.tacz_sewv$lodWakeUntil = gameTime;
+    }
+
+    @Override
+    public int sewv$lodWakeTargetId() {
+        return this.tacz_sewv$lodWakeTargetId;
+    }
+
+    @Override
+    public void sewv$setLodWakeTargetId(int id) {
+        this.tacz_sewv$lodWakeTargetId = id;
     }
 
     static {
@@ -157,6 +205,7 @@ public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation
         ContactBoard.onTargetAcquired(self, target);
         ContactBoard.relayIfvContact(self, target);
         MapIdentity.onTargetAcquired(self, target);
+        UnitLod.onTargetAcquired(self, target);
     }
 
     /** After vetoes: owned PMC acquired a live hostile — rising-edge toast with cooldown. */

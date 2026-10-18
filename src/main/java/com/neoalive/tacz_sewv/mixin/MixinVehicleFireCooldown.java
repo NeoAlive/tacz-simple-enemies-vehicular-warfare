@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 import com.neoalive.tacz_sewv.entity.ai.support.FireHesitation;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
+import com.neoalive.tacz_sewv.util.LoadedClip;
 import com.neoalive.tacz_sewv.util.SmokeVision;
 
 @Mixin(targets = "com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity")
@@ -297,7 +298,9 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     @Unique
     private static boolean tacz_sewv$terrainBlocksLine(
             VehicleEntity self, Vec3 from, LivingEntity target, Vec3 center) {
-        if (self.level().clip(new ClipContext(from, center,
+        // LoadedClip, never Level.clip: a long shot crosses chunks nobody has loaded, and
+        // Level.clip would load each one synchronously (7.5 ms/tick in a large battle).
+        if (LoadedClip.clip(self.level(), new ClipContext(from, center,
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, self))
                 .getType() == HitResult.Type.MISS) {
             return false;
@@ -305,7 +308,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
         if (Math.abs(target.getEyeY() - center.y) < 2.0) {
             return true;
         }
-        return self.level().clip(new ClipContext(from, target.getEyePosition(),
+        return LoadedClip.clip(self.level(), new ClipContext(from, target.getEyePosition(),
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, self))
                 .getType() != HitResult.Type.MISS;
     }

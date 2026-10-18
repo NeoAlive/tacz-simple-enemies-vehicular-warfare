@@ -218,7 +218,8 @@ final class LvGunnerGoal extends Goal {
 
     /** Terrain between the muzzle and the aim point, and no friendly hull or unit in the corridor. */
     private boolean clearShot(Vec3 from, Vec3 to) {
-        HitResult hit = this.unit.level().clip(new ClipContext(from, to, ClipContext.Block.COLLIDER,
+        HitResult hit = com.neoalive.tacz_sewv.util.LoadedClip.clip(this.unit.level(), new ClipContext(from, to,
+                ClipContext.Block.COLLIDER,
                 ClipContext.Fluid.NONE, this.unit));
         if (hit.getType() != HitResult.Type.MISS && hit.getLocation().distanceToSqr(to) > 4.0) return false;
         return !VehicleTargeting.alliedInLineOfFire(this.unit, this.hull, from, to);

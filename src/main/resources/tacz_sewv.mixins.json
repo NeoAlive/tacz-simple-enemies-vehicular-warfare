@@ -33,6 +33,7 @@
     "MixinMissileWarningDecoy",
     "MixinMissileDecoyGate",
     "MixinLevelObbHitIndex",
+    "MixinMobUnitLod",
     "MixinLevelAwarenessSound",
     "MixinSoundToolAwareness",
     "MixinVehicleTurretNaN",

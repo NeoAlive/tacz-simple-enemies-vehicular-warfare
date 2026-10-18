@@ -337,13 +337,8 @@ public final class TacticalBrain {
                 this.facts.idleSnapshot = snap;
             }
             IdleGroupSupport.enterHold(unit, hull, snap);
-        } else if (this.plan == Action.IDLE_TRAVEL) {
-            if (snap == null) {
-                snap = IdleGroupSupport.scan(unit, hull);
-                this.facts.idleSnapshot = snap;
-            }
-            IdleGroupSupport.enterTravel(unit, hull, snap);
         }
+        // IDLE_TRAVEL writes nothing: the march the coordinator formed is the whole of its state.
     }
 
     /** Live foliage / gunfire cue, or contact memory still worth searching. */
@@ -373,9 +368,11 @@ public final class TacticalBrain {
             // Where an ordered crew goes is the player's business, not the scorer's. PATROL is the
             // one that stays available, because it IS "carry out the standing destination".
             case PATROL -> true;
-            case SEARCH_LAST_KNOWN ->
-                    !this.facts.underOrders && this.facts.memory.hasFreshContact(this.lastSampledTick);
-            case REGROUP -> !this.facts.underOrders && this.facts.nearestAlly != null;
+            // A march is the group's commitment: a heard cue does not peel one hull off it (the rest would wait for
+            // it and stall), and a real contact ends the march for everyone, which lifts this.
+            case SEARCH_LAST_KNOWN -> !this.facts.underOrders && !this.facts.idleTravelActive
+                    && this.facts.memory.hasFreshContact(this.lastSampledTick);
+            case REGROUP -> !this.facts.underOrders && !this.facts.idleTravelActive && this.facts.nearestAlly != null;
 
             case IDLE_HOLD -> {
                 boolean taskedHold = this.signals[Signal.TASKED_IDLE_HOLD.ordinal()] > 0.0;
@@ -388,16 +385,10 @@ public final class TacticalBrain {
                         && !this.facts.idleHoldExpired
                         && !this.facts.idleTravelActive;
             }
-            case IDLE_TRAVEL -> {
-                boolean taskedTravel = this.signals[Signal.TASKED_IDLE_TRAVEL.ordinal()] > 0.0;
-                yield this.facts.idleGroundDrivable
-                        && !investigating()
-                        && (!this.facts.underOrders || taskedTravel)
-                        && (this.facts.idleHoldExpired
-                        || this.facts.idleGroupOversize
-                        || taskedTravel
-                        || this.facts.idleTravelActive);
-            }
+            // Only a crew the coordinator has put in a march, and then always: the group decided to go together,
+            // and a crew that peeled off to chase a cue would hold the whole column up. A real contact ends the
+            // march for everyone (MarchRegistry), which is what takes this away.
+            case IDLE_TRAVEL -> this.facts.idleGroundDrivable && this.facts.idleTravelActive;
 
             // A request needs something to request from, and a crew that just called must not
             // call again — the cooldown is what stops one contact re-tasking every tube in the

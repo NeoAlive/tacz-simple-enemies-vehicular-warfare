@@ -20,9 +20,13 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.march.IdleMarches;
+import com.neoalive.tacz_sewv.entity.ai.march.March;
+import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -30,8 +34,8 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.VehicleDrops;
 
 /**
- * Op-only {@code /sewv debug idle*} helpers for exercising hybrid IDLE_HOLD / IDLE_TRAVEL
- * without waiting on hold timers or manual clustering.
+ * Op-only {@code /sewv debug idle*} helpers for exercising the idle hold and the idle march without waiting
+ * on the hold or clustering by hand. Travel goes through {@link IdleMarches#form}, the coordinator's own path.
  */
 public final class IdleGroupDebug {
 
@@ -72,6 +76,7 @@ public final class IdleGroupDebug {
         return 1;
     }
 
+    /** Form the targeted cluster into an idle march now, through the same path the coordinator takes. */
     public static int forceTravel(CommandSourceStack source, @Nullable Float bearingDeg) {
         DriverHull dh = resolveDriver(source);
         if (dh == null) {
@@ -79,17 +84,23 @@ public final class IdleGroupDebug {
             return 0;
         }
         IdleGroupSupport.Snapshot snap = IdleGroupSupport.scan(dh.unit, dh.hull);
-        if (bearingDeg != null) {
-            IdleGroupSupport.debugSetBearing(snap.members.get(0).hull,
-                    (float) Math.toRadians(bearingDeg));
+        List<AbstractUnit> drivers = new ArrayList<>();
+        if (snap.members.isEmpty()) drivers.add(dh.unit);
+        for (IdleGroupSupport.Member m : snap.members) drivers.add(m.unit);
+        CrewFacts.Faction faction = CrewFacts.factionOfCrew(dh.unit);
+        if (faction == null) faction = CrewFacts.Faction.RU;
+        March march = IdleMarches.form(source.getLevel(), drivers, faction, source.getLevel().getGameTime(),
+                bearingDeg == null ? Double.NaN : Math.toRadians(bearingDeg));
+        if (march == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.idle.travel_fail"));
+            return 0;
         }
-        applyTravelGroup(snap);
-        source.sendSuccess(() -> Component.translatable(
-                "command.tacz_sewv.debug.idle.travel_ok", snap.size), true);
+        int n = march.hullIds().length;
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.idle.travel_ok", n), true);
         return 1;
     }
 
-    /** Sets hold-until to now on every member so IDLE_TRAVEL becomes feasible immediately. */
+    /** Count the targeted cluster's hold as over, so the next command pass forms its march. */
     public static int expireHold(CommandSourceStack source) {
         DriverHull dh = resolveDriver(source);
         if (dh == null) {
@@ -97,12 +108,11 @@ public final class IdleGroupDebug {
             return 0;
         }
         IdleGroupSupport.Snapshot snap = IdleGroupSupport.scan(dh.unit, dh.hull);
-        int n = 0;
-        for (IdleGroupSupport.Member m : snap.members) {
-            IdleGroupSupport.debugExpireHold(m.hull);
-            n++;
-        }
-        int count = n;
+        int[] ids = new int[Math.max(1, snap.members.size())];
+        ids[0] = dh.unit.getId();
+        for (int i = 0; i < snap.members.size(); i++) ids[i] = snap.members.get(i).unitId;
+        IdleMarches.expire(ids, source.getLevel().getGameTime());
+        int count = ids.length;
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.debug.idle.expire_ok", count), true);
         return 1;
@@ -119,6 +129,7 @@ public final class IdleGroupDebug {
         for (DriverHull dh : drivers) {
             IdleGroupSupport.clear(dh.hull);
             IdleGroupSupport.setDebugDrive(dh.hull, false);
+            MarchRegistry.leave(dh.unit.getId());
             CrewAssignment.clear(dh.unit.getId());
         }
         int n = drivers.size();
@@ -174,17 +185,6 @@ public final class IdleGroupDebug {
             IdleGroupSupport.setDebugDrive(m.hull, true);
             CrewAssignment.publish(new Assignment(
                     m.unitId, Assignment.Role.IDLE_HOLD, null, null, cx, cz));
-        }
-    }
-
-    private static void applyTravelGroup(IdleGroupSupport.Snapshot snap) {
-        double cx = snap.centerX;
-        double cz = snap.centerZ;
-        for (IdleGroupSupport.Member m : snap.members) {
-            IdleGroupSupport.enterTravel(m.unit, m.hull, snap);
-            IdleGroupSupport.setDebugDrive(m.hull, true);
-            CrewAssignment.publish(new Assignment(
-                    m.unitId, Assignment.Role.IDLE_TRAVEL, null, null, cx, cz));
         }
     }
 

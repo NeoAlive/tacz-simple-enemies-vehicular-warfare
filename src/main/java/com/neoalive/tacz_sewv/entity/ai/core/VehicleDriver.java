@@ -248,8 +248,12 @@ public final class VehicleDriver {
     private boolean wheelReverseSwingLeft;
     private int wheelThrottlePhase;
 
-    /** When true, forward throttle is duty-cycled ~half (infantry-cover pace). */
-    private boolean infantryPace;
+    /**
+     * Forward speed limit, blocks per tick; NaN = none. Closed loop on the hull's measured speed: the throttle is
+     * held only while the hull is slower than this, so it settles at the cap whatever the hull's top speed or the
+     * ground — the same no-per-hull-constant reasoning as the ship's turn duty. A march sets it so infantry keep up.
+     */
+    private double speedCap = Double.NaN;
 
     // Planned multi-point maneuvers (ManeuverPlanner). The route run is recovery-like state and
     // clearRecovery drops it; the ARRIVAL state below must not live there, because DriveVehicleGoal
@@ -272,8 +276,19 @@ public final class VehicleDriver {
         this.sensor = new GroundTerrainSensor(unit);
     }
 
+    /** Hold forward speed to {@code cap} blocks/tick; NaN lifts the limit. Re-asserted by its owner every tick. */
+    public void setSpeedCap(double cap) {
+        this.speedCap = cap;
+    }
+
+    /** Infantry-cover pace: the march pace, so a hull shielding a squad moves the way a march does. */
     public void setInfantryPace(boolean pace) {
-        this.infantryPace = pace;
+        this.speedCap = pace ? com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry.pace() : Double.NaN;
+    }
+
+    /** May the throttle be held this tick under the speed cap? */
+    private boolean underSpeedCap() {
+        return Double.isNaN(this.speedCap) || this.vehicle.getDeltaMovement().horizontalDistance() < this.speedCap;
     }
 
     public void attach(VehicleEntity v) {
@@ -536,7 +551,7 @@ public final class VehicleDriver {
         this.lastPathNode = null;
         this.pathRecalcCooldown = 0;
         this.pathWaitingSince = Long.MIN_VALUE;
-        this.infantryPace = false;
+        this.speedCap = Double.NaN;
         this.sensor.clear();
         clearRecovery();
     }
@@ -821,8 +836,7 @@ public final class VehicleDriver {
 
         if (Math.abs(angle) < angleThreshold) {
             if (facingClear) {
-                boolean throttle = !this.infantryPace
-                        || (this.unit.level().getGameTime() & 1L) == 0L;
+                boolean throttle = underSpeedCap();
                 this.input.setInputs(throttle, false, false, false);
             } else {
                 // steer is a real, clear heading; the hull just hasn't finished turning onto it
@@ -846,7 +860,8 @@ public final class VehicleDriver {
         } else {
             // Wheeled: throttle through the turn (duty-cycled on hard bends). Tracked pivots stopped.
             boolean roll = this.hull.isWheeled() && facingClear;
-            this.input.setInputs(roll && wheelThrottleTick(Math.abs(angle)), false, angle > 0, angle < 0);
+            this.input.setInputs(roll && underSpeedCap() && wheelThrottleTick(Math.abs(angle)), false, angle > 0,
+                    angle < 0);
         }
     }
 

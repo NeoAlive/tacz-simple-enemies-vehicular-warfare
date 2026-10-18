@@ -240,6 +240,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue IDLE_TRAVEL_SPACING_MAX;
     public static final ForgeConfigSpec.DoubleValue IDLE_TRAVEL_DETECT_RADIUS;
     public static final ForgeConfigSpec.IntValue IDLE_TRAVEL_STUCK_TICKS;
+    public static final ForgeConfigSpec.DoubleValue MARCH_PACE;
+    public static final ForgeConfigSpec.DoubleValue MARCH_STRAGGLE_DISTANCE;
     public static final ForgeConfigSpec.IntValue UTILITY_REFRESH_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
@@ -1000,18 +1002,28 @@ public final class SewvConfig {
                 .defineInRange("idleHoldMinTicks", 100, 20, 24000);
         IDLE_HOLD_MAX_TICKS = builder.comment("Maximum IDLE_HOLD duration (game ticks) before travel begins (200 = 10 s).")
                 .defineInRange("idleHoldMaxTicks", 200, 20, 48000);
-        IDLE_TRAVEL_LEAD_DISTANCE = builder.comment("How far ahead (blocks) the travel leader pathfinds along its bearing.")
+        IDLE_TRAVEL_LEAD_DISTANCE = builder.comment("How far (blocks) an idle march travels before it stops and holds again.")
                 .defineInRange("idleTravelLeadDistance", 500.0, 64.0, 2000.0);
-        IDLE_TRAVEL_SPACING_MIN = builder.comment("Minimum column spacing (blocks) between travel followers.")
+        IDLE_TRAVEL_SPACING_MIN = builder.comment(
+                        "Idle march column: the clear gap between hulls is the mean of this and idleTravelSpacingMax,",
+                        "added to the widest hull's size.")
                 .defineInRange("idleTravelSpacingMin", 5.0, 2.0, 32.0);
-        IDLE_TRAVEL_SPACING_MAX = builder.comment("Maximum column spacing (blocks) between travel followers.")
+        IDLE_TRAVEL_SPACING_MAX = builder.comment("See idleTravelSpacingMin.")
                 .defineInRange("idleTravelSpacingMax", 8.0, 2.0, 32.0);
         IDLE_TRAVEL_DETECT_RADIUS = builder.comment(
-                        "Cancel IDLE_TRAVEL when a non-group VehicleEntity or Player is within this range.")
+                        "End an idle march when a hostile player or hostile-crewed hull comes within this range of its head.")
                 .defineInRange("idleTravelDetectRadius", 20.0, 4.0, 64.0);
         IDLE_TRAVEL_STUCK_TICKS = builder.comment(
-                        "Give up IDLE_TRAVEL and re-enter hold if no progress for this many game ticks.")
+                        "End a march that has waited this many game ticks for a member to catch up.")
                 .defineInRange("idleTravelStuckTicks", 600, 100, 6000);
+        MARCH_PACE = builder.comment(
+                        "Speed (blocks per game tick) of a march: idle travel and the CohesiveLine advance.",
+                        "Hulls are held to it so infantry keep up. 0.14 = 2.8 blocks/s.")
+                .defineInRange("marchPace", 0.14, 0.04, 0.6);
+        MARCH_STRAGGLE_DISTANCE = builder.comment(
+                        "A march waits while any member is further than this (blocks) behind its place",
+                        "(hulls: at least 1.5 column spacings).")
+                .defineInRange("marchStraggleDistance", 12.0, 4.0, 64.0);
         UTILITY_REFRESH_INTERVAL_TICKS = builder.comment("How often (game ticks) a ground crew rethinks attack / hold / fall back.")
                 .defineInRange("utilityRefreshIntervalTicks", 30, 5, 200);
         FACTION_ORGANIC_COMMS = builder.comment("RU/US crews can call mortars/TOWs/air support without holding a radio item.")

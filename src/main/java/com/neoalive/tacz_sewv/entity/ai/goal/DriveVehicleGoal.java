@@ -31,6 +31,9 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleDriver;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
+import com.neoalive.tacz_sewv.entity.ai.march.March;
+import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
@@ -113,6 +116,14 @@ public class DriveVehicleGoal extends Goal {
     private static final long RUN_SMOKE_TICKS = 10;
     /** Blocks past the hull's half-width at which a posture waypoint counts as reached. */
     private static final double POSTURE_ARRIVE_PAD = 3.0;
+    /**
+     * A marching hull steers at a point this far down the road from its slot, never at the slot: the slot moves,
+     * and steering at a moving point the hull has nearly reached reads as arrived — park, fall behind, lunge.
+     */
+    private static final double MARCH_CARROT = 10.0;
+    /** Speed cap as a multiple of the march pace: crawl when ahead of the slot, hurry when behind it. */
+    private static final double MARCH_PACE_MIN = 0.4;
+    private static final double MARCH_PACE_MAX = 1.8;
 
     /** Everything about actually making the hull go somewhere. See {@link VehicleDriver}. */
     private final VehicleDriver driver;
@@ -151,6 +162,8 @@ public class DriveVehicleGoal extends Goal {
         // Flight and water hulls have their own goals; a fixed-wing plane must be excluded here too,
         // or this ground goal and DrivePlaneGoal both fire on it (isHelicopter() is false for planes).
         if (this.hull.isHelicopter() || this.hull.isPlane() || this.hull.isShip()) return false;
+        // Visible to the command tier even while this goal is stopped — see CommandCoordinator.SEATED_DRIVERS.
+        com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator.noteSeatedDriver(this.unit.getId());
         // ASH Sapsan (and similar): ManMissileSystemGoal owns MOVE while engaging.
         if (this.hull.isMissileSystem() && AshMissileSupport.shouldEngage(this.unit)) return false;
         // Artillery: ManArtilleryGoal lays and fires — do not close on the designation.
@@ -241,6 +254,8 @@ public class DriveVehicleGoal extends Goal {
             this.smokeUntil = Long.MIN_VALUE;
         }
         this.driver.tickTimers();
+        // The speed cap is re-asserted by whichever branch wants it, every tick; nothing inherits last tick's.
+        this.driver.setSpeedCap(Double.NaN);
         boolean farIdle = farIdle();
         this.driver.setFarIdle(farIdle);
         TreeFellingSupport.tick(this.unit, this.vehicle, this.hull, farIdle);
@@ -379,6 +394,7 @@ public class DriveVehicleGoal extends Goal {
             driveTo(standing);
             return;
         }
+        if (idlePlan() == Action.IDLE_TRAVEL && marchTick()) return;
         BlockPos destination = switch (idlePlan()) {
             case SEARCH_LAST_KNOWN -> {
                 BlockPos seen = this.brain.facts().memory.lastEnemyPos;
@@ -391,8 +407,7 @@ public class DriveVehicleGoal extends Goal {
             case HOLD -> null;
             case IDLE_HOLD -> IdleGroupSupport.holdDestination(
                     this.unit, this.vehicle, this.brain.facts());
-            case IDLE_TRAVEL -> IdleGroupSupport.travelDestination(
-                    this.unit, this.vehicle, this.brain.facts());
+            case IDLE_TRAVEL -> null; // a march that ended between the plan and this tick: hold until re-scored
             // PATROL, and anything the scorer somehow let through: work the standing destination.
             default -> standing;
         };
@@ -403,6 +418,41 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
         driveTo(destination);
+    }
+
+    /**
+     * Keep this hull's place in its march. Moving: steer down the road ahead of the slot with the speed held to
+     * the march pace (faster when behind, slower when ahead), so the column moves at a walk however fast its
+     * hulls are. Waiting: close onto the slot itself and square up to the road. Every branch issues input.
+     *
+     * @return false when this crew is not marching a hull slot, so the caller falls back to its plan
+     */
+    private boolean marchTick() {
+        MarchRegistry.Slot slot = MarchRegistry.slotFor(this.unit.getId(), this.unit.level().getGameTime());
+        if (slot == null || !slot.hull()) return false;
+        Vec3 facing = new Vec3(slot.fx(), 0.0, slot.fz());
+        if (slot.paused()) {
+            double dx = slot.x() - this.vehicle.getX();
+            double dz = slot.z() - this.vehicle.getZ();
+            double park = this.vehicle.getBbWidth() * 0.5 + POSTURE_ARRIVE_PAD;
+            if (dx * dx + dz * dz <= park * park) {
+                this.driver.holdStation(facing);
+                this.driver.clearRecovery(); // on its place, waiting for the column — not stuck
+            } else {
+                BlockPos dest = BlockPos.containing(slot.x(),
+                        GroundSnap.groundY(this.unit.level(), slot.x(), slot.z(), this.vehicle.getY()), slot.z());
+                this.driver.navigateTo(dest, this.vehicle.distanceToSqr(Vec3.atBottomCenterOf(dest)));
+            }
+            return true;
+        }
+        double lag = slot.lag(this.vehicle.getX(), this.vehicle.getZ());
+        this.driver.setSpeedCap(slot.pace()
+                * Math.max(MARCH_PACE_MIN, Math.min(MARCH_PACE_MAX, 1.0 + lag / slot.spacing())));
+        double cx = slot.x() + slot.fx() * MARCH_CARROT;
+        double cz = slot.z() + slot.fz() * MARCH_CARROT;
+        BlockPos carrot = BlockPos.containing(cx, GroundSnap.groundY(this.unit.level(), cx, cz, this.vehicle.getY()), cz);
+        this.driver.navigateTo(carrot, this.vehicle.distanceToSqr(Vec3.atBottomCenterOf(carrot)));
+        return true;
     }
 
     /** Steer for {@code destination}, or park on station once inside the arrival ring. */
@@ -1060,18 +1110,41 @@ public class DriveVehicleGoal extends Goal {
             BlockPos p = IdleGroupSupport.holdDestination(this.unit, this.vehicle, this.brain.facts());
             if (p != null) return p;
         } else if (plan == Action.IDLE_TRAVEL) {
-            BlockPos p = IdleGroupSupport.travelDestination(this.unit, this.vehicle, this.brain.facts());
+            BlockPos p = marchSlotPos();
             if (p != null) return p;
         }
-        return VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
+        BlockPos standing = VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
+        return standing != null ? standing : idleTaskPos();
+    }
+
+    /**
+     * Where the command tier has tasked this idle crew, read without the brain: the march slot, else the idle
+     * hold's centre. This is what wakes a stopped goal — a stopped goal's brain has been cleared to HOLD and
+     * would never otherwise name a destination, so a crew that once parked stayed parked while the rest of its
+     * group marched off without it. Map lookups only: canUse can afford it. Once running, the plan decides.
+     */
+    @javax.annotation.Nullable
+    private BlockPos idleTaskPos() {
+        BlockPos march = marchSlotPos();
+        if (march != null) return march;
+        CrewAssignment.Snapshot a = CrewAssignment.of(this.unit.getId());
+        if (a != null && a.role() == Assignment.Role.IDLE_HOLD && a.hasDest()) {
+            return BlockPos.containing(a.destX(), this.vehicle.getY(), a.destZ());
+        }
+        return null;
+    }
+
+    @javax.annotation.Nullable
+    private BlockPos marchSlotPos() {
+        MarchRegistry.Slot slot = MarchRegistry.slotFor(this.unit.getId(), this.unit.level().getGameTime());
+        return slot != null && slot.hull() ? BlockPos.containing(slot.x(), this.vehicle.getY(), slot.z()) : null;
     }
 
     /** Debug-forced idle modes steer from hull NBT before the scorer adopts IDLE_* . */
     private Action idlePlan() {
         if (IdleGroupSupport.isDebugDrive(this.vehicle)) {
-            byte mode = IdleGroupSupport.modeOf(this.vehicle);
-            if (mode == IdleGroupSupport.MODE_HOLD) return Action.IDLE_HOLD;
-            if (mode == IdleGroupSupport.MODE_TRAVEL) return Action.IDLE_TRAVEL;
+            if (MarchRegistry.kindOf(this.unit.getId()) == March.Kind.IDLE_TRAVEL) return Action.IDLE_TRAVEL;
+            if (IdleGroupSupport.modeOf(this.vehicle) == IdleGroupSupport.MODE_HOLD) return Action.IDLE_HOLD;
             var assign = com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment.of(this.unit.getId());
             if (assign != null) {
                 if (assign.role() == com.neoalive.tacz_sewv.entity.ai.command.Assignment.Role.IDLE_TRAVEL) {

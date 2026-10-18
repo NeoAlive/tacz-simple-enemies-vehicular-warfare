@@ -301,6 +301,22 @@ public final class UtilityWeightsSelfCheck {
         double holdOver = weights.score(Action.IDLE_HOLD, oversize, Doctrine.NEUTRAL);
         assert travelOver > holdOver
                 : "oversize group should prefer travel: travel=" + travelOver + " hold=" + holdOver;
+
+        // A crew the coordinator put in a march: every signal the march raises, and travel must beat each
+        // out-of-contact action it could otherwise drift into.
+        double[] marching = zeroSignals();
+        marching[Signal.BASE.ordinal()] = 1.0;
+        marching[Signal.OPEN.ordinal()] = 1.0;
+        marching[Signal.IDLE_TRAVEL_ACTIVE.ordinal()] = 1.0;
+        marching[Signal.IDLE_HOLD_EXPIRED.ordinal()] = 1.0;
+        marching[Signal.TASKED_IDLE_TRAVEL.ordinal()] = 1.0;
+        marching[Signal.IDLE_GROUP_SIZE.ordinal()] = 1.0;
+        double travelMarching = weights.score(Action.IDLE_TRAVEL, marching, Doctrine.NEUTRAL);
+        for (Action rival : new Action[] {Action.PATROL, Action.HOLD}) {
+            double r = weights.score(rival, marching, Doctrine.NEUTRAL);
+            assert travelMarching > r + 30.0
+                    : "a marching crew must keep marching: idleTravel=" + travelMarching + " " + rival + "=" + r;
+        }
     }
 
     /**

@@ -33,6 +33,9 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.cover.CoverQuery;
 import com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates;
 import com.neoalive.tacz_sewv.entity.ai.formation.SlotMatcher;
+import com.neoalive.tacz_sewv.entity.ai.march.IdleMarches;
+import com.neoalive.tacz_sewv.entity.ai.march.March;
+import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
 import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
@@ -67,6 +70,19 @@ public final class CommandCoordinator {
      */
     private static final Set<Integer> IDLE_TASKED_KEEP = new HashSet<>();
 
+    /**
+     * Seated ground drivers, noted by {@code DriveVehicleGoal.canUse} whether or not that goal is running. Facts
+     * are only bound while the goal runs, and a crew parked with nowhere to go has stopped it — so reading Facts
+     * alone made every parked crew invisible here, which meant it could never be grouped or tasked, which meant
+     * nothing ever gave it somewhere to go again. Pruned by {@link #collectDrivers}, so it heals itself.
+     */
+    private static final Set<Integer> SEATED_DRIVERS = new HashSet<>();
+
+    /** Note {@code unitId} as sitting in a ground hull's driver seat. Server thread; cheap enough for canUse. */
+    public static void noteSeatedDriver(int unitId) {
+        SEATED_DRIVERS.add(unitId);
+    }
+
     private CommandCoordinator() {}
 
     @SubscribeEvent
@@ -78,6 +94,9 @@ public final class CommandCoordinator {
         CrewAssignment.clearAll();
         IDLE_TASKED_KEEP.clear();
         IdleGroupSupport.clearPublished();
+        MarchRegistry.clear();
+        IdleMarches.clear();
+        SEATED_DRIVERS.clear();
     }
 
     @SubscribeEvent
@@ -88,6 +107,9 @@ public final class CommandCoordinator {
         CrewAssignment.clearAll();
         IDLE_TASKED_KEEP.clear();
         IdleGroupSupport.clearPublished();
+        MarchRegistry.clear();
+        IdleMarches.clear();
+        SEATED_DRIVERS.clear();
     }
 
     @SubscribeEvent
@@ -101,6 +123,8 @@ public final class CommandCoordinator {
                     CrewAssignment.clearAll();
                     IDLE_TASKED_KEEP.clear();
                     IdleGroupSupport.clearPublished();
+                    MarchRegistry.clear();
+                    IdleMarches.clear();
                 }
                 return;
             }
@@ -342,7 +366,7 @@ public final class CommandCoordinator {
         for (Candidate c : drivers) {
             if (!inBattle.contains(c.unitId)) notInBattle.add(c);
         }
-        publishIdleAssignments(level, notInBattle);
+        publishIdleAssignments(level, notInBattle, inBattle);
     }
 
     /**
@@ -761,11 +785,25 @@ public final class CommandCoordinator {
     }
 
     /**
-     * Soft-task idle ground drivers into IDLE_HOLD (≤5) or IDLE_TRAVEL (&gt;5) when no battle is
-     * contested. Destination is the cluster centroid (hold center / travel aim).
+     * Idle ground drivers not in a battle group: clustered by position into hold rings, and — once a RU/US
+     * cluster has held long enough, or is too big to ring — formed into a march together ({@link IdleMarches}).
+     * A marching unit is never re-clustered: its march is its group until the march ends ({@link MarchRegistry}),
+     * which is what keeps a column from falling apart as it stretches.
      */
-    private static void publishIdleAssignments(ServerLevel level, List<Candidate> drivers) {
-        if (!IdleGroupSupport.hybridEnabled()) return;
+    private static void publishIdleAssignments(ServerLevel level, List<Candidate> drivers, Set<Integer> inBattle) {
+        long now = level.getGameTime();
+        // A battle takes an idle march's units away from it; the march ends and they fight as a battle group.
+        for (int id : inBattle) {
+            if (MarchRegistry.kindOf(id) == March.Kind.IDLE_TRAVEL) {
+                March m = MarchRegistry.marchOf(id);
+                if (m != null) MarchRegistry.end(m.id(), "battle unit=" + id);
+            }
+        }
+        MarchRegistry.tick(level, now);
+        if (!IdleGroupSupport.hybridEnabled()) {
+            publishMarches(level, now);
+            return;
+        }
         double radius;
         try {
             radius = SewvConfig.IDLE_GROUP_RADIUS.get();
@@ -776,6 +814,7 @@ public final class CommandCoordinator {
 
         List<Candidate> idle = new ArrayList<>();
         for (Candidate c : drivers) {
+            if (MarchRegistry.isMarching(c.unitId)) continue;
             if (!(level.getEntity(c.unitId) instanceof AbstractUnit unit)) continue;
             if (unit.getTarget() != null) continue;
             if (com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting.underStandingOrder(unit)) continue;
@@ -787,6 +826,7 @@ public final class CommandCoordinator {
             idle.add(c);
         }
         idle.sort(Comparator.comparingInt(c -> c.unitId));
+        Set<Integer> seenIdle = new HashSet<>();
 
         boolean[] used = new boolean[idle.size()];
         for (int i = 0; i < idle.size(); i++) {
@@ -817,22 +857,50 @@ public final class CommandCoordinator {
 
             double cx = sumX / cluster.size();
             double cz = sumZ / cluster.size();
-
-            boolean travel = cluster.size() > IdleGroupSupport.MAX_HOLD_SIZE;
-            Assignment.Role role = travel ? Assignment.Role.IDLE_TRAVEL : Assignment.Role.IDLE_HOLD;
             int[] ids = new int[cluster.size()];
-            for (int k = 0; k < ids.length; k++) ids[k] = cluster.get(k).unitId;
-            int[] slots = travel ? marching(ids.length) : holdSlots(cluster, cx, cz);
+            for (int k = 0; k < ids.length; k++) {
+                ids[k] = cluster.get(k).unitId;
+                seenIdle.add(ids[k]);
+            }
+            IdleMarches.note(ids, now);
+
+            boolean oversize = cluster.size() > IdleGroupSupport.MAX_HOLD_SIZE;
+            if (IdleMarches.factionTravels(a.faction) && (oversize || IdleMarches.ready(ids, now))) {
+                List<AbstractUnit> units = new ArrayList<>(cluster.size());
+                for (Candidate c : cluster) {
+                    if (level.getEntity(c.unitId) instanceof AbstractUnit u) units.add(u);
+                }
+                if (IdleMarches.form(level, units, a.faction, now) != null) continue;
+            }
+
+            int[] slots = holdSlots(cluster, cx, cz);
             IdleGroupSupport.publishCluster(ids, slots);
             if (SewvDiag.collectiveAiVerbose()) {
                 SewvDiag.command("idle cluster dim={} role={} members={} slots={} centre={},{}",
-                        level.dimension().location(), role, Arrays.toString(ids), Arrays.toString(slots),
-                        String.format(Locale.ROOT, "%.0f", cx), String.format(Locale.ROOT, "%.0f", cz));
+                        level.dimension().location(), Assignment.Role.IDLE_HOLD, Arrays.toString(ids),
+                        Arrays.toString(slots), String.format(Locale.ROOT, "%.0f", cx),
+                        String.format(Locale.ROOT, "%.0f", cz));
             }
             for (Candidate m : cluster) {
                 CrewAssignment.publish(new Assignment(
-                        m.unitId, role, null, null, cx, cz));
+                        m.unitId, Assignment.Role.IDLE_HOLD, null, null, cx, cz));
                 IDLE_TASKED_KEEP.add(m.unitId);
+            }
+        }
+        IdleMarches.retain(seenIdle);
+        publishMarches(level, now);
+    }
+
+    /** Every idle march's hulls, tasked IDLE_TRAVEL on their column slot and heading. */
+    private static void publishMarches(ServerLevel level, long now) {
+        for (March m : MarchRegistry.marchesOn(level)) {
+            if (m.kind() != March.Kind.IDLE_TRAVEL) continue;
+            for (int id : m.hullIds()) {
+                MarchRegistry.Slot slot = MarchRegistry.slotFor(id, now);
+                if (slot == null) continue;
+                CrewAssignment.publish(new Assignment(id, Assignment.Role.IDLE_TRAVEL, null, null,
+                        slot.x(), slot.z(), slot.index(), slot.fx(), slot.fz()));
+                IDLE_TASKED_KEEP.add(id);
             }
         }
     }
@@ -863,19 +931,19 @@ public final class CommandCoordinator {
         return SlotMatcher.match(mx, mz, sx, sz, prev, PlayFormations.STICKINESS * r * r);
     }
 
-    private static int[] marching(int n) {
-        int[] slots = new int[n];
-        Arrays.fill(slots, -1);
-        return slots;
-    }
-
     private static List<Candidate> collectDrivers(ServerLevel level) {
         List<Candidate> out = new ArrayList<>();
         try {
-            for (int unitId : Facts.liveUnitIds()) {
+            Set<Integer> ids = new HashSet<>(Facts.liveUnitIds());
+            ids.addAll(SEATED_DRIVERS);
+            for (int unitId : ids) {
                 if (!(level.getEntity(unitId) instanceof AbstractUnit driver)
                         || !(driver.getVehicle() instanceof VehicleEntity hull)
                         || CommandEligibility.eligibleDriver(hull) != driver) {
+                    // Gone, dismounted, or simply in another dimension: only a unit no level knows is dropped.
+                    if (!(level.getEntity(unitId) instanceof AbstractUnit) && unknownEverywhere(level, unitId)) {
+                        SEATED_DRIVERS.remove(unitId);
+                    }
                     continue;
                 }
                 CrewFacts.Faction faction = CrewFacts.factionOfCrew(driver);
@@ -886,6 +954,13 @@ public final class CommandCoordinator {
             LOGGER.debug("[sewv-command] driver scan failed: {}", t.toString());
         }
         return out;
+    }
+
+    private static boolean unknownEverywhere(ServerLevel level, int unitId) {
+        for (ServerLevel other : level.getServer().getAllLevels()) {
+            if (other.getEntity(unitId) != null) return false;
+        }
+        return true;
     }
 
     private static boolean hasOpposingNearby(ServerLevel level, Candidate c, double radiusSq) {

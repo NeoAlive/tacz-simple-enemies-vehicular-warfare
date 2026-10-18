@@ -630,6 +630,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.IDLE_TRAVEL_DETECT_RADIUS, SewvConfig.IDLE_TRAVEL_DETECT_RADIUS::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "idleTravelStuckTicks", 100, 6000,
                 SewvConfig.IDLE_TRAVEL_STUCK_TICKS, SewvConfig.IDLE_TRAVEL_STUCK_TICKS::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "marchPace", 0.04, 0.6,
+                SewvConfig.MARCH_PACE, SewvConfig.MARCH_PACE::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "marchStraggleDistance", 4.0, 64.0,
+                SewvConfig.MARCH_STRAGGLE_DISTANCE, SewvConfig.MARCH_STRAGGLE_DISTANCE::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "utilityRefreshIntervalTicks", 5, 200,
                 SewvConfig.UTILITY_REFRESH_INTERVAL_TICKS, SewvConfig.UTILITY_REFRESH_INTERVAL_TICKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "factionOrganicComms",

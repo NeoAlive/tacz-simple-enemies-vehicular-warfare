@@ -63,6 +63,8 @@ public final class PlanePerf {
     /** Crossings back into a chunk still lingering from a previous pass (no reload). */
     public static long ticketLingerAdopts;
     public static long ticketLingerExpiries;
+    /** Held tickets released because their goal stopped touching them (crew died mid-hold). */
+    public static long ticketOrphansReleased;
 
     private PlanePerf() {}
 
@@ -120,7 +122,7 @@ public final class PlanePerf {
                         + "playerNearCache=%d/%d | "
                         + "planeTicketsHeld=%d heldTicks=%d | "
                         + "ticket follow=%d (noop=%d cross=%d) force +%d/-%d heldNow=%d [%s] "
-                        + "suspended=%d (+%d/-%d) linger adopt=%d expire=%d",
+                        + "suspended=%d (+%d/-%d) linger adopt=%d expire=%d orphans=%d",
                 nearNanos / 1.0e6, nearCalls, avgMs(nearNanos, nearCalls),
                 avgMs(nearParkedNanos, nearParkedCalls), nearParkedCalls,
                 avgMs(nearActiveNanos, nearActiveCalls), nearActiveCalls,
@@ -133,7 +135,7 @@ public final class PlanePerf {
                 ticketFollowCalls, ticketFollowNoops, ticketFollowCrosses,
                 ticketForceAdds, ticketForceRemoves, ticketHeldNow, heldByKind(),
                 ticketSuspendedNow, ticketSuspends, ticketResumes,
-                ticketLingerAdopts, ticketLingerExpiries);
+                ticketLingerAdopts, ticketLingerExpiries, ticketOrphansReleased);
         nearNanos = 0;
         nearCalls = 0;
         nearParkedNanos = 0;
@@ -160,6 +162,7 @@ public final class PlanePerf {
         ticketResumes = 0;
         ticketLingerAdopts = 0;
         ticketLingerExpiries = 0;
+        ticketOrphansReleased = 0;
         // planeTicketsHeld, ticketHeldNow, ticketHeldByKind and ticketSuspendedNow are live gauges — do not reset.
         return s;
     }

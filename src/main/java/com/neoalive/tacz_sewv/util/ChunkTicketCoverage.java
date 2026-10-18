@@ -31,6 +31,9 @@ public final class ChunkTicketCoverage {
 
     private static final List<Suspended> SUSPENDED = new ArrayList<>();
 
+    /** Orphaned-ticket sweep cadence, in server ticks; the orphan threshold itself is 400. */
+    private static final int ORPHAN_SWEEP_INTERVAL = 100;
+
     private ChunkTicketCoverage() {}
 
     static boolean enabled() {
@@ -94,7 +97,9 @@ public final class ChunkTicketCoverage {
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || SUSPENDED.isEmpty()) return;
+        if (event.phase != TickEvent.Phase.END) return;
+        if (event.getServer().getTickCount() % ORPHAN_SWEEP_INTERVAL == 0) ChunkTicket.sweepOrphans();
+        if (SUSPENDED.isEmpty()) return;
         boolean on = enabled();
         Suspended[] snapshot = SUSPENDED.toArray(new Suspended[0]);
         for (Suspended s : snapshot) {
@@ -113,6 +118,7 @@ public final class ChunkTicketCoverage {
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         SUSPENDED.clear();
+        ChunkTicket.forgetAll();
         com.neoalive.tacz_sewv.debug.PlanePerf.ticketSuspendedNow = 0;
     }
 }

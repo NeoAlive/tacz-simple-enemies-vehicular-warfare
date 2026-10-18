@@ -50,6 +50,23 @@ public final class ChunkTicket {
 
     private final ChunkTicketPolicy.Linger linger = new ChunkTicketPolicy.Linger();
 
+    /**
+     * Every ticket holding a chunk, for the orphan sweep. A ticket is only ever released from its
+     * goal's {@code stop()}, and a goal whose crewman dies never gets one: the hull's chunk (and
+     * its loading ring) then stayed forced for as long as the hull existed. Server thread only.
+     */
+    private static final java.util.Set<ChunkTicket> HELD =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /** No live owner goes this long without a follow; every one calls at least every 60 ticks. */
+    private static final long ORPHAN_TICKS = 400;
+
+    private long lastTouch;
+    @Nullable
+    private Entity holder;
+    @Nullable
+    private ServerLevel holderLevel;
+
     public ChunkTicket(Kind kind) {
         this.kind = kind;
     }
@@ -68,6 +85,9 @@ public final class ChunkTicket {
         if (!(owner.level() instanceof ServerLevel level)) return;
 
         long now = level.getGameTime();
+        this.lastTouch = now;
+        this.holder = owner;
+        this.holderLevel = level;
         if (this.linger.size() > 0) {
             PlanePerf.ticketLingerExpiries += this.linger.expire(now, c -> force(level, owner, c, false));
         }
@@ -150,6 +170,9 @@ public final class ChunkTicket {
     void resumeFromCoverage(ServerLevel level, Entity owner) {
         clearSuspension();
         PlanePerf.ticketResumes++;
+        this.lastTouch = level.getGameTime();
+        this.holder = owner;
+        this.holderLevel = level;
         ChunkPos want = new ChunkPos(owner.blockPosition());
         force(level, owner, want.toLong(), true);
         setHeld(want);
@@ -171,11 +194,35 @@ public final class ChunkTicket {
         if (this.held == null && pos != null) {
             PlanePerf.ticketHeldNow++;
             PlanePerf.ticketHeldByKind[k]++;
+            HELD.add(this);
         } else if (this.held != null && pos == null) {
             if (PlanePerf.ticketHeldNow > 0) PlanePerf.ticketHeldNow--;
             if (PlanePerf.ticketHeldByKind[k] > 0) PlanePerf.ticketHeldByKind[k]--;
+            HELD.remove(this);
         }
         this.held = pos;
+    }
+
+    /** Releases every held ticket its goal has stopped touching. Called from the server tick. */
+    static void sweepOrphans() {
+        if (HELD.isEmpty()) return;
+        for (ChunkTicket t : HELD.toArray(new ChunkTicket[0])) {
+            ServerLevel level = t.holderLevel;
+            Entity owner = t.holder;
+            if (level == null || owner == null) continue;
+            if (level.getGameTime() - t.lastTouch < ORPHAN_TICKS) continue;
+            // Owner may already be removed: its UUID still names the ticket, which is all
+            // forceChunk needs to drop it.
+            t.linger.releaseAll(c -> force(level, owner, c, false));
+            force(level, owner, t.held.toLong(), false);
+            t.setHeld(null);
+            PlanePerf.ticketOrphansReleased++;
+        }
+    }
+
+    /** Server stop: nothing is held into the next world. */
+    static void forgetAll() {
+        HELD.clear();
     }
 
     private static void force(ServerLevel level, Entity owner, long chunk, boolean add) {

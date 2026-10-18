@@ -13,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.block.TrenchNetworks;
+import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEntrenched;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
@@ -63,6 +64,8 @@ public class SeekEntrenchmentGoal extends Goal {
         if (!SewvConfig.AUTO_ENTRENCH_ENABLED.get()) return false;
         if (!(this.unit instanceof RUunitEntity || this.unit instanceof USunitEntity)) return false;
         if (this.unit.isPassenger()) return false;
+        // An invasion unit is on a mission: its capture order owns where it walks.
+        if (this.unit instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) return false;
         if (this.unit.getTarget() != null) return false;
         if (this.unit instanceof IEntrenched e) {
             if (e.sewv$isEntrenched()) return false;

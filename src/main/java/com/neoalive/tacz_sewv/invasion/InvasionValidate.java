@@ -6,16 +6,18 @@ import java.util.List;
 import java.util.Set;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.scores.PlayerTeam;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.invasion.force.BaseForce;
+import com.neoalive.tacz_sewv.invasion.force.ForceKind;
+import com.neoalive.tacz_sewv.invasion.force.InfantrySpec;
+import com.neoalive.tacz_sewv.util.VehicleClassify;
 
 /**
  * Pre-start gates for {@code /sewv invasion start}. Failures block spawn; warnings still start.
@@ -106,24 +108,7 @@ public final class InvasionValidate {
                 errors.add("unknown_team:" + team);
             }
 
-            if (base.getVehiclePool().isEmpty()) {
-                if (base.isPlayerOwned()) {
-                    List<ServerPlayer> members = membersOnline(level, team);
-                    if (!members.isEmpty()) {
-                        errors.add("empty_pool_player:" + team);
-                    } else {
-                        warnings.add("empty_pool_offline:" + team);
-                    }
-                } else {
-                    errors.add("empty_pool_ai:" + team);
-                }
-            } else if (!poolHasResolvable(base.getVehiclePool())) {
-                errors.add("unresolvable_pool:" + team);
-            }
-
-            if (!base.isPlayerOwned() && base.getAiVehicleCount() < 1) {
-                errors.add("ai_count_zero:" + team);
-            }
+            validateForce(level, base, team, errors, warnings);
 
             if (base.getEnemyTeams().contains(team)) {
                 errors.add("self_enemy:" + team);
@@ -159,11 +144,60 @@ public final class InvasionValidate {
         return out;
     }
 
-    private static boolean poolHasResolvable(List<String> pool) {
-        for (String id : pool) {
-            ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl != null && ForgeRegistries.ENTITY_TYPES.containsKey(rl)) return true;
+    /**
+     * Per-kind force checks. A kind that fields AI must have at least one id of its own class
+     * (a helicopter count backed only by tanks would spawn tanks that never take off); players need
+     * something to deploy as; a pure-AI base must field something. A team that can never capture
+     * (no ground, no capturing infantry, no players) is only warned about — a deliberately
+     * defensive side is a legitimate scenario.
+     */
+    private static void validateForce(ServerLevel level, TeamBaseBlockEntity base, String team,
+                                      List<String> errors, List<String> warnings) {
+        BaseForce force = base.getForce();
+        for (ForceKind kind : ForceKind.VEHICLES) {
+            List<String> pool = force.pool(kind);
+            String detail = team + " / " + kind.key();
+            int fitting = 0;
+            for (String id : pool) {
+                if (VehicleClassify.sbwIdFits(kind.poolCategory(), id)) fitting++;
+            }
+            if (force.aiCount(kind) > 0) {
+                if (pool.isEmpty()) {
+                    errors.add("empty_kind_pool:" + detail);
+                } else if (fitting == 0) {
+                    errors.add("unfit_pool:" + detail);
+                }
+            }
+            if (fitting < pool.size()) {
+                warnings.add("misfit_ids:" + detail);
+            }
         }
-        return false;
+
+        InfantrySpec inf = force.infantry();
+        if (inf.mode == InfantrySpec.Mode.RANDOM && inf.min > inf.max) {
+            errors.add("infantry_range:" + team);
+        }
+
+        boolean playersHere = base.isPlayerOwned() && !membersOnline(level, team).isEmpty();
+        if (base.isPlayerOwned()) {
+            if (force.deployOptions().isEmpty()) {
+                if (playersHere) errors.add("no_deploy:" + team);
+                else warnings.add("no_deploy_offline:" + team);
+            }
+            for (ForceKind kind : force.playerDeploy()) {
+                if (kind.isVehicle() && force.pool(kind).isEmpty()) {
+                    warnings.add("deploy_empty_pool:" + team + " / " + kind.key());
+                }
+            }
+        } else if (!force.fieldsAnyAi()) {
+            errors.add("ai_force_empty:" + team);
+        }
+
+        boolean canCapture = playersHere
+                || force.aiCount(ForceKind.GROUND) > 0
+                || (inf.minimumCount() > 0 && inf.canCapture);
+        if (!canCapture) {
+            warnings.add("cannot_capture:" + team);
+        }
     }
 }

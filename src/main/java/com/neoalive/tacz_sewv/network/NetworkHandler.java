@@ -126,7 +126,10 @@ public class NetworkHandler {
     //      helipads ride PacketOwnedVehicles; NotificationKind.MEDIC_CAPTURED dropped.
     // 104: VehicleMarker.Kind.UNKNOWN (map fog of war).
     // 105: PacketVehicleFormation carries a free yaw (45° from the wheel) after the axis.
-    private static final String PROTOCOL_VERSION = "105";
+    // 106: team_base open/save carry TeamBaseConfig (per-kind BaseForce: ground/rotor/plane pools +
+    //      counts, infantry, player deploy options); open packet carries world pools per kind;
+    //      PacketInvasionDeployPrompt (S->C) + PacketInvasionDeployChoice (C->S).
+    private static final String PROTOCOL_VERSION = "106";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -306,6 +309,20 @@ public class NetworkHandler {
                 PacketInvasionHud::encode,
                 PacketInvasionHud::new,
                 PacketInvasionHud::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketInvasionDeployPrompt.class,
+                PacketInvasionDeployPrompt::encode,
+                PacketInvasionDeployPrompt::new,
+                PacketInvasionDeployPrompt::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketInvasionDeployChoice.class,
+                PacketInvasionDeployChoice::encode,
+                PacketInvasionDeployChoice::new,
+                PacketInvasionDeployChoice::handle
         );
 
         CHANNEL.registerMessage(

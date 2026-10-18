@@ -312,10 +312,45 @@ public final class TankSpawner {
     public static VehicleEntity spawnPlaneWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                    @Nullable UUID ownerId, @Nullable String vehicleId) {
         if (!spawnsEnabled(level, faction)) return null;
-        EntityType<?> planeType = selectVehicleType(crewablePool(faction.planePool(level)), vehicleId, level.random);
+        return spawnPlane(level, requestedPos, faction, ownerId, vehicleId, faction.planePool(level),
+                faction != TankFaction.PMC, null);
+    }
+
+    /**
+     * Plane from an explicit pool (a team_base's), always airborne whatever the faction, flying
+     * along {@code yaw}. Invasion uses it: a match has no runway to take off from, and a PMC plane
+     * left on the ground with a takeoff order would spend the opening of the fight taxiing.
+     */
+    @Nullable
+    public static VehicleEntity spawnAirbornePlaneFromPool(ServerLevel level, BlockPos requestedPos,
+                                                         TankFaction faction, @Nullable UUID ownerId,
+                                                         @Nullable String vehicleId,
+                                                         List<? extends String> pool, float yaw) {
+        return spawnPlane(level, requestedPos, faction, ownerId, vehicleId, pool, true, yaw);
+    }
+
+    /**
+     * Level flight at spawn: pitch zero, gear up and forward speed along {@code yaw}, so SBW's lift
+     * is non-zero before the throttle spools. Call before the hull is added to the level — once a
+     * player is aboard, the client owns the hull's motion.
+     */
+    public static void placeAirborne(VehicleEntity plane, float yaw) {
+        // A fresh entity's pitch can be anything; lofted or inverted ruins the lift nudge.
+        plane.setYRot(yaw);
+        plane.setXRot(0.0F);
+        plane.setGearUp(true);
+        float yawRad = yaw * ((float) Math.PI / 180.0F);
+        plane.setDeltaMovement(new Vec3(-Math.sin(yawRad) * PLANE_AIR_SPAWN_SPEED, 0.0,
+                Math.cos(yawRad) * PLANE_AIR_SPAWN_SPEED));
+    }
+
+    @Nullable
+    private static VehicleEntity spawnPlane(ServerLevel level, BlockPos requestedPos, TankFaction faction,
+                                            @Nullable UUID ownerId, @Nullable String vehicleId,
+                                            List<? extends String> pool, boolean airborne, @Nullable Float yaw) {
+        EntityType<?> planeType = selectVehicleType(crewablePool(pool), vehicleId, level.random);
         if (planeType == null) return null;
 
-        boolean airborne = faction != TankFaction.PMC;
         BlockPos ground = findClearSpawn(level, requestedPos, planeType);
         if (ground == null) return null;
 
@@ -328,15 +363,7 @@ public final class TankSpawner {
 
         plane.setPos(x, y, z);
         if (airborne) {
-            // Level flight attitude — a fresh entity's pitch can be anything; lofted or inverted
-            // ruins the lift nudge below.
-            plane.setXRot(0.0F);
-            plane.setGearUp(true);
-            float yawRad = plane.getYRot() * ((float) Math.PI / 180.0F);
-            // Forward along body yaw (not look angle): look follows pitch, which we just zeroed,
-            // but yaw-based is the same and clearer for "along the runway heading".
-            plane.setDeltaMovement(new Vec3(-Math.sin(yawRad) * PLANE_AIR_SPAWN_SPEED, 0.0,
-                    Math.cos(yawRad) * PLANE_AIR_SPAWN_SPEED));
+            placeAirborne(plane, yaw != null ? yaw : plane.getYRot());
         }
         level.addFreshEntity(plane);
 
@@ -517,6 +544,19 @@ public final class TankSpawner {
     public static VehicleEntity spawnPlayerDrivenWithOptionalCrew(ServerLevel level, BlockPos requestedPos,
                                                                    ServerPlayer player, @Nullable String vehicleId,
                                                                    List<? extends String> pool, boolean withPmcCrew) {
+        return spawnPlayerDrivenWithOptionalCrew(level, requestedPos, player, vehicleId, pool, withPmcCrew, null);
+    }
+
+    /**
+     * {@code airborneYaw} non-null: place the hull {@link #PLANE_AIR_SPAWN_ALT} above the surface in
+     * level flight along that yaw (a plane deployed straight into the fight). Positioned before the
+     * player mounts, because a player-driven hull's motion is the client's from then on.
+     */
+    @Nullable
+    public static VehicleEntity spawnPlayerDrivenWithOptionalCrew(ServerLevel level, BlockPos requestedPos,
+                                                                   ServerPlayer player, @Nullable String vehicleId,
+                                                                   List<? extends String> pool, boolean withPmcCrew,
+                                                                   @Nullable Float airborneYaw) {
         EntityType<?> type = selectVehicleType(pool, vehicleId, level.random);
         if (type == null) {
             // Allow a random pick when vehicleId is null; when non-null and missing from pool, fail.
@@ -531,7 +571,13 @@ public final class TankSpawner {
         Entity entity = type.create(level);
         if (!(entity instanceof VehicleEntity tank)) return null;
 
-        tank.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        if (airborneYaw != null) {
+            pos = pos.above((int) PLANE_AIR_SPAWN_ALT);
+            tank.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+            placeAirborne(tank, airborneYaw);
+        } else {
+            tank.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        }
         level.addFreshEntity(tank);
 
         if (tank.hasEnergyStorage()) {

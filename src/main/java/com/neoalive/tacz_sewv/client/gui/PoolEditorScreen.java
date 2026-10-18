@@ -31,6 +31,7 @@ import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketUpdateVehiclePools;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.VehicleClassify;
 import com.neoalive.tacz_sewv.util.VehiclePackIndex;
 import com.neoalive.tacz_sewv.util.VehiclePackIndex.Assessment;
 import com.neoalive.tacz_sewv.util.VehiclePackIndex.Entry;
@@ -209,7 +210,7 @@ public class PoolEditorScreen extends Screen {
         return new Info("?", "-", SheetTable.BAD, Component.translatable("gui.tacz_sewv.pool.note.unregistered"));
     }
 
-    private static String engineLabel(@Nullable EngineType e) {
+    static String engineLabel(@Nullable EngineType e) {
         if (e == null) return "?";
         return switch (e) {
             case WHEEL -> "Wheel";
@@ -237,15 +238,7 @@ public class PoolEditorScreen extends Screen {
         if (e == null || e == EngineType.EMPTY) {
             return Component.translatable("gui.tacz_sewv.pool.note.no_data");
         }
-        boolean fits = switch (this.category) {
-            case GROUND -> e != EngineType.HELICOPTER && e != EngineType.SHIP
-                    && e != EngineType.AIRCRAFT && e != EngineType.AIRSHIP;
-            case SURFACE -> e == EngineType.SHIP;
-            case PLANE -> e == EngineType.AIRCRAFT;
-            case ROTOR -> e == EngineType.HELICOPTER;
-            default -> true;
-        };
-        return fits ? null : Component.translatable("gui.tacz_sewv.pool.note.mismatch", engineLabel(e),
+        return VehicleClassify.fits(this.category, e) ? null : Component.translatable("gui.tacz_sewv.pool.note.mismatch", engineLabel(e),
                 Component.translatable("gui.tacz_sewv.pool.cat." + this.category.name().toLowerCase(Locale.ROOT)));
     }
 

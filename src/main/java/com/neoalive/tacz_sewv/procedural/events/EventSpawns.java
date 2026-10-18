@@ -7,29 +7,19 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.MobSpawnType;
-import net.minecraft.world.level.levelgen.Heightmap;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.roles.utils.UnitRole;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
-import net.nekoyuni.SimpleEnemyMod.registry.ModEntities;
 import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
 import com.neoalive.tacz_sewv.entity.ai.support.InfantrySquads;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
+import com.neoalive.tacz_sewv.spawn.InfantrySpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
  * The two things every event in this package was writing out for itself: dropping a rifleman on
- * the ground, and choosing which of RU/US an event happens to be about.
- *
- * <p>Neither is interesting enough to live in five copies, and the infantry one in particular has a
- * detail worth having in exactly one place — the scatter is applied in X/Z and the <b>Y is then
- * re-read from the heightmap</b>, so a unit scattered onto a slope stands on it rather than inside
- * it or floating over it.
+ * the ground ({@link InfantrySpawner}, behind the spawn toggles), and choosing which of RU/US an
+ * event happens to be about.
  */
 final class EventSpawns {
 
@@ -59,32 +49,7 @@ final class EventSpawns {
                 && !level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)) {
             return null;
         }
-        AbstractUnit unit;
-        switch (faction) {
-            case RU -> {
-                unit = new RUunitEntity(ModEntities.RUUNIT.get(), level);
-                unit.setRole(UnitRole.DEFAULT);
-            }
-            case US -> {
-                unit = new USunitEntity(ModEntities.USUNIT.get(), level);
-                unit.setRole(UnitRole.DEFAULT);
-            }
-            default -> {
-                // Ownerless FRIENDLY_DEFAULT — ambient event PMC with no recruiting player.
-                // (TankSpawner.createCrewUnit with a null ownerId).
-                PmcUnitEntity pmc = new PmcUnitEntity(ModEntities.PMCUNIT.get(), level);
-                pmc.setRole(UnitRole.FRIENDLY_DEFAULT);
-                unit = pmc;
-            }
-        }
-
-        int x = anchor.getX() + level.random.nextInt(scatter * 2 + 1) - scatter;
-        int z = anchor.getZ() + level.random.nextInt(scatter * 2 + 1) - scatter;
-        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        unit.setPos(x + 0.5, y, z + 0.5);
-        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(unit.blockPosition()), MobSpawnType.EVENT, null, null);
-        level.addFreshEntity(unit);
-        return unit;
+        return InfantrySpawner.spawn(level, anchor, faction, null, scatter);
     }
 
     /**

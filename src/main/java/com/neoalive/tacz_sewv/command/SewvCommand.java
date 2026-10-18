@@ -275,7 +275,7 @@ public class SewvCommand {
                     ok.spawnDelaySeconds(), spawn.bases()), true);
         } else {
             source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.started",
-                    spawn.bases(), spawn.aiVehicles(), spawn.playerVehicles()), true);
+                    spawn.bases(), spawn.aiVehicles(), spawn.aiInfantry(), spawn.playersDeploying()), true);
         }
         return 1;
     }

@@ -8,7 +8,8 @@ import net.minecraft.core.BlockPos;
 
 import com.neoalive.tacz_sewv.client.gui.CapturePointScreen;
 import com.neoalive.tacz_sewv.client.gui.TeamBaseScreen;
-import com.neoalive.tacz_sewv.invasion.PmcOwnerKind;
+import com.neoalive.tacz_sewv.invasion.force.ForceKind;
+import com.neoalive.tacz_sewv.invasion.force.TeamBaseConfig;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
@@ -25,21 +26,10 @@ public final class InvasionEditorClient {
                 pos, pointId, timeToCaptureSeconds, radiusInBlocks, ownedTeam, invisible, teams));
     }
 
-    public static void openTeamBase(BlockPos pos, String assignedTeam, boolean playerOwned,
-                                    boolean spawnPlayerOwnedTanksWithNpc, TankFaction crewFaction,
-                                    int aiVehicleCount, int timeToCaptureSeconds, int radiusInBlocks,
-                                    String ownedTeam, boolean invisible, boolean endInvasionOnCapture,
-                                    int spawnDelaySeconds, boolean pointsHaveToBeConquered,
-                                    PmcOwnerKind pmcOwnerKind, String pmcOwnerValue,
-                                    List<String> vehiclePool, List<String> enemyTeams, List<String> teams,
+    public static void openTeamBase(BlockPos pos, TeamBaseConfig config, List<String> teams,
                                     List<String> onlinePlayerNames, List<String> onlinePlayerUuids,
-                                    List<String> catalog, Map<TankFaction, List<String>> armorPools) {
+                                    List<String> catalog, Map<TankFaction, Map<ForceKind, List<String>>> worldPools) {
         Minecraft.getInstance().setScreen(new TeamBaseScreen(
-                pos, assignedTeam, playerOwned, spawnPlayerOwnedTanksWithNpc, crewFaction,
-                aiVehicleCount, timeToCaptureSeconds, radiusInBlocks, ownedTeam, invisible,
-                endInvasionOnCapture, spawnDelaySeconds, pointsHaveToBeConquered,
-                pmcOwnerKind, pmcOwnerValue,
-                vehiclePool, enemyTeams, teams, onlinePlayerNames, onlinePlayerUuids, catalog,
-                armorPools));
+                pos, config, teams, onlinePlayerNames, onlinePlayerUuids, catalog, worldPools));
     }
 }

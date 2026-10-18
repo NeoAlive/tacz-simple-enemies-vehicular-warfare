@@ -29,5 +29,19 @@ public final class InvasionTags {
      */
     public static final String ENEMIES = "sewv:invasion_enemies";
 
+    /**
+     * {@link com.neoalive.tacz_sewv.invasion.force.ForceKind} ordinal (byte) this hull or unit was
+     * fielded as. On a hull's crew it is the hull's kind, so a crewman who bails out still reads as
+     * a ground or rotor crewman, never as infantry.
+     */
+    public static final String KIND = "sewv:invasion_kind";
+
+    /**
+     * Whether this unit counts toward capturing a zone. False = it still contests (freezes an
+     * enemy's progress) but never advances one. Aircraft are judged by their hull instead and never
+     * count at all. Stamped at spawn so presence scans never have to look up the base.
+     */
+    public static final String CAPTURES = "sewv:invasion_captures";
+
     private InvasionTags() {}
 }

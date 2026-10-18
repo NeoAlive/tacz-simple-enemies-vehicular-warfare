@@ -15,6 +15,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
+import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
@@ -93,6 +94,8 @@ public class SeekAbandonedVehicleGoal extends Goal {
         // RU/US only. A PMC takes its orders from its owner.
         if (!(this.unit instanceof RUunitEntity || this.unit instanceof USunitEntity)) return false;
         if (this.unit.isPassenger()) return false;
+        // An invasion unit is on a mission: its capture order owns where it walks.
+        if (this.unit instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) return false;
         // Never break off a fight to go looking for a ride. This is also what keeps the goal
         // from competing with SEM's combat goals — an engaged unit simply never scans.
         if (this.unit.getTarget() != null) return false;

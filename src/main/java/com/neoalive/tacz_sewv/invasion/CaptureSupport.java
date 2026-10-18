@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -18,10 +19,13 @@ import net.minecraft.world.scores.PlayerTeam;
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 
 /**
- * Sole-team radius/time capture shared by capture_point and team_base.
- * Empty resets progress; contested freezes; sole non-owner advances until capture.
+ * Sole-team radius/time capture shared by capture_point and team_base. The decision itself is
+ * {@link CaptureRules}; this class turns the world into its two inputs ({@link Presence}) and
+ * applies the outcome. Empty resets progress; contested freezes; a sole non-owner advances only
+ * when it has a capturer present (contest-only infantry freeze instead); aircraft never count.
  * A team_base's {@code assignedTeam} is the implicit owner when {@code ownedTeam} is empty —
  * that team cannot capture its own base.
  */
@@ -45,7 +49,8 @@ public final class CaptureSupport {
 
         AABB box = captureBox(be.getBlockPos(), be.getRadiusInBlocks());
         List<ServerPlayer> playersHere = level.getEntitiesOfClass(ServerPlayer.class, box);
-        Set<String> present = teamsPresent(level, box, playersHere);
+        Presence presence = presence(level, box, playersHere);
+        Set<String> present = presence.all();
 
         // Silent empty scans were the Stage C failure mode — log when someone is in the
         // radius but scored as no team (wrong gamemode / not on a /team / etc.).
@@ -61,35 +66,42 @@ public final class CaptureSupport {
         }
 
         boolean dirty = false;
-
-        if (present.isEmpty()) {
-            // No one conquering or holding — drop partial progress.
-            dirty |= be.setContestedIfChanged(false);
-            dirty |= be.setProgressIfChanged(0f);
-            be.setAdvancingTeam("");
-            if (dirty) sync(level, be);
-            return;
-        }
-
-        if (present.size() >= 2) {
-            if (be.setContestedIfChanged(true)) {
-                SewvDiag.invasion("contested pos={} teams={}", be.getBlockPos(), present);
-                sync(level, be);
-            }
-            return;
-        }
-
-        dirty |= be.setContestedIfChanged(false);
-        String sole = present.iterator().next();
         String holder = holdingTeam(be);
+        CaptureRules.Step step = CaptureRules.step(holder, presence.capturers(), presence.contesters());
 
-        // Own point / own base (including team_base with empty ownedTeam → assignedTeam).
-        if (!holder.isEmpty() && sole.equals(holder)) {
-            dirty |= be.setProgressIfChanged(0f);
-            be.setAdvancingTeam("");
-            if (dirty) sync(level, be);
-            return;
+        switch (step.outcome()) {
+            case RESET -> {
+                // No one conquering or holding — drop partial progress.
+                dirty |= be.setContestedIfChanged(false);
+                dirty |= be.setProgressIfChanged(0f);
+                be.setAdvancingTeam("");
+                if (dirty) sync(level, be);
+                return;
+            }
+            case CONTESTED -> {
+                if (be.setContestedIfChanged(true)) {
+                    SewvDiag.invasion("contested pos={} capturers={} contesters={}",
+                            be.getBlockPos(), presence.capturers(), presence.contesters());
+                    sync(level, be);
+                }
+                return;
+            }
+            case HELD -> {
+                // Own point / own base (including team_base with empty ownedTeam → assignedTeam).
+                dirty |= be.setContestedIfChanged(false);
+                dirty |= be.setProgressIfChanged(0f);
+                be.setAdvancingTeam("");
+                if (dirty) sync(level, be);
+                return;
+            }
+            case FROZEN -> {
+                // Contest-only infantry alone on an enemy zone: hold whatever progress there was.
+                if (be.setContestedIfChanged(false)) sync(level, be);
+                return;
+            }
+            case ADVANCE -> dirty |= be.setContestedIfChanged(false);
         }
+        String sole = step.team();
 
         // Team base: optional "must own every capture_point first" gate.
         if (be instanceof TeamBaseBlockEntity base && base.isPointsHaveToBeConquered()
@@ -179,39 +191,59 @@ public final class CaptureSupport {
     }
 
     /**
-     * Distinct invasion teams inside the radius.
-     * Players: scoreboard team (creative counted — mapmakers test in creative; spectators ignored).
-     * NPCs/vehicles: {@link InvasionTags#TEAM}.
+     * Who is inside a zone, split by what they may do there. {@code all()} is every team present.
      */
-    public static Set<String> teamsPresent(ServerLevel level, BlockPos pos, int radius) {
-        AABB box = captureBox(pos, radius);
-        return teamsPresent(level, box, level.getEntitiesOfClass(ServerPlayer.class, box));
+    public record Presence(Set<String> capturers, Set<String> contesters) {
+        public Set<String> all() {
+            Set<String> out = new HashSet<>(capturers);
+            out.addAll(contesters);
+            return out;
+        }
     }
 
-    private static Set<String> teamsPresent(ServerLevel level, AABB box, List<ServerPlayer> playersHere) {
-        Set<String> teams = new HashSet<>();
+    public static Presence presence(ServerLevel level, BlockPos pos, int radius) {
+        AABB box = captureBox(pos, radius);
+        return presence(level, box, level.getEntitiesOfClass(ServerPlayer.class, box));
+    }
+
+    /**
+     * Players: scoreboard team, always capturers (creative counted — mapmakers test in creative;
+     * spectators ignored). NPCs: {@link InvasionTags#TEAM}, capturer or contester by
+     * {@link InvasionTags#CAPTURES}. A hull counts through itself and its crew, except an aircraft,
+     * which is dropped whole — whoever flies it.
+     */
+    private static Presence presence(ServerLevel level, AABB box, List<ServerPlayer> playersHere) {
+        Set<String> capturers = new HashSet<>();
+        Set<String> contesters = new HashSet<>();
 
         for (ServerPlayer player : playersHere) {
-            addPlayerTeam(level, teams, player);
+            if (player.getVehicle() instanceof VehicleEntity hull && isAircraft(hull)) continue;
+            addPlayerTeam(level, capturers, player);
         }
 
         for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, box,
-                e -> !(e instanceof Player))) {
-            addTaggedTeam(teams, living);
+                e -> !(e instanceof Player) && !(e.getVehicle() instanceof VehicleEntity))) {
+            addTaggedTeam(capturers, contesters, living);
         }
 
         for (VehicleEntity vehicle : level.getEntitiesOfClass(VehicleEntity.class, box)) {
+            if (isAircraft(vehicle)) continue;
             for (Entity passenger : vehicle.getPassengers()) {
                 if (passenger instanceof Player player) {
-                    addPlayerTeam(level, teams, player);
+                    addPlayerTeam(level, capturers, player);
                 } else {
-                    addTaggedTeam(teams, passenger);
+                    addTaggedTeam(capturers, contesters, passenger);
                 }
             }
-            addTaggedTeam(teams, vehicle);
+            addTaggedTeam(capturers, contesters, vehicle);
         }
 
-        return teams;
+        return new Presence(capturers, contesters);
+    }
+
+    private static boolean isAircraft(VehicleEntity hull) {
+        EngineType engine = HullFacts.engineType(hull);
+        return engine == EngineType.HELICOPTER || engine == EngineType.AIRCRAFT;
     }
 
     public static AABB captureBox(BlockPos pos, int radius) {
@@ -232,10 +264,15 @@ public final class CaptureSupport {
         }
     }
 
-    private static void addTaggedTeam(Set<String> teams, Entity entity) {
-        String team = entity.getPersistentData().getString(InvasionTags.TEAM);
-        if (!team.isEmpty()) {
-            teams.add(team);
+    /** Missing {@link InvasionTags#CAPTURES} reads as a capturer — entities tagged before it existed. */
+    private static void addTaggedTeam(Set<String> capturers, Set<String> contesters, Entity entity) {
+        var data = entity.getPersistentData();
+        String team = data.getString(InvasionTags.TEAM);
+        if (team.isEmpty()) return;
+        if (!data.contains(InvasionTags.CAPTURES) || data.getBoolean(InvasionTags.CAPTURES)) {
+            capturers.add(team);
+        } else {
+            contesters.add(team);
         }
     }
 
@@ -251,13 +288,14 @@ public final class CaptureSupport {
         if (!(be.getLevel() instanceof ServerLevel level)) {
             return be.getBlockPos() + " (no level)";
         }
-        Set<String> present = teamsPresent(level, be.getBlockPos(), be.getRadiusInBlocks());
-        return String.format("%s owned=%s progress=%.2f contested=%s present=%s advancing=%s r=%d t=%ds",
+        Presence presence = presence(level, be.getBlockPos(), be.getRadiusInBlocks());
+        return String.format("%s owned=%s progress=%.2f contested=%s capturers=%s contesters=%s advancing=%s r=%d t=%ds",
                 be.getBlockPos(),
                 be.getOwnedTeam().isEmpty() ? "-" : be.getOwnedTeam(),
                 be.getProgress(),
                 be.isContested(),
-                present.isEmpty() ? "[]" : present.toString(),
+                presence.capturers(),
+                presence.contesters(),
                 be.getAdvancingTeam().isEmpty() ? "-" : be.getAdvancingTeam(),
                 be.getRadiusInBlocks(),
                 be.getTimeToCaptureSeconds());

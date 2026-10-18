@@ -74,6 +74,9 @@ public final class VehicleAiGoals {
         // PMC a player equipped). Gates on an SBW gun being in the main hand, which is one
         // instanceof for everyone else.
         unit.goalSelector.addGoal(1, new AtWeaponGoal(unit));
+        // Invasion infantry walking to (and holding) its capture objective. Priority 1 MOVE, gates
+        // on the invasion SPAWN tag first, so it is one NBT read for every other unit.
+        unit.goalSelector.addGoal(1, new InvasionObjectiveGoal(unit));
         // On-foot grenade throw (LOOK). Below AT launchers; holsters the rifle for the toss.
         unit.goalSelector.addGoal(2, new GrenadeThrowGoal(unit));
         // Priority 2: the turret sweep and radio chatter of a crew with nothing to fight. Claims no

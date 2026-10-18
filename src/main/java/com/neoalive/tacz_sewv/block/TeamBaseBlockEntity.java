@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.invasion.CapturableBlockEntity;
 import com.neoalive.tacz_sewv.invasion.CaptureSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionLayout;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerKind;
+import com.neoalive.tacz_sewv.invasion.force.BaseForce;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
@@ -25,15 +26,11 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
  */
 public class TeamBaseBlockEntity extends CapturableBlockEntity {
 
-    public static final int DEFAULT_AI_VEHICLE_COUNT = 1;
-    public static final int MAX_AI_VEHICLE_COUNT = 32;
-
     private String assignedTeam = "";
     private boolean playerOwned;
-    private boolean spawnPlayerOwnedTanksWithNpc;
     private TankFaction crewFaction = TankFaction.US;
-    /** How many AI-crewed hulls this base fields (and keeps topped up) while a session is active. */
-    private int aiVehicleCount = DEFAULT_AI_VEHICLE_COUNT;
+    /** What this base fields: per-kind pools and AI counts, infantry, player deploy options. */
+    private BaseForce force = new BaseForce();
     /**
      * Who owns PMC crews when {@link #crewFaction} is PMC — a single player UUID or a scoreboard
      * team name. Ignored for RU/US.
@@ -55,7 +52,6 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
      * in the dimension. Default true.
      */
     private boolean pointsHaveToBeConquered = true;
-    private final List<String> vehiclePool = new ArrayList<>();
     /** Scoreboard teams this base's crews treat as enemies (explicit — not inferred). */
     private final List<String> enemyTeams = new ArrayList<>();
 
@@ -78,19 +74,15 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
 
     public void setPlayerOwned(boolean playerOwned) {
         this.playerOwned = playerOwned;
-        // Pure AI bases cannot disable the fleet (min 1); player bases may set 0 = no extra AI.
-        if (!playerOwned && aiVehicleCount < 1) {
-            aiVehicleCount = DEFAULT_AI_VEHICLE_COUNT;
-        }
         setChanged();
     }
 
-    public boolean isSpawnPlayerOwnedTanksWithNpc() {
-        return spawnPlayerOwnedTanksWithNpc;
+    public BaseForce getForce() {
+        return force;
     }
 
-    public void setSpawnPlayerOwnedTanksWithNpc(boolean spawnPlayerOwnedTanksWithNpc) {
-        this.spawnPlayerOwnedTanksWithNpc = spawnPlayerOwnedTanksWithNpc;
+    public void setForce(BaseForce force) {
+        this.force = force == null ? new BaseForce() : force;
         setChanged();
     }
 
@@ -120,21 +112,6 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         setChanged();
     }
 
-    public int getAiVehicleCount() {
-        return aiVehicleCount;
-    }
-
-    /** Min 0 on player-owned (0 = no additional AI); min 1 on pure AI bases. */
-    public void setAiVehicleCount(int aiVehicleCount) {
-        int min = playerOwned ? 0 : 1;
-        this.aiVehicleCount = Math.max(min, Math.min(MAX_AI_VEHICLE_COUNT, aiVehicleCount));
-        setChanged();
-    }
-
-    public int minAiVehicleCount() {
-        return playerOwned ? 0 : 1;
-    }
-
     public boolean isEndInvasionOnCapture() {
         return endInvasionOnCapture;
     }
@@ -159,18 +136,6 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
 
     public void setPointsHaveToBeConquered(boolean pointsHaveToBeConquered) {
         this.pointsHaveToBeConquered = pointsHaveToBeConquered;
-        setChanged();
-    }
-
-    public List<String> getVehiclePool() {
-        return vehiclePool;
-    }
-
-    public void setVehiclePool(List<String> pool) {
-        vehiclePool.clear();
-        if (pool != null) {
-            vehiclePool.addAll(pool);
-        }
         setChanged();
     }
 
@@ -211,19 +176,13 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         super.saveAdditional(tag);
         tag.putString("AssignedTeam", assignedTeam);
         tag.putBoolean("PlayerOwned", playerOwned);
-        tag.putBoolean("SpawnPlayerOwnedTanksWithNpc", spawnPlayerOwnedTanksWithNpc);
         tag.putString("CrewFaction", crewFaction.name());
-        tag.putInt("AiVehicleCount", aiVehicleCount);
+        tag.put("Force", force.save());
         tag.putString("PmcOwnerKind", pmcOwnerKind.name());
         tag.putString("PmcOwnerValue", pmcOwnerValue);
         tag.putBoolean("EndInvasionOnCapture", endInvasionOnCapture);
         tag.putInt("SpawnDelaySeconds", spawnDelaySeconds);
         tag.putBoolean("PointsHaveToBeConquered", pointsHaveToBeConquered);
-        ListTag pool = new ListTag();
-        for (String id : vehiclePool) {
-            pool.add(StringTag.valueOf(id));
-        }
-        tag.put("VehiclePool", pool);
         ListTag enemies = new ListTag();
         for (String team : enemyTeams) {
             enemies.add(StringTag.valueOf(team));
@@ -236,7 +195,6 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         super.load(tag);
         assignedTeam = tag.getString("AssignedTeam");
         playerOwned = tag.getBoolean("PlayerOwned");
-        spawnPlayerOwnedTanksWithNpc = tag.getBoolean("SpawnPlayerOwnedTanksWithNpc");
         try {
             crewFaction = TankFaction.valueOf(tag.getString("CrewFaction"));
         } catch (IllegalArgumentException e) {
@@ -247,12 +205,9 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         if (pmcOwnerKind == PmcOwnerKind.NONE) {
             pmcOwnerValue = "";
         }
-        aiVehicleCount = tag.contains("AiVehicleCount")
-                ? tag.getInt("AiVehicleCount")
-                : DEFAULT_AI_VEHICLE_COUNT;
-        // Re-clamp against playerOwned (loaded above) so legacy "1" stays valid for both modes.
-        int min = playerOwned ? 0 : 1;
-        aiVehicleCount = Math.max(min, Math.min(MAX_AI_VEHICLE_COUNT, aiVehicleCount));
+        force = tag.contains("Force", Tag.TAG_COMPOUND)
+                ? BaseForce.load(tag.getCompound("Force"))
+                : loadLegacyForce(tag);
         // Pre-toggle worlds: only player-owned bases ended the match.
         endInvasionOnCapture = tag.contains("EndInvasionOnCapture")
                 ? tag.getBoolean("EndInvasionOnCapture")
@@ -263,13 +218,6 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
         // Default true — missing key means require all points (new rule).
         pointsHaveToBeConquered = !tag.contains("PointsHaveToBeConquered")
                 || tag.getBoolean("PointsHaveToBeConquered");
-        vehiclePool.clear();
-        if (tag.contains("VehiclePool", Tag.TAG_LIST)) {
-            ListTag pool = tag.getList("VehiclePool", Tag.TAG_STRING);
-            for (int i = 0; i < pool.size(); i++) {
-                vehiclePool.add(pool.getString(i));
-            }
-        }
         enemyTeams.clear();
         if (tag.contains("EnemyTeams", Tag.TAG_LIST)) {
             ListTag enemies = tag.getList("EnemyTeams", Tag.TAG_STRING);
@@ -278,5 +226,20 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
                 if (!t.isEmpty() && !enemyTeams.contains(t)) enemyTeams.add(t);
             }
         }
+    }
+
+    /**
+     * Pre-rework save: one untyped {@code VehiclePool} + {@code AiVehicleCount}. Missing count meant 1,
+     * and a pure-AI base could never go below 1 — keep both so the old match loads unchanged.
+     */
+    private BaseForce loadLegacyForce(CompoundTag tag) {
+        List<String> pool = new ArrayList<>();
+        ListTag list = tag.getList("VehiclePool", Tag.TAG_STRING);
+        for (int i = 0; i < list.size(); i++) {
+            pool.add(list.getString(i));
+        }
+        int count = tag.contains("AiVehicleCount") ? tag.getInt("AiVehicleCount") : 1;
+        if (!playerOwned) count = Math.max(1, count);
+        return BaseForce.fromLegacy(pool, count, tag.getBoolean("SpawnPlayerOwnedTanksWithNpc"));
     }
 }

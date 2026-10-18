@@ -13,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
@@ -58,6 +59,8 @@ public class SeekAbandonedMortarGoal extends Goal {
 
     private boolean shouldScan() {
         if (this.unit.level().isClientSide()) return false;
+        // An invasion unit is on a mission: its capture order owns where it walks.
+        if (this.unit instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) return false;
         if (!SewvConfig.AUTO_MAN_MORTAR_ENABLED.get()) return false;
         if (!(this.unit instanceof RUunitEntity || this.unit instanceof USunitEntity)) return false;
         if (this.unit.isPassenger()) return false;

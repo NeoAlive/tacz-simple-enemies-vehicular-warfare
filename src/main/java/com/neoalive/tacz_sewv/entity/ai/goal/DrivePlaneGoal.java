@@ -50,6 +50,7 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
+import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketClearPlaneLandingDebug;
@@ -1027,6 +1028,10 @@ public class DrivePlaneGoal extends Goal {
 
     @Nullable
     private BlockPos destination() {
+        // An invasion objective is the orbit centre: the plane works the air over the point its
+        // team is fighting for instead of trailing whichever ground ally happens to be nearest.
+        BlockPos objective = CaptureOrderSupport.currentDestination(this.unit, this.vehicle);
+        if (objective != null) return objective;
         if (this.unit instanceof PmcUnitEntity) {
             return VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
         }
@@ -1041,6 +1046,8 @@ public class DrivePlaneGoal extends Goal {
      */
     @Nullable
     private Vec3 anchor() {
+        BlockPos objective = CaptureOrderSupport.currentDestination(this.unit, this.vehicle);
+        if (objective != null) return Vec3.atCenterOf(objective);
         if (this.unit instanceof PmcUnitEntity) {
             return PlaneLeash.ownerAnchor(this.unit);
         }

@@ -12,13 +12,14 @@ import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
+import com.neoalive.tacz_sewv.invasion.force.ForceKind;
+import com.neoalive.tacz_sewv.invasion.force.TeamBaseConfig;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenCapturePointGui;
 import com.neoalive.tacz_sewv.network.PacketOpenTeamBaseGui;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.PoolEditorAccess;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
-import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
 
 /** Op-only open path for invasion block config screens. */
 public final class InvasionBlockEditor {
@@ -70,33 +71,17 @@ public final class InvasionBlockEditor {
             playerUuids.add(online.getUUID().toString());
         }
         WorldVehiclePools pools = WorldVehiclePools.get(player.serverLevel());
-        Map<TankFaction, List<String>> armor = new EnumMap<>(TankFaction.class);
+        Map<TankFaction, Map<ForceKind, List<String>>> worldPools = new EnumMap<>(TankFaction.class);
         for (TankFaction faction : TankFaction.values()) {
-            armor.put(faction, new ArrayList<>(pools.list(faction, Category.GROUND)));
+            Map<ForceKind, List<String>> byKind = new EnumMap<>(ForceKind.class);
+            for (ForceKind kind : ForceKind.VEHICLES) {
+                byKind.put(kind, new ArrayList<>(pools.list(faction, kind.poolCategory())));
+            }
+            worldPools.put(faction, byKind);
         }
         NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
-                new PacketOpenTeamBaseGui(
-                        be.getBlockPos(),
-                        be.getAssignedTeam(),
-                        be.isPlayerOwned(),
-                        be.isSpawnPlayerOwnedTanksWithNpc(),
-                        be.getCrewFaction(),
-                        be.getAiVehicleCount(),
-                        be.getTimeToCaptureSeconds(),
-                        be.getRadiusInBlocks(),
-                        be.getOwnedTeam(),
-                        be.isInvisible(),
-                        be.isEndInvasionOnCapture(),
-                        be.getSpawnDelaySeconds(),
-                        be.isPointsHaveToBeConquered(),
-                        be.getPmcOwnerKind(),
-                        be.getPmcOwnerValue(),
-                        new ArrayList<>(be.getVehiclePool()),
-                        new ArrayList<>(be.getEnemyTeams()),
-                        scoreboardTeamNames(player),
-                        playerNames,
-                        playerUuids,
-                        PoolEditorAccess.catalog(),
-                        armor));
+                new PacketOpenTeamBaseGui(be.getBlockPos(), TeamBaseConfig.of(be),
+                        scoreboardTeamNames(player), playerNames, playerUuids,
+                        PoolEditorAccess.catalog(), worldPools));
     }
 }

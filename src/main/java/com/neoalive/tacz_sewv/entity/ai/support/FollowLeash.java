@@ -3,12 +3,14 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.fob.FobSupport;
+import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 
 /**
  * Whether an on-foot PMC unit is under a "stay with me" / area order and so must fight from
@@ -37,7 +39,8 @@ import com.neoalive.tacz_sewv.fob.FobSupport;
  * "isFollowOrder"): FOLLOW / HOLD / MOVE_TO_POSITION / the two FORM orders — plus a live
  * on-foot Sweep &amp; Advance ({@link ISweepInfantry}), which must not chase off its rectangle
  * either, and a Territory Mode post ({@link ITerritoryPost}, which alone allows the chase while target
- * and unit are both inside its 3x3 leash). FREE_FIRE and ATTACK_THAT_TARGET alone keep the full chase. Mounted crews are
+ * and unit are both inside its 3x3 leash). Invasion infantry standing on its objective
+ * ({@link CaptureOrderSupport#onStation}) is leashed too, whatever its faction. FREE_FIRE and ATTACK_THAT_TARGET alone keep the full chase. Mounted crews are
  * excluded: their movement is the vehicle's ({@link PatrolSupport#holdsCourseThroughContact}).
  */
 public final class FollowLeash {
@@ -45,6 +48,8 @@ public final class FollowLeash {
     private FollowLeash() {}
 
     public static boolean leashed(Mob mob) {
+        // Invasion infantry on its objective: hold the point, any faction.
+        if (mob instanceof AbstractUnit unit && CaptureOrderSupport.onStation(unit)) return true;
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
         if (PmcDownedSupport.isDowned(pmc)) return false;
         if (pmc.getVehicle() != null) return false; // mounted: driven by the vehicle AI, not these goals

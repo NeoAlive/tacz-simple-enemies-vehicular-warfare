@@ -41,6 +41,10 @@ public final class InvasionSession {
     private final Map<UUID, Long> playerFieldAt = new ConcurrentHashMap<>();
     /** Team-base packed pos → game time when AI top-up may spawn replacements. */
     private final Map<Long, Long> aiTopUpAt = new ConcurrentHashMap<>();
+    /** Team-base packed pos → infantry headcount for this match (a RANDOM spec is rolled once). */
+    private final Map<Long, Integer> infantryTargets = new ConcurrentHashMap<>();
+    /** Player UUID → outstanding deployment offer ({@link InvasionDeploy}). */
+    private final Map<UUID, InvasionDeploy.Pending> pendingDeploys = new ConcurrentHashMap<>();
     @javax.annotation.Nullable
     private InvasionHud.Layout hudLayout;
 
@@ -118,6 +122,8 @@ public final class InvasionSession {
         session.nextRespawnAssert = Integer.MIN_VALUE;
         session.playerFieldAt.clear();
         session.aiTopUpAt.clear();
+        session.infantryTargets.clear();
+        session.pendingDeploys.clear();
         session.hudLayout = layout;
         InvasionLayout.get(level).setSessionActive(true);
 
@@ -143,7 +149,7 @@ public final class InvasionSession {
         }
         SewvDiag.invasion("session ACTIVE dim={} spawnDelay={}s (waiting at world spawn)",
                 level.dimension().location(), delaySec);
-        return new StartResult.Ok(new InvasionSpawn.Result(report.bases().size(), 0, 0, 0),
+        return new StartResult.Ok(new InvasionSpawn.Result(report.bases().size(), 0, 0, 0, 0),
                 List.copyOf(report.warnings()), delaySec);
     }
 
@@ -173,6 +179,8 @@ public final class InvasionSession {
         session.spawnAtGameTime = Long.MIN_VALUE;
         session.playerFieldAt.clear();
         session.aiTopUpAt.clear();
+        session.infantryTargets.clear();
+        session.pendingDeploys.clear();
         session.hudLayout = null;
         InvasionHudTracker.clear(level);
         InvasionSpawn.teardown(level);
@@ -212,9 +220,46 @@ public final class InvasionSession {
 
             if (!session.fielded) continue;
             tickPlayerFieldDelays(level, session);
+            tickPendingDeploys(level, session);
             if (tick < session.nextRespawnAssert) continue;
             session.nextRespawnAssert = tick + RESPAWN_REASSERT_INTERVAL;
             InvasionSpawn.maintain(level);
+        }
+    }
+
+    /**
+     * The infantry headcount {@code base} keeps for this match. A RANDOM spec is rolled on first
+     * ask and then held, so top-up refills to the same number all match; a new match re-rolls.
+     */
+    public static int infantryTarget(ServerLevel level, TeamBaseBlockEntity base) {
+        return of(level).infantryTargets.computeIfAbsent(base.getBlockPos().asLong(),
+                k -> base.getForce().infantry().resolveCount(level.random));
+    }
+
+    @javax.annotation.Nullable
+    public static InvasionDeploy.Pending pendingDeploy(ServerLevel level, UUID playerId) {
+        InvasionSession session = BY_DIM.get(level.dimension());
+        return session == null ? null : session.pendingDeploys.get(playerId);
+    }
+
+    public static void setPendingDeploy(ServerLevel level, UUID playerId, InvasionDeploy.Pending pending) {
+        of(level).pendingDeploys.put(playerId, pending);
+    }
+
+    public static void clearPendingDeploy(ServerLevel level, UUID playerId) {
+        InvasionSession session = BY_DIM.get(level.dimension());
+        if (session != null) session.pendingDeploys.remove(playerId);
+    }
+
+    private static void tickPendingDeploys(ServerLevel level, InvasionSession session) {
+        if (session.pendingDeploys.isEmpty()) return;
+        long now = level.getGameTime();
+        for (Map.Entry<UUID, InvasionDeploy.Pending> entry : List.copyOf(session.pendingDeploys.entrySet())) {
+            if (now < entry.getValue().deadline()) continue;
+            session.pendingDeploys.remove(entry.getKey());
+            ServerPlayer player = level.getServer().getPlayerList().getPlayer(entry.getKey());
+            if (player == null || player.level() != level || player.hasDisconnected()) continue;
+            InvasionDeploy.expire(level, player, entry.getValue());
         }
     }
 

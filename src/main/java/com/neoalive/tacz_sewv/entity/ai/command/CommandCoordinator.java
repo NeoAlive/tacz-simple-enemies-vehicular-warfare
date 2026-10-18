@@ -406,7 +406,7 @@ public final class CommandCoordinator {
             double spacing = FormationTemplates.active().lookup(PlayId.COHESIVE_LINE.key, "maneuver").spacing() * scale;
             double length = PlayGeometry.enemyDistance(bf) - TacticalScale.of(CohesiveLine.HANDOVER_DISTANCE);
             March march = CohesiveMarches.form(level, CrewFacts.Faction.byId(g.faction()), hulls,
-                    bf.friendlyCentroidX, groupY(level, g), bf.friendlyCentroidZ, -bf.axisX, -bf.axisZ, length,
+                    g.centroidX(), groupY(level, g), g.centroidZ(), -bf.axisX, -bf.axisZ, length,
                     spacing, TacticalScale.of(INFANTRY_AT_HULLS), now);
             // Recorded even when refused, so a refused line is not re-tried every pass; the play stands regardless.
             lines.put(g.groupId(), march == null ? -1 : march.id());

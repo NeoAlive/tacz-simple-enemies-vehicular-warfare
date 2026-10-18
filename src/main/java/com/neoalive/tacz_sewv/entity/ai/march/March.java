@@ -100,6 +100,27 @@ public final class March {
         return this.paused ? now - this.pausedSince : 0L;
     }
 
+    private double bestWorst = Double.POSITIVE_INFINITY;
+    private long improvedAt = Long.MIN_VALUE;
+
+    /**
+     * Ticks a waiting march has gone without its worst straggler closing up by a twentieth — the stall clock.
+     * Waiting itself is not stalling: a long line forming up out of a scattered group waits a long time while
+     * getting steadily closer, and timing the wait alone ended exactly that.
+     */
+    long stalledFor(double worst, long now) {
+        if (!this.paused) {
+            this.bestWorst = Double.POSITIVE_INFINITY;
+            this.improvedAt = Long.MIN_VALUE;
+            return 0L;
+        }
+        if (this.improvedAt == Long.MIN_VALUE || worst < this.bestWorst * 0.95) {
+            this.bestWorst = Math.min(this.bestWorst, worst);
+            this.improvedAt = now;
+        }
+        return now - this.improvedAt;
+    }
+
     /** The anchor has reached a route that will not grow. */
     boolean arrived(long now) {
         return this.routeClosed && anchorAt(now) >= this.route.length() - 1.0e-6;

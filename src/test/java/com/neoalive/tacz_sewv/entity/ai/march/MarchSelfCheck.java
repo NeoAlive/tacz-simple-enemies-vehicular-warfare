@@ -16,6 +16,7 @@ public final class MarchSelfCheck {
         columnFollowsTheRoad();
         paceAndPause();
         pauseHysteresis();
+        stallIsNoProgress();
         lineIsCentredAndDistinct();
         filesAreBalanced();
         fileSitsBehindItsHull();
@@ -105,6 +106,19 @@ public final class MarchSelfCheck {
         assert !March.shouldPause(false, 0.9, 0.5) : "inside the limit it keeps going";
         assert March.shouldPause(true, 0.7, 0.5) : "waiting: still waits above the resume line";
         assert !March.shouldPause(true, 0.4, 0.5) : "waiting: goes again below the resume line";
+    }
+
+    private static void stallIsNoProgress() {
+        MarchRoute r = new MarchRoute(0.0, 0.0, 0.0, 1.0);
+        r.append(0.0, 100.0);
+        March m = new March(1, March.Kind.COHESIVE_LINE, new int[] {1}, new int[0], r, 0.0, 100.0, 16.0, 0.14, 0.0, 0L);
+        assert m.stalledFor(3.0, 0L) == 0L : "moving: no stall";
+        m.setPaused(true, 0L);
+        assert m.stalledFor(3.0, 0L) == 0L : "first wait: clock starts";
+        assert m.stalledFor(2.5, 400L) == 0L : "closing up: the clock restarts";
+        assert m.stalledFor(2.45, 800L) == 400L : "under a twentieth closer: still stalling";
+        m.setPaused(false, 900L);
+        assert m.stalledFor(2.4, 900L) == 0L : "moving again resets";
     }
 
     private static void lineIsCentredAndDistinct() {

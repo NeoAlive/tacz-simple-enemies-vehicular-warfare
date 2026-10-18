@@ -29,6 +29,9 @@ import com.neoalive.tacz_sewv.entity.ai.support.InfantryOrders;
  */
 public final class CohesiveMarches {
 
+    /** Riflemen behind each hull at most: enough to be screened, few enough to stay in its lee. */
+    static final int MAX_FILE = 4;
+
     private CohesiveMarches() {}
 
     /**
@@ -82,11 +85,23 @@ public final class CohesiveMarches {
                 && InfantryOrders.unordered(u)
                 && !MarchRegistry.isMarching(u.getId())
                 && near(u, hullEntities, atHulls));
-        int m = found.size();
-        if (m == 0) return new int[0];
-        found.sort(Comparator.comparingInt(AbstractUnit::getId));
-
+        if (found.isEmpty()) return new int[0];
         int n = hulls.length;
+        // A file of a few riflemen per hull; the rest of the infantry fight as SEM's own, nearest first kept.
+        double lcx = 0.0;
+        double lcz = 0.0;
+        for (Entity h : hullEntities) {
+            lcx += h.getX();
+            lcz += h.getZ();
+        }
+        double fcx = lcx / hullEntities.size();
+        double fcz = lcz / hullEntities.size();
+        found.sort(Comparator.comparingDouble((AbstractUnit u) -> u.distanceToSqr(fcx, u.getY(), fcz))
+                .thenComparingInt(AbstractUnit::getId));
+        if (found.size() > n * MAX_FILE) found = new ArrayList<>(found.subList(0, n * MAX_FILE));
+        found.sort(Comparator.comparingInt(AbstractUnit::getId));
+        int m = found.size();
+
         double[] mx = new double[m];
         double[] mz = new double[m];
         double[] sx = new double[m];

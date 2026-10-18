@@ -242,7 +242,7 @@ public final class MarchRegistry {
         }
         boolean pause = March.shouldPause(march.paused(), worst, RESUME_FRACTION);
         if (pause != march.paused()) march.setPaused(pause, now);
-        if (march.pausedFor(now) > stallTicks()) return "stall";
+        if (march.stalledFor(worst, now) > stallTicks()) return "stall";
 
         if (!march.routeClosed) {
             double s = march.anchorAt(now);

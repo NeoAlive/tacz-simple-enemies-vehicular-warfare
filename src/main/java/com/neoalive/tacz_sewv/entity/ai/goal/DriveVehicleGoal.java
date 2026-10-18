@@ -590,9 +590,11 @@ public class DriveVehicleGoal extends Goal {
             }
         }
 
-        // CohesiveLine: an ADVANCE is the line's advance — keep this hull's place in it, at the march pace, so the
-        // infantry filing behind keep up. The scorer keeps authority: any other action is carried out as itself.
-        if (plan == Action.ADVANCE && inCohesiveLine() && marchTick()) return;
+        // CohesiveLine: the group's play is the advance, so the line owns this hull's movement — its place in the
+        // line, at the march pace, so the files behind keep up — while the turret fights whatever it chose. Gated
+        // on ADVANCE alone, the hulls held ATTACK/HOLD on contact, never formed the line, and the line stalled.
+        // Breaking off is still the crew's call: a retreat or a smoke screen is carried out as itself.
+        if (inCohesiveLine() && plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE && marchTick()) return;
 
         // Command-tier role point for the action the scorer chose (flank mark, withdraw point, …). Drive
         // there first; once reached, the action's own geometry below takes over.

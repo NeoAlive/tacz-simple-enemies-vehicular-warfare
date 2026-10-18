@@ -395,6 +395,8 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
         if (idlePlan() == Action.IDLE_TRAVEL && marchTick()) return;
+        // A line crew with nothing in its sights yet still walks the line: the advance is the group's decision.
+        if (inCohesiveLine() && marchTick()) return;
         BlockPos destination = switch (idlePlan()) {
             case SEARCH_LAST_KNOWN -> {
                 BlockPos seen = this.brain.facts().memory.lastEnemyPos;
@@ -423,21 +425,20 @@ public class DriveVehicleGoal extends Goal {
     /**
      * Keep this hull's place in its march. Moving: steer down the road ahead of the slot with the speed held to
      * the march pace (faster when behind, slower when ahead), so the column moves at a walk however fast its
-     * hulls are. Waiting: close onto the slot itself and square up to the road. Every branch issues input.
+     * hulls are. Waiting: a straggler closes onto its slot, everyone else stops where they stand. Every branch
+     * issues input.
      *
      * @return false when this crew is not marching a hull slot, so the caller falls back to its plan
      */
     private boolean marchTick() {
         MarchRegistry.Slot slot = MarchRegistry.slotFor(this.unit.getId(), this.unit.level().getGameTime());
         if (slot == null || !slot.hull()) return false;
-        Vec3 facing = new Vec3(slot.fx(), 0.0, slot.fz());
         if (slot.paused()) {
-            double dx = slot.x() - this.vehicle.getX();
-            double dz = slot.z() - this.vehicle.getZ();
-            double park = this.vehicle.getBbWidth() * 0.5 + POSTURE_ARRIVE_PAD;
-            if (dx * dx + dz * dz <= park * park) {
-                this.driver.holdStation(facing);
-                this.driver.clearRecovery(); // on its place, waiting for the column — not stuck
+            if (slot.caughtUp(this.vehicle.getX(), this.vehicle.getZ())) {
+                // Not the one being waited for: stand where it is. Re-closing onto the exact slot and squaring up
+                // on every pause is what had the whole column shuffling on the spot.
+                this.driver.stop();
+                this.driver.clearRecovery(); // waiting for the column — not stuck
             } else {
                 BlockPos dest = BlockPos.containing(slot.x(),
                         GroundSnap.groundY(this.unit.level(), slot.x(), slot.z(), this.vehicle.getY()), slot.z());
@@ -453,6 +454,10 @@ public class DriveVehicleGoal extends Goal {
         BlockPos carrot = BlockPos.containing(cx, GroundSnap.groundY(this.unit.level(), cx, cz, this.vehicle.getY()), cz);
         this.driver.navigateTo(carrot, this.vehicle.distanceToSqr(Vec3.atBottomCenterOf(carrot)));
         return true;
+    }
+
+    private boolean inCohesiveLine() {
+        return MarchRegistry.kindOf(this.unit.getId()) == March.Kind.COHESIVE_LINE;
     }
 
     /** Steer for {@code destination}, or park on station once inside the arrival ring. */
@@ -584,6 +589,10 @@ public class DriveVehicleGoal extends Goal {
                 return;
             }
         }
+
+        // CohesiveLine: an ADVANCE is the line's advance — keep this hull's place in it, at the march pace, so the
+        // infantry filing behind keep up. The scorer keeps authority: any other action is carried out as itself.
+        if (plan == Action.ADVANCE && inCohesiveLine() && marchTick()) return;
 
         // Command-tier role point for the action the scorer chose (flank mark, withdraw point, …). Drive
         // there first; once reached, the action's own geometry below takes over.
@@ -1110,6 +1119,10 @@ public class DriveVehicleGoal extends Goal {
             BlockPos p = IdleGroupSupport.holdDestination(this.unit, this.vehicle, this.brain.facts());
             if (p != null) return p;
         } else if (plan == Action.IDLE_TRAVEL) {
+            BlockPos p = marchSlotPos();
+            if (p != null) return p;
+        }
+        if (inCohesiveLine()) {
             BlockPos p = marchSlotPos();
             if (p != null) return p;
         }

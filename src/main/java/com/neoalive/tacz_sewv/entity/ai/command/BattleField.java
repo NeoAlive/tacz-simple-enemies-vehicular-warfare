@@ -39,6 +39,11 @@ public final class BattleField {
     public final double[] pocketX = new double[MAX_POCKETS];
     public final double[] pocketZ = new double[MAX_POCKETS];
 
+    /** Our riflemen on foot close to the group's hulls — the infantry a CohesiveLine would walk behind them. */
+    public int friendlyInfantry;
+    /** 0..1: {@link #friendlyInfantry} against two per hull, i.e. how fully the hulls could be screened. */
+    public double infantrySupport;
+
     /** True after a successful derive this scan; false if cleared / never built. */
     public boolean populated;
 
@@ -57,6 +62,8 @@ public final class BattleField {
         this.enemyWeight = 0.0;
         this.peakEnemyWeight = 0.0;
         this.pocketCount = 0;
+        this.friendlyInfantry = 0;
+        this.infantrySupport = 0.0;
         this.populated = false;
     }
 }

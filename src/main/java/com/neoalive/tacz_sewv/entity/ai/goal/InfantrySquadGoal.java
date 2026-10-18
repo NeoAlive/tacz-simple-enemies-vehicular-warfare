@@ -7,13 +7,9 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
-import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
-import com.neoalive.tacz_sewv.bridge.IEntrenched;
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.bridge.ITowRecovery;
-import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
+import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
+import com.neoalive.tacz_sewv.entity.ai.support.InfantryOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.InfantrySquads;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 
@@ -27,8 +23,10 @@ import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
  * scattered walks back to its slot when it ends, which is the whole of the leash.
  *
  * <p>Priority 1, MOVE, like the other order goals at that priority — and it <b>yields to every one of them</b>
- * (a board order, a mortar claim, a capture order, an entrenchment, a tow recovery, an escort). At equal
- * priority whoever holds MOVE keeps it, so declining in {@code canUse} is the only way to let them in.
+ * (a board order, a mortar claim, a capture order, an entrenchment, a tow recovery, an escort — see
+ * {@link InfantryOrders}), and to a march place of the unit's own ({@code MarchGoal}). At equal priority whoever
+ * holds MOVE keeps it, so declining in {@code canUse} is the only way to let them in. A squad <i>member</i> of a
+ * marching squad keeps this goal: it follows its leader, and the leader holds the march place.
  *
  * <p>Squad resolution is an entity scan, so {@code canUse} is throttled on a game-time deadline and the slot is
  * re-resolved only every few repaths.
@@ -74,17 +72,9 @@ public class InfantrySquadGoal extends Goal {
         return this.view != null && this.view.leader().isAlive() && free();
     }
 
-    /** No fight, no ride, and no other order holding this unit's legs. */
+    /** No fight, no ride, no other order holding this unit's legs, and no march place of its own. */
     private boolean free() {
-        if (this.unit.getTarget() != null || this.unit.isPassenger()) return false;
-        if (this.unit instanceof IVehicleBoarder b && (b.tacz_sewv$getMountTargetId() != -1 || b.tacz_sewv$isBoarding())) {
-            return false;
-        }
-        if (this.unit instanceof IMortarCrew m && m.sewv$getMortarTargetId() != -1) return false;
-        if (this.unit instanceof ICaptureOrder c && c.sewv$hasCaptureOrder()) return false;
-        if (this.unit instanceof IEntrenched e && e.sewv$isEntrenched()) return false;
-        if (this.unit instanceof ITowRecovery t && t.tacz_sewv$isTowingRecovery()) return false;
-        return !(this.unit instanceof IEscort esc && esc.tacz_sewv$isEscorting());
+        return InfantryOrders.free(this.unit) && !MarchRegistry.isMarching(this.unit.getId());
     }
 
     @Override

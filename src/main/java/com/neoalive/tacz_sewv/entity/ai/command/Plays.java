@@ -11,7 +11,8 @@ public final class Plays {
             BoundingOverwatchAdvance.INSTANCE,
             FightingWithdrawal.INSTANCE,
             HoldDefend.INSTANCE,
-            Pursuit.INSTANCE
+            Pursuit.INSTANCE,
+            CohesiveLine.INSTANCE
     };
 
     private Plays() {}

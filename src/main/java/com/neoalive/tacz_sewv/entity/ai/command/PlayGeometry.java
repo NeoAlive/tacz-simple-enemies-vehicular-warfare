@@ -54,6 +54,11 @@ public final class PlayGeometry {
     }
 
     /** Bounding advance point: one bound toward the enemy. */
+    /** Distance between our centroid and theirs. */
+    static double enemyDistance(BattleField bf) {
+        return Math.hypot(bf.enemyCentroidX - bf.friendlyCentroidX, bf.enemyCentroidZ - bf.friendlyCentroidZ);
+    }
+
     static double[] advancePoint(BattleField bf) {
         return towardEnemy(bf, TacticalScale.of(ADVANCE_STEP));
     }

@@ -9,5 +9,6 @@
   "maneuver_left": { "shape": "echelon_left", "spacing": 16, "placement": "centred", "facing": "enemy" },
   "maneuver_right": { "shape": "echelon_right", "spacing": 16, "placement": "centred", "facing": "enemy" },
 
-  "pursuit/maneuver": { "shape": "wedge", "spacing": 16, "placement": "trail", "facing": "axis" }
+  "pursuit/maneuver": { "shape": "wedge", "spacing": 16, "placement": "trail", "facing": "axis" },
+  "cohesive_line/maneuver": { "shape": "line", "spacing": 16, "rowSize": 0, "placement": "centred", "facing": "axis" }
 }

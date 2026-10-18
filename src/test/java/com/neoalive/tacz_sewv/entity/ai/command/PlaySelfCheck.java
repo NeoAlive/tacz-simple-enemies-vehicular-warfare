@@ -30,6 +30,7 @@ public final class PlaySelfCheck {
         rolePointsOnTheRightSide();
         rolesStickWhileThePlayHolds();
         pursuitFeasibility();
+        cohesiveLine();
 
         System.out.println("command play self-check: OK");
     }
@@ -291,6 +292,55 @@ public final class PlaySelfCheck {
         for (Assignment a : Pursuit.INSTANCE.assignRoles(bf, two).assignments) {
             assertTrue(a.role == Assignment.Role.MANEUVER && a.flankSide == null
                     && a.destX == bf.enemyCentroidX && a.destZ == bf.enemyCentroidZ, "everyone advances on the enemy");
+        }
+    }
+
+    /** Confident, infantry at the hulls, still at a distance: the line wins and advances; it hands over close in. */
+    private static void cohesiveLine() {
+        BattleField bf = freshBf();
+        fillOpposing(bf, 1.5, true, true, 1); // centroids 80 apart
+        GroupSnapshot three = group(3, 0, 40);
+        assertTrue(!CohesiveLine.INSTANCE.feasible(bf, three), "no infantry: no line");
+        bf.friendlyInfantry = 2;
+        assertTrue(!CohesiveLine.INSTANCE.feasible(bf, three), "fewer riflemen than hulls: no line");
+        bf.friendlyInfantry = 6;
+        bf.infantrySupport = 1.0;
+        assertTrue(CohesiveLine.INSTANCE.feasible(bf, three), "confident, infantry at the hulls: line");
+        bf.forceBalance = 1.1;
+        assertTrue(!CohesiveLine.INSTANCE.feasible(bf, three), "not confident: no line");
+        assertTrue(CohesiveLine.INSTANCE.stillValid(bf, three, null), "a started line survives a dip above 1.0");
+        bf.forceBalance = 0.9;
+        assertTrue(!CohesiveLine.INSTANCE.stillValid(bf, three, null), "outweighed: the line aborts");
+        bf.forceBalance = 1.5;
+        assertTrue(!CohesiveLine.INSTANCE.feasible(bf, group(1, 0, 40)), "a line needs 2+ hulls");
+
+        // At the shipped weights it beats every other play feasible in the same picture.
+        UtilityWeights w = shippedWeights();
+        double line = CohesiveLine.INSTANCE.score(bf, three, w);
+        for (Play p : Plays.menu()) {
+            if (p == CohesiveLine.INSTANCE || !p.feasible(bf, three)) continue;
+            double other = p.score(bf, three, w);
+            assertTrue(line > other, "cohesive_line " + line + " must beat " + p.id().key + " " + other);
+        }
+
+        for (Assignment a : CohesiveLine.INSTANCE.assignRoles(bf, three).assignments) {
+            assertTrue(a.role == Assignment.Role.MANEUVER && a.flankSide == null, "the line advances (ADVANCE)");
+            assertTrue(dist(a.destX, a.destZ, bf) < dist(bf.friendlyCentroidX, bf.friendlyCentroidZ, bf),
+                    "the line's point is toward the enemy");
+        }
+
+        bf.enemyCentroidZ = 10; // 30 apart: inside the handover distance
+        assertTrue(!CohesiveLine.INSTANCE.stillValid(bf, three, null), "close in, the fighting plays take over");
+        assertTrue(!CohesiveLine.INSTANCE.feasible(bf, three), "and it does not start that close");
+    }
+
+    private static UtilityWeights shippedWeights() {
+        try (var in = PlaySelfCheck.class.getResourceAsStream("/data/tacz_sewv/sewv/ai/weights.json")) {
+            if (in == null) throw new AssertionError("shipped weights.json is not on the classpath");
+            return UtilityWeights.parse(Map.of(new ResourceLocation("tacz_sewv", "weights"),
+                    com.google.gson.JsonParser.parseReader(new java.io.InputStreamReader(in))));
+        } catch (java.io.IOException e) {
+            throw new AssertionError("shipped weights.json unreadable", e);
         }
     }
 

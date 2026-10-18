@@ -8,20 +8,26 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.formation.SlotMatcher;
+import com.neoalive.tacz_sewv.entity.ai.support.InfantryOrders;
+import com.neoalive.tacz_sewv.entity.ai.support.InfantrySquads;
 
 /**
  * When an idle group sets off, and how: the group-level half of idle travel.
@@ -37,8 +43,12 @@ import com.neoalive.tacz_sewv.entity.ai.formation.SlotMatcher;
  */
 public final class IdleMarches {
 
-    /** unit id → game time it was first seen idle and unmarching, this stretch. */
-    private static final Map<Integer, Long> IDLE_SINCE = new HashMap<>();
+    /**
+     * Per dimension: unit id → game time it was first seen idle and unmarching, this stretch. Per dimension
+     * because the coordinator prunes it once per level per pass; one shared map was wiped by the Nether's empty
+     * pass straight after the overworld's, so no hold ever ran out and no group ever set off on its own.
+     */
+    private static final Map<ResourceKey<Level>, Map<Integer, Long>> IDLE_SINCE = new HashMap<>();
 
     private IdleMarches() {}
 
@@ -47,25 +57,32 @@ public final class IdleMarches {
     }
 
     /** Note {@code ids} as idle at {@code now} (keeps the earliest time). */
-    public static void note(int[] ids, long now) {
-        for (int id : ids) IDLE_SINCE.putIfAbsent(id, now);
+    public static void note(ServerLevel level, int[] ids, long now) {
+        Map<Integer, Long> since = clocks(level);
+        for (int id : ids) since.putIfAbsent(id, now);
     }
 
     /** Forget every unit not seen idle this pass, so the next idle stretch starts its hold afresh. */
-    public static void retain(Set<Integer> seen) {
-        IDLE_SINCE.keySet().retainAll(seen);
+    public static void retain(ServerLevel level, Set<Integer> seen) {
+        clocks(level).keySet().retainAll(seen);
     }
 
     /** Has the cluster {@code ids} (sorted; ids[0] leads) held long enough to set off? */
-    public static boolean ready(int[] ids, long now) {
+    public static boolean ready(ServerLevel level, int[] ids, long now) {
+        Map<Integer, Long> clocks = clocks(level);
         long since = Long.MAX_VALUE;
-        for (int id : ids) since = Math.min(since, IDLE_SINCE.getOrDefault(id, now));
+        for (int id : ids) since = Math.min(since, clocks.getOrDefault(id, now));
         return now - since >= holdTicks(ids[0]);
     }
 
     /** Mark {@code ids} as having held for ever — the debug "expire hold". */
-    public static void expire(int[] ids, long now) {
-        for (int id : ids) IDLE_SINCE.put(id, now - 1_000_000L);
+    public static void expire(ServerLevel level, int[] ids, long now) {
+        Map<Integer, Long> clocks = clocks(level);
+        for (int id : ids) clocks.put(id, now - 1_000_000L);
+    }
+
+    private static Map<Integer, Long> clocks(ServerLevel level) {
+        return IDLE_SINCE.computeIfAbsent(level.dimension(), d -> new HashMap<>());
     }
 
     /** The hold before a cluster led by {@code leader} sets off: between the configured min and max, by id. */
@@ -152,12 +169,62 @@ public final class IdleMarches {
         int[] hulls = new int[n];
         for (int i = 0; i < n; i++) hulls[slotOf[i]] = sorted.get(i).getId();
 
-        March march = MarchRegistry.register(level, faction, March.Kind.IDLE_TRAVEL, hulls, new int[0], route,
+        int[] squads = recruitSquads(level, faction, cx, sorted.get(0).getY(), cz);
+        March march = MarchRegistry.register(level, faction, March.Kind.IDLE_TRAVEL, hulls, squads, route,
                 bearing, maxLength, spacing, MarchRegistry.pace(), progress, now);
-        SewvDiag.command("march formed id={} kind={} faction={} hulls={} infantry=[] bearing={} spacing={} road={}",
-                march.id, march.kind, faction, Arrays.toString(hulls), deg(bearing), fmt(spacing),
-                fmt(route.length()));
+        SewvDiag.command("march formed id={} kind={} faction={} hulls={} squadLeaders={} bearing={} spacing={} road={}",
+                march.id, march.kind, faction, Arrays.toString(hulls), Arrays.toString(squads), deg(bearing),
+                fmt(spacing), fmt(route.length()));
         return march;
+    }
+
+    /**
+     * The idle infantry of {@code faction} around the group, as squads to trail the column: returns the squad
+     * leaders' ids, which take the march places. Whole squads only — a squad whose leader is alive but busy or out
+     * of reach stays with it. Riflemen with no squad are stamped into squads first ({@link InfantrySquads#stamp});
+     * one left over on its own walks as a squad of one. Members keep following their leader by
+     * {@code InfantrySquadGoal}, which is what keeps the infantry a loose body rather than a second column.
+     */
+    static int[] recruitSquads(ServerLevel level, CrewFacts.Faction faction, double cx, double cy, double cz) {
+        double r = groupRadius();
+        AABB box = new AABB(cx - r, cy - 16.0, cz - r, cx + r, cy + 16.0, cz + r);
+        List<AbstractUnit> recruits = level.getEntitiesOfClass(AbstractUnit.class, box, u -> u.isAlive()
+                && !(u instanceof PmcUnitEntity)
+                && CrewFacts.factionOfCrew(u) == faction
+                && InfantryOrders.free(u)
+                && !MarchRegistry.isMarching(u.getId())
+                && (u.getX() - cx) * (u.getX() - cx) + (u.getZ() - cz) * (u.getZ() - cz) <= r * r);
+        if (recruits.isEmpty()) return new int[0];
+        recruits.sort(Comparator.comparingInt(AbstractUnit::getId));
+
+        List<AbstractUnit> loose = new ArrayList<>();
+        for (AbstractUnit u : recruits) {
+            if (InfantrySquads.squadOf(u) == null) loose.add(u);
+        }
+        InfantrySquads.stamp(loose);
+
+        Map<UUID, List<AbstractUnit>> squads = new HashMap<>();
+        List<Integer> leaders = new ArrayList<>();
+        for (AbstractUnit u : recruits) {
+            UUID squad = InfantrySquads.squadOf(u);
+            if (squad == null) leaders.add(u.getId()); // a squad of one
+            else squads.computeIfAbsent(squad, k -> new ArrayList<>()).add(u);
+        }
+        for (Map.Entry<UUID, List<AbstractUnit>> e : squads.entrySet()) {
+            List<AbstractUnit> members = e.getValue();
+            if (level.getEntity(e.getKey()) instanceof AbstractUnit lead && lead.isAlive()) {
+                if (members.contains(lead)) leaders.add(lead.getId());
+                continue; // its leader is busy or out of reach: the squad stays with it
+            }
+            // The leader is gone: the lowest id takes the squad, as InfantrySquads would on its own.
+            AbstractUnit heir = members.get(0);
+            for (AbstractUnit m : members) m.getPersistentData().putUUID(InfantrySquads.TAG_SQUAD, heir.getUUID());
+            leaders.add(heir.getId());
+        }
+        leaders.sort(Integer::compare);
+        int[] out = new int[leaders.size()];
+        for (int i = 0; i < out.length; i++) out[i] = leaders.get(i);
+        return out;
     }
 
     /** Bearing straight away from the nearest hostile player in reach of the group, or NaN. */
@@ -182,6 +249,10 @@ public final class IdleMarches {
     /** True when {@code unit} drives a ground hull of its own — the only thing that can take a column slot. */
     public static boolean drives(AbstractUnit unit) {
         return unit.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == unit && !hull.isWreck();
+    }
+
+    private static double groupRadius() {
+        try { return SewvConfig.IDLE_GROUP_RADIUS.get(); } catch (Throwable t) { return 50.0; }
     }
 
     private static double gap() {

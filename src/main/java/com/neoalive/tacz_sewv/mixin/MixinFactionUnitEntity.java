@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.goal.CasRelayGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.EscortGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.InfantrySquadGoal;
+import com.neoalive.tacz_sewv.entity.ai.goal.MarchGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.NoFriendlyHurtByTargetGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 
@@ -172,6 +173,8 @@ public abstract class MixinFactionUnitEntity
         // Event infantry move as squads and guard what they were sent with. Both priority-1 MOVE, out of
         // contact only (escort excepted, by design), and the squad goal yields to every other order goal.
         mob.goalSelector.addGoal(1, new EscortGoal(self));
+        // A march place (MarchRegistry) outranks the squad shape: listed first, and the squad goal declines for it.
+        mob.goalSelector.addGoal(1, new MarchGoal(self));
         mob.goalSelector.addGoal(1, new InfantrySquadGoal(self));
 
         // SEM's own plain HurtByTargetGoal (RU/US retaliation, priority 1) never excludes a

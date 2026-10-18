@@ -33,6 +33,7 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.cover.CoverQuery;
 import com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates;
 import com.neoalive.tacz_sewv.entity.ai.formation.SlotMatcher;
+import com.neoalive.tacz_sewv.entity.ai.march.CohesiveMarches;
 import com.neoalive.tacz_sewv.entity.ai.march.IdleMarches;
 import com.neoalive.tacz_sewv.entity.ai.march.March;
 import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
@@ -78,6 +79,9 @@ public final class CommandCoordinator {
      */
     private static final Set<Integer> SEATED_DRIVERS = new HashSet<>();
 
+    /** Per level: battle group id → the id of its CohesiveLine march (-1 when the line was refused). */
+    private static final Map<ResourceKey<Level>, Map<Integer, Integer>> COHESIVE_LINES = new HashMap<>();
+
     /** Note {@code unitId} as sitting in a ground hull's driver seat. Server thread; cheap enough for canUse. */
     public static void noteSeatedDriver(int unitId) {
         SEATED_DRIVERS.add(unitId);
@@ -97,6 +101,7 @@ public final class CommandCoordinator {
         MarchRegistry.clear();
         IdleMarches.clear();
         SEATED_DRIVERS.clear();
+        COHESIVE_LINES.clear();
     }
 
     @SubscribeEvent
@@ -110,6 +115,7 @@ public final class CommandCoordinator {
         MarchRegistry.clear();
         IdleMarches.clear();
         SEATED_DRIVERS.clear();
+        COHESIVE_LINES.clear();
     }
 
     @SubscribeEvent
@@ -125,6 +131,7 @@ public final class CommandCoordinator {
                     IdleGroupSupport.clearPublished();
                     MarchRegistry.clear();
                     IdleMarches.clear();
+                    COHESIVE_LINES.clear();
                 }
                 return;
             }
@@ -366,7 +373,44 @@ public final class CommandCoordinator {
         for (Candidate c : drivers) {
             if (!inBattle.contains(c.unitId)) notInBattle.add(c);
         }
+        syncCohesiveLines(level, levelGroups, level.getGameTime());
         publishIdleAssignments(level, notInBattle, inBattle);
+    }
+
+    /**
+     * Keep one COHESIVE_LINE march for every group whose play is CohesiveLine, and none for any other. The play only
+     * deals roles; the march is the line itself, so it is formed the pass the play is committed and ended the pass
+     * the play is dropped (or the group dissolves). A line whose march ended on its own (arrived, stalled) is not
+     * re-formed under the same play: the play's own validity hands over soon after.
+     */
+    private static void syncCohesiveLines(ServerLevel level, Map<Integer, BattleGroup> levelGroups, long now) {
+        Map<Integer, Integer> lines = COHESIVE_LINES.computeIfAbsent(level.dimension(), d -> new HashMap<>());
+        for (var it = lines.entrySet().iterator(); it.hasNext(); ) {
+            var e = it.next();
+            BattleGroup g = levelGroups.get(e.getKey());
+            if (g == null || g.currentPlay() != PlayId.COHESIVE_LINE) {
+                MarchRegistry.end(e.getValue(), g == null ? "group dissolved" : "play ended");
+                it.remove();
+            }
+        }
+        for (BattleGroup g : levelGroups.values()) {
+            if (g.currentPlay() != PlayId.COHESIVE_LINE || lines.containsKey(g.groupId())) continue;
+            Roles roles = g.currentRoles();
+            BattleField bf = g.battleField();
+            if (roles == null || !bf.populated) continue;
+            Assignment[] line = roles.assignments.clone();
+            java.util.Arrays.sort(line, Comparator.comparingInt((Assignment a) -> a.slot).thenComparingInt(a -> a.unitId));
+            int[] hulls = new int[line.length];
+            for (int i = 0; i < line.length; i++) hulls[i] = line[i].unitId;
+            double scale = TacticalScale.get();
+            double spacing = FormationTemplates.active().lookup(PlayId.COHESIVE_LINE.key, "maneuver").spacing() * scale;
+            double length = PlayGeometry.enemyDistance(bf) - TacticalScale.of(CohesiveLine.HANDOVER_DISTANCE);
+            March march = CohesiveMarches.form(level, CrewFacts.Faction.byId(g.faction()), hulls,
+                    bf.friendlyCentroidX, groupY(level, g), bf.friendlyCentroidZ, -bf.axisX, -bf.axisZ, length,
+                    spacing, TacticalScale.of(INFANTRY_AT_HULLS), now);
+            // Recorded even when refused, so a refused line is not re-tried every pass; the play stands regardless.
+            lines.put(g.groupId(), march == null ? -1 : march.id());
+        }
     }
 
     /**
@@ -577,7 +621,7 @@ public final class CommandCoordinator {
                         && !group.needsInfluenceRebuild(cell * 0.5, nowTick, INFLUENCE_MAX_AGE_TICKS)) {
                     continue;
                 }
-                double[] weights = new double[2];
+                double[] weights = new double[3]; // our weight, theirs, our riflemen at the hulls
                 List<UnitPos> samples = collectInfluenceSamples(level, group, engagement, weights);
                 if (samples.isEmpty()) {
                     group.battleField().clear();
@@ -601,6 +645,8 @@ public final class CommandCoordinator {
                 group.influenceMap().rebuildAndDerive(bf, samples, group.faction(), cell, maxCells, margin);
                 // Riflemen weigh a third of a hull: a tank group facing a rifle squad is not "outnumbered".
                 bf.enemyWeight = weights[1];
+                bf.friendlyInfantry = (int) weights[2];
+                bf.infantrySupport = Math.min(1.0, weights[2] / (2.0 * Math.max(1, group.memberIds().length)));
                 bf.forceBalance = weights[0] / Math.max(weights[1], 1.0);
                 bf.peakEnemyWeight = group.notePeakEnemy(weights[1]);
                 group.markInfluenceRebuilt(nowTick);
@@ -630,6 +676,7 @@ public final class CommandCoordinator {
             weightsOut[0] += 1.0;
         }
         if (out.isEmpty()) return out;
+        List<UnitPos> hulls = List.copyOf(out);
 
         double r = engagement;
         CrewFacts.Faction ours = CrewFacts.Faction.byId(group.faction());
@@ -644,10 +691,26 @@ public final class CommandCoordinator {
             if (!seen.add(combatant)) continue;
             // Our side: dismounted infantry and friendly hulls outside the group are strength too.
             boolean friendly = f == ours;
+            if (friendly && !other.isPassenger() && nearAny(hulls, other.getX(), other.getZ(), INFANTRY_AT_HULLS)) {
+                weightsOut[2] += 1.0;
+            }
             out.add(new UnitPos(combatant, friendly ? group.faction() : f.ordinal(), other.getX(), other.getZ()));
             weightsOut[friendly ? 0 : 1] += CrewFacts.combatantWeight(other);
         }
         return out;
+    }
+
+    /** A rifleman this close to one of the group's hulls is at the hulls (CohesiveLine's infantry). */
+    static final double INFANTRY_AT_HULLS = 24.0;
+
+    /** Is {@code (x, z)} within {@code r} of any of {@code samples}? */
+    private static boolean nearAny(List<UnitPos> samples, double x, double z, double r) {
+        for (UnitPos u : samples) {
+            double dx = u.x - x;
+            double dz = u.z - z;
+            if (dx * dx + dz * dz <= r * r) return true;
+        }
+        return false;
     }
 
     private static void electCommanders(ServerLevel level, Map<Integer, BattleGroup> levelGroups,
@@ -862,10 +925,10 @@ public final class CommandCoordinator {
                 ids[k] = cluster.get(k).unitId;
                 seenIdle.add(ids[k]);
             }
-            IdleMarches.note(ids, now);
+            IdleMarches.note(level, ids, now);
 
             boolean oversize = cluster.size() > IdleGroupSupport.MAX_HOLD_SIZE;
-            if (IdleMarches.factionTravels(a.faction) && (oversize || IdleMarches.ready(ids, now))) {
+            if (IdleMarches.factionTravels(a.faction) && (oversize || IdleMarches.ready(level, ids, now))) {
                 List<AbstractUnit> units = new ArrayList<>(cluster.size());
                 for (Candidate c : cluster) {
                     if (level.getEntity(c.unitId) instanceof AbstractUnit u) units.add(u);
@@ -887,7 +950,7 @@ public final class CommandCoordinator {
                 IDLE_TASKED_KEEP.add(m.unitId);
             }
         }
-        IdleMarches.retain(seenIdle);
+        IdleMarches.retain(level, seenIdle);
         publishMarches(level, now);
     }
 

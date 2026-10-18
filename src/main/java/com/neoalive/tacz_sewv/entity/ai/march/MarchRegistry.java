@@ -46,6 +46,8 @@ public final class MarchRegistry {
     /** A hull this many spacings behind its slot holds the march; it resumes once all are inside the lower bound. */
     private static final double HULL_STRAGGLE_SPACINGS = 1.5;
     private static final double RESUME_FRACTION = 0.5;
+    /** Of the resume line: a member this far inside it is in place, with margin so it does not stop on the edge. */
+    private static final double IN_PLACE_FRACTION = 0.8;
 
     private MarchRegistry() {}
 
@@ -55,11 +57,25 @@ public final class MarchRegistry {
 
     /** One member's slot at a moment: where to be, which way the march is heading, and how it is moving. */
     public record Slot(double x, double z, double fx, double fz, boolean paused, double pace, double spacing,
-                       March.Kind kind, boolean hull, int index) {
+                       March.Kind kind, boolean hull, int index, double straggleLimit) {
 
         /** How far {@code (hx, hz)} is behind this slot along the march heading; negative when ahead. */
         public double lag(double hx, double hz) {
             return (this.x - hx) * this.fx + (this.z - hz) * this.fz;
+        }
+
+        /** How far behind its place the registry counts {@code (hx, hz)}: the measure the march waits on. */
+        public double behind(double hx, double hz) {
+            return MarchRegistry.behind(hx, hz, new double[] {this.x, this.z, this.fx, this.fz});
+        }
+
+        /**
+         * Close enough that a waiting march is not waiting on this member. Such a member stops where it stands
+         * rather than closing onto the exact slot and squaring up: when every member did that on every pause, the
+         * whole group shuffled and pivoted on the spot while one straggler caught up.
+         */
+        public boolean caughtUp(double hx, double hz) {
+            return behind(hx, hz) <= this.straggleLimit * RESUME_FRACTION * IN_PLACE_FRACTION;
         }
     }
 
@@ -104,7 +120,7 @@ public final class MarchRegistry {
         if (index < 0) return null;
         double[] p = m.hull ? march.hullSlot(index, now) : march.infantrySlot(index, now);
         return new Slot(p[0], p[1], p[2], p[3], march.paused(), march.pace, march.spacing, march.kind, m.hull,
-                index);
+                index, m.hull ? hullLimit(march) : straggleDistance());
     }
 
     /**
@@ -208,19 +224,19 @@ public final class MarchRegistry {
         }
 
         // Cohesion: the anchor waits for whoever is furthest behind. Hysteresis so it does not stutter on the edge.
-        double hullLimit = Math.max(straggleDistance(), HULL_STRAGGLE_SPACINGS * march.spacing);
+        double hullLimit = hullLimit(march);
         double footLimit = straggleDistance();
         double worst = 0.0;
         StringBuilder lags = SewvDiag.collectiveAiVerbose() ? new StringBuilder() : null;
         for (int k = 0; k < march.hulls.length; k++) {
             AbstractUnit u = drivers.get(k);
-            double lag = behind(u.getVehicle(), march.hullSlot(k, now));
+            double lag = behind(u.getVehicle().getX(), u.getVehicle().getZ(), march.hullSlot(k, now));
             worst = Math.max(worst, lag / hullLimit);
             if (lags != null) appendLag(lags, u.getId(), lag, u.getVehicle());
         }
         for (int i = 0; i < march.infantry.length; i++) {
             AbstractUnit u = walkers.get(i);
-            double lag = behind(u, march.infantrySlot(i, now));
+            double lag = behind(u.getX(), u.getZ(), march.infantrySlot(i, now));
             worst = Math.max(worst, lag / footLimit);
             if (lags != null) appendLag(lags, u.getId(), lag, u);
         }
@@ -265,10 +281,14 @@ public final class MarchRegistry {
         return null;
     }
 
-    /** How far {@code e} is behind {@code slot}: along-track lag, or the straight distance when it is off to the side. */
-    private static double behind(Entity e, double[] slot) {
-        double dx = slot[0] - e.getX();
-        double dz = slot[1] - e.getZ();
+    private static double hullLimit(March march) {
+        return Math.max(straggleDistance(), HULL_STRAGGLE_SPACINGS * march.spacing);
+    }
+
+    /** How far {@code (x, z)} is behind {@code slot}: along-track lag, or half the sideways miss if that is more. */
+    static double behind(double x, double z, double[] slot) {
+        double dx = slot[0] - x;
+        double dz = slot[1] - z;
         double along = dx * slot[2] + dz * slot[3];
         double across = Math.abs(dx * -slot[3] + dz * slot[2]);
         return Math.max(along, across * 0.5);

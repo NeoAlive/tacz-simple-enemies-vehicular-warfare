@@ -30,6 +30,8 @@ public final class PlaySignals {
             out[Signal.CONFIDENCE.ordinal()] = -Math.min(1.0, (0.8 - bf.forceBalance) / 0.8);
         }
         out[Signal.TOO_FAR.ordinal()] = bf.openFlankLeft || bf.openFlankRight ? 0.5 : 0.0;
+        // The crew-level infantry signal, read at group level: how much of our own infantry is at the hulls.
+        out[Signal.ALLY_INFANTRY_NEAR.ordinal()] = bf.infantrySupport;
     }
 
     public static double score(PlayId id, BattleField bf, UtilityWeights weights) {

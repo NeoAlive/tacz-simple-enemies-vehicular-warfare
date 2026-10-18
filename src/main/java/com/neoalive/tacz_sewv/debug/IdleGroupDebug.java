@@ -111,7 +111,7 @@ public final class IdleGroupDebug {
         int[] ids = new int[Math.max(1, snap.members.size())];
         ids[0] = dh.unit.getId();
         for (int i = 0; i < snap.members.size(); i++) ids[i] = snap.members.get(i).unitId;
-        IdleMarches.expire(ids, source.getLevel().getGameTime());
+        IdleMarches.expire(source.getLevel(), ids, source.getLevel().getGameTime());
         int count = ids.length;
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.debug.idle.expire_ok", count), true);
@@ -129,7 +129,8 @@ public final class IdleGroupDebug {
         for (DriverHull dh : drivers) {
             IdleGroupSupport.clear(dh.hull);
             IdleGroupSupport.setDebugDrive(dh.hull, false);
-            MarchRegistry.leave(dh.unit.getId());
+            March march = MarchRegistry.marchOf(dh.unit.getId());
+            if (march != null) MarchRegistry.end(march.id(), "cleared");
             CrewAssignment.clear(dh.unit.getId());
         }
         int n = drivers.size();

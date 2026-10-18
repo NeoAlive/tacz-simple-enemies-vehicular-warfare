@@ -282,5 +282,10 @@
   "play.pursuit": {
     "base": 70,
     "confidence": 20
+  },
+  "play.cohesive_line": {
+    "base": 50,
+    "confidence": 30,
+    "allyInfantryNear": 30
   }
 }

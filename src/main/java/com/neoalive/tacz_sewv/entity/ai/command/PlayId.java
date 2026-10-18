@@ -12,7 +12,8 @@ public enum PlayId {
     BOUNDING_OVERWATCH_ADVANCE("bounding_overwatch_advance"),
     FIGHTING_WITHDRAWAL("fighting_withdrawal"),
     HOLD_DEFEND("hold_defend"),
-    PURSUIT("pursuit");
+    PURSUIT("pursuit"),
+    COHESIVE_LINE("cohesive_line");
 
     public static final PlayId[] VALUES = values();
     public static final String KEY_PREFIX = "play.";

@@ -24,7 +24,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 /**
- * {@code /sewv debug cleanup ALL|NEARBY|TARGET}. Drops entities from Superb Warfare, Simple Enemy
+ * {@code /sewv debug cleanup all|nearby|target}. Drops entities from Superb Warfare, Simple Enemy
  * Mod, this bridge, and the vehicle/unit addons those two are crewed with. Players stay.
  */
 public final class EntityCleanup {

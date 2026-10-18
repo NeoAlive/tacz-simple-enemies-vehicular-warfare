@@ -94,6 +94,6 @@ public final class DismountSelfCheck {
         assert DismountGeometry.steps(2) == 1;
         assert DismountGeometry.steps(7) == 7 : "odd squad leaves in single file";
         assert DismountGeometry.steps(1) == 1;
-        assert DismountGeometry.EXIT_INTERVAL_TICKS == 5 : "a quarter second between steps";
+        assert DismountGeometry.EXIT_INTERVAL_TICKS == 10 : "half a second between steps";
     }
 }

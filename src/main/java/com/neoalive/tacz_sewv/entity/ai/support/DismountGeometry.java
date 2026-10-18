@@ -21,8 +21,8 @@ public final class DismountGeometry {
      * holds by construction, which is why the exit probe never tests the OBBs themselves.
      */
     public static final double MARGIN = 0.75;
-    /** Game ticks between exit steps: a quarter second. */
-    public static final int EXIT_INTERVAL_TICKS = 5;
+    /** Game ticks between exit steps: half a second. */
+    public static final int EXIT_INTERVAL_TICKS = 10;
 
     private DismountGeometry() {}
 

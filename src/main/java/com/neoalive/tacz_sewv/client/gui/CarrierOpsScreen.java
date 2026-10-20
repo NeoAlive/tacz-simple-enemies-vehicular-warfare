@@ -154,6 +154,10 @@ public class CarrierOpsScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         g.fill(this.panelLeft, this.panelTop, this.panelLeft + this.panelW, this.panelBottom, COL_BASE);
         frame(g, this.panelLeft, this.panelTop, this.panelLeft + this.panelW, this.panelBottom);

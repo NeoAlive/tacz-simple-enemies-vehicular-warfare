@@ -6,7 +6,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
@@ -94,18 +96,26 @@ public final class SandbagSupport {
     @Nullable
     public static BlockPos findNearestFree(ServerLevel level, BlockPos near, double radius,
                                            @Nullable LivingEntity self) {
+        // Every sandbag carries a block entity, so walk those in loaded chunks rather than reading
+        // every block in the box: at the default 48-block radius that was ~47k block reads a scan.
         int r = (int) Math.ceil(radius);
+        double maxSq = radius * radius;
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
-        for (BlockPos p : BlockPos.betweenClosed(
-                near.getX() - r, near.getY() - 2, near.getZ() - r,
-                near.getX() + r, near.getY() + 2, near.getZ() + r)) {
-            if (!isSandbag(level, p)) continue;
-            if (!isSeatAvailable(level, p, self)) continue;
-            double d = p.distSqr(near);
-            if (d <= radius * radius && d < bestDist) {
-                bestDist = d;
-                best = p.immutable();
+        for (int cx = (near.getX() - r) >> 4; cx <= (near.getX() + r) >> 4; cx++) {
+            for (int cz = (near.getZ() - r) >> 4; cz <= (near.getZ() + r) >> 4; cz++) {
+                LevelChunk chunk = level.getChunkSource().getChunkNow(cx, cz);
+                if (chunk == null) continue;
+                for (BlockEntity be : chunk.getBlockEntities().values()) {
+                    if (!(be instanceof SandbagBlockEntity)) continue;
+                    BlockPos p = be.getBlockPos();
+                    if (Math.abs(p.getY() - near.getY()) > 2) continue;
+                    double d = p.distSqr(near);
+                    if (d > maxSq || d >= bestDist) continue;
+                    if (!isSeatAvailable(level, p, self)) continue;
+                    bestDist = d;
+                    best = p.immutable();
+                }
             }
         }
         return best;

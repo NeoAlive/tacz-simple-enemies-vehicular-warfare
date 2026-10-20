@@ -127,6 +127,11 @@ public final class QuickCommandWheelScreen extends Screen {
         return false;
     }
 
+    /** NeoForge port: 1.21 {@code Screen.render} blurs and dims behind every screen; the wheel has none. */
+    @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+    }
+
     @Override
     public void tick() {
         Minecraft mc = this.minecraft;

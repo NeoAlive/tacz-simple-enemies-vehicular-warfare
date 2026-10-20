@@ -67,7 +67,7 @@ public abstract class MixinVehicleRenderer {
             method = "render",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraftforge/common/ModConfigSpec$BooleanValue;get()Ljava/lang/Object;",
+                    target = "Lnet/neoforged/neoforge/common/ModConfigSpec$BooleanValue;get()Ljava/lang/Object;",
                     remap = false
             ),
             remap = false

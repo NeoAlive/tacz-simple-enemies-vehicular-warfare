@@ -20,7 +20,9 @@ import com.neoalive.tacz_sewv.client.DogTagLighting;
 public abstract class MixinDogTagLighting {
 
     @ModifyVariable(
-            method = "vertex(Lcom/mojang/blaze3d/vertex/VertexConsumer;Lorg/joml/Matrix4f;Lorg/joml/Matrix3f;IFFII)V",
+            // NeoForge port: SBW 1.21 passes the PoseStack.Pose where 1.20 passed the normal Matrix3f;
+            // packedLight is still the first int.
+            method = "vertex(Lcom/mojang/blaze3d/vertex/VertexConsumer;Lorg/joml/Matrix4f;Lcom/mojang/blaze3d/vertex/PoseStack$Pose;IFFII)V",
             at = @At("HEAD"),
             argsOnly = true,
             ordinal = 0

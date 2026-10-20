@@ -61,6 +61,15 @@ public class ClientModEvents {
      */
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
+        // Dev only (./gradlew runClient -PmixinAudit): force-load every client mixin target, the
+        // client half of the audit TaczSewv runs on server start.
+        if (Boolean.getBoolean("sewv.mixinAudit")) {
+            event.enqueueWork(() -> {
+                TaczSewv.LOGGER.info("[sewv] mixin audit: loading every mixin target (client)");
+                org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
+                TaczSewv.LOGGER.info("[sewv] mixin audit: complete (client)");
+            });
+        }
         ConfigUIMenuHook.register();
         if (ModList.get().isLoaded(XaeroMapCompat.MODID)) {
             XaeroMapCompat.register();

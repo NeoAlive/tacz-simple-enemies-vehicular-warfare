@@ -5,16 +5,16 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenMiscEditor;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.PoolEditorAccess;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses;
@@ -58,9 +58,9 @@ public final class MiscEditorAccess {
      */
     public static List<String> armorCatalog() {
         List<String> out = new ArrayList<>();
-        for (Item item : ForgeRegistries.ITEMS) {
+        for (Item item : BuiltInRegistries.ITEM) {
             if (!(item instanceof ArmorItem)) continue;
-            ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
+            ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
             if (id != null) out.add(id.toString());
         }
         out.sort(String::compareTo);

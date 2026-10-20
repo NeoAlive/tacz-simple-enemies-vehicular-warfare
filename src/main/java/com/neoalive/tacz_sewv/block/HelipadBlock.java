@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.block;
 
 import javax.annotation.Nullable;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,11 +26,11 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.airport.HelipadTraffic;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenHelipadGui;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /**
  * Helipad: a 3x3 pad made of one master block and eight part blocks around it.
@@ -41,6 +42,14 @@ import com.neoalive.tacz_sewv.network.PacketOpenHelipadGui;
  * A part finds its master from its own offset, so no lookup is stored.
  */
 public class HelipadBlock extends BaseEntityBlock {
+
+    // NeoForge port: 1.21 BaseEntityBlock requires a codec; this block takes no configurable properties.
+    public static final MapCodec<HelipadBlock> CODEC = simpleCodec(properties -> new HelipadBlock());
+
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
+    }
 
     public static final EnumProperty<Part> PART = EnumProperty.create("part", Part.class);
 
@@ -130,7 +139,13 @@ public class HelipadBlock extends BaseEntityBlock {
         }
     }
 
+    // NeoForge port: 1.21 split Block#use into useWithoutItem/useItemOn; the main-hand click lands
+    // here (useItemOn passes through by default) and runs the method below unchanged.
     @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        return use(state, level, pos, player, InteractionHand.MAIN_HAND, hit);
+    }
+
     @SuppressWarnings("deprecation")
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                  InteractionHand hand, BlockHitResult hit) {

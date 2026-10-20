@@ -6,11 +6,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobManager;
 import com.neoalive.tacz_sewv.fob.FobNetworking;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Quarters bench: set this FOB's Periodic Refill interval (ticks, 0 = off). No GUI refresh reply. */
 public class PacketSetFobRefillInterval {

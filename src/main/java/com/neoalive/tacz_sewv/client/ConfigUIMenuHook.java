@@ -6,9 +6,9 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.client.event.ScreenEvent;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.client.event.ScreenEvent;
+import net.neoforged.neoforge.common.NeoForge;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 
@@ -20,7 +20,7 @@ public final class ConfigUIMenuHook {
     private ConfigUIMenuHook() {}
 
     public static void register() {
-        MinecraftForge.EVENT_BUS.register(ConfigUIMenuHook.class);
+        NeoForge.EVENT_BUS.register(ConfigUIMenuHook.class);
     }
 
     @SubscribeEvent

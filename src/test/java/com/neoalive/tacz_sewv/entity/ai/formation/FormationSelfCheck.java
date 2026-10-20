@@ -203,7 +203,7 @@ public final class FormationSelfCheck {
 
     private static void templateParsing() {
         FormationTemplates shipped = FormationTemplates.parse(java.util.Map.of(
-                new net.minecraft.resources.ResourceLocation("tacz_sewv", "formations"), shippedTemplates()));
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("tacz_sewv", "formations"), shippedTemplates()));
         FormationTemplates.Template left = shipped.lookup(null, "maneuver_left");
         FormationTemplates.Template right = shipped.lookup(null, "maneuver_right");
         assert left.equals(right.mirror()) : "flank wings must be mirror images: " + left + " vs " + right;
@@ -216,7 +216,7 @@ public final class FormationSelfCheck {
                 : "other plays use the role row";
 
         FormationTemplates bad = FormationTemplates.parse(java.util.Map.of(
-                new net.minecraft.resources.ResourceLocation("tacz_sewv", "bad"),
+                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("tacz_sewv", "bad"),
                 com.google.gson.JsonParser.parseString(
                         "{ \"hold\": { \"shape\": \"blob\" }, \"withdraw\": { \"spacing\": 0.1 } }")));
         assert !bad.defines("hold") : "unknown shape: row ignored";

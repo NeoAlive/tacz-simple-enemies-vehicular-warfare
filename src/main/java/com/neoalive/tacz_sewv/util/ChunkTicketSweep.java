@@ -6,16 +6,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
 
-import com.mojang.datafixers.util.Pair;
-import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraftforge.common.world.ForgeChunkManager;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.common.world.chunk.TicketHelper;
+import net.neoforged.neoforge.common.world.chunk.TicketSet;
+import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.platform.ForgeChunkManager;
 
 /**
  * Reconciles forced-chunk tickets {@link ChunkTicket} left behind when a mortar/heli crew died
@@ -64,20 +64,20 @@ public final class ChunkTicketSweep {
                 ForgeChunkManager.setForcedChunkLoadingCallback(TaczSewv.MODID, ChunkTicketSweep::stage));
     }
 
-    private static void stage(ServerLevel level, ForgeChunkManager.TicketHelper helper) {
+    private static void stage(ServerLevel level, TicketHelper helper) {
         List<Candidate> candidates = new ArrayList<>();
-        for (Map.Entry<UUID, Pair<LongSet, LongSet>> entry : helper.getEntityTickets().entrySet()) {
+        for (Map.Entry<UUID, TicketSet> entry : helper.getEntityTickets().entrySet()) {
             UUID owner = entry.getKey();
-            for (long chunk : entry.getValue().getFirst()) candidates.add(new Candidate(owner, chunk, false));
-            for (long chunk : entry.getValue().getSecond()) candidates.add(new Candidate(owner, chunk, true));
+            for (long chunk : entry.getValue().nonTicking()) candidates.add(new Candidate(owner, chunk, false));
+            for (long chunk : entry.getValue().ticking()) candidates.add(new Candidate(owner, chunk, true));
         }
         if (!candidates.isEmpty()) PENDING.put(level, new Pending(candidates));
     }
 
     @SubscribeEvent
-    public static void onLevelTick(TickEvent.LevelTickEvent event) {
+    public static void onLevelTick(LevelTickEvent.Post event) {
         if (PENDING.isEmpty()) return; // the entire cost on every tick this mod has nothing pending
-        if (event.phase != TickEvent.Phase.END || !(event.level instanceof ServerLevel level)) return;
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
 
         Pending pending = PENDING.get(level);
         if (pending == null) return;

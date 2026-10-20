@@ -33,9 +33,9 @@ import com.neoalive.tacz_sewv.block.RunwayBlockEntity;
 public final class RunwayBlockClient {
 
     public static final ResourceLocation TEXTURE =
-            new ResourceLocation(TaczSewv.MODID, "textures/block/runway_mast.png");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/block/runway_mast.png");
     private static final ResourceLocation GEO =
-            new ResourceLocation(TaczSewv.MODID, "geo/runway_block.geo.json");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "geo/runway_block.geo.json");
     /** One full turn per 3.25 s, the period of the old GeckoLib spin animation. */
     private static final float SPIN_DEGREES_PER_TICK = 360.0F / (3.25F * 20.0F);
 

@@ -12,15 +12,13 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.level.Level;
-import net.minecraftforge.event.entity.EntityMountEvent;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.eventbus.api.EventPriority;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
-import org.jetbrains.annotations.Nullable;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityMountEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.init.ModSounds;
@@ -28,7 +26,7 @@ import com.neoalive.tacz_sewv.init.ModSounds;
 /**
  * Tags a vehicle so RU/US infantry will not board it. PMC crews and players are unaffected.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public class LockItem extends Item {
 
     public static final String TAG = "sewv:npc_lock";
@@ -91,7 +89,7 @@ public class LockItem extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tip, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tip, TooltipFlag flag) {
         tip.add(Component.translatable("tooltip.tacz_sewv.lock").withStyle(ChatFormatting.GRAY));
         tip.add(Component.translatable("tooltip.tacz_sewv.lock.unlock").withStyle(ChatFormatting.GRAY));
     }

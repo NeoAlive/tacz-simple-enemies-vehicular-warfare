@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -46,7 +47,7 @@ public class NamePreference extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (Map.Entry<UUID, String> entry : preferences.entrySet()) {
             CompoundTag tag = new CompoundTag();
@@ -62,8 +63,7 @@ public class NamePreference extends SavedData {
         if (level instanceof ServerLevel serverLevel) {
             ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
             if (overworld != null) {
-                return overworld.getDataStorage().computeIfAbsent(
-                        NamePreference::load, NamePreference::new, DATA_NAME);
+                return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(NamePreference::new, (tag, registries) -> NamePreference.load(tag)), DATA_NAME);
             }
         }
         return new NamePreference(); // dummy fallback for client/missing overworld

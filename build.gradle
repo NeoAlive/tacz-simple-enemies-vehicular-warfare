@@ -80,7 +80,11 @@ sourceSets {
     main {
         java {
             srcDir 'src/dormant-stubs/java'
-            exclude dormantSources
+            // Exclude patterns apply to every source dir of the set, so match only src/main/java —
+            // a bare `exclude dormantSources` would also drop the stubs of the same path.
+            def mainJavaDir = file('src/main/java').absolutePath
+            def dormantSpec = new org.gradle.api.tasks.util.PatternSet().include(dormantSources).asSpec
+            exclude { FileTreeElement e -> !e.directory && e.file.absolutePath.startsWith(mainJavaDir) && dormantSpec.isSatisfiedBy(e) }
         }
         resources {
             exclude dormantMixinConfigs
@@ -106,13 +110,21 @@ tasks.register('syncPortDeps') {
     group = 'neoforge port'
     description = 'Copies SBW 0.8.9.1-1.21 and the SEM port jars into libs-neo/, plus SBW\'s jar-in-jars.'
     doLast {
-        def sbwLibs = file("${projectDir}/${sbw_port_dir}/build/libs")
-        def sbwJars = fileTree(sbwLibs) {
-            include "superbwarfare-${sbw_required_version}-*.jar"
-            exclude '*-sources.jar', '*-slim.jar', '*-api.jar'
+        // Prefer SBW's own NeoForge release jar in the parent folder (same convention main uses for
+        // its Forge jar), e.g. superbwarfare-0.8.9.1-final-mc1.21.1-5b92ebe1.jar from Modrinth; fall
+        // back to a local build of the 0.8.9.1-1.21 checkout.
+        def sbwJars = fileTree(file("${projectDir}/..")) {
+            include "superbwarfare-${sbw_required_version}-*mc${minecraft_version}-*.jar"
         }.files
+        if (sbwJars.isEmpty()) {
+            sbwJars = fileTree(file("${projectDir}/${sbw_port_dir}/build/libs")) {
+                include "superbwarfare-${sbw_required_version}-*.jar"
+                exclude '*-sources.jar', '*-slim.jar', '*-api.jar'
+            }.files
+        }
         if (sbwJars.size() != 1) {
-            throw new GradleException("Expected exactly one superbwarfare-${sbw_required_version}-*.jar in ${sbwLibs}, found ${sbwJars*.name}")
+            throw new GradleException("Expected exactly one SBW ${sbw_required_version} mc${minecraft_version} jar " +
+                    "(parent folder, or ${sbw_port_dir}/build/libs), found ${sbwJars*.name}")
         }
         def semJar = file("${projectDir}/${sem_port_dir}/build/libs/simpleenemymod-${sem_port_version}.jar")
         if (!semJar.isFile()) {
@@ -255,18 +267,15 @@ dependencies {
     // SBW is Kotlin; its public surface (companions, properties) needs the stdlib to compile.
     implementation "thedarkcolour:kotlinforforge-neoforge:5.10.0"
     // Core soft-deps SBW jar-in-jars (Curios: parachute/NVG slots; GeckoLib: armor layers;
-    // SimpleBedrockModel: SBW armor renderer). Compile against their APIs; at runtime the
-    // copies unpacked from SBW's jar are used so versions match what SBW ships.
-    compileOnly "top.theillusivec4.curios:curios-neoforge:9.2.0+1.21.1:api"
-    compileOnly "software.bernie.geckolib:geckolib-neoforge-1.21.1:4.7.5"
-    compileOnly "com.github.MCModderAnchor:SimpleBedrockModel:2.5.1.1-neoforge-mc1.21.1"
+    // SimpleBedrockModel: SBW armor renderer). Compiled and run against the exact copies unpacked
+    // from SBW's jar (libs-neo/jij), so versions always match what SBW ships.
     compileOnly("com.maydaymemory:mae:1.1.2") {
         exclude group: "com.google.code.findbugs", module: "jsr305"
         exclude group: "it.unimi.dsi", module: "fastutil"
         exclude group: "org.joml", module: "joml"
     }
-    jijMods.each { localRuntime files(it) }
-    jijLibs.each { additionalRuntimeClasspath files(it) }
+    jijMods.each { compileOnly files(it); localRuntime files(it) }
+    jijLibs.each { compileOnly files(it); additionalRuntimeClasspath files(it) }
     // SEM's own optional deps it needs at runtime in dev (GeckoLib is covered by SBW's jij).
     localRuntime "com.eliotlash.mclib:mclib:20"
 }
@@ -734,6 +743,12 @@ tasks.register('selfCheckMiscPacks', JavaExec) {
 }
 
 
+// The self-checks are plain JavaExec mains: run them on the Java 21 toolchain the classes are
+// compiled for, not on whatever JVM is running Gradle.
+tasks.withType(JavaExec).matching { it.name.startsWith('selfCheck') }.configureEach {
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+}
+
 tasks.register('selfCheckDormantStubs', JavaExec) {
     group = 'verification'
     description = 'Asserts each dormant-integration stub matches its real facade\'s public surface.'
@@ -821,6 +836,8 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    // Show every error, not javac's default first 100 — the port works through them as a to-do list.
+    options.compilerArgs.addAll(['-Xmaxerrs', '100000'])
 }
 
 // Imports only — no brace/indent rewrite. Groups: static | java/javax | third-party | project.

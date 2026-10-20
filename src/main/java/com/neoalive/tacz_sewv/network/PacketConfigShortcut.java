@@ -3,9 +3,9 @@ package com.neoalive.tacz_sewv.network;
 import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.invasion.MiscEditorAccess;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 import com.neoalive.tacz_sewv.util.PoolEditorAccess;
 import com.neoalive.tacz_sewv.util.TargetPriorityAccess;
 

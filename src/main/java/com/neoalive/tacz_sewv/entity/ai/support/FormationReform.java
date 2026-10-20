@@ -16,14 +16,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.EntityMountEvent;
-import net.minecraftforge.event.entity.living.LivingDeathEvent;
-import net.minecraftforge.event.server.ServerStartingEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityMountEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
@@ -45,7 +45,7 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
  * Riders follow their hull's slot. A group whose owner is offline stays dirty and is retried — its anchor is
  * the owner. Server thread only.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class FormationReform {
 
     private static final int INTERVAL_TICKS = 20;
@@ -104,8 +104,8 @@ public final class FormationReform {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || DIRTY.isEmpty()) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
+        if (DIRTY.isEmpty()) return;
         MinecraftServer server = event.getServer();
         int now = server.getTickCount();
         if (now < nextPass) return;

@@ -21,7 +21,7 @@ public final class PmcCommanderSpawner {
         PmcCommanderEntity unit = ModEntities.PMC_COMMANDER.get().create(level);
         if (unit == null) return null;
         unit.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.COMMAND, null, null);
+        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.COMMAND, null);
         if (owner != null) {
             unit.setOwner(owner);
         }

@@ -7,8 +7,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.level.Level;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Tactical Data Terminal: a left click with it in hand opens the
@@ -23,7 +21,7 @@ public class TacticalDataTerminalItem extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         tooltip.add(Component.translatable("tooltip.tacz_sewv.tactical_data_terminal.use").withStyle(ChatFormatting.GRAY));
         // The G key also opens it from anywhere it's carried — the only way to reach it while
         // seated in a vehicle, where a left click never reaches this item at all (see TdtKeybind).

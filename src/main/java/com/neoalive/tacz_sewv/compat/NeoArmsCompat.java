@@ -1,6 +1,6 @@
 package com.neoalive.tacz_sewv.compat;
 
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

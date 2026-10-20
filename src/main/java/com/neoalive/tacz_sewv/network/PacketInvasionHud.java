@@ -8,13 +8,13 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
 import com.neoalive.tacz_sewv.invasion.InvasionHud;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * S→C invasion match HUD + per-vehicle side colours for the SBW hover overlay.

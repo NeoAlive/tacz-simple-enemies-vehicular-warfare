@@ -5,10 +5,10 @@ import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.command.quick.QuickCommandPipeline;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Client → server: fire a quick-command pipeline by id with resolved board-candidate unit ids. */
 public class PacketQuickCommand {

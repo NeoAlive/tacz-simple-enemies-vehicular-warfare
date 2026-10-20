@@ -18,8 +18,8 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -104,7 +104,7 @@ public final class LogoPoolRegistry {
         if (!Files.isRegularFile(file)) return null;
         try (InputStream in = Files.newInputStream(file)) {
             NativeImage image = NativeImage.read(in);
-            ResourceLocation id = new ResourceLocation(
+            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(
                     TaczSewv.MODID, "dynamic/logo_pools/" + poolId + "/" + iconId);
             DynamicTexture tex = new DynamicTexture(image);
             Minecraft.getInstance().getTextureManager().register(id, tex);

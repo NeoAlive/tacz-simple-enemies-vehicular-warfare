@@ -14,13 +14,13 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.server.ServerLifecycleHooks;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
@@ -43,7 +43,7 @@ import com.neoalive.tacz_sewv.network.PacketOrderQueueState;
  * <p>The head of the queue is the running order. It advances when {@link #done} says so; orders it
  * does not know are persistent and only advance on a manual skip.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class OrderQueue {
 
     private static final int POLL_INTERVAL = 10;
@@ -123,7 +123,7 @@ public final class OrderQueue {
     private static void sync(ServerPlayer player, State s) {
         List<String> labels = new ArrayList<>(s.entries.size());
         for (Entry e : s.entries) labels.add(e.label);
-        NetworkHandler.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
+        NetworkHandler.CHANNEL.send(com.neoalive.tacz_sewv.platform.PacketDistributor.PLAYER.with(() -> player),
                 new PacketOrderQueueState(labels));
     }
 
@@ -219,8 +219,8 @@ public final class OrderQueue {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || STATES.isEmpty()) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
+        if (STATES.isEmpty()) return;
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null || server.getTickCount() % POLL_INTERVAL != 0) return;
         for (Map.Entry<UUID, State> it : STATES.entrySet()) {

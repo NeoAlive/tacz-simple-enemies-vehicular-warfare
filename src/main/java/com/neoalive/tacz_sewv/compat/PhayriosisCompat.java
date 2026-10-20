@@ -3,11 +3,11 @@ package com.neoalive.tacz_sewv.compat;
 import java.util.IdentityHashMap;
 import java.util.Map;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.fml.ModList;
 
 /**
  * Softcompat gate for Phayriosis Two. Unlike Spore, Phayriosis defines no custom
@@ -17,7 +17,7 @@ import net.minecraftforge.registries.ForgeRegistries;
  * one apart from a plain zombie. The only usable signal is the entity registry's own
  * {@code phayriosis_two} namespace.
  *
- * <p>Resolving that namespace is a {@code ForgeRegistries.ENTITY_TYPES.getKey(type)} registry
+ * <p>Resolving that namespace is a {@code BuiltInRegistries.ENTITY_TYPE.getKey(type)} registry
  * lookup, and {@link com.neoalive.tacz_sewv.entity.ai.goal.SoftEnemyTargetPriorityGoal} calls
  * this once per candidate on every scan — so the per-{@code EntityType} answer is cached after
  * the first resolve instead of being re-looked-up per entity per scan. There are only ever as
@@ -52,7 +52,7 @@ public final class PhayriosisCompat {
     private static boolean isPhayriosisType(EntityType<?> type) {
         Boolean cached = NAMESPACE_CACHE.get(type);
         if (cached != null) return cached;
-        ResourceLocation key = ForgeRegistries.ENTITY_TYPES.getKey(type);
+        ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(type);
         boolean result = key != null && MODID.equals(key.getNamespace());
         NAMESPACE_CACHE.put(type, result);
         return result;

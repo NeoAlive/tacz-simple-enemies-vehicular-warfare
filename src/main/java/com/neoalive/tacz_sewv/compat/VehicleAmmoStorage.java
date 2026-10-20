@@ -6,17 +6,17 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.items.ItemHandlerHelper;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandlerModifiable;
+import net.neoforged.neoforge.items.ItemHandlerHelper;
 
+import com.neoalive.tacz_sewv.platform.Caps;
 import com.neoalive.tacz_sewv.util.CreativeAmmoConsumable;
 import com.neoalive.tacz_sewv.util.RandomUtil;
 
 /**
  * Stock / read / clear the inventory channel vehicle guns actually use:
- * {@link ForgeCapabilities#ITEM_HANDLER}.
+ * item-handler capability ({@code Capabilities.ItemHandler.ENTITY}).
  *
  * <p>Vanilla SBW exposes its container there. Addon packs that replace the hold (notably FCP's
  * {@code VehicleInventory}) override the same capability, so writing through
@@ -32,7 +32,7 @@ public final class VehicleAmmoStorage {
     @Nullable
     public static IItemHandler handler(VehicleEntity hull) {
         if (hull == null) return null;
-        return hull.getCapability(ForgeCapabilities.ITEM_HANDLER).resolve().orElse(null);
+        return Caps.entityItems(hull);
     }
 
     public static boolean hasStorage(VehicleEntity hull) {

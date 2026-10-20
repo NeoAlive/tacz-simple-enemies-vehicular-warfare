@@ -134,7 +134,7 @@ public final class PlaySelfCheck {
                   "attack": { "base": 1 }
                 }
                 """;
-        w = UtilityWeights.parse(Map.of(new ResourceLocation("tacz_sewv", "weights"),
+        w = UtilityWeights.parse(Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"),
                 com.google.gson.JsonParser.parseString(pack)));
 
         BattleField bf = freshBf();
@@ -153,7 +153,7 @@ public final class PlaySelfCheck {
                   "attack": { "base": 1 }
                 }
                 """;
-        UtilityWeights w2 = UtilityWeights.parse(Map.of(new ResourceLocation("tacz_sewv", "weights"),
+        UtilityWeights w2 = UtilityWeights.parse(Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"),
                 com.google.gson.JsonParser.parseString(holdBoost)));
         PlaySelection.Result held = PlaySelection.select(
                 bf, g, PlayId.FRONTAL_FIX_AND_FLANK, 0, 50, first.roles(), 200, 10.0, w2);
@@ -198,7 +198,7 @@ public final class PlaySelfCheck {
                 }
                 """;
         UtilityWeights w = UtilityWeights.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "weights"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"),
                 com.google.gson.JsonParser.parseString(json)));
         double[] s = baseSignals();
         assertNear(42.0, w.scorePlay(PlayId.HOLD_DEFEND, s,
@@ -217,9 +217,9 @@ public final class PlaySelfCheck {
                 }
                 """;
         UtilityWeights w2 = UtilityWeights.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "a"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "a"),
                 com.google.gson.JsonParser.parseString(json),
-                new ResourceLocation("tacz_sewv", "b"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "b"),
                 com.google.gson.JsonParser.parseString(second)));
         assertNear(11.0, w2.scorePlay(PlayId.HOLD_DEFEND, s,
                         com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.NEUTRAL),
@@ -339,7 +339,7 @@ public final class PlaySelfCheck {
     private static UtilityWeights shippedWeights() {
         try (var in = PlaySelfCheck.class.getResourceAsStream("/data/tacz_sewv/sewv/ai/weights.json")) {
             if (in == null) throw new AssertionError("shipped weights.json is not on the classpath");
-            return UtilityWeights.parse(Map.of(new ResourceLocation("tacz_sewv", "weights"),
+            return UtilityWeights.parse(Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"),
                     com.google.gson.JsonParser.parseReader(new java.io.InputStreamReader(in))));
         } catch (java.io.IOException e) {
             throw new AssertionError("shipped weights.json unreadable", e);

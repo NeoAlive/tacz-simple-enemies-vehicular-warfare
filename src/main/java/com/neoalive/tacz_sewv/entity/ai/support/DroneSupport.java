@@ -14,6 +14,7 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.DroneEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -24,7 +25,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -36,7 +36,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
  */
 public final class DroneSupport {
 
-    private static final ResourceLocation DRONE_ID = new ResourceLocation("superbwarfare", "drone");
+    private static final ResourceLocation DRONE_ID = ResourceLocation.fromNamespaceAndPath("superbwarfare", "drone");
     private static final String MORTAR_SHELL_ID = "superbwarfare:mortar_shell";
     /** Fast, reload-local lookup; persistent owner NBT + engineer claim UUID are sources of truth. */
     private static final Map<UUID, List<Integer>> OWNED_DRONE_IDS = new HashMap<>();
@@ -126,7 +126,7 @@ public final class DroneSupport {
 
     /** Spawns one mortar_shell-armed, AI-flown drone above {@code owner} (not overlapping them). */
     public static DroneEntity spawnDrone(ServerLevel level, AbstractUnit owner) {
-        EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(DRONE_ID);
+        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(DRONE_ID);
         if (type == null) return null;
         Entity entity = type.create(level);
         if (!(entity instanceof DroneEntity drone)) return null;

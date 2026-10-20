@@ -481,9 +481,26 @@ public final class VehicleWeapons {
      */
     public static int classifyFromSignals(String name, String shell, String projectile,
                                    String ammoId, Ammo ammoClass) {
+        return classifyFromSignals(name, shell, projectile, ammoId, isSmallArmsAmmo(ammoClass));
+    }
+
+    /**
+     * The same classifier with the ammo class already reduced to "is it small-arms ammo".
+     *
+     * <p>NeoForge port: SBW 1.21's {@link Ammo} resolves item holders in its class initializer, which
+     * needs bootstrapped registries — so the headless self-check drives this overload and never
+     * touches the enum.
+     */
+    public static int classifyFromSignals(String name, String shell, String projectile,
+                                   String ammoId, boolean smallArmsAmmo) {
         return pickWinner(scoreRoles(
                 emptyToBlank(name), emptyToBlank(shell), emptyToBlank(projectile),
-                emptyToBlank(ammoId), ammoClass));
+                emptyToBlank(ammoId), smallArmsAmmo));
+    }
+
+    private static boolean isSmallArmsAmmo(Ammo ammoClass) {
+        return ammoClass == Ammo.RIFLE || ammoClass == Ammo.HANDGUN || ammoClass == Ammo.SHOTGUN
+                || ammoClass == Ammo.SNIPER || ammoClass == Ammo.HEAVY;
     }
 
     /** Exposed for the self-check dead-heat case (construct equal SPECIAL/CANNON scores). */
@@ -500,7 +517,7 @@ public final class VehicleWeapons {
     }
 
     private static double[] scoreRoles(String name, String shell, String projectile,
-                                      String ammoId, Ammo ammoClass) {
+                                      String ammoId, boolean smallArmsAmmo) {
         double[] scores = new double[WEAPON_COUNT];
         boolean specialName = false, specialProj = false, specialAmmo = false;
 
@@ -524,8 +541,7 @@ public final class VehicleWeapons {
             scores[WEAPON_CANNON] += WEIGHT_SHELL_TYPE;
         }
 
-        if (ammoClass == Ammo.RIFLE || ammoClass == Ammo.HANDGUN || ammoClass == Ammo.SHOTGUN
-                || ammoClass == Ammo.SNIPER || ammoClass == Ammo.HEAVY) {
+        if (smallArmsAmmo) {
             scores[WEAPON_MG] += WEIGHT_MG_AMMO_CLASS;
         }
         if (contains(name, "machinegun") || contains(projectile, "machinegun")
@@ -555,7 +571,7 @@ public final class VehicleWeapons {
                                         String name, String shell, String projectile,
                                         String ammoId, Ammo ammoClass, int winner) {
         if (winner == UNCLASSIFIED || !LOGGER.isDebugEnabled()) return;
-        double[] scores = scoreRoles(name, shell, projectile, ammoId, ammoClass);
+        double[] scores = scoreRoles(name, shell, projectile, ammoId, isSmallArmsAmmo(ammoClass));
         double second = 0.0;
         for (int r = 0; r < WEAPON_COUNT; r++) {
             if (r == winner) continue;

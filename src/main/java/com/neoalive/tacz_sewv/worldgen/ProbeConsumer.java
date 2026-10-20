@@ -17,10 +17,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.level.ChunkEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.level.ChunkEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -40,7 +40,7 @@ import com.neoalive.tacz_sewv.worldgen.StructureLocator.Ownership;
  * structure was just generated there), and the flag is saved, so a probe still pending at shutdown
  * is consumed on the next load. Probes an op placed by hand never get flagged and stay inert.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class ProbeConsumer {
 
     private record Job(ResourceKey<Level> dimension, long chunk, boolean isNew) {}
@@ -68,8 +68,8 @@ public final class ProbeConsumer {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || QUEUE.isEmpty()) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
+        if (QUEUE.isEmpty()) return;
         MinecraftServer server = event.getServer();
         long deadline = System.nanoTime() + BUDGET_NANOS;
         Job job;
@@ -139,7 +139,7 @@ public final class ProbeConsumer {
 
     /** A chest whose loot table belongs to the faction that lost the structure is left empty. */
     private static void tidyChest(ServerLevel level, RandomizableContainerBlockEntity container) {
-        TankFaction lootFaction = lootFaction(container.saveWithoutMetadata().getString("LootTable"));
+        TankFaction lootFaction = lootFaction(container.saveWithoutMetadata(level.registryAccess()).getString("LootTable"));
         if (lootFaction == null) return;
         Ownership ownership = StructureLocator.ownershipAt(level, container.getBlockPos());
         if (!ownership.identified() || ownership.owner() == null || ownership.owner() == lootFaction) return;

@@ -10,14 +10,14 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.neoforge.items.IItemHandler;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.UnitInventory;
 
 /**
  * Mortar logic shared by {@link ManMortarGoal} and
@@ -186,7 +186,7 @@ public final class MortarSupport {
             if (issued instanceof MortarShellItem) return new ItemStack(issued);
         }
 
-        IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inventory = UnitInventory.of(unit);
         if (inventory == null) return ItemStack.EMPTY;
 
         // Every slot, equipment included: slots 0-5 are the unit's hands and armour, but

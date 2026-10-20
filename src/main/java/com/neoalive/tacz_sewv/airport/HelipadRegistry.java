@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.LongTag;
@@ -31,7 +32,7 @@ public class HelipadRegistry extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (long pos : this.pads) list.add(LongTag.valueOf(pos));
         nbt.put("Pads", list);
@@ -39,7 +40,7 @@ public class HelipadRegistry extends SavedData {
     }
 
     public static HelipadRegistry get(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(HelipadRegistry::load, HelipadRegistry::new, DATA_NAME);
+        return level.getDataStorage().computeIfAbsent(new SavedData.Factory<>(HelipadRegistry::new, (tag, registries) -> HelipadRegistry.load(tag)), DATA_NAME);
     }
 
     public void note(BlockPos pad) {

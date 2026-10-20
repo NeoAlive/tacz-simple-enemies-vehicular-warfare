@@ -3,8 +3,8 @@ package com.neoalive.tacz_sewv.mixin;
 import java.util.List;
 import java.util.Set;
 
-import net.minecraftforge.fml.loading.LoadingModList;
-import net.minecraftforge.forgespi.language.IModInfo;
+import net.neoforged.fml.loading.LoadingModList;
+import net.neoforged.neoforgespi.language.IModInfo;
 import org.apache.maven.artifact.versioning.VersionRange;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
@@ -33,7 +33,7 @@ public final class SbwVersionMixinPlugin implements IMixinConfigPlugin {
     private static final String SBW_RANGE = "[0.8.9.1,)";
     private static final String SEM_ID = "simpleenemymod";
     /** Must match {@code sem_version_range} / mods.toml {@code simpleenemymod} versionRange. */
-    private static final String SEM_RANGE = "[1.20.1-0.1.6-beta-hotfix,)";
+    private static final String SEM_RANGE = "[1.21.1-0.1.6-hotfix.1,)";
 
     private Boolean compatible;
 

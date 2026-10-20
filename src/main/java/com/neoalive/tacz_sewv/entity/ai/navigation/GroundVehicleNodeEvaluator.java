@@ -16,10 +16,12 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.PathNavigationRegion;
+import net.minecraft.world.level.block.BaseRailBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.Node;
+import net.minecraft.world.level.pathfinder.PathType;
+import net.minecraft.world.level.pathfinder.PathfindingContext;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -71,7 +73,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     private static final float OFF_ROAD_PENALTY = 2.0F;
 
     public static final TagKey<Block> PREFERRED_ROADS = TagKey.create(
-            Registries.BLOCK, new ResourceLocation(TaczSewv.MODID, "preferred_roads"));
+            Registries.BLOCK, ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "preferred_roads"));
 
     private boolean amphibious;
     private float maxUpStep = 1.0F;
@@ -107,7 +109,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
 
     /**
      * Per-search cache of one cell's raw classification, keyed by {@link BlockPos#asLong}. Bits 0-5 hold
-     * the {@link BlockPathTypes} ordinal of the 4-arg {@link #getBlockPathType(BlockGetter, int, int, int)}
+     * the {@link PathType} ordinal of the 4-arg {@link #getBlockPathType(BlockGetter, int, int, int)}
      * (a pure function of the region snapshot), bit 6 whether the cell is a {@code #minecraft:logs} block
      * (only filled while tree felling is active). Neighbouring nodes share almost all of a wide hull's
      * footprint, so without this every cell was re-classified once per node that covers it. Exact: the
@@ -122,7 +124,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     private static final int LOG_BIT = 0x40;
     // ponytail: 6 ordinal bits. Vanilla 1.20.1 has 29 path types; Forge lets mods extend the enum, so a
     // pack adding 35+ would overflow into LOG_BIT. Widen the map to Long2Short if that ever happens.
-    private static final BlockPathTypes[] PATH_TYPES = BlockPathTypes.values();
+    private static final PathType[] PATH_TYPES = PathType.values();
     /** Latched once per search in {@link #prepare}: config cannot change mid-search. */
     private boolean treeFellingActive;
 
@@ -223,8 +225,10 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         }
     }
 
+    // NeoForge port: 1.21 passes a PathfindingContext where 1.20 passed the level; the body is unchanged.
     @Override
-    public BlockPathTypes getBlockPathType(BlockGetter level, int x, int y, int z, Mob mob) {
+    public PathType getPathTypeOfMob(PathfindingContext context, int x, int y, int z, Mob mob) {
+        BlockGetter level = context.level();
         int depth = footprintWaterDepth(level, x, y, z);
         if (GroundMobility.waterBlocked(depth, this.amphibious)) {
             if (SewvDiag.groundPathingVerbose() && !this.loggedDeepWaterBlockThisSearch) {
@@ -233,24 +237,24 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                         mob.getClass().getSimpleName(), mob.getId(),
                         x, y, z, depth, this.amphibious);
             }
-            return BlockPathTypes.BLOCKED;
+            return PathType.BLOCKED;
         }
 
         boolean treeFellingActive = this.treeFellingActive;
         boolean footprintHasTree = false;
 
-        BlockPathTypes center = BlockPathTypes.BLOCKED;
-        BlockPathTypes worst = BlockPathTypes.BLOCKED;
-        float worstMalus = mob.getPathfindingMalus(BlockPathTypes.BLOCKED);
+        PathType center = PathType.BLOCKED;
+        PathType worst = PathType.BLOCKED;
+        float worstMalus = mob.getPathfindingMalus(PathType.BLOCKED);
         BlockPos mobPos = mob.blockPosition();
         for (int i = 0; i < this.entityWidth; ++i) {
             for (int j = 0; j < this.entityHeight; ++j) {
                 for (int k = 0; k < this.entityDepth; ++k) {
                     int cell = cell(level, i + x, j + y, k + z);
-                    BlockPathTypes blockpathtypes = PATH_TYPES[cell & 0x3F];
+                    PathType blockpathtypes = PATH_TYPES[cell & 0x3F];
                     // Fordable water is walkable; cost is applied in findAcceptedNode.
-                    if (blockpathtypes == BlockPathTypes.WATER) {
-                        blockpathtypes = BlockPathTypes.WALKABLE;
+                    if (blockpathtypes == PathType.WATER) {
+                        blockpathtypes = PathType.WALKABLE;
                     }
                     // A fellable tree log is walkable too — the vehicle drives through and fells
                     // it; the path-preference cost lives in findAcceptedNode, same split as
@@ -280,8 +284,8 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     if (treeFellingActive) {
                         if ((cell & LOG_BIT) != 0) {
                             footprintHasTree = true;
-                            if (blockpathtypes == BlockPathTypes.BLOCKED) {
-                                blockpathtypes = BlockPathTypes.WALKABLE;
+                            if (blockpathtypes == PathType.BLOCKED) {
+                                blockpathtypes = PathType.WALKABLE;
                             }
                         }
                     }
@@ -289,7 +293,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
                     if (i == 0 && j == 0 && k == 0) {
                         center = blockpathtypes;
                     }
-                    if (blockpathtypes == BlockPathTypes.FENCE || blockpathtypes == BlockPathTypes.UNPASSABLE_RAIL) {
+                    if (blockpathtypes == PathType.FENCE || blockpathtypes == PathType.UNPASSABLE_RAIL) {
                         return blockpathtypes;
                     }
                     float malus = mob.getPathfindingMalus(blockpathtypes);
@@ -306,7 +310,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         if (treeFellingActive) {
             this.footprintTreeCache.put(BlockPos.asLong(x, y, z), (byte) (footprintHasTree ? 1 : 0));
         }
-        return center == BlockPathTypes.OPEN && worstMalus == 0.0F && this.entityWidth <= 1 ? BlockPathTypes.OPEN : worst;
+        return center == PathType.OPEN && worstMalus == 0.0F && this.entityWidth <= 1 ? PathType.OPEN : worst;
     }
 
     /** Cached {@link #getBlockPathType(BlockGetter, int, int, int)} + log bit; see {@link #cellCache}. */
@@ -366,7 +370,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         scan:
         for (int cx = minX; cx <= maxX; cx++) {
             for (int cz = minZ; cz <= maxZ; cz++) {
-                if (waterDepth(this.level, cx, y, cz) > 0) {
+                if (waterDepth(this.currentContext.level(), cx, y, cz) > 0) {
                     near = true;
                     break scan;
                 }
@@ -381,18 +385,18 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         double cached = this.gradeCache.get(key);
         if (cached != this.gradeCache.defaultReturnValue()) return cached;
         double grade = GroundMobility.localGrade(
-                this.mob != null ? this.mob.level() : this.level, x, z, this.gradeHalfSpan);
+                this.mob != null ? this.mob.level() : this.currentContext.level(), x, z, this.gradeHalfSpan);
         this.gradeCache.put(key, grade);
         return grade;
     }
 
     @Override
     protected Node findAcceptedNode(int x, int y, int z, int verticalDeltaLimit, double nodeFloorLevel,
-                                    Direction direction, BlockPathTypes pathTypes) {
+                                    Direction direction, PathType pathTypes) {
         Node node = super.findAcceptedNode(x, y, z, verticalDeltaLimit, nodeFloorLevel, direction, pathTypes);
         if (node == null) return null;
 
-        BlockState footing = this.level.getBlockState(this.probe.set(node.x, node.y - 1, node.z));
+        BlockState footing = this.currentContext.level().getBlockState(this.probe.set(node.x, node.y - 1, node.z));
         if (!footing.is(PREFERRED_ROADS)) {
             node.costMalus += OFF_ROAD_PENALTY;
         }
@@ -403,7 +407,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             node.costMalus += TacticalPosture.coverPathMalus(this.mob.getId(), cx, cz, server);
         }
 
-        VoxelShape shape = footing.getCollisionShape(this.level, this.probe);
+        VoxelShape shape = footing.getCollisionShape(this.currentContext.level(), this.probe);
         double top = shape.isEmpty() ? node.y : (node.y - 1) + shape.max(Direction.Axis.Y);
         float slope = GroundMobility.slopeMalus(top - nodeFloorLevel, this.maxUpStep);
         if (Float.isInfinite(slope)) return null;
@@ -411,7 +415,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
 
         node.costMalus += GroundMobility.gradeMalus(cachedLocalGrade(node.x, node.z));
 
-        int depth = footprintWaterDepth(this.level, node.x, node.y, node.z);
+        int depth = footprintWaterDepth(this.currentContext.level(), node.x, node.y, node.z);
         float ford = GroundMobility.fordMalus(depth, this.amphibious);
         if (Float.isInfinite(ford)) return null;
         node.costMalus += ford;
@@ -428,7 +432,7 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
         // WALKABLE in the first place, so this rescan would find nothing anyway — checking the
         // flag here too skips the (otherwise pointless) footprint walk instead of paying for it.
         if (EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()
-                && footprintHasFellableTree(this.level, node.x, node.y, node.z)) {
+                && footprintHasFellableTree(this.currentContext.level(), node.x, node.y, node.z)) {
             node.costMalus += SewvConfig.VEHICLE_TREE_PATH_MALUS.get();
         }
         return node;
@@ -482,28 +486,53 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
     }
 
     @Override
-    public BlockPathTypes getBlockPathType(BlockGetter level, int x, int y, int z) {
+    public PathType getPathType(PathfindingContext context, int x, int y, int z) {
+        return getBlockPathType(context.level(), x, y, z);
+    }
+
+    /** The 1.20 {@code getBlockPathType(level, x, y, z)} override, kept by name for the cell cache. */
+    public PathType getBlockPathType(BlockGetter level, int x, int y, int z) {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, y, z);
-        BlockPathTypes blockpathtypes = getBlockPathTypeRaw(level, pos);
-        if (blockpathtypes == BlockPathTypes.OPEN && y >= level.getMinBuildHeight() + 1) {
-            BlockPathTypes below = getBlockPathTypeRaw(level, pos.set(x, y - 1, z));
-            blockpathtypes = below != BlockPathTypes.WALKABLE && below != BlockPathTypes.OPEN && below != BlockPathTypes.WATER && below != BlockPathTypes.LAVA ? BlockPathTypes.WALKABLE : BlockPathTypes.OPEN;
-            if (below == BlockPathTypes.DAMAGE_FIRE) {
-                blockpathtypes = BlockPathTypes.DAMAGE_FIRE;
+        PathType blockpathtypes = getPathTypeFromState(level, pos);
+        if (blockpathtypes == PathType.OPEN && y >= level.getMinBuildHeight() + 1) {
+            PathType below = getPathTypeFromState(level, pos.set(x, y - 1, z));
+            blockpathtypes = below != PathType.WALKABLE && below != PathType.OPEN && below != PathType.WATER && below != PathType.LAVA ? PathType.WALKABLE : PathType.OPEN;
+            if (below == PathType.DAMAGE_FIRE) {
+                blockpathtypes = PathType.DAMAGE_FIRE;
             }
-            if (below == BlockPathTypes.DAMAGE_OTHER) {
-                blockpathtypes = BlockPathTypes.DAMAGE_OTHER;
+            if (below == PathType.DAMAGE_OTHER) {
+                blockpathtypes = PathType.DAMAGE_OTHER;
             }
-            if (below == BlockPathTypes.STICKY_HONEY) {
-                blockpathtypes = BlockPathTypes.STICKY_HONEY;
+            if (below == PathType.STICKY_HONEY) {
+                blockpathtypes = PathType.STICKY_HONEY;
             }
-            if (below == BlockPathTypes.POWDER_SNOW) {
-                blockpathtypes = BlockPathTypes.DANGER_POWDER_SNOW;
+            if (below == PathType.POWDER_SNOW) {
+                blockpathtypes = PathType.DANGER_POWDER_SNOW;
             }
-            if (below == BlockPathTypes.DAMAGE_CAUTIOUS) {
-                blockpathtypes = BlockPathTypes.DAMAGE_CAUTIOUS;
+            if (below == PathType.DAMAGE_CAUTIOUS) {
+                blockpathtypes = PathType.DAMAGE_CAUTIOUS;
             }
         }
         return blockpathtypes;
+    }
+
+    /**
+     * NeoForge port: 1.21 removed {@code WalkNodeEvaluator#evaluateBlockPathType} (its door/rail rule
+     * is now inlined in {@code getPathTypeWithinMobBB}); this is the 1.20 rule verbatim.
+     */
+    private PathType evaluateBlockPathType(BlockGetter level, BlockPos pos, PathType type) {
+        boolean canPassDoors = this.canPassDoors();
+        if (type == PathType.DOOR_WOOD_CLOSED && this.canOpenDoors() && canPassDoors) {
+            type = PathType.WALKABLE_DOOR;
+        }
+        if (type == PathType.DOOR_OPEN && !canPassDoors) {
+            type = PathType.BLOCKED;
+        }
+        if (type == PathType.RAIL
+                && !(level.getBlockState(pos).getBlock() instanceof BaseRailBlock)
+                && !(level.getBlockState(pos.below()).getBlock() instanceof BaseRailBlock)) {
+            type = PathType.UNPASSABLE_RAIL;
+        }
+        return type;
     }
 }

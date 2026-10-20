@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import net.minecraft.world.level.GameRules;
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 public final class ConfigRegistry {
 
@@ -76,13 +76,13 @@ public final class ConfigRegistry {
         private int nextIndex;
 
         public Builder bool(ConfigScope scope, String category, String key,
-                          ForgeConfigSpec.BooleanValue spec, Consumer<Boolean> write) {
+                          ModConfigSpec.BooleanValue spec, Consumer<Boolean> write) {
             return add(scope, category, key, ConfigValueType.BOOLEAN, null, null, null, null, null, null, null,
                     () -> spec.get(), v -> write.accept((Boolean) v), () -> spec.getDefault());
         }
 
         public Builder bool(ConfigScope scope, String category, String key,
-                          ForgeConfigSpec.BooleanValue spec, Consumer<Boolean> write,
+                          ModConfigSpec.BooleanValue spec, Consumer<Boolean> write,
                           @Nullable String requiresKey, @Nullable String sectionKey) {
             return add(scope, category, key, ConfigValueType.BOOLEAN, null, null, null, null, null,
                     requiresKey, sectionKey,
@@ -96,7 +96,7 @@ public final class ConfigRegistry {
         }
 
         public Builder intRange(ConfigScope scope, String category, String key, int min, int max,
-                                ForgeConfigSpec.IntValue spec, Consumer<Integer> write) {
+                                ModConfigSpec.IntValue spec, Consumer<Integer> write) {
             return add(scope, category, key, ConfigValueType.INT, (double) min, (double) max, null, null, null, null, null,
                     () -> spec.get(), v -> write.accept(((Number) v).intValue()), () -> spec.getDefault());
         }
@@ -108,13 +108,13 @@ public final class ConfigRegistry {
         }
 
         public Builder doubleRange(ConfigScope scope, String category, String key, double min, double max,
-                                   ForgeConfigSpec.DoubleValue spec, Consumer<Double> write) {
+                                   ModConfigSpec.DoubleValue spec, Consumer<Double> write) {
             return add(scope, category, key, ConfigValueType.DOUBLE, min, max, null, null, null, null, null,
                     () -> spec.get(), v -> write.accept(((Number) v).doubleValue()), () -> spec.getDefault());
         }
 
         public Builder doubleRange(ConfigScope scope, String category, String key, double min, double max,
-                                   ForgeConfigSpec.DoubleValue spec, Consumer<Double> write,
+                                   ModConfigSpec.DoubleValue spec, Consumer<Double> write,
                                    @Nullable String requiresKey, @Nullable String sectionKey) {
             return add(scope, category, key, ConfigValueType.DOUBLE, min, max, null, null, null,
                     requiresKey, sectionKey,
@@ -128,7 +128,7 @@ public final class ConfigRegistry {
         }
 
         public Builder string(ConfigScope scope, String category, String key,
-                              ForgeConfigSpec.ConfigValue<String> spec, Consumer<String> write) {
+                              ModConfigSpec.ConfigValue<String> spec, Consumer<String> write) {
             return add(scope, category, key, ConfigValueType.STRING, null, null, null, null, null, null, null,
                     () -> spec.get(), v -> write.accept((String) v), () -> spec.getDefault());
         }
@@ -140,7 +140,7 @@ public final class ConfigRegistry {
         }
 
         public Builder resourceId(ConfigScope scope, String category, String key,
-                                  ForgeConfigSpec.ConfigValue<String> spec, Consumer<String> write) {
+                                  ModConfigSpec.ConfigValue<String> spec, Consumer<String> write) {
             return add(scope, category, key, ConfigValueType.RESOURCE_ID, null, null, null, null, null, null, null,
                     () -> spec.get(), v -> write.accept((String) v), () -> spec.getDefault());
         }
@@ -152,7 +152,7 @@ public final class ConfigRegistry {
         }
 
         public Builder hexColor(ConfigScope scope, String category, String key,
-                                ForgeConfigSpec.ConfigValue<String> spec, Consumer<String> write) {
+                                ModConfigSpec.ConfigValue<String> spec, Consumer<String> write) {
             return add(scope, category, key, ConfigValueType.HEX_COLOR, null, null, null, null, null, null, null,
                     () -> spec.get(), v -> write.accept((String) v), () -> spec.getDefault());
         }
@@ -164,7 +164,7 @@ public final class ConfigRegistry {
         }
 
         public Builder enumChoice(ConfigScope scope, String category, String key, List<String> options,
-                                  ForgeConfigSpec.ConfigValue<String> spec, Consumer<String> write) {
+                                  ModConfigSpec.ConfigValue<String> spec, Consumer<String> write) {
             return add(scope, category, key, ConfigValueType.ENUM, null, null, List.copyOf(options), null, null, null, null,
                     () -> spec.get(), v -> write.accept((String) v), () -> spec.getDefault());
         }
@@ -176,7 +176,7 @@ public final class ConfigRegistry {
         }
 
         public Builder multilineIds(ConfigScope scope, String category, String key,
-                                    ForgeConfigSpec.ConfigValue<List<? extends String>> spec,
+                                    ModConfigSpec.ConfigValue<List<? extends String>> spec,
                                     Consumer<List<String>> write) {
             return add(scope, category, key, ConfigValueType.MULTILINE_IDS, null, null, null, null, null, null, null,
                     () -> spec.get(), v -> write.accept((List<String>) v), () -> spec.getDefault());

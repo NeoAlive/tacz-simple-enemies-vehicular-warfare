@@ -4,6 +4,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.LongTag;
@@ -37,7 +38,7 @@ public class InvasionLayout extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         nbt.putInt("NextCapturePointId", nextCapturePointId);
         nbt.putBoolean("SessionActive", sessionActive);
         nbt.put("CapturePoints", writePosSet(capturePoints));
@@ -46,7 +47,7 @@ public class InvasionLayout extends SavedData {
     }
 
     public static InvasionLayout get(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(InvasionLayout::load, InvasionLayout::new, DATA_NAME);
+        return level.getDataStorage().computeIfAbsent(new SavedData.Factory<>(InvasionLayout::new, (tag, registries) -> InvasionLayout.load(tag)), DATA_NAME);
     }
 
     public int claimNextId() {

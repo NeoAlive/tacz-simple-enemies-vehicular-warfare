@@ -7,16 +7,16 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RenderGuiEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RenderGuiEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.gui.GuiFit;
 import com.neoalive.tacz_sewv.notify.NotificationKind;
 
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class NotificationHudOverlay {
 
     private NotificationHudOverlay() {}

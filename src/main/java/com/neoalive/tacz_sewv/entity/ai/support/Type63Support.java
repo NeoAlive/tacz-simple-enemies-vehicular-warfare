@@ -12,14 +12,14 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.neoforge.items.IItemHandler;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.UnitInventory;
 
 /**
  * Type-63 MLRS logic — same stand-beside claim shape as {@link MortarSupport}, different
@@ -172,7 +172,7 @@ public final class Type63Support {
             }
         }
 
-        IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inventory = UnitInventory.of(unit);
         if (inventory == null) return ItemStack.EMPTY;
 
         for (int slot = 0; slot < inventory.getSlots(); slot++) {

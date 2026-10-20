@@ -11,13 +11,13 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
-import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.block.SpawnProbeBlockEntity;
@@ -74,7 +74,7 @@ final class ProbeSpawner {
                     break;
                 }
                 mob.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, level.random.nextFloat() * 360.0F, 0.0F);
-                mob.finalizeSpawn(level, level.getCurrentDifficultyAt(at), MobSpawnType.STRUCTURE, null, null);
+                mob.finalizeSpawn(level, level.getCurrentDifficultyAt(at), MobSpawnType.STRUCTURE, null);
                 mob.setPersistenceRequired();
                 level.addFreshEntityWithPassengers(mob);
             }
@@ -100,7 +100,7 @@ final class ProbeSpawner {
     private static EntityType<?> entityType(String id) {
         ResourceLocation rl = ResourceLocation.tryParse(id);
         // The entity registry is defaulted: a bare getValue() on a typo would answer a pig.
-        return rl != null && ForgeRegistries.ENTITY_TYPES.containsKey(rl) ? ForgeRegistries.ENTITY_TYPES.getValue(rl) : null;
+        return rl != null && BuiltInRegistries.ENTITY_TYPE.containsKey(rl) ? BuiltInRegistries.ENTITY_TYPE.get(rl) : null;
     }
 
     /** Ground and helicopter hulls only. An entity that is created and never added needs no cleanup. */

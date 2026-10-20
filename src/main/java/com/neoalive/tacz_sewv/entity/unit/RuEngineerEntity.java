@@ -26,9 +26,9 @@ public class RuEngineerEntity extends RUunitEntity {
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(DRONE_CONTROL_LOCKED, false);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(DRONE_CONTROL_LOCKED, false);
     }
 
     @Override

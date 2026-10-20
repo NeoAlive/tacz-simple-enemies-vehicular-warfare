@@ -20,13 +20,14 @@ import com.neoalive.tacz_sewv.config.ConfigScope;
 import com.neoalive.tacz_sewv.config.ConfigValueType;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketConfigShortcut;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 
 /**
  * Entry screen: search, the Essentials page, then every category under Server / Client headers,
  * then the pool-editor tools. All vanilla widgets; edits live in the shared {@link ConfigSession}
  * until Save.
  */
-public final class ConfigHomeScreen extends Screen {
+public final class ConfigHomeScreen extends SewvScreen {
 
     private static final String SHORTCUTS = "shortcuts";
     private static final int WIDE = 310;

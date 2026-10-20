@@ -3,8 +3,8 @@ package com.neoalive.tacz_sewv.crew;
 import java.util.ArrayDeque;
 import java.util.Queue;
 
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
  * Runs work at the end of the current server tick. {@code MinecraftServer.execute} is NOT a
@@ -22,8 +22,7 @@ public final class UnitJoinBudget {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
         for (int n = NEXT_TICK.size(); n > 0; n--) NEXT_TICK.poll().run();
     }
 }

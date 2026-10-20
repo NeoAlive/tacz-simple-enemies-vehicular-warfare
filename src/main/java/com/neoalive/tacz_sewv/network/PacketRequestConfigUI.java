@@ -4,9 +4,9 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.config.ConfigApplier;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Client requests the config UI; server replies with {@link PacketOpenConfigUI}. */
 public class PacketRequestConfigUI {
@@ -26,7 +26,7 @@ public class PacketRequestConfigUI {
                     ? ConfigApplier.captureServerSnapshot(player.getServer())
                     : Map.of();
             NetworkHandler.CHANNEL.send(
-                    net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
+                    com.neoalive.tacz_sewv.platform.PacketDistributor.PLAYER.with(() -> player),
                     new PacketOpenConfigUI(canEdit, server));
         });
         ctx.get().setPacketHandled(true);

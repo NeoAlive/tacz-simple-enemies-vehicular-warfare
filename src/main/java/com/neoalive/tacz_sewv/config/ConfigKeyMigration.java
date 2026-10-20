@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 /**
  * Carries renamed {@link SewvConfig} keys over to their new names in an existing toml.
  *
- * <p>Forge's {@code ForgeConfigSpec} <em>removes</em> every key its spec no longer names the moment
+ * <p>Forge's {@code ModConfigSpec} <em>removes</em> every key its spec no longer names the moment
  * it corrects a loaded file, so a plain rename silently resets an edited value to the new default.
  * {@code MixinForgeConfigSpec} calls {@link #apply} on the raw config just before that correction,
  * which moves each old value under its new path; the correction then keeps it. A key is moved only

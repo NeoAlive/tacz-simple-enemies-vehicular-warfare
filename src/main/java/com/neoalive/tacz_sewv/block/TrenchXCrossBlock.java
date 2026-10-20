@@ -30,8 +30,8 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.MapColor;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -102,7 +102,13 @@ public class TrenchXCrossBlock extends Block {
         TrenchBlock.onPlayerTopologyEdit(level, pos);
     }
 
+    // NeoForge port: 1.21 split Block#use into useWithoutItem/useItemOn; the main-hand click lands
+    // here (useItemOn passes through by default) and runs the method below unchanged.
     @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        return use(state, level, pos, player, InteractionHand.MAIN_HAND, hit);
+    }
+
     @SuppressWarnings("deprecation")
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                  InteractionHand hand, BlockHitResult hit) {
@@ -157,12 +163,12 @@ public class TrenchXCrossBlock extends Block {
     }
 
     @Override
-    public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
         PLAYER_EDIT.set(true);
         if (!level.isClientSide && player.isCreative()) {
             preventCreativeDropFromBottomPart(level, pos, state, player);
         }
-        super.playerWillDestroy(level, pos, state, player);
+        return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Override
@@ -197,12 +203,12 @@ public class TrenchXCrossBlock extends Block {
 
     @Override
     @SuppressWarnings("deprecation")
-    public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos, PathComputationType type) {
+    protected boolean isPathfindable(BlockState state, PathComputationType type) {
         return type == PathComputationType.LAND;
     }
 
     @Override
-    public BlockPathTypes getBlockPathType(BlockState state, BlockGetter level, BlockPos pos, @Nullable Mob mob) {
-        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? TrenchPathTypes.TRENCH : BlockPathTypes.OPEN;
+    public PathType getBlockPathType(BlockState state, BlockGetter level, BlockPos pos, @Nullable Mob mob) {
+        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? TrenchPathTypes.TRENCH : PathType.OPEN;
     }
 }

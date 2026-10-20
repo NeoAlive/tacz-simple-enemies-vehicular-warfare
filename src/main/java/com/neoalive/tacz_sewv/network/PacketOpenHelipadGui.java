@@ -6,13 +6,13 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.airport.HelipadClearance;
 import com.neoalive.tacz_sewv.block.HelipadBlockEntity;
 import com.neoalive.tacz_sewv.client.HelipadClient;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Server to client: open the helipad panel, or refresh it after Check Clearance. */
 public class PacketOpenHelipadGui {

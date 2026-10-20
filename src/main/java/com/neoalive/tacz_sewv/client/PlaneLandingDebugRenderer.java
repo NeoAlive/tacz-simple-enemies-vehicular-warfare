@@ -6,11 +6,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import org.joml.Matrix3f;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -24,7 +23,7 @@ import com.neoalive.tacz_sewv.entity.ai.plane.DubinsPath;
  * Gated on the {@code sewvPlaneCombatDebug} gamerule. Draws straight from {@link PlaneLandingDebugClient}'s
  * synced state, not from a world entity scan.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class PlaneLandingDebugRenderer {
 
     private static final float[] LERP_COLOR = {0.2f, 0.85f, 1.0f};
@@ -108,7 +107,6 @@ public final class PlaneLandingDebugRenderer {
     private static void line(PoseStack pose, VertexConsumer lines, Vec3 from, Vec3 to, Vec3 cam,
                              float[] color) {
         Matrix4f matrix = pose.last().pose();
-        Matrix3f normalMat = pose.last().normal();
         float dx = (float) (to.x - from.x);
         float dy = (float) (to.y - from.y);
         float dz = (float) (to.z - from.z);
@@ -125,9 +123,9 @@ public final class PlaneLandingDebugRenderer {
         float y1 = (float) (to.y - cam.y);
         float z1 = (float) (to.z - cam.z);
 
-        lines.vertex(matrix, x0, y0, z0).color(color[0], color[1], color[2], 0.9f)
-                .normal(normalMat, nx, ny, nz).endVertex();
-        lines.vertex(matrix, x1, y1, z1).color(color[0], color[1], color[2], 0.9f)
-                .normal(normalMat, nx, ny, nz).endVertex();
+        lines.addVertex(matrix, x0, y0, z0).setColor(color[0], color[1], color[2], 0.9f)
+                .setNormal(pose.last(), nx, ny, nz);
+        lines.addVertex(matrix, x1, y1, z1).setColor(color[0], color[1], color[2], 0.9f)
+                .setNormal(pose.last(), nx, ny, nz);
     }
 }

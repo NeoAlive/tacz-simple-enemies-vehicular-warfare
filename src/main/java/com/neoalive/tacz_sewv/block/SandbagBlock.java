@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.block;
 
 import javax.annotation.Nullable;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -25,8 +26,8 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.material.MapColor;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -44,6 +45,14 @@ import com.neoalive.tacz_sewv.entity.SandbagSeatEntity;
  * {@link TrenchPathTypes#TRENCH} still let infantry path in.
  */
 public class SandbagBlock extends BaseEntityBlock {
+
+    // NeoForge port: 1.21 BaseEntityBlock requires a codec.
+    public static final MapCodec<SandbagBlock> CODEC = simpleCodec(properties -> new SandbagBlock());
+
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
+    }
 
     public static final net.minecraft.world.level.block.state.properties.DirectionProperty FACING =
             HorizontalDirectionalBlock.FACING;
@@ -63,7 +72,13 @@ public class SandbagBlock extends BaseEntityBlock {
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }
 
+    // NeoForge port: 1.21 split Block#use into useWithoutItem/useItemOn; the main-hand click lands
+    // here (useItemOn passes through by default) and runs the method below unchanged.
     @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        return use(state, level, pos, player, InteractionHand.MAIN_HAND, hit);
+    }
+
     @SuppressWarnings("deprecation")
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                   InteractionHand hand, BlockHitResult hit) {
@@ -137,15 +152,14 @@ public class SandbagBlock extends BaseEntityBlock {
 
     @Override
     @SuppressWarnings("deprecation")
-    public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos,
-                                  PathComputationType type) {
+    protected boolean isPathfindable(BlockState state, PathComputationType type) {
         // Same as TrenchBlock / FoxholeBlock — without LAND, WalkNodeEvaluator marks the cell
         // BLOCKED and infantry freeze at the rim.
         return type == PathComputationType.LAND;
     }
 
     @Override
-    public BlockPathTypes getBlockPathType(BlockState state, BlockGetter level, BlockPos pos,
+    public PathType getBlockPathType(BlockState state, BlockGetter level, BlockPos pos,
                                            @Nullable Mob mob) {
         return TrenchPathTypes.TRENCH;
     }

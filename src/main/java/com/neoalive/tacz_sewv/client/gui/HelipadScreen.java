@@ -144,7 +144,7 @@ public class HelipadScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics g) {
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
     }
 
     @Override

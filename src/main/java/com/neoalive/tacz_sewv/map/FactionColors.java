@@ -42,7 +42,7 @@ public final class FactionColors {
         pmcArgb = readConfigColor(ClientConfig.COLOR_PMC, 0xFF55FF55);
     }
 
-    private static int readConfigColor(net.minecraftforge.common.ForgeConfigSpec.ConfigValue<String> value, int fallback) {
+    private static int readConfigColor(net.neoforged.neoforge.common.ModConfigSpec.ConfigValue<String> value, int fallback) {
         try {
             return ClientConfig.parseColor(value.get(), fallback);
         } catch (RuntimeException ignored) {

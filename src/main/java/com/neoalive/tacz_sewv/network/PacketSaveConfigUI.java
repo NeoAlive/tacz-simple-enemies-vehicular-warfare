@@ -4,10 +4,10 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.config.ConfigApplier;
 import com.neoalive.tacz_sewv.config.ConfigWireCodec;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Client → server: apply changed server-scope config drafts. */
 public class PacketSaveConfigUI {

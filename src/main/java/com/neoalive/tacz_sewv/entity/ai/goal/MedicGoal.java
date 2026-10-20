@@ -10,13 +10,13 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.crew.UnitInventory;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
@@ -258,6 +258,6 @@ public class MedicGoal extends Goal {
     }
 
     private IItemHandler inventory() {
-        return this.unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        return UnitInventory.of(this.unit);
     }
 }

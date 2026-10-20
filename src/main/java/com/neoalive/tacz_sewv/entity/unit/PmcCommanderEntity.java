@@ -18,13 +18,14 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandlerModifiable;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.UnitInventory;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.platform.RegistryLookup;
 
 /**
  * PMC Commander: a debug/egg-spawn-only PMC variant with its own look, a pistol-only loadout, and
@@ -51,9 +52,9 @@ public class PmcCommanderEntity extends PmcUnitEntity {
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(AUTO_ORDERS_ENABLED, true);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(AUTO_ORDERS_ENABLED, true);
     }
 
     @Override
@@ -89,7 +90,7 @@ public class PmcCommanderEntity extends PmcUnitEntity {
     public void equipRandomGun() {
         ItemStack sidearm = buildSidearm(this.getRandom());
         if (sidearm.isEmpty()) return;
-        this.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(h -> {
+        java.util.Optional.ofNullable(UnitInventory.of(this)).ifPresent(h -> {
             if (h instanceof IItemHandlerModifiable modifiable) {
                 modifiable.setStackInSlot(0, sidearm);
             }
@@ -108,7 +109,7 @@ public class PmcCommanderEntity extends PmcUnitEntity {
                 .setAmmoCount(SIDEARM_MAGAZINE)
                 .setFireMode(FireMode.SEMI)
                 .setCount(1)
-                .build();
+                .build(RegistryLookup.current());
 
         IGun gun = IGun.getIGunOrNull(stack);
         if (gun == null) return ItemStack.EMPTY;

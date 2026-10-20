@@ -9,10 +9,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.invasion.InvasionBlockEditor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Client → server: write capture_point config from the editor. */
 public class PacketSaveCapturePoint {

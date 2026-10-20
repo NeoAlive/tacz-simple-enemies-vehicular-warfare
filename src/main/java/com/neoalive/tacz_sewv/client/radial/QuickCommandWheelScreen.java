@@ -226,7 +226,7 @@ public final class QuickCommandWheelScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
         Minecraft mc = this.minecraft;
         long window = mc != null ? mc.getWindow().getWindow() : 0L;
         boolean ctrl = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LCONTROL)
@@ -246,14 +246,14 @@ public final class QuickCommandWheelScreen extends Screen {
         // Scroll down skips the running queued order — except in Formation, which owns the wheel.
         if (!inFormationSubmenu()) {
             if (delta >= 0.0 || !OrderQueueClient.isOn() || OrderQueueClient.labels().isEmpty()) {
-                return super.mouseScrolled(mouseX, mouseY, delta);
+                return super.mouseScrolled(mouseX, mouseY, scrollX, delta);
             }
             OrderQueueClient.skip();
             playUi(ModSounds.SCALE.get(), 0.92f + (float) (Math.random() * 0.16));
             return true;
         }
         if (!inFormationSubmenu() || hotFormationShape() == null) {
-            return super.mouseScrolled(mouseX, mouseY, delta);
+            return super.mouseScrolled(mouseX, mouseY, scrollX, delta);
         }
         boolean shift = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LSHIFT)
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RSHIFT));

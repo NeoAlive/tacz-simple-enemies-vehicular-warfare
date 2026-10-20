@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.heli;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.PacketDistributor;
 import org.joml.Vector3d;
 import org.slf4j.Logger;
 
@@ -28,6 +27,7 @@ import com.neoalive.tacz_sewv.heli.physics.McPose;
 import com.neoalive.tacz_sewv.heli.physics.RotorModel;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketHeliRoll;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /**
  * Everything one AI-flown helicopter needs (server side): airframe, physics, controller,

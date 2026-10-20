@@ -1,12 +1,10 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import java.util.function.Supplier;
-
 import com.atsuishio.superbwarfare.network.message.send.SeekingWeaponWarningMessage;
 import com.atsuishio.superbwarfare.tools.EntityFindUtil;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -26,11 +24,12 @@ import com.neoalive.tacz_sewv.util.ThreatDecoy;
 @Mixin(value = SeekingWeaponWarningMessage.class, remap = false)
 public abstract class MixinSeekingWeaponWarning {
 
+    // NeoForge port: SBW 1.21 handlers are Kotlin `PayloadContext.handler()` extensions, i.e.
+    // handler(IPayloadContext) — PayloadContext is a typealias for NeoForge's IPayloadContext.
     @Inject(method = "handler", at = @At("HEAD"))
-    private void tacz_sewv$decoyOnLockWarning(Supplier<NetworkEvent.Context> ctxSupplier,
+    private void tacz_sewv$decoyOnLockWarning(IPayloadContext ctx,
             CallbackInfo ci) {
-        NetworkEvent.Context ctx = ctxSupplier.get();
-        ServerPlayer sender = ctx.getSender();
+        ServerPlayer sender = ctx.player() instanceof ServerPlayer sp ? sp : null;
         if (sender == null) return;
         SeekingWeaponWarningMessage self = (SeekingWeaponWarningMessage) (Object) this;
         Entity warned = EntityFindUtil.findEntity(sender.level(), self.getUuid().toString());

@@ -10,5 +10,5 @@ public final class PmcCommanderModelLayers {
     private PmcCommanderModelLayers() {}
 
     public static final ModelLayerLocation PMC_COMMANDER_LAYER =
-            new ModelLayerLocation(new ResourceLocation(TaczSewv.MODID, "pmc_commander_layer"), "main");
+            new ModelLayerLocation(ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "pmc_commander_layer"), "main");
 }

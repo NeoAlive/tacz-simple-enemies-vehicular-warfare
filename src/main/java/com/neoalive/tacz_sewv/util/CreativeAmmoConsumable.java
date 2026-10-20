@@ -4,10 +4,13 @@ import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
-import net.minecraftforge.eventbus.api.EventPriority;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.common.util.TriState;
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+
+import com.neoalive.tacz_sewv.platform.StackTag;
 
 /**
  * Marks {@code superbwarfare:creative_ammo_box} stacks that entered a
@@ -29,8 +32,7 @@ public final class CreativeAmmoConsumable {
 
     public static boolean isConsumable(ItemStack stack) {
         return isCreativeAmmoBox(stack)
-                && stack.hasTag()
-                && stack.getTag().contains(TAG);
+                && StackTag.getOrEmpty(stack).contains(TAG);
     }
 
     /**
@@ -39,7 +41,7 @@ public final class CreativeAmmoConsumable {
      */
     public static ItemStack stamp(ItemStack stack) {
         if (!isCreativeAmmoBox(stack) || isConsumable(stack)) return stack;
-        stack.getOrCreateTag().putBoolean(TAG, true);
+        StackTag.update(stack, tag -> tag.putBoolean(TAG, true));
         return stack;
     }
 
@@ -58,16 +60,16 @@ public final class CreativeAmmoConsumable {
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public static void onItemPickup(EntityItemPickupEvent event) {
-        if (event.getEntity().level().isClientSide) return;
-        if (!isConsumable(event.getItem().getItem())) return;
-        event.setCanceled(true);
-        event.getItem().discard();
+    public static void onItemPickup(ItemEntityPickupEvent.Pre event) {
+        // NeoForge port: the pickup event is not cancellable on 1.21; refuse the pickup instead.
+        if (event.getPlayer().level().isClientSide) return;
+        if (!isConsumable(event.getItemEntity().getItem())) return;
+        event.setCanPickup(TriState.FALSE);
+        event.getItemEntity().discard();
     }
 
     @SubscribeEvent
-    public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
-        scrubPlayer(event.player);
+    public static void onPlayerTick(PlayerTickEvent.Post event) {
+        scrubPlayer(event.getEntity());
     }
 }

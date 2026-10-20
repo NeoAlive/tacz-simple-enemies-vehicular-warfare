@@ -31,7 +31,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -71,6 +70,7 @@ import com.neoalive.tacz_sewv.network.PacketHudNotification;
 import com.neoalive.tacz_sewv.network.PacketOpenConfigUI;
 import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
 import com.neoalive.tacz_sewv.notify.NotificationKind;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner.Emplacement;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner;
@@ -594,7 +594,7 @@ public class SewvCommand {
             source.sendFailure(Component.translatable("command.tacz_sewv.debug.structureTag.no_target"));
             return 0;
         }
-        if (!(player.pick(player.getBlockReach(), 1.0f, false) instanceof BlockHitResult hit)
+        if (!(player.pick(player.blockInteractionRange(), 1.0f, false) instanceof BlockHitResult hit)
                 || hit.getType() != HitResult.Type.BLOCK) {
             source.sendFailure(Component.translatable("command.tacz_sewv.debug.structureTag.no_target"));
             return 0;

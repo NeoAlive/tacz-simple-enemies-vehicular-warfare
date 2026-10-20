@@ -1,6 +1,6 @@
 package com.neoalive.tacz_sewv.compat;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
  * Reads SEM config values this mod only reports on, never acts on.
@@ -26,7 +26,7 @@ public final class SemConfigProbe {
         for (String className : TACTICAL_AI_CONFIG_CLASSES) {
             try {
                 Object holder = Class.forName(className).getField("ENABLE_LADDER_FALLBACK").get(null);
-                if (holder instanceof ForgeConfigSpec.ConfigValue<?> value
+                if (holder instanceof ModConfigSpec.ConfigValue<?> value
                         && value.get() instanceof Boolean flag) {
                     return flag;
                 }

@@ -6,12 +6,12 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
-import net.minecraftforge.client.settings.KeyConflictContext;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import org.lwjgl.glfw.GLFW;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -22,7 +22,7 @@ import com.neoalive.tacz_sewv.compat.NeoArmsCompat;
  * Opens the carrier plane-ops GUI while seated. Mode toggle is owned by Neo Arms (J). Registered only
  * with Neo Arms installed, so the key does not sit in the controls list doing nothing.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class CarrierOpsKeybind {
 
     /**
@@ -43,7 +43,7 @@ public final class CarrierOpsKeybind {
 
     private CarrierOpsKeybind() {}
 
-    @Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+    @EventBusSubscriber(modid = TaczSewv.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static final class Registration {
         private Registration() {}
 
@@ -54,8 +54,8 @@ public final class CarrierOpsKeybind {
     }
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || !NeoArmsCompat.present()) return;
+    public static void onClientTick(ClientTickEvent.Post event) {
+        if (!NeoArmsCompat.present()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null || mc.screen != null) return;
 

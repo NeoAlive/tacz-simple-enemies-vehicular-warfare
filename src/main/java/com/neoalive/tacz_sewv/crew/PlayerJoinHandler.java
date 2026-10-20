@@ -5,15 +5,16 @@ import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketSyncPmcIdentity;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
+import com.neoalive.tacz_sewv.platform.StackTag;
 
 public class PlayerJoinHandler {
 
@@ -27,7 +28,7 @@ public class PlayerJoinHandler {
 
         if (!data.hasReceivedBook(playerUuid)) {
             ItemStack ledger = new ItemStack(ModItems.DOCTRINE_LEDGER.get());
-            ledger.getOrCreateTag().putBoolean("sewv_is_initial", true);
+            StackTag.update(ledger, tag -> tag.putBoolean("sewv_is_initial", true));
 
             if (player.getInventory().add(ledger)) {
                 data.setReceivedBook(playerUuid);

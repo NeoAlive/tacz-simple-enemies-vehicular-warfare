@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -20,7 +21,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 /**
@@ -136,7 +136,7 @@ public final class EntityCleanup {
     private static boolean related(Entity entity) {
         if (entity instanceof Player) return false;
         if (entity instanceof VehicleEntity || entity instanceof AbstractUnit) return true;
-        ResourceLocation id = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         return id != null && NAMESPACES.contains(id.getNamespace());
     }
 

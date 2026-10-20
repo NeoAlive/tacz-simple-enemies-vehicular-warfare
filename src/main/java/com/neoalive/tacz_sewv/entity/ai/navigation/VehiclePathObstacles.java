@@ -22,10 +22,10 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 
@@ -55,7 +55,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
  * {@link TurretWreckEntity} is a separate type (the blown-off turret), indexed from the
  * same rebuild. Refresh is throttled — never rebuild per path-search node.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class VehiclePathObstacles {
 
     private static final int REFRESH_INTERVAL = 40;
@@ -128,8 +128,7 @@ public final class VehiclePathObstacles {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
         int now = event.getServer().getTickCount();
         Set<ServerLevel> live = new HashSet<>();
         for (ServerLevel level : event.getServer().getAllLevels()) {

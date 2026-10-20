@@ -5,12 +5,12 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinClient;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** S→C: sticky faction skin (+ RNG salt) on a hull (or clear). PersistentData is not client-visible. */
 public final class PacketVehicleSkin {

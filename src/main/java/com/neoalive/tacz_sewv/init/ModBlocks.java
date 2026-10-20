@@ -1,9 +1,9 @@
 package com.neoalive.tacz_sewv.init;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.Block;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
+import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredRegister;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.CapturePointBlock;
@@ -23,51 +23,51 @@ import com.neoalive.tacz_sewv.block.TrenchXCrossBlock;
 public class ModBlocks {
 
     public static final DeferredRegister<Block> BLOCKS =
-            DeferredRegister.create(ForgeRegistries.BLOCKS, TaczSewv.MODID);
+            DeferredRegister.create(BuiltInRegistries.BLOCK, TaczSewv.MODID);
 
-    public static final RegistryObject<Block> CAPTURE_POINT =
+    public static final DeferredHolder<Block, Block> CAPTURE_POINT =
             BLOCKS.register("capture_point", CapturePointBlock::new);
 
-    public static final RegistryObject<Block> TEAM_BASE =
+    public static final DeferredHolder<Block, Block> TEAM_BASE =
             BLOCKS.register("team_base", TeamBaseBlock::new);
 
-    public static final RegistryObject<Block> TRENCH =
+    public static final DeferredHolder<Block, Block> TRENCH =
             BLOCKS.register("trench", TrenchBlock::new);
 
     /** Manual {@code +} junction — not auto-selected by trench connections. */
-    public static final RegistryObject<Block> TRENCH_X_CROSS =
+    public static final DeferredHolder<Block, Block> TRENCH_X_CROSS =
             BLOCKS.register("trench_x_cross", TrenchXCrossBlock::new);
 
-    public static final RegistryObject<Block> FOXHOLE =
+    public static final DeferredHolder<Block, Block> FOXHOLE =
             BLOCKS.register("foxhole", FoxholeBlock::new);
 
     /** Ammo pad under a mortar / TOW / FIXED mount. */
-    public static final RegistryObject<Block> EMPLACEMENT =
+    public static final DeferredHolder<Block, Block> EMPLACEMENT =
             BLOCKS.register("emplacement_block", EmplacementBlock::new);
 
     /** Directional sandbag fighting position with a one-person seat. */
-    public static final RegistryObject<Block> SANDBAG =
+    public static final DeferredHolder<Block, Block> SANDBAG =
             BLOCKS.register("sandbag", SandbagBlock::new);
 
     /** PMC player-defined strip marker. */
-    public static final RegistryObject<Block> RUNWAY =
+    public static final DeferredHolder<Block, Block> RUNWAY =
             BLOCKS.register("runway_block", RunwayBlock::new);
 
     /** Structure-prep vehicle spawn marker (barrier-like, traversable). */
-    public static final RegistryObject<Block> SPAWN_PROBE =
+    public static final DeferredHolder<Block, Block> SPAWN_PROBE =
             BLOCKS.register("spawn_probe", SpawnProbeBlock::new);
 
     /** Player-owned Forward Operating Base command block. */
-    public static final RegistryObject<Block> QUARTERS_BENCH =
+    public static final DeferredHolder<Block, Block> QUARTERS_BENCH =
             BLOCKS.register("quarters_bench", QuartersBenchBlock::new);
 
-    public static final RegistryObject<Block> PARKING_FIELD =
+    public static final DeferredHolder<Block, Block> PARKING_FIELD =
             BLOCKS.register("parking_field", ParkingFieldBlock::new);
 
-    public static final RegistryObject<Block> STOCKPILE_AMMO =
+    public static final DeferredHolder<Block, Block> STOCKPILE_AMMO =
             BLOCKS.register("stockpile_ammo", StockpileAmmoBlock::new);
 
     /** Decorative helipad decal. */
-    public static final RegistryObject<Block> HELIPAD =
+    public static final DeferredHolder<Block, Block> HELIPAD =
             BLOCKS.register("helipad", HelipadBlock::new);
 }

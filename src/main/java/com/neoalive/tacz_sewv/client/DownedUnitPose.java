@@ -63,7 +63,7 @@ public final class DownedUnitPose {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public static final ResourceLocation RESOURCE =
-            new ResourceLocation(TaczSewv.MODID, "animations/downed.animation.json");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "animations/downed.animation.json");
 
     private static final Map<String, String> BONE_NAMES = Map.of(
             "fakeroot", "fakeRoot",

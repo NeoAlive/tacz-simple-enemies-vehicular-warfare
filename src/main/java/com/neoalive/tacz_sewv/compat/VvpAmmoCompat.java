@@ -3,7 +3,7 @@ package com.neoalive.tacz_sewv.compat;
 import java.util.List;
 
 import net.minecraft.world.item.Item;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /**
  * Softcompat for <b>vvp</b> (Vintage Vehicle Pack) ammo. Same shape as

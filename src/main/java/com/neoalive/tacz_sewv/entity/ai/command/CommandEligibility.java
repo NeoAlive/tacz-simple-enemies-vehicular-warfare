@@ -87,7 +87,7 @@ public final class CommandEligibility {
         }
         String id = null;
         try {
-            var key = net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getKey(type);
+            var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(type);
             if (key != null) id = key.toString();
         } catch (Throwable ignored) {}
         engine = NpcVehicleOverrides.applyEngineHint(id, engine);

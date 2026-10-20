@@ -13,7 +13,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -27,6 +26,7 @@ import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.order.RadioRaycast;
 import com.neoalive.tacz_sewv.order.TargetReachability;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 import com.neoalive.tacz_sewv.util.ImpactTickets;
 
 /**

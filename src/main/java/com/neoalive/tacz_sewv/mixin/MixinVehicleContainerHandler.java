@@ -2,7 +2,7 @@ package com.neoalive.tacz_sewv.mixin;
 
 import com.atsuishio.superbwarfare.inventory.handler.VehicleContainerHandler;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.items.ItemStackHandler;
+import net.neoforged.neoforge.items.ItemStackHandler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

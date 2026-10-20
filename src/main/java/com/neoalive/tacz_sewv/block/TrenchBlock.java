@@ -31,8 +31,8 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.MapColor;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -128,7 +128,13 @@ public class TrenchBlock extends Block {
      * Stick toggles leaf netting on both halves. Axe cut: end → mid, tcross / walled face →
      * plinth (player edit — neighbours refresh; explosions still leave shapes alone).
      */
+    // NeoForge port: 1.21 split Block#use into useWithoutItem/useItemOn; the main-hand click lands
+    // here (useItemOn passes through by default) and runs the method below unchanged.
     @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        return use(state, level, pos, player, InteractionHand.MAIN_HAND, hit);
+    }
+
     @SuppressWarnings("deprecation")
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                  InteractionHand hand, BlockHitResult hit) {
@@ -156,7 +162,7 @@ public class TrenchBlock extends Block {
             applyConnection(level, lowerPos, lower, next);
             onPlayerTopologyEdit(level, lowerPos);
             level.playSound(null, pos, SoundEvents.AXE_STRIP, SoundSource.BLOCKS, 1.0f, 1.0f);
-            stack.hurtAndBreak(1, player, p -> p.broadcastBreakEvent(hand));
+            stack.hurtAndBreak(1, player, LivingEntity.getSlotForHand(hand));
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
@@ -198,12 +204,12 @@ public class TrenchBlock extends Block {
     }
 
     @Override
-    public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
         PLAYER_EDIT.set(true);
         if (!level.isClientSide && player.isCreative()) {
             preventCreativeDropFromBottomPart(level, pos, state, player);
         }
-        super.playerWillDestroy(level, pos, state, player);
+        return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Override
@@ -240,7 +246,7 @@ public class TrenchBlock extends Block {
 
     @Override
     @SuppressWarnings("deprecation")
-    public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos, PathComputationType type) {
+    protected boolean isPathfindable(BlockState state, PathComputationType type) {
         // LAND must be true or WalkNodeEvaluator marks every trench cell BLOCKED and
         // infantry freeze at the rim. WATER/AIR stay closed — this is a ditch, not a duct.
         return type == PathComputationType.LAND;
@@ -248,8 +254,8 @@ public class TrenchBlock extends Block {
 
     /** Lower floor is footing; upper wall/netting cell stays OPEN so the body fits above. */
     @Override
-    public BlockPathTypes getBlockPathType(BlockState state, BlockGetter level, BlockPos pos, @Nullable Mob mob) {
-        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? TrenchPathTypes.TRENCH : BlockPathTypes.OPEN;
+    public PathType getBlockPathType(BlockState state, BlockGetter level, BlockPos pos, @Nullable Mob mob) {
+        return state.getValue(HALF) == DoubleBlockHalf.LOWER ? TrenchPathTypes.TRENCH : PathType.OPEN;
     }
 
     private static void applyConnection(Level level, BlockPos lowerPos, BlockState lower, TrenchConnection connection) {

@@ -17,6 +17,7 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
 
 /**
  * A block raycast that never loads a chunk.
@@ -64,7 +65,7 @@ public final class LoadedClip implements BlockGetter {
      */
     public static BlockHitResult clipAsVehicle(Level level, Vec3 from, Vec3 to,
             ClipContext.Block block, ClipContext.Fluid fluid) {
-        return new LoadedClip(level, true).clip(new ClipContext(from, to, block, fluid, null));
+        return new LoadedClip(level, true).clip(new ClipContext(from, to, block, fluid, CollisionContext.empty()));
     }
 
     @Nullable

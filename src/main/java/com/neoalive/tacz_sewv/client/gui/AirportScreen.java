@@ -396,7 +396,7 @@ public class AirportScreen extends Screen {
 
     /** No world dim: the strip being surveyed stays visible behind the panel. */
     @Override
-    public void renderBackground(GuiGraphics g) {
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
     }
 
     @Override

@@ -6,11 +6,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
@@ -24,7 +24,7 @@ import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
  *
  * <p>Same passenger test as the mixin; both stay. Also runs unlock loot when the hull is clear.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class EnemyCrewInteractGuard {
 
     private EnemyCrewInteractGuard() {
@@ -32,22 +32,29 @@ public final class EnemyCrewInteractGuard {
 
     @SubscribeEvent
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        handle(event, event.getTarget());
+        handle(event, event.getTarget(), result -> {
+            event.setCanceled(true);
+            event.setCancellationResult(result);
+        });
     }
 
     @SubscribeEvent
     public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
-        handle(event, event.getTarget());
+        handle(event, event.getTarget(), result -> {
+            event.setCanceled(true);
+            event.setCancellationResult(result);
+        });
     }
 
-    private static void handle(PlayerInteractEvent event, Entity target) {
+    // NeoForge port: only the concrete interact events are cancellable, so each passes its own cancel.
+    private static void handle(PlayerInteractEvent event, Entity target,
+                               java.util.function.Consumer<InteractionResult> cancel) {
         if (!(target instanceof VehicleEntity) && !LvCompat.isLvHull(target)) return;
         Player player = event.getEntity();
         if (player.level().isClientSide()) return;
 
         if (hasEnemyCrew(target)) {
-            event.setCanceled(true);
-            event.setCancellationResult(InteractionResult.FAIL);
+            cancel.accept(InteractionResult.FAIL);
             player.displayClientMessage(
                     Component.translatable("message.tacz_sewv.interact.enemy_crew")
                             .withStyle(ChatFormatting.GRAY), true);

@@ -14,13 +14,12 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.client.editor.IdSearch;
 import com.neoalive.tacz_sewv.client.editor.MiscPresetApply;
@@ -28,6 +27,7 @@ import com.neoalive.tacz_sewv.client.editor.PoolPresetApply.Mode;
 import com.neoalive.tacz_sewv.client.editor.VehiclePoolCatalog;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketUpdateVehicleClasses;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.MiscPackPresets;
 import com.neoalive.tacz_sewv.util.MiscPackPresets.Assessment;
@@ -52,7 +52,7 @@ import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
  *       still empty, so a second helmet is never applied; medics and engineers wear the helmet only.</li>
  * </ul>
  */
-public class MiscEditorScreen extends Screen {
+public class MiscEditorScreen extends SewvScreen {
 
     private static final int PANEL_W_PREF = 560;
     private static final int RAIL_W = 140;
@@ -357,7 +357,7 @@ public class MiscEditorScreen extends Screen {
         }
         if (this.itemIds == null) {
             List<String> ids = new ArrayList<>();
-            for (ResourceLocation rl : ForgeRegistries.ITEMS.getKeys()) ids.add(rl.toString());
+            for (ResourceLocation rl : BuiltInRegistries.ITEM.keySet()) ids.add(rl.toString());
             ids.sort(String::compareTo);
             this.itemIds = ids;
             this.itemIdsLower = ids.stream().map(s -> s.toLowerCase(Locale.ROOT)).toList();
@@ -392,14 +392,14 @@ public class MiscEditorScreen extends Screen {
     @Nullable
     private static EquipmentSlot slotOf(String id) {
         ResourceLocation rl = ResourceLocation.tryParse(id);
-        Item item = rl != null && ForgeRegistries.ITEMS.containsKey(rl) ? ForgeRegistries.ITEMS.getValue(rl) : null;
+        Item item = rl != null && BuiltInRegistries.ITEM.containsKey(rl) ? BuiltInRegistries.ITEM.get(rl) : null;
         return item instanceof ArmorItem a ? a.getEquipmentSlot() : null;
     }
 
     private String armorName(String id) {
         return this.armorNames.computeIfAbsent(id, k -> {
             ResourceLocation rl = ResourceLocation.tryParse(k);
-            Item item = rl != null && ForgeRegistries.ITEMS.containsKey(rl) ? ForgeRegistries.ITEMS.getValue(rl) : null;
+            Item item = rl != null && BuiltInRegistries.ITEM.containsKey(rl) ? BuiltInRegistries.ITEM.get(rl) : null;
             return item == null ? "?" : item.getDescription().getString();
         });
     }
@@ -699,7 +699,7 @@ public class MiscEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
         table().mouseScrolled(delta);
         return true;
     }

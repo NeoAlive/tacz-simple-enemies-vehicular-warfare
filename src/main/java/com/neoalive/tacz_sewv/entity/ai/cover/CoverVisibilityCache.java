@@ -21,12 +21,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.level.BlockEvent;
-import net.minecraftforge.event.level.ChunkEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.ChunkEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -40,7 +40,7 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
  * directions at tank turret eye height. Shared across all crews on a {@link ServerLevel} —
  * lookups are O(1) after warm. Lazy bake + event dirty + budgeted per-tick rebuild.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class CoverVisibilityCache {
 
     public static final int CELL = 2;
@@ -243,8 +243,7 @@ public final class CoverVisibilityCache {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
         if (!enabled()) return;
         // One budget for the whole server, as coverCacheBakeCellsPerTick documents — it used to be granted
         // afresh to every dimension. coverBakeNanosPerTick optionally caps the same work by time.

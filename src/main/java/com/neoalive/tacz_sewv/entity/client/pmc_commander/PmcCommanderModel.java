@@ -110,8 +110,8 @@ public class PmcCommanderModel<T extends Entity> extends HierarchicalModel<T> im
 
     @Override
     public void renderToBuffer(PoseStack poseStack, VertexConsumer vertexConsumer, int packedLight, int packedOverlay,
-                               float red, float green, float blue, float alpha) {
-        fakeRoot.render(poseStack, vertexConsumer, packedLight, packedOverlay, red, green, blue, alpha);
+                               int color) {
+        fakeRoot.render(poseStack, vertexConsumer, packedLight, packedOverlay, color);
     }
 
     @Override

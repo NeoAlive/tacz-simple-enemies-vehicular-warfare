@@ -2,12 +2,12 @@ package com.neoalive.tacz_sewv.invasion;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketInvasionHud;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /**
  * Pushes {@link PacketInvasionHud} while a session is active (~1s). Layout lives on
@@ -38,8 +38,7 @@ public final class InvasionHudTracker {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
         if (event.getServer().getTickCount() % INTERVAL_TICKS != 0) return;
         for (ServerLevel level : event.getServer().getAllLevels()) {
             if (!InvasionSession.isActive(level)) continue;

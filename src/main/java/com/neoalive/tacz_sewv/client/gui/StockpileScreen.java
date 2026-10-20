@@ -12,7 +12,7 @@ import com.neoalive.tacz_sewv.inventory.StockpileMenu;
 public class StockpileScreen extends AbstractContainerScreen<StockpileMenu> {
 
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(TaczSewv.MODID, "textures/gui/stockpile_inventory.png");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/stockpile_inventory.png");
 
     public StockpileScreen(StockpileMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
@@ -33,7 +33,6 @@ public class StockpileScreen extends AbstractContainerScreen<StockpileMenu> {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
         this.renderTooltip(graphics, mouseX, mouseY);
     }

@@ -18,7 +18,6 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
@@ -31,6 +30,7 @@ import com.neoalive.tacz_sewv.loadout.WeaponCatalogSource;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenLoadoutEditor;
 import com.neoalive.tacz_sewv.network.PacketUpdateLoadouts;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
@@ -45,7 +45,7 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
  * tooltips go through {@link #drawTip}, which wraps and caps them so a long entry can never
  * overflow the screen.
  */
-public class LoadoutEditorScreen extends Screen {
+public class LoadoutEditorScreen extends SewvScreen {
 
     private static final int PANEL_W_PREF = 460;
     private static final int ROW_H = 12;
@@ -687,7 +687,7 @@ public class LoadoutEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
         this.scroll -= (int) Math.signum(delta);
         clampScroll();
         return true;

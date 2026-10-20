@@ -1,23 +1,41 @@
 package com.neoalive.tacz_sewv.config;
 
-import com.electronwill.nightconfig.core.CommentedConfig;
-import com.electronwill.nightconfig.core.file.CommentedFileConfig;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.fml.config.ConfigTracker;
-import net.minecraftforge.fml.config.ModConfig;
+import javax.annotation.Nullable;
 
-import com.neoalive.tacz_sewv.TaczSewv;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.common.ModConfigSpec;
+
 import com.neoalive.tacz_sewv.map.FactionColors;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
 
+/**
+ * NeoForge port: Forge exposed {@code ConfigTracker.configSets()} and {@code ModConfig.save()}; NeoForge
+ * has neither, but a loaded {@link ModConfigSpec} saves its own file. "Is it a real file config" became
+ * "is the spec loaded" — a server config is only loaded while a world is.
+ */
 public final class ConfigPersistence {
+
+    /** What {@code ModContainer.registerConfig} handed back; set from {@code TaczSewv}. */
+    @Nullable
+    private static ModConfig serverConfig;
 
     private ConfigPersistence() {}
 
+    public static void remember(ModConfig.Type type, ModConfig config) {
+        if (type == ModConfig.Type.SERVER) serverConfig = config;
+    }
+
+    /** The server config's resolved file, when one is loaded; null otherwise. */
+    @Nullable
+    public static java.nio.file.Path serverConfigPath() {
+        ModConfig cfg = serverConfig;
+        if (cfg == null || !SewvConfig.SPEC.isLoaded()) return null;
+        return cfg.getFullPath();
+    }
+
     public static void saveClient() {
-        ModConfig cfg = findConfig(ModConfig.Type.CLIENT);
-        if (cfg != null) {
-            cfg.save();
+        if (save(ClientConfig.SPEC)) {
             FactionColors.refreshConfigArgb();
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
                     () -> () -> com.neoalive.tacz_sewv.client.NotificationHud.refreshScreenTimeCache());
@@ -25,21 +43,12 @@ public final class ConfigPersistence {
     }
 
     public static void saveServer() {
-        ModConfig cfg = findConfig(ModConfig.Type.SERVER);
-        if (cfg != null) {
-            cfg.save();
-        }
+        save(SewvConfig.SPEC);
     }
 
-    private static ModConfig findConfig(ModConfig.Type type) {
-        for (ModConfig cfg : ConfigTracker.INSTANCE.configSets().get(type)) {
-            if (TaczSewv.MODID.equals(cfg.getModId())) {
-                CommentedConfig data = cfg.getConfigData();
-                if (data instanceof CommentedFileConfig) {
-                    return cfg;
-                }
-            }
-        }
-        return null;
+    private static boolean save(ModConfigSpec spec) {
+        if (!spec.isLoaded()) return false;
+        spec.save();
+        return true;
     }
 }

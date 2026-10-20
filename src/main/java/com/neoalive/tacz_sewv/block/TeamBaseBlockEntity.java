@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -172,8 +173,8 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag) {
-        super.saveAdditional(tag);
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
         tag.putString("AssignedTeam", assignedTeam);
         tag.putBoolean("PlayerOwned", playerOwned);
         tag.putString("CrewFaction", crewFaction.name());
@@ -191,8 +192,8 @@ public class TeamBaseBlockEntity extends CapturableBlockEntity {
     }
 
     @Override
-    public void load(CompoundTag tag) {
-        super.load(tag);
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
         assignedTeam = tag.getString("AssignedTeam");
         playerOwned = tag.getBoolean("PlayerOwned");
         try {

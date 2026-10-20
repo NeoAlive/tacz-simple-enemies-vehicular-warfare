@@ -141,9 +141,8 @@ public abstract class MixinVehicleRappelWires {
     private static void tacz_sewv$vert(
             VertexConsumer leash, Matrix4f matrix,
             float x, float y, float z, float shade, int packedLight) {
-        leash.vertex(matrix, x, y, z)
-                .color(TACZ_SEWV$R * shade, TACZ_SEWV$G * shade, TACZ_SEWV$B * shade, 1.0F)
-                .uv2(packedLight)
-                .endVertex();
+        leash.addVertex(matrix, x, y, z)
+                .setColor(TACZ_SEWV$R * shade, TACZ_SEWV$G * shade, TACZ_SEWV$B * shade, 1.0F)
+                .setLight(packedLight);
     }
 }

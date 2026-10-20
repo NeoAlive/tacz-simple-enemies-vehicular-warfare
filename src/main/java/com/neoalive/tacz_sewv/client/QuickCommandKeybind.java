@@ -6,13 +6,13 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RenderGuiOverlayEvent;
-import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
-import net.minecraftforge.client.settings.KeyConflictContext;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import org.lwjgl.glfw.GLFW;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -20,7 +20,7 @@ import com.neoalive.tacz_sewv.client.radial.QuickCommandWheelScreen;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 
 /**
- * Hold-to-open quick-command wheel. Polled from {@link TickEvent.ClientTickEvent} like
+ * Hold-to-open quick-command wheel. Polled from {@link ClientTickEvent.Post} like
  * {@link TdtKeybind} so it still works in an armed vehicle seat (SBW cancels raw mouse Pre).
  *
  * <p><b>Hold must read GLFW, not {@link KeyMapping#isDown()}.</b> {@link KeyConflictContext#IN_GAME}
@@ -28,7 +28,7 @@ import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
  * instant a Screen opens, which made the wheel flash shut on the next tick. While the wheel is
  * up we poll the bound key via GLFW so release still closes it.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class QuickCommandKeybind {
 
     private static final String CATEGORY = "key.categories." + TaczSewv.MODID;
@@ -49,16 +49,15 @@ public final class QuickCommandKeybind {
 
     /** Hub unicode sits on the crosshair — hide the vanilla reticle while the wheel is up. */
     @SubscribeEvent
-    public static void hideCrosshair(RenderGuiOverlayEvent.Pre event) {
-        if (event.getOverlay() != VanillaGuiOverlay.CROSSHAIR.type()) return;
+    public static void hideCrosshair(RenderGuiLayerEvent.Pre event) {
+        if (!VanillaGuiLayers.CROSSHAIR.equals(event.getName())) return;
         if (Minecraft.getInstance().screen instanceof QuickCommandWheelScreen) {
             event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onClientTick(ClientTickEvent.Post event) {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) {

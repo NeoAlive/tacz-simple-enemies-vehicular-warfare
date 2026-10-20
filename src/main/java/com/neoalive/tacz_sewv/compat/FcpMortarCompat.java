@@ -1,9 +1,9 @@
 package com.neoalive.tacz_sewv.compat;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.fml.ModList;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -44,7 +44,7 @@ public final class FcpMortarCompat {
 
     public static boolean isMortarHull(@Nullable VehicleEntity hull) {
         if (hull == null || !available()) return false;
-        ResourceLocation key = ForgeRegistries.ENTITY_TYPES.getKey(hull.getType());
+        ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(hull.getType());
         return key != null && isMortarHull(key.toString());
     }
 
@@ -65,7 +65,7 @@ public final class FcpMortarCompat {
         }
         for (String id : IDS) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
+            if (rl == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) {
                 available = false;
                 return;
             }

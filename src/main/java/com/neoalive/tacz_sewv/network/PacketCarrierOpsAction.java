@@ -4,17 +4,15 @@ import java.util.function.Supplier;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.item.container.ContainerBlockItem;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
+import net.minecraft.world.item.component.CustomData;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
 import com.neoalive.tacz_sewv.airport.RunwaySlots;
@@ -25,6 +23,9 @@ import com.neoalive.tacz_sewv.compat.NeoArmsCarrierAccess;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneNav;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /** Carrier plane-ops: deploy from the seated STATIC carrier GUI. */
@@ -89,7 +90,9 @@ public class PacketCarrierOpsAction {
                 reply(player, false, "gui.tacz_sewv.carrier_ops.need_container");
                 return;
             }
-            CompoundTag tag = BlockItem.getBlockEntityData(stack);
+            // NeoForge port: block-entity data is the BLOCK_ENTITY_DATA component on 1.21 (as SBW reads it).
+            CustomData blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+            CompoundTag tag = blockEntityData == null ? null : blockEntityData.copyTag();
             if (tag == null || !tag.contains("EntityType")) {
                 reply(player, false, "gui.tacz_sewv.carrier_ops.need_container");
                 return;

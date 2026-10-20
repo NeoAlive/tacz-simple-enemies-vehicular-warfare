@@ -5,16 +5,15 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkHooks;
 
 /**
  * Invisible one-passenger mount for a sandbag fighting position. Not an SBW vehicle —
@@ -93,9 +92,10 @@ public class SandbagSeatEntity extends Entity {
         return this.getPassengers().isEmpty() && passenger instanceof LivingEntity;
     }
 
+    // NeoForge port: 1.21 places riders by attachment point, not a riding offset; 0 = at the seat's origin.
     @Override
-    public double getPassengersRidingOffset() {
-        return 0.0D;
+    protected Vec3 getPassengerAttachmentPoint(Entity passenger, EntityDimensions dimensions, float partialTick) {
+        return Vec3.ZERO;
     }
 
     @Override
@@ -121,7 +121,7 @@ public class SandbagSeatEntity extends Entity {
     }
 
     @Override
-    protected void defineSynchedData() {}
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {}
 
     @Override
     protected void readAdditionalSaveData(CompoundTag tag) {
@@ -136,11 +136,6 @@ public class SandbagSeatEntity extends Entity {
         tag.putInt("SandbagX", this.sandbagPos.getX());
         tag.putInt("SandbagY", this.sandbagPos.getY());
         tag.putInt("SandbagZ", this.sandbagPos.getZ());
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getAddEntityPacket() {
-        return NetworkHooks.getEntitySpawningPacket(this);
     }
 
     @Nullable

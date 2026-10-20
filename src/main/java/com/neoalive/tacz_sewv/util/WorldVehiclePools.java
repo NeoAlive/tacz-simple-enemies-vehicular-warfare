@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -15,7 +16,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.loading.FMLPaths;
 
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
@@ -140,7 +141,7 @@ public class WorldVehiclePools extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         for (TankFaction faction : TankFaction.values()) {
             for (Category cat : Category.values()) {
                 ListTag tags = new ListTag();
@@ -157,11 +158,7 @@ public class WorldVehiclePools extends SavedData {
         if (level instanceof ServerLevel serverLevel) {
             ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
             if (overworld != null) {
-                return overworld.getDataStorage().computeIfAbsent(
-                        WorldVehiclePools::load,
-                        WorldVehiclePools::new,
-                        DATA_NAME
-                );
+                return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(WorldVehiclePools::new, (tag, registries) -> WorldVehiclePools.load(tag)), DATA_NAME);
             }
         }
         // Client / missing overworld: ephemeral defaults, never persisted.

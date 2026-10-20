@@ -6,6 +6,7 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -137,8 +138,8 @@ public class SandbagBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag) {
-        super.saveAdditional(tag);
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
         if (this.seatId != null) {
             tag.putUUID(TAG_SEAT, this.seatId);
         }
@@ -148,8 +149,8 @@ public class SandbagBlockEntity extends BlockEntity {
     }
 
     @Override
-    public void load(CompoundTag tag) {
-        super.load(tag);
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
         this.seatId = tag.hasUUID(TAG_SEAT) ? tag.getUUID(TAG_SEAT) : null;
         this.claimantId = tag.hasUUID(TAG_CLAIMANT) ? tag.getUUID(TAG_CLAIMANT) : null;
     }

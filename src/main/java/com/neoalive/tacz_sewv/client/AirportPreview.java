@@ -13,10 +13,10 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 
@@ -25,7 +25,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
  * purpose — surveying a runway means walking it with the box drawn — so it is bound to the level it
  * was set in and drops itself on a dimension change rather than haunting the next world.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class AirportPreview {
 
     /** Orange, fixed — the slot-start overlay is a location, not a status, so it never traffic-lights. */

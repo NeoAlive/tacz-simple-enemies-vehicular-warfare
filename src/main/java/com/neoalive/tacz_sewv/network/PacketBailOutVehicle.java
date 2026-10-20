@@ -6,9 +6,9 @@ import java.util.function.Supplier;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * Player-triggered emergency bail — expands seed unit ids to <b>every</b> owned PMC passenger

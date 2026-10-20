@@ -19,7 +19,7 @@ public final class AmmoCompat {
         if (!modPresent) return List.of();
         List<Item> ammo = new ArrayList<>(ids.length);
         for (String id : ids) {
-            Item item = net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(new ResourceLocation(id));
+            Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(ResourceLocation.parse(id));
             if (item != null && item != net.minecraft.world.item.Items.AIR && !ammo.contains(item)) {
                 ammo.add(item);
             }

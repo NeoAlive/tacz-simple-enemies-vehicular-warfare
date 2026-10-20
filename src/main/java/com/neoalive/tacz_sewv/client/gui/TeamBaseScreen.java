@@ -14,14 +14,13 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.client.editor.VehiclePoolCatalog;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerKind;
@@ -31,6 +30,7 @@ import com.neoalive.tacz_sewv.invasion.force.InfantrySpec;
 import com.neoalive.tacz_sewv.invasion.force.TeamBaseConfig;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketSaveTeamBase;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.VehicleClassify;
 import com.neoalive.tacz_sewv.util.VehiclePoolCatalogSource;
@@ -43,7 +43,7 @@ import com.neoalive.tacz_sewv.util.VehiclePoolCatalogSource;
  * Switching tab rebuilds the widgets, so every text box writes through to the config as it is
  * typed — nothing lives only in a widget.
  */
-public class TeamBaseScreen extends Screen {
+public class TeamBaseScreen extends SewvScreen {
 
     private static final int PANEL_W_PREF = 420;
     private static final int LIST_ROW_H = 12;
@@ -431,10 +431,10 @@ public class TeamBaseScreen extends Screen {
         return this.rowInfo.computeIfAbsent(kind.key() + "|" + id, k -> {
             ResourceLocation rl = ResourceLocation.tryParse(id);
             if (rl == null) return new String[] {"?", "-", Integer.toString(SheetTable.BAD), "gui.tacz_sewv.pool.note.badid"};
-            if (!ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
+            if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) {
                 return new String[] {"?", "-", Integer.toString(SheetTable.BAD), "gui.tacz_sewv.invasion.note.unregistered"};
             }
-            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
             String name = type == null ? "?" : type.getDescription().getString();
             var engine = VehiclePoolCatalogSource.engineOf(rl);
             String cls = PoolEditorScreen.engineLabel(engine);
@@ -638,7 +638,7 @@ public class TeamBaseScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mx, double my, double delta) {
+    public boolean mouseScrolled(double mx, double my, double scrollX, double delta) {
         if (this.tab == Tab.BASE) {
             this.enemyScroll += delta > 0 ? -1 : 1;
             clampEnemyScroll();
@@ -648,7 +648,7 @@ public class TeamBaseScreen extends Screen {
             this.poolTable.mouseScrolled(delta);
             return true;
         }
-        return super.mouseScrolled(mx, my, delta);
+        return super.mouseScrolled(mx, my, scrollX, delta);
     }
 
     // ---------------------------------------------------------------- render

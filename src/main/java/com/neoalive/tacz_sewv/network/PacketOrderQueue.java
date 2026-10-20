@@ -5,9 +5,9 @@ import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.command.quick.OrderQueue;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * Client → server: Quick Wheel order queue control. BEGIN/END bracket the order packets that make

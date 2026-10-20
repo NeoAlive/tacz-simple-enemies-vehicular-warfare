@@ -10,7 +10,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
@@ -41,7 +41,7 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
  *
  * <p>Valid ground is judged with {@link GroundVehicleNodeEvaluator}'s own block classification, so a
  * waypoint is exactly the kind of node the driver's pathfinder can route to: air to sit in over
- * solid, non-hazard, dry footing ({@link BlockPathTypes#WALKABLE}).
+ * solid, non-hazard, dry footing ({@link PathType#WALKABLE}).
  */
 public final class PatrolSupport {
 
@@ -495,7 +495,7 @@ public final class PatrolSupport {
     public static BlockPos drivableColumn(Level level, int x, int z) {
         if (!level.hasChunkAt(x, z)) return null;
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        return CLASSIFIER.getBlockPathType(level, x, y, z) == BlockPathTypes.WALKABLE
+        return CLASSIFIER.getBlockPathType(level, x, y, z) == PathType.WALKABLE
                 ? new BlockPos(x, y, z) : null;
     }
 

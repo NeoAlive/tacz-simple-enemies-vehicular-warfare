@@ -12,9 +12,10 @@ import net.minecraft.network.chat.Component;
 
 import com.neoalive.tacz_sewv.config.ConfigEntry;
 import com.neoalive.tacz_sewv.config.ConfigValidator;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 
 /** Edits a list-of-ids setting, one id per line. Done writes the draft; nothing is saved yet. */
-final class IdListScreen extends Screen {
+final class IdListScreen extends SewvScreen {
 
     private final Screen parent;
     private final ConfigSession session;
@@ -55,7 +56,6 @@ final class IdListScreen extends Screen {
 
     @Override
     public void tick() {
-        this.box.tick();
         this.done.active = ConfigValidator.isValid(this.entry, normalized());
     }
 

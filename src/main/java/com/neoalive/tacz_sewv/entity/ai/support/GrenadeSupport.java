@@ -23,16 +23,16 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemHandlerHelper;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.ItemHandlerHelper;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.UnitInventory;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
@@ -304,7 +304,7 @@ public final class GrenadeSupport {
     }
 
     private static int scanInventoryMask(AbstractUnit unit) {
-        IItemHandler inv = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inv = UnitInventory.of(unit);
         if (inv == null) return 0;
         int mask = 0;
         for (int i = 0; i < inv.getSlots(); i++) {
@@ -350,7 +350,7 @@ public final class GrenadeSupport {
             return new ItemStack(item, 1);
         }
 
-        IItemHandler inv = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inv = UnitInventory.of(unit);
         if (inv == null) return ItemStack.EMPTY;
         for (int i = 0; i < inv.getSlots(); i++) {
             ItemStack stack = inv.getStackInSlot(i);
@@ -368,7 +368,7 @@ public final class GrenadeSupport {
         Item item = itemFor(id);
         if (item == null || !(unit instanceof PmcUnitEntity)) return;
         ItemStack rest = new ItemStack(item, 1);
-        IItemHandler inv = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inv = UnitInventory.of(unit);
         if (inv != null) rest = ItemHandlerHelper.insertItem(inv, rest, false);
         if (!rest.isEmpty()) unit.spawnAtLocation(rest);
         invalidateInventoryCache(unit);

@@ -168,7 +168,7 @@ public final class TacticsSelfCheck {
         try (var in = TacticsSelfCheck.class.getResourceAsStream(
                 "/data/tacz_sewv/sewv/formations/formations.json")) {
             if (in == null) throw new AssertionError("shipped formations.json is not on the classpath");
-            return FormationTemplates.parse(Map.of(new ResourceLocation("tacz_sewv", "formations"),
+            return FormationTemplates.parse(Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "formations"),
                     JsonParser.parseReader(new java.io.InputStreamReader(in))));
         } catch (java.io.IOException e) {
             throw new AssertionError("shipped formations.json unreadable", e);

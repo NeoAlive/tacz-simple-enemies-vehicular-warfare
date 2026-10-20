@@ -4,11 +4,11 @@ import com.atsuishio.superbwarfare.client.RenderHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.util.Mth;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RenderGuiEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RenderGuiEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 
@@ -37,7 +37,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
  * cleanup that might not fire — e.g. the reviving unit/player dying doesn't reliably route through a
  * goal's {@code stop()} on every removal path — rather than something relied on in the normal case.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class RevivalRingOverlay {
 
     private static final float OUTER_RADIUS = 0.07F;
@@ -68,8 +68,7 @@ public final class RevivalRingOverlay {
     }
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onClientTick(ClientTickEvent.Post event) {
         if (ticksSinceUpdate < Integer.MAX_VALUE) ticksSinceUpdate++;
     }
 

@@ -6,7 +6,7 @@ import java.util.Locale;
 import javax.annotation.Nullable;
 
 import net.minecraft.world.item.Item;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /**
  * Softcompat for <b>ashvehicle</b> ammo items. Prefer native stacks over a creative box when

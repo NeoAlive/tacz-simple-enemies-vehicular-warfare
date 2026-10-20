@@ -15,12 +15,12 @@ import com.google.gson.JsonObject;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.fml.loading.FMLPaths;
 
 import com.neoalive.tacz_sewv.invasion.MiscEditorAccess;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenLoadoutEditor;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /** Op-only open path for {@code /sewv pool weapons}; mirrors {@code PoolEditorAccess}. */

@@ -4,10 +4,10 @@ import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.invasion.InvasionDeploy;
 import com.neoalive.tacz_sewv.invasion.force.ForceKind;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Client → server: the deployment picked on the deploy screen. Validated against the open offer. */
 public class PacketInvasionDeployChoice {

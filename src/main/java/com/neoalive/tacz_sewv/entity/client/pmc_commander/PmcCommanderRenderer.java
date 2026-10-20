@@ -25,7 +25,7 @@ import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 public class PmcCommanderRenderer extends MobRenderer<PmcCommanderEntity, PmcCommanderModel<PmcCommanderEntity>> {
 
     private static final ResourceLocation JAR_COMMANDER_FALLBACK =
-            new ResourceLocation(TaczSewv.MODID, "skins/pmc_commander.png");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "skins/pmc_commander.png");
 
     public PmcCommanderRenderer(EntityRendererProvider.Context context) {
         super(context, new PmcCommanderModel<>(context.bakeLayer(PmcCommanderModelLayers.PMC_COMMANDER_LAYER)), 0.5f);
@@ -56,7 +56,7 @@ public class PmcCommanderRenderer extends MobRenderer<PmcCommanderEntity, PmcCom
 
     @Override
     protected void setupRotations(PmcCommanderEntity entity, PoseStack poseStack,
-                                  float ageInTicks, float bodyYRot, float partialTicks) {
+                                  float ageInTicks, float bodyYRot, float partialTicks, float scale) {
         if (entity.deathAnimationState.isStarted()) {
             this.model.setupAnim(entity, 0, 0, entity.tickCount + partialTicks, 0, 0);
 
@@ -78,6 +78,6 @@ public class PmcCommanderRenderer extends MobRenderer<PmcCommanderEntity, PmcCom
             return;
         }
 
-        super.setupRotations(entity, poseStack, ageInTicks, bodyYRot, partialTicks);
+        super.setupRotations(entity, poseStack, ageInTicks, bodyYRot, partialTicks, scale);
     }
 }

@@ -24,13 +24,14 @@ import com.neoalive.tacz_sewv.config.ConfigEntry;
 import com.neoalive.tacz_sewv.config.ConfigRegistry;
 import com.neoalive.tacz_sewv.config.ConfigScope;
 import com.neoalive.tacz_sewv.config.ConfigValueType;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 
 /**
  * One page of settings: a category, the Essentials page, or search across everything. Rows are
  * grouped under section headings ({@link ConfigLayout}); advanced settings stay hidden until
  * "Show advanced", except in search, which always finds everything.
  */
-public final class ConfigListScreen extends Screen {
+public final class ConfigListScreen extends SewvScreen {
 
     private enum Mode { CATEGORY, ESSENTIALS, SEARCH }
 

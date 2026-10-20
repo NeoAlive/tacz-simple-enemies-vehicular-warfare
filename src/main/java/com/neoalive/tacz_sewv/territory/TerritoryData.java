@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
@@ -53,7 +54,7 @@ public class TerritoryData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (UUID id : modeOn) list.add(NbtUtils.createUUID(id));
         nbt.put("modeOn", list);
@@ -88,7 +89,7 @@ public class TerritoryData extends SavedData {
     public static TerritoryData get(MinecraftServer server) {
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
         if (overworld == null) return new TerritoryData();
-        return overworld.getDataStorage().computeIfAbsent(TerritoryData::load, TerritoryData::new, DATA_NAME);
+        return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(TerritoryData::new, (tag, registries) -> TerritoryData.load(tag)), DATA_NAME);
     }
 
     public boolean isOn(UUID player) {

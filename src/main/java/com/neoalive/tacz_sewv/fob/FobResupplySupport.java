@@ -20,14 +20,14 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemHandlerHelper;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.ItemHandlerHelper;
 
 import com.neoalive.tacz_sewv.block.StockpileBlockEntity;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
+import com.neoalive.tacz_sewv.crew.UnitInventory;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
@@ -259,7 +259,7 @@ public final class FobResupplySupport {
      */
     public static boolean refillFromHandler(PmcUnitEntity pmc, IItemHandler source) {
         if (source == null) return false;
-        IItemHandler inv = pmc.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inv = UnitInventory.of(pmc);
         if (inv == null) return false;
         List<AmmoKind> eligible = resolveEligibleTaczAmmo(pmc);
         if (eligible.isEmpty()) return false;
@@ -345,7 +345,7 @@ public final class FobResupplySupport {
             // stockpile) with items nobody could ever consume, which is what was landing on the
             // ground once both were full. A mounted crew still gets its hull's ammo, above.
             List<AmmoKind> eligible = resolveEligibleTaczAmmo(pmc);
-            IItemHandler inv = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+            IItemHandler inv = UnitInventory.of(unit);
             if (inv == null || eligible.isEmpty()) return null;
             return new ResupplyTarget(eligible, new PmcStorageView(inv));
         }
@@ -360,7 +360,7 @@ public final class FobResupplySupport {
         List<AmmoKind> out = new ArrayList<>();
         collectTaczAmmoFromGun(pmc.getMainHandItem(), out);
         collectTaczAmmoFromGun(pmc.getOffhandItem(), out);
-        pmc.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
+        java.util.Optional.ofNullable(UnitInventory.of(pmc)).ifPresent(handler -> {
             if (handler.getSlots() > 0) {
                 collectTaczAmmoFromGun(handler.getStackInSlot(0), out);
             }

@@ -3,8 +3,8 @@ package com.neoalive.tacz_sewv.mixin;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
 import net.minecraft.world.level.pathfinder.NodeEvaluator;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.spongepowered.asm.mixin.Mixin;
@@ -31,15 +31,15 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 public abstract class MixinWalkNodeEvaluator extends NodeEvaluator {
 
     @Inject(
-            method = "getBlockPathType(Lnet/minecraft/world/level/BlockGetter;IIILnet/minecraft/world/entity/Mob;)Lnet/minecraft/world/level/pathfinder/BlockPathTypes;",
+            method = "getBlockPathType(Lnet/minecraft/world/level/BlockGetter;IIILnet/minecraft/world/entity/Mob;)Lnet/minecraft/world/level/pathfinder/PathType;",
             at = @At("RETURN"),
             cancellable = true
     )
     private void tacz_sewv$blockVehicleCells(BlockGetter level, int x, int y, int z, Mob mob,
-                                             CallbackInfoReturnable<BlockPathTypes> cir) {
+                                             CallbackInfoReturnable<PathType> cir) {
         if ((Object) this instanceof GroundVehicleNodeEvaluator) return;
 
-        BlockPathTypes current = cir.getReturnValue();
+        PathType current = cir.getReturnValue();
         if (current != null && current.getMalus() < 0.0F) return; // already impassable
         if (!(mob instanceof AbstractUnit unit)) return;
         // Mounted crews path with GroundVehicleNodeEvaluator; if they ever hit vanilla
@@ -56,7 +56,7 @@ public abstract class MixinWalkNodeEvaluator extends NodeEvaluator {
             for (int iy = 0; iy < h; iy++) {
                 for (int iz = 0; iz < d; iz++) {
                     if (VehiclePathObstacles.blocks(serverLevel, x + ix, y + iy, z + iz, -1)) {
-                        cir.setReturnValue(BlockPathTypes.BLOCKED);
+                        cir.setReturnValue(PathType.BLOCKED);
                         return;
                     }
                 }

@@ -1,7 +1,7 @@
 package com.neoalive.tacz_sewv.compat;
 
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /**
  * Softcompat gate for Spore's three custom {@code MobCategory} instances, built by

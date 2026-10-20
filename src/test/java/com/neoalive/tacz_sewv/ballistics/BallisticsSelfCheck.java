@@ -83,7 +83,7 @@ public final class BallisticsSelfCheck {
     private static void unknownGunPassesThrough() {
         // No TaCZ resource pack is loaded in this headless JVM, so every gunId resolves to nothing -
         // exercising exactly the "unresolvable gunId" passthrough path callers rely on.
-        BulletFacts facts = BulletFacts.of(new ResourceLocation("tacz_sewv", "definitely_not_a_gun"));
+        BulletFacts facts = BulletFacts.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "definitely_not_a_gun"));
         if (facts != null) {
             throw new AssertionError("expected null BulletFacts for an unresolvable gunId");
         }
@@ -93,21 +93,21 @@ public final class BallisticsSelfCheck {
 
     private static void factorMathAndClamp() {
         TranslationTable table = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_factor"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_factor"),
                 category("light_automatic", 9.0, 8.5, null, null)));
         double factor = table.factorFor(Category.LIGHT_AUTOMATIC, false, null);
         assertClose(8.5 / 9.0, factor, 1e-6, "light automatic factor");
 
         // A category with taczBaselineDamage <= 0 must not divide by zero - identity instead.
         TranslationTable degenerate = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_degenerate"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_degenerate"),
                 category("heavy_machine_gun", 0.0, 38.0, null, null)));
         assertClose(1.0, degenerate.factorFor(Category.HEAVY_MACHINE_GUN, false, null), 1e-9,
                 "zero baseline stays identity");
 
         // Factor must clamp to a sane ceiling even if the datapack asks for an ridiculous ratio.
         TranslationTable extreme = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_extreme"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_extreme"),
                 category("anti_materiel", 1.0, 1_000_000.0, null, null)));
         if (extreme.factorFor(Category.ANTI_MATERIEL, false, null) > 100.0) {
             throw new AssertionError("factor was not clamped to the documented ceiling");
@@ -124,14 +124,14 @@ public final class BallisticsSelfCheck {
 
         // A file with zero usable entries must fall back the same way, not produce an empty table.
         TranslationTable empty = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_empty"), new JsonObject()));
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_empty"), new JsonObject()));
         assertClose(1.0, empty.factorFor(Category.LIGHT_AUTOMATIC, false, null), 1e-9,
                 "no usable entries falls back to identity");
     }
 
     private static void penRemapDistinguishesHalves() {
         TranslationTable table = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_penremap"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_penremap"),
                 category("anti_materiel", 75.0, 140.0, 0.9, null)));
         double normalHalf = table.factorFor(Category.ANTI_MATERIEL, false, null);
         double apHalf = table.factorFor(Category.ANTI_MATERIEL, true, null);
@@ -142,7 +142,7 @@ public final class BallisticsSelfCheck {
 
         // Identity: omitting penRemapFactor must make both halves equal.
         TranslationTable noRemap = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_no_penremap"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_no_penremap"),
                 category("anti_materiel", 75.0, 140.0, null, null)));
         assertClose(noRemap.factorFor(Category.ANTI_MATERIEL, false, null),
                 noRemap.factorFor(Category.ANTI_MATERIEL, true, null), 1e-9,
@@ -153,7 +153,7 @@ public final class BallisticsSelfCheck {
         JsonObject overrides = new JsonObject();
         overrides.addProperty("SHIP", 1.5);
         TranslationTable table = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_engine_override"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_engine_override"),
                 category("light_automatic", 9.0, 8.5, null, overrides)));
 
         double base = table.factorFor(Category.LIGHT_AUTOMATIC, false, EngineType.TRACK);
@@ -164,7 +164,7 @@ public final class BallisticsSelfCheck {
     private static void unnamedCategoryKeepsIdentity() {
         // A file naming only one category must not zero out the others.
         TranslationTable table = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_partial"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_partial"),
                 category("light_automatic", 9.0, 8.5, null, null)));
         assertClose(1.0, table.factorFor(Category.ANTI_MATERIEL, false, null), 1e-9,
                 "category the pack never named stays identity");
@@ -176,7 +176,7 @@ public final class BallisticsSelfCheck {
         // AoE via custom_explosion) - the shipped defaults, also asserted here so a future edit to
         // translation.json's anchors doesn't silently break this expectation.
         TranslationTable table = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_explosive_dual"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_explosive_dual"),
                 explosiveCategory(20.0, 340.0, 120.0, 80.0)));
 
         double directFactor = table.factorFor(Category.EXPLOSIVE, false, null);
@@ -189,7 +189,7 @@ public final class BallisticsSelfCheck {
 
         // Omitting the AoE pair entirely must default to identity, same as the direct-hit pair does.
         TranslationTable noAoe = TranslationTable.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "test_explosive_no_aoe"),
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "test_explosive_no_aoe"),
                 category("explosive", 20.0, 340.0, null, null)));
         assertClose(1.0, noAoe.aoeFactorFor(Category.EXPLOSIVE, null), 1e-9,
                 "AoE factor defaults to identity when the pack doesn't set it");

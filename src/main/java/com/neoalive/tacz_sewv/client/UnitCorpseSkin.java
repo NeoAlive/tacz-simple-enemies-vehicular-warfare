@@ -82,8 +82,8 @@ public final class UnitCorpseSkin {
                 case US -> "us_unit_" + variant;
                 case PMC -> "pmc_unit_variant" + variant;
             };
-            return new ResourceLocation("simpleenemymod", "textures/entity/" + folder + "/" + indexed + ".png");
+            return ResourceLocation.fromNamespaceAndPath("simpleenemymod", "textures/entity/" + folder + "/" + indexed + ".png");
         }
-        return new ResourceLocation("simpleenemymod", "textures/entity/" + folder + "/" + file + ".png");
+        return ResourceLocation.fromNamespaceAndPath("simpleenemymod", "textures/entity/" + folder + "/" + file + ".png");
     }
 }

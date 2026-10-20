@@ -3,11 +3,11 @@ package com.neoalive.tacz_sewv.network;
 import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.skin.CamoClient;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** S→C: biome camo number on a unit or hull ({@code -1} = none). PersistentData is not client-visible. */
 public final class PacketEntityCamo {

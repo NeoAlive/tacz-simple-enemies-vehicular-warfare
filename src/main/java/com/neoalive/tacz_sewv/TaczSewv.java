@@ -2,24 +2,25 @@ package com.neoalive.tacz_sewv;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
-import net.minecraft.world.level.pathfinder.BlockPathTypes;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.AddReloadListenerEvent;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
-import net.minecraftforge.event.server.ServerAboutToStartEvent;
-import net.minecraftforge.event.server.ServerStartedEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraft.world.level.pathfinder.PathType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.AddReloadListenerEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.block.TrenchPathTypes;
@@ -68,13 +69,16 @@ public class TaczSewv {
     public static final String MODID = "tacz_sewv";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public TaczSewv() {
-        // Before any Mob.<init>: custom BlockPathTypes must already exist or pathfindingMalus[]
-        // is short and getPathfindingMalus(TRENCH) AIOOBEs mid-tick (seen on crewed TOWs).
+    public TaczSewv(IEventBus modEventBus, ModContainer modContainer) {
+        // On main (Forge) this grows BlockPathTypes before any Mob.<init>; on NeoForge 1.21.1 TRENCH
+        // borrows a vanilla PathType and this is a no-op — see TrenchPathTypes.
         TrenchPathTypes.bootstrap();
 
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::commonSetup);
+        // NeoForge port: payloads, chunk-ticket controllers and capabilities register on mod-bus events.
+        modEventBus.addListener(com.neoalive.tacz_sewv.platform.SimpleChannel::onRegisterPayloads);
+        modEventBus.addListener(com.neoalive.tacz_sewv.platform.ForgeChunkManager::onRegisterControllers);
+        modEventBus.addListener(TaczSewv::registerCapabilities);
         ModBlocks.BLOCKS.register(modEventBus);
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModMenus.MENUS.register(modEventBus);
@@ -89,32 +93,35 @@ public class TaczSewv {
         if (ModList.get().isLoaded(com.neoalive.tacz_sewv.compat.MineColoniesCompat.MODID)) {
             com.neoalive.tacz_sewv.compat.MineColoniesCompat.register(modEventBus);
         }
-        MinecraftForge.EVENT_BUS.register(this);
-        MinecraftForge.EVENT_BUS.register(ChunkTicketSweep.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.ChunkTicketCoverage.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.core.ObbHitIndex.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.support.UnitLod.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.crew.UnitJoinBudget.class);
+        NeoForge.EVENT_BUS.register(this);
+        NeoForge.EVENT_BUS.register(ChunkTicketSweep.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.ChunkTicketCoverage.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.core.ObbHitIndex.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.support.UnitLod.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.crew.UnitJoinBudget.class);
         // Server-side half of the map markers: it only ever SENDS, so it is registered
         // unconditionally — a client with no map mod simply ignores the packet.
-        MinecraftForge.EVENT_BUS.register(OwnedVehicleTracker.class);
-        MinecraftForge.EVENT_BUS.register(MapIdentity.class);
-        MinecraftForge.EVENT_BUS.register(FobTickHandler.class);
-        MinecraftForge.EVENT_BUS.register(GraceTickHandler.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionHudTracker.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.command.platoon.PlatoonRegistry.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.crew.PlayerJoinHandler.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.VehicleDrops.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.CreativeAmmoConsumable.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.TerritoryManager.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.AdvancePlanManager.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.LegacySweepCleanup.class);
-        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.order.OrderReport.class);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, SewvConfig.SPEC);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
+        NeoForge.EVENT_BUS.register(OwnedVehicleTracker.class);
+        NeoForge.EVENT_BUS.register(MapIdentity.class);
+        NeoForge.EVENT_BUS.register(FobTickHandler.class);
+        NeoForge.EVENT_BUS.register(GraceTickHandler.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionHudTracker.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.command.CommandCoordinator.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.command.platoon.PlatoonRegistry.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.crew.PlayerJoinHandler.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.VehicleDrops.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.CreativeAmmoConsumable.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.TerritoryManager.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.AdvancePlanManager.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.LegacySweepCleanup.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.order.OrderReport.class);
+        // NeoForge port: ModContainer.registerConfig returns void; the tracker call it wraps hands back
+        // the ModConfig, whose file path the debug dump reports (ConfigTracker no longer maps names).
+        com.neoalive.tacz_sewv.config.ConfigPersistence.remember(ModConfig.Type.SERVER,
+                net.neoforged.fml.config.ConfigTracker.INSTANCE.registerConfig(ModConfig.Type.SERVER, SewvConfig.SPEC, modContainer));
+        modContainer.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
         // SEM is loaded before this bridge (see mods.toml), so these become normal
         // SEM dynamic events: they are listed, can be toggled, and can be forced by SEM.
         DynamicEventManager.registerEvent(new ConvoyEvent());
@@ -124,6 +131,18 @@ public class TaczSewv {
         DynamicEventManager.registerEvent(new NavalBattleEvent());
         DynamicEventManager.registerEvent(new AsymmetricInvasionEvent());
         DynamicEventManager.registerEvent(new OverflightEvent());
+    }
+
+    /**
+     * NeoForge port: capabilities are registered per type. SEM registers its PMC inventory for its own
+     * {@code pmcunit} type only, so the commander (a {@code PmcUnitEntity} of our own type) needs the
+     * same registration; the stockpile replaces its Forge {@code getCapability} override.
+     */
+    private static void registerCapabilities(RegisterCapabilitiesEvent event) {
+        event.registerEntity(Capabilities.ItemHandler.ENTITY, ModEntities.PMC_COMMANDER.get(),
+                (unit, context) -> unit.getInventory());
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModBlockEntities.STOCKPILE.get(),
+                (stockpile, side) -> stockpile.getItems());
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -226,7 +245,7 @@ public class TaczSewv {
                 return;
             }
             // Prefer trench floors (TrenchPathTypes.TRENCH malus 0) over open ground.
-            unit.setPathfindingMalus(BlockPathTypes.WALKABLE, TrenchPathTypes.OPEN_GROUND_MALUS);
+            unit.setPathfindingMalus(PathType.WALKABLE, TrenchPathTypes.OPEN_GROUND_MALUS);
             NpcSbwWeapon.issue(unit, event.loadedFromDisk());
             NpcArmor.issue(unit);
             CamoSupport.issue(unit);

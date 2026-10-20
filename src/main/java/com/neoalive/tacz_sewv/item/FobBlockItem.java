@@ -1,12 +1,10 @@
 package com.neoalive.tacz_sewv.item;
 
-import java.util.function.Consumer;
-
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.Block;
-import net.minecraftforge.client.extensions.common.IClientItemExtensions;
+import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 
 import com.neoalive.tacz_sewv.client.FobItemRenderer;
 
@@ -22,9 +20,12 @@ public class FobBlockItem extends BlockItem {
         super(block, properties);
     }
 
-    @Override
-    public void initializeClient(Consumer<IClientItemExtensions> consumer) {
-        consumer.accept(new IClientItemExtensions() {
+    /**
+     * NeoForge port: registered from {@code RegisterClientExtensionsEvent} (see {@code ClientModEvents}).
+     * One instance per item, as the Forge {@code initializeClient} hook produced.
+     */
+    public static IClientItemExtensions clientExtensions() {
+        return new IClientItemExtensions() {
             private BlockEntityWithoutLevelRenderer renderer;
 
             @Override
@@ -35,6 +36,6 @@ public class FobBlockItem extends BlockItem {
                 }
                 return this.renderer;
             }
-        });
+        };
     }
 }

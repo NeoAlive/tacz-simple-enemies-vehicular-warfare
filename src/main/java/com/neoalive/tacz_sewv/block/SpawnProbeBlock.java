@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.block;
 
 import javax.annotation.Nullable;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -9,6 +10,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -20,10 +22,10 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.SpawnProbeClient;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
 
 /**
  * Structure-prep marker: barrier-like (unbreakable / undroppable / invisible), but
@@ -32,6 +34,14 @@ import com.neoalive.tacz_sewv.client.SpawnProbeClient;
  * Right-click (op) opens the vehicle-list editor; data lives in the block entity NBT.
  */
 public class SpawnProbeBlock extends InvasionNodeBlock {
+
+    // NeoForge port: 1.21 BaseEntityBlock requires a codec; this block takes no configurable properties.
+    public static final MapCodec<SpawnProbeBlock> CODEC = simpleCodec(properties -> new SpawnProbeBlock());
+
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
+    }
 
     public SpawnProbeBlock() {
         super(BlockBehaviour.Properties.of()
@@ -48,7 +58,13 @@ public class SpawnProbeBlock extends InvasionNodeBlock {
                 .isViewBlocking((s, g, p) -> false));
     }
 
+    // NeoForge port: 1.21 split Block#use into useWithoutItem/useItemOn; the main-hand click lands
+    // here (useItemOn passes through by default) and runs the method below unchanged.
     @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        return use(state, level, pos, player, InteractionHand.MAIN_HAND, hit);
+    }
+
     @SuppressWarnings("deprecation")
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                   InteractionHand hand, BlockHitResult hit) {

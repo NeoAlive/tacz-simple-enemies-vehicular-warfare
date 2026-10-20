@@ -8,7 +8,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.client.ForgeHooksClient;
+import net.neoforged.neoforge.client.ClientHooks;
 
 /** Cheap per-item answer for whether Forge replaces an armor carrier model. */
 public final class ArmorModelSupport {
@@ -21,7 +21,7 @@ public final class ArmorModelSupport {
                                          HumanoidModel<LivingEntity> carrier) {
         Boolean cached = CUSTOM_MODELS.get(stack.getItem());
         if (cached != null) return cached;
-        boolean custom = ForgeHooksClient.getArmorModel(entity, stack, slot, carrier) != carrier;
+        boolean custom = ClientHooks.getArmorModel(entity, stack, slot, carrier) != carrier;
         CUSTOM_MODELS.put(stack.getItem(), custom);
         return custom;
     }

@@ -16,10 +16,10 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.client.ForgeHooksClient;
 import net.nekoyuni.SimpleEnemyMod.compat.geckolib.GeckoCompat;
 import net.nekoyuni.SimpleEnemyMod.compat.geckolib.GeckoCompatClient;
 import net.nekoyuni.SimpleEnemyMod.compat.geckolib.internal.GeckoArmorAdjuster;
+import net.neoforged.neoforge.client.ClientHooks;
 import software.bernie.geckolib.renderer.GeoArmorRenderer;
 
 /**
@@ -68,7 +68,7 @@ public class GeckoArmorLayer<T extends LivingEntity, M extends EntityModel<T>> e
             syncFromUnit(unit);
             this.pose.young = entity.isBaby();
 
-            Model armor = ForgeHooksClient.getArmorModel(entity, stack, slot, this.pose);
+            Model armor = ClientHooks.getArmorModel(entity, stack, slot, this.pose);
             if (!(armor instanceof HumanoidModel<?> humanoid) || armor == this.pose) continue;
 
             if (armor instanceof GeoArmorRenderer<?> geo) {
@@ -83,7 +83,7 @@ public class GeckoArmorLayer<T extends LivingEntity, M extends EntityModel<T>> e
             // own from the GeoModel — same call shape SEM's gecko layer uses.
             humanoid.renderToBuffer(poseStack,
                     buffer.getBuffer(RenderType.armorCutoutNoCull(this.getTextureLocation(entity))),
-                    packedLight, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
+                    packedLight, OverlayTexture.NO_OVERLAY, -1);
             poseStack.popPose();
         }
     }

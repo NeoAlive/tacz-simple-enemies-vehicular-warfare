@@ -3,11 +3,11 @@ package com.neoalive.tacz_sewv.network;
 import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.PlaneLandingDebugClient;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * S->C: drop a plane's cached Dubins entry-arc wireframe — sent once the entry arc that produced it

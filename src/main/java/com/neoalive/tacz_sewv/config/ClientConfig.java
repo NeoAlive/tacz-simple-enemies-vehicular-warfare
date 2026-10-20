@@ -2,62 +2,62 @@ package com.neoalive.tacz_sewv.config;
 
 import javax.annotation.Nullable;
 
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.config.ModConfigEvent;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.map.FactionColors;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
 
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@EventBusSubscriber(modid = TaczSewv.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class ClientConfig {
 
-    public static final ForgeConfigSpec SPEC;
+    public static final ModConfigSpec SPEC;
 
-    public static final ForgeConfigSpec.BooleanValue SHOW_ORDER_FEEDBACK;
-    public static final ForgeConfigSpec.BooleanValue QUICK_EVAC_PULL_SELECTED_FROM_RIBBON;
-    public static final ForgeConfigSpec.BooleanValue FACTION_COLORS_ENABLED;
-    public static final ForgeConfigSpec.ConfigValue<String> COLOR_RU;
-    public static final ForgeConfigSpec.ConfigValue<String> COLOR_US;
-    public static final ForgeConfigSpec.ConfigValue<String> COLOR_PMC;
-    public static final ForgeConfigSpec.BooleanValue MAP_MARKERS_ENABLED;
-    public static final ForgeConfigSpec.BooleanValue MAP_LIVE;
-    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ICONS;
-    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_HEALTH_BAR;
-    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
-    public static final ForgeConfigSpec.BooleanValue MAP_SHOW_COMMAND_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
-    public static final ForgeConfigSpec.BooleanValue NOTIFICATIONS_ENABLED;
-    public static final ForgeConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
-    public static final ForgeConfigSpec.IntValue NOTIFICATION_MAX_VISIBLE;
-    public static final ForgeConfigSpec.BooleanValue HELMET_GRAYSCALE;
-    public static final ForgeConfigSpec.BooleanValue SHOW_LAG_TIP;
+    public static final ModConfigSpec.BooleanValue SHOW_ORDER_FEEDBACK;
+    public static final ModConfigSpec.BooleanValue QUICK_EVAC_PULL_SELECTED_FROM_RIBBON;
+    public static final ModConfigSpec.BooleanValue FACTION_COLORS_ENABLED;
+    public static final ModConfigSpec.ConfigValue<String> COLOR_RU;
+    public static final ModConfigSpec.ConfigValue<String> COLOR_US;
+    public static final ModConfigSpec.ConfigValue<String> COLOR_PMC;
+    public static final ModConfigSpec.BooleanValue MAP_MARKERS_ENABLED;
+    public static final ModConfigSpec.BooleanValue MAP_LIVE;
+    public static final ModConfigSpec.BooleanValue MAP_SHOW_ICONS;
+    public static final ModConfigSpec.BooleanValue MAP_SHOW_HEALTH_BAR;
+    public static final ModConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
+    public static final ModConfigSpec.BooleanValue MAP_SHOW_COMMAND_DEBUG;
+    public static final ModConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
+    public static final ModConfigSpec.BooleanValue NOTIFICATIONS_ENABLED;
+    public static final ModConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
+    public static final ModConfigSpec.IntValue NOTIFICATION_MAX_VISIBLE;
+    public static final ModConfigSpec.BooleanValue HELMET_GRAYSCALE;
+    public static final ModConfigSpec.BooleanValue SHOW_LAG_TIP;
 
     // Formerly ModGameRules debug toggles — live via Config UI Client → Debug.
-    public static final ForgeConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue SHIP_PATHING_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue SEWV_DIAG_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue HELI_COMBAT_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue HELI_FLIGHT_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue PLANE_COMBAT_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue MORTAR_DEBUG_LOGGING;
-    public static final ForgeConfigSpec.BooleanValue BALLISTIC_TRANSLATION_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue ORDER_FAILURE_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue SHOW_SPAWN_PROBES;
-    public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_TACTICS_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue COLLECTIVE_AI_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_AI_DEBUG;
-    public static final ForgeConfigSpec.BooleanValue FOB_DEBUG;
+    public static final ModConfigSpec.BooleanValue GROUND_PATHING_DEBUG;
+    public static final ModConfigSpec.BooleanValue SHIP_PATHING_DEBUG;
+    public static final ModConfigSpec.BooleanValue SEWV_DIAG_DEBUG;
+    public static final ModConfigSpec.BooleanValue HELI_COMBAT_DEBUG;
+    public static final ModConfigSpec.BooleanValue HELI_FLIGHT_DEBUG;
+    public static final ModConfigSpec.BooleanValue PLANE_COMBAT_DEBUG;
+    public static final ModConfigSpec.BooleanValue MORTAR_DEBUG_LOGGING;
+    public static final ModConfigSpec.BooleanValue BALLISTIC_TRANSLATION_DEBUG;
+    public static final ModConfigSpec.BooleanValue ORDER_FAILURE_DEBUG;
+    public static final ModConfigSpec.BooleanValue SHOW_SPAWN_PROBES;
+    public static final ModConfigSpec.BooleanValue INDIVIDUAL_TACTICS_DEBUG;
+    public static final ModConfigSpec.BooleanValue COLLECTIVE_AI_DEBUG;
+    public static final ModConfigSpec.BooleanValue INDIVIDUAL_AI_DEBUG;
+    public static final ModConfigSpec.BooleanValue FOB_DEBUG;
 
     /** Temporary on/off from the map-markers keybind; null = follow the setting below. */
     @Nullable
     private static volatile Boolean MAP_MARKERS_SESSION_OVERRIDE;
 
     static {
-        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
+        ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
 
         builder.push("interaction");
         SHOW_ORDER_FEEDBACK = builder
@@ -169,7 +169,7 @@ public final class ClientConfig {
      * Safe read for debug flags from common/server code. Client config is always loaded in
      * singleplayer; on a dedicated server with no client config baked, returns the default.
      */
-    public static boolean flag(ForgeConfigSpec.BooleanValue value) {
+    public static boolean flag(ModConfigSpec.BooleanValue value) {
         try {
             return value.get();
         } catch (Throwable t) {

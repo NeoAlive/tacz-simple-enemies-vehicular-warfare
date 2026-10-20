@@ -1,6 +1,6 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import net.minecraft.world.entity.Entity;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.LivingEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -134,9 +134,9 @@ public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation
     }
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
-    private void tacz_sewv$defineManningMortar(CallbackInfo ci) {
-        ((Entity) (Object) this).getEntityData().define(UnitHolster.MANNING_MORTAR, false);
-        ((Entity) (Object) this).getEntityData().define(UnitHolster.THROWING_GRENADE, false);
+    private void tacz_sewv$defineManningMortar(SynchedEntityData.Builder builder, CallbackInfo ci) {
+        builder.define(UnitHolster.MANNING_MORTAR, false);
+        builder.define(UnitHolster.THROWING_GRENADE, false);
     }
 
     // setTarget is a vanilla Mob method SEM overrides, so the target is remapped

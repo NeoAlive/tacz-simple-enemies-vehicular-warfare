@@ -5,20 +5,20 @@ import java.util.List;
 import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import com.neoalive.tacz_sewv.client.gui.GuiFit;
 import com.neoalive.tacz_sewv.invasion.force.ForceKind;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketInvasionDeployChoice;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 
 /**
  * "How do you deploy?" — one button per option the base offers. The server holds the offer and
  * takes the first option when its timer runs out, so the countdown here is only a display; closing
  * the screen answers with the first option at once rather than leaving the player waiting on it.
  */
-public class DeployScreen extends Screen {
+public class DeployScreen extends SewvScreen {
 
     private static final int BTN_W = 200;
     private static final int BTN_H = 24;

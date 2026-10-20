@@ -232,9 +232,9 @@ public abstract class MixinPmcUnitEntity
     }
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))
-    private void tacz_sewv$defineTreating(CallbackInfo ci) {
-        ((Entity) (Object) this).getEntityData().define(tacz_sewv$TREATING, false);
-        ((Entity) (Object) this).getEntityData().define(tacz_sewv$DOWNED, false);
+    private void tacz_sewv$defineTreating(SynchedEntityData.Builder builder, CallbackInfo ci) {
+        builder.define(tacz_sewv$TREATING, false);
+        builder.define(tacz_sewv$DOWNED, false);
     }
 
     /**
@@ -285,7 +285,7 @@ public abstract class MixinPmcUnitEntity
      */
     @Inject(method = "setFormationIndex", at = @At("HEAD"), remap = false)
     private void tacz_sewv$dropFormationAxisOnReorder(int index, CallbackInfo ci) {
-        if (!((Entity) (Object) this).isAddedToWorld()) return;
+        if (!((Entity) (Object) this).isAddedToLevel()) return;
         if (((IFormationMember) this).sewv$consumeFormationCarry()) return;
         VehicleFormation.clear((PmcUnitEntity) (Object) this);
     }
@@ -305,7 +305,7 @@ public abstract class MixinPmcUnitEntity
     @Inject(method = "setOwner", at = @At("TAIL"), remap = false)
     private void tacz_sewv$reissueIdentityOnRecruit(UUID uuid, CallbackInfo ci) {
         Entity self = (Entity) (Object) this;
-        if (uuid != null && self.isAddedToWorld() && !self.level().isClientSide) {
+        if (uuid != null && self.isAddedToLevel() && !self.level().isClientSide) {
             NpcIdentity.reissue((PmcUnitEntity) self);
         }
     }

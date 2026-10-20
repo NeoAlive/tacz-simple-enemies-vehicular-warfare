@@ -6,9 +6,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.event.level.BlockEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.level.BlockEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.block.TeamBaseBlock;
@@ -19,7 +19,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
  * Count comes from {@link InvasionLayout} (survives chunk unload); forget only on real break.
  * Disabled when {@link SewvConfig#UNLIMITED_TEAM_BASES} is true.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class InvasionPlacement {
 
     public static final int MAX_TEAM_BASES = 2;

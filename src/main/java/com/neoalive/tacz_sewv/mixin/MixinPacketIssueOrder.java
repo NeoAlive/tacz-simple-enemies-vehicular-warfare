@@ -1,14 +1,11 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import java.util.function.Supplier;
-
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
@@ -54,24 +51,26 @@ import com.neoalive.tacz_sewv.order.OrderReport;
  * order can arrive by -- SEM's own commander menu as much as the world map's order menu -- because
  * they all come through this one packet.
  *
- * <p>Hooks SEM's handler lambda; {@code require = 0} keeps a missing/renamed lambda from crashing on
- * a future SEM build. Note what that costs if it ever does break: the radio goes quiet AND area
- * tasks stop yielding, so the silent no-op comes back. The entity is re-resolved from the packet
+ * <p>Hooks SEM's {@code handleOnServer} (the NeoForge port's named form of the old handler lambda). If
+ * it ever stopped matching, the radio would go quiet AND area tasks would stop yielding, which is why
+ * the injection is required. The entity is re-resolved from the packet
  * rather than captured, so the injection does not depend on SEM's internal ordering.
  */
 @Mixin(PacketIssueOrder.class)
 public abstract class MixinPacketIssueOrder {
 
-    @Inject(method = "lambda$handle$0", at = @At("HEAD"), remap = false, require = 0, cancellable = true)
-    private static void tacz_sewv$orderVoice(Supplier<NetworkEvent.Context> ctx, PacketIssueOrder packet, CallbackInfo ci) {
-        ServerPlayer sender = ctx.get().getSender();
+    // NeoForge port: SEM's handler lambda is gone; the port keeps its body as handleOnServer (a
+    // sewv-contract name), which is also what a Quick Wheel replay calls. Required, unlike the
+    // lambda hook it replaces: a contract-checked target that stops matching should fail loudly.
+    @Inject(method = "handleOnServer", at = @At("HEAD"), remap = false, cancellable = true)
+    private static void tacz_sewv$orderVoice(PacketIssueOrder packet, ServerPlayer sender, CallbackInfo ci) {
         if (sender == null) return;
         // Quick Wheel queue: Move To / Attack That picks are held and replayed when their turn comes.
-        if (OrderQueue.capture(sender, () -> PacketIssueOrder.handle(packet, ctx))) {
+        if (OrderQueue.capture(sender, () -> PacketIssueOrder.handleOnServer(packet, sender))) {
             ci.cancel();
             return;
         }
-        Entity ordered = sender.level().getEntity(((AccessorPacketIssueOrder) packet).tacz_sewv$entityId());
+        Entity ordered = sender.level().getEntity(packet.entityId());
         // SEM drops an order it does not like and sends no reply, so these two are the whole reason
         // the client-side "order sent" ack had to go: it was printed before either was checked.
         if (!(ordered instanceof PmcUnitEntity pmc)) {
@@ -104,7 +103,7 @@ public abstract class MixinPacketIssueOrder {
             ci.cancel();
             return;
         }
-        OrderType order = ((AccessorPacketIssueOrder) packet).tacz_sewv$order();
+        OrderType order = packet.order();
         if (order == OrderType.FORM_WEDGE || order == OrderType.FORM_COLUMN) {
             sender.displayClientMessage(
                     Component.translatable("message.tacz_sewv.formation.use_quickwheel")
@@ -125,7 +124,7 @@ public abstract class MixinPacketIssueOrder {
             if (order == OrderType.MOVE_TO_POSITION
                     && FormationAnchorMode.byId(((IFormationMember) pmc).sewv$getFormationAnchorMode())
                             == FormationAnchorMode.POSITION) {
-                Vec3 dest = ((AccessorPacketIssueOrder) packet).tacz_sewv$targetPos();
+                Vec3 dest = packet.targetPos();
                 if (dest != null && !dest.equals(Vec3.ZERO)) {
                     VehicleFormation.freezeAnchor(pmc, dest);
                 }

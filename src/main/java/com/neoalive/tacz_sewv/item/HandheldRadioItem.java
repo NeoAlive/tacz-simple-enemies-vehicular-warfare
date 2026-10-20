@@ -15,20 +15,20 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.items.IItemHandler;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.neoforge.items.IItemHandler;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.client.RadioScreen;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.crew.UnitInventory;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModItems;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
 
 /**
  * Forward observer's radio: opens a compact fire-mission panel to call mortar, TOW, artillery
@@ -87,7 +87,7 @@ public class HandheldRadioItem extends Item {
      */
     public static boolean isCarriedBy(PmcUnitEntity unit) {
         if (!(unit instanceof PmcCommanderEntity)) return false;
-        IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inventory = UnitInventory.of(unit);
         if (inventory == null) return false;
 
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
@@ -167,7 +167,7 @@ public class HandheldRadioItem extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.use").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.standdown").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.zoom").withStyle(ChatFormatting.GRAY));

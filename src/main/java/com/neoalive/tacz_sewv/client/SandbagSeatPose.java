@@ -50,7 +50,7 @@ public final class SandbagSeatPose {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public static final ResourceLocation RESOURCE =
-            new ResourceLocation(TaczSewv.MODID, "animations/sandbag_seat.animation.json");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "animations/sandbag_seat.animation.json");
 
     /** Bedrock {@code steve}: the whole rig. SEM has it as a real bone; humanoids fake it. */
     private static final String ROOT_BONE = "unit";

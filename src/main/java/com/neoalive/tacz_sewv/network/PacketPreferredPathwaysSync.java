@@ -11,11 +11,11 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.PreferredPathwaysClient;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** S→C full preferred-pathway sync for one player. */
 public class PacketPreferredPathwaysSync {
@@ -36,7 +36,7 @@ public class PacketPreferredPathwaysSync {
             Map<String, List<BlockPos>> paths = new HashMap<>();
             for (int p = 0; p < pathCount; p++) {
                 String pathId = buf.readUtf();
-                paths.put(pathId, buf.readList(FriendlyByteBuf::readBlockPos));
+                paths.put(pathId, buf.readList(b -> b.readBlockPos()));
             }
             map.put(dim, paths);
         }
@@ -51,7 +51,7 @@ public class PacketPreferredPathwaysSync {
             buf.writeVarInt(dimEntry.getValue().size());
             for (Map.Entry<String, List<BlockPos>> pathEntry : dimEntry.getValue().entrySet()) {
                 buf.writeUtf(pathEntry.getKey());
-                buf.writeCollection(pathEntry.getValue(), FriendlyByteBuf::writeBlockPos);
+                buf.writeCollection(pathEntry.getValue(), (b, pos) -> b.writeBlockPos(pos));
             }
         }
     }

@@ -10,16 +10,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.stream.Stream;
 
-import com.electronwill.nightconfig.core.CommentedConfig;
-import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.storage.LevelResource;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.config.ConfigTracker;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.forgespi.language.IModFileInfo;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforgespi.language.IModFileInfo;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.ClientConfig;
@@ -255,15 +251,8 @@ public final class SewvDebugDump {
 
     /** Forge-resolved path when the SERVER config is a real file config; otherwise null. */
     private static Path resolveForgeServerConfigPath() {
-        try {
-            ModConfig cfg = ConfigTracker.INSTANCE.fileMap().get(TaczSewv.MODID + "-server.toml");
-            if (cfg == null) return null;
-            CommentedConfig data = cfg.getConfigData();
-            if (!(data instanceof CommentedFileConfig)) return null;
-            return cfg.getFullPath();
-        } catch (RuntimeException e) {
-            return null;
-        }
+        // NeoForge port: ConfigTracker no longer maps file names; TaczSewv remembers the ModConfig.
+        return com.neoalive.tacz_sewv.config.ConfigPersistence.serverConfigPath();
     }
 
     private static String sha256(Path file) {

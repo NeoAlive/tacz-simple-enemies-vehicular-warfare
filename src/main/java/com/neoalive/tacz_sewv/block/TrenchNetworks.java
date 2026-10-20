@@ -11,6 +11,7 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.LongTag;
@@ -34,7 +35,7 @@ public final class TrenchNetworks extends SavedData {
     public TrenchNetworks() {}
 
     public static TrenchNetworks get(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(TrenchNetworks::load, TrenchNetworks::new, DATA_NAME);
+        return level.getDataStorage().computeIfAbsent(new SavedData.Factory<>(TrenchNetworks::new, (tag, registries) -> TrenchNetworks.load(tag)), DATA_NAME);
     }
 
     public static TrenchNetworks load(CompoundTag nbt) {
@@ -45,7 +46,7 @@ public final class TrenchNetworks extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         nbt.put("cells", writeLongSet(this.cells));
         nbt.put("emplacements", writeLongSet(this.emplacements));
         return nbt;

@@ -5,15 +5,15 @@ import java.util.List;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketSaveDoctrine;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 
-public class DoctrineEditorScreen extends Screen {
+public class DoctrineEditorScreen extends SewvScreen {
 
     private static final int MAX_POINTS = 20;
     private static final int PANEL_W_PREF = 400;
@@ -239,12 +239,12 @@ public class DoctrineEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
         if (needsScrollbar() && mouseY >= this.listTop && mouseY < this.listBottom) {
             setScrollOffset(this.scrollOffset - (int) Math.signum(delta) * SCROLL_STEP);
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX, mouseY, scrollX, delta);
     }
 
     @Override

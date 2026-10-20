@@ -8,12 +8,12 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** TDT "Platoon" category — flips whether the selected Commander(s) may dispatch auto-orders. */
 public class PacketToggleAutoOrders {

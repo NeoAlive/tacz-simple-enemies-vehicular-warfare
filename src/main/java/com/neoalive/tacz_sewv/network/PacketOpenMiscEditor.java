@@ -6,11 +6,11 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.editor.MiscEditorClient;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
 
@@ -18,7 +18,7 @@ import com.neoalive.tacz_sewv.util.WorldVehicleClasses.CueKind;
  * Server → client: open the misc cue/armor editor.
  * <p>
  * The armor add-catalog is <em>not</em> on the wire — the client builds it from
- * {@code ForgeRegistries.ITEMS}. Shipping every registered {@code ArmorItem} id hit the shared
+ * {@code BuiltInRegistries.ITEM}. Shipping every registered {@code ArmorItem} id hit the shared
  * 512-entry string-list cap on large packs ({@code string list size out of range: 3586}).
  */
 public class PacketOpenMiscEditor {

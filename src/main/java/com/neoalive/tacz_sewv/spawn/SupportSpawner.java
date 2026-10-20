@@ -56,7 +56,7 @@ public final class SupportSpawner {
         EntityType<?> type = typeFor(ru, role);
         if (!(type.create(level) instanceof AbstractUnit unit)) return null;
         unit.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null, null);
+        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
         // Medics carry an unlimited issued supply of kits (RU/US units have no inventory to hold one),
         // the same channel mortar/TOW crews get their ammo through.
         if (role == SupportRole.MEDIC && unit instanceof IIssuedAmmo issued) {

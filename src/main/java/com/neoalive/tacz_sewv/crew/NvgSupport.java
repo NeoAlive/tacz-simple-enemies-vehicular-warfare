@@ -6,6 +6,7 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -13,10 +14,8 @@ import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.neoforge.items.IItemHandler;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.type.ISlotType;
 import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
@@ -38,7 +37,7 @@ public final class NvgSupport {
 
     public static boolean isPoolItem(Item item) {
         if (item == null) return false;
-        ResourceLocation key = ForgeRegistries.ITEMS.getKey(item);
+        ResourceLocation key = BuiltInRegistries.ITEM.getKey(item);
         if (key == null) return false;
         String id = key.toString();
         for (String entry : SewvConfig.NVG_ELIGIBLE_ITEMS.get()) {
@@ -129,7 +128,7 @@ public final class NvgSupport {
     }
 
     private static void wearArmor(AbstractUnit unit, EquipmentSlot slot, ItemStack stack) {
-        IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inventory = UnitInventory.of(unit);
         int index = FIRST_ARMOR_SLOT + slot.getIndex();
         if (inventory != null && index < inventory.getSlots()) {
             inventory.insertItem(index, stack.copy(), false);
@@ -142,7 +141,7 @@ public final class NvgSupport {
     public static Item resolve(String id) {
         ResourceLocation key = ResourceLocation.tryParse(id);
         if (key == null) return null;
-        Item item = ForgeRegistries.ITEMS.getValue(key);
+        Item item = BuiltInRegistries.ITEM.get(key);
         return item == null || item == net.minecraft.world.item.Items.AIR ? null : item;
     }
 }

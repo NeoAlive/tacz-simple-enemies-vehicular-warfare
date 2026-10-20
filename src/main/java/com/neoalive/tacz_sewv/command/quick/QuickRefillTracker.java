@@ -19,14 +19,13 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.server.ServerLifecycleHooks;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -34,12 +33,13 @@ import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobResupplySupport;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.notify.HudNotify;
+import com.neoalive.tacz_sewv.platform.Caps;
 
 /**
  * Quick Refill runner: units path to a chest / FOB stockpile, then pull ammo only within
  * {@link #REACH_BLOCKS}. Stale-safe — re-resolves by network id each poll.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class QuickRefillTracker {
 
     private static final int POLL_INTERVAL = 10;
@@ -88,8 +88,7 @@ public final class QuickRefillTracker {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null || ACTIVE.isEmpty()) return;
         if (server.getTickCount() % POLL_INTERVAL != 0) return;
@@ -163,7 +162,7 @@ public final class QuickRefillTracker {
             } else {
                 BlockEntity be = level.getBlockEntity(chest);
                 IItemHandler handler = be == null ? null
-                        : be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
+                        : Caps.blockItems(be, null);
                 moved = FobResupplySupport.refillFromHandler(pmc, handler);
             }
             if (moved) HudNotify.clearAmmoOut(pmc);
@@ -206,8 +205,7 @@ public final class QuickRefillTracker {
                 for (BlockEntity be : chunk.getBlockEntities().values()) {
                     BlockPos pos = be.getBlockPos();
                     if (!box.contains(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5)) continue;
-                    IItemHandler handler = be.getCapability(ForgeCapabilities.ITEM_HANDLER, null)
-                            .orElse(null);
+                    IItemHandler handler = Caps.blockItems(be, null);
                     if (!FobResupplySupport.handlerHasEligible(pmc, handler)) continue;
                     double d = pmc.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
                     if (d < bestDist) {
@@ -225,7 +223,7 @@ public final class QuickRefillTracker {
         if (fobStockpile) return FobResupplySupport.stockpileHasAmmoFor(pmc);
         BlockEntity be = level.getBlockEntity(chest);
         IItemHandler handler = be == null ? null
-                : be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
+                : Caps.blockItems(be, null);
         return FobResupplySupport.handlerHasEligible(pmc, handler);
     }
 

@@ -5,7 +5,9 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.item.projectile.MortarShellItem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.ContainerHelper;
@@ -19,7 +21,6 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 
@@ -108,7 +109,7 @@ public class EmplacementBlockEntity extends BlockEntity implements WorldlyContai
     }
 
     private static boolean isMissileLike(ItemStack stack) {
-        var key = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        var key = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (key == null) return false;
         String path = key.getPath();
         return path.contains("missile") || path.contains("tow") || path.contains("javelin")
@@ -149,7 +150,7 @@ public class EmplacementBlockEntity extends BlockEntity implements WorldlyContai
             if (inSlot.isEmpty()) {
                 int put = Math.min(remaining.getCount(), remaining.getMaxStackSize());
                 this.items.set(slot, remaining.split(put));
-            } else if (ItemStack.isSameItemSameTags(inSlot, remaining)
+            } else if (ItemStack.isSameItemSameComponents(inSlot, remaining)
                     && inSlot.getCount() < inSlot.getMaxStackSize()) {
                 int space = inSlot.getMaxStackSize() - inSlot.getCount();
                 int put = Math.min(space, remaining.getCount());
@@ -181,15 +182,15 @@ public class EmplacementBlockEntity extends BlockEntity implements WorldlyContai
     }
 
     @Override
-    public void load(CompoundTag tag) {
-        super.load(tag);
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
         this.items = NonNullList.withSize(SIZE, ItemStack.EMPTY);
-        ContainerHelper.loadAllItems(tag, this.items);
+        ContainerHelper.loadAllItems(tag, this.items, registries);
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag) {
-        super.saveAdditional(tag);
-        ContainerHelper.saveAllItems(tag, this.items);
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
+        ContainerHelper.saveAllItems(tag, this.items, registries);
     }
 }

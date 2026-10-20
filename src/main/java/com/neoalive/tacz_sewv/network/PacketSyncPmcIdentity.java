@@ -4,12 +4,12 @@ import java.util.function.Supplier;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.TdtScreen;
 import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** S→C: saved PMC identity and name-pool category for the TDT Identity tab. */
 public final class PacketSyncPmcIdentity {

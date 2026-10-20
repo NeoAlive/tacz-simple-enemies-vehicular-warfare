@@ -5,13 +5,14 @@ import java.util.function.Supplier;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.NotificationHud;
 import com.neoalive.tacz_sewv.notify.NotificationKind;
+import com.neoalive.tacz_sewv.platform.BufCompat;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /** Server→client: enqueue one HUD notification on that player's screen. */
 public class PacketHudNotification {
@@ -27,14 +28,14 @@ public class PacketHudNotification {
     }
 
     public PacketHudNotification(FriendlyByteBuf buf) {
-        this.title = buf.readComponent();
-        this.body = buf.readComponent();
+        this.title = BufCompat.readComponent(buf);
+        this.body = BufCompat.readComponent(buf);
         this.kind = NotificationKind.byOrdinal(buf.readVarInt());
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeComponent(this.title);
-        buf.writeComponent(this.body);
+        BufCompat.writeComponent(buf, this.title);
+        BufCompat.writeComponent(buf, this.body);
         buf.writeVarInt(this.kind.ordinal());
     }
 

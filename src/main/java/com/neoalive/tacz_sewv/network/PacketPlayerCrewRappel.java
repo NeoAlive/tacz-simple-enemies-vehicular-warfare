@@ -4,9 +4,9 @@ import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.entity.ai.support.PlayerRappelTracker;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** C→S: player driver of a helicopter drops eligible units on ropes immediately. */
 public final class PacketPlayerCrewRappel {

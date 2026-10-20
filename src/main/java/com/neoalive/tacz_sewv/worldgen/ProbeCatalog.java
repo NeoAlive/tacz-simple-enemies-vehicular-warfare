@@ -68,7 +68,8 @@ public final class ProbeCatalog extends SimplePreparableReloadListener<Map<Resou
         int failed = 0;
         try {
             for (Map.Entry<ResourceLocation, Resource> e
-                    : manager.listResources("structures", rl -> rl.getPath().endsWith(".nbt")).entrySet()) {
+                    : manager.listResources("structure", // NeoForge port: 1.21 folder is singular
+                            rl -> rl.getPath().endsWith(".nbt")).entrySet()) {
                 scanned++;
                 try {
                     TemplateInfo info = scan(e.getKey(), e.getValue());
@@ -102,7 +103,7 @@ public final class ProbeCatalog extends SimplePreparableReloadListener<Map<Resou
         if (indexOf(data, NEEDLE) < 0) return null;
 
         CompoundTag root = NbtIo.read(new DataInputStream(new ByteArrayInputStream(data)),
-                new NbtAccounter(MAX_BYTES * 2L));
+                NbtAccounter.create(MAX_BYTES * 2L));
         ListTag palette = root.getList("palette", Tag.TAG_COMPOUND);
         if (palette.isEmpty() && root.contains("palettes", Tag.TAG_LIST)) {
             palette = root.getList("palettes", Tag.TAG_LIST).getList(0);
@@ -134,8 +135,8 @@ public final class ProbeCatalog extends SimplePreparableReloadListener<Map<Resou
             }
         }
         String path = file.getPath();
-        ResourceLocation id = new ResourceLocation(file.getNamespace(),
-                path.substring("structures/".length(), path.length() - ".nbt".length()));
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(file.getNamespace(),
+                path.substring("structure/".length(), path.length() - ".nbt".length()));
         return new TemplateInfo(id, probes, factions, StructureOwner.tokenOf(id.getPath()), vehicles, chests);
     }
 

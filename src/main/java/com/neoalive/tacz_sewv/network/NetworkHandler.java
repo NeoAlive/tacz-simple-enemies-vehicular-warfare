@@ -5,12 +5,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.network.NetworkRegistry;
-import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.network.simple.SimpleChannel;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.order.OrderReport;
+import com.neoalive.tacz_sewv.platform.NetworkRegistry;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
+import com.neoalive.tacz_sewv.platform.SimpleChannel;
 
 public class NetworkHandler {
 
@@ -133,11 +133,11 @@ public class NetworkHandler {
     private static final String PROTOCOL_VERSION = "107";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation(TaczSewv.MODID, "main"),
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "main"),
             () -> PROTOCOL_VERSION,
             PROTOCOL_VERSION::equals,
             PROTOCOL_VERSION::equals
-    );
+    ).registerWith(NetworkHandler::register);
 
     private static int packetId = 0;
 
@@ -145,7 +145,16 @@ public class NetworkHandler {
         return packetId++;
     }
 
-    public static void register() {
+    private static boolean registered;
+
+    /**
+     * Idempotent. NeoForge port: also run by the channel right before payload registration closes
+     * (see {@code platform.SimpleChannel#registerWith}), so the order of common setup and
+     * {@code RegisterPayloadHandlersEvent} does not matter.
+     */
+    public static synchronized void register() {
+        if (registered) return;
+        registered = true;
         CHANNEL.registerMessage(
                 nextId(),
                 PacketBoardVehicle.class,

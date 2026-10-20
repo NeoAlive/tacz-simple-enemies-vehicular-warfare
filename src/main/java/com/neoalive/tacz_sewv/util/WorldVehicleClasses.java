@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -95,7 +96,7 @@ public class WorldVehicleClasses extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         for (CueKind kind : CueKind.values()) {
             nbt.put("cue_" + kind.name().toLowerCase(Locale.ROOT), writeList(listCues(kind)));
         }
@@ -109,10 +110,7 @@ public class WorldVehicleClasses extends SavedData {
         if (level instanceof ServerLevel serverLevel) {
             ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
             if (overworld != null) {
-                return overworld.getDataStorage().computeIfAbsent(
-                        WorldVehicleClasses::load,
-                        WorldVehicleClasses::new,
-                        DATA_NAME);
+                return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(WorldVehicleClasses::new, (tag, registries) -> WorldVehicleClasses.load(tag)), DATA_NAME);
             }
         }
         return new WorldVehicleClasses();

@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.block;
 
 import javax.annotation.Nullable;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -9,6 +10,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -24,6 +26,14 @@ import com.neoalive.tacz_sewv.fob.FobNetworking;
  * Command block for a player-owned Forward Operating Base. One per player.
  */
 public class QuartersBenchBlock extends AbstractFobDecorBlock {
+
+    // NeoForge port: 1.21 BaseEntityBlock requires a codec; this block takes no configurable properties.
+    public static final MapCodec<QuartersBenchBlock> CODEC = simpleCodec(properties -> new QuartersBenchBlock());
+
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
+    }
 
     public QuartersBenchBlock() {
         super(BlockBehaviour.Properties.of()
@@ -52,7 +62,13 @@ public class QuartersBenchBlock extends AbstractFobDecorBlock {
         mgr.validate(pos, level);
     }
 
+    // NeoForge port: 1.21 split Block#use into useWithoutItem/useItemOn; the main-hand click lands
+    // here (useItemOn passes through by default) and runs the method below unchanged.
     @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        return use(state, level, pos, player, InteractionHand.MAIN_HAND, hit);
+    }
+
     @SuppressWarnings("deprecation")
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                   InteractionHand hand, BlockHitResult hit) {

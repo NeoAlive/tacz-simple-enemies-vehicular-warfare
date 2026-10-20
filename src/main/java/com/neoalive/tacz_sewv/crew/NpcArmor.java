@@ -3,19 +3,18 @@ package com.neoalive.tacz_sewv.crew;
 import java.util.List;
 import java.util.Map;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -105,7 +104,7 @@ public final class NpcArmor {
     }
 
     private static void wear(AbstractUnit unit, EquipmentSlot slot, ItemStack stack) {
-        IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inventory = UnitInventory.of(unit);
         int index = FIRST_ARMOR_SLOT + slot.getIndex();
 
         if (inventory != null && index < inventory.getSlots()) {
@@ -126,6 +125,6 @@ public final class NpcArmor {
 
     private static Item resolve(String id) {
         ResourceLocation key = ResourceLocation.tryParse(id);
-        return key == null ? null : ForgeRegistries.ITEMS.getValue(key);
+        return key == null ? null : BuiltInRegistries.ITEM.get(key);
     }
 }

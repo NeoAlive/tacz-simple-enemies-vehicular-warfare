@@ -10,7 +10,6 @@
     "MixinUnitFactionTags",
     "MixinUnitVoicelines",
     "MixinVehicleVoicelines",
-    "AccessorPacketIssueOrder",
     "AccessorSinglePoolElement",
     "AccessorTemplateStructurePiece",
     "MixinPacketIssueOrder",

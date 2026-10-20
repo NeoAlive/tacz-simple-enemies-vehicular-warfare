@@ -12,6 +12,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
@@ -29,7 +30,7 @@ public final class DigFoxholeSupport {
 
     public static final String TAG_HAS_DUG = "sewv:hasDugFoxhole";
     public static final ResourceLocation STRUCTURE_ID =
-            new ResourceLocation(TaczSewv.MODID, "grass_trench_1");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "grass_trench_1");
 
     /** Autonomous dig refuses if any fortification is within this XZ radius (blocks). */
     public static final int CLEARANCE_RADIUS = 6;
@@ -104,7 +105,7 @@ public final class DigFoxholeSupport {
 
         StructurePlaceSettings settings = new StructurePlaceSettings()
                 .setIgnoreEntities(true)
-                .setKeepLiquids(false);
+                .setLiquidSettings(LiquidSettings.IGNORE_WATERLOGGING);
         RandomSource random = level.getRandom();
         boolean ok = template.placeInWorld(level, origin, origin, settings, random, Block.UPDATE_ALL);
         if (!ok) return false;

@@ -9,9 +9,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -24,7 +24,7 @@ import com.neoalive.tacz_sewv.init.ModBlocks;
  * hull ({@link #TAG_PAD}, persistent data like {@code RunwayTraffic.TAG_SLOT}). Nothing else counts:
  * not a helicopter inbound, not one merely overhead.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class HelipadTraffic {
 
     public static final String TAG_PAD = "sewv:helipad";
@@ -56,8 +56,8 @@ public final class HelipadTraffic {
     private HelipadTraffic() {}
 
     @SubscribeEvent
-    public static void onLevelTick(TickEvent.LevelTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || !(event.level instanceof ServerLevel level)) return;
+    public static void onLevelTick(LevelTickEvent.Post event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
         if (level.getGameTime() % INTERVAL_TICKS != 0) return;
         HelipadRegistry registry = HelipadRegistry.get(level);
         for (BlockPos pad : registry.pads()) {

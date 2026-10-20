@@ -8,7 +8,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -20,6 +19,7 @@ import com.neoalive.tacz_sewv.map.PreferredPathwayData;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Manual funnel: assign nearby owned ground units (on foot or driving) onto a saved pathway. */
 public class PacketFunnelPreferredPathway {

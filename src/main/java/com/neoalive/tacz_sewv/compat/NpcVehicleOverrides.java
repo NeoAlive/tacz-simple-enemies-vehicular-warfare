@@ -8,10 +8,10 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 /**
@@ -51,7 +51,7 @@ public final class NpcVehicleOverrides {
         if (hull == null) return null;
         // Cached per type: several per-tick hull hooks ask, and a type's id never changes.
         String id = ENTITY_IDS.computeIfAbsent(hull.getType(), type -> {
-            ResourceLocation key = ForgeRegistries.ENTITY_TYPES.getKey(type);
+            ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(type);
             return key == null ? "" : key.toString().toLowerCase(Locale.ROOT);
         });
         return id.isEmpty() ? null : id;

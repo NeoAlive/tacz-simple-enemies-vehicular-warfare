@@ -6,6 +6,7 @@ import java.util.Map;
 
 import javax.annotation.Nullable;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -51,7 +52,7 @@ public class DiplomacyData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (Map.Entry<String, Relation> e : pairs.entrySet()) {
             String[] ab = splitKey(e.getKey());
@@ -70,8 +71,7 @@ public class DiplomacyData extends SavedData {
         if (level instanceof ServerLevel serverLevel) {
             ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
             if (overworld != null) {
-                DiplomacyData data = overworld.getDataStorage().computeIfAbsent(
-                        DiplomacyData::load, DiplomacyData::new, DATA_NAME);
+                DiplomacyData data = overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(DiplomacyData::new, (tag, registries) -> DiplomacyData.load(tag)), DATA_NAME);
                 // First get after create: empty ctor path logs once via identity.
                 return data;
             }

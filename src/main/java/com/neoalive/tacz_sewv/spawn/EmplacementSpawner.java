@@ -17,6 +17,7 @@ import com.atsuishio.superbwarfare.item.projectile.MediumRocketItem;
 import com.atsuishio.superbwarfare.item.projectile.MortarShellItem;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -25,16 +26,15 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.neoforge.items.IItemHandler;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.UnitInventory;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
@@ -114,7 +114,7 @@ public final class EmplacementSpawner {
         boolean besideTube = weapon instanceof MortarEntity || weapon instanceof Type63Entity;
         BlockPos crewPos = besideTube ? pos.offset(CREW_OFFSET, 0, 0) : pos;
         crew.setPos(crewPos.getX() + 0.5, crewPos.getY(), crewPos.getZ() + 0.5);
-        crew.finalizeSpawn(level, level.getCurrentDifficultyAt(crewPos), MobSpawnType.EVENT, null, null);
+        crew.finalizeSpawn(level, level.getCurrentDifficultyAt(crewPos), MobSpawnType.EVENT, null);
         level.addFreshEntity(crew);
 
         if (weapon instanceof MortarEntity mortar) {
@@ -179,8 +179,8 @@ public final class EmplacementSpawner {
         if (vehicleId != null) {
             if (!pool.contains(vehicleId)) return null;
             ResourceLocation rl = ResourceLocation.tryParse(vehicleId);
-            if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) return null;
-            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            if (rl == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) return null;
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
             if (type == null) return null;
             Entity probe = type.create(level);
             if (probe == null || !accept.test(probe)) {
@@ -194,8 +194,8 @@ public final class EmplacementSpawner {
         List<EntityType<?>> candidates = new ArrayList<>();
         for (String id : pool) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
-            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            if (rl == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) continue;
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
             if (type == null) continue;
             Entity probe = type.create(level);
             if (probe != null && accept.test(probe)) {
@@ -259,9 +259,9 @@ public final class EmplacementSpawner {
             return resolveShell(id);
         }
         if (weapon instanceof TowEntity) {
-            String id = ForgeRegistries.ENTITY_TYPES.getKey(weapon.getType()).toString();
+            String id = BuiltInRegistries.ENTITY_TYPE.getKey(weapon.getType()).toString();
             if (id.contains("ags")) {
-                Item ags = ForgeRegistries.ITEMS.getValue(new ResourceLocation("vvp:item_30mm"));
+                Item ags = BuiltInRegistries.ITEM.get(ResourceLocation.parse("vvp:item_30mm"));
                 if (ags != null && ags != net.minecraft.world.item.Items.AIR) return ags;
             }
             return ModItems.MEDIUM_ANTI_GROUND_MISSILE.get();
@@ -301,8 +301,8 @@ public final class EmplacementSpawner {
      */
     private static Item resolveShell(String id) {
         ResourceLocation key = ResourceLocation.tryParse(id);
-        if (key != null && ForgeRegistries.ITEMS.containsKey(key)) {
-            Item item = ForgeRegistries.ITEMS.getValue(key);
+        if (key != null && BuiltInRegistries.ITEM.containsKey(key)) {
+            Item item = BuiltInRegistries.ITEM.get(key);
             if (item instanceof MortarShellItem) return item;
         }
         LOGGER.warn("[tacz_sewv] '{}' is not a usable mortar shell — falling back to {}",
@@ -312,8 +312,8 @@ public final class EmplacementSpawner {
 
     private static Item resolveRocket(String id) {
         ResourceLocation key = ResourceLocation.tryParse(id);
-        if (key != null && ForgeRegistries.ITEMS.containsKey(key)) {
-            Item item = ForgeRegistries.ITEMS.getValue(key);
+        if (key != null && BuiltInRegistries.ITEM.containsKey(key)) {
+            Item item = BuiltInRegistries.ITEM.get(key);
             if (item instanceof MediumRocketItem) return item;
         }
         LOGGER.warn("[tacz_sewv] '{}' is not a usable medium rocket — falling back to {}",
@@ -334,11 +334,11 @@ public final class EmplacementSpawner {
      * open the inventory of a unit in a seat.
      */
     private static void fillInventory(AbstractUnit crew, Item ammo) {
-        IItemHandler inventory = crew.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inventory = UnitInventory.of(crew);
         if (inventory == null) return;
 
         for (int slot = FIRST_STORAGE_SLOT; slot < inventory.getSlots(); slot++) {
-            inventory.insertItem(slot, new ItemStack(ammo, ammo.getMaxStackSize()), false);
+            inventory.insertItem(slot, new ItemStack(ammo, ammo.getDefaultMaxStackSize()), false);
         }
     }
 

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -54,7 +55,7 @@ public class PlayerDoctrineData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         ListTag doctrinesList = new ListTag();
         for (Map.Entry<UUID, Doctrine> entry : doctrines.entrySet()) {
             CompoundTag tag = new CompoundTag();
@@ -83,11 +84,7 @@ public class PlayerDoctrineData extends SavedData {
         if (level instanceof ServerLevel serverLevel) {
             ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
             if (overworld != null) {
-                return overworld.getDataStorage().computeIfAbsent(
-                        PlayerDoctrineData::load,
-                        PlayerDoctrineData::new,
-                        DATA_NAME
-                );
+                return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(PlayerDoctrineData::new, (tag, registries) -> PlayerDoctrineData.load(tag)), DATA_NAME);
             }
         }
         return new PlayerDoctrineData(); // Dummy fallback for client/missing overworld

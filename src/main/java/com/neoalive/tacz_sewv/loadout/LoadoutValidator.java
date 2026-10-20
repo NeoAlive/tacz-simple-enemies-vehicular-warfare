@@ -7,11 +7,11 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 import com.tacz.guns.api.item.attachment.AttachmentType;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.registries.ForgeRegistries;
 
 /**
  * Two strengths on purpose. {@link #gunUsable} is the only thing the merge path asks, and it is
@@ -95,7 +95,7 @@ public final class LoadoutValidator {
         }
         EquipmentSlot want = ARMOR_SLOT.get(key);
         ResourceLocation rl = ResourceLocation.tryParse(id);
-        Item item = rl == null ? null : ForgeRegistries.ITEMS.getValue(rl);
+        Item item = rl == null ? null : BuiltInRegistries.ITEM.get(rl);
         boolean ok = want != null && item instanceof ArmorItem armor && armor.getEquipmentSlot() == want;
         if (!ok) problems.add(r.name + ": " + id + " is not valid for " + key);
         return ok;

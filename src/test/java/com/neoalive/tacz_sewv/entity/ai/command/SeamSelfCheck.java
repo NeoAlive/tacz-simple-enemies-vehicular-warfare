@@ -182,7 +182,7 @@ public final class SeamSelfCheck {
 
     private static UtilityWeights shipped() {
         return UtilityWeights.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
     }
 
     private static JsonElement shippedWeights() {

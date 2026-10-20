@@ -17,13 +17,13 @@ import com.atsuishio.superbwarfare.item.gun.launcher.IglaItem;
 import com.atsuishio.superbwarfare.item.gun.special.BocekItem;
 import com.atsuishio.superbwarfare.item.gun.special.RepairToolItem;
 import com.atsuishio.superbwarfare.item.gun.special.TaserItem;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
@@ -84,7 +84,7 @@ public final class SmallArmsSupport {
         // RepairToolItem extends GunGeoItem extends GunItem and carries readable gun data, so
         // without this an engineer would "shoot" a repair beam at infantry.
         if (item instanceof RepairToolItem || item instanceof BocekItem || item instanceof TaserItem) return false;
-        ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
         return id != null && !EXCLUDED_IDS.contains(id.toString());
     }
 
@@ -261,6 +261,6 @@ public final class SmallArmsSupport {
         if (id == null || id.isBlank()) return null;
 
         ResourceLocation key = ResourceLocation.tryParse(id);
-        return key == null ? null : ForgeRegistries.ITEMS.getValue(key);
+        return key == null ? null : BuiltInRegistries.ITEM.get(key);
     }
 }

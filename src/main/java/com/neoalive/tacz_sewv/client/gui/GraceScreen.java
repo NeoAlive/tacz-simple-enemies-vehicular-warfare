@@ -5,16 +5,16 @@ import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
 import com.neoalive.tacz_sewv.init.ModSounds;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 
 /** The grace period's start popup: title, wrapped text with the day count in bold, one OK button. */
-public class GraceScreen extends Screen {
+public class GraceScreen extends SewvScreen {
 
     private static final int PANEL_W = 260;
     private static final int PAD = 12;

@@ -4,7 +4,6 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -15,6 +14,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.crew.LogoPoolIndex;
 import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
 import com.neoalive.tacz_sewv.init.ModItems;
+import com.neoalive.tacz_sewv.platform.StackTag;
 
 /**
  * Stamps the wearer's PMC logo onto {@code pmc_helmet_mich} via item NBT (equipment syncs, no
@@ -44,9 +44,12 @@ public final class HelmetLogoSupport {
             poolId = PmcIdentityPreference.DEFAULT_POOL;
             logoId = PmcIdentityPreference.DEFAULT_LOGO;
         }
-        CompoundTag tag = stack.getOrCreateTag();
-        tag.putString(TAG_POOL, poolId);
-        tag.putString(TAG_LOGO, logoId);
+        String pool = poolId;
+        String logo = logoId;
+        StackTag.update(stack, tag -> {
+            tag.putString(TAG_POOL, pool);
+            tag.putString(TAG_LOGO, logo);
+        });
     }
 
     public static void stampDefaults(ItemStack stack) {
@@ -90,15 +93,15 @@ public final class HelmetLogoSupport {
 
     @Nullable
     public static String poolOf(ItemStack stack) {
-        if (!isMich(stack) || !stack.hasTag()) return null;
-        String pool = stack.getTag().getString(TAG_POOL);
+        if (!isMich(stack) || !StackTag.has(stack)) return null;
+        String pool = StackTag.getOrEmpty(stack).getString(TAG_POOL);
         return pool.isEmpty() ? null : pool;
     }
 
     @Nullable
     public static String logoOf(ItemStack stack) {
-        if (!isMich(stack) || !stack.hasTag()) return null;
-        String logo = stack.getTag().getString(TAG_LOGO);
+        if (!isMich(stack) || !StackTag.has(stack)) return null;
+        String logo = StackTag.getOrEmpty(stack).getString(TAG_LOGO);
         return logo.isEmpty() ? null : logo;
     }
 }

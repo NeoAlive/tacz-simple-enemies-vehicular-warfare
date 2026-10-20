@@ -12,12 +12,12 @@ import com.atsuishio.superbwarfare.entity.projectile.Ru9m336MissileEntity;
 import com.atsuishio.superbwarfare.entity.projectile.WireGuideMissileEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.tools.RangeTool;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -119,8 +119,8 @@ public final class VehicleMissileAim {
         // Prefer registry class — covers addon subclasses of WireGuide / seekers.
         try {
             ResourceLocation rl = ResourceLocation.tryParse(projectileId);
-            if (rl != null && ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
-                EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            if (rl != null && BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) {
+                EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
                 if (type != null) {
                     AimMode fromClass = modeOfClass(type.getBaseClass());
                     if (fromClass != null) return fromClass;

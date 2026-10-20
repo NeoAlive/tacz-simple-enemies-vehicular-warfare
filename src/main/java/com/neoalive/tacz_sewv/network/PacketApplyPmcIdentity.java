@@ -5,12 +5,12 @@ import java.util.function.Supplier;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.crew.LogoPoolIndex;
 import com.neoalive.tacz_sewv.crew.NpcIdentity;
 import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 import com.neoalive.tacz_sewv.skin.PmcVehicleLogoSupport;
 
 /** C→S: commit PMC company name + logo from the TDT Identity tab. */

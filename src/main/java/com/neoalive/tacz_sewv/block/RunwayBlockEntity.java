@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.block;
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -184,11 +185,11 @@ public class RunwayBlockEntity extends BlockEntity {
     }
 
     @Override
-    public CompoundTag getUpdateTag() {
-        return saveWithoutMetadata();
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        return saveWithoutMetadata(registries);
     }
 
-    @Override
+    /** NeoForge port: read by {@code RunwayBlockRenderer#getRenderBoundingBox} (moved off the BE in 1.21). */
     public AABB getRenderBoundingBox() {
         return RENDER_EXTENT.move(worldPosition);
     }
@@ -228,8 +229,8 @@ public class RunwayBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag) {
-        super.saveAdditional(tag);
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
         tag.putInt("X1", x1);
         tag.putInt("Z1", z1);
         tag.putInt("X2", x2);
@@ -247,8 +248,8 @@ public class RunwayBlockEntity extends BlockEntity {
     }
 
     @Override
-    public void load(CompoundTag tag) {
-        super.load(tag);
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
         x1 = tag.getInt("X1");
         z1 = tag.getInt("Z1");
         x2 = tag.getInt("X2");

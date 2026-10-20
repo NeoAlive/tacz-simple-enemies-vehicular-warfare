@@ -19,12 +19,13 @@ import com.tacz.guns.api.item.builder.AttachmentItemBuilder;
 import com.tacz.guns.api.item.builder.GunItemBuilder;
 import com.tacz.guns.api.item.gun.FireMode;
 import com.tacz.guns.resource.index.CommonGunIndex;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
+import com.neoalive.tacz_sewv.platform.RegistryLookup;
 
 /**
  * Every TACZ gun and attachment that is actually loaded, from TACZ's own indices rather than any
@@ -72,7 +73,7 @@ public final class WeaponCatalogSource {
     /** Usable SBW hand guns in the item registry (addons included). */
     public static List<String> sbwGunIds() {
         List<String> out = new ArrayList<>();
-        for (var e : ForgeRegistries.ITEMS.getEntries()) {
+        for (var e : BuiltInRegistries.ITEM.entrySet()) {
             if (SmallArmsSupport.isUsableSbwGun(e.getValue())) out.add(e.getKey().location().toString());
         }
         return out;
@@ -87,7 +88,7 @@ public final class WeaponCatalogSource {
     private static Item sbwItem(String gunId) {
         ResourceLocation rl = ResourceLocation.tryParse(gunId);
         if (rl == null) return null;
-        Item item = ForgeRegistries.ITEMS.getValue(rl);
+        Item item = BuiltInRegistries.ITEM.get(rl);
         return SmallArmsSupport.isUsableSbwGun(item) ? item : null;
     }
 
@@ -180,7 +181,7 @@ public final class WeaponCatalogSource {
     }
 
     private static Optional<LoadoutRow> sbwFromStack(ItemStack stack) {
-        ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (id == null) return Optional.empty();
         LoadoutRow r = new LoadoutRow();
         r.gunId = id.toString();
@@ -215,7 +216,7 @@ public final class WeaponCatalogSource {
         ResourceLocation att = ResourceLocation.tryParse(attachmentId);
         if (gun == null || att == null) return false;
         try {
-            ItemStack gunStack = GunItemBuilder.create().setId(gun).build();
+            ItemStack gunStack = GunItemBuilder.create().setId(gun).build(RegistryLookup.current());
             IGun iGun = IGun.getIGunOrNull(gunStack);
             if (iGun == null) return false;
             return iGun.allowAttachment(gunStack, AttachmentItemBuilder.create().setId(att).build());

@@ -1,24 +1,23 @@
 package com.neoalive.tacz_sewv.item.armor;
 
-import java.util.UUID;
-import java.util.function.Consumer;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.atsuishio.superbwarfare.Mod;
 import com.atsuishio.superbwarfare.init.ModAttributes;
 import com.atsuishio.superbwarfare.resource.model.ArmorModelReloadListener;
 import com.atsuishio.superbwarfare.tiers.ModArmorMaterial;
 import com.github.mcmodderanchor.simplebedrockmodel.v2.client.renderer.GeoArmorRendererV2;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.client.extensions.common.IClientItemExtensions;
+import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 
@@ -31,17 +30,21 @@ import com.neoalive.tacz_sewv.TaczSewv;
 public class PmcHelmetMichItem extends ArmorItem {
 
     public static final ResourceLocation TEXTURE =
-            new ResourceLocation(TaczSewv.MODID, "textures/bedrock/armor/pmc_helmet_mich.png");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/bedrock/armor/pmc_helmet_mich.png");
     public static final ResourceLocation MODEL =
-            new ResourceLocation(TaczSewv.MODID, "models/bedrock/armor/pmc_helmet_mich.geo.json");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "models/bedrock/armor/pmc_helmet_mich.geo.json");
 
     public PmcHelmetMichItem() {
-        super(ModArmorMaterial.CEMENTED_CARBIDE, Type.HELMET, new Properties());
+        // NeoForge port: 1.21 armor materials carry no durability; same value SBW 1.21 gives its PASGT.
+        super(ModArmorMaterial.CEMENTED_CARBIDE, Type.HELMET, new Properties().durability(Type.HELMET.getDurability(50)));
     }
 
-    @Override
-    public void initializeClient(Consumer<IClientItemExtensions> consumer) {
-        consumer.accept(new IClientItemExtensions() {
+    /**
+     * NeoForge port: client extensions are registered from {@code RegisterClientExtensionsEvent}
+     * (see {@code ClientModEvents}), not by an {@code initializeClient} override.
+     */
+    public static IClientItemExtensions clientExtensions() {
+        return new IClientItemExtensions() {
             private GeoArmorRendererV2 renderer;
 
             @Override
@@ -59,24 +62,18 @@ public class PmcHelmetMichItem extends ArmorItem {
                 this.renderer.preparePose(livingEntity, itemStack, equipmentSlot, original);
                 return this.renderer;
             }
-        });
+        };
     }
 
     @Override
-    public Multimap<Attribute, AttributeModifier> getAttributeModifiers(EquipmentSlot slot, ItemStack stack) {
-        Multimap<Attribute, AttributeModifier> map = super.getDefaultAttributeModifiers(slot);
-        UUID uuid = new UUID(slot.toString().hashCode(), 0L);
-        if (slot == EquipmentSlot.HEAD) {
-            map = HashMultimap.create(map);
-            double resistance = 0.2 * Math.max(0.0, 1.0 - (double) stack.getDamageValue() / stack.getMaxDamage());
-            map.put(
-                    ModAttributes.BULLET_RESISTANCE.get(),
-                    new AttributeModifier(
-                            uuid,
-                            Mod.ATTRIBUTE_MODIFIER,
-                            resistance,
-                            AttributeModifier.Operation.ADDITION));
-        }
-        return map;
+    public ItemAttributeModifiers getDefaultAttributeModifiers(ItemStack stack) {
+        ItemAttributeModifiers base = super.getDefaultAttributeModifiers(stack);
+        List<ItemAttributeModifiers.Entry> list = new ArrayList<>(base.modifiers());
+        double resistance = 0.2 * Math.max(0.0, 1.0 - (double) stack.getDamageValue() / stack.getMaxDamage());
+        list.add(new ItemAttributeModifiers.Entry(
+                ModAttributes.BULLET_RESISTANCE,
+                new AttributeModifier(Mod.ATTRIBUTE_MODIFIER, resistance, AttributeModifier.Operation.ADD_VALUE),
+                EquipmentSlotGroup.HEAD));
+        return new ItemAttributeModifiers(list, true);
     }
 }

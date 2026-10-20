@@ -8,11 +8,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData;
 import com.neoalive.tacz_sewv.item.DoctrineLedgerItem;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
+import com.neoalive.tacz_sewv.platform.StackTag;
 
 public class PacketSaveDoctrine {
 
@@ -71,7 +72,7 @@ public class PacketSaveDoctrine {
 
             // 4. Initial Ledger vs Respec Ledger validation
             PlayerDoctrineData doctrineData = PlayerDoctrineData.get(player.level());
-            boolean isInitial = held.hasTag() && held.getTag().getBoolean("sewv_is_initial");
+            boolean isInitial = StackTag.getOrEmpty(held).getBoolean("sewv_is_initial");
             if (isInitial && doctrineData.getDoctrine(player.getUUID()) != null) {
                 player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.already_set").withStyle(ChatFormatting.RED), true);
                 return;

@@ -56,7 +56,7 @@ public class TdtScreen extends Screen {
 
     static {
         for (VehicleMarker.Kind kind : VehicleMarker.Kind.values()) {
-            KIND_TEX.put(kind, new ResourceLocation(TaczSewv.MODID,
+            KIND_TEX.put(kind, ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID,
                     "textures/map/xaeros_icon_" + kind.textureName() + ".png"));
         }
     }
@@ -624,13 +624,13 @@ public class TdtScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
         if (mouseX <= this.panelLeft + this.panelW
                 && mouseY >= this.listTop && mouseY <= this.listBottom) {
             this.scroll = Mth.clamp(this.scroll - (int) (delta * CELL_H), 0, maxScroll());
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX, mouseY, scrollX, delta);
     }
 
     private boolean clickTabs(double mx, double my) {
@@ -1064,7 +1064,7 @@ public class TdtScreen extends Screen {
 
     /** No world dim — the battlefield stays visible beside the docked panel. */
     @Override
-    public void renderBackground(GuiGraphics g) {
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
     }
 
     @Override
@@ -1077,7 +1077,7 @@ public class TdtScreen extends Screen {
         g.fill(this.panelLeft + this.panelW - 1, this.panelTop, this.panelLeft + this.panelW, this.panelBottom, COL_BORDER);
 
         g.drawString(this.font, this.title, this.panelLeft + PAD, PAD, COL_TEXT, false);
-        if (!net.minecraftforge.fml.ModList.get().isLoaded("xaeroworldmap")) {
+        if (!net.neoforged.fml.ModList.get().isLoaded("xaeroworldmap")) {
             g.drawString(this.font, Component.translatable("gui.tacz_sewv.tdt.xaero_hint"),
                     this.panelLeft + PAD + this.font.width(this.title) + 8, PAD, COL_MUTED, false);
         }

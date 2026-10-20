@@ -17,9 +17,10 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.neoforge.items.IItemHandler;
+
+import com.neoalive.tacz_sewv.crew.UnitInventory;
 
 /**
  * Live weapon-above queries and PMC ammo from an {@link EmplacementBlockEntity}.
@@ -88,7 +89,7 @@ public final class EmplacementSupport {
      * Returns true only when a shell was inserted so {@code takeShell} can succeed next.
      */
     public static boolean tryRestockShell(AbstractUnit unit, MortarEntity mortar) {
-        IItemHandler inventory = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler inventory = UnitInventory.of(unit);
         if (inventory == null) return false;
 
         EmplacementBlockEntity be = findEmplacementNear(mortar);

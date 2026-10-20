@@ -6,8 +6,8 @@ import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 import com.neoalive.tacz_sewv.territory.TerritoryManager;
 
 /** Client→server: everything the RTS panel can ask of Territory Mode. Validated entirely server-side. */

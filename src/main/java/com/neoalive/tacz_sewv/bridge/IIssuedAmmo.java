@@ -1,10 +1,10 @@
 package com.neoalive.tacz_sewv.bridge;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -42,7 +42,7 @@ public interface IIssuedAmmo {
             tag.remove(TAG_ISSUED_AMMO);
             return;
         }
-        ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
         if (id != null) tag.putString(TAG_ISSUED_AMMO, id.toString());
     }
 
@@ -56,7 +56,7 @@ public interface IIssuedAmmo {
         // containsKey first: the item registry is defaulted, so a bare getValue() on an id
         // from a since-removed addon would hand back minecraft:air rather than null, and the
         // crew would silently believe it had been issued nothing-shaped ammunition.
-        if (id == null || !ForgeRegistries.ITEMS.containsKey(id)) return null;
-        return ForgeRegistries.ITEMS.getValue(id);
+        if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) return null;
+        return BuiltInRegistries.ITEM.get(id);
     }
 }

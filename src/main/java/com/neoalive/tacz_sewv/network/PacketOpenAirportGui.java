@@ -6,13 +6,13 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.airport.AirportClearance;
 import com.neoalive.tacz_sewv.block.RunwayBlockEntity;
 import com.neoalive.tacz_sewv.client.AirportClient;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Server → client: open / refresh the runway editor. */
 public class PacketOpenAirportGui {

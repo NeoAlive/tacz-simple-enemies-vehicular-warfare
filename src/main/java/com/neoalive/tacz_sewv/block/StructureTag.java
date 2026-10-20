@@ -13,11 +13,11 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.eventbus.api.Event;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.common.util.TriState;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.fob.FobManager;
@@ -33,11 +33,11 @@ import com.neoalive.tacz_sewv.init.ModBlocks;
  * {@code /sewv debug applyStructureTag}. Handling is server-side only; the client never learns the
  * flag, so its break animation is the normal one (the server breaks the block first).
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class StructureTag {
 
     public static final TagKey<Block> ELIGIBLE =
-            TagKey.create(Registries.BLOCK, new ResourceLocation(TaczSewv.MODID, "structure_eligible"));
+            TagKey.create(Registries.BLOCK, ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "structure_eligible"));
     private static final String KEY = "sewv_structure";
 
     private StructureTag() {}
@@ -95,7 +95,7 @@ public final class StructureTag {
     @SubscribeEvent
     public static void onRightClick(PlayerInteractEvent.RightClickBlock event) {
         if (event.getLevel().isClientSide() || !has(event.getLevel(), event.getPos())) return;
-        event.setUseBlock(Event.Result.DENY);
+        event.setUseBlock(TriState.FALSE);
         if (event.getHand() == InteractionHand.MAIN_HAND) {
             hint(event.getEntity(), event.getLevel().getBlockState(event.getPos()));
         }

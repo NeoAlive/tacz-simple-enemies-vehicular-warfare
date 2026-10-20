@@ -6,12 +6,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.airport.HelipadClearance;
 import com.neoalive.tacz_sewv.airport.HelipadTraffic;
 import com.neoalive.tacz_sewv.block.HelipadBlockEntity;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /** Client to server: Check Clearance from the helipad panel. */
 public class PacketHelipadAction {

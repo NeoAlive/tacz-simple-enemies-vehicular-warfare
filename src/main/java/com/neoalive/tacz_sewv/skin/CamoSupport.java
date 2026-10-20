@@ -13,7 +13,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
@@ -21,6 +20,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketEntityCamo;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /**
  * Biome camo: one number N per unit and per hull ({@code sewv:camo}), decided server-side from

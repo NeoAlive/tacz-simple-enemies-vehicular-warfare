@@ -49,8 +49,9 @@ public class RepairGoal extends Goal {
      * after a moving tank simply never catches it. Fixed id so re-applying (goal restarts on a new
      * target) never stacks a second copy.
      */
-    private static final java.util.UUID SPEED_BOOST_ID =
-            java.util.UUID.fromString("b6a1f6a0-6e6c-4c9a-9d3a-2f6a2b6d3e10");
+    // NeoForge port: 1.21 modifiers are keyed by id, not UUID + name; the old name becomes the path.
+    private static final net.minecraft.resources.ResourceLocation SPEED_BOOST_ID =
+            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(com.neoalive.tacz_sewv.TaczSewv.MODID, "sewv_repair_speed_boost");
 
     private final AbstractUnit unit;
     private VehicleEntity target;
@@ -173,7 +174,7 @@ public class RepairGoal extends Goal {
         if (speed == null || speed.getModifier(SPEED_BOOST_ID) != null) return;
         double amount = SewvConfig.ENGINEER_REPAIR_SPEED_BOOST.get() - 1.0;
         speed.addTransientModifier(new AttributeModifier(
-                SPEED_BOOST_ID, "sewv_repair_speed_boost", amount, AttributeModifier.Operation.MULTIPLY_TOTAL));
+                SPEED_BOOST_ID, amount, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
     }
 
     private void clearSpeedBoost() {

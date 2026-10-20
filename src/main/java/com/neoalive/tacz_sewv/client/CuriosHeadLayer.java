@@ -13,11 +13,11 @@ import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.client.CuriosRendererRegistry;
 import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
@@ -39,7 +39,7 @@ public class CuriosHeadLayer<T extends LivingEntity, M extends EntityModel<T>> e
 
     private static final String HEAD_SLOT = "head";
     private static final ModelLayerLocation GOGGLES_LAYER =
-            new ModelLayerLocation(new ResourceLocation("superbwarfare", "thermal_imaging_goggles"), "main");
+            new ModelLayerLocation(ResourceLocation.fromNamespaceAndPath("superbwarfare", "thermal_imaging_goggles"), "main");
 
     private ModelPart bone;
 
@@ -70,12 +70,12 @@ public class CuriosHeadLayer<T extends LivingEntity, M extends EntityModel<T>> e
 
         ResourceLocation texture = textureFor(item);
         VertexConsumer consumer = ItemRenderer.getArmorFoilBuffer(
-                buffer, RenderType.armorCutoutNoCull(texture), false, stack.hasFoil());
+                buffer, RenderType.armorCutoutNoCull(texture), stack.hasFoil());
 
         poseStack.pushPose();
         fakeRoot.translateAndRotate(poseStack);
         unit.translateAndRotate(poseStack);
-        goggles.render(poseStack, consumer, packedLight, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
+        goggles.render(poseStack, consumer, packedLight, OverlayTexture.NO_OVERLAY, -1);
         poseStack.popPose();
     }
 
@@ -99,10 +99,10 @@ public class CuriosHeadLayer<T extends LivingEntity, M extends EntityModel<T>> e
     }
 
     private static ResourceLocation textureFor(Item item) {
-        ResourceLocation id = ForgeRegistries.ITEMS.getKey(item);
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
         if (id == null) {
-            return new ResourceLocation("superbwarfare", "textures/curio/thermal_imaging_goggles.png");
+            return ResourceLocation.fromNamespaceAndPath("superbwarfare", "textures/curio/thermal_imaging_goggles.png");
         }
-        return new ResourceLocation(id.getNamespace(), "textures/curio/" + id.getPath() + ".png");
+        return ResourceLocation.fromNamespaceAndPath(id.getNamespace(), "textures/curio/" + id.getPath() + ".png");
     }
 }

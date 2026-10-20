@@ -37,7 +37,7 @@ import com.neoalive.tacz_sewv.map.VehicleMarker;
 public class CommanderBeretLayer extends RenderLayer<PmcCommanderEntity, PmcCommanderModel<PmcCommanderEntity>> {
 
     private static final ResourceLocation JAR_OVERLAY_FALLBACK =
-            new ResourceLocation(TaczSewv.MODID, "skins/pmc_commander_overlay.png");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "skins/pmc_commander_overlay.png");
 
     public CommanderBeretLayer(RenderLayerParent<PmcCommanderEntity, PmcCommanderModel<PmcCommanderEntity>> parent) {
         super(parent);
@@ -55,12 +55,8 @@ public class CommanderBeretLayer extends RenderLayer<PmcCommanderEntity, PmcComm
         int colorRgb = marker != null ? marker.platoonColorRgb() : 0;
         if (colorRgb == 0) return;
 
-        float r = ((colorRgb >> 16) & 0xFF) / 255.0F;
-        float g = ((colorRgb >> 8) & 0xFF) / 255.0F;
-        float b = (colorRgb & 0xFF) / 255.0F;
-
         VertexConsumer consumer = buffer.getBuffer(RenderType.entityCutoutNoCull(overlayTexture()));
-        this.getParentModel().renderToBuffer(poseStack, consumer, packedLight, OverlayTexture.NO_OVERLAY, r, g, b, 1.0F);
+        this.getParentModel().renderToBuffer(poseStack, consumer, packedLight, OverlayTexture.NO_OVERLAY, 0xFF000000 | colorRgb);
     }
 
     private static ResourceLocation overlayTexture() {

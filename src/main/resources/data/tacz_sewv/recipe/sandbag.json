@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "ASA",
+    "ASA"
+  ],
+  "key": {
+    "A": {
+      "item": "minecraft:sand"
+    },
+    "S": {
+      "item": "minecraft:string"
+    }
+  },
+  "result": {
+    "id": "tacz_sewv:sandbag"
+  }
+}

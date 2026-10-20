@@ -11,8 +11,8 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineInfo;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -402,7 +402,7 @@ public final class HullFacts {
 
     private static boolean idMatchesClues(VehicleEntity v, List<? extends String> clues) {
         try {
-            String id = ForgeRegistries.ENTITY_TYPES.getKey(v.getType()).toString().toLowerCase(Locale.ROOT);
+            String id = BuiltInRegistries.ENTITY_TYPE.getKey(v.getType()).toString().toLowerCase(Locale.ROOT);
             for (String clue : clues) {
                 if (clue.isBlank()) continue;
                 String c = clue.toLowerCase(Locale.ROOT);
@@ -431,7 +431,7 @@ public final class HullFacts {
     private static boolean computeHelicopter(VehicleEntity v) {
         try {
             EngineType t = NpcVehicleOverrides.applyEngineHint(
-                    ForgeRegistries.ENTITY_TYPES.getKey(v.getType()).toString(),
+                    BuiltInRegistries.ENTITY_TYPE.getKey(v.getType()).toString(),
                     v.computed().getEngineType());
             return t == EngineType.HELICOPTER;
         } catch (Throwable ignored) {
@@ -442,7 +442,7 @@ public final class HullFacts {
     private static boolean computePlane(VehicleEntity v) {
         try {
             EngineType t = NpcVehicleOverrides.applyEngineHint(
-                    ForgeRegistries.ENTITY_TYPES.getKey(v.getType()).toString(),
+                    BuiltInRegistries.ENTITY_TYPE.getKey(v.getType()).toString(),
                     v.computed().getEngineType());
             return t == EngineType.AIRCRAFT;
         } catch (Throwable ignored) {
@@ -514,7 +514,7 @@ public final class HullFacts {
             // Same applyEngineHint path as plane/heli — raw datapack WHEEL on an override-AIRCRAFT
             // hull must not read as towable ground (that was linking planes into SBW tow chains).
             EngineType t = NpcVehicleOverrides.applyEngineHint(
-                    ForgeRegistries.ENTITY_TYPES.getKey(v.getType()).toString(),
+                    BuiltInRegistries.ENTITY_TYPE.getKey(v.getType()).toString(),
                     v.computed().getEngineType());
             return t == EngineType.WHEEL || t == EngineType.TRACK;
         } catch (Throwable ignored) {

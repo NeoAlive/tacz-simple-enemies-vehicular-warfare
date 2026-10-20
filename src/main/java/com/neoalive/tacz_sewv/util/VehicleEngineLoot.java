@@ -10,6 +10,8 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
@@ -21,10 +23,10 @@ import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.IItemHandlerModifiable;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
@@ -102,9 +104,9 @@ public final class VehicleEngineLoot {
         }
         if (engine == null) return;
 
-        ResourceLocation tableId = new ResourceLocation(TaczSewv.MODID,
+        ResourceLocation tableId = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID,
                 "vehicles/engine/" + engine.name().toLowerCase());
-        LootTable table = level.getServer().getLootData().getLootTable(tableId);
+        LootTable table = level.getServer().reloadableRegistries().getLootTable(ResourceKey.create(Registries.LOOT_TABLE, tableId));
         if (table == LootTable.EMPTY) return;
 
         LootParams params = new LootParams.Builder(level)
@@ -151,7 +153,7 @@ public final class VehicleEngineLoot {
 
     /** ~10–25% of a stack / magazine — sporadic player loot when replacing a creative box. */
     private static int synthesizeCount(Item item, RandomSource random) {
-        int max = Math.max(1, item.getMaxStackSize());
+        int max = Math.max(1, item.getDefaultMaxStackSize());
         int lo = Math.max(1, max / 10);
         int hi = Math.max(lo, max / 4);
         return Mth.nextInt(random, lo, hi);
@@ -159,7 +161,7 @@ public final class VehicleEngineLoot {
 
     /** Smaller bonus when finite ammo was already present. */
     private static int bonusCount(Item item, RandomSource random) {
-        int max = Math.max(1, item.getMaxStackSize());
+        int max = Math.max(1, item.getDefaultMaxStackSize());
         int hi = Math.max(1, max / 8);
         return Mth.nextInt(random, 1, hi);
     }

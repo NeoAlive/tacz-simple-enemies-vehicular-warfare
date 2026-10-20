@@ -17,6 +17,7 @@ import com.atsuishio.superbwarfare.data.vehicle.subdata.SeatInfo;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -31,7 +32,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.roles.utils.UnitRole;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -177,10 +177,10 @@ public final class TankSpawner {
     private static boolean hasSpawnable(ServerLevel level, List<? extends String> pool) {
         for (String id : pool) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
+            if (rl == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) continue;
             if (NpcVehicleOverrides.refusesNpcRiders(id)) continue; // a crew could never mount it
             if (LvCompat.isLvVehicleId(id)) continue; // not an SBW hull, even where it is an entity type
-            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
             if (type != null && isVehicleEntityType(level, rl, type)) return true;
         }
         return false;
@@ -279,8 +279,8 @@ public final class TankSpawner {
                 continue;
             }
             ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) continue;
-            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+            if (rl == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) continue;
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
             if (type != null && isVehicleEntityType(level, rl, type)) ok.add(id);
         }
         return ok.isEmpty() ? null : ok.get(level.random.nextInt(ok.size()));
@@ -377,7 +377,7 @@ public final class TankSpawner {
         for (int i = 0; i < seats; i++) {
             AbstractUnit crew = createCrewUnit(level, faction, ownerId);
             crew.setPos(x, y, z);
-            crew.finalizeSpawn(level, level.getCurrentDifficultyAt(crew.blockPosition()), MobSpawnType.EVENT, null, null);
+            crew.finalizeSpawn(level, level.getCurrentDifficultyAt(crew.blockPosition()), MobSpawnType.EVENT, null);
             level.addFreshEntity(crew);
             if (!crew.startRiding(plane)) {
                 crew.discard();
@@ -458,7 +458,7 @@ public final class TankSpawner {
         for (int i = 0; i < seats; i++) {
             AbstractUnit crew = createCrewUnit(level, faction, ownerId);
             crew.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-            crew.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null, null);
+            crew.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
             level.addFreshEntity(crew);
             if (!crew.startRiding(tank)) {
                 // Seat refused the rider (vehicle full despite getMaxPassengers, or
@@ -597,7 +597,7 @@ public final class TankSpawner {
             for (int i = 1; i < seats; i++) {
                 AbstractUnit crew = createCrewUnit(level, TankFaction.PMC, ownerId);
                 crew.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-                crew.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null, null);
+                crew.finalizeSpawn(level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
                 level.addFreshEntity(crew);
                 if (!crew.startRiding(tank)) {
                     crew.discard();
@@ -795,7 +795,7 @@ public final class TankSpawner {
         int size = VehicleAmmoStorage.containerSlots(tank);
         for (int slot = 0; slot < size; slot++) {
             Item item = ammo.get(slot % ammo.size());
-            VehicleAmmoStorage.setStack(tank, slot, new ItemStack(item, item.getMaxStackSize()));
+            VehicleAmmoStorage.setStack(tank, slot, new ItemStack(item, item.getDefaultMaxStackSize()));
         }
     }
 
@@ -833,7 +833,7 @@ public final class TankSpawner {
     @Nullable
     private static String entityId(VehicleEntity tank) {
         try {
-            ResourceLocation key = ForgeRegistries.ENTITY_TYPES.getKey(tank.getType());
+            ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(tank.getType());
             return key == null ? null : key.toString();
         } catch (Exception ignored) {
             return null;
@@ -860,7 +860,7 @@ public final class TankSpawner {
                         if (c == null) continue;
                         ItemStack stack = c.stack();
                         if (stack.isEmpty()) continue;
-                        ResourceLocation key = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                        ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
                         if (key != null && AshAmmoCompat.isBannedMunition(key.toString())) continue;
                         if (!ammo.contains(stack.getItem())) ammo.add(stack.getItem());
                     }
@@ -929,8 +929,8 @@ public final class TankSpawner {
         if (requestedId == null) return pickVehicleType(pool, random);
         if (!pool.contains(requestedId)) return null; // not a configured pool entry
         ResourceLocation rl = ResourceLocation.tryParse(requestedId);
-        if (rl == null || !ForgeRegistries.ENTITY_TYPES.containsKey(rl)) return null;
-        return ForgeRegistries.ENTITY_TYPES.getValue(rl);
+        if (rl == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) return null;
+        return BuiltInRegistries.ENTITY_TYPE.get(rl);
     }
 
     // Random pick among the pool entries that resolve to a real entity type.
@@ -941,8 +941,8 @@ public final class TankSpawner {
         List<EntityType<?>> candidates = new ArrayList<>(pool.size());
         for (String id : pool) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl != null && ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
-                candidates.add(ForgeRegistries.ENTITY_TYPES.getValue(rl));
+            if (rl != null && BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) {
+                candidates.add(BuiltInRegistries.ENTITY_TYPE.get(rl));
             }
         }
         if (candidates.isEmpty()) return null;

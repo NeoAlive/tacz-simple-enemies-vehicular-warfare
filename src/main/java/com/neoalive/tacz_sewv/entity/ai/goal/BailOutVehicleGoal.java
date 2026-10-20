@@ -1,7 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai.goal;
 
 import java.util.EnumSet;
-import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -10,6 +9,7 @@ import com.atsuishio.superbwarfare.init.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
@@ -26,6 +26,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.config.EasyMode;
@@ -92,10 +93,11 @@ public class BailOutVehicleGoal extends Goal {
     private static final double SCRAMBLE_SPEED = 1.3;     // navigation multiplier for RU/US
     // Transient attribute boost so PMC (order-driven) and RU/US both scramble faster;
     // restored in stop() so it cannot leak past the goal.
-    private static final UUID SCRAMBLE_SPEED_UUID =
-            UUID.fromString("a7c3e91f-4b2d-4e8a-9f01-6d5c8b3a2e14");
+    // NeoForge port: 1.21 modifiers are keyed by id, not UUID + name; the old name becomes the path.
+    private static final ResourceLocation SCRAMBLE_SPEED_UUID =
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "sewv_bail_scramble");
     private static final AttributeModifier SCRAMBLE_SPEED_MOD = new AttributeModifier(
-            SCRAMBLE_SPEED_UUID, "sewv_bail_scramble", 0.4D, AttributeModifier.Operation.MULTIPLY_TOTAL);
+            SCRAMBLE_SPEED_UUID, 0.4D, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
     // Goals tick every other game tick, so these constants are ~2x wall clock:
     // ~20 s to reach the escape point, repath attempts ~1 s apart.
     private static final int MAX_SCRAMBLE_TICKS = 200;

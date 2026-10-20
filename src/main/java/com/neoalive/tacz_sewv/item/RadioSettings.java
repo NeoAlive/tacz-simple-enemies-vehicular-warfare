@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.item;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 
+import com.neoalive.tacz_sewv.platform.StackTag;
+
 /**
  * Handheld-radio GUI state persisted on the item stack. Entity vs grid designation is not a
  * setting: the call's raycast decides it by what it hits ({@code RadioRaycast}).
@@ -30,10 +32,11 @@ public final class RadioSettings {
     }
 
     public static State read(ItemStack stack) {
-        if (!stack.hasTag() || !stack.getTag().contains(TAG)) {
+        CompoundTag root = StackTag.get(stack);
+        if (root == null || !root.contains(TAG)) {
             return State.defaults();
         }
-        CompoundTag tag = stack.getTag().getCompound(TAG);
+        CompoundTag tag = root.getCompound(TAG);
         RadioFrequency frequency = RadioFrequency.values()[
                 Math.max(0, Math.min(tag.getInt("frequency"), RadioFrequency.values().length - 1))];
         int delay = Math.max(0, tag.getInt("delay"));
@@ -46,7 +49,7 @@ public final class RadioSettings {
         tag.putInt("frequency", state.frequency().ordinal());
         tag.putInt("delay", state.delaySeconds());
         tag.putInt("plane", state.planeMode().ordinal());
-        stack.getOrCreateTag().put(TAG, tag);
+        StackTag.update(stack, root -> root.put(TAG, tag));
     }
 
     /** Delay presets cycled by the panel button: OFF then 20–120 s in 10 s steps, wrapping. */

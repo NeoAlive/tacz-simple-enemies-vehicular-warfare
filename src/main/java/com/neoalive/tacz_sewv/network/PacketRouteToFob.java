@@ -5,10 +5,10 @@ import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.fob.FobGuiSnapshot;
 import com.neoalive.tacz_sewv.fob.FobNetworking;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 public class PacketRouteToFob {
 

@@ -31,9 +31,9 @@ public class RuMedicEntity extends RUunitEntity implements IMedicTreat {
     }
 
     @Override
-    protected void defineSynchedData() {
-        super.defineSynchedData();
-        this.entityData.define(TREATING, false);
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(TREATING, false);
     }
 
     @Override

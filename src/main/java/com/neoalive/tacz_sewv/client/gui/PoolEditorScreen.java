@@ -15,12 +15,11 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.client.editor.GrenadePoolCatalog;
 import com.neoalive.tacz_sewv.client.editor.IdSearch;
@@ -30,6 +29,7 @@ import com.neoalive.tacz_sewv.client.editor.VehiclePoolCatalog;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketUpdateVehiclePools;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.VehicleClassify;
 import com.neoalive.tacz_sewv.util.VehiclePackIndex;
@@ -52,7 +52,7 @@ import com.neoalive.tacz_sewv.util.WorldVehiclePools.Category;
  * filters to registered types first), the pick among the rest is uniform, and a hull whose engine
  * class does not fit the pool (a helicopter in Ground, say) is flagged.
  */
-public class PoolEditorScreen extends Screen {
+public class PoolEditorScreen extends SewvScreen {
 
     private static final int PANEL_W_PREF = 560;
     private static final int RAIL_W = 140;
@@ -185,8 +185,8 @@ public class PoolEditorScreen extends Screen {
             return new Info("?", "-", SheetTable.BAD, Component.translatable("gui.tacz_sewv.pool.note.badid"));
         }
         if (this.category == Category.GRENADE) {
-            if (!ForgeRegistries.ITEMS.containsKey(rl)) return unregistered();
-            Item item = ForgeRegistries.ITEMS.getValue(rl);
+            if (!BuiltInRegistries.ITEM.containsKey(rl)) return unregistered();
+            Item item = BuiltInRegistries.ITEM.get(rl);
             return new Info(item == null ? "?" : item.getDescription().getString(), "-", SheetTable.LIVE, null);
         }
         // A Limitless Vehicles data id (several of which are no entity type at all): its own name
@@ -198,8 +198,8 @@ public class PoolEditorScreen extends Screen {
                     lv[1], Component.translatable("gui.tacz_sewv.pool.cat." + this.category.name().toLowerCase(Locale.ROOT)));
             return new Info(lv[0], lv[1], note == null ? SheetTable.LIVE : SheetTable.WARN, note);
         }
-        if (!ForgeRegistries.ENTITY_TYPES.containsKey(rl)) return unregistered();
-        EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
+        if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) return unregistered();
+        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
         String name = type == null ? "?" : type.getDescription().getString();
         EngineType engine = VehiclePoolCatalogSource.engineOf(rl);
         Component mismatch = mismatch(engine);
@@ -557,7 +557,7 @@ public class PoolEditorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
         this.table.mouseScrolled(delta);
         return true;
     }

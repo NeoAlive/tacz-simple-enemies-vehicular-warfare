@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
 
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.loading.FMLPaths;
 
 /**
  * Quarantine-only cleanup for {@code /sewv debug StartConfigFix}.

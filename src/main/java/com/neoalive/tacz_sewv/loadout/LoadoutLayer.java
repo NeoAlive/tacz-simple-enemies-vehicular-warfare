@@ -10,6 +10,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
@@ -40,7 +41,7 @@ public class LoadoutLayer extends SavedData {
     public static LoadoutLayer get(MinecraftServer server) {
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
         if (overworld == null) return null;
-        return overworld.getDataStorage().computeIfAbsent(LoadoutLayer::load, LoadoutLayer::new, DATA_NAME);
+        return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(LoadoutLayer::new, (tag, registries) -> LoadoutLayer.load(tag)), DATA_NAME);
     }
 
     public static LoadoutLayer load(CompoundTag nbt) {
@@ -58,7 +59,7 @@ public class LoadoutLayer extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         this.factions.forEach((folder, f) -> nbt.putString(folder, GSON.toJson(encode(f))));
         return nbt;
     }

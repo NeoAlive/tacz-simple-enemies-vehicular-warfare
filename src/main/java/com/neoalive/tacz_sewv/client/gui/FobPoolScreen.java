@@ -295,14 +295,14 @@ abstract class FobPoolScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
         if (delta > 0 && this.scroll > 0) this.scroll--;
         else if (delta < 0 && this.scroll + this.listRows < this.rows.size()) this.scroll++;
         return true;
     }
 
     @Override
-    public void renderBackground(GuiGraphics g) {
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
     }
 
     @Override

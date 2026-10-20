@@ -8,7 +8,6 @@ import java.util.Map;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.scores.PlayerTeam;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.block.CapturePointBlockEntity;
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
@@ -17,6 +16,7 @@ import com.neoalive.tacz_sewv.invasion.force.TeamBaseConfig;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenCapturePointGui;
 import com.neoalive.tacz_sewv.network.PacketOpenTeamBaseGui;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.PoolEditorAccess;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;

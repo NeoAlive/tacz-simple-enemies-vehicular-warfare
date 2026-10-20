@@ -17,9 +17,9 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -96,7 +96,7 @@ public final class HelmetLogoTextures {
                 if (grayscale) {
                     desaturateDogTag(helmet);
                 }
-                ResourceLocation id = new ResourceLocation(TaczSewv.MODID,
+                ResourceLocation id = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID,
                         "dynamic/helmet_logo/" + Integer.toHexString(key.hashCode()));
                 Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(helmet));
                 CACHE.put(key, id);

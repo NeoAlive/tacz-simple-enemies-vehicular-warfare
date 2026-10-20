@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -54,7 +55,7 @@ public final class PmcIdentityPreference extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (Map.Entry<UUID, PmcIdentity> entry : identities.entrySet()) {
             CompoundTag tag = new CompoundTag();
@@ -72,8 +73,7 @@ public final class PmcIdentityPreference extends SavedData {
         if (level instanceof ServerLevel serverLevel) {
             ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
             if (overworld != null) {
-                return overworld.getDataStorage().computeIfAbsent(
-                        PmcIdentityPreference::load, PmcIdentityPreference::new, DATA_NAME);
+                return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(PmcIdentityPreference::new, (tag, registries) -> PmcIdentityPreference.load(tag)), DATA_NAME);
             }
         }
         return new PmcIdentityPreference();

@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -19,12 +20,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.entity.ai.support.PathwaySupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketPreferredPathwaysSync;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /**
  * Player-owned preferred pathways, dimension-bound, stored in overworld {@link SavedData}.
@@ -58,7 +59,7 @@ public class PreferredPathwayData extends SavedData {
         for (int i = 0; i < entries.size(); i++) {
             CompoundTag entry = entries.getCompound(i);
             UUID player = entry.getUUID("player");
-            ResourceLocation dimId = new ResourceLocation(entry.getString("dimension"));
+            ResourceLocation dimId = ResourceLocation.parse(entry.getString("dimension"));
             ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, dimId);
             String pathId = entry.getString("pathId");
             long[] packed = entry.getLongArray("waypoints");
@@ -70,7 +71,7 @@ public class PreferredPathwayData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         ListTag entries = new ListTag();
         for (Map.Entry<UUID, Map<ResourceKey<Level>, Map<String, List<BlockPos>>>> playerEntry
                 : this.store.entrySet()) {
@@ -97,8 +98,7 @@ public class PreferredPathwayData extends SavedData {
         if (level instanceof ServerLevel serverLevel) {
             ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
             if (overworld != null) {
-                return overworld.getDataStorage().computeIfAbsent(
-                        PreferredPathwayData::load, PreferredPathwayData::new, DATA_NAME);
+                return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(PreferredPathwayData::new, (tag, registries) -> PreferredPathwayData.load(tag)), DATA_NAME);
             }
         }
         return new PreferredPathwayData();

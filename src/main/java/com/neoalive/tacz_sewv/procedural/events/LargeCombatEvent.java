@@ -103,7 +103,7 @@ public final class LargeCombatEvent extends DynamicEvent {
         // and comes round again rather than shipping the wrong event.
         if (vehicles == 0) return false;
 
-        level.playSound(null, centerPos, SoundEvents.GENERIC_EXPLODE, SoundSource.AMBIENT, 3.0F, 0.7F);
+        level.playSound(null, centerPos, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.AMBIENT, 3.0F, 0.7F);
         return true;
     }
 

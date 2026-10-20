@@ -53,7 +53,7 @@ public class ShipVehicleNodeEvaluator extends SwimNodeEvaluator {
     protected Node findAcceptedNode(int x, int y, int z) {
         Node node = super.findAcceptedNode(x, y, z);
         if (node == null) return null;
-        int depth = WaterSupport.depthAt(this.level, x, y, z, COMFORTABLE_DEPTH);
+        int depth = WaterSupport.depthAt(this.currentContext.level(), x, y, z, COMFORTABLE_DEPTH);
         if (depth < COMFORTABLE_DEPTH) {
             node.costMalus += SHALLOW_PENALTY * (COMFORTABLE_DEPTH - depth);
         }
@@ -80,5 +80,16 @@ public class ShipVehicleNodeEvaluator extends SwimNodeEvaluator {
             if (isDiagonalNodeValid(diagonal, sides.get(dir), sides.get(cw))) nodes[found++] = diagonal;
         }
         return found;
+    }
+
+    /**
+     * NeoForge port: 1.21's SwimNodeEvaluator inlined its old {@code isDiagonalNodeValid} into
+     * {@code getNeighbors} (both sides passable with a non-negative malus, the diagonal itself open);
+     * this is that same rule.
+     */
+    private boolean isDiagonalNodeValid(Node diagonal, Node side, Node otherSide) {
+        return isNodeValid(diagonal)
+                && side != null && side.costMalus >= 0.0F
+                && otherSide != null && otherSide.costMalus >= 0.0F;
     }
 }

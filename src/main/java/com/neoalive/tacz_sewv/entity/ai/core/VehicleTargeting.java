@@ -13,12 +13,12 @@ import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.ForgeConfigSpec;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+import net.neoforged.neoforge.common.ModConfigSpec;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
 
@@ -850,7 +850,7 @@ public final class VehicleTargeting {
     /**
      * Cached copies of SimpleEnemyMod's per-faction "friendly with Players and PMC Units" toggles.
      *
-     * <p><b>Why cached and not read live.</b> {@code ForgeConfigSpec.ConfigValue.get()} asserts
+     * <p><b>Why cached and not read live.</b> {@code ModConfigSpec.ConfigValue.get()} asserts
      * {@code spec.childConfig != null} and <b>throws</b> if the config has not been baked yet.
      * {@link #friendlyFlagShields} runs from a per-tick AI target scan, and in a heavy modpack —
      * ModernFix and friends reorder and defer startup work — the load order can land such that a
@@ -924,7 +924,7 @@ public final class VehicleTargeting {
         for (String className : FRIENDLY_CONFIG_CLASSES) {
             try {
                 Object holder = Class.forName(className).getField(fieldName).get(null);
-                if (holder instanceof ForgeConfigSpec.ConfigValue<?> value
+                if (holder instanceof ModConfigSpec.ConfigValue<?> value
                         && value.get() instanceof Boolean flag) {
                     return flag;
                 }

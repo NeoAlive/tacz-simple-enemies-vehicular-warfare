@@ -7,7 +7,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -67,12 +67,12 @@ public abstract class MixinVehicleRenderer {
             method = "render",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraftforge/common/ForgeConfigSpec$BooleanValue;get()Ljava/lang/Object;",
+                    target = "Lnet/minecraftforge/common/ModConfigSpec$BooleanValue;get()Ljava/lang/Object;",
                     remap = false
             ),
             remap = false
     )
-    private Object tacz_sewv$forceDogTagIconVisible(ForgeConfigSpec.BooleanValue value) {
+    private Object tacz_sewv$forceDogTagIconVisible(ModConfigSpec.BooleanValue value) {
         VehicleEntity hull = tacz_sewv$rendering.get();
         if (hull != null && tacz_sewv$hasDogTagArt(hull)) {
             return Boolean.TRUE;

@@ -79,7 +79,7 @@ public final class VehicleEject {
         unit.setDeltaMovement(movement);
         unit.hurtMarked = true;
         unit.fallDistance = 0.0F;
-        unit.addEffect(new MobEffectInstance(ModMobEffects.STRIKE_PROTECTION.get(), STRIKE_PROTECTION_TICKS,
+        unit.addEffect(new MobEffectInstance(ModMobEffects.STRIKE_PROTECTION, STRIKE_PROTECTION_TICKS,
                 0, false, false), unit);
         return true;
     }

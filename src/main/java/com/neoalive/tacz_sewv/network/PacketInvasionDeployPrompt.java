@@ -5,12 +5,12 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.invasion.InvasionDeployClient;
 import com.neoalive.tacz_sewv.invasion.force.ForceKind;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** Server → client: choose how to deploy into the invasion, within {@code seconds}. */
 public class PacketInvasionDeployPrompt {

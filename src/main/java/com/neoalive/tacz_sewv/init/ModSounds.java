@@ -4,18 +4,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
+import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredRegister;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 
 /** Radio call-outs and UI sounds registered by this mod. */
 public final class ModSounds {
     public static final DeferredRegister<SoundEvent> SOUNDS =
-            DeferredRegister.create(ForgeRegistries.SOUND_EVENTS, TaczSewv.MODID);
+            DeferredRegister.create(BuiltInRegistries.SOUND_EVENT, TaczSewv.MODID);
 
     // --- Crew / unit voicelines (CrewRadio) ---
     public static final SoundPool ORDER_DISPATCH_PMC = pool("order_dispatch_pmc", 2);
@@ -89,33 +89,33 @@ public final class ModSounds {
     public static final SoundPool PILOT_CANNON = pool("pilot_cannon", 2);
 
     /** UI click for the Tactical Data Terminal (and similar interactable panels). */
-    public static final RegistryObject<SoundEvent> INTERACT_BEEP = register("interact_beep");
+    public static final DeferredHolder<SoundEvent, SoundEvent> INTERACT_BEEP = register("interact_beep");
     /** Quick-command wheel: right-click / back (pair with {@link #INTERACT_BEEP} for left-click). */
-    public static final RegistryObject<SoundEvent> INTERACT_BEEP_BACK = register("interact_beep_back");
+    public static final DeferredHolder<SoundEvent, SoundEvent> INTERACT_BEEP_BACK = register("interact_beep_back");
     /** Quick-wheel formation WIDTH/LENGTH scroll tick. */
-    public static final RegistryObject<SoundEvent> SCALE = register("scale");
+    public static final DeferredHolder<SoundEvent, SoundEvent> SCALE = register("scale");
 
     /** Vehicle lock / unlock. */
-    public static final RegistryObject<SoundEvent> LOCK = register("lock");
+    public static final DeferredHolder<SoundEvent, SoundEvent> LOCK = register("lock");
 
     /** FOB scramble siren; one ~0.9 s clip, re-triggered every {@code ThreatEvaluator.ALARM_TICKS}. */
-    public static final RegistryObject<SoundEvent> FOB_ALARM = register("fob_alarm");
+    public static final DeferredHolder<SoundEvent, SoundEvent> FOB_ALARM = register("fob_alarm");
 
     /** Grace period start popup sting. */
-    public static final RegistryObject<SoundEvent> GRACE_START = register("grace_start");
+    public static final DeferredHolder<SoundEvent, SoundEvent> GRACE_START = register("grace_start");
 
     /** World-map Attack-this-unit confirm. */
-    public static final RegistryObject<SoundEvent> ATTACK = register("attack");
+    public static final DeferredHolder<SoundEvent, SoundEvent> ATTACK = register("attack");
 
     private ModSounds() {}
 
-    private static RegistryObject<SoundEvent> register(String name) {
-        ResourceLocation id = new ResourceLocation(TaczSewv.MODID, name);
+    private static DeferredHolder<SoundEvent, SoundEvent> register(String name) {
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, name);
         return SOUNDS.register(name, () -> SoundEvent.createVariableRangeEvent(id));
     }
 
     private static SoundPool pool(String prefix, int count) {
-        List<RegistryObject<SoundEvent>> variants = new ArrayList<>(count);
+        List<DeferredHolder<SoundEvent, SoundEvent>> variants = new ArrayList<>(count);
         for (int i = 1; i <= count; i++) variants.add(register(prefix + "_" + i));
         return new SoundPool(variants);
     }
@@ -128,12 +128,12 @@ public final class ModSounds {
      * allocation-free after construction (the bag is shuffled in place with {@link ThreadLocalRandom}).
      */
     public static final class SoundPool {
-        private final List<RegistryObject<SoundEvent>> variants;
+        private final List<DeferredHolder<SoundEvent, SoundEvent>> variants;
         private final int[] bag;
         private int cursor;
         private int last = -1;
 
-        private SoundPool(List<RegistryObject<SoundEvent>> variants) {
+        private SoundPool(List<DeferredHolder<SoundEvent, SoundEvent>> variants) {
             this.variants = variants;
             this.bag = new int[variants.size()];
             for (int i = 0; i < bag.length; i++) bag[i] = i;

@@ -5,10 +5,10 @@ import com.atsuishio.superbwarfare.entity.projectile.RgoGrenadeEntity;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraftforge.event.entity.living.LivingAttackEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -23,13 +23,13 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
  * <p>Both the blast and the 1-HP impact hit carry the throwing unit as {@code getEntity()} and the
  * grenade as {@code getDirectEntity()}. Player-thrown grenades are untouched.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class GrenadeSplashEvents {
 
     private GrenadeSplashEvents() {}
 
     @SubscribeEvent
-    public static void onAttack(LivingAttackEvent event) {
+    public static void onAttack(LivingIncomingDamageEvent event) {
         DamageSource src = event.getSource();
         Entity direct = src.getDirectEntity();
         if (!(direct instanceof HandGrenadeEntity || direct instanceof RgoGrenadeEntity)) return;

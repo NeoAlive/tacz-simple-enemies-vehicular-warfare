@@ -3,9 +3,9 @@ package com.neoalive.tacz_sewv.compat;
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.fml.ModList;
 
 /**
  * Softcompat gate for FCP crew-served emplacements.
@@ -69,7 +69,7 @@ public final class FcpEmplacementCompat {
     @Nullable
     private static String entityId(@Nullable VehicleEntity hull) {
         if (hull == null) return null;
-        ResourceLocation key = ForgeRegistries.ENTITY_TYPES.getKey(hull.getType());
+        ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(hull.getType());
         return key == null ? null : key.toString();
     }
 

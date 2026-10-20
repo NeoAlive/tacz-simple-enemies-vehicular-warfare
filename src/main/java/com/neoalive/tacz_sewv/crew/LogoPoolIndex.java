@@ -22,7 +22,7 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -174,7 +174,7 @@ public final class LogoPoolIndex {
                 LOGGER.warn("{} could not read {}: {}", LOG_PREFIX, file, e.toString());
             }
         }
-        ResourceLocation id = new ResourceLocation(
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(
                 TaczSewv.MODID, DEFAULTS_ROOT + "/" + poolId + "/" + iconId + ".png");
         ResourceManager manager = resources;
         if (manager != null) {

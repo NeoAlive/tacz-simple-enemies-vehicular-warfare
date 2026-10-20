@@ -6,13 +6,13 @@ import java.util.function.Supplier;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.block.SpawnProbeCategory;
 import com.neoalive.tacz_sewv.block.SpawnProbeInfantryEntry;
 import com.neoalive.tacz_sewv.client.SpawnProbeClient;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /** Server → client: open the spawn_probe config screen. */

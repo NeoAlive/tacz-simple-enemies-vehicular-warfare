@@ -5,10 +5,10 @@ import javax.annotation.Nullable;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraftforge.common.world.ForgeChunkManager;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.debug.PlanePerf;
+import com.neoalive.tacz_sewv.platform.ForgeChunkManager;
 
 /**
  * One force-loaded chunk held on an entity's behalf, following it as it moves.

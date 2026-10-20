@@ -3,7 +3,7 @@ package com.neoalive.tacz_sewv.block;
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.MenuProvider;
@@ -12,11 +12,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemStackHandler;
+import net.neoforged.neoforge.items.ItemStackHandler;
 
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.inventory.StockpileMenu;
@@ -32,31 +28,11 @@ public class StockpileBlockEntity extends BlockEntity implements MenuProvider {
         }
     };
 
-    private LazyOptional<IItemHandler> handler = LazyOptional.empty();
-
     public StockpileBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.STOCKPILE.get(), pos, state);
     }
 
-    @Override
-    public void onLoad() {
-        super.onLoad();
-        this.handler = LazyOptional.of(() -> this.items);
-    }
-
-    @Override
-    public void invalidateCaps() {
-        super.invalidateCaps();
-        this.handler.invalidate();
-    }
-
-    @Override
-    public <T> LazyOptional<T> getCapability(Capability<T> cap, @Nullable Direction side) {
-        if (cap == ForgeCapabilities.ITEM_HANDLER) {
-            return this.handler.cast();
-        }
-        return super.getCapability(cap, side);
-    }
+    // NeoForge port: the item-handler capability is registered in TaczSewv.registerCapabilities.
 
     @Override
     public Component getDisplayName() {
@@ -74,14 +50,14 @@ public class StockpileBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag) {
-        super.saveAdditional(tag);
-        tag.put("items", this.items.serializeNBT());
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
+        tag.put("items", this.items.serializeNBT(registries));
     }
 
     @Override
-    public void load(CompoundTag tag) {
-        super.load(tag);
-        this.items.deserializeNBT(tag.getCompound("items"));
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
+        this.items.deserializeNBT(registries, tag.getCompound("items"));
     }
 }

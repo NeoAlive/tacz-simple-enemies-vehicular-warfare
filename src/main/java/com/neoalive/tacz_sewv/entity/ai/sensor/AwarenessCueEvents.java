@@ -3,9 +3,9 @@ package com.neoalive.tacz_sewv.entity.ai.sensor;
 import com.tacz.guns.api.event.common.GunFireEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.LogicalSide;
+import net.neoforged.fml.common.EventBusSubscriber;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -17,7 +17,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
  * is the cheap server seam — one call per shot, then registry dedupe (6 s / 16-block cell) absorbs
  * full-auto spam.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+@EventBusSubscriber(modid = TaczSewv.MODID, bus = EventBusSubscriber.Bus.GAME)
 public final class AwarenessCueEvents {
 
     private AwarenessCueEvents() {}

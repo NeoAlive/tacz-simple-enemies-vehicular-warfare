@@ -1,11 +1,11 @@
 package com.neoalive.tacz_sewv.crew;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
@@ -51,7 +51,7 @@ public final class NpcSbwWeapon {
 
         LoadoutRow row = pick(pool, unit.getRandom().nextInt(totalWeight(pool)));
         ResourceLocation id = ResourceLocation.tryParse(row.gunId);
-        Item item = id == null ? null : ForgeRegistries.ITEMS.getValue(id);
+        Item item = id == null ? null : BuiltInRegistries.ITEM.get(id);
         // Reserve starts at zero: AtWeaponGoal tops RU/US up to two magazines whenever it runs.
         ItemStack stack = SmallArmsSupport.buildIssued(item, row.ammo, row.fireMode, 0);
         if (stack != null) unit.setItemInHand(InteractionHand.MAIN_HAND, stack);

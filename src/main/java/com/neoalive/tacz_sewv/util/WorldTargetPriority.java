@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -91,7 +92,7 @@ public class WorldTargetPriority extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         for (TankFaction faction : TankFaction.values()) {
             nbt.put(key(faction), writeSet(excludedOf(faction)));
         }
@@ -102,10 +103,7 @@ public class WorldTargetPriority extends SavedData {
         if (level instanceof ServerLevel serverLevel) {
             ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
             if (overworld != null) {
-                return overworld.getDataStorage().computeIfAbsent(
-                        WorldTargetPriority::load,
-                        WorldTargetPriority::new,
-                        DATA_NAME);
+                return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(WorldTargetPriority::new, (tag, registries) -> WorldTargetPriority.load(tag)), DATA_NAME);
             }
         }
         return new WorldTargetPriority();

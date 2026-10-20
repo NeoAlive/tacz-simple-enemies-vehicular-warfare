@@ -14,8 +14,8 @@ import com.google.gson.JsonObject;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.server.ServerLifecycleHooks;
+import net.neoforged.fml.ModList;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
@@ -77,7 +77,7 @@ public final class LoadoutManager {
         for (var e : files.entrySet()) {
             String id = e.getKey().toString();
             snap.put(id, e.getValue().deepCopy());
-            var res = rm.getResource(new ResourceLocation(e.getKey().getNamespace(),
+            var res = rm.getResource(ResourceLocation.fromNamespaceAndPath(e.getKey().getNamespace(),
                     SEM_FOLDER + "/" + e.getKey().getPath() + ".json"));
             res.ifPresent(r -> packs.put(id, r.sourcePackId()));
         }
@@ -160,7 +160,7 @@ public final class LoadoutManager {
 
     private static void replace(Map<ResourceLocation, JsonElement> into, Map<String, JsonElement> from) {
         into.clear();
-        from.forEach((k, v) -> into.put(new ResourceLocation(k), v));
+        from.forEach((k, v) -> into.put(ResourceLocation.parse(k), v));
     }
 
     /** Everything SEM's files hold for one faction folder, before our layer touches it. */

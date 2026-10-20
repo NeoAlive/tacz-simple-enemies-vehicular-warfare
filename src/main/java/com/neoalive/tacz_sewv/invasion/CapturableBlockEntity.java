@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.invasion;
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -156,8 +157,8 @@ public abstract class CapturableBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag) {
-        super.saveAdditional(tag);
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
         tag.putInt("Radius", radiusInBlocks);
         tag.putInt("TimeToCapture", timeToCaptureSeconds);
         tag.putString("OwnedTeam", ownedTeam);
@@ -167,8 +168,8 @@ public abstract class CapturableBlockEntity extends BlockEntity {
     }
 
     @Override
-    public void load(CompoundTag tag) {
-        super.load(tag);
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
         radiusInBlocks = tag.contains("Radius")
                 ? Math.max(1, tag.getInt("Radius")) : DEFAULT_RADIUS;
         timeToCaptureSeconds = tag.contains("TimeToCapture")
@@ -192,7 +193,7 @@ public abstract class CapturableBlockEntity extends BlockEntity {
     }
 
     @Override
-    public CompoundTag getUpdateTag() {
-        return saveWithoutMetadata();
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        return saveWithoutMetadata(registries);
     }
 }

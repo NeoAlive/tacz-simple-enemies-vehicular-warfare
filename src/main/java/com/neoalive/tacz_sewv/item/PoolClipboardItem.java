@@ -2,8 +2,6 @@ package com.neoalive.tacz_sewv.item;
 
 import java.util.List;
 
-import javax.annotation.Nullable;
-
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -33,7 +31,7 @@ public class PoolClipboardItem extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         tooltip.add(Component.translatable("tooltip.tacz_sewv.pool_clipboard.use"));
         tooltip.add(Component.translatable("tooltip.tacz_sewv.pool_clipboard.op"));
     }

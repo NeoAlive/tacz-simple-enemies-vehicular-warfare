@@ -8,9 +8,9 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.data.vehicle.VehicleData;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
-import net.minecraftforge.registries.ForgeRegistries;
 
 /**
  * Shared vehicle-id scan for the pool editor (server packet + client autocomplete cache).
@@ -33,8 +33,8 @@ public final class VehiclePoolCatalogSource {
     private static List<String> scanInternal(boolean applyEngineFilter) {
         List<String> out = new ArrayList<>();
 
-        for (EntityType<?> type : ForgeRegistries.ENTITY_TYPES) {
-            ResourceLocation id = ForgeRegistries.ENTITY_TYPES.getKey(type);
+        for (EntityType<?> type : BuiltInRegistries.ENTITY_TYPE) {
+            ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
             if (id == null) continue;
             try {
                 if (!isVehicleType(type)) continue;
@@ -76,7 +76,7 @@ public final class VehiclePoolCatalogSource {
     @Nullable
     public static EngineType engineOf(ResourceLocation id) {
         try {
-            EntityType<?> type = ForgeRegistries.ENTITY_TYPES.containsKey(id) ? ForgeRegistries.ENTITY_TYPES.getValue(id) : null;
+            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.containsKey(id) ? BuiltInRegistries.ENTITY_TYPE.get(id) : null;
             return type == null ? null : engineTypeOf(type);
         } catch (Throwable ignored) {
             return null;

@@ -6,6 +6,7 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -65,7 +66,7 @@ public class AirportRegistry extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (Map.Entry<Long, Airport> e : airports.entrySet()) {
             CompoundTag entry = new CompoundTag();
@@ -85,7 +86,7 @@ public class AirportRegistry extends SavedData {
     }
 
     public static AirportRegistry get(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(AirportRegistry::load, AirportRegistry::new, DATA_NAME);
+        return level.getDataStorage().computeIfAbsent(new SavedData.Factory<>(AirportRegistry::new, (tag, registries) -> AirportRegistry.load(tag)), DATA_NAME);
     }
 
     public void note(BlockPos runwayPos, Airport airport) {

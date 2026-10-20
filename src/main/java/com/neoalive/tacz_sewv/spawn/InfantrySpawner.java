@@ -34,7 +34,7 @@ public final class InfantrySpawner {
         int z = anchor.getZ() + level.random.nextInt(s * 2 + 1) - s;
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         unit.setPos(x + 0.5, y, z + 0.5);
-        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(unit.blockPosition()), MobSpawnType.EVENT, null, null);
+        unit.finalizeSpawn(level, level.getCurrentDifficultyAt(unit.blockPosition()), MobSpawnType.EVENT, null);
         level.addFreshEntity(unit);
         return unit;
     }

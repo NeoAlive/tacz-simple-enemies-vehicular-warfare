@@ -22,19 +22,19 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -273,7 +273,7 @@ public final class CrewSkinRegistry {
     private static ResourceLocation registerDynamic(Path file, String dynPath) {
         String safe = dynPath.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9/._-]", "_");
         try {
-            ResourceLocation id = new ResourceLocation(TaczSewv.MODID, safe);
+            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, safe);
             try (InputStream in = Files.newInputStream(file)) {
                 NativeImage image = NativeImage.read(in);
                 Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(image));
@@ -341,7 +341,7 @@ public final class CrewSkinRegistry {
         for (EquipmentSlot slot : ARMOR_SLOTS) {
             ItemStack stack = wearer.getItemBySlot(slot);
             if (stack.isEmpty()) continue;
-            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+            ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
             if (itemId == null) continue;
             String kind = armorKind(itemId.getPath());
             TreeSet<Integer> keys = variantKeys(kind, faction);
@@ -363,7 +363,7 @@ public final class CrewSkinRegistry {
     @Nullable
     public static ResourceLocation textureFor(LivingEntity wearer, ItemStack stack, CrewFacts.Faction faction) {
         if (stack == null || stack.isEmpty() || faction == null) return null;
-        ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (itemId == null) return null;
         String kind = armorKind(itemId.getPath());
         return get(kind, faction, resolveSetN(wearer, faction), wearer.getUUID().hashCode());

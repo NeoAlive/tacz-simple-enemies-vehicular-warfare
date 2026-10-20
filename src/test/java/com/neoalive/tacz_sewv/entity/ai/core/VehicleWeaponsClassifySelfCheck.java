@@ -1,7 +1,5 @@
 package com.neoalive.tacz_sewv.entity.ai.core;
 
-import com.atsuishio.superbwarfare.data.gun.Ammo;
-
 /**
  * Self-check for score-based weapon-slot classification. Run via {@code ./gradlew selfCheck}.
  *
@@ -27,27 +25,27 @@ public final class VehicleWeaponsClassifySelfCheck {
     private static void stockRegressions() {
         // Real shell type → CANNON
         assertRole(VehicleWeapons.WEAPON_CANNON,
-                classify("", "ap", "", "", null), "shell type AP");
+                classify("", "ap", "", "", false), "shell type AP");
 
         // SPECIAL needle in projectile
         assertRole(VehicleWeapons.WEAPON_SPECIAL,
-                classify("", "", "superbwarfare:wire_guide_missile", "", null), "missile projectile");
+                classify("", "", "superbwarfare:wire_guide_missile", "", false), "missile projectile");
 
         // Rifle ammo class → MG
         assertRole(VehicleWeapons.WEAPON_MG,
-                classify("", "", "", "", Ammo.RIFLE), "rifle ammo class");
+                classify("", "", "", "", true), "rifle ammo class");
 
         // Default bullet projectile alone → MG
         assertRole(VehicleWeapons.WEAPON_MG,
-                classify("", "", "superbwarfare:projectile", "", null), "default projectile");
+                classify("", "", "superbwarfare:projectile", "", false), "default projectile");
 
         // Nothing → UNCLASSIFIED
         assertRole(VehicleWeapons.UNCLASSIFIED,
-                classify("", "", "", "", null), "empty signals");
+                classify("", "", "", "", false), "empty signals");
 
         // Cannon-named / shell projectile, no SPECIAL
         assertRole(VehicleWeapons.WEAPON_CANNON,
-                classify("weapon.example.cannon", "", "superbwarfare:large_shell", "", null),
+                classify("weapon.example.cannon", "", "superbwarfare:large_shell", "", false),
                 "cannon name + shell proj");
     }
 
@@ -55,30 +53,30 @@ public final class VehicleWeaponsClassifySelfCheck {
         // mcsp:tos_1a — launcher + rocket beat shell in mlrs_shells
         assertRole(VehicleWeapons.WEAPON_SPECIAL,
                 classify("weapon.mcsp.tos_1a_launcher", "", "superbwarfare:medium_rocket",
-                        "mcsp:mlrs_shells", null),
+                        "mcsp:mlrs_shells", false),
                 "tos_1a");
 
         // fcp:spg9 — rocket@ammo vs shell/cannon@proj → exact tie → SPECIAL
         assertRole(VehicleWeapons.WEAPON_SPECIAL,
                 classify("weapon.fcp.spg9", "", "superbwarfare:small_cannon_shell",
-                        "superbwarfare:rpg_rocket_standard", null),
+                        "superbwarfare:rpg_rocket_standard", false),
                 "spg9");
 
         // fcp:grad — rocket > ShellType HE (1.0)
         assertRole(VehicleWeapons.WEAPON_SPECIAL,
                 classify("weapon.fcp.grad", "he", "superbwarfare:medium_rocket",
-                        "superbwarfare:small_rocket", null),
+                        "superbwarfare:small_rocket", false),
                 "grad");
 
         // vehicle mortar — mortar haystacks block CANNON text; ShellType alone loses
         assertRole(VehicleWeapons.WEAPON_SPECIAL,
                 classify("weapon.fcp.stryker_mortar", "he", "superbwarfare:mortar_shell",
-                        "superbwarfare:mortar_shell", null),
+                        "superbwarfare:mortar_shell", false),
                 "mortar");
 
         // FCP proper-noun ATGM
         assertRole(VehicleWeapons.WEAPON_SPECIAL,
-                classify("weapon.fcp.malyutka", "", "fcp:malyutka", "", null),
+                classify("weapon.fcp.malyutka", "", "fcp:malyutka", "", false),
                 "malyutka");
     }
 
@@ -96,13 +94,14 @@ public final class VehicleWeaponsClassifySelfCheck {
     private static void mgWordBoundary() {
         // Bare "mg" as a token → MG; substring inside an unrelated word must not
         assertRole(VehicleWeapons.WEAPON_MG,
-                classify("seat mg left", "", "", "", null), "mg word");
+                classify("seat mg left", "", "", "", false), "mg word");
         assertRole(VehicleWeapons.UNCLASSIFIED,
-                classify("armguard", "", "", "", null), "mg inside armguard");
+                classify("armguard", "", "", "", false), "mg inside armguard");
     }
 
-    private static int classify(String name, String shell, String projectile, String ammoId, Ammo ammo) {
-        return VehicleWeapons.classifyFromSignals(name, shell, projectile, ammoId, ammo);
+    // NeoForge port: the boolean overload — SBW 1.21's Ammo enum cannot initialize headless.
+    private static int classify(String name, String shell, String projectile, String ammoId, boolean smallArmsAmmo) {
+        return VehicleWeapons.classifyFromSignals(name, shell, projectile, ammoId, smallArmsAmmo);
     }
 
     private static void assertRole(int expected, int actual, String label) {

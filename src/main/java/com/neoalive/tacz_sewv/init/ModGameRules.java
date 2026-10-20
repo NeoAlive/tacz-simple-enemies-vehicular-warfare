@@ -2,7 +2,7 @@ package com.neoalive.tacz_sewv.init;
 
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.GameRules;
-import net.minecraftforge.server.ServerLifecycleHooks;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 /**
  * Per-world boolean gates formerly in {@code SewvConfig} spawn_gates / tanksInEvents.

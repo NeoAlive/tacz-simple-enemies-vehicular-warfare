@@ -1,12 +1,10 @@
 package com.neoalive.tacz_sewv.mixin;
 
-import java.util.function.Supplier;
-
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.network.message.send.SetVehicleSkinMessage;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -28,13 +26,14 @@ public abstract class MixinSetVehicleSkinMessage {
     @Shadow
     public abstract String getSkinId();
 
+    // NeoForge port: SBW 1.21 handlers are Kotlin `PayloadContext.handler()` extensions, i.e.
+    // handler(IPayloadContext) — PayloadContext is a typealias for NeoForge's IPayloadContext.
     @Inject(method = "handler", at = @At("HEAD"), cancellable = true)
-    private void tacz_sewv$applySewvSkin(Supplier<NetworkEvent.Context> ctxSupplier, CallbackInfo ci) {
+    private void tacz_sewv$applySewvSkin(IPayloadContext ctx, CallbackInfo ci) {
         String skinId = this.getSkinId();
         if (!VehicleSkinSupport.isSewvSkinId(skinId)) {
             // Datapack / blank pick — drop sticky paint so it cannot override the foreign skin.
-            NetworkEvent.Context ctx = ctxSupplier.get();
-            ServerPlayer sender = ctx.getSender();
+            ServerPlayer sender = ctx.player() instanceof ServerPlayer sp ? sp : null;
             if (sender != null) {
                 Entity target = sender.level().getEntity(this.getEntityId());
                 if (target instanceof VehicleEntity vehicle) {
@@ -44,8 +43,7 @@ public abstract class MixinSetVehicleSkinMessage {
             return;
         }
 
-        NetworkEvent.Context ctx = ctxSupplier.get();
-        ServerPlayer sender = ctx.getSender();
+        ServerPlayer sender = ctx.player() instanceof ServerPlayer sp ? sp : null;
         if (sender == null) {
             ci.cancel();
             return;

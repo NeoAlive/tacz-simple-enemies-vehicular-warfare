@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
@@ -42,7 +43,7 @@ public class GracePeriodData extends SavedData {
     public static GracePeriodData get(MinecraftServer server) {
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
         if (overworld == null) return null;
-        return overworld.getDataStorage().computeIfAbsent(GracePeriodData::load, GracePeriodData::new, DATA_NAME);
+        return overworld.getDataStorage().computeIfAbsent(new SavedData.Factory<>(GracePeriodData::new, (tag, registries) -> GracePeriodData.load(tag)), DATA_NAME);
     }
 
     /** True while grace holds. Cheap: one volatile read. The level is unused, kept for call sites. */
@@ -64,7 +65,7 @@ public class GracePeriodData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         nbt.putLong("remaining", remaining);
         nbt.putBoolean("init", initialized);
         nbt.putInt("announced", lastAnnouncedDays);

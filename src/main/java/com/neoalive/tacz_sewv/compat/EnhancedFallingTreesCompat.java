@@ -1,8 +1,8 @@
 package com.neoalive.tacz_sewv.compat;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.fml.ModList;
 
 /**
  * Presence gate for the Enhanced Falling Trees softcompat. Deliberately imports NOTHING from
@@ -29,7 +29,7 @@ public final class EnhancedFallingTreesCompat {
 
     public static final String MODID = "efallingtrees";
 
-    static final ResourceLocation TREE_ENTITY_ID = new ResourceLocation(MODID, "tree");
+    static final ResourceLocation TREE_ENTITY_ID = ResourceLocation.fromNamespaceAndPath(MODID, "tree");
 
     /** Only latch {@code true}; an early false during registry bootstrap must not stick forever. */
     /** Mod known absent — final for the session, so the check stops asking ModList. */
@@ -54,6 +54,6 @@ public final class EnhancedFallingTreesCompat {
             return;
         }
         // Present but not registered yet (early call): ask again next time.
-        available = ForgeRegistries.ENTITY_TYPES.containsKey(TREE_ENTITY_ID);
+        available = BuiltInRegistries.ENTITY_TYPE.containsKey(TREE_ENTITY_ID);
     }
 }

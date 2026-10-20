@@ -6,15 +6,15 @@ import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketSaveCapturePoint;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 
 /** Op config UI for a capture_point. Snapshot edited locally; Save pushes {@link PacketSaveCapturePoint}. */
-public class CapturePointScreen extends Screen {
+public class CapturePointScreen extends SewvScreen {
 
     private static final int PANEL_W_PREF = 280;
 

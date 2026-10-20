@@ -13,7 +13,8 @@ import com.tacz.guns.api.item.IAmmoBox;
 import com.tacz.guns.api.item.IGun;
 import com.tacz.guns.api.item.nbt.AmmoBoxItemDataAccessor;
 import com.tacz.guns.api.item.nbt.GunItemDataAccessor;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
@@ -25,18 +26,19 @@ import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.IItemHandlerModifiable;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.UnitInventory;
+import com.neoalive.tacz_sewv.platform.StackTag;
 
 /**
  * SEWV-side corpse fill math (no CorpseMod types). RU/US roll datapack tables under
  * {@code tacz_sewv:units/corpses/<faction>} and Fisher–Yates-scramble into a 36-slot main grid;
- * PMC snapshots come from {@link ForgeCapabilities#ITEM_HANDLER}.
+ * PMC snapshots come from {@link UnitInventory}.
  *
  * <p>Every stack is passed through {@link #sanitizeLootStack} so AI dummy/virtual ammo never
  * reaches the player as infinite reserve.
@@ -101,11 +103,12 @@ public final class UnitCorpseLoot {
 
         IGun iGun = IGun.getIGunOrNull(stack);
         if (iGun != null) {
-            CompoundTag tag = stack.getTag();
-            if (tag != null) {
+            if (StackTag.has(stack)) {
                 // Presence of DummyAmmo alone enables infinite-reload mode for the looter.
-                tag.remove(GunItemDataAccessor.GUN_DUMMY_AMMO);
-                tag.remove(GunItemDataAccessor.GUN_MAX_DUMMY_AMMO);
+                StackTag.update(stack, tag -> {
+                    tag.remove(GunItemDataAccessor.GUN_DUMMY_AMMO);
+                    tag.remove(GunItemDataAccessor.GUN_MAX_DUMMY_AMMO);
+                });
             }
             int mag = iGun.getCurrentAmmoCount(stack);
             int max = TimelessAPI.getCommonGunIndex(iGun.getGunId(stack))
@@ -119,10 +122,11 @@ public final class UnitCorpseLoot {
         }
 
         if (stack.getItem() instanceof IAmmoBox) {
-            CompoundTag tag = stack.getTag();
-            if (tag != null) {
-                tag.remove(AmmoBoxItemDataAccessor.CREATIVE_TAG);
-                tag.remove(AmmoBoxItemDataAccessor.ALL_TYPE_CREATIVE_TAG);
+            if (StackTag.has(stack)) {
+                StackTag.update(stack, tag -> {
+                    tag.remove(AmmoBoxItemDataAccessor.CREATIVE_TAG);
+                    tag.remove(AmmoBoxItemDataAccessor.ALL_TYPE_CREATIVE_TAG);
+                });
             }
         }
 
@@ -143,7 +147,7 @@ public final class UnitCorpseLoot {
 
     @Nullable
     public static PmcSnapshot snapshotPmc(AbstractUnit unit) {
-        IItemHandler handler = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).resolve().orElse(null);
+        IItemHandler handler = UnitInventory.of(unit);
         if (handler == null) return null;
         ItemStack[] slots = new ItemStack[handler.getSlots()];
         for (int i = 0; i < handler.getSlots(); i++) {
@@ -154,7 +158,7 @@ public final class UnitCorpseLoot {
 
     /** Clears the PMC handler so SEM death drops / remove paths find nothing left. */
     public static void clearPmcHandler(AbstractUnit unit) {
-        IItemHandler handler = unit.getCapability(ForgeCapabilities.ITEM_HANDLER).resolve().orElse(null);
+        IItemHandler handler = UnitInventory.of(unit);
         if (!(handler instanceof IItemHandlerModifiable mod)) return;
         for (int i = 0; i < mod.getSlots(); i++) {
             mod.setStackInSlot(i, ItemStack.EMPTY);
@@ -231,8 +235,8 @@ public final class UnitCorpseLoot {
     }
 
     private static List<ItemStack> rollTable(AbstractUnit unit, String faction, ServerLevel level) {
-        ResourceLocation tableId = new ResourceLocation(TaczSewv.MODID, "units/corpses/" + faction);
-        LootTable table = level.getServer().getLootData().getLootTable(tableId);
+        ResourceLocation tableId = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "units/corpses/" + faction);
+        LootTable table = level.getServer().reloadableRegistries().getLootTable(ResourceKey.create(Registries.LOOT_TABLE, tableId));
         if (table == LootTable.EMPTY) return List.of();
         LootParams params = new LootParams.Builder(level)
                 .withParameter(LootContextParams.ORIGIN, unit.position())

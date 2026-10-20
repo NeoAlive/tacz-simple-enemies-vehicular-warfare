@@ -14,7 +14,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
@@ -31,6 +30,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * Player → server patrol order for owned ground-vehicle crews. The radius is clamped to the valid
@@ -92,7 +92,7 @@ public class PacketPatrolVehicle {
         this.radius = buf.readVarInt();
         this.mode = buf.readVarInt();
         this.origin = buf.readBoolean() ? buf.readBlockPos() : null;
-        this.route = buf.readList(FriendlyByteBuf::readBlockPos);
+        this.route = buf.readList(b -> b.readBlockPos());
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -101,7 +101,7 @@ public class PacketPatrolVehicle {
         buf.writeVarInt(this.mode);
         buf.writeBoolean(this.origin != null);
         if (this.origin != null) buf.writeBlockPos(this.origin);
-        buf.writeCollection(this.route, FriendlyByteBuf::writeBlockPos);
+        buf.writeCollection(this.route, (b, pos) -> b.writeBlockPos(pos));
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {

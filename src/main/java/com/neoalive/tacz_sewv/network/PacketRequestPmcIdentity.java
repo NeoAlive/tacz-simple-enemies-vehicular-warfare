@@ -4,12 +4,12 @@ import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.NamePreference;
 import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /** C→S: TDT Identity tab opened — request saved PMC identity + name category. */
 public final class PacketRequestPmcIdentity {

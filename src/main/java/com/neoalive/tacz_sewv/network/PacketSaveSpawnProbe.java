@@ -10,12 +10,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.block.SpawnProbeBlockEntity;
 import com.neoalive.tacz_sewv.block.SpawnProbeCategory;
 import com.neoalive.tacz_sewv.block.SpawnProbeEditor;
 import com.neoalive.tacz_sewv.block.SpawnProbeInfantryEntry;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /** Client → server: write spawn_probe NBT from the editor Apply button. */

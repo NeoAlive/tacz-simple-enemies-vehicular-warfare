@@ -1,9 +1,9 @@
 package com.neoalive.tacz_sewv.block;
 
-import java.util.UUID;
 
 import com.tacz.guns.api.event.common.EntityHurtByGunEvent;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -14,13 +14,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.living.LivingAttackEvent;
-import net.minecraftforge.event.entity.living.LivingHurtEvent;
-import net.minecraftforge.event.entity.living.LivingKnockBackEvent;
-import net.minecraftforge.eventbus.api.EventPriority;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
+import net.neoforged.neoforge.event.entity.living.LivingKnockBackEvent;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 
@@ -28,20 +27,20 @@ import com.neoalive.tacz_sewv.TaczSewv;
  * Trench cover combat gates, plus sneak speed while manually crouching in a trench
  * (0.5× normal walk).
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class TrenchCoverEvents {
 
     /**
-     * Vanilla sneak multiplies movement by 0.3. MULTIPLY_TOTAL amount {@code 0.5/0.3 - 1} makes
+     * Vanilla sneak multiplies movement by 0.3. ADD_MULTIPLIED_TOTAL amount {@code 0.5/0.3 - 1} makes
      * {@code speed × (1+amt) × 0.3 == 0.5 × walk}.
      */
-    private static final UUID TRENCH_SNEAK_SPEED_UUID =
-            UUID.fromString("a3c8e2f1-5b4d-4e9a-9c7f-1d2e3f4a5b6c");
+    // NeoForge port: 1.21 modifiers are keyed by id, not UUID + name; the old name becomes the path.
+    private static final ResourceLocation TRENCH_SNEAK_SPEED_UUID =
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "sewv_trench_sneak");
     private static final AttributeModifier TRENCH_SNEAK_SPEED = new AttributeModifier(
             TRENCH_SNEAK_SPEED_UUID,
-            "sewv_trench_sneak",
             (0.5D / 0.3D) - 1.0D,
-            AttributeModifier.Operation.MULTIPLY_TOTAL);
+            AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
 
     private TrenchCoverEvents() {}
 
@@ -85,9 +84,8 @@ public final class TrenchCoverEvents {
     }
 
     @SubscribeEvent
-    public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
-        Player player = event.player;
+    public static void onPlayerTick(PlayerTickEvent.Post event) {
+        Player player = event.getEntity();
         AttributeInstance speed = player.getAttribute(Attributes.MOVEMENT_SPEED);
         if (speed == null) return;
 
@@ -101,7 +99,7 @@ public final class TrenchCoverEvents {
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onAttack(LivingAttackEvent event) {
+    public static void onAttack(LivingIncomingDamageEvent event) {
         if (event.getEntity().level().isClientSide) return;
         if (!isSheltered(event.getEntity())) return;
         if (!isBallisticOrBlast(event.getSource())) return;
@@ -109,7 +107,7 @@ public final class TrenchCoverEvents {
     }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onHurt(LivingHurtEvent event) {
+    public static void onHurt(LivingIncomingDamageEvent event) {
         if (event.getEntity().level().isClientSide) return;
         if (!isSheltered(event.getEntity())) return;
         if (!isBallisticOrBlast(event.getSource())) return;

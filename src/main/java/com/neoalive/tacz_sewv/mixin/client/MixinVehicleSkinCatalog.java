@@ -11,9 +11,9 @@ import com.atsuishio.superbwarfare.data.vehicle_skin.SkinInfo;
 import com.atsuishio.superbwarfare.data.vehicle_skin.VehicleSkin;
 import com.atsuishio.superbwarfare.data.vehicle_skin.VehicleSkinData;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
-import net.minecraftforge.registries.ForgeRegistries;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -74,7 +74,7 @@ public abstract class MixinVehicleSkinCatalog {
     @Unique
     private static List<SkinInfo> buildSewvRows(EntityType<?> type) {
         List<SkinInfo> skins = new ArrayList<>();
-        ResourceLocation typeId = ForgeRegistries.ENTITY_TYPES.getKey(type);
+        ResourceLocation typeId = BuiltInRegistries.ENTITY_TYPE.getKey(type);
         if (typeId == null) return skins;
         int priority = 1;
         for (CatalogEntry entry : VehicleSkinRegistry.catalogFor(typeId.getPath())) {
@@ -91,7 +91,7 @@ public abstract class MixinVehicleSkinCatalog {
     @Unique
     @Nullable
     private static SkinInfo resolve(VehicleEntity entity) {
-        ResourceLocation typeId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        ResourceLocation typeId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         if (typeId == null) {
             return null;
         }

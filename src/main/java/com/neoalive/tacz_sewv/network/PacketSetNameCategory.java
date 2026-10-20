@@ -6,9 +6,9 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.crew.NamePreference;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * TDT "Identity" category, "Full Names" control: sets the sender's own preferred

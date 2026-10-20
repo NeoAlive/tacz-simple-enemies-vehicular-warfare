@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -41,7 +42,7 @@ public class FobManager extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag) {
+    public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (FobInstance fob : this.fobs.values()) {
             CompoundTag e = new CompoundTag();
@@ -53,7 +54,7 @@ public class FobManager extends SavedData {
     }
 
     public static FobManager get(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(FobManager::load, FobManager::new, DATA_NAME);
+        return level.getDataStorage().computeIfAbsent(new SavedData.Factory<>(FobManager::new, (tag, registries) -> FobManager.load(tag)), DATA_NAME);
     }
 
     @Nullable

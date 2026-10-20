@@ -311,7 +311,7 @@ public final class HudNotify {
     }
 
     private static boolean hasReserveTaczAmmo(PmcUnitEntity pmc, net.minecraft.world.item.ItemStack gun) {
-        return pmc.getCapability(net.minecraftforge.common.capabilities.ForgeCapabilities.ITEM_HANDLER)
+        return java.util.Optional.ofNullable(com.neoalive.tacz_sewv.crew.UnitInventory.of(pmc))
                 .map(cap -> {
                     for (int i = 0; i < cap.getSlots(); i++) {
                         net.minecraft.world.item.ItemStack ammo = cap.getStackInSlot(i);

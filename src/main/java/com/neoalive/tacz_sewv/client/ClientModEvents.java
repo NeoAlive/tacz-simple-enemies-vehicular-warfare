@@ -1,20 +1,21 @@
 package com.neoalive.tacz_sewv.client;
 
-import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.EntityRenderersEvent;
-import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.nekoyuni.SimpleEnemyMod.compat.geckolib.GeckoCompat;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.gui.StockpileScreen;
@@ -32,7 +33,10 @@ import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderModelLayer
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderRenderer;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModEntities;
+import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.init.ModMenus;
+import com.neoalive.tacz_sewv.item.FobBlockItem;
+import com.neoalive.tacz_sewv.item.armor.PmcHelmetMichItem;
 
 /**
  * MOD bus, client dist. Registers renderers for this mod's support-unit entities (reusing SEM's own
@@ -48,7 +52,7 @@ import com.neoalive.tacz_sewv.init.ModMenus;
  * draws a TACZ body-holstered gun via FIXED/{@code offhand_show}; {@link CuriosHeadLayer} draws
  * Curios head items (thermal goggles) that Curios' own player-only layer never reaches on SEM units.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@EventBusSubscriber(modid = TaczSewv.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientModEvents {
 
     /**
@@ -68,7 +72,21 @@ public class ClientModEvents {
                 ColtanSkinBridge.registerCorpses();
             }
         }
-        event.enqueueWork(() -> MenuScreens.register(ModMenus.STOCKPILE.get(), StockpileScreen::new));
+    }
+
+    /** NeoForge port: menu screens register on their own event instead of from client setup. */
+    @SubscribeEvent
+    public static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
+        event.register(ModMenus.STOCKPILE.get(), StockpileScreen::new);
+    }
+
+    /** NeoForge port: what Forge's {@code Item#initializeClient} overrides used to supply. */
+    @SubscribeEvent
+    public static void onRegisterClientExtensions(RegisterClientExtensionsEvent event) {
+        event.registerItem(PmcHelmetMichItem.clientExtensions(), ModItems.PMC_HELMET_MICH.get());
+        event.registerItem(FobBlockItem.clientExtensions(), ModItems.QUARTERS_BENCH.get());
+        event.registerItem(FobBlockItem.clientExtensions(), ModItems.PARKING_FIELD.get());
+        event.registerItem(FobBlockItem.clientExtensions(), ModItems.STOCKPILE_AMMO.get());
     }
 
     /**

@@ -17,9 +17,9 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.client.ForgeHooksClient;
 import net.nekoyuni.SimpleEnemyMod.compat.geckolib.GeckoCompat;
 import net.nekoyuni.SimpleEnemyMod.compat.geckolib.GeckoCompatClient;
+import net.neoforged.neoforge.client.ClientHooks;
 
 /**
  * Renders armor that supplies its own model (SuperbWarfare's helmets and vests, which are
@@ -109,7 +109,7 @@ public class BedrockArmorLayer<T extends LivingEntity, M extends EntityModel<T>>
 
             // Reading the pose is a side effect of this call, so the carrier must already be
             // filled — this is the one moment the armor looks at the wearer.
-            Model armor = ForgeHooksClient.getArmorModel(entity, stack, slot, this.pose);
+            Model armor = ClientHooks.getArmorModel(entity, stack, slot, this.pose);
             if (armor == this.pose) continue; // no custom model: plain texture armor, not ours
 
             poseStack.pushPose();
@@ -125,7 +125,7 @@ public class BedrockArmorLayer<T extends LivingEntity, M extends EntityModel<T>>
             } else {
                 armor.renderToBuffer(poseStack,
                         buffer.getBuffer(RenderType.armorCutoutNoCull(this.getTextureLocation(entity))),
-                        packedLight, OverlayTexture.NO_OVERLAY, 1.0F, 1.0F, 1.0F, 1.0F);
+                        packedLight, OverlayTexture.NO_OVERLAY, -1);
             }
             poseStack.popPose();
         }

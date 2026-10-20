@@ -10,18 +10,18 @@ import java.util.Set;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketUpdateTargetPriority;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
  * Op-only three-column editor: per-faction MobCategory exclude toggles
  * ({@code /sewv targetingAllow}).
  */
-public class TargetPriorityScreen extends Screen {
+public class TargetPriorityScreen extends SewvScreen {
 
     private static final int LABEL_W = 170;
     private static final int COL_W = 90;

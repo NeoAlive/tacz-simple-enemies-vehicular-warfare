@@ -2,7 +2,7 @@ package com.neoalive.tacz_sewv.heli;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
@@ -74,7 +74,7 @@ public final class HeliFlight {
         if (existing != null && existing.pilotId == pilot.getId() && existing.generation == HeliAirframes.generation()) {
             return existing;
         }
-        String id = String.valueOf(ForgeRegistries.ENTITY_TYPES.getKey(hull.getType()));
+        String id = String.valueOf(BuiltInRegistries.ENTITY_TYPE.getKey(hull.getType()));
         Airframe af = HeliAirframes.resolve(id, NpcVehicleOverrides.isTransportHeli(hull), NpcVehicleOverrides.isHeavyHeli(hull),
                 hull.getBbWidth());
         if (af == null) {

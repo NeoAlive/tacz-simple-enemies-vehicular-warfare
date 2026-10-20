@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.block;
 
 import javax.annotation.Nullable;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,14 +18,22 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenAirportGui;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /** PMC runway marker: right-click opens the strip editor. */
 public class RunwayBlock extends BaseEntityBlock {
+
+    // NeoForge port: 1.21 BaseEntityBlock requires a codec; this block takes no configurable properties.
+    public static final MapCodec<RunwayBlock> CODEC = simpleCodec(properties -> new RunwayBlock());
+
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
+    }
 
     public RunwayBlock() {
         super(BlockBehaviour.Properties.of()
@@ -34,7 +43,13 @@ public class RunwayBlock extends BaseEntityBlock {
                 .requiresCorrectToolForDrops());
     }
 
+    // NeoForge port: 1.21 split Block#use into useWithoutItem/useItemOn; the main-hand click lands
+    // here (useItemOn passes through by default) and runs the method below unchanged.
     @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        return use(state, level, pos, player, InteractionHand.MAIN_HAND, hit);
+    }
+
     @SuppressWarnings("deprecation")
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                   InteractionHand hand, BlockHitResult hit) {

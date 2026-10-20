@@ -8,7 +8,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -18,6 +17,7 @@ import com.neoalive.tacz_sewv.block.SpawnProbeCategory;
 import com.neoalive.tacz_sewv.block.SpawnProbeInfantryEntry;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketSaveSpawnProbe;
+import com.neoalive.tacz_sewv.platform.SewvScreen;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /**
@@ -25,7 +25,7 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
  * Snapshot edited locally; Apply pushes {@link PacketSaveSpawnProbe}.
  * Layout shrinks list rows via {@link GuiFit} so bottom buttons stay on-screen at high GUI scale.
  */
-public class SpawnProbeScreen extends Screen {
+public class SpawnProbeScreen extends SewvScreen {
 
     private static final int PANEL_W_PREF = 340;
     private static final int LIST_ROWS_PREF = 8;
@@ -314,7 +314,7 @@ public class SpawnProbeScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
         if (delta > 0 && this.scroll > 0) this.scroll--;
         else if (delta < 0 && this.scroll + this.listRows < listSize()) this.scroll++;
         return true;

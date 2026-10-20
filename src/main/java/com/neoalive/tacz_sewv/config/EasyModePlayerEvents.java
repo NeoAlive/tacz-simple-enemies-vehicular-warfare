@@ -8,11 +8,11 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
-import net.minecraftforge.event.entity.living.LivingHurtEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -21,7 +21,7 @@ import com.neoalive.tacz_sewv.invasion.InvasionSession;
 /**
  * Easy Mode player-sustain hooks: incoming damage scale (D2) and post-respawn acquire grace (D3).
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class EasyModePlayerEvents {
 
     public static final String TAG_RESPAWN_GRACE_UNTIL = "sewv:easy_grace_until";
@@ -29,7 +29,7 @@ public final class EasyModePlayerEvents {
     private EasyModePlayerEvents() {}
 
     @SubscribeEvent
-    public static void onLivingHurt(LivingHurtEvent event) {
+    public static void onLivingHurt(LivingIncomingDamageEvent event) {
         if (event.getEntity() instanceof Player player) {
             onPlayerHurt(player, event);
             return;
@@ -43,7 +43,7 @@ public final class EasyModePlayerEvents {
         }
     }
 
-    private static void onPlayerHurt(Player player, LivingHurtEvent event) {
+    private static void onPlayerHurt(Player player, LivingIncomingDamageEvent event) {
         if (player.level().isClientSide()) return;
         if (!EasyMode.playerDamageScaleEnabled()) return;
         if (player.isCreative() || player.isSpectator()) return;

@@ -4,10 +4,10 @@ import java.util.ArrayList;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenSpawnProbeGui;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 import com.neoalive.tacz_sewv.util.PoolEditorAccess;
 
 /** Op + creative-only open path for spawn_probe config — a live probe is authoring, not gameplay. */

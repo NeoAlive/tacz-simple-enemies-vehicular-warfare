@@ -11,10 +11,10 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.entity.ai.support.PathwaySupport;
 import com.neoalive.tacz_sewv.map.PreferredPathwayData;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /** C→S save or delete a preferred pathway. Empty nodes with delete=true removes the path. */
 public class PacketSavePreferredPathway {
@@ -53,7 +53,7 @@ public class PacketSavePreferredPathway {
         buf.writeResourceLocation(this.dimension.location());
         List<BlockPos> route = this.nodes.size() > PacketPatrolVehicle.MAX_ROUTE_NODES
                 ? this.nodes.subList(0, PacketPatrolVehicle.MAX_ROUTE_NODES) : this.nodes;
-        buf.writeCollection(route, FriendlyByteBuf::writeBlockPos);
+        buf.writeCollection(route, (b, pos) -> b.writeBlockPos(pos));
         buf.writeBoolean(this.delete);
     }
 

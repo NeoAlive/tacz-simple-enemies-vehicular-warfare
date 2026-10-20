@@ -35,8 +35,8 @@ public final class FobBlockClient {
         final Block block;
 
         Kind(String name, Block block) {
-            this.geo = new ResourceLocation(TaczSewv.MODID, "geo/" + name + ".geo.json");
-            this.texture = new ResourceLocation(TaczSewv.MODID, "textures/block/" + name + ".png");
+            this.geo = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "geo/" + name + ".geo.json");
+            this.texture = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/block/" + name + ".png");
             this.block = block;
         }
     }

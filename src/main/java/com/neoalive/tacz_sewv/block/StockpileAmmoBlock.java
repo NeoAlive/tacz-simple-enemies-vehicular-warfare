@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,23 +15,31 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.event.level.BlockEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.network.NetworkHooks;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.level.BlockEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobManager;
 
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public class StockpileAmmoBlock extends AbstractFobDecorBlock {
+
+    // NeoForge port: 1.21 BaseEntityBlock requires a codec; this block takes no configurable properties.
+    public static final MapCodec<StockpileAmmoBlock> CODEC = simpleCodec(properties -> new StockpileAmmoBlock());
+
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
+    }
 
     /** Set around {@link #playerWillDestroy} so {@link #onRemove} knows who broke it. */
     private static final ThreadLocal<UUID> BREAKING_PLAYER = new ThreadLocal<>();
@@ -52,7 +61,13 @@ public class StockpileAmmoBlock extends AbstractFobDecorBlock {
         FobSubBlock.onSubPlaced(level, pos, "stockpile", placer);
     }
 
+    // NeoForge port: 1.21 split Block#use into useWithoutItem/useItemOn; the main-hand click lands
+    // here (useItemOn passes through by default) and runs the method below unchanged.
     @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        return use(state, level, pos, player, InteractionHand.MAIN_HAND, hit);
+    }
+
     @SuppressWarnings("deprecation")
     public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
                                   InteractionHand hand, BlockHitResult hit) {
@@ -65,7 +80,7 @@ public class StockpileAmmoBlock extends AbstractFobDecorBlock {
         }
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof StockpileBlockEntity stockpile)) return InteractionResult.PASS;
-        NetworkHooks.openScreen(serverPlayer, stockpile, pos);
+        serverPlayer.openMenu(stockpile, pos);
         return InteractionResult.CONSUME;
     }
 
@@ -89,13 +104,13 @@ public class StockpileAmmoBlock extends AbstractFobDecorBlock {
     }
 
     @Override
-    public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
         // onRemove runs after this returns (ServerPlayerGameMode.destroyBlock), so leave the
         // ThreadLocal set until onRemove clears it.
         if (!level.isClientSide()) {
             BREAKING_PLAYER.set(player.getUUID());
         }
-        super.playerWillDestroy(level, pos, state, player);
+        return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Override

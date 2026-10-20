@@ -8,9 +8,7 @@ import javax.annotation.Nullable;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
@@ -19,6 +17,8 @@ import com.neoalive.tacz_sewv.map.FobMarker;
 import com.neoalive.tacz_sewv.map.HelipadMarker;
 import com.neoalive.tacz_sewv.map.MarkerOrder;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * Server→client map sync: crewed vehicles one player's side can see, optional debug

@@ -13,11 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.item.attachment.AttachmentType;
 import net.minecraft.client.resources.language.I18n;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.invasion.MiscEditorAccess;
 import com.neoalive.tacz_sewv.loadout.LoadoutValidator;
@@ -86,7 +86,7 @@ public final class WeaponCatalog {
             if (want == null) return out;
             for (String id : armor) {
                 ResourceLocation rl = ResourceLocation.tryParse(id);
-                Item item = rl == null ? null : ForgeRegistries.ITEMS.getValue(rl);
+                Item item = rl == null ? null : BuiltInRegistries.ITEM.get(rl);
                 if (item instanceof ArmorItem a && a.getEquipmentSlot() == want) out.add(id);
             }
             return out;
@@ -102,7 +102,7 @@ public final class WeaponCatalog {
             if (gun.isPresent()) return I18n.get(gun.get().getName());
             var att = TimelessAPI.getClientAttachmentIndex(rl);
             if (att.isPresent()) return I18n.get(att.get().getName());
-            Item item = ForgeRegistries.ITEMS.getValue(rl);
+            Item item = BuiltInRegistries.ITEM.get(rl);
             if (item != null && item != net.minecraft.world.item.Items.AIR) return item.getDescription().getString();
         } catch (Throwable ignored) {
             // Client index not built yet — the id alone still matches.

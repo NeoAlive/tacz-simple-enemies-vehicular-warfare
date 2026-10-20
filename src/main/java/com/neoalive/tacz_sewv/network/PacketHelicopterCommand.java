@@ -13,7 +13,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
@@ -28,6 +27,7 @@ import com.neoalive.tacz_sewv.entity.ai.plane.PlaneLeash;
 import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * Player → server flight command for owned aircraft crews: takeoff, land at the nearest airport, or

@@ -21,9 +21,9 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
@@ -231,7 +231,7 @@ public final class VehicleSkinRegistry {
             }
 
             String path = skin.getPath();
-            ResourceLocation darkId = new ResourceLocation(skin.getNamespace(),
+            ResourceLocation darkId = ResourceLocation.fromNamespaceAndPath(skin.getNamespace(),
                     path.endsWith(".png") ? path.substring(0, path.length() - 4) + "_dark.png" : path + "_dark");
             Minecraft.getInstance().getTextureManager().register(darkId, new DynamicTexture(dark));
             DARKENED.put(skin, darkId);
@@ -264,7 +264,7 @@ public final class VehicleSkinRegistry {
                 ? "dynamic/vehicle_skins/" + parsed.vehiclePath + "_" + parsed.factionKey + ".png"
                 : "dynamic/vehicle_skins/" + parsed.vehiclePath + "_" + parsed.factionKey
                         + "_" + parsed.variant + ".png";
-        ResourceLocation id = new ResourceLocation(TaczSewv.MODID, dynPath);
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, dynPath);
         try (InputStream in = Files.newInputStream(file)) {
             NativeImage image = NativeImage.read(in);
             Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(image));

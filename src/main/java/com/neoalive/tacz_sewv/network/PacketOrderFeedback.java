@@ -5,11 +5,12 @@ import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.neoforged.api.distmarker.Dist;
 
 import com.neoalive.tacz_sewv.config.ClientConfig;
+import com.neoalive.tacz_sewv.platform.BufCompat;
+import com.neoalive.tacz_sewv.platform.DistExecutor;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 public class PacketOrderFeedback {
 
@@ -20,11 +21,11 @@ public class PacketOrderFeedback {
     }
 
     public PacketOrderFeedback(FriendlyByteBuf buf) {
-        this.message = buf.readComponent();
+        this.message = BufCompat.readComponent(buf);
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeComponent(this.message);
+        BufCompat.writeComponent(buf, this.message);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {

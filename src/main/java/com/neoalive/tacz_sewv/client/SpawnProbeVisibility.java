@@ -1,10 +1,10 @@
 package com.neoalive.tacz_sewv.client;
 
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.ClientConfig;
@@ -13,7 +13,7 @@ import com.neoalive.tacz_sewv.config.ClientConfig;
  * Rebuilds chunk meshes when Client → Debug → Show Spawn Probes flips so
  * {@link com.neoalive.tacz_sewv.block.SpawnProbeBlock#getRenderShape} takes effect without F3+A.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class SpawnProbeVisibility {
 
     private static boolean lastKnown;
@@ -21,8 +21,7 @@ public final class SpawnProbeVisibility {
     private SpawnProbeVisibility() {}
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onClientTick(ClientTickEvent.Post event) {
         boolean now = ClientConfig.flag(ClientConfig.SHOW_SPAWN_PROBES);
         if (now == lastKnown) return;
         lastKnown = now;

@@ -44,7 +44,8 @@ public final class ConfigEntryList extends ContainerObjectSelectionList<ConfigEn
     private final int rowWidth;
 
     public ConfigEntryList(Minecraft mc, int width, int height, int top, int bottom, int rowWidth) {
-        super(mc, width, height, top, bottom, ROW_H);
+        // NeoForge port: 1.21 lists take (top, height) rather than (top, bottom).
+        super(mc, width, bottom - top, top, ROW_H);
         this.rowWidth = rowWidth;
     }
 
@@ -319,7 +320,7 @@ public final class ConfigEntryList extends ContainerObjectSelectionList<ConfigEn
                 EditBox box = new EditBox(font, 0, 0, CONTROL_W, 18, name);
                 box.setMaxLength(256);
                 box.setValue(cur);
-                box.moveCursorToStart();
+                box.moveCursorToStart(false);
                 if (e.type == ConfigValueType.INT) {
                     box.setFilter(s -> s.isEmpty() || s.matches("-?\\d*"));
                 } else if (e.type == ConfigValueType.DOUBLE) {

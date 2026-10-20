@@ -10,6 +10,7 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
 
 import com.neoalive.tacz_sewv.block.RunwayBlockEntity;
 
@@ -56,5 +57,10 @@ public class RunwayBlockRenderer implements BlockEntityRenderer<RunwayBlockEntit
     @Override
     public boolean shouldRenderOffScreen(RunwayBlockEntity animatable) {
         return false;
+    }
+
+    @Override
+    public AABB getRenderBoundingBox(RunwayBlockEntity blockEntity) {
+        return blockEntity.getRenderBoundingBox();
     }
 }

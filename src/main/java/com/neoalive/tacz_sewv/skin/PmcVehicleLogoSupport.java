@@ -11,13 +11,13 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.crew.LogoPoolIndex;
 import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketVehicleDogTag;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /**
  * Stamps faction logos onto SBW dogTag bones. PMC uses the owning player's identity; RU/US pick

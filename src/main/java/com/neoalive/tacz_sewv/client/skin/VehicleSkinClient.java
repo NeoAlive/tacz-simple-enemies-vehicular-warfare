@@ -6,10 +6,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 
@@ -50,7 +50,7 @@ public final class VehicleSkinClient {
 
     @Nullable
     public static ResourceLocation textureFor(VehicleEntity vehicle) {
-        ResourceLocation typeId = ForgeRegistries.ENTITY_TYPES.getKey(vehicle.getType());
+        ResourceLocation typeId = BuiltInRegistries.ENTITY_TYPE.getKey(vehicle.getType());
         if (typeId == null) return null;
         String path = typeId.getPath();
 

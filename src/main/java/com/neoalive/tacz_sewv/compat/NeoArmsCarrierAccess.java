@@ -5,11 +5,11 @@ import java.lang.reflect.Method;
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.registries.ForgeRegistries;
 
 /**
  * Reflective bridge onto Neo Arms {@code AircraftCarrierEntity} / {@code DeckStrip} / {@code DeckPark}.
@@ -58,7 +58,7 @@ public final class NeoArmsCarrierAccess {
 
     public static boolean isCarrierType(EntityType<?> type) {
         if (!NeoArmsCompat.present()) return false;
-        ResourceLocation id = ForgeRegistries.ENTITY_TYPES.getKey(type);
+        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(type);
         return id != null && NeoArmsCompat.CARRIER_ID.equals(id.toString());
     }
 

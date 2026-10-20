@@ -4,9 +4,9 @@ import java.util.function.Supplier;
 
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * Client→server: "I am currently holding attack while looking at entity {@code targetId}" ({@code -1}

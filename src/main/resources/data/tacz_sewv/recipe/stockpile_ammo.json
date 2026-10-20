@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "superbwarfare:ammo_box"
+    },
+    {
+      "item": "minecraft:chest"
+    }
+  ],
+  "result": {
+    "id": "tacz_sewv:stockpile_ammo"
+  }
+}

@@ -11,7 +11,6 @@ import java.util.function.Supplier;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.loadout.LoadoutEditorAccess;
 import com.neoalive.tacz_sewv.loadout.LoadoutLayer;
@@ -19,6 +18,7 @@ import com.neoalive.tacz_sewv.loadout.LoadoutManager;
 import com.neoalive.tacz_sewv.loadout.LoadoutMerge;
 import com.neoalive.tacz_sewv.loadout.LoadoutRow;
 import com.neoalive.tacz_sewv.loadout.LoadoutValidator;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 
 /** Client → server: replace the world loadout layer with the editor's snapshot, then re-apply it live. */

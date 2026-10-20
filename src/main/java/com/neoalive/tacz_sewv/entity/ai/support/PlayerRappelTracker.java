@@ -14,11 +14,10 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.EasyMode;
@@ -28,6 +27,7 @@ import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketPlayerRappelWires;
 import com.neoalive.tacz_sewv.network.PacketPlayerSelfRappelLock;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 
 /**
  * Player-driven rappel outside {@code DriveHelicopterGoal}'s AI path:
@@ -36,7 +36,7 @@ import com.neoalive.tacz_sewv.network.PacketPlayerSelfRappelLock;
  *   <li>Crew keybind: immediate dual-rope drops while the player keeps flying.</li>
  * </ul>
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class PlayerRappelTracker {
 
     private static final double MIN_AGL = 2.0;
@@ -138,8 +138,7 @@ public final class PlayerRappelTracker {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
         if (SELF.isEmpty() && CREW.isEmpty()) return;
 
         tickSelf();
@@ -147,7 +146,7 @@ public final class PlayerRappelTracker {
     }
 
     private static void tickSelf() {
-        var server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
         if (server == null) {
             SELF.clear();
             return;
@@ -512,7 +511,7 @@ public final class PlayerRappelTracker {
     }
 
     private static Entity findEntity(int id) {
-        var server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
         if (server == null) return null;
         for (var level : server.getAllLevels()) {
             Entity e = level.getEntity(id);

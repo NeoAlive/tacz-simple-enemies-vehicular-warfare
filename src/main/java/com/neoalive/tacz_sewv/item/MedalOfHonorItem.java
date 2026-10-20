@@ -18,11 +18,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.level.Level;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.IItemHandlerModifiable;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-import org.jetbrains.annotations.Nullable;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.IItemHandlerModifiable;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.type.capability.ICuriosItemHandler;
 import top.theillusivec4.curios.api.type.inventory.ICurioStacksHandler;
@@ -87,7 +85,7 @@ public class MedalOfHonorItem extends Item {
 
         commander.moveTo(x, y, z, yRot, xRot);
         commander.finalizeSpawn(level, level.getCurrentDifficultyAt(commander.blockPosition()),
-                MobSpawnType.CONVERSION, null, null);
+                MobSpawnType.CONVERSION, null);
         // Overwrite the sidearm finalizeSpawn just issued with the original loadout.
         commander.readAdditionalSaveData(unitTag);
         commander.getPersistentData().merge(persistent);
@@ -139,7 +137,7 @@ public class MedalOfHonorItem extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tip, TooltipFlag flag) {
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tip, TooltipFlag flag) {
         tip.add(Component.translatable("tooltip.tacz_sewv.medal_of_honor").withStyle(ChatFormatting.GRAY));
     }
 }

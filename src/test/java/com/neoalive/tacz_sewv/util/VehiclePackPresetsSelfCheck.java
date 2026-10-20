@@ -163,7 +163,7 @@ public final class VehiclePackPresetsSelfCheck {
         WorldVehiclePools pools = WorldVehiclePools.load(nbt);
         check(pools.list(TankFaction.RU, Category.SURFACE).equals(List.of("test:legacy_boat")), "ru_ship -> SURFACE");
         check(pools.list(TankFaction.RU, Category.ROTOR).equals(List.of("test:legacy_heli")), "ru_heli -> ROTOR");
-        net.minecraft.nbt.CompoundTag saved = pools.save(new net.minecraft.nbt.CompoundTag());
+        net.minecraft.nbt.CompoundTag saved = pools.save(new net.minecraft.nbt.CompoundTag(), null); // WorldVehiclePools.save never reads the registries
         check(saved.contains("ru_surface") && saved.contains("ru_rotor"), "saved under new keys");
         check(!saved.contains("ru_ship") && !saved.contains("ru_heli"), "legacy keys not re-written");
     }

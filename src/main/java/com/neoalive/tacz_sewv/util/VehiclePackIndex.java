@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.fml.ModList;
 
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.VehiclePackPresets.Pack;
@@ -63,7 +63,7 @@ public final class VehiclePackIndex {
         int live = 0;
         for (String id : ids) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl != null && ForgeRegistries.ENTITY_TYPES.containsKey(rl)) live++;
+            if (rl != null && BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) live++;
         }
         return new Assessment(ru, us, pmc, live, ids.size());
     }

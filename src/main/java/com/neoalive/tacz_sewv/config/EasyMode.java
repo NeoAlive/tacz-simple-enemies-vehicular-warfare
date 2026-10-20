@@ -1,6 +1,6 @@
 package com.neoalive.tacz_sewv.config;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport.SbwClass;
 
@@ -17,7 +17,7 @@ public final class EasyMode {
         return SewvConfig.EASY_MODE.get();
     }
 
-    private static boolean on(ForgeConfigSpec.BooleanValue child) {
+    private static boolean on(ModConfigSpec.BooleanValue child) {
         return active() && child.get();
     }
 

@@ -7,10 +7,10 @@ import java.util.UUID;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
@@ -62,8 +62,8 @@ public final class LegacySweepCleanup {
 
     /** Tells each owner once, as soon as they are online. */
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || PENDING.isEmpty() || event.getServer().getTickCount() % 100 != 0) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
+        if (PENDING.isEmpty() || event.getServer().getTickCount() % 100 != 0) return;
         for (Iterator<Map.Entry<UUID, Integer>> it = PENDING.entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<UUID, Integer> e = it.next();
             ServerPlayer player = event.getServer().getPlayerList().getPlayer(e.getKey());

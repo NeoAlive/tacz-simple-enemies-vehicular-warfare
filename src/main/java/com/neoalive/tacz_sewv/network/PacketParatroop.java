@@ -6,9 +6,9 @@ import java.util.function.Supplier;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
 
 import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
  * Air assault drop: expand seed unit ids to owned PMC passengers that pass the same seat filter

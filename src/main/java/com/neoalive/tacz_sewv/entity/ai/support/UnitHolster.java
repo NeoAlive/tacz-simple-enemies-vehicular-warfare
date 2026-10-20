@@ -24,6 +24,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
+import com.neoalive.tacz_sewv.platform.RegistryLookup;
 
 /**
  * Unit held-item presentation: engineer MAIN↔OFF switching, emplacement in-hand hide, and the
@@ -101,8 +102,8 @@ public final class UnitHolster {
         CompoundTag data = unit.getPersistentData();
         ItemStack main = unit.getMainHandItem();
         ItemStack off = unit.getOffhandItem();
-        data.put(GrenadeSupport.TAG_STASH_MAIN, main.save(new CompoundTag()));
-        data.put(GrenadeSupport.TAG_STASH_OFF, off.save(new CompoundTag()));
+        data.put(GrenadeSupport.TAG_STASH_MAIN, main.saveOptional(unit.registryAccess()));
+        data.put(GrenadeSupport.TAG_STASH_OFF, off.saveOptional(unit.registryAccess()));
         data.putBoolean(GrenadeSupport.TAG_STASH_PRESENT, true);
         data.putLong(TAG_THROW_DEADLINE, unit.level().getGameTime() + THROW_STALE_TICKS);
         // Offhand carries the rifle for client-synced HolsterLayer / body draw.
@@ -117,8 +118,8 @@ public final class UnitHolster {
         CompoundTag data = unit.getPersistentData();
         boolean hadStash = data.getBoolean(GrenadeSupport.TAG_STASH_PRESENT);
         if (hadStash) {
-            ItemStack main = ItemStack.of(data.getCompound(GrenadeSupport.TAG_STASH_MAIN));
-            ItemStack off = ItemStack.of(data.getCompound(GrenadeSupport.TAG_STASH_OFF));
+            ItemStack main = ItemStack.parseOptional(unit.registryAccess(), data.getCompound(GrenadeSupport.TAG_STASH_MAIN));
+            ItemStack off = ItemStack.parseOptional(unit.registryAccess(), data.getCompound(GrenadeSupport.TAG_STASH_OFF));
             unit.setItemInHand(InteractionHand.MAIN_HAND, main);
             unit.setItemInHand(InteractionHand.OFF_HAND, off);
         } else if (GrenadeSupport.isGrenadeItem(unit.getMainHandItem())) {
@@ -184,7 +185,7 @@ public final class UnitHolster {
             if (IGun.getIGunOrNull(off) != null) return off;
             CompoundTag data = unit.getPersistentData();
             if (data.getBoolean(GrenadeSupport.TAG_STASH_PRESENT)) {
-                ItemStack stashed = ItemStack.of(data.getCompound(GrenadeSupport.TAG_STASH_MAIN));
+                ItemStack stashed = ItemStack.parseOptional(unit.registryAccess(), data.getCompound(GrenadeSupport.TAG_STASH_MAIN));
                 if (IGun.getIGunOrNull(stashed) != null) return stashed;
             }
             return ItemStack.EMPTY;
@@ -270,7 +271,7 @@ public final class UnitHolster {
                 .setAmmoCount(SIDEARM_MAGAZINE)
                 .setFireMode(FireMode.SEMI)
                 .setCount(1)
-                .build();
+                .build(RegistryLookup.current());
 
         IGun gun = IGun.getIGunOrNull(stack);
         if (gun == null) return ItemStack.EMPTY;
@@ -291,8 +292,8 @@ public final class UnitHolster {
         boolean stashPresent = data.getBoolean(DroneControl.STASH_PRESENT);
 
         if (locked && !stashPresent) {
-            data.put(DroneControl.STASH_MAIN, unit.getMainHandItem().save(new CompoundTag()));
-            data.put(DroneControl.STASH_OFF, unit.getOffhandItem().save(new CompoundTag()));
+            data.put(DroneControl.STASH_MAIN, unit.getMainHandItem().saveOptional(unit.registryAccess()));
+            data.put(DroneControl.STASH_OFF, unit.getOffhandItem().saveOptional(unit.registryAccess()));
             data.putBoolean(DroneControl.STASH_PRESENT, true);
             stashPresent = true;
         }
@@ -305,8 +306,8 @@ public final class UnitHolster {
             if (!unit.getOffhandItem().is(ModItems.REPAIR_TOOL.get())
                     && !unit.getOffhandItem().is(ModItems.MILITARY_SHOVEL.get())
                     && stashPresent) {
-                ItemStack stashedMain = ItemStack.of(data.getCompound(DroneControl.STASH_MAIN));
-                ItemStack stashedOff = ItemStack.of(data.getCompound(DroneControl.STASH_OFF));
+                ItemStack stashedMain = ItemStack.parseOptional(unit.registryAccess(), data.getCompound(DroneControl.STASH_MAIN));
+                ItemStack stashedOff = ItemStack.parseOptional(unit.registryAccess(), data.getCompound(DroneControl.STASH_OFF));
                 ItemStack tool = isWorkTool(stashedMain) ? stashedMain
                         : isWorkTool(stashedOff) ? stashedOff : ItemStack.EMPTY;
                 if (!tool.isEmpty()) {
@@ -317,8 +318,8 @@ public final class UnitHolster {
         }
 
         if (stashPresent) {
-            ItemStack main = ItemStack.of(data.getCompound(DroneControl.STASH_MAIN));
-            ItemStack off = ItemStack.of(data.getCompound(DroneControl.STASH_OFF));
+            ItemStack main = ItemStack.parseOptional(unit.registryAccess(), data.getCompound(DroneControl.STASH_MAIN));
+            ItemStack off = ItemStack.parseOptional(unit.registryAccess(), data.getCompound(DroneControl.STASH_OFF));
             unit.setItemInHand(InteractionHand.MAIN_HAND, main);
             unit.setItemInHand(InteractionHand.OFF_HAND, off);
             data.remove(DroneControl.STASH_PRESENT);

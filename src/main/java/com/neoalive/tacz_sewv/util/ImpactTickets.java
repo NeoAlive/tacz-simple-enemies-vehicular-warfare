@@ -7,13 +7,13 @@ import java.util.UUID;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraftforge.common.world.ForgeChunkManager;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.server.ServerStoppedEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.platform.ForgeChunkManager;
 
 /**
  * Keeps a radio mission's IMPACT chunk ticking for a while. A shell or bomb that flies into an
@@ -24,7 +24,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
  * <p>All holds share one owner UUID that no entity has, so a hold that outlives a save is released
  * by {@link ChunkTicketSweep} on the next load — the same orphan path a dead crew's ticket takes.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class ImpactTickets {
 
     private static final UUID OWNER = UUID.nameUUIDFromBytes("tacz_sewv:radio_impact".getBytes());
@@ -47,9 +47,9 @@ public final class ImpactTickets {
     }
 
     @SubscribeEvent
-    public static void onLevelTick(TickEvent.LevelTickEvent event) {
+    public static void onLevelTick(LevelTickEvent.Post event) {
         if (HOLDS.isEmpty()) return;
-        if (event.phase != TickEvent.Phase.END || !(event.level instanceof ServerLevel level)) return;
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
         long now = level.getGameTime();
         if (now % 20 != 0) return;
         for (Iterator<Map.Entry<Hold, Long>> it = HOLDS.entrySet().iterator(); it.hasNext(); ) {

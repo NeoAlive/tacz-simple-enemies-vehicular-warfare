@@ -245,16 +245,15 @@ final class RadialWheelDraw {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
-        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
-        buffer.begin(VertexFormat.Mode.TRIANGLE_STRIP, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLE_STRIP, DefaultVertexFormat.POSITION_COLOR);
         for (int s = 0; s <= steps; s++) {
             double t = (Math.PI * 2.0) * s / steps;
             float cos = (float) Math.cos(t);
             float sin = (float) Math.sin(t);
-            buffer.vertex(matrix, cx + cos * rOut, cy + sin * rOut, 0).color(r, gc, b, a).endVertex();
-            buffer.vertex(matrix, cx + cos * rIn, cy + sin * rIn, 0).color(r, gc, b, a).endVertex();
+            buffer.addVertex(matrix, cx + cos * rOut, cy + sin * rOut, 0).setColor(r, gc, b, a);
+            buffer.addVertex(matrix, cx + cos * rIn, cy + sin * rIn, 0).setColor(r, gc, b, a);
         }
-        BufferUploader.drawWithShader(buffer.end());
+        BufferUploader.drawWithShader(buffer.buildOrThrow());
     }
 
     static void renderQuad(GuiGraphics g,
@@ -268,12 +267,11 @@ final class RadialWheelDraw {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
-        BufferBuilder buffer = Tesselator.getInstance().getBuilder();
-        buffer.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-        buffer.vertex(matrix, x1, y1, 0).color(r, gc, b, a).endVertex();
-        buffer.vertex(matrix, x2, y2, 0).color(r, gc, b, a).endVertex();
-        buffer.vertex(matrix, x3, y3, 0).color(r, gc, b, a).endVertex();
-        buffer.vertex(matrix, x4, y4, 0).color(r, gc, b, a).endVertex();
-        BufferUploader.drawWithShader(buffer.end());
+        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        buffer.addVertex(matrix, x1, y1, 0).setColor(r, gc, b, a);
+        buffer.addVertex(matrix, x2, y2, 0).setColor(r, gc, b, a);
+        buffer.addVertex(matrix, x3, y3, 0).setColor(r, gc, b, a);
+        buffer.addVertex(matrix, x4, y4, 0).setColor(r, gc, b, a);
+        BufferUploader.drawWithShader(buffer.buildOrThrow());
     }
 }

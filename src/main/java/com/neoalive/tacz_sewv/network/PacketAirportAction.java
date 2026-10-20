@@ -7,17 +7,16 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.item.container.ContainerBlockItem;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
 
 import com.neoalive.tacz_sewv.airport.AirportClearance;
 import com.neoalive.tacz_sewv.airport.AirportRegistry;
@@ -27,6 +26,8 @@ import com.neoalive.tacz_sewv.block.RunwayBlockEntity;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal;
 import com.neoalive.tacz_sewv.entity.ai.plane.PlaneNav;
+import com.neoalive.tacz_sewv.platform.NetworkEvent;
+import com.neoalive.tacz_sewv.platform.PacketDistributor;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /** Client → server: Check Clearance or Deploy Plane from the runway editor. */
@@ -140,7 +141,9 @@ public class PacketAirportAction {
             reply(player, be, AirportClearance.Status.NONE, null);
             return;
         }
-        CompoundTag tag = BlockItem.getBlockEntityData(stack);
+        // NeoForge port: block-entity data is the BLOCK_ENTITY_DATA component on 1.21 (as SBW reads it).
+            CustomData blockEntityData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
+            CompoundTag tag = blockEntityData == null ? null : blockEntityData.copyTag();
         if (tag == null || !tag.contains("EntityType")) {
             reply(player, be, AirportClearance.Status.NONE, null);
             return;

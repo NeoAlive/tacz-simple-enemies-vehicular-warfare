@@ -1,6 +1,6 @@
 package com.neoalive.tacz_sewv.compat;
 
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /**
  * Presence gate for the Coltan softcompat (SBW → GemRender vehicle/armor bridge). Imports nothing

@@ -99,9 +99,9 @@ public final class UtilityWeightsSelfCheck {
      */
     private static void laterFilesReplaceAnActionWholesale() {
         Map<ResourceLocation, JsonElement> files = new LinkedHashMap<>();
-        files.put(new ResourceLocation("tacz_sewv", "weights"),
+        files.put(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"),
                 JsonParser.parseString("{ \"attack\": { \"base\": 10, \"enemyVisible\": 30 } }"));
-        files.put(new ResourceLocation("zzpack", "weights"),
+        files.put(ResourceLocation.fromNamespaceAndPath("zzpack", "weights"),
                 JsonParser.parseString("{ \"attack\": { \"base\": 1 } }"));
 
         UtilityWeights weights = UtilityWeights.parse(files);
@@ -119,7 +119,7 @@ public final class UtilityWeightsSelfCheck {
      */
     private static void shippedWeightsLoad() {
         UtilityWeights weights = UtilityWeights.parse(
-                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
 
         double[] loud = zeroSignals();
         java.util.Arrays.fill(loud, 1.0);
@@ -139,7 +139,7 @@ public final class UtilityWeightsSelfCheck {
      */
     private static void pairedActionsAreSymmetric() {
         UtilityWeights weights = UtilityWeights.parse(
-                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
 
         for (Action[] pair : MIRRORED_ACTIONS) {
             // Walk one signal at a time rather than testing an all-ones sample: a difference in two
@@ -184,7 +184,7 @@ public final class UtilityWeightsSelfCheck {
      */
     private static void confidenceDoesNotSaturate() {
         UtilityWeights weights = UtilityWeights.parse(
-                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
 
         double quiet = Confidence.evaluate(zeroSignals(), Doctrine.NEUTRAL, weights);
         assertClose(Confidence.NEUTRAL, quiet, "an unremarkable crew is neutral");
@@ -235,7 +235,7 @@ public final class UtilityWeightsSelfCheck {
      */
     private static void healthDecidesWhetherToFight() {
         UtilityWeights weights = UtilityWeights.parse(
-                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
 
         double healthyAttack = weights.score(Action.ATTACK, engagement(1.0), Doctrine.NEUTRAL);
         double healthyRetreat = weights.score(Action.RETREAT, engagement(1.0), Doctrine.NEUTRAL);
@@ -272,7 +272,7 @@ public final class UtilityWeightsSelfCheck {
      */
     private static void idleCrewsDoNotJustSit() {
         UtilityWeights weights = UtilityWeights.parse(
-                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
 
         double[] quiet = zeroSignals();
         quiet[Signal.BASE.ordinal()] = 1.0;
@@ -329,7 +329,7 @@ public final class UtilityWeightsSelfCheck {
      */
     private static void investigateBeatsIdleFormation() {
         UtilityWeights weights = UtilityWeights.parse(
-                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
 
         double[] cue = zeroSignals();
         cue[Signal.BASE.ordinal()] = 1.0;
@@ -359,7 +359,7 @@ public final class UtilityWeightsSelfCheck {
      */
     private static void emptyCrewsDisengage() {
         UtilityWeights weights = UtilityWeights.parse(
-                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
 
         double[] dry = zeroSignals();
         dry[Signal.BASE.ordinal()] = 1.0;
@@ -388,7 +388,7 @@ public final class UtilityWeightsSelfCheck {
 
     private static UtilityWeights parse(String json) {
         return UtilityWeights.parse(Map.of(
-                new ResourceLocation("tacz_sewv", "weights"), JsonParser.parseString(json)));
+                ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), JsonParser.parseString(json)));
     }
 
     private static double[] zeroSignals() {

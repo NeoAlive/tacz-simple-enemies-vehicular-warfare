@@ -212,6 +212,14 @@ neoForge {
             // A missed injection must crash at boot, not degrade silently.
             systemProperty 'mixin.debug.verify', 'true'
             systemProperty 'mixin.checks.interfaces', 'true'
+            // Explicit heap: a dev run on the JVM default (1/4 of RAM) next to the Gradle daemon
+            // took a 16 GB machine down. Override with -PrunHeap=6G for heavy client sessions.
+            jvmArgument "-Xmx${findProperty('runHeap') ?: '3G'}"
+            // ./gradlew runServer -PmixinAudit: load every mixin target at server start (see TaczSewv).
+            // Mixins apply lazily, so a plain boot never touches e.g. VehicleEntity.
+            if (project.hasProperty('mixinAudit')) {
+                systemProperty 'sewv.mixinAudit', 'true'
+            }
             logLevel = org.slf4j.event.Level.DEBUG
         }
         client {
@@ -267,15 +275,25 @@ dependencies {
     // SBW is Kotlin; its public surface (companions, properties) needs the stdlib to compile.
     implementation "thedarkcolour:kotlinforforge-neoforge:5.10.0"
     // Core soft-deps SBW jar-in-jars (Curios: parachute/NVG slots; GeckoLib: armor layers;
-    // SimpleBedrockModel: SBW armor renderer). Compiled and run against the exact copies unpacked
-    // from SBW's jar (libs-neo/jij), so versions always match what SBW ships.
+    // SimpleBedrockModel: SBW armor renderer). Compiled against the exact copies unpacked from SBW's
+    // jar (libs-neo/jij), so versions always match what SBW ships.
     compileOnly("com.maydaymemory:mae:1.1.2") {
         exclude group: "com.google.code.findbugs", module: "jsr305"
         exclude group: "it.unimi.dsi", module: "fastutil"
         exclude group: "org.joml", module: "joml"
     }
-    jijMods.each { compileOnly files(it); localRuntime files(it) }
-    jijLibs.each { compileOnly files(it); additionalRuntimeClasspath files(it) }
+    // Compile only: at runtime FML's JarJar unpacks these from the SBW jar itself (in dev too), and
+    // a second copy on the classpath is a duplicate module (seen: "reads more than one module named
+    // rhino.SNAPSHOT").
+    (jijMods + jijLibs).each { compileOnly files(it) }
+    // Top-level runtime mods, which beat any jar-in-jar copy:
+    // - SimpleBedrockModel: TaCZ 1.21.1 jar-in-jars SBM 2.2.1 under a different Maven identity than
+    //   SBW's 2.5.1.1, so JarJar never compares their ranges and may keep TaCZ's — which fails SBW's
+    //   [2.5.1.1,) requirement. Real installs need SBM >= 2.5.1.1 as a standalone mod for the same reason.
+    // - GeckoLib / Curios: the SEM port requires geckolib [4.8,) and curios [9.5,), newer than SBW ships.
+    jijMods.findAll { it.name.startsWith('SimpleBedrockModel-') }.each { localRuntime files(it) }
+    localRuntime "software.bernie.geckolib:geckolib-neoforge-1.21.1:4.8.2"
+    localRuntime "top.theillusivec4.curios:curios-neoforge:9.5.1+1.21.1"
     // SEM's own optional deps it needs at runtime in dev (GeckoLib is covered by SBW's jij).
     localRuntime "com.eliotlash.mclib:mclib:20"
 }

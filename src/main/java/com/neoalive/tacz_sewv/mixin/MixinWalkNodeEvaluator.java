@@ -2,9 +2,9 @@ package com.neoalive.tacz_sewv.mixin;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.pathfinder.NodeEvaluator;
 import net.minecraft.world.level.pathfinder.PathType;
+import net.minecraft.world.level.pathfinder.PathfindingContext;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.spongepowered.asm.mixin.Mixin;
@@ -31,11 +31,13 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 public abstract class MixinWalkNodeEvaluator extends NodeEvaluator {
 
     @Inject(
-            method = "getBlockPathType(Lnet/minecraft/world/level/BlockGetter;IIILnet/minecraft/world/entity/Mob;)Lnet/minecraft/world/level/pathfinder/PathType;",
+            // NeoForge port: 1.21 renamed getBlockPathType(BlockGetter, x, y, z, Mob) to
+            // getPathTypeOfMob(PathfindingContext, x, y, z, Mob); the body only reads coordinates.
+            method = "getPathTypeOfMob(Lnet/minecraft/world/level/pathfinder/PathfindingContext;IIILnet/minecraft/world/entity/Mob;)Lnet/minecraft/world/level/pathfinder/PathType;",
             at = @At("RETURN"),
             cancellable = true
     )
-    private void tacz_sewv$blockVehicleCells(BlockGetter level, int x, int y, int z, Mob mob,
+    private void tacz_sewv$blockVehicleCells(PathfindingContext context, int x, int y, int z, Mob mob,
                                              CallbackInfoReturnable<PathType> cir) {
         if ((Object) this instanceof GroundVehicleNodeEvaluator) return;
 

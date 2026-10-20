@@ -228,6 +228,13 @@ public class TaczSewv {
      */
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
+        // Dev only (-Dsewv.mixinAudit, set by ./gradlew runServer -PmixinAudit): force-load every mixin
+        // target so a bad injection fails here rather than the first time that class is touched.
+        if (Boolean.getBoolean("sewv.mixinAudit")) {
+            LOGGER.info("[sewv] mixin audit: loading every mixin target");
+            org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
+            LOGGER.info("[sewv] mixin audit: complete");
+        }
         com.neoalive.tacz_sewv.loadout.LoadoutManager.reapply(event.getServer());
     }
 

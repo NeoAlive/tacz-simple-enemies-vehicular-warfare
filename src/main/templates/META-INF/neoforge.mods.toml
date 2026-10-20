@@ -1,0 +1,60 @@
+modLoader="javafml" #mandatory
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+[[mods]] #mandatory
+modId="${mod_id}" #mandatory
+version="${mod_version}" #mandatory
+displayName="${mod_name}" #mandatory
+authors="${mod_authors}" #optional
+logoFile="pack.png"
+
+description='''${mod_description}'''
+
+[[mixins]]
+config="tacz_sewv.mixins.json"
+
+# Unit loadout manager: hooks SEM's UnitLoadoutManager.apply (raw JSON, upstream of SEM Extended and the
+# Berezka config mod). Separate config ("required": false, defaultRequire 0) — see loadout/LoadoutManager.
+[[mixins]]
+config="tacz_sewv.loadouts.mixins.json"
+
+# NeoForge port branch: the optional-mod mixin configs (xaero, komodo, playerrevive, corpse,
+# minecolonies) and their soft dependencies are dormant here — see dormantSources in build.gradle.
+
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="${neo_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# SBW ${sbw_version_range}, NeoForge 1.21.1 line (0.8.9.1-1.21).
+# SbwVersionMixinPlugin skips all mixins when the installed SBW is outside this range so the loader
+# can show the version requirement instead of a mixin inject crash.
+[[dependencies.${mod_id}]]
+    modId="superbwarfare"
+    type="required"
+    versionRange="${sbw_version_range}"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="tacz"
+    type="required"
+    versionRange="[1.1.4,)"
+    ordering="BEFORE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="simpleenemymod"
+    type="required"
+    versionRange="${sem_version_range}"
+    ordering="AFTER"
+    side="BOTH"

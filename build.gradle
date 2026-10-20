@@ -1,172 +1,305 @@
 plugins {
-    id 'eclipse'
+    id 'java-library'
     id 'idea'
     id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
-    id 'org.spongepowered.mixin' version '[0.7,)'
-    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+    id 'net.neoforged.moddev' version '2.0.141'
     id 'com.diffplug.spotless' version '6.25.0'
 }
 
-version = mod_version
+// ---------------------------------------------------------------------------------------------
+// NeoForge 1.21.1 port branch (port/neoforge-1.21.1). main stays Forge 1.20.1 and keeps getting
+// features; this branch merges main forward. Platform differences that touch many files live
+// behind com.neoalive.tacz_sewv.platform so call sites read the same on both branches.
+// ---------------------------------------------------------------------------------------------
+
+version = "${mod_version}+mc${minecraft_version}"
 group = mod_group_id
 
 base {
     archivesName = mod_id
 }
 
-// Mojang ships Java 17 to end users in 1.18+, so your mod should target Java 17.
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+// NeoForge 1.21.1 runs on Java 21.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
-minecraft {
-    mappings channel: mapping_channel, version: mapping_version
-    copyIdeResources = true
-    runs {
-        // applies to all the run configs below
-        configureEach {
-            workingDirectory project.file('run')
 
-            // Recommended logging data for a userdev environment
-            // The markers can be added/remove as needed separated by commas.
-            // "SCAN": For mods scan.
-            // "REGISTRIES": For firing of registry events.
-            // "REGISTRYDUMP": For getting the contents of all registries.
-            property 'forge.logging.markers', 'REGISTRIES'
-
-            // Recommended logging level for the console
-            // You can set various levels here.
-            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
-            property 'forge.logging.console.level', 'debug'
-
-            mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
-            }
-        }
-
-        client {
-            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
-            property 'forge.enabledGameTestNamespaces', mod_id
-
-            jvmArgs '-Dlog4j.configurationFile=config/log4j2.xml'
-        }
-
-        // Multiplayer test client A — separate game dir, username SEWV_Test_A
-        clientA {
-            parent runs.client
-            workingDirectory project.file('run-client-a')
-            args '--username', 'SEWV_Test_A'
-        }
-
-        // Multiplayer test client B — separate game dir, username SEWV_Test_B
-        clientB {
-            parent runs.client
-            workingDirectory project.file('run-client-b')
-            args '--username', 'SEWV_Test_B'
-        }
-
-        // Average-modpack client — jars from modpack/ (synced from Prism; see syncModpack).
-        // Overlaps already on the FG classpath (libs + soft runtimeOnly) are stripped so
-        // Forge does not double-load them; this mod is always the sourceset, never the jar.
-        modded {
-            parent runs.client
-            workingDirectory project.file('run-modded')
-        }
-
-        server {
-            property 'forge.enabledGameTestNamespaces', mod_id
-            args '--nogui'
-        }
-
-        // Dedicated dev server — separate game dir, bound to localhost
-        serverDev {
-            parent runs.server
-            workingDirectory project.file('run-server-dev')
-            // '--nogui' is inherited from the parent server run; no need to repeat it.
-            property 'forge.server.address', '127.0.0.1'
-            // One-shot gun-map cache probe: ./gradlew runServerDev -PguncacheProbe
-            if (project.hasProperty('guncacheProbe')) {
-                property 'sewv.guncacheProbe', 'true'
-            }
-        }
-
-        // This run config launches GameTestServer and runs all registered gametests, then exits.
-        // By default, the server will crash when no gametests are provided.
-        // The gametest system is also enabled by default for other run configs under the /test command.
-        gameTestServer {
-            property 'forge.enabledGameTestNamespaces', mod_id
-        }
-
-        data {
-            // example of overriding the workingDirectory set in configureEach above
-            workingDirectory project.file('run-data')
-
-            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
-            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
-        }
-    }
-}
-
-// Forward stdin to the dev server so console commands (op, stop, etc.) work interactively.
-// Gradle's JavaExec tasks default to an empty stdin; this wires the real terminal through.
-// configureEach fires lazily when each task is registered — safe regardless of when
-// ForgeGradle adds its run tasks (afterEvaluate ordering is not guaranteed).
-// Average-modpack jars live in modpack/ (gitignored). syncModpack pulls from Prism;
-// syncRunModdedMods mirrors them into run-modded/mods without the FG-classpath overlaps.
-// Named away from prepareRunModded — ForgeGradle already owns that for the modded run.
-// A configured path that is not on this machine is skipped so a stale Linux/Windows
-// property does not hide the Prism instance that is actually installed.
-def prismModsCandidates = [
-        findProperty('profile_mods'),
-        findProperty('modpack_source'),
-        "${System.getProperty('user.home')}/AppData/Roaming/PrismLauncher/instances/1.20.1/minecraft/mods",
-        "${System.getProperty('user.home')}/.local/share/PrismLauncher/instances/1.20.1/minecraft/mods",
-        "${System.getProperty('user.home')}/.local/share/PrismLauncher/instances/1.20.1(1)/minecraft/mods",
-].findAll { it != null && !it.toString().isEmpty() }.collect { file(it) }
-def prismMods = prismModsCandidates.find { it.directory } ?: prismModsCandidates[0]
-def modpackSource = prismMods
-def modpackDir = file('modpack')
-def runModdedMods = file('run-modded/mods')
-// Already loaded via dependencies { } — putting these in run/mods double-registers the modid.
-def modpackClasspathOverlaps = [
-        'tacz_sewv*.jar',
-        'superbwarfare*.jar',
-        'curios*.jar',
-        'geckolib*.jar',
-        'kotlinforforge*.jar',
-        'simpleenemymod*.jar',
-        'tacz-*.jar',           // not taczaddon / tacz_presence / tacz_x_guns
-        'xaeroworldmap*.jar',
-        'open-parties-and-claims*.jar',
+// ---------------------------------------------------------------------------------------------
+// Dormant integrations.
+// Integrations that reach their mod only through ModList / Class.forName / registry ids (NeoArms,
+// Coltan+GemRender, FCP, MCSP, VVP, Ash, Spore, Phayriosis, DNV) compile without it and simply
+// stay inert; only the ones whose files name a foreign type are listed below. Optional-mod compat is not ported yet: these sources stay in the tree
+// (they still build on main) but are not compiled here, no mixin config of theirs is loaded, and
+// neoforge.mods.toml names none of them. Core code reaches each one through a facade that
+// src/dormant-stubs/java replaces with a constant-false copy of the same public surface
+// (selfCheckDormantStubs keeps the two in step). Re-activating a mod = drop its lines here,
+// delete its stub, port its foreign-typed files against that mod's 1.21.1 build.
+// ---------------------------------------------------------------------------------------------
+def dormantSources = [
+        // Xaero's World Map
+        'com/neoalive/tacz_sewv/client/xaero/**',
+        'com/neoalive/tacz_sewv/mixin/client/MixinGuiMap.java',
+        'com/neoalive/tacz_sewv/mixin/client/MixinGuiMapPause.java',
+        'com/neoalive/tacz_sewv/mixin/XaeroMixinPlugin.java',
+        // Komodo
+        'com/neoalive/tacz_sewv/mixin/client/MixinKmodoDormancy.java',
+        'com/neoalive/tacz_sewv/mixin/client/MixinKmodoLight.java',
+        'com/neoalive/tacz_sewv/mixin/KomodoMixinPlugin.java',
+        // Corpse
+        'com/neoalive/tacz_sewv/compat/CorpseCompat.java',
+        'com/neoalive/tacz_sewv/mixin/MixinCorpseEntity.java',
+        'com/neoalive/tacz_sewv/mixin/client/MixinCorpseRenderer.java',
+        'com/neoalive/tacz_sewv/mixin/client/MixinAbstractClientPlayerCorpseSkin.java',
+        'com/neoalive/tacz_sewv/mixin/CorpseMixinPlugin.java',
+        // PlayerRevive
+        'com/neoalive/tacz_sewv/compat/PlayerReviveCompat.java',
+        'com/neoalive/tacz_sewv/mixin/MixinReviveEventServer.java',
+        'com/neoalive/tacz_sewv/mixin/PlayerReviveMixinPlugin.java',
+        // MineColonies
+        'com/neoalive/tacz_sewv/compat/MineColoniesCompat.java',
+        'com/neoalive/tacz_sewv/compat/minecolonies/**',
+        'com/neoalive/tacz_sewv/mixin/minecolonies/**',
+        'com/neoalive/tacz_sewv/mixin/MineColoniesMixinPlugin.java',
+        // Limitless Vehicles (LvCompat / LvGoals are stubbed)
+        'com/neoalive/tacz_sewv/compat/lv/**',
+        // Enhanced Falling Trees (EnhancedFallingTreesCompat is ModList-only and stays compiled)
+        'com/neoalive/tacz_sewv/compat/EnhancedFallingTreesFeller.java',
+        // Berezka
+        'com/neoalive/tacz_sewv/compat/BerezkaStructureCompat.java',
+        // Open Parties and Claims
+        'com/neoalive/tacz_sewv/compat/OpenPacCompat.java',
 ]
-tasks.register('syncModpack', Sync) {
-    group = 'forge'
-    description = "Copies enabled jars from ${modpackSource} into modpack/ (skips *.disabled)."
-    from(modpackSource) {
-        include '*.jar'
-        exclude 'tacz_sewv*.jar'
+def dormantMixinConfigs = [
+        'tacz_sewv.xaero.mixins.json',
+        'tacz_sewv.komodo.mixins.json',
+        'tacz_sewv.corpse.mixins.json',
+        'tacz_sewv.playerrevive.mixins.json',
+        'tacz_sewv.minecolonies.mixins.json',
+]
+sourceSets {
+    main {
+        java {
+            srcDir 'src/dormant-stubs/java'
+            exclude dormantSources
+        }
+        resources {
+            exclude dormantMixinConfigs
+        }
     }
-    into modpackDir
+    test {
+        java {
+            // LV's steering self-check reads compat/lv sources that are dormant on this branch.
+            exclude 'com/neoalive/tacz_sewv/compat/lv/**'
+        }
+    }
 }
 
-tasks.register('syncRunModdedMods', Sync) {
-    group = 'forge'
-    description = 'Mirrors modpack/ into run-modded/mods, excluding jars already on the FG classpath.'
-    from(modpackDir) {
-        include '*.jar'
-        exclude modpackClasspathOverlaps
+// ---------------------------------------------------------------------------------------------
+// Port dependency jars. libs-neo/ (gitignored, separate from the Forge libs/) holds the two
+// sibling-built mods plus everything SBW jar-in-jars, which a dev run does not unpack.
+//   ./gradlew syncPortDeps    (after building SBW 0.8.9.1-1.21 and the SEM port)
+// ---------------------------------------------------------------------------------------------
+def libsNeo = file('libs-neo')
+def libsNeoJij = file('libs-neo/jij')
+
+tasks.register('syncPortDeps') {
+    group = 'neoforge port'
+    description = 'Copies SBW 0.8.9.1-1.21 and the SEM port jars into libs-neo/, plus SBW\'s jar-in-jars.'
+    doLast {
+        def sbwLibs = file("${projectDir}/${sbw_port_dir}/build/libs")
+        def sbwJars = fileTree(sbwLibs) {
+            include "superbwarfare-${sbw_required_version}-*.jar"
+            exclude '*-sources.jar', '*-slim.jar', '*-api.jar'
+        }.files
+        if (sbwJars.size() != 1) {
+            throw new GradleException("Expected exactly one superbwarfare-${sbw_required_version}-*.jar in ${sbwLibs}, found ${sbwJars*.name}")
+        }
+        def semJar = file("${projectDir}/${sem_port_dir}/build/libs/simpleenemymod-${sem_port_version}.jar")
+        if (!semJar.isFile()) {
+            throw new GradleException("Missing ${semJar} — run ./gradlew build in the SEM port first.")
+        }
+        libsNeo.mkdirs()
+        copy { from sbwJars.first(); into libsNeo; rename { 'superbwarfare.jar' } }
+        copy { from semJar; into libsNeo; rename { 'simpleenemymod.jar' } }
+        delete libsNeoJij
+        copy {
+            from(zipTree(sbwJars.first())) { include 'META-INF/jarjar/*.jar' }
+            into libsNeoJij
+            eachFile { it.path = it.name }
+            includeEmptyDirs = false
+        }
+        println "SBW: ${sbwJars.first().name}  SEM: ${semJar.name}  jij: ${libsNeoJij.list()?.toList()}"
     }
-    into runModdedMods
 }
 
-tasks.configureEach { task ->
-    if (task.name == 'runServerDev' && task instanceof JavaExec) {
-        task.standardInput = System.in
+// A jar-in-jar that carries its own mods.toml is a mod (runtime classpath); anything else is a
+// plain library and must go on the additional runtime classpath to be visible to mods.
+def jijJars = libsNeoJij.isDirectory() ? (libsNeoJij.listFiles({ f -> f.name.endsWith('.jar') } as FileFilter) as List) : []
+def isModJar = { File jar ->
+    def z = new java.util.zip.ZipFile(jar)
+    try { return z.getEntry('META-INF/neoforge.mods.toml') != null || z.getEntry('META-INF/mods.toml') != null } finally { z.close() }
+}
+def jijMods = jijJars.findAll { isModJar(it) }
+def jijLibs = jijJars.findAll { !isModJar(it) }
+
+repositories {
+    flatDir {
+        dirs 'libs-neo'
     }
-    if (task.name == 'runModded') {
-        task.dependsOn 'syncRunModdedMods'
+    maven {
+        name = "Curse Maven"
+        url = "https://www.cursemaven.com"
+        content { includeGroup "curse.maven" }
+    }
+    maven {
+        name = 'GeckoLib'
+        url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        content {
+            includeGroupByRegex("software\\.bernie.*")
+            includeGroup("com.eliotlash.mclib")
+        }
+    }
+    maven {
+        name = "curios"
+        url = "https://maven.theillusivec4.top/"
+    }
+    maven {
+        name = 'Kotlin for Forge'
+        url = 'https://thedarkcolour.github.io/KotlinForForge/'
+        content { includeGroup "thedarkcolour" }
+    }
+    maven {
+        url = "https://jitpack.io"
+        content { includeGroupByRegex "com\\.github\\.(?i)mcmodderanchor" }
+    }
+    // MAE (Mayday Animation Engine) — compile-only companion of SBM; SBM jarjars it at runtime.
+    maven {
+        url = "https://maven.sighs.cc/repository/maven-public/"
+        content { includeGroup "com.maydaymemory" }
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        configureEach {
+            // Fresh worlds only on this branch: keep 1.21.1 run dirs apart from the Forge ones.
+            gameDirectory = project.file('run-neo')
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // A missed injection must crash at boot, not degrade silently.
+            systemProperty 'mixin.debug.verify', 'true'
+            systemProperty 'mixin.checks.interfaces', 'true'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+        client {
+            client()
+        }
+        // Multiplayer test clients — separate game dirs and usernames.
+        clientA {
+            client()
+            gameDirectory = project.file('run-neo-client-a')
+            programArguments.addAll '--username', 'SEWV_Test_A'
+        }
+        clientB {
+            client()
+            gameDirectory = project.file('run-neo-client-b')
+            programArguments.addAll '--username', 'SEWV_Test_B'
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        // Dedicated dev server — separate game dir.
+        serverDev {
+            server()
+            gameDirectory = project.file('run-neo-server-dev')
+            programArgument '--nogui'
+            if (project.hasProperty('guncacheProbe')) {
+                systemProperty 'sewv.guncacheProbe', 'true'
+            }
+        }
+        gameTestServer {
+            type = "gameTestServer"
+        }
+        data {
+            data()
+            gameDirectory = project.file('run-neo-data')
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+dependencies {
+    // Superb Warfare 0.8.9.1-1.21 and the SEM port (libs-neo/, see syncPortDeps).
+    implementation "blank:superbwarfare:1.0"
+    implementation "blank:simpleenemymod:1.0"
+    // TaCZ 1.21.1 NeoForge — the same pin the SEM port builds against.
+    implementation "curse.maven:tacz-1-21-1-1353462:8318179"
+    // SBW is Kotlin; its public surface (companions, properties) needs the stdlib to compile.
+    implementation "thedarkcolour:kotlinforforge-neoforge:5.10.0"
+    // Core soft-deps SBW jar-in-jars (Curios: parachute/NVG slots; GeckoLib: armor layers;
+    // SimpleBedrockModel: SBW armor renderer). Compile against their APIs; at runtime the
+    // copies unpacked from SBW's jar are used so versions match what SBW ships.
+    compileOnly "top.theillusivec4.curios:curios-neoforge:9.2.0+1.21.1:api"
+    compileOnly "software.bernie.geckolib:geckolib-neoforge-1.21.1:4.7.5"
+    compileOnly "com.github.MCModderAnchor:SimpleBedrockModel:2.5.1.1-neoforge-mc1.21.1"
+    compileOnly("com.maydaymemory:mae:1.1.2") {
+        exclude group: "com.google.code.findbugs", module: "jsr305"
+        exclude group: "it.unimi.dsi", module: "fastutil"
+        exclude group: "org.joml", module: "joml"
+    }
+    jijMods.each { localRuntime files(it) }
+    jijLibs.each { additionalRuntimeClasspath files(it) }
+    // SEM's own optional deps it needs at runtime in dev (GeckoLib is covered by SBW's jij).
+    localRuntime "com.eliotlash.mclib:mclib:20"
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+            sbw_version_range      : sbw_version_range,
+            sem_version_range      : sem_version_range,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.named('processResources', ProcessResources).configure {
+    var packProperties = [mod_id: mod_id]
+    inputs.properties packProperties
+    filesMatching(['pack.mcmeta']) {
+        expand packProperties
     }
 }
 
@@ -600,401 +733,83 @@ tasks.register('selfCheckMiscPacks', JavaExec) {
     jvmArgs '-ea'
 }
 
-tasks.register('selfCheckLv', JavaExec) {
+
+tasks.register('selfCheckDormantStubs', JavaExec) {
     group = 'verification'
-    description = 'Runs the Limitless Vehicles steering-translation and isolation self-check.'
+    description = 'Asserts each dormant-integration stub matches its real facade\'s public surface.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
-    mainClass = 'com.neoalive.tacz_sewv.compat.lv.LvSelfCheck'
+    mainClass = 'com.neoalive.tacz_sewv.compat.DormantStubsSelfCheck'
     jvmArgs '-ea'
+    workingDir = projectDir
 }
 
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckLv'
+    // selfCheckLv is dormant on this branch (Limitless Vehicles is not ported).
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDormantStubs'
 }
 
-mixin {
-    add sourceSets.main, "tacz_sewv.refmap.json"
-    config "tacz_sewv.mixins.json"
-    // Loadout manager hook on SEM's UnitLoadoutManager.apply — own optional config, defaultRequire 0,
-    // so a SEM build without that class costs a warning, not a failed start. See loadout/LoadoutManager.
-    config "tacz_sewv.loadouts.mixins.json"
-    // Separate config + XaeroMixinPlugin gate — World Map is optional; main config is required.
-    config "tacz_sewv.xaero.mixins.json"
-    // Separate config + KomodoMixinPlugin gate — Komodo is optional and targeted by string name
-    // (no compile-time Komodo dependency needed at all, unlike Xaero).
-    config "tacz_sewv.komodo.mixins.json"
-    // Separate config + PlayerReviveMixinPlugin gate — PlayerReviveMod is optional (off the run
-    // classpath unless -PwithPlayerRevive) and compileOnly like Xaero, so the mixin targets its
-    // class directly.
-    config "tacz_sewv.playerrevive.mixins.json"
-    // Separate config + CorpseMixinPlugin gate — Corpse is optional and compileOnly.
-    config "tacz_sewv.corpse.mixins.json"
-    // Separate config + MineColoniesMixinPlugin gate — MineColonies is optional and compileOnly.
-    config "tacz_sewv.minecolonies.mixins.json"
-}
+// Average-modpack jars live in modpack/ (gitignored). syncModpack pulls from Prism.
+def prismModsCandidates = [
+        findProperty('profile_mods'),
+        findProperty('modpack_source'),
+        "${System.getProperty('user.home')}/AppData/Roaming/PrismLauncher/instances/1.21.1/minecraft/mods",
+        "${System.getProperty('user.home')}/.local/share/PrismLauncher/instances/1.21.1/minecraft/mods",
+].findAll { it != null && !it.toString().isEmpty() }.collect { file(it) }
+def prismMods = prismModsCandidates.find { it.directory } ?: prismModsCandidates[0]
 
-repositories {
-    maven {
-        url "https://chocolateminecraft.com/maven"
-        name "Xaero's Maven"
+tasks.register('syncModpack', Sync) {
+    group = 'neoforge port'
+    description = "Copies enabled jars from ${prismMods} into modpack/ (skips *.disabled)."
+    from(prismMods) {
+        include '*.jar'
+        exclude 'tacz_sewv*.jar'
     }
-    flatDir {
-        dirs 'libs'
-    }
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = "Modrinth"
-                url = "https://api.modrinth.com/maven"
-            }
-        }
-        filter {
-            includeGroup "maven.modrinth"
-        }
-    }
-    maven {
-        url = "https://maven.theillusivec4.top/"
-        url = 'https://maven.parchmentmc.org'
-        url = "https://repo.sleeping.town/"
-    }
-    maven {
-        url = "https://jitpack.io"
-        content {
-            includeGroup "com.github.mcmodderanchor"
-        }
-    }
-    // MAE (Mayday Animation Engine) — compile-only companion of SBM 2.5.1; SBM jarjars it at runtime.
-    maven {
-        url = "https://maven.sighs.cc/repository/maven-public/"
-    }
+    into file('modpack')
 }
-
-// ---------------------------------------------------------------------------
-// Superb Warfare compile jar (flatDir → blank:superbwarfare:1.0)
-// ---------------------------------------------------------------------------
-// Compatibility matrix for THIS branch (main):
-//   SBW 0.8.9.1+  → supported (mods.toml versionRange [0.8.9.1,))
-//   SBW 0.8.9     → NOT supported — API/mixin surface diverged; use git branch
-//                   hotfix/0.8.9 for that line. Do not point libs/ at a 0.8.9 jar.
-//
-// Parent Progetti/ may hold both release jars side by side. This script only ever
-// copies a 0.8.9.1 *-all.jar into libs/superbwarfare.jar. FlatDir is version-blind
-// (blank:superbwarfare:1.0 → that literal filename), so the copy step is what
-// enforces the right build. No-op if the parent folder has no matching jar
-// (another machine) — whatever is already in libs/ is used untouched.
-//
-// -PstableSbw used to swap in 0.8.9; that is deliberately rejected on main.
-if (project.hasProperty('stableSbw')) {
-    throw new GradleException(
-            "main is not compatible with SBW 0.8.9. Drop -PstableSbw and use " +
-            "superbwarfare-0.8.9.1-*-all.jar, or check out branch hotfix/0.8.9.")
-}
-def sbwRequiredVersion = findProperty('sbw_required_version') ?: '0.8.9.1'
-def sbwSourceDir = file("${projectDir}/..")
-// Ant glob: 0.8.9.1-* does not match 0.8.9-final (dot after 0.8.9 vs hyphen).
-def sbwCandidates = fileTree(sbwSourceDir) {
-    include "superbwarfare-${sbwRequiredVersion}-*-all.jar"
-}.files
-if (sbwCandidates.size() > 1) {
-    throw new GradleException("Multiple superbwarfare ${sbwRequiredVersion} candidates in " +
-            "${sbwSourceDir}: ${sbwCandidates*.name}")
-} else if (sbwCandidates.size() == 1) {
-    def sourceSbwJar = sbwCandidates.first()
-    def targetSbwJar = file('libs/superbwarfare.jar')
-    if (!targetSbwJar.exists() || targetSbwJar.length() != sourceSbwJar.length()) {
-        copy {
-            from sourceSbwJar
-            into 'libs'
-            rename { 'superbwarfare.jar' }
-        }
-    }
-    println "SBW jar: ${sourceSbwJar.name} (required ${sbwRequiredVersion}+; not 0.8.9)"
-} else {
-    println "SBW jar: using libs/superbwarfare.jar as-is " +
-            "(no superbwarfare-${sbwRequiredVersion}-*-all.jar in ${sbwSourceDir})"
-}
-
-dependencies {
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-    // Superb Warfare — main requires 0.8.9.1+ (see block above + mods.toml).
-    // Not back-compatible with 0.8.9; that line lives on branch hotfix/0.8.9.
-    implementation fg.deobf("blank:superbwarfare:1.0")
-    implementation fg.deobf("blank:curios:1.0")
-    implementation fg.deobf("blank:geckolib:1.0")
-    implementation fg.deobf("blank:kotlin:1.0")
-    implementation fg.deobf("blank:simpleenemymod:1.0")
-    implementation fg.deobf("blank:tacz:1.0")
-    compileOnly fg.deobf("blank:berezka_api:1.0")
-    // Soft: compile against OpenPAC API, keep off the published jar (same pattern as berezka_api).
-    // runtimeOnly puts it on every run classpath for local testing with OpenPAC present.
-    // Absent-path verification: ./gradlew runServerDev -PnoOpenPac  (skips runtimeOnly;
-    // rename/remove libs/openpac.jar is the nuclear alternative if the property is ignored).
-    compileOnly fg.deobf("blank:openpac:1.0")
-    if (!project.hasProperty('noOpenPac')) {
-        runtimeOnly fg.deobf("blank:openpac:1.0")
-    }
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-    // Compile-only: SBW 0.8.9.1 jarjars this (and requires [2.5.1,) in its mods.toml); needed so
-    // MixinGeoArmorRenderer can target GeoArmorRenderer and the runway renderer can use SBM models.
-    // Absent-path verification: ./gradlew runClient -PnoSbm  (skips runtimeOnly).
-    compileOnly fg.deobf("com.github.mcmodderanchor:simplebedrockmodel:2.5.1-forge-mc1.20.1")
-    if (!project.hasProperty('noSbm')) {
-        runtimeOnly fg.deobf("com.github.mcmodderanchor:simplebedrockmodel:2.5.1-forge-mc1.20.1")
-    }
-    // MAE types (Skeleton/Pose) are on SBM's public surface; SBM jarjars MAE at runtime, so this
-    // is compileOnly only (same shape SBW itself uses).
-    compileOnly("com.maydaymemory:mae:1.1.2") {
-        exclude group: "com.google.code.findbugs", module: "jsr305"
-        exclude group: "it.unimi.dsi", module: "fastutil"
-        exclude group: "org.joml", module: "joml"
-    }
-    // Soft: compile against Xaero's World Map; keep it off installs that omit it.
-    // Absent-path verification: ./gradlew runClient -PnoXaero  (skips runtimeOnly;
-    // XaeroMixinPlugin then refuses MixinGuiMap* so no "target was not found" warning).
-    compileOnly "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
-    if (!project.hasProperty('noXaero')) {
-        runtimeOnly "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
-    }
-    // Soft: compile against Komodo (client-only SBW vehicle renderer); keep it off installs that
-    // omit it. libs/komodo.jar is the official Forge 1.20.1 release jar (github.com/
-    // Warfactory-Official/Komodo), same flatDir pattern as the other libs/*.jar deps.
-    // Absent-path verification: ./gradlew runClient -PnoKomodo  (skips runtimeOnly;
-    // KomodoMixinPlugin then refuses MixinKmodoDormancy so no "target was not found" warning).
-    compileOnly fg.deobf("blank:komodo:1.0")
-    if (!project.hasProperty('noKomodo')) {
-        runtimeOnly fg.deobf("blank:komodo:1.0")
-    }
-    // Soft: Coltan (SBW→GemRender bridge) + GemRender. Sticky paint / armor register through
-    // reflection (ColtanSkinBridge, ColtanArmorBridge) so a clean checkout without libs/coltan.jar
-    // still compiles; jars are compileOnly for IDE/nav when present. Runtime gates use
-    // ColtanCompat.bridgeActive() (coltan+gemrender). SEM-held TACZ stays on SEM GunLayer.
-    // Opt into the run classpath with: ./gradlew runClient -PwithColtan
-    // Prefer Coltan+GemRender OR Komodo for vehicle draw acceleration until coexistence is tested.
-    // Sync a built Coltan jar to libs/coltan.jar after `./gradlew build` in the Coltan repo.
-    if (file('libs/coltan.jar').exists()) {
-        compileOnly fg.deobf("blank:coltan:1.0")
-    }
-    if (file('libs/gemrender.jar').exists()) {
-        compileOnly fg.deobf("blank:gemrender:1.0")
-    }
-    // Soft: Neo Arms aircraft carrier. Reflection facade (NeoArmsCarrierAccess) so a checkout
-    // without libs/neoarms.jar still compiles; jar is compileOnly for IDE/nav when present.
-    // Opt into run classpath with: ./gradlew runClient -PwithNeoArms
-    if (file('libs/neoarms.jar').exists()) {
-        compileOnly fg.deobf("blank:neoarms:1.0")
-    }
-    if (project.hasProperty('withNeoArms')) {
-        runtimeOnly fg.deobf("blank:neoarms:1.0")
-    }
-    if (project.hasProperty('withColtan')) {
-        runtimeOnly fg.deobf("blank:coltan:1.0")
-        runtimeOnly fg.deobf("blank:gemrender:1.0")
-    }
-    // Soft: compile against MineColonies. libs/minecolonies.jar is the official Forge 1.20.1
-    // release jar (ldtteam.jfrog.io/artifactory/modding, com.ldtteam:minecolonies:1.20.1-1.1.1276),
-    // same flatDir pattern as the other libs/*.jar deps. It is a shadow jar carrying its own
-    // libraries, so nothing else has to be added for MineColoniesCompat to compile — but NOT
-    // structurize/blockui/domum_ornamentum, which MineColonies hard-requires at RUNTIME. That is
-    // why there is no runtimeOnly here: dropping the jar alone onto the run classpath makes Forge
-    // fail the whole client on missing dependencies. Test the present-path in a real instance.
-    // Absent-path (the shipped default) needs no flag at all: MineColoniesMixinPlugin refuses both
-    // mixins and MineColoniesCompat is never classloaded.
-    compileOnly fg.deobf("blank:minecolonies:1.0")
-    // Soft: compile against PlayerReviveMod (team.creative.playerrevive). libs/playerrevive.jar is
-    // CreativeMD's own Forge 1.20.1 release jar, same flatDir pattern as the other libs/*.jar deps.
-    // No mixin needed — PlayerReviveServer.revive/isBleeding are plain static methods taking only
-    // vanilla Player, called directly from PlayerReviveCompat.
-    // Same "off by default, opt in for local testing" shape as Configured below: the
-    // jar is off the run classpath unless requested, so PlayerReviveCompat.isLoaded() is false and
-    // PlayerReviveGoal is never added by default. PlayerReviveMod itself hard-requires CreativeCore
-    // (libs/creativecore.jar) to load at all, so that comes along under the same flag rather than
-    // being a second toggle nobody would remember to pair up.
-    //   ./gradlew runClient -PwithPlayerRevive
-    compileOnly fg.deobf("blank:playerrevive:1.0")
-    if (project.hasProperty('withPlayerRevive')) {
-        runtimeOnly fg.deobf("blank:playerrevive:1.0")
-        runtimeOnly fg.deobf("blank:creativecore:1.0")
-    }
-    // Soft: compile against Corpse (henkelmax). libs/corpse.jar is the Forge 1.20.1 release
-    // (Modrinth corpse-forge-1.20.1-*). CoreLib is relocated inside the jar to
-    // de.maxhenkel.corpse.corelib — only CorpseCompat.Access may touch those types, and only
-    // after isLoaded(). Off the run classpath by default; opt in with:
-    //   ./gradlew runClient -PwithCorpse
-    compileOnly fg.deobf("blank:corpse:1.0")
-    if (project.hasProperty('withCorpse')) {
-        runtimeOnly fg.deobf("blank:corpse:1.0")
-    }
-    // Soft: compile against Limitless Vehicles (ywzj_vehicle). libs/ywzj_vehicle.jar is LV's own
-    // reobfuscated build of the shipped 0.6.0 (commit 796babe5; `gradlew build` → build/libs/).
-    // Only compat/lv/* may import org.ywzj.* — everything else goes through
-    // LvCompat. There are deliberately NO mixins into LV classes: transforming its AbstractVehicle
-    // recomputes frames that name client-only LocalVehiclePlayer, which crashes a dedicated server.
-    // Off the run classpath by default; opt in with:
-    //   ./gradlew runClient -PwithLv
-    // LV jar-in-jars ApricityUI, rhino and MixinExtras, which a dev run does not unpack, so they
-    // come along under the same flag (copied out of LV's META-INF/jarjar into libs/).
-    compileOnly fg.deobf("blank:ywzj_vehicle:1.0")
-    if (project.hasProperty('withLv')) {
-        runtimeOnly fg.deobf("blank:ywzj_vehicle:1.0")
-        runtimeOnly fg.deobf("blank:apricityui:1.0")
-        runtimeOnly "blank:rhino:1.0"
-        runtimeOnly "blank:mixinextras:1.0"
-    }
-    // Soft: compile against Enhanced Falling Trees (MC 1.20/Forge 46, github.com/addavriance/
-    // EnhancedFallingTrees). libs/efallingtrees.jar is its Forge release jar, same flatDir
-    // pattern as the other libs/*.jar deps. Every EFT class this mod references (TreeRegistry/
-    // TreeType/TreeEntity) is Architectury-free, so this compileOnly alone is enough to build —
-    // see EnhancedFallingTreesCompat's class javadoc.
-    compileOnly fg.deobf("blank:efallingtrees:1.0")
-    // Same "off by default, opt in for local testing" shape as Configured below:
-    // EFT itself mandates Architectury API + Cloth Config (its own mods.toml), so both are pulled
-    // in here too, under the same flag, rather than being separate toggles nobody would remember
-    // to pair up correctly. Fetched from Modrinth (the real published, player-facing jars).
-    //   ./gradlew runClient -PwithEnhancedFallingTrees
-    //
-    // KNOWN LIMITATION, not fixable from this build script: every Forge build of
-    // architectury-api for 1.20.1 (tried 9.0.8 through 9.2.14, both Modrinth's copy and
-    // dev.architectury's own maven — same bytecode either way) fails to load under
-    // ForgeGradle's userdev launch specifically: its own bundled architectury.mixins.json
-    // ("MixinFallingBlockEntity") shadows a vanilla field by raw SRG name with no refmap entry
-    // for it, which only resolves inside Architectury Loom's own remap pipeline, not
-    // ForgeGradle's. Confirmed as a general upstream issue, not specific to this project or to
-    // EFT: an unrelated project hit the identical crash doing the same "architectury-api as a
-    // plain dependency in a non-Loom ForgeGradle project" thing
-    // (github.com/coding-1ab/mega-modpack/issues/4). A real, packaged Forge 1.20.1-47.2.0
-    // install (drop these jars in mods/, no ForgeGradle involved) does not go through this dev
-    // launch path and is the way to actually live-test this compat today; runClient/
-    // runGameTestServer with this flag will crash at world bootstrap until upstream fixes it.
-    if (project.hasProperty('withEnhancedFallingTrees')) {
-        runtimeOnly fg.deobf("blank:efallingtrees:1.0")
-        runtimeOnly "maven.modrinth:architectury-api:9.2.14+forge"
-        runtimeOnly "maven.modrinth:cloth-config:11.1.136+forge"
-    }
-    // Soft: Configured (in-game ForgeConfigSpec GUI). No compileOnly / no Java references —
-    // declaration-only; Configured reads ConfigTracker for SERVER SewvConfig. Jar off the run
-    // classpath by default; opt in with:
-    //   ./gradlew runClient -PwithConfigured
-    if (project.hasProperty('withConfigured')) {
-        runtimeOnly fg.deobf("blank:configured:1.0")
-    }
-}
-
-// This block of code expands all declared replace properties in the specified resource targets.
-// A missing property will result in an error. Properties are expanded using ${} Groovy notation.
-// When "copyIdeResources" is enabled, this will also run before the game launches in IDE environments.
-// See https://docs.gradle.org/current/dsl/org.gradle.language.jvm.tasks.ProcessResources.html
-tasks.named('processResources', ProcessResources).configure {
-    var replaceProperties = [
-            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
-            forge_version: forge_version, forge_version_range: forge_version_range,
-            loader_version_range: loader_version_range,
-            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
-            mod_authors: mod_authors, mod_description: mod_description,
-            sbw_version_range: findProperty('sbw_version_range') ?: '[0.8.9.1,)',
-            sem_version_range: findProperty('sem_version_range') ?: '[1.20.1-0.1.6-beta-hotfix,)',
-    ]
-    inputs.properties replaceProperties
-
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties + [project: project]
-    }
-}
-
-// Example for how to get properties into the manifest for reading at runtime.
-tasks.named('jar', Jar).configure {
-    manifest {
-        attributes([
-                'Specification-Title'     : mod_id,
-                'Specification-Vendor'    : mod_authors,
-                'Specification-Version'   : '1', // We are version 1 of ourselves
-                'Implementation-Title'    : project.name,
-                'Implementation-Version'  : project.jar.archiveVersion,
-                'Implementation-Vendor'   : mod_authors,
-                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
-        ])
-    }
-
-    // This is the preferred method to reobfuscate your jar file
-    finalizedBy 'reobfJar'
-}
-
-// Production Forge loads LivingEntity etc. under SRG names. Without the MixinGradle refmap in the
-// shipped jar, remappable injects (e.g. MixinLivingEntityLos → hasLineOfSight) fail with
-// "No refMap loaded" / "could not find any targets matching 'hasLineOfSight'". Catch that at
-// build time rather than in Prism.
-tasks.register('verifyMixinRefmap') {
-    group = 'verification'
-    description = 'Fails if the built jar is missing tacz_sewv.refmap.json.'
-    dependsOn tasks.named('jar')
-    doLast {
-        def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
-        def found = false
-        jarFile.withInputStream { stream ->
-            def zis = new java.util.zip.ZipInputStream(stream)
-            def entry
-            while ((entry = zis.nextEntry) != null) {
-                if (entry.name == 'tacz_sewv.refmap.json') {
-                    found = true
-                    break
-                }
-            }
-            zis.close()
-        }
-        if (!found) {
-            throw new GradleException(
-                    "${jarFile.name} is missing tacz_sewv.refmap.json — vanilla mixins will crash " +
-                    "at runtime (hasLineOfSight etc.). Run './gradlew clean jar' and do not ship " +
-                    "a jar that skipped MixinGradle's addMixinsToJar.")
-        }
-    }
-}
-tasks.named('jar').configure { finalizedBy 'verifyMixinRefmap' }
-tasks.named('build').configure { dependsOn 'verifyMixinRefmap' }
 
 // Opt-in push of the built jar into the Prism instance's mods folder.
-// Usage: ./gradlew build -PsyncwithProfile
-def profileMods = prismMods
+// Usage: ./gradlew build -PsyncwithProfile   (NeoForge jars need no reobf.)
 def syncWithProfile = project.hasProperty('syncwithProfile') || project.hasProperty('profilesync')
-
 tasks.register('syncToProfile') {
-    group = 'forge'
-    description = "Copies the reobfuscated jar into ${profileMods} (opt-in via -PsyncwithProfile)."
-    dependsOn 'reobfJar', 'verifyMixinRefmap'
+    group = 'neoforge port'
+    description = "Copies the built jar into ${prismMods} (opt-in via -PsyncwithProfile)."
+    dependsOn 'jar'
     onlyIf { syncWithProfile }
     doLast {
         def built = tasks.named('jar', Jar).get().archiveFile.get().asFile
-        def reobf = layout.buildDirectory.file('reobfJar/output.jar').get().asFile
-        def jarFile = reobf.isFile() ? reobf : built
-        if (!profileMods.directory) {
-            throw new GradleException("Profile mods folder missing: ${profileMods}")
+        if (!prismMods.directory) {
+            throw new GradleException("Profile mods folder missing: ${prismMods}")
         }
-        // Version bumps must not leave two tacz_sewv jars loaded.
-        profileMods.eachFileMatch(~/tacz_sewv.*\.jar/) { it.delete() }
-        copy {
-            from jarFile
-            into profileMods
-            rename { built.name }
-        }
-        println "Synced ${built.name} → ${profileMods}"
+        prismMods.eachFileMatch(~/tacz_sewv.*\.jar/) { it.delete() }
+        copy { from built; into prismMods }
+        println "Synced ${built.name} → ${prismMods}"
     }
 }
 if (syncWithProfile) {
     tasks.named('build').configure { finalizedBy 'syncToProfile' }
 }
 
-// However if you are in a multi-project build, dev time needs unobfed jar files, so you can delay the obfuscation until publishing by doing:
-// tasks.named('publish').configure {
-//     dependsOn 'reobfJar'
-// }
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}
 
-// Example configuration to allow publishing using the maven-publish plugin
 publishing {
     publications {
         register('mavenJava', MavenPublication) {
-            artifact jar
+            from components.java
         }
     }
     repositories {
@@ -1005,7 +820,7 @@ publishing {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+    options.encoding = 'UTF-8'
 }
 
 // Imports only — no brace/indent rewrite. Groups: static | java/javax | third-party | project.

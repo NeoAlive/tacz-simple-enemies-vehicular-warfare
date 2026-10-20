@@ -98,6 +98,15 @@ public final class InvasionHudOverlay {
                 g.fill(bx, by, bx + filled, by + BAR_H, barColor);
             }
         }
+
+        if (snap.secondsLeft() >= 0) {
+            int left = snap.secondsLeft();
+            String clock = String.format("%d:%02d", left / 60, left % 60);
+            // Last minute in red so the end of the match never arrives unannounced.
+            int color = left <= 60 ? 0xFFFF5555 : 0xFFFFFFFF;
+            int y = TOP_Y + ICON + BAR_GAP + BAR_H + 3;
+            g.drawString(font, clock, (screenW - font.width(clock)) / 2, y, color, true);
+        }
     }
 
     private static int fillColor(InvasionHud.Snapshot snap, InvasionHud.SlotState state, boolean flashOn) {

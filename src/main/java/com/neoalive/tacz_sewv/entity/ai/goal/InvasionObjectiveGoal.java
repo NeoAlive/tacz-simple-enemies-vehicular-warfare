@@ -17,7 +17,7 @@ import com.neoalive.tacz_sewv.invasion.InvasionTags;
  * Walks an invasion rifleman to its objective — the on-foot half of the capture pipeline, whose
  * vehicle half is a destination in {@code VehicleTargeting.resolveDestination}. Where it walks is
  * {@link CaptureOrderSupport#infantryDestination}: the next point to take for a capturing rifleman,
- * the point most worth holding for a contest-only one.
+ * the point most worth fighting over for a capture-off one.
  *
  * <h2>When it holds MOVE</h2>
  * Priority 1, MOVE, and only while there is walking to do: off station, or on station but away from
@@ -38,7 +38,7 @@ public class InvasionObjectiveGoal extends Goal {
     /** An enemy this close is fought where it is; further ones are shot at on the way. */
     private static final double ENGAGE_RANGE = 20.0;
     private static final double SETTLE_DISTANCE = 2.0;
-    /** Contest-only riflemen re-judge which point needs them this often (game ticks). */
+    /** Capture-off riflemen re-judge which point needs them this often (game ticks). */
     private static final long REPICK_TICKS = 100;
     /** Goal ticks between path refreshes (goals tick every other game tick). */
     private static final int REPATH_INTERVAL = 20;

@@ -359,7 +359,7 @@ public final class InvasionSpawn {
     /**
      * Re-tag a helicopter rider now on the ground as infantry. It drops {@link InvasionTags#AI}, so
      * it neither counts toward the base's infantry headcount nor is swept as an orphan again, and
-     * it only contests: a helicopter cannot take a point, and neither can what it carries in.
+     * it is capture-off: a helicopter cannot take a point, and neither can what it carries in.
      */
     private static void dismountedAircrew(AbstractUnit unit) {
         var data = unit.getPersistentData();

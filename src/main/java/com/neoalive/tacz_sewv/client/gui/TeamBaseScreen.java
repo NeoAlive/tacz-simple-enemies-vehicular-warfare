@@ -46,8 +46,9 @@ import com.neoalive.tacz_sewv.util.VehiclePoolCatalogSource;
 public class TeamBaseScreen extends Screen {
 
     private static final int PANEL_W_PREF = 420;
-    private static final int ROW = 24;
     private static final int LIST_ROW_H = 12;
+    /** Below this scaled height (GUI scale 3-4 on 1080p) rows tighten and the tab strip moves up. */
+    private static final int COMPACT_H = 300;
 
     private enum Tab { BASE, ZONE, FORCES, DEPLOY }
 
@@ -68,6 +69,7 @@ public class TeamBaseScreen extends Screen {
 
     private int left;
     private int panelW;
+    private int row;
     private int contentTop;
     private int footerY;
 
@@ -109,7 +111,9 @@ public class TeamBaseScreen extends Screen {
         this.filterBox = null;
         this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
         this.left = (this.width - this.panelW) / 2;
-        int y = 24;
+        boolean compact = this.height < COMPACT_H;
+        this.row = compact ? 22 : 24;
+        int y = compact ? 18 : 24;
 
         TabStrip tabs = new TabStrip(70, i -> {
             this.tab = Tab.values()[i];
@@ -148,7 +152,7 @@ public class TeamBaseScreen extends Screen {
             this.cfg.enemyTeams.remove(this.cfg.assignedTeam);
             assigned[0].setMessage(assignedLabel());
         }).bounds(this.left, y, this.panelW, 20).build());
-        y += ROW;
+        y += this.row;
 
         addRenderableWidget(ToggleButton.create(this.left, y, half,
                 Component.translatable("gui.tacz_sewv.invasion.player_owned"),
@@ -166,7 +170,7 @@ public class TeamBaseScreen extends Screen {
             pmcOwner[0].active = this.cfg.crewFaction == TankFaction.PMC;
             pmcOwner[0].setMessage(pmcOwnerLabel());
         }).bounds(right, y, half, 20).build());
-        y += ROW;
+        y += this.row;
 
         Button[] owned = new Button[1];
         owned[0] = addRenderableWidget(Button.builder(ownedLabel(), b -> {
@@ -178,10 +182,10 @@ public class TeamBaseScreen extends Screen {
             pmcOwner[0].setMessage(pmcOwnerLabel());
         }).bounds(right, y, half, 20).build());
         pmcOwner[0].active = this.cfg.crewFaction == TankFaction.PMC;
-        y += ROW + 4;
+        y += this.row + 4;
 
         this.enemyTop = y + 12;
-        this.enemyRows = Math.max(2, (this.footerY - 8 - this.enemyTop) / LIST_ROW_H);
+        this.enemyRows = Math.max(1, (this.footerY - 14 - this.enemyTop) / LIST_ROW_H);
         clampEnemyScroll();
     }
 
@@ -190,11 +194,11 @@ public class TeamBaseScreen extends Screen {
         int right = this.left + half + 4;
         int boxX = this.left + 110;
         intBox(boxX, y, "time", this.cfg.timeToCaptureSeconds, 1, 100000, v -> this.cfg.timeToCaptureSeconds = v);
-        y += ROW;
+        y += this.row;
         intBox(boxX, y, "radius", this.cfg.radiusInBlocks, 1, 512, v -> this.cfg.radiusInBlocks = v);
-        y += ROW;
+        y += this.row;
         intBox(boxX, y, "spawn_delay", this.cfg.spawnDelaySeconds, 0, 3600, v -> this.cfg.spawnDelaySeconds = v);
-        y += ROW + 4;
+        y += this.row + 4;
 
         addRenderableWidget(ToggleButton.create(this.left, y, half,
                 Component.translatable("gui.tacz_sewv.invasion.invisible"),
@@ -202,7 +206,7 @@ public class TeamBaseScreen extends Screen {
         addRenderableWidget(ToggleButton.create(right, y, half,
                 Component.translatable("gui.tacz_sewv.invasion.end_on_capture"),
                 () -> this.cfg.endInvasionOnCapture, v -> this.cfg.endInvasionOnCapture = v));
-        y += ROW;
+        y += this.row;
         addRenderableWidget(ToggleButton.create(this.left, y, this.panelW,
                 Component.translatable("gui.tacz_sewv.invasion.points_required"),
                 () -> this.cfg.pointsHaveToBeConquered, v -> this.cfg.pointsHaveToBeConquered = v));
@@ -251,7 +255,7 @@ public class TeamBaseScreen extends Screen {
                 v -> v <= 0
                         ? Component.translatable("gui.tacz_sewv.invasion.ai_count.off." + kind.key())
                         : Component.translatable("gui.tacz_sewv.invasion.ai_count." + kind.key(), v));
-        y += ROW;
+        y += this.row;
 
         List<String> pool = force.pool(kind);
         List<SheetTable.Col> cols = List.of(
@@ -265,8 +269,8 @@ public class TeamBaseScreen extends Screen {
                         Component.translatable("gui.tacz_sewv.pool.tip.col.class")));
         this.poolTable = new SheetTable(cols, new PoolModel(kind, pool),
                 Component.translatable("gui.tacz_sewv.pool.tip.col.st"));
-        int below = ROW * 2 + 12 + 30;
-        int rows = SheetTable.rowsFor(this.height, y + SheetTable.HEAD_H, below, 2, 12);
+        int below = this.row * 2 + 12 + 30;
+        int rows = SheetTable.rowsFor(this.height, y + SheetTable.HEAD_H, below, 1, 12);
         this.poolTable.layout(this.left, y, this.panelW, rows);
         y = this.poolTable.bottom() + 4;
 
@@ -285,7 +289,7 @@ public class TeamBaseScreen extends Screen {
                 Component.translatable("gui.tacz_sewv.invasion.tip.filter")));
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.add"), b -> addFromFilter(kind))
                 .bounds(this.left + this.panelW - 84, y, 84, 20).build());
-        y += ROW;
+        y += this.row;
 
         int bw = (this.panelW - 8) / 3;
         addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.pool.remove"), b -> {
@@ -306,7 +310,7 @@ public class TeamBaseScreen extends Screen {
             pool.clear();
             this.poolTable.reset();
         }).bounds(this.left + 2 * (bw + 4), y, this.panelW - 2 * (bw + 4), 20).build());
-        y += ROW;
+        y += this.row;
         this.hintY = y;
     }
 
@@ -319,24 +323,30 @@ public class TeamBaseScreen extends Screen {
             inf.mode = vals[(inf.mode.ordinal() + 1) % vals.length];
             rebuildWidgets();
         }).bounds(this.left, y, this.panelW, 20).build());
-        y += ROW;
+        y += this.row;
 
         int boxX = this.left + 110;
         intBox(boxX, y, "inf_count", inf.fixed, 0, InfantrySpec.MAX, v -> inf.fixed = v);
         setLastBoxActive(inf.mode == InfantrySpec.Mode.FIXED);
-        y += ROW;
+        y += this.row;
         intBox(boxX, y, "inf_min", inf.min, 0, InfantrySpec.MAX, v -> inf.min = v);
         setLastBoxActive(inf.mode == InfantrySpec.Mode.RANDOM);
-        y += ROW;
+        // Min and max share a row when the panel is wide enough for two label + box pairs.
+        boolean twoCols = this.panelW / 2 >= 190;
+        if (twoCols) {
+            boxX = this.left + this.panelW / 2 + 110;
+        } else {
+            y += this.row;
+        }
         intBox(boxX, y, "inf_max", inf.max, 0, InfantrySpec.MAX, v -> inf.max = v);
         setLastBoxActive(inf.mode == InfantrySpec.Mode.RANDOM);
-        y += ROW + 4;
+        y += this.row + 4;
 
         Button capture = addRenderableWidget(ToggleButton.create(this.left, y, this.panelW,
                 Component.translatable("gui.tacz_sewv.invasion.inf_captures"),
                 () -> inf.canCapture, v -> inf.canCapture = v));
         capture.active = inf.isEnabled();
-        y += ROW;
+        y += this.row;
         this.hintY = y;
     }
 
@@ -368,16 +378,16 @@ public class TeamBaseScreen extends Screen {
             b.active = on;
             if (++col == 2) {
                 col = 0;
-                y += ROW;
+                y += this.row;
             }
         }
-        if (col != 0) y += ROW;
+        if (col != 0) y += this.row;
         y += 4;
         Button crew = addRenderableWidget(ToggleButton.create(this.left, y, this.panelW,
                 Component.translatable("gui.tacz_sewv.invasion.spawn_npc"),
                 force::npcCrewForPlayers, force::setNpcCrewForPlayers));
         crew.active = on;
-        y += ROW;
+        y += this.row;
         this.hintY = y;
     }
 
@@ -647,7 +657,7 @@ public class TeamBaseScreen extends Screen {
     public void render(GuiGraphics g, int mx, int my, float partialTick) {
         renderBackground(g);
         super.render(g, mx, my, partialTick);
-        g.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
+        g.drawCenteredString(this.font, this.title, this.width / 2, this.height < COMPACT_H ? 5 : 8, 0xFFFFFF);
 
         switch (this.tab) {
             case BASE -> renderBase(g);
@@ -708,15 +718,29 @@ public class TeamBaseScreen extends Screen {
         Component hint = this.cfg.playerOwned
                 ? Component.translatable("gui.tacz_sewv.invasion.hint.deploy")
                 : Component.translatable("gui.tacz_sewv.invasion.hint.deploy_ai");
-        drawHint(g, hint);
         if (this.cfg.playerOwned && force().deployOptions().isEmpty()) {
-            g.drawString(this.font, Component.translatable("gui.tacz_sewv.invasion.hint.deploy_none"),
-                    this.left, this.footerY - 24, 0xFFAA00, false);
+            drawHint(g, Component.translatable("gui.tacz_sewv.invasion.hint.deploy_none"), 0xFFAA00);
+        } else {
+            drawHint(g, hint, 0x909090);
         }
     }
 
     private void drawHint(GuiGraphics g, Component hint) {
-        g.drawWordWrap(this.font, hint, this.left, this.hintY + 2, this.panelW, 0x909090);
+        drawHint(g, hint, 0x909090);
+    }
+
+    /**
+     * Word-wrapped help under the controls, clipped to the room left above the summary line: at a
+     * high GUI scale the last lines are dropped rather than drawn over the footer.
+     */
+    private void drawHint(GuiGraphics g, Component hint, int color) {
+        int y = this.hintY + 2;
+        int bottom = this.footerY - 13;
+        for (var line : this.font.split(hint, this.panelW)) {
+            if (y + this.font.lineHeight > bottom) break;
+            g.drawString(this.font, line, this.left, y, color, false);
+            y += this.font.lineHeight;
+        }
     }
 
     @Override

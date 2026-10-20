@@ -37,9 +37,9 @@ public final class InvasionTags {
     public static final String KIND = "sewv:invasion_kind";
 
     /**
-     * Whether this unit counts toward capturing a zone. False = it still contests (freezes an
-     * enemy's progress) but never advances one. Aircraft are judged by their hull instead and never
-     * count at all. Stamped at spawn so presence scans never have to look up the base.
+     * Whether this unit counts toward a zone at all. False = it neither captures nor contests: it
+     * walks to the points and fights there, nothing more. Aircraft are judged by their hull instead
+     * and never count either. Stamped at spawn so presence scans never have to look up the base.
      */
     public static final String CAPTURES = "sewv:invasion_captures";
 

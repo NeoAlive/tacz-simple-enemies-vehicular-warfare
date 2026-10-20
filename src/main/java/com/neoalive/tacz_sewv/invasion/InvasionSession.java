@@ -7,6 +7,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -45,6 +48,16 @@ public final class InvasionSession {
     private final Map<Long, Integer> infantryTargets = new ConcurrentHashMap<>();
     /** Player UUID → outstanding deployment offer ({@link InvasionDeploy}). */
     private final Map<UUID, InvasionDeploy.Pending> pendingDeploys = new ConcurrentHashMap<>();
+    /** Match length from {@code /sewv invasion start <seconds>}; 0 = no limit. */
+    private int timeLimitSeconds;
+    /**
+     * Absolute game time the match runs out, or {@link Long#MIN_VALUE} when unlimited or not yet
+     * fielded. The clock starts at fielding, not at the command, so a spawn delay can never eat
+     * the match — nobody is on the field while it runs.
+     */
+    private long endAtGameTime = Long.MIN_VALUE;
+    /** Zone packed pos → the team it was last captured FROM (absent: taken while neutral, or never). */
+    private final Map<Long, String> takenFrom = new ConcurrentHashMap<>();
     @javax.annotation.Nullable
     private InvasionHud.Layout hudLayout;
 
@@ -93,7 +106,7 @@ public final class InvasionSession {
     /**
      * Full start: validate → ticket → optional world-spawn wait → teleport teams → spawn.
      */
-    public static StartResult start(ServerLevel level) {
+    public static StartResult start(ServerLevel level, int timeLimitSeconds) {
         InvasionSession session = of(level);
         if (session.active) {
             return new StartResult.Fail(List.of("already_active"));
@@ -124,6 +137,9 @@ public final class InvasionSession {
         session.aiTopUpAt.clear();
         session.infantryTargets.clear();
         session.pendingDeploys.clear();
+        session.takenFrom.clear();
+        session.timeLimitSeconds = Math.max(0, timeLimitSeconds);
+        session.endAtGameTime = Long.MIN_VALUE;
         session.hudLayout = layout;
         InvasionLayout.get(level).setSessionActive(true);
 
@@ -134,6 +150,7 @@ public final class InvasionSession {
             teleportPlayersToBases(level, report.bases());
             InvasionSpawn.Result spawn = InvasionSpawn.spawnAll(level);
             session.fielded = true;
+            session.startClock(level);
             SewvDiag.invasion("session ACTIVE dim={} spawn={} hudSlots={}",
                     level.dimension().location(), spawn, layout.slots().size());
             return new StartResult.Ok(spawn, List.copyOf(report.warnings()), 0);
@@ -181,6 +198,9 @@ public final class InvasionSession {
         session.aiTopUpAt.clear();
         session.infantryTargets.clear();
         session.pendingDeploys.clear();
+        session.takenFrom.clear();
+        session.timeLimitSeconds = 0;
+        session.endAtGameTime = Long.MIN_VALUE;
         session.hudLayout = null;
         InvasionHudTracker.clear(level);
         InvasionSpawn.teardown(level);
@@ -219,6 +239,10 @@ public final class InvasionSession {
             }
 
             if (!session.fielded) continue;
+            if (session.endAtGameTime != Long.MIN_VALUE && level.getGameTime() >= session.endAtGameTime) {
+                concludeOnTime(level, session);
+                continue;
+            }
             tickPlayerFieldDelays(level, session);
             tickPendingDeploys(level, session);
             if (tick < session.nextRespawnAssert) continue;
@@ -335,6 +359,7 @@ public final class InvasionSession {
         teleportPlayersToBases(level, bases);
         InvasionSpawn.Result spawn = InvasionSpawn.spawnAll(level);
         session.fielded = true;
+        session.startClock(level);
         InvasionHudTracker.push(level);
         for (ServerPlayer player : level.players()) {
             player.displayClientMessage(Component.translatable(
@@ -348,8 +373,92 @@ public final class InvasionSession {
         InvasionSpawn.onPlayerRespawn(event);
     }
 
+    private void startClock(ServerLevel level) {
+        this.endAtGameTime = this.timeLimitSeconds > 0
+                ? level.getGameTime() + this.timeLimitSeconds * 20L
+                : Long.MIN_VALUE;
+    }
+
+    /** Whole seconds left on the match clock, or -1 when it has no limit (or has not started). */
+    public static int secondsLeft(ServerLevel level) {
+        InvasionSession session = BY_DIM.get(level.dimension());
+        if (session == null || session.endAtGameTime == Long.MIN_VALUE) return -1;
+        return (int) Math.max(0, (session.endAtGameTime - level.getGameTime() + 19) / 20);
+    }
+
+    /**
+     * Record who a zone was taken from. Called by {@link CaptureSupport} with the holder from just
+     * before the capture; a zone taken while neutral clears the record, so "taken from the enemy"
+     * always describes the latest change of hands.
+     */
+    public static void noteCapture(ServerLevel level, BlockPos pos, String previousHolder, String newHolder) {
+        InvasionSession session = of(level);
+        if (previousHolder.isEmpty() || previousHolder.equals(newHolder)) {
+            session.takenFrom.remove(pos.asLong());
+        } else {
+            session.takenFrom.put(pos.asLong(), previousHolder);
+        }
+    }
+
     public void onPointCaptured(ServerLevel level, CapturableBlockEntity point, String capturingTeam) {
         SewvDiag.invasion("pointCaptured pos={} team={}", point.getBlockPos(), capturingTeam);
+    }
+
+    /** The clock ran out: score the field ({@link MatchOutcome}), announce, end. */
+    private static void concludeOnTime(ServerLevel level, InvasionSession session) {
+        InvasionHud.Layout layout = session.hudLayout;
+        if (layout == null) {
+            deactivate(level);
+            return;
+        }
+        String teamA = layout.teamA();
+        String teamB = layout.teamB();
+        int pointsA = 0;
+        int pointsB = 0;
+        boolean occupiesA = false;
+        boolean occupiesB = false;
+        InvasionLayout registry = InvasionLayout.get(level);
+        java.util.List<Long> zones = new java.util.ArrayList<>(registry.capturePointPositions());
+        zones.addAll(registry.teamBasePositions());
+        for (long packed : zones) {
+            BlockPos pos = BlockPos.of(packed);
+            if (!(level.getBlockEntity(pos) instanceof CapturableBlockEntity zone)) continue;
+            String holder = CaptureSupport.holdingTeam(zone);
+            if (holder.isEmpty()) continue;
+            boolean point = !(zone instanceof TeamBaseBlockEntity);
+            if (point && holder.equals(teamA)) pointsA++;
+            if (point && holder.equals(teamB)) pointsB++;
+            String from = session.takenFrom.getOrDefault(packed, "");
+            boolean enemyBase = zone instanceof TeamBaseBlockEntity base && !holder.equals(base.getAssignedTeam());
+            boolean takenFromEnemy = enemyBase || (!from.isEmpty() && !from.equals(holder));
+            if (takenFromEnemy && holder.equals(teamA)) occupiesA = true;
+            if (takenFromEnemy && holder.equals(teamB)) occupiesB = true;
+        }
+        MatchOutcome.Verdict verdict = MatchOutcome.decide(occupiesA, occupiesB, pointsA, pointsB);
+        SewvDiag.invasion("timeUp A={} pts={} occ={} | B={} pts={} occ={} → {}",
+                teamA, pointsA, occupiesA, teamB, pointsB, occupiesB, verdict);
+        String winner = switch (verdict.result()) {
+            case TEAM_A -> teamA;
+            case TEAM_B -> teamB;
+            case TIE -> "";
+        };
+        Component reason = Component.translatable("message.tacz_sewv.invasion.result.reason."
+                + verdict.reason().name().toLowerCase(java.util.Locale.ROOT), pointsA, pointsB, teamA, teamB);
+        announce(level, winner, reason);
+        deactivate(level);
+    }
+
+    /** Chat line plus a title on every player in the dimension. {@code winner} empty = tie. */
+    private static void announce(ServerLevel level, String winner, Component reason) {
+        Component title = winner.isEmpty()
+                ? Component.translatable("message.tacz_sewv.invasion.result.tie")
+                : Component.translatable("message.tacz_sewv.invasion.result.win", winner);
+        for (ServerPlayer player : level.players()) {
+            player.displayClientMessage(Component.empty().append(title).append(" — ").append(reason), false);
+            player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 80, 20));
+            player.connection.send(new ClientboundSetTitleTextPacket(title));
+            player.connection.send(new ClientboundSetSubtitleTextPacket(reason));
+        }
     }
 
     public void onBaseCaptured(ServerLevel level, TeamBaseBlockEntity base, String capturingTeam) {
@@ -357,11 +466,8 @@ public final class InvasionSession {
                 base.getBlockPos(), base.getAssignedTeam(), base.isEndInvasionOnCapture(), capturingTeam);
         if (!base.isEndInvasionOnCapture()) return;
 
-        for (ServerPlayer player : level.players()) {
-            player.displayClientMessage(Component.translatable(
-                    "message.tacz_sewv.invasion.base_fallen",
-                    base.getAssignedTeam(), capturingTeam), false);
-        }
+        announce(level, capturingTeam, Component.translatable(
+                "message.tacz_sewv.invasion.base_fallen", base.getAssignedTeam(), capturingTeam));
         deactivate(level);
     }
 

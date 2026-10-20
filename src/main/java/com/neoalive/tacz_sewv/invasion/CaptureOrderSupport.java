@@ -129,7 +129,7 @@ public final class CaptureOrderSupport {
 
     /**
      * Where an on-foot invasion rifleman should walk, or null when it has no live order. A
-     * capturing rifleman runs the same pipeline as a hull; a contest-only one
+     * capturing rifleman runs the same pipeline as a hull; a capture-off one
      * ({@link InvasionTags#CAPTURES} false) is re-pointed by {@link #pickDefenseObjective} whenever
      * {@code repick} is set — the caller throttles that, since what needs defending changes.
      */
@@ -271,7 +271,7 @@ public final class CaptureOrderSupport {
     }
 
     /**
-     * Contest-only infantry: they cannot take a point, so they go where holding one matters.
+     * Capture-off infantry: they cannot take a point, so they go where fighting for one matters.
      * In order — an own point under threat (contested, or an enemy has progress on it), nearest
      * first; else the point the team is pushing for, so they stand on the ground being fought
      * over and freeze the enemy there; else the nearest own point; else home.

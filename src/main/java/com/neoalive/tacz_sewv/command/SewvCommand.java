@@ -247,7 +247,10 @@ public class SewvCommand {
                 .then(Commands.literal("invasion")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("start")
-                                .executes(ctx -> invasionStart(ctx.getSource())))
+                                .executes(ctx -> invasionStart(ctx.getSource(), 0))
+                                .then(Commands.argument("seconds", IntegerArgumentType.integer(30, 86400))
+                                        .executes(ctx -> invasionStart(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "seconds")))))
                         .then(Commands.literal("stop")
                                 .executes(ctx -> invasionStop(ctx.getSource())))
                         .then(Commands.literal("status")
@@ -255,9 +258,10 @@ public class SewvCommand {
         );
     }
 
-    private static int invasionStart(CommandSourceStack source) {
+    /** {@code seconds} 0 = no time limit. The clock starts once forces are fielded, after any spawn delay. */
+    private static int invasionStart(CommandSourceStack source, int seconds) {
         ServerLevel level = source.getLevel();
-        InvasionSession.StartResult result = InvasionSession.start(level);
+        InvasionSession.StartResult result = InvasionSession.start(level, seconds);
         if (result instanceof InvasionSession.StartResult.Fail fail) {
             for (String error : fail.errors()) {
                 source.sendFailure(invasionErrorComponent(error));
@@ -276,6 +280,10 @@ public class SewvCommand {
         } else {
             source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.started",
                     spawn.bases(), spawn.aiVehicles(), spawn.aiInfantry(), spawn.playersDeploying()), true);
+        }
+        if (seconds > 0) {
+            source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.time_limit",
+                    seconds / 60, String.format("%02d", seconds % 60)), true);
         }
         return 1;
     }
@@ -319,6 +327,11 @@ public class SewvCommand {
         source.sendSuccess(() -> Component.translatable(
                 active ? "command.tacz_sewv.invasion.status.active"
                         : "command.tacz_sewv.invasion.status.idle"), false);
+        int secondsLeft = InvasionSession.secondsLeft(level);
+        if (active && secondsLeft >= 0) {
+            source.sendSuccess(() -> Component.translatable("command.tacz_sewv.invasion.status.time_left",
+                    secondsLeft / 60, String.format("%02d", secondsLeft % 60)), false);
+        }
 
         BlockPos origin = BlockPos.containing(source.getPosition());
         int reported = 0;

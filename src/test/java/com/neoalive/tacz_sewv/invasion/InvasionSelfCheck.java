@@ -16,7 +16,7 @@ import com.neoalive.tacz_sewv.invasion.force.ForceKind;
 import com.neoalive.tacz_sewv.invasion.force.InfantrySpec;
 
 /**
- * Headless checks for the invasion rework: the capture/contest decision, {@link BaseForce}
+ * Headless checks for the invasion rework: the capture decision, the time-up verdict, {@link BaseForce}
  * serialisation both ways, the pre-rework migration, infantry headcount bounds and which deploy
  * options a player is actually offered. Run with {@code ./gradlew selfCheckInvasion}.
  */
@@ -26,6 +26,7 @@ public final class InvasionSelfCheck {
 
     public static void main(String[] args) {
         captureRules();
+        matchOutcome();
         forceRoundTrip();
         legacyMigration();
         infantryCount();
@@ -35,24 +36,37 @@ public final class InvasionSelfCheck {
 
     private static void captureRules() {
         Set<String> none = Set.of();
-        // Nobody: reset. Holder alone: held.
-        expect(CaptureRules.step("A", none, none), Outcome.RESET);
-        expect(CaptureRules.step("A", Set.of("A"), none), Outcome.HELD);
-        expect(CaptureRules.step("A", none, Set.of("A")), Outcome.HELD);
-        // A capturer of another team advances — on a held zone and on a neutral one.
-        expect(CaptureRules.step("A", Set.of("B"), none), Outcome.ADVANCE);
-        expect(CaptureRules.step("", Set.of("B"), none), Outcome.ADVANCE);
-        assert CaptureRules.step("A", Set.of("B"), none).team().equals("B");
-        // Contest-only infantry alone on an enemy or neutral zone: frozen, never advancing.
-        expect(CaptureRules.step("A", none, Set.of("B")), Outcome.FROZEN);
-        expect(CaptureRules.step("", none, Set.of("B")), Outcome.FROZEN);
-        // Contest-only defenders block an attacking capturer: that is what "defend" means.
-        expect(CaptureRules.step("A", Set.of("B"), Set.of("A")), Outcome.CONTESTED);
-        expect(CaptureRules.step("", Set.of("B"), Set.of("A")), Outcome.CONTESTED);
-        // Two capturing teams: contested.
-        expect(CaptureRules.step("", Set.of("A", "B"), none), Outcome.CONTESTED);
-        // A team's own capturer and contester together still read as one team.
-        expect(CaptureRules.step("A", Set.of("B"), Set.of("B")), Outcome.ADVANCE);
+        // Nobody counting: reset. Holder alone: held. (Capture-off infantry and aircraft never
+        // reach this set, so a zone they alone stand in reads as empty.)
+        expect(CaptureRules.step("A", none), Outcome.RESET);
+        expect(CaptureRules.step("", none), Outcome.RESET);
+        expect(CaptureRules.step("A", Set.of("A")), Outcome.HELD);
+        // Another team alone advances — on a held zone and on a neutral one.
+        expect(CaptureRules.step("A", Set.of("B")), Outcome.ADVANCE);
+        expect(CaptureRules.step("", Set.of("B")), Outcome.ADVANCE);
+        assert CaptureRules.step("A", Set.of("B")).team().equals("B");
+        // Two teams: contested.
+        expect(CaptureRules.step("", Set.of("A", "B")), Outcome.CONTESTED);
+        expect(CaptureRules.step("A", Set.of("A", "B")), Outcome.CONTESTED);
+    }
+
+    private static void matchOutcome() {
+        // All neutral, nothing taken: tie.
+        verdict(MatchOutcome.decide(false, false, 0, 0), MatchOutcome.Result.TIE);
+        // Neither occupies: more points wins (majority or not), equal is a tie.
+        verdict(MatchOutcome.decide(false, false, 3, 1), MatchOutcome.Result.TEAM_A);
+        verdict(MatchOutcome.decide(false, false, 1, 0), MatchOutcome.Result.TEAM_A);
+        verdict(MatchOutcome.decide(false, false, 2, 2), MatchOutcome.Result.TIE);
+        // Occupation outranks a point majority.
+        verdict(MatchOutcome.decide(false, true, 4, 1), MatchOutcome.Result.TEAM_B);
+        assert MatchOutcome.decide(false, true, 4, 1).reason() == MatchOutcome.Reason.OCCUPATION;
+        // Both occupy: back to points.
+        verdict(MatchOutcome.decide(true, true, 1, 2), MatchOutcome.Result.TEAM_B);
+        verdict(MatchOutcome.decide(true, true, 2, 2), MatchOutcome.Result.TIE);
+    }
+
+    private static void verdict(MatchOutcome.Verdict v, MatchOutcome.Result want) {
+        assert v.result() == want : "expected " + want + " got " + v;
     }
 
     private static void forceRoundTrip() {

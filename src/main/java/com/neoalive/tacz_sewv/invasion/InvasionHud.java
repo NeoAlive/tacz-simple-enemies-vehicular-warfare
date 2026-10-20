@@ -56,9 +56,10 @@ public final class InvasionHud {
         }
     }
 
+    /** {@code secondsLeft} is the match clock, -1 when the match has no time limit. */
     public record Snapshot(int colorA, int colorB, int colorNeutral,
                            String teamA, String teamB,
-                           List<Slot> slots, List<SlotState> states) {
+                           List<Slot> slots, List<SlotState> states, int secondsLeft) {
         public void encode(FriendlyByteBuf buf) {
             buf.writeInt(colorA);
             buf.writeInt(colorB);
@@ -70,6 +71,7 @@ public final class InvasionHud {
                 slots.get(i).encode(buf);
                 states.get(i).encode(buf);
             }
+            buf.writeVarInt(secondsLeft + 1);
         }
 
         public static Snapshot decode(FriendlyByteBuf buf) {
@@ -85,7 +87,8 @@ public final class InvasionHud {
                 slots.add(Slot.decode(buf));
                 states.add(SlotState.decode(buf));
             }
-            return new Snapshot(colorA, colorB, colorNeutral, teamA, teamB, slots, states);
+            int secondsLeft = buf.readVarInt() - 1;
+            return new Snapshot(colorA, colorB, colorNeutral, teamA, teamB, slots, states, secondsLeft);
         }
 
         /** ARGB for a scoreboard / invasion team name, or null if unknown. */
@@ -160,7 +163,7 @@ public final class InvasionHud {
             states.add(stateOf(level, slot, layout.teamA(), layout.teamB()));
         }
         return new Snapshot(colorA, colorB, colorN, layout.teamA(), layout.teamB(),
-                layout.slots(), List.copyOf(states));
+                layout.slots(), List.copyOf(states), InvasionSession.secondsLeft(level));
     }
 
     public static byte sideOfTeam(String team, String teamA, String teamB) {

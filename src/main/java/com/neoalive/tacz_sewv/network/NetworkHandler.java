@@ -129,7 +129,8 @@ public class NetworkHandler {
     // 106: team_base open/save carry TeamBaseConfig (per-kind BaseForce: ground/rotor/plane pools +
     //      counts, infantry, player deploy options); open packet carries world pools per kind;
     //      PacketInvasionDeployPrompt (S->C) + PacketInvasionDeployChoice (C->S).
-    private static final String PROTOCOL_VERSION = "106";
+    // 107: InvasionHud.Snapshot carries the match clock (secondsLeft).
+    private static final String PROTOCOL_VERSION = "107";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

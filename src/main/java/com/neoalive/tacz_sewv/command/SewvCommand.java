@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.command;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
@@ -231,16 +232,50 @@ public class SewvCommand {
                                 .then(Commands.argument("relation", StringArgumentType.word())
                                         .suggests((ctx, b) -> SharedSuggestionProvider.suggest(
                                                 new String[]{"ally", "enemy"}, b))
+                                        .then(Commands.literal("player")
+                                                .then(Commands.argument("player", StringArgumentType.word())
+                                                        .suggests((ctx, b) -> SharedSuggestionProvider.suggest(
+                                                                ctx.getSource().getOnlinePlayerNames(), b))
+                                                        .executes(ctx -> diplomacyAddPlayer(ctx.getSource(),
+                                                                StringArgumentType.getString(ctx, "relation"),
+                                                                StringArgumentType.getString(ctx, "player")))))
+                                        .then(Commands.literal("faction")
+                                                .then(Commands.argument("faction", StringArgumentType.greedyString())
+                                                        .suggests(SewvCommand::suggestOpenPacFactions)
+                                                        .executes(ctx -> diplomacyAdd(ctx.getSource(),
+                                                                StringArgumentType.getString(ctx, "relation"),
+                                                                StringArgumentType.getString(ctx, "faction")))))))
+                        .then(Commands.literal("remove")
+                                .then(Commands.literal("player")
+                                        .then(Commands.argument("player", StringArgumentType.word())
+                                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(
+                                                        ctx.getSource().getOnlinePlayerNames(), b))
+                                                .executes(ctx -> diplomacyRemovePlayer(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "player")))))
+                                .then(Commands.literal("faction")
                                         .then(Commands.argument("faction", StringArgumentType.greedyString())
                                                 .suggests(SewvCommand::suggestOpenPacFactions)
-                                                .executes(ctx -> diplomacyAdd(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "relation"),
+                                                .executes(ctx -> diplomacyRemove(ctx.getSource(),
                                                         StringArgumentType.getString(ctx, "faction"))))))
-                        .then(Commands.literal("remove")
-                                .then(Commands.argument("faction", StringArgumentType.greedyString())
-                                        .suggests(SewvCommand::suggestOpenPacFactions)
-                                        .executes(ctx -> diplomacyRemove(ctx.getSource(),
-                                                StringArgumentType.getString(ctx, "faction")))))
+                        // Any two subjects, from the console too. Names are quotable: parties may hold spaces.
+                        .then(Commands.literal("pair")
+                                .then(Commands.argument("relation", StringArgumentType.word())
+                                        .suggests((ctx, b) -> SharedSuggestionProvider.suggest(
+                                                new String[]{"ally", "enemy", "neutral"}, b))
+                                        .then(Commands.argument("kindA", StringArgumentType.word())
+                                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(SUBJECT_KINDS, b))
+                                                .then(Commands.argument("a", StringArgumentType.string())
+                                                        .suggests(SewvCommand::suggestSubjectNames)
+                                                        .then(Commands.argument("kindB", StringArgumentType.word())
+                                                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(SUBJECT_KINDS, b))
+                                                                .then(Commands.argument("b", StringArgumentType.string())
+                                                                        .suggests(SewvCommand::suggestSubjectNames)
+                                                                        .executes(ctx -> diplomacyPair(ctx.getSource(),
+                                                                                StringArgumentType.getString(ctx, "relation"),
+                                                                                StringArgumentType.getString(ctx, "kindA"),
+                                                                                StringArgumentType.getString(ctx, "a"),
+                                                                                StringArgumentType.getString(ctx, "kindB"),
+                                                                                StringArgumentType.getString(ctx, "b")))))))))
                         .then(Commands.literal("list")
                                 .executes(ctx -> diplomacyList(ctx.getSource()))))
                 // Stage G: validate → ticket → teleport → spawn; stop clears tickets/orders/spawns.
@@ -516,16 +551,134 @@ public class SewvCommand {
         return 1;
     }
 
+    /** Executor-relative player diplomacy: the executing player's name ↔ {@code otherName}. */
+    private static int diplomacyAddPlayer(CommandSourceStack source, String relationWord, String otherName) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.self_only"));
+            return 0;
+        }
+        DiplomacyData.Relation relation = parseRelation(relationWord, false);
+        if (relation == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.bad_relation"));
+            return 0;
+        }
+        String other = resolvePlayerName(source.getServer(), otherName);
+        DiplomacyData data = DiplomacyData.get(source.getLevel());
+        if (!data.set(DiplomacyData.Subject.player(player.getScoreboardName()),
+                DiplomacyData.Subject.player(other), relation)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.failed"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.added",
+                relation.name().toLowerCase(Locale.ROOT), other), true);
+        return 1;
+    }
+
+    private static int diplomacyRemovePlayer(CommandSourceStack source, String otherName) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.self_only"));
+            return 0;
+        }
+        String other = resolvePlayerName(source.getServer(), otherName);
+        DiplomacyData data = DiplomacyData.get(source.getLevel());
+        if (!data.remove(DiplomacyData.Subject.player(player.getScoreboardName()),
+                DiplomacyData.Subject.player(other))) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.not_found", other));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.removed", other), true);
+        return 1;
+    }
+
+    /** Admin form: any two subjects; {@code neutral} clears the pair. */
+    private static int diplomacyPair(CommandSourceStack source, String relationWord,
+                                     String kindA, String a, String kindB, String b) {
+        DiplomacyData.Relation relation = parseRelation(relationWord, true);
+        if (relation == null) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.bad_relation_pair"));
+            return 0;
+        }
+        DiplomacyData.Subject sa = parseSubject(source, kindA, a);
+        DiplomacyData.Subject sb = parseSubject(source, kindB, b);
+        if (sa == null || sb == null) return 0;
+        DiplomacyData data = DiplomacyData.get(source.getLevel());
+        if (relation == DiplomacyData.Relation.NEUTRAL) {
+            if (!data.remove(sa, sb)) {
+                source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.not_found", sa + " ↔ " + sb));
+                return 0;
+            }
+            source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.pair_cleared",
+                    sa.toString(), sb.toString()), true);
+            return 1;
+        }
+        if (!data.set(sa, sb, relation)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.failed"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.pair_set",
+                sa.toString(), sb.toString(), relation.name().toLowerCase(Locale.ROOT)), true);
+        return 1;
+    }
+
     private static int diplomacyList(CommandSourceStack source) {
         DiplomacyData data = DiplomacyData.get(source.getLevel());
-        var snap = data.snapshot();
-        if (snap.isEmpty()) {
+        List<DiplomacyData.Entry> entries = data.snapshot();
+        if (entries.isEmpty()) {
             source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.empty"), false);
             return 1;
         }
-        snap.forEach((key, rel) -> source.sendSuccess(
-                () -> Component.literal(DiplomacyData.formatPair(key, rel)), false));
-        return snap.size();
+        for (DiplomacyData.Entry entry : entries) {
+            source.sendSuccess(() -> Component.literal(entry.format()), false);
+        }
+        return entries.size();
+    }
+
+    private static final String[] SUBJECT_KINDS = {"player", "faction"};
+
+    @Nullable
+    private static DiplomacyData.Relation parseRelation(String word, boolean allowNeutral) {
+        if ("ally".equalsIgnoreCase(word)) return DiplomacyData.Relation.ALLY;
+        if ("enemy".equalsIgnoreCase(word)) return DiplomacyData.Relation.ENEMY;
+        if (allowNeutral && "neutral".equalsIgnoreCase(word)) return DiplomacyData.Relation.NEUTRAL;
+        return null;
+    }
+
+    /** A pair-command subject; a faction must be a known OpenPAC party, a player any name. */
+    @Nullable
+    private static DiplomacyData.Subject parseSubject(CommandSourceStack source, String kind, String name) {
+        if ("player".equalsIgnoreCase(kind)) {
+            return DiplomacyData.Subject.player(resolvePlayerName(source.getServer(), name));
+        }
+        if ("faction".equalsIgnoreCase(kind)) {
+            if (!OpenPacCompat.isLoaded()) {
+                source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.no_openpac"));
+                return null;
+            }
+            String resolved = resolveFactionName(source.getServer(), name);
+            if (resolved == null) {
+                source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.unknown_faction", name));
+                return null;
+            }
+            return DiplomacyData.Subject.faction(resolved);
+        }
+        source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.bad_kind"));
+        return null;
+    }
+
+    /** An online player's exact name when one matches, else the name as typed (offline players). */
+    private static String resolvePlayerName(net.minecraft.server.MinecraftServer server, String raw) {
+        String name = raw.trim();
+        ServerPlayer online = server.getPlayerList().getPlayerByName(name);
+        return online != null ? online.getScoreboardName() : name;
+    }
+
+    private static CompletableFuture<Suggestions> suggestSubjectNames(
+            com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        List<String> names = new java.util.ArrayList<>(ctx.getSource().getOnlinePlayerNames());
+        names.addAll(OpenPacCompat.factionNames(ctx.getSource().getServer()));
+        return SharedSuggestionProvider.suggest(names.stream().map(StringArgumentType::escapeIfRequired), builder);
     }
 
     @Nullable

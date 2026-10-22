@@ -142,6 +142,8 @@ public final class InvasionSession {
         session.endAtGameTime = Long.MIN_VALUE;
         session.hudLayout = layout;
         InvasionLayout.get(level).setSessionActive(true);
+        // Players' teams are known from here on; PMC targeting reads the overlay this writes.
+        InvasionDiplomacy.sync(level, report.bases());
 
         InvasionHudTracker.push(level);
 
@@ -203,6 +205,7 @@ public final class InvasionSession {
         session.endAtGameTime = Long.MIN_VALUE;
         session.hudLayout = null;
         InvasionHudTracker.clear(level);
+        InvasionDiplomacy.clear(level);
         InvasionSpawn.teardown(level);
         InvasionTickets.releaseAll(level);
         InvasionLayout.get(level).setSessionActive(false);
@@ -247,6 +250,8 @@ public final class InvasionSession {
             if (tick < session.nextRespawnAssert) continue;
             session.nextRespawnAssert = tick + RESPAWN_REASSERT_INTERVAL;
             InvasionSpawn.maintain(level);
+            // Picks up a player who joined a /team mid-match.
+            InvasionDiplomacy.sync(level);
         }
     }
 

@@ -392,12 +392,16 @@ public abstract class MixinPmcUnitEntity
         ((Mob) self).targetSelector.removeAllGoals(g -> g instanceof NoPlayerHurtByTargetGoal);
         ((Mob) self).targetSelector.addGoal(1,
                 new NoFriendlyHurtByTargetGoal(self, true).setAlertOthers().setUnseenMemoryTicks(600));
-        // SEM never installs a Player or PMC-vs-PMC scan. Invasion lists / OpenPAC ENEMY
+        // SEM never installs a Player or PMC-vs-PMC scan. Invasion lists / diplomacy ENEMY
         // therefore had no on-foot acquisition path — only the mounted VehicleTargetScanGoal, and
-        // even that lost a Player lock when SEM's setTarget(Player)→null won. Priority 2 matches
-        // the vehicle scan; both goals self-disable while seated.
-        ((Mob) self).targetSelector.addGoal(2, new DiplomacyEnemyTargetGoal<>(self, Player.class));
-        ((Mob) self).targetSelector.addGoal(2, new DiplomacyEnemyTargetGoal<>(self, PmcUnitEntity.class));
+        // even that lost a Player lock when SEM's setTarget(Player)→null won. Both goals
+        // self-disable while seated.
+        // Priority 1, not 2: SEM's catch-all hostile scan sits at 2, and an equal priority never
+        // preempts a held target, so a PMC already shooting a mob or an RU never turned to an enemy
+        // player in reach — the invasion "PMCs fight each other but ignore players" report. Same
+        // band as CrewTargetPriorityGoal and retaliation; a priority-0 order still overrules it.
+        ((Mob) self).targetSelector.addGoal(1, new DiplomacyEnemyTargetGoal<>(self, Player.class));
+        ((Mob) self).targetSelector.addGoal(1, new DiplomacyEnemyTargetGoal<>(self, PmcUnitEntity.class));
     }
 
     @Override

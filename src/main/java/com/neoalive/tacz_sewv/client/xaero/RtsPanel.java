@@ -93,16 +93,18 @@ public final class RtsPanel {
     private static final int HEALTH_GREEN = 0xFF55DD55;
     private static final int HEALTH_YELLOW = 0xFFE6D34A;
     private static final int HEALTH_RED = 0xFFC44536;
-    private static final ResourceLocation ICON_INFANTRY = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_unit_infantry.png");
-    private static final ResourceLocation ICON_VEHICLE = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_unit_vehicle.png");
-    private static final ResourceLocation ICON_AIR = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_unit_air.png");
-    private static final ResourceLocation ICON_MODE = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_mode.png");
-    private static final ResourceLocation ICON_TOOL = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_frontline.png");
-    private static final ResourceLocation ICON_ADVANCE = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_advance.png");
-    private static final ResourceLocation ICON_ROSTER = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_roster.png");
-    private static final ResourceLocation ICON_KEYS = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_keys.png");
+    private static final ResourceLocation ICON_INFANTRY = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/rts_unit_infantry.png");
+    private static final ResourceLocation ICON_VEHICLE = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/rts_unit_vehicle.png");
+    private static final ResourceLocation ICON_AIR = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/rts_unit_air.png");
+    private static final ResourceLocation ICON_MODE = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/rts_mode.png");
+    private static final ResourceLocation ICON_TOOL = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/rts_frontline.png");
+    private static final ResourceLocation ICON_ADVANCE = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/rts_advance.png");
+    private static final ResourceLocation ICON_ROSTER = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/rts_roster.png");
+    private static final ResourceLocation ICON_KEYS = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/rts_keys.png");
     /** Vanilla 1.20.1 checkbox sheet: 64x64, 20x20 cells; the second row (v = 20) is the checked state. */
-    private static final ResourceLocation CHECKBOX = new ResourceLocation("textures/gui/checkbox.png");
+    // NeoForge port: 1.21 moved the vanilla checkbox into GUI sprites, one per state.
+    private static final ResourceLocation CHECKBOX = ResourceLocation.withDefaultNamespace("widget/checkbox");
+    private static final ResourceLocation CHECKBOX_SELECTED = ResourceLocation.withDefaultNamespace("widget/checkbox_selected");
 
     // Map overlay palette. Amber is the persistent "this is held" colour; red and white are interaction-time only.
     private static final int LINE_AMBER = 0xFFE5A045;
@@ -112,7 +114,7 @@ public final class RtsPanel {
     private static final int ADVANCE_RGB = 0x3FBF8F;
     /** 20% (was 15%, nudged up after the first look): motion carries a low-alpha mark, so raise this if it is faint, never slow the march. */
     private static final int LEASH_ALPHA = 0x33;
-    private static final ResourceLocation FRONT_ICON = new ResourceLocation(TaczSewv.MODID, "textures/gui/rts_frontline.png");
+    private static final ResourceLocation FRONT_ICON = ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/gui/rts_frontline.png");
     private static final int ICON_NATIVE = 16;
     /** On-screen chunk size (px) at which the 16 px icon still fits, and below which the 8 px half-scale is used. */
     private static final int ICON_FULL_MIN_CHUNK_PX = 28;
@@ -1257,7 +1259,7 @@ public final class RtsPanel {
     private static void checkbox(GuiGraphics g, int x, int y, boolean checked) {
         RenderSystem.enableBlend();
         if (checked) g.setColor(0.45f, 1f, 0.45f, 1f);
-        g.blit(CHECKBOX, x, y, SPRITE, SPRITE, 0f, checked ? 20f : 0f, 20, 20, 64, 64);
+        g.blitSprite(checked ? CHECKBOX_SELECTED : CHECKBOX, x, y, SPRITE, SPRITE);
         g.setColor(1f, 1f, 1f, 1f);
     }
 

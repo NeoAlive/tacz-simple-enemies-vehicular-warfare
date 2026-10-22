@@ -1,9 +1,9 @@
 package com.neoalive.tacz_sewv.client.xaero;
 
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.client.event.ScreenEvent;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.ScreenEvent;
+import net.neoforged.neoforge.common.NeoForge;
 import xaero.map.WorldMap;
 import xaero.map.gui.GuiMap;
 
@@ -32,7 +32,7 @@ import com.neoalive.tacz_sewv.client.PreferredPathwaysClient;
  */
 public final class XaeroMapCompat {
 
-    /** Forge mod id for Xaero's World Map. Not Minimap ({@code xaerominimap}). */
+    /** Mod id for Xaero's World Map. Not Minimap ({@code xaerominimap}). */
     public static final String MODID = "xaeroworldmap";
 
     /** The handler we last called {@code add} on; null means not hung yet. */
@@ -41,7 +41,7 @@ public final class XaeroMapCompat {
     private XaeroMapCompat() {}
 
     public static void register() {
-        MinecraftForge.EVENT_BUS.register(XaeroMapCompat.class);
+        NeoForge.EVENT_BUS.register(XaeroMapCompat.class);
     }
 
     @SubscribeEvent

@@ -154,7 +154,7 @@ public final class OrderPreview {
 
         List<Vec3> points = arcLengthPoints(a, b, drivers.size());
         for (int i = 0; i < drivers.size(); i++) {
-            ModNetworking.CHANNEL.sendToServer(
+            ModNetworking.sendToServer(
                     new PacketIssueOrder(drivers.get(i), OrderType.MOVE_TO_POSITION, points.get(i), 0, -1));
         }
         MapMarkers.clearSelection();

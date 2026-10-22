@@ -277,7 +277,7 @@ public class UnitOrderOption extends RightClickOption {
         if (this.action == Action.ATTACK_THAT) {
             if (this.attackTargetId < 0) return;
             for (int driverId : drivers) {
-                ModNetworking.CHANNEL.sendToServer(
+                ModNetworking.sendToServer(
                         new PacketIssueOrder(driverId, OrderType.ATTACK_THAT_TARGET, Vec3.ZERO, 0,
                                 this.attackTargetId));
             }
@@ -289,7 +289,7 @@ public class UnitOrderOption extends RightClickOption {
 
         Vec3 destination = this.action.positional ? destination(player) : Vec3.ZERO;
         for (int driverId : drivers) {
-            ModNetworking.CHANNEL.sendToServer(
+            ModNetworking.sendToServer(
                     new PacketIssueOrder(driverId, orderType(), destination, 0, -1));
         }
         if (this.action == Action.MOVE) MapMarkers.clearSelection();

@@ -36,11 +36,6 @@ println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty '
 // delete its stub, port its foreign-typed files against that mod's 1.21.1 build.
 // ---------------------------------------------------------------------------------------------
 def dormantSources = [
-        // Xaero's World Map
-        'com/neoalive/tacz_sewv/client/xaero/**',
-        'com/neoalive/tacz_sewv/mixin/client/MixinGuiMap.java',
-        'com/neoalive/tacz_sewv/mixin/client/MixinGuiMapPause.java',
-        'com/neoalive/tacz_sewv/mixin/XaeroMixinPlugin.java',
         // Komodo
         'com/neoalive/tacz_sewv/mixin/client/MixinKmodoDormancy.java',
         'com/neoalive/tacz_sewv/mixin/client/MixinKmodoLight.java',
@@ -62,7 +57,6 @@ def dormantSources = [
         'com/neoalive/tacz_sewv/compat/BerezkaStructureCompat.java',
 ]
 def dormantMixinConfigs = [
-        'tacz_sewv.xaero.mixins.json',
         'tacz_sewv.komodo.mixins.json',
         'tacz_sewv.corpse.mixins.json',
         'tacz_sewv.minecolonies.mixins.json',
@@ -335,6 +329,17 @@ dependencies {
     //   ./gradlew runServer -PnoOpenPac
     // Never on the gametest server: OpenPAC reads the player profile cache at server start, which
     // the vanilla GameTestServer does not have (NPE in ServerPlayerClaimInfoManager.onAdd).
+    // Xaero's World Map (1.47.0 NeoForge release). Its element API exposes xaerolib types, so the
+    // xaerolib copy syncPortDeps extracts is on the compile classpath — compile only, FML unpacks
+    // the nested one at runtime. On the client run classpath by default; absent-path verification:
+    //   ./gradlew runClient -PnoXaero
+    compatJars('xaeroworldmap-').each { compileOnly files(it) }
+    if (libsNeoCompatCompile.isDirectory()) {
+        libsNeoCompatCompile.listFiles({ f -> f.name.endsWith('.jar') } as FileFilter).each { compileOnly files(it) }
+    }
+    if (!project.hasProperty('noXaero')) {
+        compatJars('xaeroworldmap-').each { localRuntime files(it) }
+    }
     compatJars('open-parties-and-claims-').each { compileOnly files(it) }
     def gameTestRun = gradle.startParameter.taskNames.any { it.toLowerCase().contains('gametest') }
     if (!project.hasProperty('noOpenPac') && !gameTestRun) {

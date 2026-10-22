@@ -18,14 +18,19 @@ config="tacz_sewv.mixins.json"
 [[mixins]]
 config="tacz_sewv.loadouts.mixins.json"
 
+# Xaero's World Map compat. Separate config ("required": false) + XaeroMixinPlugin (LoadingModList
+# gate on mod id xaeroworldmap) so an absent World Map never queues MixinGuiMap*.
+[[mixins]]
+config="tacz_sewv.xaero.mixins.json"
+
 # PlayerReviveMod compat. Separate config ("required": false) + PlayerReviveMixinPlugin
 # (LoadingModList gate on mod id playerrevive) so an absent PlayerReviveMod never queues
 # MixinReviveEventServer.
 [[mixins]]
 config="tacz_sewv.playerrevive.mixins.json"
 
-# NeoForge port branch: the optional-mod mixin configs (xaero, komodo, playerrevive, corpse,
-# minecolonies) and their soft dependencies are dormant here — see dormantSources in build.gradle.
+# NeoForge port branch: Komodo, Corpse and MineColonies (mixin configs + soft dependencies), plus
+# Limitless Vehicles and Berezka, are dormant here — see dormantSources in build.gradle.
 
 [[dependencies.${mod_id}]]
     modId="neoforge"
@@ -93,3 +98,11 @@ config="tacz_sewv.playerrevive.mixins.json"
     versionRange="[0.33.0,)"
     ordering="AFTER"
     side="BOTH"
+
+# Soft compat: your own PMC vehicles show as markers on the world map and can be ordered from it.
+[[dependencies.${mod_id}]]
+    modId="xaeroworldmap"
+    type="optional"
+    versionRange="[1.47.0,)"
+    ordering="AFTER"
+    side="CLIENT"

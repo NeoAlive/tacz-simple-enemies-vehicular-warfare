@@ -356,7 +356,9 @@ public abstract class MixinGuiMap extends Screen {
 
     /** The wheel over the RTS panel scrolls its roster instead of zooming the map beneath it. */
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true, remap = true)
-    private void tacz_sewv$rtsScroll(double mouseX, double mouseY, double delta, CallbackInfoReturnable<Boolean> cir) {
+    private void tacz_sewv$rtsScroll(double mouseX, double mouseY, double scrollX, double delta,
+            CallbackInfoReturnable<Boolean> cir) {
+        // NeoForge port: 1.21 mouseScrolled carries a horizontal delta too; the roster scrolls on the vertical one.
         if (!RtsPanel.enabled()) return;
         tacz_sewv$syncRtsColumn();
         if (RtsPanel.mouseScrolled(mouseX, mouseY, delta, this.width, this.height)) cir.setReturnValue(true);

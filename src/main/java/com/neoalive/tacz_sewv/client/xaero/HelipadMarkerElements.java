@@ -35,7 +35,7 @@ public final class HelipadMarkerElements {
     private static final int RENDER_BOX = 20;
     private static final int ICON = 22;
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(TaczSewv.MODID, "textures/map/xaeros_icon_helipad.png");
+            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/map/xaeros_icon_helipad.png");
 
     public static final Renderer INSTANCE = new Renderer();
 

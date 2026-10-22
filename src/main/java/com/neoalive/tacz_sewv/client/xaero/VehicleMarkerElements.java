@@ -105,7 +105,7 @@ public final class VehicleMarkerElements {
 
     static {
         for (VehicleMarker.Kind kind : VehicleMarker.Kind.values()) {
-            TEXTURES.put(kind, new ResourceLocation(TaczSewv.MODID, "textures/map/xaeros_icon_" + kind.textureName() + ".png"));
+            TEXTURES.put(kind, ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/map/xaeros_icon_" + kind.textureName() + ".png"));
         }
     }
 

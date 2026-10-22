@@ -2,7 +2,7 @@ package com.neoalive.tacz_sewv.compat;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 import org.slf4j.Logger;
 
 /**

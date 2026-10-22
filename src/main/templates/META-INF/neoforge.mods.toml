@@ -18,6 +18,12 @@ config="tacz_sewv.mixins.json"
 [[mixins]]
 config="tacz_sewv.loadouts.mixins.json"
 
+# PlayerReviveMod compat. Separate config ("required": false) + PlayerReviveMixinPlugin
+# (LoadingModList gate on mod id playerrevive) so an absent PlayerReviveMod never queues
+# MixinReviveEventServer.
+[[mixins]]
+config="tacz_sewv.playerrevive.mixins.json"
+
 # NeoForge port branch: the optional-mod mixin configs (xaero, komodo, playerrevive, corpse,
 # minecolonies) and their soft dependencies are dormant here — see dormantSources in build.gradle.
 
@@ -67,4 +73,14 @@ config="tacz_sewv.loadouts.mixins.json"
     type="optional"
     versionRange="[0.7.0,)"
     ordering="NONE"
+    side="BOTH"
+
+# Soft compat: PlayerReviveMod. Optional — a friendly PMC auto-revives a downed player, and this
+# mod's own PMC-downed system (see PmcDownedSupport) bundles under the same presence gate. Absent
+# installs skip PlayerReviveGoal/DownedGoal/PmcReviveGoal entirely; PMCs just die like RU/US.
+[[dependencies.${mod_id}]]
+    modId="playerrevive"
+    type="optional"
+    versionRange="[2.1.2,)"
+    ordering="AFTER"
     side="BOTH"

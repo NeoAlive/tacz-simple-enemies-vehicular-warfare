@@ -51,10 +51,6 @@ def dormantSources = [
         'com/neoalive/tacz_sewv/mixin/client/MixinCorpseRenderer.java',
         'com/neoalive/tacz_sewv/mixin/client/MixinAbstractClientPlayerCorpseSkin.java',
         'com/neoalive/tacz_sewv/mixin/CorpseMixinPlugin.java',
-        // PlayerRevive
-        'com/neoalive/tacz_sewv/compat/PlayerReviveCompat.java',
-        'com/neoalive/tacz_sewv/mixin/MixinReviveEventServer.java',
-        'com/neoalive/tacz_sewv/mixin/PlayerReviveMixinPlugin.java',
         // MineColonies
         'com/neoalive/tacz_sewv/compat/MineColoniesCompat.java',
         'com/neoalive/tacz_sewv/compat/minecolonies/**',
@@ -71,7 +67,6 @@ def dormantMixinConfigs = [
         'tacz_sewv.xaero.mixins.json',
         'tacz_sewv.komodo.mixins.json',
         'tacz_sewv.corpse.mixins.json',
-        'tacz_sewv.playerrevive.mixins.json',
         'tacz_sewv.minecolonies.mixins.json',
 ]
 sourceSets {
@@ -327,6 +322,15 @@ dependencies {
     compatJars('efallingtrees-').each { compileOnly files(it) }
     if (project.hasProperty('withEnhancedFallingTrees')) {
         compatJars('efallingtrees-').each { localRuntime files(it) }
+    }
+    // PlayerRevive (team.creative.playerrevive, 2.1.2 NeoForge release). PlayerReviveServer.revive/
+    // isBleeding are plain statics on vanilla Player, so nothing of CreativeCore is needed to compile.
+    // Off the run classpath by default; PlayerRevive hard-requires CreativeCore, so that comes along
+    // under the same flag:
+    //   ./gradlew runClient -PwithPlayerRevive
+    compatJars('PlayerRevive_').each { compileOnly files(it) }
+    if (project.hasProperty('withPlayerRevive')) {
+        (compatJars('PlayerRevive_') + compatJars('CreativeCore_')).each { localRuntime files(it) }
     }
 }
 

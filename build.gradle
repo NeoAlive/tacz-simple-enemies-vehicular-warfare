@@ -62,8 +62,6 @@ def dormantSources = [
         'com/neoalive/tacz_sewv/mixin/MineColoniesMixinPlugin.java',
         // Limitless Vehicles (LvCompat / LvGoals are stubbed)
         'com/neoalive/tacz_sewv/compat/lv/**',
-        // Enhanced Falling Trees (EnhancedFallingTreesCompat is ModList-only and stays compiled)
-        'com/neoalive/tacz_sewv/compat/EnhancedFallingTreesFeller.java',
         // Berezka
         'com/neoalive/tacz_sewv/compat/BerezkaStructureCompat.java',
         // Open Parties and Claims
@@ -105,6 +103,8 @@ sourceSets {
 // ---------------------------------------------------------------------------------------------
 def libsNeo = file('libs-neo')
 def libsNeoJij = file('libs-neo/jij')
+def libsNeoCompat = file('libs-neo/compat')
+def libsNeoCompatCompile = file('libs-neo/compat/compile')
 
 tasks.register('syncPortDeps') {
     group = 'neoforge port'
@@ -140,7 +140,23 @@ tasks.register('syncPortDeps') {
             eachFile { it.path = it.name }
             includeEmptyDirs = false
         }
+        // Soft-compat release jars. Xaero's World Map jar-in-jars xaerolib, whose types its element
+        // API exposes; that copy is compile-only — FML unpacks it at runtime, like SBW's.
+        def compatSrc = file("${projectDir}/${softcompat_neo_dir}")
+        delete libsNeoCompat
+        if (compatSrc.isDirectory()) {
+            copy { from(compatSrc) { include '*.jar' }; into libsNeoCompat }
+            fileTree(libsNeoCompat) { include 'xaeroworldmap-*.jar' }.files.each { xwm ->
+                copy {
+                    from(zipTree(xwm)) { include 'META-INF/jarjar/xaerolib-*.jar' }
+                    into libsNeoCompatCompile
+                    eachFile { it.path = it.name }
+                    includeEmptyDirs = false
+                }
+            }
+        }
         println "SBW: ${sbwJars.first().name}  SEM: ${semJar.name}  jij: ${libsNeoJij.list()?.toList()}"
+        println "compat: ${libsNeoCompat.list()?.findAll { it.endsWith('.jar') }}  compile-only: ${libsNeoCompatCompile.list()?.toList()}"
     }
 }
 
@@ -153,6 +169,12 @@ def isModJar = { File jar ->
 }
 def jijMods = jijJars.findAll { isModJar(it) }
 def jijLibs = jijJars.findAll { !isModJar(it) }
+
+// Soft-compat jars (libs-neo/compat, see syncPortDeps), looked up by file-name prefix. Missing jars
+// resolve to an empty list; the re-activated facades then fail to compile, so run syncPortDeps first.
+def compatJars = { String prefix ->
+    libsNeoCompat.isDirectory() ? (libsNeoCompat.listFiles({ f -> f.name.startsWith(prefix) && f.name.endsWith('.jar') } as FileFilter) as List) : []
+}
 
 repositories {
     flatDir {
@@ -296,6 +318,16 @@ dependencies {
     localRuntime "top.theillusivec4.curios:curios-neoforge:9.5.1+1.21.1"
     // SEM's own optional deps it needs at runtime in dev (GeckoLib is covered by SBW's jij).
     localRuntime "com.eliotlash.mclib:mclib:20"
+
+    // ---- Soft compats (libs-neo/compat, see syncPortDeps). Same flags and defaults as main. ----
+    // Enhanced Falling Trees (0.7.0 NeoForge release). Off the run classpath by default:
+    //   ./gradlew runClient -PwithEnhancedFallingTrees
+    // Its one hard dependency, Cloth Config (no longer Architectury on this line), is already
+    // jar-in-jarred by SBW, so nothing else comes along.
+    compatJars('efallingtrees-').each { compileOnly files(it) }
+    if (project.hasProperty('withEnhancedFallingTrees')) {
+        compatJars('efallingtrees-').each { localRuntime files(it) }
+    }
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {

@@ -11,6 +11,7 @@ import me.adda.enhanced_falling_trees.api.TreeRegistry;
 import me.adda.enhanced_falling_trees.api.TreeType;
 import me.adda.enhanced_falling_trees.entity.TreeEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -20,7 +21,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -120,7 +120,9 @@ public final class EnhancedFallingTreesFeller {
             Set<BlockPos> blockPosList = treeType.blockGatheringAlgorithm(pos, level);
             if (blockPosList.isEmpty()) return false;
 
-            EntityType<?> treeEntityType = ForgeRegistries.ENTITY_TYPES.getValue(EnhancedFallingTreesCompat.TREE_ENTITY_ID);
+            // NeoForge port: ENTITY_TYPE is a defaulted registry (get() of an unknown id is the pig).
+            EntityType<?> treeEntityType = BuiltInRegistries.ENTITY_TYPE
+                    .getOptional(EnhancedFallingTreesCompat.TREE_ENTITY_ID).orElse(null);
             if (treeEntityType == null) return false;
 
             TreeEntity treeEntity = new TreeEntity(treeEntityType, level);

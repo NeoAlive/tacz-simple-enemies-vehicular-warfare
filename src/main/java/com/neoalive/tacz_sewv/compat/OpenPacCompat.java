@@ -14,7 +14,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.debug.SewvDiag;

@@ -84,3 +84,12 @@ config="tacz_sewv.playerrevive.mixins.json"
     versionRange="[2.1.2,)"
     ordering="AFTER"
     side="BOTH"
+
+# Soft compat: Open Parties and Claims (chunk claims / parties). Optional — absent on installs
+# without it; present on local runs unless -PnoOpenPac.
+[[dependencies.${mod_id}]]
+    modId="openpartiesandclaims"
+    type="optional"
+    versionRange="[0.33.0,)"
+    ordering="AFTER"
+    side="BOTH"

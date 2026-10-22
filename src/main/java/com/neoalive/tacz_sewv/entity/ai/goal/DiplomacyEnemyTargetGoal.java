@@ -8,6 +8,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.compat.OpenPacCompat;
+import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.invasion.InvasionHostility;
 
@@ -34,10 +35,11 @@ public class DiplomacyEnemyTargetGoal<T extends LivingEntity> extends NearestAtt
     public boolean canUse() {
         if (this.mob.getVehicle() instanceof VehicleEntity) return false;
         // Super's body, with one gate between the random interval and the entity scan: nothing can
-        // match without OpenPAC diplomacy or a stamped invasion enemy list, and on most worlds that
-        // is every PMC, every time.
+        // match without a stored diplomacy pair (manual or invasion overlay), OpenPAC parties, or a
+        // stamped invasion enemy list, and on most worlds that is every PMC, every time.
         if (this.randomInterval > 0 && this.mob.getRandom().nextInt(this.randomInterval) != 0) return false;
         if (!OpenPacCompat.isLoaded()
+                && DiplomacyData.get(this.mob.level()).isEmpty()
                 && InvasionHostility.enemiesForShooter((AbstractUnit) this.mob).isEmpty()) {
             return false;
         }

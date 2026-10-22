@@ -1,4 +1,10 @@
 {
   "message.tacz_sewv.lag_tip": "При сильных лагах выполните команду '/superbwarfare config projectileChunkLoading false' или обратитесь к администратору.",
-  "message.tacz_sewv.lag_tip_ladder": "Большие сражения на плоских или открытых картах: установите enableLadderFallback = false в config/sem-common.toml, чтобы отключить затратный поиск маршрутов по лестницам в Simple Enemy Mod."
+  "message.tacz_sewv.lag_tip_ladder": "Большие сражения на плоских или открытых картах: установите enableLadderFallback = false в config/sem-common.toml, чтобы отключить затратный поиск маршрутов по лестницам в Simple Enemy Mod.",
+  "command.tacz_sewv.diplomacy.failed": "Не удалось задать дипломатию (один и тот же игрок или фракция с обеих сторон?).",
+  "command.tacz_sewv.diplomacy.self_only": "Выполните от имени игрока или используйте /sewv diplomacy pair.",
+  "command.tacz_sewv.diplomacy.bad_relation_pair": "Отношение должно быть ally, enemy или neutral.",
+  "command.tacz_sewv.diplomacy.bad_kind": "Тип должен быть player или faction.",
+  "command.tacz_sewv.diplomacy.pair_set": "Дипломатия: %s ↔ %s = %s.",
+  "command.tacz_sewv.diplomacy.pair_cleared": "Дипломатия между %s и %s сброшена (теперь нейтралитет)."
 }

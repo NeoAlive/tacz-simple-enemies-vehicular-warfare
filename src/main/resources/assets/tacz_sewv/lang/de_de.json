@@ -1,4 +1,10 @@
 {
   "message.tacz_sewv.lag_tip": "Bei extremen Lag-Problemen führe bitte den Befehl '/superbwarfare config projectileChunkLoading false' aus oder frage einen Admin.",
-  "message.tacz_sewv.lag_tip_ladder": "Große Schlachten auf flachen oder offenen Karten: Setze enableLadderFallback = false in config/sem-common.toml, um die teure Leiter-Routensuche von Simple Enemy Mod zu überspringen."
+  "message.tacz_sewv.lag_tip_ladder": "Große Schlachten auf flachen oder offenen Karten: Setze enableLadderFallback = false in config/sem-common.toml, um die teure Leiter-Routensuche von Simple Enemy Mod zu überspringen.",
+  "command.tacz_sewv.diplomacy.failed": "Diplomatie konnte nicht gesetzt werden (gleicher Spieler oder gleiche Fraktion auf beiden Seiten?).",
+  "command.tacz_sewv.diplomacy.self_only": "Als Spieler ausführen oder /sewv diplomacy pair verwenden.",
+  "command.tacz_sewv.diplomacy.bad_relation_pair": "Beziehung muss ally, enemy oder neutral sein.",
+  "command.tacz_sewv.diplomacy.bad_kind": "Art muss player oder faction sein.",
+  "command.tacz_sewv.diplomacy.pair_set": "Diplomatie: %s ↔ %s = %s.",
+  "command.tacz_sewv.diplomacy.pair_cleared": "Diplomatie zwischen %s und %s aufgehoben (jetzt neutral)."
 }

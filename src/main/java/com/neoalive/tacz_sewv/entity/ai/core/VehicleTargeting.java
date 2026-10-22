@@ -1,12 +1,18 @@
 package com.neoalive.tacz_sewv.entity.ai.core;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.mojang.authlib.GameProfile;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.GameProfileCache;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.IronGolem;
@@ -791,13 +797,46 @@ public final class VehicleTargeting {
             return DiplomacyEval.NONE;
         }
 
-        String selfFaction = OpenPacCompat.factionName(unit.getServer(), owner);
-        String otherFaction = OpenPacCompat.factionName(unit.getServer(), otherOwner);
-        if (selfFaction == null || otherFaction == null) {
-            return new DiplomacyEval(null, false, selfFaction, otherFaction, owner, otherOwner, otherKind);
+        DiplomacyData data = DiplomacyData.get(unit.level());
+        boolean openPac = OpenPacCompat.isLoaded();
+        // Nothing stored and no parties to read: diplomacy cannot apply, and this runs per scan
+        // candidate, so skip the name lookups.
+        if (data.isEmpty() && !openPac) {
+            return new DiplomacyEval(null, false, null, null, owner, otherOwner, otherKind);
         }
-        DiplomacyData.Relation rel = DiplomacyData.get(unit.level()).relation(selfFaction, otherFaction);
-        return new DiplomacyEval(rel, true, selfFaction, otherFaction, owner, otherOwner, otherKind);
+        String selfFaction = openPac ? OpenPacCompat.factionName(unit.getServer(), owner) : null;
+        String otherFaction = openPac ? OpenPacCompat.factionName(unit.getServer(), otherOwner) : null;
+        DiplomacyData.Relation stored = data.resolve(
+                subjects(unit.getServer(), owner, selfFaction),
+                subjects(unit.getServer(), otherOwner, otherFaction));
+        // "Consulted" keeps its old meaning for the friendly-player helpers: a stored pair, or two
+        // resolved parties (no pair between parties = peace). A bare player name never makes a
+        // stranger friendly on its own.
+        boolean bothParties = selfFaction != null && otherFaction != null;
+        if (stored != null) {
+            return new DiplomacyEval(stored, true, selfFaction, otherFaction, owner, otherOwner, otherKind);
+        }
+        return new DiplomacyEval(bothParties ? DiplomacyData.Relation.NEUTRAL : null, bothParties,
+                selfFaction, otherFaction, owner, otherOwner, otherKind);
+    }
+
+    /** A UUID's diplomacy subjects: its player name (online, else profile cache) and its party. */
+    private static List<DiplomacyData.Subject> subjects(MinecraftServer server, UUID id,
+                                                        @Nullable String faction) {
+        List<DiplomacyData.Subject> out = new ArrayList<>(2);
+        String name = playerName(server, id);
+        if (name != null) out.add(DiplomacyData.Subject.player(name));
+        if (faction != null) out.add(DiplomacyData.Subject.faction(faction));
+        return out;
+    }
+
+    @Nullable
+    private static String playerName(MinecraftServer server, UUID id) {
+        ServerPlayer online = server.getPlayerList().getPlayer(id);
+        if (online != null) return online.getScoreboardName();
+        GameProfileCache cache = server.getProfileCache();
+        if (cache == null) return null;
+        return cache.get(id).map(GameProfile::getName).orElse(null);
     }
 
     /** Throttle key → last gameTime logged. Only populated while targeting diag is on. */

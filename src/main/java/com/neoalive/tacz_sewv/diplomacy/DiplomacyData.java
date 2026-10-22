@@ -1,6 +1,8 @@
 package com.neoalive.tacz_sewv.diplomacy;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -16,8 +18,17 @@ import net.minecraft.world.level.saveddata.SavedData;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
- * SEWV-only faction diplomacy (Stage 4). OpenPAC names identify factions; relationships are never
- * written back to OpenPAC. Absence of a pair = {@link Relation#NEUTRAL} (not stored).
+ * SEWV-only diplomacy between <b>subjects</b>: OpenPAC party names ({@link Kind#FACTION}) or
+ * player names ({@link Kind#PLAYER}, the scoreboard/profile name {@code /team} holds). Relationships
+ * are never written back to OpenPAC. Absence of a pair = {@link Relation#NEUTRAL} (not stored).
+ *
+ * <p>Two layers. {@link #pairs} is the saved, manual layer ({@code /sewv diplomacy}). {@link #invasion}
+ * is a transient overlay owned by {@code InvasionDiplomacy}: it is never saved and wins over the manual
+ * layer while it holds a pair, so a running match can put two manually allied players on opposite
+ * sides and the manual entry comes back untouched once the match clears it. A restart force-ends any
+ * invasion anyway, so an unsaved overlay cannot outlive its match.
+ *
+ * <p>The {@code String} overloads keep their original faction meaning — territory reads them.
  */
 public class DiplomacyData extends SavedData {
 
@@ -27,8 +38,50 @@ public class DiplomacyData extends SavedData {
         NEUTRAL, ALLY, ENEMY
     }
 
-    /** Canonical key {@code a\0b} with a &lt; b (case-insensitive compare, stored as given). */
-    private final Map<String, Relation> pairs = new HashMap<>();
+    public enum Kind {
+        FACTION, PLAYER;
+
+        String prefix() {
+            return this == FACTION ? "f:" : "p:";
+        }
+    }
+
+    /** One side of a pair. Names compare case-insensitively. */
+    public record Subject(Kind kind, String name) {
+        public static Subject faction(String name) {
+            return new Subject(Kind.FACTION, name);
+        }
+
+        public static Subject player(String name) {
+            return new Subject(Kind.PLAYER, name);
+        }
+
+        String key() {
+            return kind.prefix() + name.trim().toLowerCase(Locale.ROOT);
+        }
+
+        boolean blank() {
+            return name == null || name.isBlank();
+        }
+
+        @Override
+        public String toString() {
+            return kind.name().toLowerCase(Locale.ROOT) + ":" + name;
+        }
+    }
+
+    /** A stored pair as given (display names kept), keyed canonically elsewhere. */
+    public record Entry(Subject a, Subject b, Relation relation, boolean invasion) {
+        public String format() {
+            return a + " ↔ " + b + " = " + relation.name().toLowerCase(Locale.ROOT)
+                    + (invasion ? " [invasion]" : "");
+        }
+    }
+
+    /** Manual layer: canonical key → entry. */
+    private final Map<String, Entry> pairs = new HashMap<>();
+    /** Invasion overlay, transient: canonical key → entry. */
+    private final Map<String, Entry> invasion = new HashMap<>();
 
     public DiplomacyData() {}
 
@@ -44,21 +97,25 @@ public class DiplomacyData extends SavedData {
             Relation relation = "ALLY".equals(rel) ? Relation.ALLY
                     : "ENEMY".equals(rel) ? Relation.ENEMY : null;
             if (relation == null) continue;
-            data.pairs.put(canonicalKey(a, b), relation);
+            // Entries saved before player diplomacy carry no kind: they were all party names.
+            Subject sa = new Subject(kindOf(tag.getString("ak")), a);
+            Subject sb = new Subject(kindOf(tag.getString("bk")), b);
+            data.pairs.put(canonicalKey(sa, sb), new Entry(sa, sb, relation, false));
         }
-        SewvDiag.diplomacy("SavedData LOAD pairs={} contents={}", data.pairs.size(), data.pairs);
+        SewvDiag.diplomacy("SavedData LOAD pairs={} contents={}", data.pairs.size(), data.pairs.keySet());
         return data;
     }
 
     @Override
     public CompoundTag save(CompoundTag nbt) {
         ListTag list = new ListTag();
-        for (Map.Entry<String, Relation> e : pairs.entrySet()) {
-            String[] ab = splitKey(e.getKey());
+        for (Entry e : pairs.values()) {
             CompoundTag tag = new CompoundTag();
-            tag.putString("a", ab[0]);
-            tag.putString("b", ab[1]);
-            tag.putString("rel", e.getValue().name());
+            tag.putString("a", e.a().name());
+            tag.putString("b", e.b().name());
+            tag.putString("ak", e.a().kind().name());
+            tag.putString("bk", e.b().kind().name());
+            tag.putString("rel", e.relation().name());
             list.add(tag);
         }
         nbt.put("pairs", list);
@@ -83,60 +140,137 @@ public class DiplomacyData extends SavedData {
         return new DiplomacyData();
     }
 
+    // ---- lookups -------------------------------------------------------------------------------
+
+    /** Faction ↔ faction, the original meaning (territory reads this). */
     public Relation relation(String factionA, String factionB) {
         if (factionA == null || factionB == null) return Relation.NEUTRAL;
-        if (factionA.equalsIgnoreCase(factionB)) return Relation.ALLY;
-        Relation r = pairs.get(canonicalKey(factionA, factionB));
+        return relation(Subject.faction(factionA), Subject.faction(factionB));
+    }
+
+    /** One pair; the invasion overlay wins over the manual layer. Same subject = ALLY. */
+    public Relation relation(Subject a, Subject b) {
+        if (a == null || b == null || a.blank() || b.blank()) return Relation.NEUTRAL;
+        if (a.key().equals(b.key())) return Relation.ALLY;
+        Relation r = find(canonicalKey(a, b));
         return r != null ? r : Relation.NEUTRAL;
     }
 
-    /** Sets ALLY or ENEMY. Returns false if names are blank or identical. */
+    /**
+     * First stored relation between any subject of {@code self} and any of {@code other}, most
+     * specific first: player↔player, player↔faction, faction↔player, faction↔faction. Each side's
+     * list carries at most one subject of each kind. Null when nothing is stored for any pairing.
+     */
+    @Nullable
+    public Relation resolve(List<Subject> self, List<Subject> other) {
+        for (Kind[] order : RESOLVE_ORDER) {
+            Subject a = firstOfKind(self, order[0]);
+            Subject b = firstOfKind(other, order[1]);
+            if (a == null || b == null) continue;
+            if (a.key().equals(b.key())) return Relation.ALLY;
+            Relation r = find(canonicalKey(a, b));
+            if (r != null) return r;
+        }
+        return null;
+    }
+
+    private static final Kind[][] RESOLVE_ORDER = {
+            {Kind.PLAYER, Kind.PLAYER}, {Kind.PLAYER, Kind.FACTION},
+            {Kind.FACTION, Kind.PLAYER}, {Kind.FACTION, Kind.FACTION}};
+
+    /** No manual pairs and no invasion overlay — the one-check gate in front of entity scans. */
+    public boolean isEmpty() {
+        return pairs.isEmpty() && invasion.isEmpty();
+    }
+
+    @Nullable
+    private Relation find(String key) {
+        Entry e = invasion.get(key);
+        if (e == null) e = pairs.get(key);
+        return e == null ? null : e.relation();
+    }
+
+    @Nullable
+    private static Subject firstOfKind(List<Subject> subjects, Kind kind) {
+        for (Subject s : subjects) {
+            if (s != null && s.kind() == kind && !s.blank()) return s;
+        }
+        return null;
+    }
+
+    // ---- manual layer --------------------------------------------------------------------------
+
+    /** Faction ↔ faction ALLY or ENEMY; NEUTRAL removes. */
     public boolean set(String factionA, String factionB, Relation relation) {
-        if (relation == Relation.NEUTRAL) return remove(factionA, factionB);
-        if (blank(factionA) || blank(factionB) || factionA.equalsIgnoreCase(factionB)) {
-            SewvDiag.diplomacy("set FAILED blankOrSame a={} b={} rel={}", factionA, factionB, relation);
+        return set(Subject.faction(factionA), Subject.faction(factionB), relation);
+    }
+
+    /** Sets ALLY or ENEMY (NEUTRAL removes). Returns false if a name is blank or both are the same subject. */
+    public boolean set(Subject a, Subject b, Relation relation) {
+        if (relation == Relation.NEUTRAL) return remove(a, b);
+        if (a == null || b == null || a.blank() || b.blank() || a.key().equals(b.key())) {
+            SewvDiag.diplomacy("set FAILED blankOrSame a={} b={} rel={}", a, b, relation);
             return false;
         }
-        String key = canonicalKey(factionA, factionB);
-        pairs.put(key, relation);
+        Subject ta = new Subject(a.kind(), a.name().trim());
+        Subject tb = new Subject(b.kind(), b.name().trim());
+        String key = canonicalKey(ta, tb);
+        pairs.put(key, new Entry(ta, tb, relation, false));
         setDirty();
-        SewvDiag.diplomacy("set OK key={} rel={} pairsNow={}", key.replace('\0', '|'), relation, pairs);
+        SewvDiag.diplomacy("set OK key={} rel={} pairsNow={}", key.replace('\0', '|'), relation, pairs.size());
         return true;
     }
 
     public boolean remove(String factionA, String factionB) {
-        if (blank(factionA) || blank(factionB)) return false;
-        if (pairs.remove(canonicalKey(factionA, factionB)) != null) {
+        return remove(Subject.faction(factionA), Subject.faction(factionB));
+    }
+
+    public boolean remove(Subject a, Subject b) {
+        if (a == null || b == null || a.blank() || b.blank()) return false;
+        if (pairs.remove(canonicalKey(a, b)) != null) {
             setDirty();
             return true;
         }
         return false;
     }
 
-    public Map<String, Relation> snapshot() {
-        return Map.copyOf(pairs);
+    // ---- invasion overlay ----------------------------------------------------------------------
+
+    /** Replaces the whole overlay. Never saved; see the class doc. */
+    public void setInvasion(List<Entry> entries) {
+        invasion.clear();
+        for (Entry e : entries) {
+            if (e.a().blank() || e.b().blank() || e.a().key().equals(e.b().key())) continue;
+            invasion.put(canonicalKey(e.a(), e.b()), new Entry(e.a(), e.b(), e.relation(), true));
+        }
+        SewvDiag.diplomacy("invasion overlay SET entries={}", invasion.size());
     }
 
-    private static boolean blank(@Nullable String s) {
-        return s == null || s.isBlank();
+    public void clearInvasion() {
+        if (invasion.isEmpty()) return;
+        invasion.clear();
+        SewvDiag.diplomacy("invasion overlay CLEARED");
     }
 
-    static String canonicalKey(String a, String b) {
-        String x = a.trim();
-        String y = b.trim();
-        if (x.compareToIgnoreCase(y) <= 0) return x + '\0' + y;
-        return y + '\0' + x;
+    /**
+     * Manual pairs, then overlay pairs, for listing. Both layers are listed even for the same pair,
+     * so a manual relation an invasion is overriding still shows as kept, not lost.
+     */
+    public List<Entry> snapshot() {
+        List<Entry> out = new ArrayList<>(pairs.values());
+        out.addAll(invasion.values());
+        return List.copyOf(out);
     }
 
-    private static String[] splitKey(String key) {
-        int i = key.indexOf('\0');
-        if (i < 0) return new String[]{key, key};
-        return new String[]{key.substring(0, i), key.substring(i + 1)};
+    // ---- keys ----------------------------------------------------------------------------------
+
+    static String canonicalKey(Subject a, Subject b) {
+        String x = a.key();
+        String y = b.key();
+        return x.compareTo(y) <= 0 ? x + '\0' + y : y + '\0' + x;
     }
 
-    /** Display form of a stored key for listing. */
-    public static String formatPair(String key, Relation rel) {
-        String[] ab = splitKey(key);
-        return ab[0] + " ↔ " + ab[1] + " = " + rel.name().toLowerCase(Locale.ROOT);
+    private static Kind kindOf(String stored) {
+        return "PLAYER".equals(stored) ? Kind.PLAYER : Kind.FACTION;
     }
 }

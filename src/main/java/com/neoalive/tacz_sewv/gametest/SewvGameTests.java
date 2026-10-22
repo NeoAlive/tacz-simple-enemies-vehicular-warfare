@@ -1,10 +1,24 @@
 package com.neoalive.tacz_sewv.gametest;
 
 import java.util.List;
+import java.util.UUID;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import com.mojang.authlib.GameProfile;
+import io.netty.channel.embedded.EmbeddedChannel;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.PacketFlow;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.network.PacketSendListener;
+import net.minecraft.network.protocol.Packet;
+import javax.annotation.Nullable;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.Scoreboard;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.Entity;
@@ -26,6 +40,8 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesFeller;
 import com.neoalive.tacz_sewv.crew.UnitInventory;
+import com.neoalive.tacz_sewv.invasion.InvasionHostility;
+import com.neoalive.tacz_sewv.invasion.InvasionTags;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveVehicleGoal;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
@@ -133,6 +149,107 @@ public class SewvGameTests {
                                 BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getNamespace())).isEmpty(),
                 "no EFT falling-tree entity was spawned");
         helper.succeed();
+    }
+
+    /**
+     * Invasion: a PMC of team A, stamped hostile to team B, acquires a survival player on team B.
+     * Own batch: tests in a batch run side by side, and a neighbour's units are a distraction.
+     */
+    @GameTest(template = TEMPLATE, batch = "invasion_targeting", timeoutTicks = 200)
+    public static void invasionPmcTargetsEnemyPlayer(GameTestHelper helper) {
+        invasionPmcVsPlayer(helper, false);
+    }
+
+    /**
+     * The reported bug: a PMC already engaged with another hostile never takes an enemy player.
+     * SEM's catch-all target goal and the diplomacy goal shared priority 2, and an equal priority
+     * never preempts a held target. An enemy player in reach must win over the RU it holds.
+     */
+    @GameTest(template = TEMPLATE, batch = "invasion_targeting_busy", timeoutTicks = 200)
+    public static void invasionPmcSwitchesToEnemyPlayer(GameTestHelper helper) {
+        invasionPmcVsPlayer(helper, true);
+    }
+
+    private static void invasionPmcVsPlayer(GameTestHelper helper, boolean busy) {
+        Scoreboard board = helper.getLevel().getScoreboard();
+        String suffix = Integer.toHexString(helper.getLevel().getRandom().nextInt(0xFFFF));
+        PlayerTeam teamA = board.addPlayerTeam("sewvA" + suffix);
+        PlayerTeam teamB = board.addPlayerTeam("sewvB" + suffix);
+
+        // Everything inside the 3x3 template: the framework walls each test area in barriers.
+        PmcUnitEntity pmc = spawnUnit(helper, ModEntities.PMCUNIT.get(), new BlockPos(0, 1, 0));
+        pmc.setOwner(UUID.randomUUID());
+        stampInvasion(pmc, teamA.getName(), teamB.getName());
+
+        ServerPlayer[] player = new ServerPlayer[1];
+        Runnable addPlayer = () -> {
+            player[0] = survivalPlayer(helper, new BlockPos(2, 1, 2));
+            board.addPlayerToTeam(player[0].getScoreboardName(), teamB);
+            helper.assertTrue(InvasionHostility.isEnemy(pmc, player[0]),
+                    "the player does not read as an invasion enemy");
+        };
+        Runnable cleanUp = () -> {
+            if (player[0] != null) removePlayer(helper, player[0]);
+            board.removePlayerTeam(teamA);
+            board.removePlayerTeam(teamB);
+        };
+        if (busy) {
+            // SEM's own target goal must be the one holding the lock, so let it acquire the RU.
+            RUunitEntity ru = spawnUnit(helper, ModEntities.RUUNIT.get(), new BlockPos(0, 1, 2));
+            ru.setNoAi(true);
+            ru.setInvulnerable(true);
+            helper.startSequence()
+                    .thenWaitUntil(() -> helper.assertTrue(pmc.getTarget() == ru, "PMC has not locked the RU"))
+                    .thenExecute(addPlayer)
+                    .thenWaitUntil(() -> helper.assertTrue(pmc.getTarget() == player[0],
+                            "PMC kept " + pmc.getTarget() + " over the enemy player"))
+                    .thenExecute(cleanUp)
+                    .thenSucceed();
+            return;
+        }
+        addPlayer.run();
+        helper.succeedWhen(() -> {
+            helper.assertTrue(pmc.getTarget() == player[0], "PMC target is " + pmc.getTarget());
+            cleanUp.run();
+        });
+    }
+
+    private static void removePlayer(GameTestHelper helper, ServerPlayer player) {
+        helper.getLevel().removePlayerImmediately(player, Entity.RemovalReason.DISCARDED);
+    }
+
+    private static void stampInvasion(Entity entity, String team, String enemyTeam) {
+        entity.getPersistentData().putString(InvasionTags.TEAM, team);
+        InvasionHostility.stampEnemies(entity, List.of(enemyTeam));
+    }
+
+    /**
+     * A survival player in {@code level.players()} (what player targeting scans), without a login.
+     * GameTestHelper's mock is creative, which nothing targets, and a real login fails: SBW and TaCZ
+     * send mod payloads that an unnegotiated embedded connection refuses. Its packet listener
+     * drops every send instead.
+     */
+    private static ServerPlayer survivalPlayer(GameTestHelper helper, BlockPos rel) {
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(
+                new GameProfile(UUID.randomUUID(), "sewv-test-" + helper.getLevel().getRandom().nextInt(1000)), false);
+        ServerPlayer player = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(),
+                cookie.gameProfile(), cookie.clientInformation());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        player.connection = new ServerGamePacketListenerImpl(helper.getLevel().getServer(), connection, player, cookie) {
+            @Override
+            public void send(Packet<?> packet) {
+            }
+
+            @Override
+            public void send(Packet<?> packet, @Nullable PacketSendListener listener) {
+            }
+        };
+        BlockPos at = helper.absolutePos(rel);
+        player.setPos(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
+        player.setGameMode(GameType.SURVIVAL);
+        helper.getLevel().addNewPlayer(player);
+        return player;
     }
 
     private static boolean hasDriveGoal(AbstractUnit unit) {

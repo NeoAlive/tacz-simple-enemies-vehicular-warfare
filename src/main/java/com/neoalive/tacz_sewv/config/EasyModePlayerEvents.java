@@ -1,67 +1,229 @@
 package com.neoalive.tacz_sewv.config;
 
+import java.util.List;
+import java.util.UUID;
+
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import com.tacz.guns.api.event.common.EntityHurtByGunEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import net.minecraftforge.event.entity.living.LivingKnockBackEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.LogicalSide;
 import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
-import com.neoalive.tacz_sewv.invasion.InvasionSession;
 
 /**
- * Easy Mode player-sustain hooks: incoming damage scale (D2) and post-respawn acquire grace (D3).
+ * Easy Mode's player-side half: hostile damage scaling for the player and their PMC, the
+ * TaCZ bullet backstop, knockback, bonus hearts, regeneration, the respawn grace and the threat
+ * highlight. Everything reads through {@link EasyMode}, which is already off during an invasion.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID)
 public final class EasyModePlayerEvents {
 
     public static final String TAG_RESPAWN_GRACE_UNTIL = "sewv:easy_grace_until";
+    /** Game time of the player's last hostile hit, so regeneration waits for the fight to end. */
+    private static final String TAG_LAST_HURT = "sewv:easy_last_hurt";
+
+    private static final UUID BONUS_HEALTH_UUID = UUID.fromString("5e1f3c2a-8d47-4b6e-a0f9-3c2b7d18e604");
+    private static final AttributeModifier BONUS_HEALTH = new AttributeModifier(
+            BONUS_HEALTH_UUID, "tacz_sewv easy mode hearts", EasyTuning.PLAYER_BONUS_HEALTH,
+            AttributeModifier.Operation.ADDITION);
+
+    /** Bonus-hearts reconcile cadence, so a toggled config takes effect without a relog. */
+    private static final int HEALTH_CHECK_TICKS = 100;
+    private static final int HIGHLIGHT_INTERVAL_TICKS = 20;
 
     private EasyModePlayerEvents() {}
 
-    @SubscribeEvent
+    // --- Damage ---
+
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onLivingHurt(LivingHurtEvent event) {
-        if (event.getEntity() instanceof Player player) {
+        LivingEntity victim = event.getEntity();
+        if (victim.level().isClientSide()) return;
+        if (victim instanceof Player player) {
             onPlayerHurt(player, event);
             return;
         }
+        if (victim instanceof PmcUnitEntity pmc && pmc.getOwnerUUID() != null) {
+            onPmcHurt(pmc, event);
+            return;
+        }
         // Damaging an observer clears that player's soft-priority grace (retaliation OK).
-        if (event.getEntity() instanceof AbstractUnit) {
+        if (victim instanceof AbstractUnit) {
             Entity src = event.getSource().getEntity();
             if (src instanceof Player attacker) {
-                clearGraceIfDamagedBy(event.getEntity(), attacker);
+                clearGraceIfDamagedBy(victim, attacker);
             }
         }
     }
 
+    /**
+     * LOWEST, so the scale lands after SBW's seat-absorb split has moved its share onto the hull
+     * (that share is scaled separately, by the hull mixin) — the player's own part is what is left.
+     */
     private static void onPlayerHurt(Player player, LivingHurtEvent event) {
-        if (player.level().isClientSide()) return;
-        if (!EasyMode.playerDamageScaleEnabled()) return;
+        if (!EasyMode.active()) return;
         if (player.isCreative() || player.isSpectator()) return;
-        if (player.level() instanceof ServerLevel sl && InvasionSession.isActive(sl)) return;
-        if (!isHostileCombatSource(event.getSource(), player)) return;
+        // Any hit at all pauses regeneration, not just a hostile one.
+        player.getPersistentData().putLong(TAG_LAST_HURT, player.level().getGameTime());
+        DamageSource source = event.getSource();
+        boolean selfBlast = isExplosion(source) && culpritOf(source) == player;
+        if (!selfBlast && !isHostileTo(source, player)) return;
 
-        float scale = EasyMode.playerDamageScale();
-        if (scale >= 0.999F) return;
+        float scale = 1.0f;
+        if (EasyMode.playerDamageScaleEnabled()) scale *= EasyMode.playerDamageScale();
+        if (EasyMode.playerSustain() && isExplosion(source)) scale *= EasyTuning.EXPLOSION_EXTRA_MULT;
+        if (scale < 0.999F) event.setAmount(event.getAmount() * scale);
+    }
+
+    private static void onPmcHurt(PmcUnitEntity pmc, LivingHurtEvent event) {
+        if (!EasyMode.buffPmc()) return;
+        if (!isHostileTo(event.getSource(), pmc)) return;
+        float scale = EasyTuning.PMC_DAMAGE_TAKEN;
+        if (isExplosion(event.getSource())) scale *= EasyTuning.EXPLOSION_EXTRA_MULT;
         event.setAmount(event.getAmount() * scale);
+    }
+
+    /**
+     * TaCZ's own pre-hit hook for a hostile rifleman's bullet into the player's side: less base
+     * damage and no headshot bonus. Version-proof against SEM, since it keys on TaCZ alone — it
+     * holds even if every SEM rifle mixin failed to apply.
+     */
+    @SubscribeEvent
+    public static void onGunHurtPre(EntityHurtByGunEvent.Pre event) {
+        if (event.getLogicalSide() != LogicalSide.SERVER) return;
+        if (!EasyMode.softInfantry(event.getAttacker())) return;
+        if (!EasyMode.isFriendlySide(event.getHurtEntity())) return;
+        event.setBaseAmount(event.getBaseAmount() * EasyTuning.INFANTRY_BULLET_MULT);
+        event.setHeadshotMultiplier(1.0f);
+    }
+
+    @SubscribeEvent
+    public static void onKnockback(LivingKnockBackEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        if (player.level().isClientSide()) return;
+        if (!EasyMode.playerSustain()) return;
+        event.setStrength(event.getStrength() * EasyTuning.KNOCKBACK_MULT);
+    }
+
+    /**
+     * Hostile damage to a hull crewed by the player's side, for {@code MixinVehicleEasyDamage}.
+     * Shooting a hostile-crewed hull also ends that player's respawn grace, the same as hitting a
+     * unit does — a hull is not a LivingEntity, so the hurt event never sees it.
+     */
+    public static float scaleHullDamage(VehicleEntity hull, DamageSource source, float amount) {
+        if (!EasyMode.active()) return amount;
+        Entity culprit = culpritOf(source);
+        if (culprit instanceof Player attacker && EasyMode.isHostileActor(hull)) {
+            clearGraceIfDamagedBy(null, attacker);
+            return amount;
+        }
+        if (!EasyMode.protectVehicles() || !EasyMode.isFriendlySide(hull)) return amount;
+        if (!isHostileActorSource(source, culprit)) return amount;
+        return amount * EasyTuning.FRIENDLY_HULL_DAMAGE_MULT;
+    }
+
+    // --- Sustain: bonus hearts, regeneration, highlight ---
+
+    @SubscribeEvent
+    public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        if (!(event.player instanceof ServerPlayer player)) return;
+        // tickCount is per-entity and advances every tick, so a modulo on it is a real cadence
+        // (unlike a goal-tick parity).
+        int t = player.tickCount;
+        if (t % HEALTH_CHECK_TICKS == 0) reconcileBonusHealth(player);
+        if (t % EasyTuning.REGEN_INTERVAL_TICKS == 0) regenerate(player);
+        if (t % HIGHLIGHT_INTERVAL_TICKS == 0) highlightThreats(player);
+    }
+
+    @SubscribeEvent
+    public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) reconcileBonusHealth(player);
+    }
+
+    @SubscribeEvent
+    public static void onDimensionChange(PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) reconcileBonusHealth(player);
     }
 
     @SubscribeEvent
     public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        reconcileBonusHealth(player);
         if (!EasyMode.playerPrioritySoft()) return;
         long until = player.level().getGameTime() + EasyMode.PLAYER_RESPAWN_GRACE_TICKS;
         player.getPersistentData().putLong(TAG_RESPAWN_GRACE_UNTIL, until);
     }
+
+    /**
+     * Transient, so it is never saved: removing the mod or turning Easy off leaves no stray hearts.
+     * The cost is that a saved health above 20 is clamped on load before this runs, hence the heal
+     * when the modifier goes on.
+     */
+    private static void reconcileBonusHealth(ServerPlayer player) {
+        AttributeInstance max = player.getAttribute(Attributes.MAX_HEALTH);
+        if (max == null) return;
+        boolean want = EasyMode.playerSustain();
+        boolean has = max.getModifier(BONUS_HEALTH_UUID) != null;
+        if (want && !has) {
+            max.addTransientModifier(BONUS_HEALTH);
+            player.heal((float) EasyTuning.PLAYER_BONUS_HEALTH);
+        } else if (!want && has) {
+            max.removeModifier(BONUS_HEALTH_UUID);
+            if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());
+        }
+    }
+
+    private static void regenerate(ServerPlayer player) {
+        if (!EasyMode.playerSustain()) return;
+        if (player.isCreative() || player.isSpectator() || player.isDeadOrDying()) return;
+        if (player.getHealth() >= player.getMaxHealth()) return;
+        long lastHurt = player.getPersistentData().getLong(TAG_LAST_HURT);
+        if (player.level().getGameTime() - lastHurt < EasyTuning.REGEN_DELAY_TICKS) return;
+        player.heal(EasyTuning.REGEN_AMOUNT);
+    }
+
+    /**
+     * Hostile units targeting this player glow. Server-side effect, so nothing needs syncing; a
+     * crewman hidden by his seat glows unseen, but the hull he sits in is hard to miss anyway.
+     */
+    private static void highlightThreats(ServerPlayer player) {
+        if (!EasyMode.highlightThreats()) return;
+        if (player.isCreative() || player.isSpectator()) return;
+        if (!(player.level() instanceof ServerLevel level)) return;
+        List<AbstractUnit> threats = level.getEntitiesOfClass(AbstractUnit.class,
+                player.getBoundingBox().inflate(EasyTuning.HIGHLIGHT_RADIUS),
+                u -> u.getTarget() == player && u.isAlive());
+        for (AbstractUnit unit : threats) {
+            unit.addEffect(new MobEffectInstance(MobEffects.GLOWING, EasyTuning.HIGHLIGHT_GLOW_TICKS, 0, false, false));
+        }
+    }
+
+    // --- Targeting grace / soft priority ---
 
     /** True while Easy Mode soft-priority grace is active for this player. */
     public static boolean inRespawnGrace(Player player) {
@@ -70,40 +232,82 @@ public final class EasyModePlayerEvents {
         return until > 0L && player.level().getGameTime() < until;
     }
 
-    /** Clear grace when the player damages this observer (retaliation allowed). */
-    public static void clearGraceIfDamagedBy(LivingEntity observer, LivingEntity attacker) {
+    /** Whether {@code observer} must not proactively pick {@code player} (grace, no retaliation). */
+    public static boolean refusesPlayer(LivingEntity observer, Player player) {
+        return inRespawnGrace(player) && observer.getLastHurtByMob() != player;
+    }
+
+    /**
+     * Soft priority: when any non-player is a candidate, drop the players — except one that just
+     * hurt this observer, which it may always answer.
+     */
+    public static void preferNonPlayers(LivingEntity observer, List<? extends LivingEntity> candidates) {
+        if (!EasyMode.playerPrioritySoft()) return;
+        boolean hasNonPlayer = false;
+        for (LivingEntity e : candidates) {
+            if (!(e instanceof Player)) {
+                hasNonPlayer = true;
+                break;
+            }
+        }
+        if (!hasNonPlayer) return;
+        LivingEntity retaliate = observer.getLastHurtByMob();
+        candidates.removeIf(e -> e instanceof Player p && retaliate != p);
+    }
+
+    /** Clear grace when the player damages a hostile (retaliation allowed). */
+    public static void clearGraceIfDamagedBy(@Nullable LivingEntity observer, LivingEntity attacker) {
         if (!(attacker instanceof Player player)) return;
         if (!EasyMode.playerPrioritySoft()) return;
         player.getPersistentData().remove(TAG_RESPAWN_GRACE_UNTIL);
     }
 
-    private static boolean isHostileCombatSource(DamageSource source, Player player) {
+    // --- Source classification ---
+
+    private static boolean isExplosion(DamageSource source) {
+        return source.is(DamageTypeTags.IS_EXPLOSION);
+    }
+
+    /**
+     * Who is behind a hit: the attacking entity, else the direct one, a projectile resolved to its
+     * owner, and a hull resolved to the first unit aboard it (any seat — the gunner shooting is
+     * rarely the driver).
+     */
+    @Nullable
+    private static Entity culpritOf(DamageSource source) {
         Entity culprit = source.getEntity();
         if (culprit == null) culprit = source.getDirectEntity();
         if (culprit instanceof Projectile proj && proj.getOwner() != null) {
             culprit = proj.getOwner();
         }
-        if (culprit instanceof AbstractUnit unit) {
-            return !VehicleTargeting.isNonHostile(unit, player);
-        }
         if (culprit instanceof VehicleEntity hull) {
-            Entity driver = hull.getFirstPassenger();
-            if (driver instanceof AbstractUnit unit) {
-                return !VehicleTargeting.isNonHostile(unit, player);
+            for (Entity passenger : hull.getPassengers()) {
+                if (passenger instanceof AbstractUnit) return passenger;
             }
         }
-        if (culprit instanceof LivingEntity living && living.getVehicle() instanceof VehicleEntity) {
-            // Passenger crew firing / splash attributed to the rider.
-            if (living instanceof AbstractUnit unit) {
-                return !VehicleTargeting.isNonHostile(unit, player);
-            }
+        return culprit;
+    }
+
+    private static boolean isHostileTo(DamageSource source, LivingEntity victim) {
+        Entity culprit = culpritOf(source);
+        if (culprit instanceof AbstractUnit unit) {
+            return !VehicleTargeting.isNonHostile(unit, victim);
         }
-        // SBW channels without a clean owner (mortar HE / custom_explosion) still count.
+        return isUnattributedSbw(source, culprit);
+    }
+
+    private static boolean isHostileActorSource(DamageSource source, @Nullable Entity culprit) {
+        if (culprit instanceof AbstractUnit) return EasyMode.isHostileActor(culprit);
+        return isUnattributedSbw(source, culprit);
+    }
+
+    /**
+     * SBW channels without a clean owner (mortar HE / custom_explosion) still count — but never a
+     * player's own fire, which is the player's business.
+     */
+    private static boolean isUnattributedSbw(DamageSource source, @Nullable Entity culprit) {
+        if (culprit instanceof Player) return false;
         var typeKey = source.typeHolder().unwrapKey();
-        if (typeKey.isPresent()) {
-            String path = typeKey.get().location().toString();
-            if (path.startsWith("superbwarfare:")) return true;
-        }
-        return false;
+        return typeKey.isPresent() && typeKey.get().location().getNamespace().equals("superbwarfare");
     }
 }

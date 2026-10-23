@@ -17,6 +17,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -568,7 +569,7 @@ public final class VehicleDriver {
                 : this.lastPathTarget.distSqr(pathDest);
         boolean pathStale = this.currentPath == null
                 || this.currentPath.isDone()
-                || this.pathAge > pathMaxAge()
+                || this.pathAge > EasyMode.pathCadence(this.unit, pathMaxAge())
                 || targetDriftSq > pathTargetDriftSq();
         // A far jump in destination (order change, retreat flip) means the route in hand points
         // somewhere we no longer want to go, so ignore the throttle and repath immediately rather
@@ -607,7 +608,10 @@ public final class VehicleDriver {
             this.lastPathTarget = pathDest;
             this.pathAge = 0;
             // Terrain won't have changed next tick — back off harder after a failed search.
-            this.pathRecalcCooldown = this.currentPath == null ? pathFailCooldown() : pathRecalcCooldown();
+            // Easy Mode repaths a hostile crew half as often — slower to react, never stuck: the
+            // stuck detector and maneuver cooldowns are untouched.
+            this.pathRecalcCooldown = EasyMode.pathCadence(this.unit,
+                    this.currentPath == null ? pathFailCooldown() : pathRecalcCooldown());
             if (SewvDiag.groundPathingVerbose()) {
                 SewvDiag.pathing("repath RESULT unit={}#{} vehicle={}#{} found={} nextNode={} nextIndex={} nodeCount={} cooldown={}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),

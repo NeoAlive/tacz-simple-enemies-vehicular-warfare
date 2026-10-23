@@ -19,6 +19,7 @@ import net.minecraft.world.scores.PlayerTeam;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import com.neoalive.tacz_sewv.block.TeamBaseBlockEntity;
@@ -70,6 +71,18 @@ public final class InvasionSession {
     public static boolean isActive(ServerLevel level) {
         InvasionSession session = BY_DIM.get(level.dimension());
         return session != null && session.active;
+    }
+
+    /**
+     * Whether a match runs in any dimension. Level-free on purpose: Easy Mode's exemption is read
+     * from deep AI paths (spread, cooldowns, turret speed) that have no {@link ServerLevel} to hand.
+     * One entry per dimension at most, so the scan is a couple of reads.
+     */
+    public static boolean anyActive() {
+        for (InvasionSession session : BY_DIM.values()) {
+            if (session.active) return true;
+        }
+        return false;
     }
 
     /** True once AI/player hulls have been spawned (false during the pre-spawn delay). */
@@ -226,6 +239,15 @@ public final class InvasionSession {
             session.active = true; // so deactivate runs teardown
             deactivate(level);
         }
+    }
+
+    /**
+     * Sessions are keyed by dimension, and dimension keys repeat across worlds — a match left
+     * running when a singleplayer world closed would otherwise read as active in the next one.
+     */
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        BY_DIM.clear();
     }
 
     @SubscribeEvent

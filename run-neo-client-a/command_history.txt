@@ -1,0 +1,7 @@
+/op
+/team add blue
+/team join blue
+/sewv invasion stop
+/sewv debug InvasionForceEnd
+/sewv invasion start
+/sewv invasion stop

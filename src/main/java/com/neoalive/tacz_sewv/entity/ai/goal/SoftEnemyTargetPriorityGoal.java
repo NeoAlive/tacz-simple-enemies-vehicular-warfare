@@ -64,7 +64,7 @@ public class SoftEnemyTargetPriorityGoal extends Goal {
             this.scanCooldown--;
             return false;
         }
-        this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
+        this.scanCooldown = EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get());
 
         this.pendingTarget = scan(currentTier);
         return this.pendingTarget != null;
@@ -136,8 +136,8 @@ public class SoftEnemyTargetPriorityGoal extends Goal {
      * cylinder's radius, an unmounted unit is bounded by SEM's own follow range.
      */
     private double scanRadius() {
-        return this.unit.getVehicle() != null
+        return EasyMode.scanRadius(this.unit, this.unit.getVehicle() != null
                 ? SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get()
-                : this.unit.getAttributeValue(Attributes.FOLLOW_RANGE);
+                : this.unit.getAttributeValue(Attributes.FOLLOW_RANGE));
     }
 }

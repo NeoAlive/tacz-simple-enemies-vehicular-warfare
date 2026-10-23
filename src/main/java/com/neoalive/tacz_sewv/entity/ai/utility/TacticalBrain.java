@@ -8,6 +8,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.util.Mth;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.command.Assignment;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
@@ -79,7 +80,7 @@ public final class TacticalBrain {
         // Order matters: the facts are projected onto signals, confidence is judged from those,
         // and only then are the actions scored — because confidence is itself an input to them.
         sample(unit, this.facts, now);
-        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights);
+        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit));
         this.signals[Signal.CONFIDENCE.ordinal()] = Confidence.asSignal(this.facts.confidence);
 
         decide(unit, doctrine, weights, now);
@@ -99,7 +100,7 @@ public final class TacticalBrain {
         UtilityWeights weights = UtilityWeights.active();
 
         sample(unit, this.facts, now);
-        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights);
+        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit));
         this.signals[Signal.CONFIDENCE.ordinal()] = Confidence.asSignal(this.facts.confidence);
 
         posture.evaluate(unit, hull, this.facts, doctrine);
@@ -262,6 +263,8 @@ public final class TacticalBrain {
         // a TASKED_FLANK assignment overrides so the group flanks the commander's way.
         Action preferredFlank = preferredFlankOf(unit.getId());
 
+        // After feasible(), so a bias can only reorder actions that can actually run.
+        boolean easyBias = EasyMode.timid(unit);
         Action best = null;
         double bestScore = 0.0;
         for (Action action : Action.VALUES) {
@@ -275,6 +278,7 @@ public final class TacticalBrain {
             }
             double score = weights.score(action, this.signals, doctrine);
             if (action == preferredFlank) score += FLANK_TIEBREAK;
+            if (easyBias) score += EasyMode.actionBias(action.name());
             this.scores[i] = score;
             if (best == null || score > bestScore) {
                 best = action;

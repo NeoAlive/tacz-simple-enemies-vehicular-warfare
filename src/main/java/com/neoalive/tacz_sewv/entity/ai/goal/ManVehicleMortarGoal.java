@@ -126,7 +126,7 @@ public class ManVehicleMortarGoal extends Goal {
             Vec3 launch = VehicleMortarSupport.solveAim(this.hull, this.unit, aimCentre);
             if (launch == null) return;
 
-            Vec3 impact = MortarSupport.scatter(aimCentre, this.unit.getRandom());
+            Vec3 impact = MortarSupport.scatter(aimCentre, this.unit.getRandom(), this.unit);
 
             // Fire-mission marks have no UUID for the mixin path — lay here on the server.
             if (!liveTarget) {
@@ -168,7 +168,7 @@ public class ManVehicleMortarGoal extends Goal {
         UUID targetId = liveTarget ? target.getUUID() : this.unit.getUUID();
         this.hull.vehicleShoot(this.unit, targetId, this.laidAim);
 
-        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.mortarFireCooldownTicks();
+        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.mortarFireCooldownTicks(this.unit);
         this.laidOn = null;
         this.laidLaunch = null;
         this.laidAim = null;

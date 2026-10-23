@@ -107,7 +107,7 @@ public class VehicleTargetScanGoal extends Goal {
         if (v.getFirstPassenger() != this.unit) {
             this.pendingTarget = copyDriverLockOrRareScan(v);
         } else {
-            this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
+            this.scanCooldown = EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get());
             this.pendingTarget = scanCylinder(v);
         }
 
@@ -135,15 +135,15 @@ public class VehicleTargetScanGoal extends Goal {
                 // acquisition" depends on that staying true. See docs/fire-los-audit.md.
 boolean needLos = EasyMode.vehicleTargetRequireLos()
                         && !DriveHelicopterGoal.inFiringRun(v);
-                if (!needLos || ContactBoard.waivesLos(this.unit, lock, DIRECT_FIRE_MIN)
+                if (!needLos || waivesLos(lock)
                         || this.unit.getSensing().hasLineOfSight(lock)) {
-                    this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
+                    this.scanCooldown = EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get());
                     return lock;
                 }
             }
         }
         // No usable shared lock (absent, invalid, or occluded from this seat) — rare own scan.
-        this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get() * 2;
+        this.scanCooldown = EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get() * 2);
         return scanCylinder(v);
     }
 
@@ -190,7 +190,7 @@ if (EasyMode.vehicleTargetRequireLos()
                     this.nextPublishTime = now + PUBLISH_INTERVAL_TICKS;
                     ContactBoard.publish(this.unit, target, ContactBoard.Source.DIRECT_SIGHT);
                 }
-            } else if (ContactBoard.waivesLos(this.unit, target, DIRECT_FIRE_MIN)) {
+            } else if (waivesLos(target)) {
                 // Beyond the close-in band and known to our side: hold the lock. The fire-time gate in
                 // MixinVehicleFireCooldown still refuses every shot until this crew sees it itself.
                 this.ticksWithoutLos = 0;
@@ -207,7 +207,7 @@ if (EasyMode.vehicleTargetRequireLos()
         // close-in band is about LoS plausibility, not reach.
         if (ContactBoard.holds(this.unit, target, DIRECT_FIRE_MIN)) return true;
 
-        double dropRadius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get() * DROP_MULT;
+        double dropRadius = EasyMode.scanRadius(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get()) * DROP_MULT;
         // Drop band tracks the scan band (taller upward for ground AA) with the same 1.5× slack.
         // Air keeps uncapped altitude slack so climbing to cruise does not drop a ground lock.
         double up = VehicleScanBand.upward(this.vehicle) * DROP_MULT;
@@ -244,19 +244,7 @@ if (EasyMode.vehicleTargetRequireLos()
         candidates.sort(Comparator.comparingDouble(e -> focusAdjustedDistSq(v, e)));
         // Easy Mode soft priority: if any non-player combatant is in range, prefer them over
         // the player unless this crew was just hurt by that player (retaliation).
-        if (EasyMode.playerPrioritySoft()) {
-            boolean hasNonPlayer = false;
-            for (LivingEntity e : candidates) {
-                if (!(e instanceof Player)) {
-                    hasNonPlayer = true;
-                    break;
-                }
-            }
-            if (hasNonPlayer) {
-                LivingEntity retaliate = this.unit.getLastHurtByMob();
-                candidates.removeIf(e -> e instanceof Player p && retaliate != p);
-            }
-        }
+        EasyModePlayerEvents.preferNonPlayers(this.unit, candidates);
         // Mid firing-run reacquire must not demand LOS every scan interval — the same
         // pitch/bank that flickered the lock would block re-lock for the whole pass.
         // DEFERRED(firing-run-los): whether the bank/pitch compensation belongs at acquisition (here) or at
@@ -267,7 +255,7 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
                 && !DriveHelicopterGoal.inFiringRun(v);
         LivingEntity foliageOnly = null;
         for (LivingEntity candidate : candidates) {
-            boolean los = !needLos || ContactBoard.waivesLos(this.unit, candidate, DIRECT_FIRE_MIN)
+            boolean los = !needLos || waivesLos(candidate)
                     || this.unit.getSensing().hasLineOfSight(candidate);
             if (los) {
                 SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK unit={}#{} candidate={}#{} needLos={}",
@@ -351,7 +339,7 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
      *                     idle still excludes them so MinRange doesn't thrash the lock.
      */
     private List<LivingEntity> collectCylinderCandidates(VehicleEntity v, boolean includeClose) {
-        double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
+        double radius = EasyMode.scanRadius(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get());
         double radiusSq = radius * radius;
         // Shared per-hull LivingEntity fill — driver scan and Facts force counts reuse it.
         List<LivingEntity> raw = HullLocalScan.livingInScanCylinder(v);
@@ -367,7 +355,9 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
         // Contacts the crew's side already knows are candidates out to wideScanRadius, not just the scan
         // radius: that is the whole reach of wide detection, and nothing scans out there. Each still passes
         // isValidTarget, the vertical band and the dead zone, exactly like a scan-found candidate.
-        List<LivingEntity> known = ContactBoard.contactsFor(this.unit, DIRECT_FIRE_MIN);
+        // Easy Mode: a slowed hostile crew sees only its own cylinder, not its side's board.
+        List<LivingEntity> known = EasyMode.wideScanAllowed(this.unit)
+                ? ContactBoard.contactsFor(this.unit, DIRECT_FIRE_MIN) : List.of();
         if (!known.isEmpty()) {
             double wide = wideRadius(radius);
             double wideSq = wide * wide;
@@ -385,6 +375,11 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
             }
         }
         return out;
+    }
+
+    /** The contact-board LOS waiver, which Easy Mode withholds from a slowed hostile crew. */
+    private boolean waivesLos(LivingEntity e) {
+        return EasyMode.wideScanAllowed(this.unit) && ContactBoard.waivesLos(this.unit, e, DIRECT_FIRE_MIN);
     }
 
     /** How far board contacts are admitted: the wide radius when wide scan is on, else the scan radius. */
@@ -479,9 +474,7 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
             if (p.isCreative() || p.isSpectator()) return false;
             // Easy Mode respawn grace: no proactive lock until grace ends, unless this crew
             // was hurt by the player (retaliation).
-            if (EasyModePlayerEvents.inRespawnGrace(p) && this.unit.getLastHurtByMob() != p) {
-                return false;
-            }
+            if (EasyModePlayerEvents.refusesPlayer(this.unit, p)) return false;
             return true;
         }
         if (e instanceof IronGolem) return true;

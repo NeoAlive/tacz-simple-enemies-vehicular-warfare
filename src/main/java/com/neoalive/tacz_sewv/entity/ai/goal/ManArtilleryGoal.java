@@ -9,6 +9,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
@@ -95,7 +96,7 @@ public class ManArtilleryGoal extends Goal {
             }
             // Third argument is a target POSITION (missile guidance), not a direction.
             hull.vehicleShoot(shooter, ArtillerySupport.weaponOf(hull, shooter), aim);
-            this.nextShotTime = now + SHOT_COOLDOWN_TICKS;
+            this.nextShotTime = now + EasyMode.crewServedTicks(this.unit, SHOT_COOLDOWN_TICKS);
             ArtillerySupport.debugLine(hull, this.unit, aim, launch, "Y");
         } catch (Throwable ignored) {
             // Gun/ammo path unavailable — wait and retry.

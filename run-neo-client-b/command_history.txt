@@ -1,0 +1,5 @@
+/tp SEWV_Test_A SEWV_Test_B
+/team add red
+/team join red
+/sewv invasion start
+/sewv invasion stop

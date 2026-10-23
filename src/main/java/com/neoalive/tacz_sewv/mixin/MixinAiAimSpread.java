@@ -97,11 +97,13 @@ public abstract class MixinAiAimSpread {
         // An aircraft's own pointing error is already the handicap this would add (see the class
         // note), so it skips the difficulty term — but not the darkness one below, which is
         // environmental and applies even in accurate mode.
-        String mode = HullFacts.isPlaneHull(vehicle)
-                ? TACZ_SEWV$ACCURATE
-                : SewvConfig.AI_AIM_ACCURACY.get();
+        // Easy Mode puts the term back for a hostile crew whatever the mode — aircraft included,
+        // since an arcade-difficulty jet that never misses is the opposite of the point.
+        String mode = EasyMode.softAim(unit)
+                ? "realistic"
+                : HullFacts.isPlaneHull(vehicle) ? TACZ_SEWV$ACCURATE : SewvConfig.AI_AIM_ACCURACY.get();
         if (!TACZ_SEWV$ACCURATE.equals(mode)) {
-            double added = EasyMode.aiAimSpreadDegrees();
+            double added = EasyMode.aiAimSpreadDegrees(unit);
             if (TACZ_SEWV$SCALED.equals(mode)) {
                 // Design crew seats (driver + turret on an IFV), not raw passengers — a loaded
                 // IFV's squad riders would otherwise collapse this to nearly accurate.

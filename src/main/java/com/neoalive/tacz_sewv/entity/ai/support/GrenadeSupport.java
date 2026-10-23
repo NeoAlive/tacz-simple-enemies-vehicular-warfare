@@ -32,6 +32,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
+import com.neoalive.tacz_sewv.config.EasyTuning;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
@@ -115,6 +117,16 @@ public final class GrenadeSupport {
             this.cooldownTicks = cooldownTicks;
         }
 
+        /**
+         * The cadence for one thrower: Easy Mode drops a hostile unit to {@link #RARE} (never up —
+         * a server that chose NONE keeps NONE).
+         */
+        public static Cadence forUnit(AbstractUnit unit) {
+            Cadence c = fromConfig();
+            if (c == NONE || c == RARE) return c;
+            return EasyMode.softInfantry(unit) ? RARE : c;
+        }
+
         public static Cadence fromConfig() {
             String raw = SewvConfig.GRENADE_THROW_CADENCE.get();
             if (raw == null) return DEFAULT;
@@ -151,7 +163,7 @@ public final class GrenadeSupport {
     }
 
     public static void armCooldown(AbstractUnit unit) {
-        Cadence c = Cadence.fromConfig();
+        Cadence c = Cadence.forUnit(unit);
         unit.getPersistentData().putLong(TAG_COOLDOWN_UNTIL,
                 unit.level().getGameTime() + c.cooldownTicks);
     }
@@ -164,7 +176,7 @@ public final class GrenadeSupport {
     }
 
     public static boolean hasThrowsRemaining(AbstractUnit unit, String id) {
-        int max = maxFor(id);
+        int max = maxFor(unit, id);
         if (max <= 0) return false;
         // A PMC's real ceiling is what the player put in its inventory, not a lifetime count.
         return unit instanceof PmcUnitEntity || usedFor(unit, id) < max;
@@ -183,9 +195,16 @@ public final class GrenadeSupport {
         data.putInt(tag, data.getInt(tag) + 1);
     }
 
-    private static int maxFor(String id) {
-        if (ID_HAND.equals(id)) return SewvConfig.GRENADE_MAX_HAND.get();
-        if (ID_RGO.equals(id)) return SewvConfig.GRENADE_MAX_RGO.get();
+    private static int maxFor(AbstractUnit unit, String id) {
+        boolean easy = EasyMode.softInfantry(unit);
+        if (ID_HAND.equals(id)) {
+            int max = SewvConfig.GRENADE_MAX_HAND.get();
+            return easy ? Math.min(max, EasyTuning.GRENADE_FRAG_CAP) : max;
+        }
+        if (ID_RGO.equals(id)) {
+            int max = SewvConfig.GRENADE_MAX_RGO.get();
+            return easy ? Math.min(max, EasyTuning.GRENADE_RGO_CAP) : max;
+        }
         if (ID_M18.equals(id)) return SewvConfig.GRENADE_MAX_SMOKE.get();
         return 0;
     }
@@ -204,10 +223,12 @@ public final class GrenadeSupport {
      * tighter cadence envelope.
      */
     public static boolean inThrowRange(AbstractUnit unit, LivingEntity target, String id) {
-        Cadence c = Cadence.fromConfig();
+        Cadence c = Cadence.forUnit(unit);
         double dSq = unit.distanceToSqr(target);
         boolean smoke = ID_M18.equals(id);
         double min = smoke ? c.smokeMinRange : c.heMinRange;
+        // Easy Mode: no frag at the player's feet.
+        if (!smoke && EasyMode.softInfantry(unit)) min = Math.max(min, EasyTuning.GRENADE_MIN_RANGE);
         double max = smoke ? c.smokeMaxRange : c.heMaxRange;
         if (dSq < min * min) return false;
         return dSq <= max * max;
@@ -378,16 +399,18 @@ public final class GrenadeSupport {
     public static boolean throwGrenade(AbstractUnit unit, String id) {
         Level level = unit.level();
         if (level.isClientSide()) return false;
+        // Easy Mode throws loose; smoke is a screen and keeps its aim.
+        float inaccuracy = EasyMode.softInfantry(unit) ? EasyTuning.GRENADE_INACCURACY : 0.0f;
 
         if (ID_HAND.equals(id)) {
             HandGrenadeEntity grenade = new HandGrenadeEntity(unit, level);
             grenade.setLife(HAND_FUSE);
-            grenade.shootFromRotation(unit, unit.getXRot(), unit.getYRot(), 0.0f, THROW_POWER, 0.0f);
+            grenade.shootFromRotation(unit, unit.getXRot(), unit.getYRot(), 0.0f, THROW_POWER, inaccuracy);
             level.addFreshEntity(grenade);
         } else if (ID_RGO.equals(id)) {
             RgoGrenadeEntity grenade = new RgoGrenadeEntity(unit, level);
             grenade.setLife(RGO_FUSE);
-            grenade.shootFromRotation(unit, unit.getXRot(), unit.getYRot(), 0.0f, THROW_POWER, 0.0f);
+            grenade.shootFromRotation(unit, unit.getXRot(), unit.getYRot(), 0.0f, THROW_POWER, inaccuracy);
             level.addFreshEntity(grenade);
         } else if (ID_M18.equals(id)) {
             M18SmokeGrenadeEntity grenade = new M18SmokeGrenadeEntity(unit, level, M18_FUSE);

@@ -8,6 +8,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
+import com.neoalive.tacz_sewv.config.EasyMode;
 
 /**
  * Stops, arms and fires an ASH coordinate missile system (Sapsan) for its SEM driver.
@@ -79,7 +80,7 @@ public class ManMissileSystemGoal extends Goal {
         if (now < this.nextShotTime) return;
 
         if (AshMissileSupport.fire(this.hull, aim)) {
-            this.nextShotTime = now + FIRE_COOLDOWN_TICKS;
+            this.nextShotTime = now + EasyMode.crewServedTicks(this.unit, FIRE_COOLDOWN_TICKS);
         }
     }
 

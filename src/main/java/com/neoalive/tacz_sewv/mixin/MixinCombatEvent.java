@@ -54,7 +54,7 @@ public abstract class MixinCombatEvent {
         }
 
         // Rare CAS overhead — independent of the ground/rotor rolls, from the dedicated plane pools.
-        if (SewvConfig.PLANES_IN_EVENTS.get()) {
+        if (SewvConfig.PLANES_IN_EVENTS.get() && EasyMode.farCombatVehiclesAllowed()) {
             int airSep = 32;
             if (level.random.nextDouble() < SewvConfig.PLANE_SPAWN_CHANCE_RU.get()
                     && TankSpawner.hasSpawnablePlane(level, TankSpawner.TankFaction.RU)) {

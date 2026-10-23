@@ -20,7 +20,7 @@ public abstract class MixinVehicleTurretMobility {
     @Inject(method = {"getTurretTurnXSpeed", "getTurretTurnYSpeed"},
             at = @At("RETURN"), cancellable = true, remap = false)
     private void tacz_sewv$slowTurret(CallbackInfoReturnable<Float> cir) {
-        float mult = NpcMobility.multiplier((VehicleEntity) (Object) this);
+        float mult = NpcMobility.turretMultiplier((VehicleEntity) (Object) this);
         if (mult < 1.0f) cir.setReturnValue(cir.getReturnValue() * mult);
     }
 }

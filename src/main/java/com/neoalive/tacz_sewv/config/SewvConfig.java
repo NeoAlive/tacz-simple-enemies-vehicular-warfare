@@ -417,6 +417,14 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue EASY_PLAYER_DAMAGE_SCALE_ENABLED;
     public static final ForgeConfigSpec.DoubleValue EASY_PLAYER_DAMAGE_SCALE;
     public static final ForgeConfigSpec.BooleanValue EASY_PLAYER_PRIORITY_SOFT;
+    public static final ForgeConfigSpec.BooleanValue EASY_SLOW_AI;
+    public static final ForgeConfigSpec.BooleanValue EASY_TIMID_AI;
+    public static final ForgeConfigSpec.BooleanValue EASY_SOFT_INFANTRY;
+    public static final ForgeConfigSpec.BooleanValue EASY_PLAYER_SUSTAIN;
+    public static final ForgeConfigSpec.BooleanValue EASY_PROTECT_VEHICLES;
+    public static final ForgeConfigSpec.BooleanValue EASY_BUFF_PMC;
+    public static final ForgeConfigSpec.BooleanValue EASY_FEWER_EVENTS;
+    public static final ForgeConfigSpec.BooleanValue EASY_HIGHLIGHT_THREATS;
 
     private static final String[] FACTION_KEYS = {"ru", "us", "pmc"};
     private static final int[][] DOCTRINE_DEFAULTS = {
@@ -1629,14 +1637,17 @@ public final class SewvConfig {
 
         builder.push("balancing");
         EASY_MODE = builder.comment(
-                        "Master switch for Easy Mode. Off = unchanged difficulty. On = apply the child toggles below.")
+                        "Master switch for Easy Mode: an arcade difficulty pitched at young players. Off = unchanged.",
+                        "On = enemy crews and infantry are slower, less accurate and more timid, while the player and",
+                        "their own PMC army are much tougher. Never applies while an invasion match is running.",
+                        "The child toggles below switch each area off individually; the numbers live in EasyTuning.")
                 .define("easyMode", false);
         EASY_DISABLE_SHELLING = builder.comment("Easy Mode: disable mortar batteries that shell the player's bed/base.")
                 .define("easyDisableShelling", true);
         EASY_DISABLE_LARGE_COMBAT = builder.comment("Easy Mode: disable large multi-vehicle battles.")
                 .define("easyDisableLargeCombat", true);
         EASY_NO_FAR_COMBAT_VEHICLES = builder.comment(
-                        "Easy Mode: no ground vehicles or helicopters injected into SEM far_combat events.")
+                        "Easy Mode: no ground vehicles, helicopters or planes injected into SEM far_combat events.")
                 .define("easyNoFarCombatVehicles", true);
         EASY_NO_WORLD_ARMOR = builder.comment(
                         "Easy Mode: no village garrison tanks and no Berezka structure vehicles.")
@@ -1644,15 +1655,19 @@ public final class SewvConfig {
         EASY_LOWER_EVENT_ESCALATION = builder.comment(
                         "Easy Mode: SEWV event failure multipliers escalate half as fast.")
                 .define("easyLowerEventEscalation", true);
-        EASY_SOFT_AI_AIM = builder.comment("Easy Mode: wider AI aim spread and a tighter fire-assist cone.")
+        EASY_SOFT_AI_AIM = builder.comment(
+                        "Easy Mode: hostile vehicle crews scatter shots ~3x wider (aircraft included) and wait ~3 s",
+                        "after spotting a new target before the first shot.")
                 .define("easySoftAiAim", true);
-        EASY_SOFT_AI_ROF = builder.comment("Easy Mode: slower AI vehicle / mortar / Type-63 rate of fire.")
+        EASY_SOFT_AI_ROF = builder.comment(
+                        "Easy Mode: hostile vehicle weapons fire at a third of their rate (a tank gun every ~15 s);",
+                        "mortars, Type-63s, TOWs, missile systems and artillery reload ~2.5x slower and scatter wider.")
                 .define("easySoftAiRoF", true);
         EASY_FINITE_ENEMY_LOGISTICS = builder.comment(
                         "Easy Mode: RU/US hulls use finite fuel and ammo; dry hulls bail like a write-off.")
                 .define("easyFiniteEnemyLogistics", true);
         EASY_SOFT_AT_DISMOUNTS = builder.comment(
-                        "Easy Mode: at most one AT gunner per dismount, shorter AT range, launcher spread.")
+                        "Easy Mode: at most one AT gunner per dismount, shorter AT range, launcher spread, long aim time.")
                 .define("easySoftAtDismounts", true);
         EASY_NO_RECON_DRONES = builder.comment("Easy Mode: RU/US engineers deploy no recon drones.")
                 .define("easyNoReconDrones", true);
@@ -1666,11 +1681,45 @@ public final class SewvConfig {
         EASY_PLAYER_DAMAGE_SCALE_ENABLED = builder.comment(
                         "Easy Mode: scale hostile vehicle/unit/mortar damage dealt to the player.")
                 .define("easyPlayerDamageScaleEnabled", true);
-        EASY_PLAYER_DAMAGE_SCALE = builder.comment("Easy Mode: multiplier for scaled player incoming damage (1.0 = full).")
-                .defineInRange("easyPlayerDamageScale", 0.5, 0.25, 1.0);
+        // Renamed from easyPlayerDamageScale WITHOUT a ConfigKeyMigration entry, on purpose: the old
+        // 0.5 default would otherwise be carried into every existing toml and v2's default never seen.
+        EASY_PLAYER_DAMAGE_SCALE = builder.comment(
+                        "Easy Mode: multiplier for hostile damage the player takes (1.0 = full). Explosions are halved",
+                        "again on top of this.")
+                .defineInRange("easyPlayerDamageTaken", 0.25, 0.1, 1.0);
         EASY_PLAYER_PRIORITY_SOFT = builder.comment(
-                        "Easy Mode: AI prefers non-player targets and grants a short post-respawn acquire grace.")
+                        "Easy Mode: AI prefers non-player targets and grants a one-minute post-respawn acquire grace",
+                        "(vehicle crews and infantry alike; shooting at them ends it).")
                 .define("easyPlayerPrioritySoft", true);
+        EASY_SLOW_AI = builder.comment(
+                        "Easy Mode: hostile turrets traverse at ~1/3 speed, hulls drive at ~2/3 power, and crews",
+                        "repath and scan for targets half as often over a shorter radius.")
+                .define("easySlowAi", true);
+        EASY_TIMID_AI = builder.comment(
+                        "Easy Mode: hostile crews and groups are less confident: they retreat, smoke and hold more,",
+                        "flank and advance less, and SEM infantry falls back to cover at 60% health.")
+                .define("easyTimidAi", true);
+        EASY_SOFT_INFANTRY = builder.comment(
+                        "Easy Mode: hostile SEM riflemen fire short slow bursts with wide spread after a reaction",
+                        "delay, throw grenades rarely and loosely, have 70% health and deal 60% bullet damage.")
+                .define("easySoftInfantry", true);
+        EASY_PLAYER_SUSTAIN = builder.comment(
+                        "Easy Mode: the player gets 10 extra hearts, regenerates out of combat and takes much less",
+                        "knockback from hostile and explosive hits.")
+                .define("easyPlayerSustain", true);
+        EASY_PROTECT_VEHICLES = builder.comment(
+                        "Easy Mode: hulls crewed by a player or their own PMC take half damage from hostiles.")
+                .define("easyProtectVehicles", true);
+        EASY_BUFF_PMC = builder.comment(
+                        "Easy Mode: the player's own PMC units get 50% more health and take 60% hostile damage.",
+                        "They are never slowed by any Easy Mode nerf either way.")
+                .define("easyBuffPmc", true);
+        EASY_FEWER_EVENTS = builder.comment(
+                        "Easy Mode: dynamic events come half as often and field ~40% fewer infantry.")
+                .define("easyFewerEvents", true);
+        EASY_HIGHLIGHT_THREATS = builder.comment(
+                        "Easy Mode: hostile units and vehicle crews targeting a player glow so they are easy to spot.")
+                .define("easyHighlightThreats", true);
         builder.pop();
 
         builder.push("limitless_vehicles");

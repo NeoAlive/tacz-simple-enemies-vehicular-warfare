@@ -1,0 +1,1613 @@
+[events]
+	#In-game days of peace a new world starts with: no ambient events, spawn probes
+	#and Berezka RU/US garrisons are removed. 0 = off. Also /sewv graceperiod.
+	# Default: 5
+	# Range: 0 ~ 365
+	gracePeriodDays = 5
+	#Allow ground vehicles (ground pool) in events: distant fights, large battles, convoys,
+	#invasions and village garrisons.
+	groundInEvents = true
+	#Chance an RU ground vehicle appears when Simple Enemy Mod rolls a distant fight.
+	# Default: 0.12
+	# Range: 0.0 ~ 1.0
+	groundSpawnChanceRu = 0.12
+	#Chance a US ground vehicle appears when Simple Enemy Mod rolls a distant fight.
+	# Default: 0.12
+	# Range: 0.0 ~ 1.0
+	groundSpawnChanceUs = 0.12
+	#Allow helicopters (rotor pool) in events: distant fights and large battles.
+	rotorInEvents = true
+	#Chance an RU helicopter appears when Simple Enemy Mod rolls a distant fight.
+	#Rolled separately from the ground vehicle, so a fight can bring both.
+	# Default: 0.06
+	# Range: 0.0 ~ 1.0
+	rotorSpawnChanceRu = 0.06
+	#Chance a US helicopter appears when Simple Enemy Mod rolls a distant fight.
+	#Rolled separately from the ground vehicle, so a fight can bring both.
+	# Default: 0.06
+	# Range: 0.0 ~ 1.0
+	rotorSpawnChanceUs = 0.06
+	#Multiply SEM event spawn distance by 2.5 for wider, more spread-out fights.
+	#(This mod's events and SEM's own.) Off restores packed base ranges.
+	farEventSpawns = true
+	#Allow rare RU/US planes to appear in combat events.
+	planesInEvents = true
+	#Chance an RU plane appears when Simple Enemy Mod rolls a distant fight.
+	# Default: 0.02
+	# Range: 0.0 ~ 1.0
+	planeSpawnChanceRu = 0.02
+	#Chance a US plane appears when Simple Enemy Mod rolls a distant fight.
+	# Default: 0.02
+	# Range: 0.0 ~ 1.0
+	planeSpawnChanceUs = 0.02
+	#Allow convoy events (vehicles on the move).
+	convoyEventsEnabled = true
+	#Starting chance each time Simple Enemy Mod checks for a convoy.
+	# Default: 0.06
+	# Range: 0.0 ~ 1.0
+	convoyBaseChance = 0.06
+	#How much the convoy chance grows after each miss (until it fires).
+	# Default: 0.06
+	# Range: 0.0 ~ 1.0
+	convoyFailureMultiplier = 0.06
+	#Allow large multi-vehicle battles.
+	largeCombatEventsEnabled = true
+	#Starting chance each time Simple Enemy Mod checks for a large battle.
+	# Default: 0.02
+	# Range: 0.0 ~ 1.0
+	largeCombatBaseChance = 0.02
+	#How much the large-battle chance grows after each miss.
+	# Default: 0.02
+	# Range: 0.0 ~ 1.0
+	largeCombatFailureMultiplier = 0.02
+	#How many ground vehicles each side gets in a large battle.
+	# Default: 2
+	# Range: 0 ~ 8
+	largeCombatGroundVehicles = 2
+	#How many helicopters each side gets in a large battle.
+	# Default: 1
+	# Range: 0 ~ 8
+	largeCombatRotorVehicles = 1
+	#Per side: chance to also spawn a mortar or TOW launcher.
+	# Default: 0.04
+	# Range: 0.0 ~ 1.0
+	largeCombatEmplacementChance = 0.04
+	#Per side: chance to also spawn a plane.
+	# Default: 0.03
+	# Range: 0.0 ~ 1.0
+	largeCombatPlaneChance = 0.03
+	#Allow ship battles on open water.
+	navalEventsEnabled = true
+	#Starting chance each time Simple Enemy Mod checks for a naval battle.
+	# Default: 0.05
+	# Range: 0.0 ~ 1.0
+	navalBaseChance = 0.05
+	#How much the naval-battle chance grows after each miss.
+	# Default: 0.05
+	# Range: 0.0 ~ 1.0
+	navalFailureMultiplier = 0.05
+	#How many boats (surface pool) each side gets in a naval battle.
+	# Default: 4
+	# Range: 0 ~ 12
+	navalSurfacePerSide = 4
+	#Allow invasion events (attackers vs a defended position).
+	invasionEventsEnabled = true
+	#Starting chance each time Simple Enemy Mod checks for an invasion.
+	# Default: 0.03
+	# Range: 0.0 ~ 1.0
+	invasionBaseChance = 0.03
+	#How much the invasion chance grows after each miss.
+	# Default: 0.03
+	# Range: 0.0 ~ 1.0
+	invasionFailureMultiplier = 0.03
+	#How many defending foot soldiers spawn in an invasion.
+	# Default: 6
+	# Range: 0 ~ 32
+	invasionDefenderInfantry = 6
+	#How many defending anti-tank launchers (TOWs) spawn.
+	# Default: 2
+	# Range: 0 ~ 8
+	invasionDefenderTows = 2
+	#How many defending mortars spawn.
+	# Default: 2
+	# Range: 0 ~ 8
+	invasionDefenderMortars = 2
+	#Allow mortar batteries to shell a player's base.
+	shellingEventsEnabled = true
+	#Starting chance each time Simple Enemy Mod checks for shelling.
+	# Default: 0.05
+	# Range: 0.0 ~ 1.0
+	shellingBaseChance = 0.05
+	#How much the shelling chance grows after each miss.
+	# Default: 0.04
+	# Range: 0.0 ~ 1.0
+	shellingFailureMultiplier = 0.04
+	#Player must be this close to their bed/respawn point for shelling to target it.
+	# Default: 48
+	# Range: 8 ~ 256
+	shellingBaseRadius = 48
+	#How many mortars in a shelling battery.
+	# Default: 2
+	# Range: 0 ~ 6
+	shellingMortars = 2
+	#How many soldiers guard the shelling battery.
+	# Default: 4
+	# Range: 0 ~ 12
+	shellingGuards = 4
+	#Shortest shelling lasts, in game ticks (20 ticks = 1 second).
+	# Default: 600
+	# Range: 20 ~ 24000
+	shellingDurationMinTicks = 600
+	#Longest shelling lasts, in game ticks (20 ticks = 1 second).
+	# Default: 1200
+	# Range: 20 ~ 24000
+	shellingDurationMaxTicks = 1200
+	#Usual mortar shell type for spawned crews (item id).
+	highChanceMortarShell = "superbwarfare:mortar_shell"
+	#Less common mortar shell type for spawned crews (item id).
+	lowChanceMortarShell = "superbwarfare:mortar_shell_wp"
+	#Usual rocket for MLRS emplacements in the mortar pool (e.g. Type-63; item id).
+	highChanceType63Rocket = "superbwarfare:medium_rocket_he"
+	#Less common rocket for MLRS emplacements in the mortar pool (item id).
+	lowChanceType63Rocket = "superbwarfare:medium_rocket_ap"
+	#Allow wrecked vehicles with a few survivors nearby.
+	derelictEventsEnabled = true
+	#Starting chance each time Simple Enemy Mod checks for a derelict.
+	# Default: 0.05
+	# Range: 0.0 ~ 1.0
+	derelictBaseChance = 0.05
+	#How much the derelict chance grows after each miss.
+	# Default: 0.05
+	# Range: 0.0 ~ 1.0
+	derelictFailureMultiplier = 0.05
+	#How healthy a derelict hull is (0.15 = 15%). Keep this below autoBoardMinHealthFraction
+	#so nearby enemy infantry do not climb in and drive it away.
+	# Default: 0.15
+	# Range: 0.01 ~ 1.0
+	derelictHealthFraction = 0.15
+	#Max survivors standing near a derelict hull.
+	# Default: 4
+	# Range: 0 ~ 12
+	derelictGuards = 4
+	#How much ammo is left inside a derelict hull.
+	# Default: 2
+	# Range: 0 ~ 64
+	derelictAmmoCount = 2
+	#Allow flyovers by RU/US planes from the plane spawn lists.
+	overflightEventsEnabled = true
+	#Starting chance each time Simple Enemy Mod checks for an overflight.
+	# Default: 0.04
+	# Range: 0.0 ~ 1.0
+	overflightBaseChance = 0.04
+	#How much the overflight chance grows after each miss.
+	# Default: 0.04
+	# Range: 0.0 ~ 1.0
+	overflightFailureMultiplier = 0.04
+	#Max planes in one overflight.
+	# Default: 1
+	# Range: 1 ~ 3
+	overflightPlanes = 1
+	#Let village garrisons sometimes get one crewed tank.
+	garrisonVehiclesEnabled = true
+	#Chance a village garrison gets that tank.
+	# Default: 0.5
+	# Range: 0.0 ~ 1.0
+	garrisonVehicleChance = 0.5
+
+[resources]
+	#If a vehicle's normal ammo type cannot be figured out, fall back to a creative ammo box.
+	creativeAmmoFallback = true
+	#Vehicles crewed by RU or US never run out of energy/fuel.
+	factionInfiniteEnergy = true
+	#Vehicles crewed by RU or US never run out of ammo.
+	factionInfiniteAmmo = true
+	#What drops when a vehicle is destroyed (and for special spawned crews).
+	#disable = nothing; reduced = about 1/4 of each stack (default); everything = full stacks.
+	#Creative ammo boxes never drop.
+	vehicleDeathDrops = "reduced"
+	#When you clear the last enemy crew from an RU/US vehicle, add a fair ammo package
+	#into its inventory (on top of normal vehicle loot). If it only had a creative ammo
+	#box and creativeAmmoFallback is on, that box is replaced with real ammo stacks.
+	#Ammo already being used in a fight is left alone.
+	vehicleAmmoLoot = true
+	#When Corpse (mod id corpse) is installed, spawn a lootable corpse for SEM unit deaths
+	#instead of ground item drops. No effect when Corpse is absent.
+	#RU/US fill uses datapack tables data/tacz_sewv/loot_table/units/corpses/<faction>.json
+	#and vehicleDeathDrops for stack intensity (disable / reduced / everything).
+	#PMC corpses transfer the unit's real inventory.
+	unitCorpseCompat = true
+	#Spawn CorpseMod corpses for RU unit deaths when unitCorpseCompat is on.
+	unitCorpseRu = true
+	#Spawn CorpseMod corpses for US unit deaths when unitCorpseCompat is on.
+	unitCorpseUs = true
+	#Spawn CorpseMod corpses for PMC unit deaths when unitCorpseCompat is on.
+	unitCorpsePmc = true
+	#Remove an SEM unit corpse this many minutes after it spawns, loot included (nothing drops).
+	#Player corpses are untouched. 0 = never (CorpseMod's own rules only).
+	# Default: 20
+	# Range: 0 ~ 1440
+	unitCorpseDespawnMinutes = 20
+	#Keep at most this many SEM unit corpses per dimension; the oldest is removed, loot included.
+	#Counts corpses spawned since the server started. Player corpses are untouched. 0 = no cap.
+	# Default: 64
+	# Range: 0 ~ 4096
+	unitCorpseMaxPerDimension = 64
+
+[npc_armor]
+	#Give armor to spawned Simple Enemy Mod soldiers.
+	npcArmorEnabled = true
+	#Armor pieces for RU units (item ids). Pieces for the same slot are alternatives: each unit gets one at random.
+	ruArmor = ["superbwarfare:ru_helmet_6b47", "superbwarfare:ru_chest_6b43"]
+	#Armor pieces for US units (item ids). Pieces for the same slot are alternatives: each unit gets one at random.
+	usArmor = ["superbwarfare:us_helmet_pasgt", "superbwarfare:us_chest_iotv"]
+	#Armor pieces for PMC units (item ids). Pieces for the same slot are alternatives: each unit gets one at random.
+	pmcArmor = ["tacz_sewv:pmc_helmet_mich", "superbwarfare:us_chest_iotv"]
+
+[structures]
+	#Generate this mod's own structures (outposts, comms, helipads, watchtowers, sniper
+	#nests, PMC airdrops) in newly generated chunks. Off stops new ones; ones already
+	#in the world stay. Other mods' structures are unaffected.
+	structuresGenerate = true
+	#Turn spawn probes in freshly generated structures (this mod's and any other's) into
+	#spawns and delete them. Off leaves the probes in place, inert. This does not stop
+	#structures generating; see structuresGenerate for this mod's own.
+	nativeStructuresEnabled = true
+
+[identity]
+	#Roll a Name+Surname for every spawned PMC unit, cached on the unit once assigned.
+	#Name pool categories are datapack-configurable at data/<namespace>/sewv/names/*.json.
+	nameAssignmentEnabled = true
+	#Server-wide fallback name pool category (see the names datapack for the category list),
+	#used whenever no per-player preference applies - an ownerless spawn, an offline owner, or
+	#a player who never set one via the TDT's Identity/"Full Names" control. "RANDOM" draws
+	#the name and surname independently from every category's pooled union.
+	defaultNameCategory = "RANDOM"
+
+[nvg]
+	#Items that count as night-vision gear (item ids).
+	#Used for night accuracy and for who spawns wearing NVG. Can be armor or Curios slots.
+	nvgEligibleItems = ["superbwarfare:thermal_imaging_goggles"]
+	#Chance a soldier spawning at night wears night-vision gear.
+	# Default: 0.2
+	# Range: 0.0 ~ 1.0
+	nvgSpawnChance = 0.2
+	#How accurate AI vehicle guns are in the dark with no night vision on board (0.55 ≈ 45% worse).
+	#Also limited by darkSpreadScaleMax so spread cannot get worse than that cap.
+	# Default: 0.55
+	# Range: 0.05 ~ 1.0
+	darkAccuracyFraction = 0.55
+	#How accurate AI vehicle guns are in the dark when someone visible in a seat has night vision
+	#(0.85 ≈ 15% worse than daylight).
+	# Default: 0.85
+	# Range: 0.05 ~ 1.0
+	nvgAccuracyFraction = 0.85
+	#Worst allowed shot spread in darkness vs daytime. 2.0 means at most twice as wide.
+	# Default: 2.0
+	# Range: 1.0 ~ 10.0
+	darkSpreadScaleMax = 2.0
+	#During the day, places this dark or darker count as dark for accuracy (0-15 light scale).
+	#Night always counts as dark. Open daylight is bright from the sky, so outdoors stays accurate.
+	# Default: 4
+	# Range: 0 ~ 15
+	darkBlockLightMax = 4
+
+[structure_vehicles]
+	#Spawn vehicles at matching Berezka army/PMC bases.
+	structureVehiclesEnabled = true
+	#Max vehicles one of those bases can have.
+	# Default: 5
+	# Range: 1 ~ 16
+	structureVehicleMaxCount = 5
+	#In-game days until bases go from 1 vehicle up to the max.
+	# Default: 24
+	# Range: 0 ~ 1000
+	structureVehicleRampDays = 24
+	#Which structures get RU vehicles (structure ids).
+	ruVehicleStructures = ["russian_army_structures:tank"]
+	#Which structures get US vehicles (structure ids).
+	usVehicleStructures = ["us_army_structures:convoy"]
+	#Which structures get PMC vehicles (structure ids).
+	pmcVehicleStructures = ["pmc_structures:buggy"]
+
+[crew_ai]
+	#Minimum wait between AI vehicle shots, in game ticks (20 = 1 second).
+	# Default: 5
+	# Range: 1 ~ 200
+	aiFireCooldownTicks = 5
+	#Pause before an AI ground/ship/emplacement crew fires on a newly acquired target, in game ticks.
+	#Helicopters, planes and artillery are exempt. 0 disables.
+	# Default: 12
+	# Range: 0 ~ 200
+	aiFireHesitationTicks = 12
+	#Per-crew spread on top of aiFireHesitationTicks (0.5 = each crew waits up to 50% longer),
+	#fixed per crew so a group does not fire in unison.
+	# Default: 0.5
+	# Range: 0.0 ~ 1.0
+	aiFireHesitationJitter = 0.5
+	#How long (game ticks) an AI crew reuses its last line-of-fire verdict.
+	#Higher = fewer raycasts on automatic weapons; a target that breaks LOS mid-burst
+	#may draw a few extra ticks of fire.
+	# Default: 8
+	# Range: 1 ~ 40
+	aiLosCacheTicks = 8
+	#How many degrees off-target an AI crew may still pull the trigger.
+	#Wider = more missed shots but less sitting silent. Existing configs keep their old value until you edit them.
+	# Default: 35.0
+	# Range: 4.0 ~ 90.0
+	aiFireAssistConeDeg = 35.0
+	#AI will not shoot if smoke is this close (blocks).
+	# Default: 6.0
+	# Range: 1.0 ~ 16.0
+	smokeBlockRadius = 6.0
+	#AI vehicle weapons (including TOWs) hold fire when the target is this close (blocks)
+	#to the owning player or a friendly PMC. 0 disables.
+	# Default: 6.0
+	# Range: 0.0 ~ 32.0
+	friendlyFireVehicleRadius = 6.0
+	#AI aim style: realistic (misses), scaled, or accurate (rare misses).
+	aiAimAccuracy = "realistic"
+	#Extra aim wobble in degrees for realistic/scaled modes.
+	# Default: 4.0
+	# Range: 0.0 ~ 30.0
+	aiAimSpreadDegrees = 4.0
+	#How often on-foot units throw grenades.
+	#HE uses a closer band; M18 smoke may be thrown farther (no min range) to screen LOS.
+	#default: HE 8-24 / smoke 0-40, ~5s; rare: HE 0-16 / smoke 0-32, ~12s;
+	#aggressive: HE 0-30 / smoke 0-48, ~2.5s; none: units never throw grenades.
+	grenadeThrowCadence = "default"
+	#Lifetime NBT cap: how many hand grenades (M67) one unit may throw in its life. 0 disables.
+	# Default: 3
+	# Range: 0 ~ 64
+	grenadeMaxHand = 3
+	#Lifetime NBT cap: how many RGO grenades one unit may throw in its life. 0 disables.
+	# Default: 2
+	# Range: 0 ~ 64
+	grenadeMaxRgo = 2
+	#Lifetime NBT cap: how many M18 smoke grenades one unit may throw in its life. 0 disables.
+	# Default: 1
+	# Range: 0 ~ 64
+	grenadeMaxSmoke = 1
+	#Chance a soldier climbing into an empty captured vehicle paints it in their faction colours.
+	#Vehicles spawned already crewed always get the faction look; this is only for field captures.
+	# Default: 0.6
+	# Range: 0.0 ~ 1.0
+	vehicleSkinMountChance = 0.6
+	#Pick each unit's and vehicle's camo from the biome it spawned in, so helmet, vest,
+	#uniform and hull all match the terrain. Off = the old random pick per unit/hull.
+	camoBiomeSelection = true
+	#IFVs (troop carriers) drop their squad when fighting enemy armor.
+	ifvDismountsEnabled = true
+	#Stop the vehicle body from tilting/banking while AI drives.
+	semCrewDisableInertiaRotate = true
+	#Soldiers hanging on outside seats jump off when combat starts.
+	tankRiderDismountEnabled = true
+	#When the player-driver crew-rappel keybind fires: true = every non-player unit drops;
+	#false = only weaponless cargo seats (same filter as AI/TDT rappel).
+	playerCrewRappelAllSeats = false
+	#When the player self-rappel keybind fires: also drop eligible units after the hover settle.
+	#Seat filter still follows playerCrewRappelAllSeats. Default off = player only.
+	playerSelfRappelWithUnits = false
+	#Rocket/missile launcher given to RU soldiers who leave the vehicle to fight tanks.
+	atWeaponRu = "superbwarfare:rpg"
+	#Rocket/missile launcher given to US soldiers who leave the vehicle to fight tanks.
+	atWeaponUs = "superbwarfare:javelin"
+	#Anti-air launcher some RU AT gunners carry instead of the anti-tank one. Blank = none.
+	atAirWeaponRu = "superbwarfare:igla"
+	#Chance an RU AT gunner is issued the anti-air launcher (atAirWeaponRu) instead of atWeaponRu.
+	# Default: 0.3
+	# Range: 0.0 ~ 1.0
+	atAirGunnerChance = 0.3
+	#Chance a dismounted squad gets a second anti-tank gunner.
+	# Default: 0.5
+	# Range: 0.0 ~ 1.0
+	atSecondGunnerChance = 0.5
+	#Extra rockets or missiles each anti-tank gunner is given.
+	# Default: 8
+	# Range: 1 ~ 64
+	atBackupAmmo = 8
+	#Max distance (blocks) at which anti-tank gunners will fire.
+	# Default: 48.0
+	# Range: 8.0 ~ 200.0
+	atEngageRange = 48.0
+	#Max distance (blocks) at which units fire SuperbWarfare rifles, SMGs, shotguns and MGs.
+	#Keep at or above 90: SEM stops walking a unit toward its target at 90 blocks, so a unit's target
+	#between this range and 90 is never approached and never fired at.
+	# Default: 96.0
+	# Range: 8.0 ~ 200.0
+	sbwSmallArmsRange = 96.0
+	#Max distance (blocks) at which units fire SuperbWarfare sniper and heavy rifles.
+	# Default: 128.0
+	# Range: 8.0 ~ 300.0
+	sbwSniperRange = 128.0
+	#Max distance (blocks) at which units fire SuperbWarfare anti-air launchers (Igla).
+	# Default: 160.0
+	# Range: 16.0 ~ 400.0
+	sbwAaRange = 160.0
+	#Extra spread on SuperbWarfare rifles/MGs/snipers fired by units. 0 = perfect aim. Launchers never get it.
+	# Default: 1.5
+	# Range: 0.0 ~ 10.0
+	sbwAiSpread = 1.5
+	#PMC soldiers carrying a medical kit can heal allies when not in a fight.
+	medicEnabled = true
+	#How far (blocks) medics look for wounded allies.
+	# Default: 24.0
+	# Range: 2.0 ~ 48.0
+	medicSearchRadius = 24.0
+	#Health restored each time a medic treats someone.
+	# Default: 2.0
+	# Range: 0.5 ~ 20.0
+	medicHealPerTreat = 2.0
+	#PMC soldiers automatically revive a downed player (requires PlayerReviveMod).
+	pmcReviveEnabled = true
+	#How far (blocks) a PMC looks for a downed player to revive.
+	# Default: 32.0
+	# Range: 2.0 ~ 64.0
+	pmcReviveSearchRadius = 32.0
+	#Ticks a PMC must stand next to a downed player before reviving them.
+	# Default: 100
+	# Range: 20 ~ 400
+	pmcReviveChannelTicks = 100
+	#Forces PlayerReviveMod's bleed-out state to work in singleplayer, not just LAN/dedicated servers (equivalent to setting PlayerReviveMod's own bleedInSingleplayer option). Without this, a singleplayer death never bleeds out and PMC auto-revive has nothing to do.
+	pmcReviveForceSingleplayer = true
+	#PMC units go down instead of dying and can be revived (by a player interacting with them, or by a medic PMC) instead of dying outright. RU/US always just die. Requires PlayerReviveMod (bundled with the downed-player feature, even though it never uses that mod's own API).
+	pmcDownedEnabled = true
+	#Health a PMC is left with the moment it goes down.
+	# Default: 4.0
+	# Range: 1.0 ~ 20.0
+	pmcDownedHealth = 4.0
+	#Ticks a downed PMC has before it dies for real if not revived.
+	# Default: 1200
+	# Range: 100 ~ 6000
+	pmcDownedBleedTicks = 1200
+	#Health a PMC is restored to when successfully revived.
+	# Default: 6.0
+	# Range: 1.0 ~ 40.0
+	pmcDownedReviveHealth = 6.0
+	#How far (blocks) medics look for a nearby hostile before fleeing.
+	# Default: 16.0
+	# Range: 4.0 ~ 64.0
+	medicFleeDetectionRadius = 16.0
+	#Minimum distance (blocks) a fleeing medic tries to reach from the threat.
+	# Default: 8.0
+	# Range: 2.0 ~ 32.0
+	medicFleeMinDistance = 8.0
+	#Maximum distance (blocks) sampled for a fleeing medic's escape point.
+	# Default: 16.0
+	# Range: 4.0 ~ 64.0
+	medicFleeMaxDistance = 16.0
+	#Damaged AI vehicles move more slowly.
+	healthMobilityEnabled = true
+	#Slowest a wrecked hull still moves (0.4 = 40% of normal speed).
+	# Default: 0.4
+	# Range: 0.05 ~ 1.0
+	healthMobilityFloor = 0.4
+	#Chance an RU/US group includes a medic.
+	# Default: 0.06
+	# Range: 0.0 ~ 1.0
+	medicSpawnChance = 0.06
+	#Chance an RU/US group includes an engineer.
+	# Default: 0.05
+	# Range: 0.0 ~ 1.0
+	engineerSpawnChance = 0.05
+	#Do not spawn another medic/engineer if one is already this close (blocks).
+	# Default: 32.0
+	# Range: 4.0 ~ 128.0
+	supportDedupeRadius = 32.0
+	#How far (blocks) engineers look for damaged vehicles to repair.
+	# Default: 24.0
+	# Range: 4.0 ~ 96.0
+	engineerSearchRadius = 24.0
+	#Vehicle health restored each time an engineer repairs.
+	# Default: 4.0
+	# Range: 0.5 ~ 100.0
+	engineerRepairPerTreat = 4.0
+	#Wait between repair actions, in AI ticks (about every other game tick).
+	# Default: 10
+	# Range: 1 ~ 200
+	engineerRepairCooldown = 10
+	#Movement speed multiplier for an engineer while tasked with reaching a repair
+	#target (1.0 = no boost). Without it a foot unit can be permanently outrun by the
+	#tank it was sent to fix.
+	# Default: 1.6
+	# Range: 1.0 ~ 3.0
+	engineerRepairSpeedBoost = 1.6
+	#Pistols engineers may carry (TACZ gun ids).
+	engineerSidearmPool = ["tacz:m9a1", "tacz:m1911", "tacz:glock_17"]
+	#Pistols PMC Commanders may carry (TACZ gun ids).
+	commanderSidearmPool = ["tacz:m9a1", "tacz:m1911", "tacz:glock_17"]
+	#RU/US engineers may deploy and fly attack drones. Off parks any drone they already have out.
+	engineerDronesEnabled = true
+	#Max attack drones each RU/US engineer may have out at once.
+	# Default: 1
+	# Range: 0 ~ 8
+	droneMaxPerEngineer = 1
+	#How often (game ticks) an engineer considers launching another drone.
+	# Default: 200
+	# Range: 20 ~ 12000
+	droneDeployCheckIntervalTicks = 200
+	#Chance each check actually launches a drone.
+	# Default: 0.2
+	# Range: 0.0 ~ 1.0
+	droneDeployChance = 0.2
+	#How high (blocks) drones cruise above the ground while searching.
+	# Default: 20.0
+	# Range: 5.0 ~ 60.0
+	droneScanAltitude = 20.0
+	#How far (blocks) drone-related map/crew lookups reach.
+	# Default: 160.0
+	# Range: 16.0 ~ 384.0
+	droneBroadcastRadius = 160.0
+	#How often (game ticks) a diving drone looks for a new target.
+	# Default: 20
+	# Range: 5 ~ 200
+	droneScanIntervalTicks = 20
+	#Max distance (blocks) a wandering drone may stray from its engineer.
+	# Default: 200.0
+	# Range: 16.0 ~ 512.0
+	droneLeashRadius = 200.0
+	#How far (blocks) an AI drone looks for RU/US/PMC dive targets. AbstractUnit-only scan.
+	# Default: 160.0
+	# Range: 32.0 ~ 384.0
+	droneTargetRadius = 160.0
+	#Idle RU/US soldiers may climb into empty abandoned vehicles.
+	autoBoardEnabled = true
+	#How far (blocks) they look for empty vehicles.
+	# Default: 32.0
+	# Range: 4.0 ~ 128.0
+	autoBoardScanRadius = 32.0
+	#Ignore wrecks below this health (0.25 = 25%). Derelicts should stay below this.
+	# Default: 0.25
+	# Range: 0.0 ~ 1.0
+	autoBoardMinHealthFraction = 0.25
+	#If on, RU/US may take vehicles you have driven before. Off by default.
+	autoBoardStealsPlayerVehicles = false
+	#Idle RU/US drivers may tow friendly hulls flagged as needing recovery.
+	towAutoEnabled = true
+	#How far (blocks) a tower looks for stuck/submerged allies. Values above 64 are expensive.
+	# Default: 64.0
+	# Range: 8.0 ~ 128.0
+	towAutoScanRadius = 64.0
+	#Ticks the hull hitbox stays fully submerged before broadcasting needs_tow.
+	# Default: 60
+	# Range: 20 ~ 600
+	towSubmergedRequestTicks = 60
+	#Ground stuck unstick cycles before a hull broadcasts needs_tow.
+	# Default: 2
+	# Range: 1 ~ 10
+	towStuckRequestCycles = 2
+	#Max blocks between hulls for an immediate SBW towline link at order time; farther pairs still get the tow order and link on approach.
+	# Default: 16.0
+	# Range: 4.0 ~ 128.0
+	towPlayerOrderMaxDistance = 16.0
+	#Idle RU/US soldiers may crew an empty, unclaimed mortar (same feature as autoBoardEnabled, for mortars).
+	autoManMortarEnabled = true
+	#How far (blocks) they look for empty mortars.
+	# Default: 32.0
+	# Range: 4.0 ~ 128.0
+	autoManMortarScanRadius = 32.0
+	#RU/US combat engineers may dig one foxhole trench on their own.
+	combatEngineerDigEnabled = true
+	#Idle RU/US soldiers may claim nearby trench networks, emplacements, or free sandbags.
+	autoEntrenchEnabled = true
+	#How far (blocks) they look for trench cells, emplacements, or sandbags.
+	# Default: 48.0
+	# Range: 8.0 ~ 128.0
+	autoEntrenchScanRadius = 48.0
+	#How far sideways (blocks) crewed vehicles look for enemies.
+	# Default: 96.0
+	# Range: 8.0 ~ 128.0
+	vehicleTargetScanRadius = 96.0
+	#How far up/down (blocks) crewed vehicles look for enemies.
+	#For ground hulls this is the downward half and the legacy upward half; upward for
+	#ground AA is vehicleTargetScanAirHeight. Helicopters and planes keep this band
+	#(plus their downward altitude slack) and do not use the air height.
+	# Default: 128.0
+	# Range: 4.0 ~ 128.0
+	vehicleTargetScanHeight = 128.0
+	#How far UP (blocks) ground crews look for aircraft. Does not change helicopters or
+	#planes. Must be >= half of vehicleTargetScanHeight or the old band is kept.
+	# Default: 192.0
+	# Range: 64.0 ~ 384.0
+	vehicleTargetScanAirHeight = 192.0
+	#How often (game ticks) crewed vehicles refresh their target list.
+	# Default: 30
+	# Range: 1 ~ 200
+	vehicleTargetScanIntervalTicks = 30
+	#Crewed vehicles only lock enemies they can see (no wall hacks).
+	vehicleTargetRequireLineOfSight = true
+	#Faction contact board: what one unit has spotted, the rest of its side may act on.
+	#Beyond contactBoardCloseBand a crew locks a board contact without its own line of sight
+	#(it still cannot FIRE without one). Off = every crew relies on its own eyes.
+	contactBoardEnabled = true
+	#How long (game ticks) a directly-sighted contact stays on the board without being
+	#re-seen. Heard/relayed contacts are held for a fraction of this.
+	# Default: 200
+	# Range: 40 ~ 1200
+	contactBoardTtlTicks = 200
+	#Inside this distance (blocks) a board contact must also pass the crew's own line of
+	#sight: 'aware of a soldier through the wall next to me' is noise, not intelligence.
+	# Default: 24.0
+	# Range: 0.0 ~ 96.0
+	contactBoardCloseBand = 24.0
+	#A known contact is only re-published after moving this far (blocks); keeps the board
+	#at one write per observer event instead of one per tick.
+	# Default: 6.0
+	# Range: 1.0 ~ 32.0
+	contactBoardMoveThreshold = 6.0
+	#Wide detection: crewed vehicles detect each other out to wideScanRadius with no raycast.
+	#Off = only the close scan and setTarget locks feed the contact board.
+	wideScanEnabled = true
+	#How far (blocks) crewed vehicles detect each other. HARD SERVER DEPENDENCY: both entities must be
+	#loaded (view-distance) and ticking (simulation-distance). 256 needs both >= 16 chunks; on a
+	#stock 10/10 server the effective range is about 160. A warning is logged at startup.
+	# Default: 256.0
+	# Range: 96.0 ~ 512.0
+	wideScanRadius = 256.0
+	#How often (game ticks) contacts beyond vehicleTargetScanRadius are re-published.
+	#Clamped to half the PROXIMITY contact life (a warning is logged if it is).
+	# Default: 40
+	# Range: 10 ~ 100
+	wideScanCadenceTicks = 40
+	#How often (game ticks) the per-level combatant index is rebuilt. Hull scans read this snapshot,
+	#so it bounds how stale their candidate lists can be.
+	# Default: 20
+	# Range: 5 ~ 100
+	combatantIndexIntervalTicks = 20
+	#PERF. Max ground-vehicle path searches per level per game tick (0 = unlimited, the old behaviour).
+	#A search costs ~5 ms; a deferred hull keeps following its current route until it gets a slot.
+	# Default: 0
+	# Range: 0 ~ 16
+	pathSearchesPerTick = 0
+	#PERF. A hull deferred by pathSearchesPerTick this long (game ticks) searches anyway, so none starves.
+	# Default: 10
+	# Range: 1 ~ 100
+	pathMaxWaitTicks = 10
+	#PERF. Node cap for one ground-vehicle path search (512 = old behaviour). Lower is cheaper but
+	#turns long detours into partial paths.
+	# Default: 512
+	# Range: 128 ~ 1024
+	pathMaxVisitedNodes = 512
+	#PERF. Horizontal reach (blocks) of one ground-vehicle path search (32 = old behaviour). Lower is
+	#cheaper; far destinations are reached in more partial legs.
+	# Default: 32
+	# Range: 16 ~ 48
+	pathSearchRange = 32
+	#PERF. Snap ground-vehicle destinations to this block grid before pathing (0 = off). Stops
+	#standoff/retreat points that move every tick from forcing repaths.
+	# Default: 4
+	# Range: 0 ~ 8
+	pathDestQuantum = 4
+	#PERF. How long (game ticks) a crew's terrain sensor reuses a probed column (1 = old behaviour).
+	#A block changed in front of a hull is seen up to this many ticks late.
+	# Default: 5
+	# Range: 1 ~ 20
+	sensorColumnTtlTicks = 5
+	#PERF. How often (game ticks) a moving hull scans for trees it is pushing (1 = old behaviour).
+	#Trees still fall after the same contact time, up to this many ticks later.
+	# Default: 3
+	# Range: 1 ~ 10
+	treeScanIntervalTicks = 3
+	#PERF. Time budget (nanoseconds) for cover-table baking per tick, on top of the cell budget
+	#(0 = cell budget only, the old behaviour). Unbaked cover reads as exposed.
+	# Default: 0
+	# Range: 0 ~ 5000000
+	coverBakeNanosPerTick = 0
+	#PERF. How far (blocks) the cover table looks for an occluder (48 = old behaviour). Occluders
+	#further than this count as open ground.
+	# Default: 48
+	# Range: 16 ~ 48
+	coverMaxRange = 48
+	#PERF. An idle ground hull (no target, no order) with no player within this many blocks runs
+	#cheaper: lowest path priority and doubled sensor/tree intervals (0 = off).
+	# Default: 0.0
+	# Range: 0.0 ~ 512.0
+	groundFarLodBlocks = 0.0
+	#How far (blocks) to count nearby allies when deciding to hold or fall back.
+	# Default: 128.0
+	# Range: 0.0 ~ 256.0
+	vehicleAllyAssistRange = 128.0
+	#If a crew cannot hit its target for a while, move to a better angle.
+	stalemateBreakerEnabled = true
+	#How long (game ticks) without a hit before they reposition.
+	# Default: 300
+	# Range: 40 ~ 2400
+	stalemateSilenceTicks = 300
+	#AI drivers try to avoid water, walls, and other hazards.
+	vehicleTerrainAvoidance = true
+	#Minimum game ticks between ground-vehicle A* searches when the previous search succeeded.
+	#Raising this cuts pathfinding cost while chasing a moving target.
+	# Default: 40
+	# Range: 5 ~ 200
+	pathRecalcCooldownTicks = 40
+	#Back-off (game ticks) after a failed A* search before trying again.
+	# Default: 60
+	# Range: 10 ~ 400
+	pathFailCooldownTicks = 60
+	#Force a fresh A* search even if the destination has not drifted, after this many game ticks.
+	# Default: 100
+	# Range: 20 ~ 600
+	pathMaxAgeTicks = 100
+	#Recompute the ground path when the destination moves more than this many blocks.
+	#Combat chases a live target, so a small value repaths nearly every second.
+	# Default: 6.0
+	# Range: 1.0 ~ 32.0
+	pathTargetDriftBlocks = 6.0
+	#Client-only. Komodo's retained-rendering fallback (used for the first frame or two of a
+	#newly seen vehicle model+texture, before its GPU-instanced path is baked) can call into
+	#vanilla's DynamicTexture off the render thread, which crashes the client with an NPE on
+	#replay. This makes that fallback no-op for that one frame instead of crashing when it is
+	#not safely on the render thread. No known downside; turn off only to isolate a Komodo bug report.
+	komodoRenderFixEnabled = true
+	#How long (game ticks) a patrol holds one spot before moving on.
+	# Default: 3600
+	# Range: 200 ~ 24000
+	patrolRotateIntervalTicks = 3600
+	#Ship crews with nothing to do may wander nearby on water.
+	#Ground hulls use hybrid idle (IDLE_HOLD / IDLE_TRAVEL) when idleHybridEnabled.
+	idleWanderEnabled = true
+	#Max wander distance (blocks) from where they started waiting.
+	# Default: 16
+	# Range: 4 ~ 64
+	idleWanderRadius = 16
+	#Ground crews use polygon formation hold + constant-bearing travel when idle
+	#instead of random wander. Ships still use idleWanderEnabled.
+	idleHybridEnabled = true
+	#Friendly idle ground vehicles within this range form an idle group.
+	# Default: 50.0
+	# Range: 8.0 ~ 128.0
+	idleGroupRadius = 50.0
+	#Base polygon radius (blocks) for IDLE_HOLD; scales with group size.
+	# Default: 15.0
+	# Range: 5.0 ~ 40.0
+	idleFormationBaseRadius = 15.0
+	#Minimum IDLE_HOLD formation radius (blocks).
+	# Default: 15.0
+	# Range: 5.0 ~ 40.0
+	idleFormationRadiusMin = 15.0
+	#Maximum IDLE_HOLD formation radius (blocks).
+	# Default: 40.0
+	# Range: 15.0 ~ 80.0
+	idleFormationRadiusMax = 40.0
+	#Persistent random XZ offset (±blocks) per formation slot.
+	# Default: 5.0
+	# Range: 0.0 ~ 16.0
+	idleScrambleRadius = 5.0
+	#Minimum IDLE_HOLD duration (game ticks) before travel may begin (100 = 5 s).
+	# Default: 100
+	# Range: 20 ~ 24000
+	idleHoldMinTicks = 100
+	#Maximum IDLE_HOLD duration (game ticks) before travel begins (200 = 10 s).
+	# Default: 200
+	# Range: 20 ~ 48000
+	idleHoldMaxTicks = 200
+	#How far (blocks) an idle march travels before it stops and holds again.
+	# Default: 500.0
+	# Range: 64.0 ~ 2000.0
+	idleTravelLeadDistance = 500.0
+	#Idle march column: the clear gap between hulls is the mean of this and idleTravelSpacingMax,
+	#added to the widest hull's size.
+	# Default: 5.0
+	# Range: 2.0 ~ 32.0
+	idleTravelSpacingMin = 5.0
+	#See idleTravelSpacingMin.
+	# Default: 8.0
+	# Range: 2.0 ~ 32.0
+	idleTravelSpacingMax = 8.0
+	#End an idle march when a hostile player or hostile-crewed hull comes within this range of its head.
+	# Default: 20.0
+	# Range: 4.0 ~ 64.0
+	idleTravelDetectRadius = 20.0
+	#End a march that has waited this many game ticks for a member to catch up.
+	# Default: 600
+	# Range: 100 ~ 6000
+	idleTravelStuckTicks = 600
+	#Speed (blocks per game tick) of a march: idle travel and the CohesiveLine advance.
+	#Hulls are held to it so infantry keep up. 0.14 = 2.8 blocks/s.
+	# Default: 0.14
+	# Range: 0.04 ~ 0.6
+	marchPace = 0.14
+	#A march waits while any member is further than this (blocks) behind its place
+	#(hulls: at least 1.5 column spacings).
+	# Default: 12.0
+	# Range: 4.0 ~ 64.0
+	marchStraggleDistance = 12.0
+	#How often (game ticks) a ground crew rethinks attack / hold / fall back.
+	# Default: 30
+	# Range: 5 ~ 200
+	utilityRefreshIntervalTicks = 30
+	#RU/US crews can call mortars/TOWs/air support without holding a radio item.
+	factionOrganicComms = true
+	#Minimum wait (game ticks) between support call attempts.
+	# Default: 200
+	# Range: 20 ~ 2400
+	supportCallIntervalTicks = 200
+	#Let idle crews investigate gunfire and cannon fire they hear, and contacts seen only through leaves.
+	awarenessCuesEnabled = true
+	#Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).
+	#Used by individual tactics for exposure / keyhole / scoot without per-tick raycasts.
+	coverCacheEnabled = true
+	#Max 2x2 cover cells rebaked per server tick across all dimensions (budget). 64 cells = one chunk.
+	# Default: 64
+	# Range: 8 ~ 256
+	coverCacheBakeCellsPerTick = 64
+	#Per-crew tactical posture (shoot-and-scoot, covering advance, keyhole, ambush, infantry cover).
+	#Soft biases only under player/command orders — never freezes a push.
+	individualTacticsEnabled = true
+
+[command]
+	#Battle groups, influence maps, and doctrine plays for vehicle crews.
+	#When false, local drive/gun AI still runs; only coordinated plays stop.
+	commandSystemEnabled = true
+	#How close (blocks) a vehicle must be to a battle group's centre to join it.
+	# Default: 48.0
+	# Range: 8.0 ~ 256.0
+	commandGroupJoinRadius = 48.0
+	#How far (blocks) before a member leaves the group. Must be larger than join radius.
+	# Default: 64.0
+	# Range: 8.0 ~ 256.0
+	commandGroupLeaveRadius = 64.0
+	#Largest allowed size of a battle group (blocks across). Should be at least twice the leave radius.
+	# Default: 128.0
+	# Range: 16.0 ~ 512.0
+	commandGroupMaxDiameter = 128.0
+	#Minimum crewed vehicles to form a battle group. Loners keep fighting on their own.
+	# Default: 2
+	# Range: 2 ~ 32
+	commandGroupMinSize = 2
+	#Max drivers the commander AI looks at in one pass (performance limit).
+	# Default: 64
+	# Range: 4 ~ 256
+	commandMaxUnits = 64
+	#Enemy forces must be this close (blocks) before battle groups form.
+	# Default: 96.0
+	# Range: 16.0 ~ 256.0
+	commandEngagementRadius = 96.0
+	#How much better a new commander must score to replace the current one.
+	# Default: 0.15
+	# Range: 0.0 ~ 2.0
+	commandMargin = 0.15
+	#Grid cell size (blocks) for the rough who-controls-this-area map. Bigger cells = cheaper, coarser.
+	# Default: 12.0
+	# Range: 8.0 ~ 16.0
+	influenceCellSize = 12.0
+	#Max cells that map may use. Huge battles automatically use bigger cells instead of more of them.
+	# Default: 256
+	# Range: 64 ~ 1024
+	influenceMaxCells = 256
+	#Minimum time (game ticks) a battle plan runs before another plan can replace it.
+	#Broken plans can still cancel early.
+	# Default: 200
+	# Range: 20 ~ 2400
+	minPlayTicks = 200
+	#How much better a new battle plan must score to replace the current one.
+	# Default: 10.0
+	# Range: 0.0 ~ 100.0
+	playSwitchMargin = 10.0
+	#Multiplies every battle-group distance (join/leave/size/engagement radii, influence cells, flank,
+	#support and withdraw points) and ground crews' engagement rings (armour 40, infantry 15).
+	#1.0 = the original geometry; 2.0 suits the 256-block wide detection.
+	# Default: 2.0
+	# Range: 0.5 ~ 4.0
+	tacticalScale = 2.0
+
+[platoon]
+	#PMC platoon formation around commanders (auto-scan + manual join).
+	#When false, whole-level platoon scans stop; join packets refuse cleanly.
+	platoonEnabled = true
+	#Platoons try to stay within this many blocks of each other, unless tasked into a doctrine play.
+	# Default: 30.0
+	# Range: 8.0 ~ 128.0
+	platoonCohesionRadius = 30.0
+	#Max members in one platoon (PMC infantry, or ground-vehicle crews — never mixed).
+	# Default: 4
+	# Range: 2 ~ 12
+	platoonMaxSize = 4
+	#A platoon disbands once membership drops below this.
+	# Default: 2
+	# Range: 2 ~ 8
+	platoonMinSize = 2
+
+[flight_ai]
+	#Closest range (blocks) at which a helicopter firing run opens its fire window.
+	#The window is sized to stay open ~3 s, so it usually opens further out than this.
+	# Default: 32.0
+	# Range: 12.0 ~ 64.0
+	heliEngageRadius = 32.0
+	#Floor (blocks) under the helicopter hover-attack and orbit standoff; the airframe's
+	#yaw authority and the target's height can push it further out, never closer.
+	# Default: 28.0
+	# Range: 16.0 ~ 96.0
+	heliMinStandoff = 28.0
+	#Keep AI helicopters active even when no player is nearby (uses chunk tickets).
+	#Default true (matches mortarChunkLoading). Existing installs keep whatever
+	#value is already in serverconfig/tacz_sewv-server.toml until that file is deleted.
+	heliChunkLoading = true
+	#Keep AI planes active even when no player is nearby (uses chunk tickets).
+	#Default true (matches mortarChunkLoading). Existing installs keep whatever
+	#value is already in serverconfig/tacz_sewv-server.toml until that file is deleted.
+	planeChunkLoading = true
+	#Past this distance (blocks) from every player, a ticketed plane in cruise/hold/
+	#RTB/ingress uses cheaper terrain and ally scans. Combat, takeoff and landing
+	#always stay full fidelity. Delete serverconfig/tacz_sewv-server.toml to pick up a new default.
+	# Default: 256.0
+	# Range: 64.0 ~ 1024.0
+	planeFarLodBlocks = 256.0
+	#Same FAR band for AI helicopters (ground-cache TTL only; heli terrain is already
+	#shorter than planes). Delete serverconfig/tacz_sewv-server.toml to pick up a new default.
+	# Default: 128.0
+	# Range: 64.0 ~ 1024.0
+	heliFarLodBlocks = 128.0
+	#Max distance (blocks) for player orders to aircraft.
+	#Doubles as the soft leash: past this a plane finishes its pass and returns to you.
+	#Combat is abandoned outright at 1.5x this distance.
+	#Must stay comfortably larger than planeEngageRadius: a plane repositions by flying
+	#outbound until it is clear of its own engage bubble before turning back in, so a
+	#leash near the bubble size recalls it in the middle of every run-in.
+	# Default: 1024.0
+	# Range: 32.0 ~ 4096.0
+	planeCommandRadius = 1024.0
+	#Widest angle (degrees) off the gun line at which a plane will fire guns, rockets
+	#and bombs. This is a ceiling, not the gate itself: the plane works out the angle
+	#at which the shot would still land inside the weapon's own blast radius at the
+	#current range and uses that, so it holds fire far out and lets go up close.
+	#It only binds in very close: an A-10 cannon (4-block blast) reaches 12 degrees
+	#at 19 blocks, so past that the derived angle is what decides.
+	# Default: 12.0
+	# Range: 1.0 ~ 45.0
+	planeGunConeDeg = 12.0
+	#Same ceiling for guided missiles, which steer out the rest after launch.
+	#Doubles as the seeker cone the lock dwell below is measured against.
+	# Default: 15.0
+	# Range: 1.0 ~ 45.0
+	planeMissileConeDeg = 15.0
+	#Game ticks a guided missile's seeker must be held on the target, unbroken, before
+	#it will launch (20 = 1 second). Leaving the firing cone resets it to zero.
+	#This is why a missile pass is flown as a shallow dive rather than a level overfly:
+	#the nose has to stay pointed at the target for the whole count. 0 disables the
+	#dwell and launches on the first tick the cone is satisfied, which is the old
+	#behaviour and reliably threw missiles off during a slew.
+	# Default: 20
+	# Range: 0 ~ 200
+	planeMissileLockTicks = 20
+	#Floor under the derived firing angle above. It is a numerical backstop and
+	#nothing else, and it is set so that it does not bind anywhere inside the engage
+	#bubble - geometry governs every shot you will ever see.
+	#Do NOT raise this to make reluctant planes shoot. The miss distance of a shot
+	#fired X degrees off at range R is R*tan(X), so a wide floor buys shots precisely
+	#where they cannot land: at 2 degrees an A-10 may fire from 384 blocks and miss by
+	#13, against a 4-block blast. The derived angle is instead a range gate in
+	#disguise - it stays shut until the plane is close enough that the accuracy it can
+	#actually hold puts the round inside the blast (7.6 degrees at 30 blocks, 5.1 at
+	#45, 2.4 at 96). A plane that finishes passes without firing is a plane that is not
+	#getting close or not lining up; look at planeEngageRadius and the run-in.
+	#Note this must be re-checked against planeEngageRadius if that is raised: the
+	#floor stops being harmless the moment the bubble reaches out past where it binds.
+	# Default: 0.5
+	# Range: 0.5 ~ 20.0
+	planeMinConeDeg = 0.5
+	#AUTO ordnance: closer than this (blocks) to the target, a plane uses guns only.
+	#Heavier stores need room to fall or to guide, so the closer the target the fewer
+	#of them are eligible.
+	# Default: 40.0
+	# Range: 0.0 ~ 320.0
+	planeAutoRocketRange = 40.0
+	#AUTO ordnance: bombs and guided missiles are only used from at least this far out.
+	#Between this and planeAutoRocketRange the plane uses rockets.
+	#This tracks the release geometry, not the engage bubble: a bomb let go from the
+	#80-block run altitude falls for about 52 ticks and travels roughly 125 blocks
+	#downrange at cruise, so anything nearer than that cannot be bombed at all.
+	# Default: 128.0
+	# Range: 0.0 ~ 1024.0
+	planeAutoHeavyRange = 128.0
+	#How many bombs a plane releases in one carpet run, spaced along its track.
+	#1 is a single aimed drop.
+	# Default: 3
+	# Range: 1 ~ 12
+	planeBombStick = 3
+	#Game ticks between bombs in a carpet stick. Wider spacing covers more ground and
+	#concentrates less on the aim point. There is a hard floor of 10 ticks in code:
+	#closer than that the impacts overlap into one blast instead of walking across the
+	#target, so a smaller number here does nothing.
+	# Default: 10
+	# Range: 1 ~ 40
+	planeBombStickIntervalTicks = 10
+	#Smallest release window (blocks) a plane will ever bomb through - a FLOOR under the
+	#window, not the window itself. The window is normally the bomb's own blast radius,
+	#on the reasoning that a release is worth taking when the target will be inside the
+	#explosion rather than only when the bomb will land on it; that is what absorbs the
+	#few blocks of track error an AI pass cannot help and the distance a target drives
+	#during the fall. A Mk 82's 22-block blast therefore gives a window far wider than
+	#this, and this only binds for a store whose datapack declares no blast at all.
+	#Raising it does not make planes bomb more accurately, it makes them release
+	#earlier; if planes overfly without dropping, the run-in is what to look at, and
+	#planeCombatDebug prints the sight error that says which part of it.
+	# Default: 8.0
+	# Range: 1.0 ~ 32.0
+	planeBombSightRadius = 8.0
+	#How far out (blocks) a plane rolls in on a target instead of just closing on it.
+	#This is the single number that sets the scale a plane operates at: it is the length
+	#of the straight run-in, and the run-in is where the aircraft has to get its nose
+	#onto the target. A plane is pointed by hauling the whole hull round at a fraction of
+	#a degree per tick, so a short bubble is a short line, and a short line is a pass
+	#flown with the gun still swinging through the aim point.
+	#Lowering this makes planes commit sooner and hit less.
+	# Default: 384.0
+	# Range: 32.0 ~ 1024.0
+	planeEngageRadius = 384.0
+	#Length (blocks) of one straight attack run before the plane breaks off and turns back.
+	#A floor, not a cap: the run is never cut shorter than the engage bubble it started
+	#from, or it would end before the weapon's own release point.
+	# Default: 400.0
+	# Range: 40.0 ~ 1024.0
+	planeAttackRunLength = 400.0
+	#Absolute world Y a plane will never fly above. This is a ceiling, not a cruise
+	#height: the cruise band is measured above the ground under the aircraft, so over
+	#high terrain it would otherwise stack on top of a mountain and put the aircraft in
+	#the stratosphere - out of sight, out of the fight, and above the build limit in a
+	#dimension with a low one. Every climb this AI commands stops here, and the
+	#dimension's own build height (less a little headroom) binds it further.
+	# Default: 300.0
+	# Range: 64.0 ~ 1024.0
+	planeMaxAltitude = 300.0
+	#Place a plane exactly on its attack line at the moment it rolls in on a diving
+	#pass (guns and rockets; bombs and guided missiles are released from level flight
+	#and are unaffected). The same trick the airport approach uses, and for the same
+	#reason: a fixed wing is pointed a fraction of a degree per tick, so anything not
+	#corrected before the run is still being corrected during it, and the burst goes
+	#wide. Turn off if you would rather planes never be repositioned.
+	planeDiveSnap = true
+	#Height (blocks) above the highest ground on the way in that a landing plane flies
+	#the approach pattern at, before it lines up with the strip.
+	# Default: 48.0
+	# Range: 16.0 ~ 160.0
+	planeLandTransitAgl = 48.0
+	#Height (blocks) above ground at which a landing plane flares.
+	# Default: 8.0
+	# Range: 2.0 ~ 32.0
+	planeLandFlareAgl = 8.0
+	#How close (blocks) to the pad the plane must also be before it flares.
+	#Height alone used to make it flare over whatever it happened to be crossing.
+	# Default: 24.0
+	# Range: 8.0 ~ 96.0
+	planeLandFlareRadius = 24.0
+	#How close (blocks) to the pad a touchdown counts as landed. Touching down further
+	#out is treated as a missed approach and the plane goes around.
+	# Default: 8.0
+	# Range: 4.0 ~ 64.0
+	planeLandSettleRadius = 8.0
+	#Minimum long:short ratio for a player-defined PMC runway. Below this the strip
+	#is rejected as not runway-shaped.
+	# Default: 3.0
+	# Range: 1.5 ~ 20.0
+	airportMinAspectRatio = 3.0
+	#Minimum long-side length (blocks) for a PMC runway. Matches the clear distance
+	#DrivePlaneGoal already demands for takeoff.
+	# Default: 64
+	# Range: 32 ~ 512
+	airportMinLengthBlocks = 64
+	#Hard ceiling on runway footprint area (blocks). Rejects typo'd coordinates
+	#before they scan millions of columns on the server thread.
+	# Default: 65536
+	# Range: 1024 ~ 1048576
+	airportMaxAreaBlocks = 65536
+	#How far (blocks) from the AIRCRAFT to look for a cleared PMC airport when it is
+	#ordered to land. The ordered point is only a fallback, so raise this rather than
+	#clicking near the strip. 0 disables airport landings and keeps approach inference.
+	# Default: 1024.0
+	# Range: 0.0 ~ 16384.0
+	airportLandingSearchRadius = 1024.0
+	#Length (blocks) of the alignment line an aircraft is placed on before an airport
+	#landing: the straight-in leg whose far end is this far back from the touchdown.
+	# Default: 170.0
+	# Range: 60.0 ~ 512.0
+	airportAlignmentDistance = 170.0
+	#How close (blocks) an aircraft must get to the start of that alignment line before
+	#it is placed onto it, pointed at the strip, and committed to the approach.
+	# Default: 48.0
+	# Range: 8.0 ~ 256.0
+	airportAlignmentSnapRadius = 48.0
+	#Heading error (degrees) off the alignment line's own axis within which an aircraft
+	#is treated as already lined up and just flies straight in. Past this it flies a
+	#turn (a Dubins arc, sized off the hull's own measured turn radius) onto the line
+	#instead of arriving on the wrong heading and being placed straight.
+	# Default: 15.0
+	# Range: 5.0 ~ 45.0
+	dubinsAlignToleranceDeg = 15.0
+	#If the computed turn-in arc would be longer than this many times the straight-line
+	#distance to the alignment line, the geometry is treated as degenerate (radius too
+	#wide for how close the aircraft already is) and the turn is skipped in favour of the
+	#ordinary straight run-in.
+	# Default: 2.5
+	# Range: 1.5 ~ 4.0
+	dubinsFallbackMultiplier = 2.5
+	#How far (blocks) an aircraft may drift off its computed turn-in arc — from a nearby
+	#explosion, for instance — before the arc is recomputed from where it actually is.
+	# Default: 16.0
+	# Range: 4.0 ~ 64.0
+	dubinsDeviationThreshold = 16.0
+	#Default parking slot length as a FRACTION of the runway's long side. Proportional
+	#rather than a block count so one setting suits a 64-block strip and a 400-block
+	#airbase; a floor of 8 blocks applies either way. Higher means fewer slots.
+	# Default: 0.1
+	# Range: 0.02 ~ 0.5
+	airportSlotSizeFactor = 0.1
+	#Default separation between adjacent parking slots, again as a fraction of runway
+	#length (floor 2 blocks). The last slot needs no buffer behind it.
+	# Default: 0.03
+	# Range: 0.0 ~ 0.2
+	airportSlotBufferFactor = 0.03
+	#Default extra takeoff room beyond the automatic baseline, as a fraction of runway
+	#length. The baseline is interpolated from the runway's size and always applies;
+	#this can only ADD to it, at the cost of parking slots.
+	# Default: 0.0
+	# Range: 0.0 ~ 0.5
+	airportExtraTakeoffFactor = 0.0
+	#Blocks per tick an aircraft backs up the runway toward its parking slot after
+	#touchdown.
+	# Default: 0.18
+	# Range: 0.02 ~ 1.0
+	airportTaxiSpeed = 0.18
+	#Testing shortcut: Deploy Plane spawns a fresh aircraft, fuelled, armed and with a
+	#full PMC crew already aboard, ignoring whatever the container was holding. Off, the
+	#container is unpacked as it was packed — the aircraft it stored, in the state it
+	#stored it, with nobody in it — and you crew it yourself.
+	sewvDebugAutoPlaneDeploy = false
+
+[mortar_ai]
+	#How close (blocks) a soldier must stand to crew a mortar.
+	# Default: 2.0
+	# Range: 1.0 ~ 6.0
+	mortarUseDistance = 2.0
+	#Minimum wait between mortar shots, in game ticks (20 = 1 second).
+	# Default: 60
+	# Range: 1 ~ 1200
+	mortarFireCooldownTicks = 60
+	#Minimum wait between MLRS rocket shots (mortar-pool Type-63), in game ticks (SBW uses 10).
+	# Default: 10
+	# Range: 1 ~ 1200
+	type63FireCooldownTicks = 10
+	#How far (blocks) mortar shots may land off the aim point.
+	# Default: 3
+	# Range: 0 ~ 16
+	mortarDispersionRadius = 3
+	#Mortars hold fire when the aimpoint is this close (blocks) to the owning player
+	#or a friendly PMC. Should be at least mortarDispersionRadius. 0 disables.
+	# Default: 12.0
+	# Range: 0.0 ~ 48.0
+	friendlyFireMortarRadius = 12.0
+	#Mortars need shells in inventory and use one per shot.
+	mortarRequiresAmmo = true
+	#Keep crewed mortars loaded during long-range fire missions so they keep firing
+	#even when you are far away.
+	mortarChunkLoading = true
+	#Keep crewed artillery vehicles loaded during long-range fire missions.
+	artilleryChunkLoading = true
+	#How close (degrees) an AI artillery barrel must be to the firing solution before it fires.
+	# Default: 3.0
+	# Range: 0.5 ~ 15.0
+	artilleryAimToleranceDeg = 3.0
+	#AI artillery fires a reduced charge so the shell lobs at artilleryArcElevationDeg
+	#instead of flying flat at full charge. Player gunners always use the full charge.
+	artilleryReducedCharge = true
+	#Preferred barrel elevation (degrees) for AI reduced-charge fire, clamped to each gun's limits.
+	# Default: 45.0
+	# Range: 10.0 ~ 85.0
+	artilleryArcElevationDeg = 45.0
+	#How far (blocks) radios can designate targets and find support crews.
+	#Needs to be long enough for mortar range (raise toward ~2000 for the longest guns).
+	# Default: 768.0
+	# Range: 16.0 ~ 2048.0
+	mortarRadioRange = 768.0
+
+[chunk_tickets]
+	#Drop a helicopter/plane/mortar/artillery chunk ticket while a player is already
+	#close enough to keep that chunk ticking, and take it back before they leave.
+	#Saves ticket churn near players; never lets the owner stop ticking.
+	ticketSkipWhenPlayerTicking = true
+	#Drop the ticket once the owner is this many chunks inside a player's
+	#entity-ticking range (simulation distance - 2).
+	# Default: 4
+	# Range: 2 ~ 8
+	ticketReleaseMarginChunks = 4
+	#Take the ticket back once the owner is within this many chunks of the edge of
+	#that range. Always kept below ticketReleaseMarginChunks.
+	# Default: 2
+	# Range: 1 ~ 6
+	ticketAcquireMarginChunks = 2
+	#Keep a chunk the owner just left loaded this long (game ticks), so circling
+	#aircraft do not reload and re-save the same chunks every pass. 0 disables.
+	# Default: 100
+	# Range: 0 ~ 1200
+	ticketLingerTicks = 100
+	#At most this many recently left chunks kept per ticket owner.
+	# Default: 2
+	# Range: 0 ~ 4
+	ticketMaxLingering = 2
+
+[unit_lod]
+	#Soldiers far from every player decide what to do less often. They keep walking,
+	#shooting and taking damage, but fights far away play out slower, for both sides.
+	#Mounted crews, PMC, mortar crews and units boarding or escorting are never throttled.
+	unitLodEnabled = true
+	#Full-rate AI within this many blocks of a player.
+	# Default: 128.0
+	# Range: 32.0 ~ 512.0
+	unitLodNearBlocks = 128.0
+	#Beyond this many blocks from every player, the far rate applies (never below unitLodNearBlocks).
+	# Default: 256.0
+	# Range: 64.0 ~ 1024.0
+	unitLodFarBlocks = 256.0
+	#Between the two distances, decide every this many ticks (vanilla is 2; odd values round up).
+	# Default: 4
+	# Range: 2 ~ 16
+	unitLodMidStride = 4
+	#Beyond unitLodFarBlocks, decide every this many ticks (never finer than the mid rate).
+	# Default: 8
+	# Range: 2 ~ 16
+	unitLodFarStride = 8
+	#A throttled soldier that is hurt or spots a new enemy runs at full rate this long (game ticks).
+	#0 disables the wake-up.
+	# Default: 40
+	# Range: 0 ~ 200
+	unitLodWakeTicks = 40
+
+[voicelines]
+	#Play radio chatter from SEM crews inside vehicles.
+	#Off: on-foot SEM voicelines stay as SEM ships them; mounted crews are silent.
+	vehicleVoicelinesEnabled = true
+	#Quiet time (game ticks) before the first idle crew chatter attempt.
+	# Default: 200
+	# Range: 20 ~ 12000
+	idleVoicelineDelayTicks = 200
+	#Random extra ticks (0..N) added to the first idle chatter deadline
+	#so a formation does not all speak at once.
+	# Default: 400
+	# Range: 0 ~ 12000
+	idleVoicelineInitialJitterTicks = 400
+	#Base gap (game ticks) between successive idle lines on one hull.
+	# Default: 750
+	# Range: 40 ~ 12000
+	idleVoicelineRepeatBaseTicks = 750
+	#Random extra ticks (0..N) added to each idle repeat gap.
+	# Default: 600
+	# Range: 0 ~ 12000
+	idleVoicelineRepeatJitterTicks = 600
+	#No idle chatter when the vehicle is below this health (0.3 = 30%).
+	# Default: 0.3
+	# Range: 0.0 ~ 1.0
+	idleVoicelineHealthFraction = 0.3
+
+[interaction]
+	#How far (blocks) nearby units can be selected for boarding and similar orders.
+	# Default: 64.0
+	# Range: 8.0 ~ 128.0
+	boardScanRadius = 64.0
+	#How far (blocks) Quick Evac looks for owned PMC helicopters with a free seat.
+	# Default: 256.0
+	# Range: 16.0 ~ 512.0
+	quickEvacHeliSearchRadius = 256.0
+	#How far (blocks) from the player Quick Evac pulls owned on-foot PMCs
+	#(default unit pick; ignored when the client ribbon-only toggle is on).
+	# Default: 48.0
+	# Range: 8.0 ~ 128.0
+	quickEvacBoardRadius = 48.0
+	#Absolute game-time budget (ticks) for Quick Evac: each heli takes off when
+	#its reserved seats are filled, or when this timeout elapses — whichever first.
+	# Default: 350
+	# Range: 40 ~ 2400
+	quickEvacBoardTimeoutTicks = 350
+	#Absolute game-time budget (ticks) for Quick Refill walks to a chest/stockpile
+	#before the MOVE is dropped back to FREE_FIRE.
+	# Default: 350
+	# Range: 40 ~ 2400
+	quickRefillTimeoutTicks = 350
+	#How far (blocks) Quick Board / Entrench / Refill / General / Formation look
+	#for owned PMCs, friendly vehicles, trenches, and chests.
+	# Default: 64.0
+	# Range: 8.0 ~ 256.0
+	quickLandRadius = 64.0
+	#Max registry ids sent in /sewv pool (and similar) add-catalogs.
+	#If a pack has more guns/armor/vehicles than this, the rest are omitted from
+	#autofill — the editor still opens. Raise on huge packs if ids are missing.
+	# Default: 16384
+	# Range: 64 ~ 32768
+	editorCatalogMax = 16384
+
+[map]
+	#Also show soldiers on foot on the world map (not only vehicles).
+	mapInfantryEnabled = true
+	#How often (game ticks) the server refreshes map markers.
+	# Default: 20
+	# Range: 5 ~ 200
+	mapSyncIntervalTicks = 20
+	#How far (blocks) your side can spot enemy markers (via you or your crews).
+	# Default: 128.0
+	# Range: 0.0 ~ 512.0
+	mapSpotRadius = 128.0
+	#Fog of war on map markers: non-owned contacts show as unknown until you
+	#(or an OpenPAC ally) identify them by being close enough or by a friendly lock.
+	mapFogOfWarEnabled = true
+	#How close (blocks) YOU must be to auto-identify a contact's class on the map.
+	#Presence still uses mapSpotRadius (crews can radio a contact farther out as unknown).
+	#Must stay well below mapSpotRadius or fog never shows — 0 disables player-sight ID
+	#(combat locks only).
+	# Default: 32.0
+	# Range: 0.0 ~ 512.0
+	mapIdentityRadius = 32.0
+	#How long (server ticks) a combat identification sticks on the map after a
+	#friendly unit locks that contact. 400 = 20 seconds. Player-local sight needs no TTL.
+	# Default: 400
+	# Range: 40 ~ 6000
+	mapIdentityTtlTicks = 400
+
+[territory]
+	#Largest region (in chunks) an Advance Plan may cover. Validated when the plan is baked;
+	#existing plans are not re-validated against a changed cap.
+	# Default: 25
+	# Range: 1 ~ 1024
+	advancePlanMaxChunks = 25
+
+[invasion]
+	#Allow placing more than two team bases per dimension (for map building).
+	#Starting an invasion match still needs exactly two.
+	unlimitedTeamBases = false
+	#Invasion HUD colour for team A (left base). Six hex digits, e.g. 5555FF.
+	hudTeamAColor = "5555FF"
+	#Invasion HUD colour for team B (right base). Six hex digits, e.g. FF5555.
+	hudTeamBColor = "FF5555"
+	#Invasion HUD colour for unowned capture points. Six hex digits, e.g. AAAAAA.
+	hudNeutralColor = "AAAAAA"
+
+	#Default fighting style sliders for RU, US, and PMC commanders (-3 to +3 on each axis).
+	[doctrine.ru]
+		#Willingness to initiate combat, pursue enemies, and tolerate damage.
+		# Default: 2
+		# Range: -5 ~ 5
+		aggression = 2
+		#How valuable the vehicle is considered: retreat timing, smoke, casualty tolerance.
+		# Default: -1
+		# Range: -5 ~ 5
+		preservation = -1
+		#Formation discipline, reinforcement, and willingness to operate alone.
+		# Default: 2
+		# Range: -5 ~ 5
+		cohesion = 2
+		#How aggressively opportunities are exploited and contacts investigated.
+		# Default: -1
+		# Range: -5 ~ 5
+		initiative = -1
+		#Dependence on indirect fire: mortar, TOW and air support requests.
+		# Default: 1
+		# Range: -5 ~ 5
+		supportReliance = 1
+		#Negative prioritises infantry, positive prioritises armored targets.
+		# Default: 0
+		# Range: -5 ~ 5
+		targetPriority = 0
+		#Negative favours direct assault, positive increases flanking preference.
+		# Default: -2
+		# Range: -5 ~ 5
+		maneuver = -2
+		#Willingness to attack under poor odds and cross exposed terrain.
+		# Default: 2
+		# Range: -5 ~ 5
+		riskTolerance = 2
+
+	[doctrine.us]
+		#Willingness to initiate combat, pursue enemies, and tolerate damage.
+		# Default: 0
+		# Range: -5 ~ 5
+		aggression = 0
+		#How valuable the vehicle is considered: retreat timing, smoke, casualty tolerance.
+		# Default: 2
+		# Range: -5 ~ 5
+		preservation = 2
+		#Formation discipline, reinforcement, and willingness to operate alone.
+		# Default: 1
+		# Range: -5 ~ 5
+		cohesion = 1
+		#How aggressively opportunities are exploited and contacts investigated.
+		# Default: 2
+		# Range: -5 ~ 5
+		initiative = 2
+		#Dependence on indirect fire: mortar, TOW and air support requests.
+		# Default: 3
+		# Range: -5 ~ 5
+		supportReliance = 3
+		#Negative prioritises infantry, positive prioritises armored targets.
+		# Default: 1
+		# Range: -5 ~ 5
+		targetPriority = 1
+		#Negative favours direct assault, positive increases flanking preference.
+		# Default: 2
+		# Range: -5 ~ 5
+		maneuver = 2
+		#Willingness to attack under poor odds and cross exposed terrain.
+		# Default: -1
+		# Range: -5 ~ 5
+		riskTolerance = -1
+
+	[doctrine.pmc]
+		#Willingness to initiate combat, pursue enemies, and tolerate damage.
+		# Default: 0
+		# Range: -5 ~ 5
+		aggression = 0
+		#How valuable the vehicle is considered: retreat timing, smoke, casualty tolerance.
+		# Default: 0
+		# Range: -5 ~ 5
+		preservation = 0
+		#Formation discipline, reinforcement, and willingness to operate alone.
+		# Default: 0
+		# Range: -5 ~ 5
+		cohesion = 0
+		#How aggressively opportunities are exploited and contacts investigated.
+		# Default: 0
+		# Range: -5 ~ 5
+		initiative = 0
+		#Dependence on indirect fire: mortar, TOW and air support requests.
+		# Default: 0
+		# Range: -5 ~ 5
+		supportReliance = 0
+		#Negative prioritises infantry, positive prioritises armored targets.
+		# Default: 0
+		# Range: -5 ~ 5
+		targetPriority = 0
+		#Negative favours direct assault, positive increases flanking preference.
+		# Default: 0
+		# Range: -5 ~ 5
+		maneuver = 0
+		#Willingness to attack under poor odds and cross exposed terrain.
+		# Default: 0
+		# Range: -5 ~ 5
+		riskTolerance = 0
+
+[tacz_ballistics]
+	#TaCZ bullet damage against SuperbWarfare vehicles is rescaled to match an
+	#equivalent SBW handheld weapon's Damage value, then replayed as SBW gunfire/
+	#gunfire_absolute (or projectile_hit/custom_explosion for blast rounds) so the
+	#hull's own DamageModifiers apply. Off restores TaCZ's native damage types
+	#(tacz:bullet already sits in #superbwarfare:projectile — heavy tanks often
+	#zero that tag entirely).
+	tacZBallisticTranslationEnabled = true
+	#Extra multiplier applied on top of the per-category translation factor.
+	#1.0 = translation table numbers as shipped/configured.
+	# Default: 1.0
+	# Range: 0.0 ~ 10.0
+	tacZBallisticGlobalScale = 1.0
+
+[tree_felling]
+	#If the Enhanced Falling Trees mod is installed: ground (wheel/track) vehicles fell whole
+	#trees they drive into instead of treating every trunk as a wall. Does nothing if
+	#Enhanced Falling Trees is not installed.
+	vehicleTreeFellingEnabled = true
+	#Self-damage a vehicle takes per tree felled (not per block, not per tick).
+	# Default: 1.5
+	# Range: 0.0 ~ 20.0
+	vehicleTreeFellDamage = 1.5
+	#Extra A* path cost for routing through a fellable tree, so a clear route is preferred
+	#when one exists nearby but a forest is never impassable. Comparable scale to the
+	#existing ford/slope path costs (a few points), never infinite.
+	# Default: 5.0
+	# Range: 0.0 ~ 50.0
+	vehicleTreePathMalus = 5.0
+	#Steering danger (0-1) a fellable tree registers as in the moment-to-moment avoidance fan.
+	#Must stay below 1.0 (hard-blocked) or trees become impassable walls again regardless of
+	#vehicleTreeFellingEnabled.
+	# Default: 0.6
+	# Range: 0.0 ~ 0.99
+	vehicleTreeSensorDanger = 0.6
+	#Multi-block trunks (2x2 or larger — every vanilla dark oak tree, and jungle mega-trees)
+	#are never felled and stay hard obstacles, since a vehicle should not be able to flatten
+	#an entire dark oak forest by driving through it. Turn off to fell those too.
+	vehicleTreeFellingExemptGiantTrunks = true
+	#A hull must keep touching the same tree for this many CONSECUTIVE game ticks (20 = 1s)
+	#before it falls — a hull that only clips a tree in passing does not fell it. Contact
+	#must be unbroken; losing touch even for one tick resets that tree's timer to zero.
+	# Default: 35
+	# Range: 0 ~ 200
+	vehicleTreeContactTicks = 35
+
+[fob]
+	#Horizontal span of the FOB master area (blocks, centered on quarters_bench).
+	# Default: 50
+	# Range: 1 ~ 256
+	fobMasterSize = 50
+	#Horizontal span of the stockpile sub-area (blocks, centered on block).
+	# Default: 10
+	# Range: 1 ~ 64
+	fobStockpileSize = 10
+	#Horizontal span of the parking sub-area (blocks, centered on block).
+	# Default: 15
+	# Range: 1 ~ 64
+	fobParkingSize = 15
+	#Threat-detection span as a multiple of fobMasterSize. The master area is the base itself; the buffer is how far out the garrison watches, so it wants to be wider than the ground it defends.
+	# Default: 2.0
+	# Range: 1.0 ~ 8.0
+	fobBufferFactor = 2.0
+	#Threat score at or above this triggers scramble.
+	# Default: 100
+	# Range: 1 ~ 10000
+	fobThreatThreshold = 100
+	#Ticks between threat scans per FOB.
+	# Default: 20
+	# Range: 1 ~ 200
+	fobThreatEvalIntervalTicks = 20
+	#Default Periodic Refill interval for a new FOB (ticks, 20 = 1 second; 0 = off).
+	#Every interval the FOB sends its assigned on-foot PMCs that are low on ammo to the
+	#stockpile, if it holds ammo they can use. Editable per FOB at the quarters bench.
+	# Default: 1200
+	# Range: 0 ~ 999999
+	fobPeriodicRefillTicks = 1200
+
+[minecolonies]
+	#Master switch for the MineColonies compat. Does nothing when MineColonies is absent.
+	#Turning this off leaves MineColonies' own untouched behaviour, which means colony guards
+	#shoot your PMC squad and US units are attackable by nothing — see the individual keys.
+	minecoloniesCompatEnabled = true
+	#Colony guards do not open fire on a PMC unit owned by someone the colony recognises.
+	#MineColonies decides who is hostile from the entity's MobCategory, and SEM registers
+	#pmcunit as MONSTER, so without this a colony shoots the escort you walked in with.
+	minecoloniesProtectOwnedPmc = true
+	#Keep procedural war events (convoys, shelling, battles) from placing units and vehicles
+	#inside claimed colony chunks. Mortar shelling in particular aims at your respawn point,
+	#which for a colony player is usually a bed inside their own walls.
+	minecoloniesSpawnExclusion = true
+	#Let citizens and guards react to being shot by a crewed vehicle. MineColonies only
+	#registers threat from a LivingEntity attacker, and a vehicle hull is not one, so without
+	#this a tank can kill a whole colony without anybody raising the alarm. Blames the crew,
+	#not the hull, because a guard can actually shoot a crewman.
+	minecoloniesVehicleRetaliation = true
+	#Chance (0-1) that a MineColonies raid night fields an armored raid from this mod instead
+	#of barbarians/pirates/norsemen. 0 disables it. The raid rides MineColonies' own schedule,
+	#difficulty scaling and spawn-point search, so raid frequency is still MineColonies' to set.
+	# Default: 0.25
+	# Range: 0.0 ~ 1.0
+	minecoloniesRaidChance = 0.25
+	#Hard cap on hulls fielded by one armored colony raid, before crew. Colony raid level
+	#decides the actual number below this.
+	# Default: 3
+	# Range: 1 ~ 12
+	minecoloniesRaidMaxVehicles = 3
+
+[balancing]
+	#Master switch for Easy Mode. Off = unchanged difficulty. On = apply the child toggles below.
+	easyMode = false
+	#Easy Mode: disable mortar batteries that shell the player's bed/base.
+	easyDisableShelling = true
+	#Easy Mode: disable large multi-vehicle battles.
+	easyDisableLargeCombat = true
+	#Easy Mode: no ground vehicles or helicopters injected into SEM far_combat events.
+	easyNoFarCombatVehicles = true
+	#Easy Mode: no village garrison tanks and no Berezka structure vehicles.
+	easyNoWorldArmor = true
+	#Easy Mode: SEWV event failure multipliers escalate half as fast.
+	easyLowerEventEscalation = true
+	#Easy Mode: wider AI aim spread and a tighter fire-assist cone.
+	easySoftAiAim = true
+	#Easy Mode: slower AI vehicle / mortar / Type-63 rate of fire.
+	easySoftAiRoF = true
+	#Easy Mode: RU/US hulls use finite fuel and ammo; dry hulls bail like a write-off.
+	easyFiniteEnemyLogistics = true
+	#Easy Mode: at most one AT gunner per dismount, shorter AT range, launcher spread.
+	easySoftAtDismounts = true
+	#Easy Mode: RU/US engineers deploy no recon drones.
+	easyNoReconDrones = true
+	#Easy Mode: no organic RU/US radio calls; longer gaps and shorter mortar radio range.
+	easySoftSupportCalls = true
+	#Easy Mode: tacticalScale 1.0 (closer engage rings / command distances).
+	easyTighterEngageRings = true
+	#Easy Mode: force vehicle LoS locks and a larger smoke block radius.
+	easyKeepLosGates = true
+	#Easy Mode: scale hostile vehicle/unit/mortar damage dealt to the player.
+	easyPlayerDamageScaleEnabled = true
+	#Easy Mode: multiplier for scaled player incoming damage (1.0 = full).
+	# Default: 0.5
+	# Range: 0.25 ~ 1.0
+	easyPlayerDamageScale = 0.5
+	#Easy Mode: AI prefers non-player targets and grants a short post-respawn acquire grace.
+	easyPlayerPrioritySoft = true
+
+[limitless_vehicles]
+	#Crews drive, fly and gun Limitless Vehicles hulls (ground, boats, rotorcraft). Needs ywzj_vehicle.
+	#LV vehicle ids go in the ordinary ground / surface / rotor pools (pool editor preset: Limitless Vehicles).
+	lvAiEnabled = true

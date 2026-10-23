@@ -36,6 +36,7 @@ import com.neoalive.tacz_sewv.bridge.ITowRecovery;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
+import com.neoalive.tacz_sewv.config.EasyModeUnitEvents;
 import com.neoalive.tacz_sewv.crew.NpcIdentity;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.DiplomacyEnemyTargetGoal;
@@ -307,6 +308,10 @@ public abstract class MixinPmcUnitEntity
         Entity self = (Entity) (Object) this;
         if (uuid != null && self.isAddedToWorld() && !self.level().isClientSide) {
             NpcIdentity.reissue((PmcUnitEntity) self);
+        }
+        // Recruiting moves the unit to the player's side, which Easy Mode's health modifiers key on.
+        if (self.isAddedToWorld() && !self.level().isClientSide) {
+            EasyModeUnitEvents.refresh((PmcUnitEntity) self);
         }
     }
 

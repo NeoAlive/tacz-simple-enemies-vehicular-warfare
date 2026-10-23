@@ -116,8 +116,8 @@ public final class Type63Support {
         }
     }
 
-    public static Vec3 scatter(Vec3 target, RandomSource random) {
-        return MortarSupport.scatter(target, random);
+    public static Vec3 scatter(Vec3 target, RandomSource random, Entity shooter) {
+        return MortarSupport.scatter(target, random, shooter);
     }
 
     public static boolean aimSettled(Type63Entity launcher, float toleranceDeg) {

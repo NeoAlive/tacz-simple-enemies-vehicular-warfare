@@ -187,7 +187,7 @@ public class ManType63Goal extends Goal {
         }
 
         if (this.laidOn == null) {
-            Vec3 impact = Type63Support.scatter(aimCentre, this.unit.getRandom());
+            Vec3 impact = Type63Support.scatter(aimCentre, this.unit.getRandom(), this.unit);
             float[] aim = Type63Support.solveAim(this.launcher, impact);
             if (aim == null) {
                 hold("aimpoint at %.1f blocks is outside the launcher's envelope",
@@ -245,7 +245,7 @@ public class ManType63Goal extends Goal {
         hold(fired ? "FIRING tube " + tube : "shoot refused on tube " + tube);
 
         if (fired) {
-            this.nextShotTime = this.unit.level().getGameTime() + EasyMode.type63FireCooldownTicks();
+            this.nextShotTime = this.unit.level().getGameTime() + EasyMode.type63FireCooldownTicks(this.unit);
             this.laidOn = null;
         }
     }

@@ -180,12 +180,36 @@ final class ConfigRegistryBootstrap {
         b.bool(ConfigScope.SERVER, cat, "easyPlayerDamageScaleEnabled",
                 SewvConfig.EASY_PLAYER_DAMAGE_SCALE_ENABLED, SewvConfig.EASY_PLAYER_DAMAGE_SCALE_ENABLED::set,
                 req, "balancing.player");
-        b.doubleRange(ConfigScope.SERVER, cat, "easyPlayerDamageScale", 0.25, 1.0,
+        b.doubleRange(ConfigScope.SERVER, cat, "easyPlayerDamageTaken", 0.1, 1.0,
                 SewvConfig.EASY_PLAYER_DAMAGE_SCALE, SewvConfig.EASY_PLAYER_DAMAGE_SCALE::set,
                 req, null);
         b.bool(ConfigScope.SERVER, cat, "easyPlayerPrioritySoft",
                 SewvConfig.EASY_PLAYER_PRIORITY_SOFT, SewvConfig.EASY_PLAYER_PRIORITY_SOFT::set,
                 req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyPlayerSustain",
+                SewvConfig.EASY_PLAYER_SUSTAIN, SewvConfig.EASY_PLAYER_SUSTAIN::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyProtectVehicles",
+                SewvConfig.EASY_PROTECT_VEHICLES, SewvConfig.EASY_PROTECT_VEHICLES::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyBuffPmc",
+                SewvConfig.EASY_BUFF_PMC, SewvConfig.EASY_BUFF_PMC::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easyHighlightThreats",
+                SewvConfig.EASY_HIGHLIGHT_THREATS, SewvConfig.EASY_HIGHLIGHT_THREATS::set,
+                req, null);
+        b.bool(ConfigScope.SERVER, cat, "easySlowAi",
+                SewvConfig.EASY_SLOW_AI, SewvConfig.EASY_SLOW_AI::set,
+                req, "balancing.mobility");
+        b.bool(ConfigScope.SERVER, cat, "easyTimidAi",
+                SewvConfig.EASY_TIMID_AI, SewvConfig.EASY_TIMID_AI::set,
+                req, "balancing.morale");
+        b.bool(ConfigScope.SERVER, cat, "easySoftInfantry",
+                SewvConfig.EASY_SOFT_INFANTRY, SewvConfig.EASY_SOFT_INFANTRY::set,
+                req, "balancing.infantry");
+        b.bool(ConfigScope.SERVER, cat, "easyFewerEvents",
+                SewvConfig.EASY_FEWER_EVENTS, SewvConfig.EASY_FEWER_EVENTS::set,
+                req, "balancing.events");
     }
 
     private static void registerWorldRules(ConfigRegistry.Builder b) {

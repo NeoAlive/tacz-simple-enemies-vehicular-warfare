@@ -208,6 +208,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue PATH_MAX_WAIT_TICKS;
     public static final ForgeConfigSpec.IntValue PATH_MAX_VISITED_NODES;
     public static final ForgeConfigSpec.IntValue PATH_SEARCH_RANGE;
+    public static final ForgeConfigSpec.DoubleValue PATHWAY_ENTRY_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue PATHWAY_COAX_RADIUS;
     public static final ForgeConfigSpec.IntValue PATH_DEST_QUANTUM;
     public static final ForgeConfigSpec.IntValue SENSOR_COLUMN_TTL_TICKS;
     public static final ForgeConfigSpec.IntValue TREE_SCAN_INTERVAL_TICKS;
@@ -946,6 +948,15 @@ public final class SewvConfig {
                         "PERF. Horizontal reach (blocks) of one ground-vehicle path search (32 = old behaviour). Lower is",
                         "cheaper; far destinations are reached in more partial legs.")
                 .defineInRange("pathSearchRange", 32, 16, 48);
+        PATHWAY_ENTRY_RADIUS = builder.comment(
+                        "Preferred pathways: a unit must be within this distance (blocks) of either END node to take the",
+                        "path from that end. Hulls add their own width. Nobody joins mid-path.")
+                .defineInRange("pathwayEntryRadius", 16.0, 4.0, 64.0);
+        PATHWAY_COAX_RADIUS = builder.comment(
+                        "Preferred pathways: a MOVE destination counts as along the path when it lies within this distance",
+                        "(blocks) of the path, or of its axis extended past the exit (a 30 degree cone from the exit also",
+                        "counts). Otherwise the path is ignored, or dropped mid-walk.")
+                .defineInRange("pathwayCoaxRadius", 24.0, 4.0, 128.0);
         PATH_DEST_QUANTUM = builder.comment(
                         "PERF. Snap ground-vehicle destinations to this block grid before pathing (0 = off). Stops",
                         "standoff/retreat points that move every tick from forcing repaths.")

@@ -498,8 +498,6 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.HEALTH_MOBILITY_ENABLED, SewvConfig.HEALTH_MOBILITY_ENABLED::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "healthMobilityFloor", 0.05, 1.0,
                 SewvConfig.HEALTH_MOBILITY_FLOOR, SewvConfig.HEALTH_MOBILITY_FLOOR::set);
-        b.doubleRange(ConfigScope.SERVER, "crew_ai", "aiTurretTraverseScale", 0.1, 1.0,
-                SewvConfig.AI_TURRET_TRAVERSE_SCALE, SewvConfig.AI_TURRET_TRAVERSE_SCALE::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "medicSpawnChance", 0.0, 1.0,
                 SewvConfig.MEDIC_SPAWN_CHANCE, SewvConfig.MEDIC_SPAWN_CHANCE::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "engineerSpawnChance", 0.0, 1.0,

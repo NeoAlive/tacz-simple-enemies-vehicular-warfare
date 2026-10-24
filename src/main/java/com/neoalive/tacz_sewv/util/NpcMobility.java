@@ -11,8 +11,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 
 /**
  * Combined NPC drive/turret mobility: health penalty × addon speed cap × Easy Mode's slowdown for
- * a hostile crew (separate factors for the engine and the turret; the turret also takes the global
- * {@code aiTurretTraverseScale}). Player-driven and empty hulls
+ * a hostile crew (separate factors for the engine and the turret). Player-driven and empty hulls
  * always return 1.0. Shared by the engine and turret mobility mixins.
  */
 public final class NpcMobility {
@@ -35,8 +34,7 @@ public final class NpcMobility {
     public static float turretMultiplier(VehicleEntity vehicle) {
         Entity driver = vehicle.getFirstPassenger();
         if (!(driver instanceof AbstractUnit)) return 1.0f;
-        return multiplier(vehicle) * SewvConfig.AI_TURRET_TRAVERSE_SCALE.get().floatValue()
-                * EasyMode.turretTraverseMult(driver);
+        return multiplier(vehicle) * EasyMode.turretTraverseMult(driver);
     }
 
     private static float healthFactor(VehicleEntity vehicle) {

@@ -1495,8 +1495,6 @@
   "config.tacz_sewv.healthMobilityEnabled.tooltip": "Damaged AI vehicles move more slowly.",
   "config.tacz_sewv.healthMobilityFloor": "Health Mobility Floor",
   "config.tacz_sewv.healthMobilityFloor.tooltip": "Slowest a wrecked hull still moves (0.4 = 40% of normal speed).",
-  "config.tacz_sewv.aiTurretTraverseScale": "AI Turret Traverse Scale",
-  "config.tacz_sewv.aiTurretTraverseScale.tooltip": "Turret turn speed of every AI-crewed hull (0.5 = half speed). Easy Mode slows hostile crews further.",
   "config.tacz_sewv.heliChunkLoading": "Heli Chunk Loading",
   "config.tacz_sewv.heliChunkLoading.tooltip": "Keep AI helicopters active even when no player is nearby (uses chunk tickets). Default true (matches mortarChunkLoading). Existing installs keep whatever value is already in serverconfig/tacz_sewv-server.toml until that file is deleted.",
   "config.tacz_sewv.heliEngageRadius": "Heli Engage Radius",

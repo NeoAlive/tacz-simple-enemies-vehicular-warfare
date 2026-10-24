@@ -38,10 +38,12 @@ public final class EasyTuning {
 
     // --- Mobility & cadence (hostile crews) ---
 
+    /** Turret traverse multiplier for EVERY AI-crewed hull, either side (Easy master switch only). */
+    public static final float AI_TURRET_TRAVERSE_MULT = 0.5f;
     /**
-     * Turret traverse multiplier, ON TOP of the global {@code aiTurretTraverseScale} (0.5): 0.7 keeps a
-     * hostile turret at ~0.35 of SBW's rate overall. Going much lower stops it tracking a running
-     * player at all, which is a gate, not a pace.
+     * Extra turret traverse multiplier for a hostile crew, on top of {@link #AI_TURRET_TRAVERSE_MULT}:
+     * 0.7 lands at ~0.35 of SBW's rate overall. Much lower and it stops tracking a running player at
+     * all, which is a gate, not a pace.
      */
     public static final float TURRET_TRAVERSE_MULT = 0.7f;
     /** Track / wheel engine thrust multiplier. */

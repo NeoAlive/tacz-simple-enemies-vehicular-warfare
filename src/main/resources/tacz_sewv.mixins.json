@@ -59,6 +59,7 @@
     "MixinSemOnFootTacticalGoals",
     "MixinTacticalManagerGoal",
     "MixinCommanderOrderGoal",
+    "MixinSemLadderRoute",
     "MixinLivingEntityLos",
     "MixinWalkNodeEvaluator",
     "MixinDroneKamikaze",

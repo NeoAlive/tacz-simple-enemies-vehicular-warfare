@@ -311,8 +311,10 @@ public final class EasyMode {
 
     // --- Mobility & cadence ---
 
+    /** Every AI crew turns its turret slower in Easy; a hostile one (slow-AI child) slower still. */
     public static float turretTraverseMult(@Nullable Entity driver) {
-        return slow(driver) ? EasyTuning.TURRET_TRAVERSE_MULT : 1.0f;
+        if (!active()) return 1.0f;
+        return EasyTuning.AI_TURRET_TRAVERSE_MULT * (slow(driver) ? EasyTuning.TURRET_TRAVERSE_MULT : 1.0f);
     }
 
     public static float driveThrustMult(@Nullable Entity driver) {

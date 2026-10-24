@@ -149,7 +149,7 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
 
     @Override
     public void start() {
-        SewvDiag.scan("VehicleTargetScanGoal.start → setTarget unit={}#{} target={}#{}",
+        SewvDiag.scan("VehicleTargetScanGoal.start -> setTarget unit={}#{} target={}#{}",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
                 this.pendingTarget.getClass().getSimpleName(), this.pendingTarget.getId());
         // SPOTTED is announced from setTarget itself (MixinUnitVoicelines), which catches every path
@@ -462,7 +462,7 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
                 SewvDiag.scan(
                         "VehicleTargetScanGoal.isValidTarget REJECT hardPmcExclusion "
                                 + "unit={}#{} cand={}#{} isNonHostile=false instanceofEnemy={} "
-                                + "diplomacyEnemy=false → DROP (ALLY/NEUTRAL/unresolved)",
+                                + "diplomacyEnemy=false -> DROP (ALLY/NEUTRAL/unresolved)",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         e.getClass().getSimpleName(), e.getId(),
                         e instanceof Enemy);

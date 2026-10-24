@@ -23,10 +23,8 @@ import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.BoardOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
-import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.order.OrderFailure;
-import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
@@ -49,7 +47,7 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
             return;
         }
 
-        List<PmcUnitEntity> units = resolveBoarders(issuer, level, context.unitIds(),
+        List<PmcUnitEntity> units = QuickCommandUnits.onFootOwned(issuer, level, context.unitIds(),
                 context.unitRadius(SewvConfig.QUICK_EVAC_BOARD_RADIUS.get()));
         if (units.isEmpty()) {
             NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_evac.no_units", 0,
@@ -135,6 +133,13 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
             if (!(hull.getFirstPassenger() instanceof PmcUnitEntity pilot)) continue;
             if (!OrderAuth.check(issuer, pilot, "QuickEvacHeli")) continue;
             if (!(pilot instanceof IHelicopterPilot)) continue;
+            // Helicopters are picked for the player, not by them: skip a FOB-held or posted one
+            // quietly instead of reporting a refusal for an aircraft they never named.
+            if (com.neoalive.tacz_sewv.fob.FobSupport.blocksOrders(pilot)
+                    || com.neoalive.tacz_sewv.fob.FobSupport.hasRoutePending(pilot)
+                    || ((com.neoalive.tacz_sewv.bridge.ITerritoryPost) pilot).sewv$hasTerritoryPost()) {
+                continue;
+            }
             out.add(new ResolvedHeli(hull, pilot));
         }
         return out;
@@ -186,18 +191,6 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
         return heli.hull().blockPosition();
     }
 
-    private static List<PmcUnitEntity> resolveBoarders(ServerPlayer issuer, ServerLevel level,
-                                                       List<Integer> unitIds, double radius) {
-        List<PmcUnitEntity> out = new ArrayList<>();
-        for (PmcUnitEntity pmc : QuickCommandUnits.owned(issuer, level, unitIds, radius)) {
-            if (pmc.getVehicle() != null) continue;
-            if (OrderGuard.rejectIfDowned(issuer, pmc)) continue;
-            if (MortarSupport.hasMortarClaim(pmc)) continue;
-            if (QuickCommandUnits.refuseFobOrRoute(issuer, pmc)) continue;
-            out.add(pmc);
-        }
-        return out;
-    }
 
     record ResolvedHeli(VehicleEntity hull, PmcUnitEntity pilot) {}
 }

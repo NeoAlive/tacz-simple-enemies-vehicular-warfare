@@ -57,7 +57,7 @@ public final class OpenPacCompat {
             LOGGER.info("OpenPAC soft-compat available (mod id {})", MODID);
             SewvDiag.claim("boot MAIN_SUB_CONFIG={} (must be -1 for OpenPAC main config)", MAIN_SUB_CONFIG);
         } else {
-            LOGGER.info("OpenPAC absent — soft-compat facade idle; SEWV uses config-only faction behaviour");
+            LOGGER.info("OpenPAC absent: soft-compat facade idle; SEWV uses config-only faction behaviour");
         }
     }
 

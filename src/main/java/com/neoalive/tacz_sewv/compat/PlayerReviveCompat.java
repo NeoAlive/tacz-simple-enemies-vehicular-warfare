@@ -37,9 +37,9 @@ public final class PlayerReviveCompat {
 
     public static void reportAvailability() {
         if (isLoaded()) {
-            LOGGER.info("PlayerReviveMod soft-compat available (mod id {}) — PMC auto-revive enabled", MODID);
+            LOGGER.info("PlayerReviveMod soft-compat available (mod id {}): PMC auto-revive enabled", MODID);
         } else {
-            LOGGER.info("PlayerReviveMod absent — soft-compat facade idle; PMC auto-revive goal not installed");
+            LOGGER.info("PlayerReviveMod absent: soft-compat facade idle; PMC auto-revive goal not installed");
         }
     }
 

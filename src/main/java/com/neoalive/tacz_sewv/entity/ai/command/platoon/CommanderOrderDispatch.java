@@ -9,7 +9,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
@@ -20,15 +19,13 @@ import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
  * never the owner's whole fleet. Server-side, called directly from {@link CommanderAutoOrderGoal}
  * (autonomous, no packet — there is no player to authorize).
  *
- * <p>Reuses the real order primitives everywhere they already exist ({@link PatrolSupport} for
- * ground-vehicle drivers, {@link ISweepInfantry} for dismounted search-and-destroy,
- * {@link DriveHelicopterGoal#setForcedRappel} for rappel); {@link CommanderOrderType#PATROL} on an
- * infantry platoon is a documented no-op — no dismounted passive-wander goal exists yet in this
- * codebase, and this is the addressable hook for it rather than a stand-in behaviour.
+ * <p>Reuses the real order primitives: {@link PatrolSupport}'s area task for every member (a crew
+ * drives it, a unit on foot walks it through {@code AreaTaskInfantryGoal}) and
+ * {@link DriveHelicopterGoal#setForcedRappel} for rappel.
  *
  * <p>SEARCH_AND_DESTROY/PATROL are auto-dispatched standing orders, not player ones — left alone
  * they would hold forever, so each dispatch stamps a deadline {@link #expireStale} clears
- * ({@link PlatoonRegistry} calls it every scan). Player-issued orders from the TDT go through a
+ * ({@link PlatoonRegistry} calls it every scan). Player-issued orders from the Quick Wheel go through a
  * different path entirely and are never in this map.
  */
 public final class CommanderOrderDispatch {
@@ -52,24 +49,15 @@ public final class CommanderOrderDispatch {
 
     private static void searchAndDestroy(ServerLevel level, PmcCommanderEntity commander, Platoon platoon) {
         BlockPos origin = commander.blockPosition();
-        int left = origin.getX() - SEARCH_RADIUS;
-        int right = origin.getX() + SEARCH_RADIUS;
-        int top = origin.getZ() - SEARCH_RADIUS;
-        int bottom = origin.getZ() + SEARCH_RADIUS;
         long deadline = level.getGameTime() + AUTO_ORDER_TIMEOUT_TICKS;
         for (int id : platoon.memberIds()) {
             if (!(level.getEntity(id) instanceof PmcUnitEntity pmc)) continue;
-            if (pmc.getVehicle() instanceof VehicleEntity) {
-                PatrolSupport.beginSearch(pmc, origin, SEARCH_RADIUS, 0, 1);
-            } else {
-                ((ISweepInfantry) pmc).sewv$setInfantrySweep(left, top, right, bottom);
-            }
+            PatrolSupport.beginSearch(pmc, origin, SEARCH_RADIUS, 0, 1);
             AUTO_ORDER_DEADLINE.put(id, deadline);
         }
     }
 
     private static void patrol(ServerLevel level, PmcCommanderEntity commander, Platoon platoon) {
-        if (platoon.type() != Platoon.Type.GROUND_VEHICLE) return; // infantry: hook, no consumer yet
         BlockPos origin = commander.blockPosition();
         long deadline = level.getGameTime() + AUTO_ORDER_TIMEOUT_TICKS;
         for (int id : platoon.memberIds()) {
@@ -101,8 +89,8 @@ public final class CommanderOrderDispatch {
             if (now < e.getValue()) continue;
             it.remove();
             if (level.getEntity(e.getKey()) instanceof PmcUnitEntity pmc) {
-                PatrolSupport.clear(pmc);
-                ((ISweepInfantry) pmc).sewv$clearInfantrySweep();
+                // Also drops a sweep box an older build left on the unit.
+                PatrolSupport.clearSweepMembership(pmc, "CommanderOrderDispatch.expire");
             }
         }
     }

@@ -718,7 +718,7 @@ public final class VehicleTargeting {
                 }
                 SewvDiag.scan(
                         "VehicleTargeting.isValidHostileTarget REJECT hardPmcExclusion "
-                                + "unit={}#{} cand={}#{} isNonHostile=false → DROP (ALLY/NEUTRAL/unresolved)",
+                                + "unit={}#{} cand={}#{} isNonHostile=false -> DROP (ALLY/NEUTRAL/unresolved)",
                         unit.getClass().getSimpleName(), unit.getId(),
                         e.getClass().getSimpleName(), e.getId());
                 return false;
@@ -943,7 +943,7 @@ public final class VehicleTargeting {
             // usUnitsFriendly=true look like OUR bug rather than a SEM layout change.
             LOGGER.warn("SimpleEnemyMod's faction-friendly toggles were not found in any known config"
                             + " class {}. Treating RU/US crews as hostile to players and PMC units."
-                            + " SEM has most likely moved them again — add the new class to"
+                            + " SEM has most likely moved them again: add the new class to"
                             + " VehicleTargeting.FRIENDLY_CONFIG_CLASSES.",
                     String.join(", ", FRIENDLY_CONFIG_CLASSES));
         }

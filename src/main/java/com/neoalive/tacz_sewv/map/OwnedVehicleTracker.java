@@ -450,7 +450,7 @@ public final class OwnedVehicleTracker {
                     Mth.clamp(unit.getHealth() / unit.getMaxHealth(), 0.0F, 1.0F),
                     VehicleMarker.NO_ENERGY,
                     FactionColors.wireTint(level.getServer(), pmcOwner),
-                    false, platoonColorOf(level, unit.getId()), unit instanceof PmcCommanderEntity));
+                    GuardSupport.has(unit), platoonColorOf(level, unit.getId()), unit instanceof PmcCommanderEntity));
         }
     }
 

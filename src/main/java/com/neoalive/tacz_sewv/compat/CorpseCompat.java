@@ -64,9 +64,9 @@ public final class CorpseCompat {
 
     public static void reportAvailability() {
         if (isLoaded()) {
-            LOGGER.info("Corpse soft-compat available (mod id {}) — SEM unit corpses enabled when configured", MODID);
+            LOGGER.info("Corpse soft-compat available (mod id {}): SEM unit corpses enabled when configured", MODID);
         } else {
-            LOGGER.info("Corpse absent — soft-compat facade idle; SEM units keep ground drops");
+            LOGGER.info("Corpse absent: soft-compat facade idle; SEM units keep ground drops");
         }
     }
 

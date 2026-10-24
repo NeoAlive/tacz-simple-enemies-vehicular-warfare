@@ -214,7 +214,7 @@ public final class SewvDiag {
      */
     public static void planeAttached() {
         WarnOnce.info(LOG, "sewv-plane-ai", "[sewv-plane] fixed-wing AI active"
-                + (planeVerbose() ? " (planeCombatDebug on — per-tick detail follows)"
-                        : " (enable Client → Debug → Plane Combat Debug for flight detail)"));
+                + (planeVerbose() ? " (planeCombatDebug on: per-tick detail follows)"
+                        : " (enable Client -> Debug -> Plane Combat Debug for flight detail)"));
     }
 }

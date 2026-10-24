@@ -12,6 +12,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 import com.neoalive.tacz_sewv.fob.FobResupplySupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 
@@ -42,6 +43,7 @@ public final class QuickRefillPipeline implements QuickCommandPipeline {
             BlockPos target = QuickRefillTracker.findRefillTarget(level, pmc, radius, fob);
             if (target == null) continue;
 
+            OrderStandDown.clearForNewOrder(pmc, "QuickRefill");
             pmc.setOrder(OrderType.MOVE_TO_POSITION);
             pmc.setMoveToTarget(Vec3.atBottomCenterOf(target));
             legs.add(new QuickRefillTracker.LegSpec(pmc.getId(), target, fob));

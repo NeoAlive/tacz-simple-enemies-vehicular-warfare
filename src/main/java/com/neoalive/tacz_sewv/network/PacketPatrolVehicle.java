@@ -12,21 +12,26 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.network.NetworkEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
+import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IFormationMember;
+import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.command.quick.QuickCommandUnits;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
+import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 import com.neoalive.tacz_sewv.entity.ai.support.PathwaySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderGuard;
@@ -124,23 +129,28 @@ public class PacketPatrolVehicle {
             boolean search = this.mode == IVehiclePatrol.MODE_SEARCH;
             BlockPos origin = this.origin != null ? this.origin : player.blockPosition();
 
-            // Collected before assigning: a search sweep hands each hull its own slice of the
-            // circle, so it has to know how many hulls are taking the task.
-            List<PmcUnitEntity> crews = new ArrayList<>();
+            // Collected before assigning: a search sweep hands each unit its own slice of the
+            // circle, so it has to know how many are taking the task. A crew is one entry (its
+            // driver), however many of its seats were selected.
+            Set<PmcUnitEntity> units = new LinkedHashSet<>();
             for (int unitId : this.unitIds) {
-                PmcUnitEntity pmc = groundDriver(sp, unitId);
-                if (pmc != null) crews.add(pmc);
+                PmcUnitEntity pmc = areaTaskUnit(sp, unitId, true);
+                if (pmc != null) units.add(pmc);
             }
 
+            List<PmcUnitEntity> crews = new ArrayList<>(units);
             for (int i = 0; i < crews.size(); i++) {
+                PmcUnitEntity pmc = crews.get(i);
+                OrderStandDown.clearForNewOrder(pmc, "PacketPatrolVehicle");
                 // Last order wins: an area task outranks the SEM order queue, so a stale
                 // MOVE_TO_POSITION left under it would spring back the moment the task ends.
-                crews.get(i).setOrder(OrderType.FREE_FIRE);
+                pmc.setOrder(OrderType.FREE_FIRE);
                 if (search) {
-                    PatrolSupport.beginSearch(crews.get(i), origin, radius, i, crews.size());
+                    PatrolSupport.beginSearch(pmc, origin, radius, i, crews.size());
                 } else {
-                    PatrolSupport.beginPatrol(crews.get(i), origin, radius);
+                    PatrolSupport.beginPatrol(pmc, origin, radius);
                 }
+                liftOffIfParked(pmc);
             }
 
             NetworkHandler.orderFeedback(player,
@@ -151,9 +161,9 @@ public class PacketPatrolVehicle {
     }
 
     /**
-     * Assign the plotted route. Same crew filter as the other area tasks — a cruise is driven, so
-     * only the driver of a non-helicopter hull takes it — and the same stand-down off the SEM order
-     * queue, since an area task outranks it and a stale MOVE underneath would spring back the
+     * Assign the plotted route. A cruise is driven along points on the ground, so only ground crews
+     * take it (no infantry, no aircraft). Same stand-down off the SEM order queue as the other area
+     * tasks, since an area task outranks it and a stale MOVE underneath would spring back the
      * moment the cruise ends.
      *
      * <p>The route is capped rather than trusted: a plot is a list from the client, and nothing
@@ -167,10 +177,14 @@ public class PacketPatrolVehicle {
         List<BlockPos> route = this.route.size() > MAX_ROUTE_NODES
                 ? this.route.subList(0, MAX_ROUTE_NODES) : this.route;
 
-        int ordered = 0;
+        Set<PmcUnitEntity> crews = new LinkedHashSet<>();
         for (int unitId : this.unitIds) {
-            PmcUnitEntity pmc = groundDriver(player, unitId);
-            if (pmc == null) continue;
+            PmcUnitEntity pmc = areaTaskUnit(player, unitId, false);
+            if (pmc != null) crews.add(pmc);
+        }
+        int ordered = 0;
+        for (PmcUnitEntity pmc : crews) {
+            OrderStandDown.clearForNewOrder(pmc, "PacketPatrolVehicle.cruise");
             pmc.setOrder(OrderType.FREE_FIRE);
             PatrolSupport.beginCruise(pmc, route);
             ordered++;
@@ -181,39 +195,46 @@ public class PacketPatrolVehicle {
     }
 
     /**
-     * The one crew filter all three area tasks share: the driver of an owned ground hull.
-     *
-     * <p>A gunner in the same selection answers null <b>silently</b> — its driver is in the list
-     * too, so the order is not being refused, it is simply being taken by somebody else in the same
-     * vehicle. Everything above it is a real refusal and says so.
+     * Who takes an area task for {@code unitId}: a unit on foot walks it, a crew member hands it to
+     * its hull's driver (so selecting a tank by its gunner still orders the tank). Patrol and Search
+     * also take helicopters, which fly the same waypoints and hover at each one; planes never do,
+     * and a cruise ({@code walkOrFly == false}) is ground crews only.
      */
     @Nullable
-    private static PmcUnitEntity groundDriver(ServerPlayer player, int unitId) {
-        Entity e = player.level().getEntity(unitId);
-        if (!(e instanceof PmcUnitEntity pmc)) {
-            OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
-            return null;
-        }
-        if (!OrderAuth.check(player, pmc, "PacketPatrolVehicle")) {
-            OrderReport.fail(player, OrderFailure.NOT_OWNED);
+    private static PmcUnitEntity areaTaskUnit(ServerPlayer player, int unitId, boolean walkOrFly) {
+        PmcUnitEntity pmc = OrderGuard.orderBody(player, unitId, "PacketPatrolVehicle");
+        if (pmc == null) return null;
+        if (pmc.getVehicle() == null && !walkOrFly) {
+            OrderReport.fail(player, OrderFailure.MUST_BE_MOUNTED, pmc);
             return null;
         }
         if (OrderGuard.rejectIfDowned(player, pmc)) return null;
         if (OrderGuard.rejectIfTerritory(player, pmc, "patrol")) return null;
-        if (pmc instanceof com.neoalive.tacz_sewv.bridge.ICaptureOrder capture
-                && capture.sewv$hasCaptureOrder()) {
-            capture.sewv$clearCaptureOrder();
-        }
-        if (!(pmc.getVehicle() instanceof VehicleEntity v)) {
-            OrderReport.fail(player, OrderFailure.NOT_MOUNTED, pmc);
-            return null;
-        }
-        if (v.getFirstPassenger() != pmc) return null;
-        if (HullFacts.isHelicopterHull(v) || HullFacts.isPlaneHull(v)) {
-            OrderReport.fail(player, OrderFailure.WRONG_HULL, pmc);
-            return null;
+        if (QuickCommandUnits.refuseFobOrRoute(player, pmc)) return null;
+        if (pmc.getVehicle() instanceof VehicleEntity v) {
+            boolean plane = HullFacts.isPlaneHull(v);
+            boolean heli = !plane && HullFacts.isHelicopterHull(v);
+            if (plane || (heli && !walkOrFly)) {
+                OrderReport.fail(player, OrderFailure.WRONG_HULL, pmc);
+                return null;
+            }
         }
         return pmc;
+    }
+
+    /**
+     * A PMC helicopter on the ground sits in sticky LANDED and ignores destinations, so an area task
+     * would read as "ordered" while nothing moved. Lift it off at its own cruise trim; once airborne
+     * it flies the task's waypoints like any other destination.
+     */
+    private static void liftOffIfParked(PmcUnitEntity pmc) {
+        if (!(pmc.getVehicle() instanceof VehicleEntity v) || !HullFacts.isHelicopterHull(v)) return;
+        int cmd = ((IHelicopterPilot) pmc).sewv$getHeliCommand();
+        if (cmd == IHelicopterPilot.HELI_CMD_TAKEOFF) return;
+        if (v.onGround() || cmd == IHelicopterPilot.HELI_CMD_LANDED || cmd == IHelicopterPilot.HELI_CMD_LANDING
+                || cmd == IHelicopterPilot.HELI_CMD_EMERGENCY_LAND || cmd == IHelicopterPilot.HELI_CMD_LAND_HELIPAD) {
+            FlightOrders.takeoff(pmc, v, ((IHelicopterPilot) pmc).sewv$getCruiseAltitude());
+        }
     }
 
     /**
@@ -243,12 +264,12 @@ public class PacketPatrolVehicle {
                     || ((com.neoalive.tacz_sewv.bridge.ISweepInfantry) pmc).sewv$hasInfantrySweep()
                     || ((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$hasPathway()
                     || EntrenchSupport.isEntrenched(pmc)
+                    || ((IEscort) pmc).tacz_sewv$getEscortTargetId() != -1
+                    || GuardSupport.isReaching(pmc)
+                    || (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder())
                     || ((IFormationMember) pmc).sewv$getFormationDirection() != null;
             if (had) {
-                PatrolSupport.clearSweepMembership(pmc, "PacketPatrolVehicle");
-                EntrenchSupport.clear(pmc);
-                TowRecoverySupport.clearIfTowering(pmc);
-                ((com.neoalive.tacz_sewv.bridge.IPathwayInfantry) pmc).sewv$clearPathway();
+                OrderStandDown.clearForNewOrder(pmc, "PacketPatrolVehicle.dismiss");
                 VehicleFormation.clear(pmc);
                 if (pmc.getVehicle() == null) {
                     pmc.getNavigation().stop();

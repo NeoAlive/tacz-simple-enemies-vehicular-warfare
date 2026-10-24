@@ -50,7 +50,7 @@ public final class PacketRappelHelicopter {
                     OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
                     continue;
                 }
-                if (!pmc.isOwnedBy(player)) {
+                if (!com.neoalive.tacz_sewv.crew.OrderAuth.owns(player, pmc, "PacketRappelHelicopter")) {
                     OrderReport.fail(player, OrderFailure.NOT_OWNED);
                     continue;
                 }
@@ -58,7 +58,7 @@ public final class PacketRappelHelicopter {
                     OrderReport.fail(player, OrderFailure.NOT_MOUNTED, pmc);
                     continue;
                 }
-                if (v.getFirstPassenger() instanceof PmcUnitEntity driver && driver.isOwnedBy(player)) {
+                if (v.getFirstPassenger() instanceof PmcUnitEntity driver && com.neoalive.tacz_sewv.crew.OrderAuth.owns(player, driver, "PacketRappelHelicopter")) {
                     pmc = driver;
                 }
                 // The rest of this hull's crew is in the same list; the pilot above speaks for it.

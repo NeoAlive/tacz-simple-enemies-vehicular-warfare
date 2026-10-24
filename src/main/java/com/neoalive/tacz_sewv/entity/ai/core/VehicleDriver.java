@@ -365,7 +365,7 @@ public final class VehicleDriver {
                     this.currentPath = null;
                     this.pathRecalcCooldown = 0;
                     this.bankLipFanBlockedTicks = 0;
-                    SewvDiag.waterEvent("bankLip reverse END unit={}#{} vehicle={}#{} pos={} — resume pathing",
+                    SewvDiag.waterEvent("bankLip reverse END unit={}#{} vehicle={}#{} pos={}: resume pathing",
                             this.unit.getClass().getSimpleName(), this.unit.getId(),
                             this.vehicle.getName().getString(), this.vehicle.getId(),
                             this.vehicle.blockPosition());
@@ -387,7 +387,7 @@ public final class VehicleDriver {
             if (this.hullFanReverseTicksLeft == 0) {
                 this.currentPath = null;
                 this.pathRecalcCooldown = 0;
-                SewvDiag.pathingEvent("hullFan reverse END unit={}#{} vehicle={}#{} pos={} — resume pathing",
+                SewvDiag.pathingEvent("hullFan reverse END unit={}#{} vehicle={}#{} pos={}: resume pathing",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         this.vehicle.getName().getString(), this.vehicle.getId(),
                         this.vehicle.blockPosition());
@@ -911,7 +911,7 @@ public final class VehicleDriver {
 
         if (this.wheelReverseTotal >= WHEEL_REVERSE_MAX_TICKS) {
             if (SewvDiag.groundPathingVerbose()) {
-                SewvDiag.pathing("wheel reverse MAX unit={}#{} vehicle={}#{} total={} — abort",
+                SewvDiag.pathing("wheel reverse MAX unit={}#{} vehicle={}#{} total={}: abort",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         this.vehicle.getName().getString(), this.vehicle.getId(),
                         this.wheelReverseTotal);
@@ -1002,7 +1002,7 @@ public final class VehicleDriver {
         int segs = m.dirs().length;
         if (++run.ticks > ManeuverPlanner.MAX_MANEUVER_TICKS) {
             if (SewvDiag.groundPathingVerbose()) {
-                SewvDiag.pathing("multipoint MAX unit={}#{} vehicle={}#{} seg={} — abort",
+                SewvDiag.pathing("multipoint MAX unit={}#{} vehicle={}#{} seg={}: abort",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         this.vehicle.getName().getString(), this.vehicle.getId(), run.seg);
             }
@@ -1027,7 +1027,7 @@ public final class VehicleDriver {
             Vec3 travel = reverse ? new Vec3(-fwd.x, 0, -fwd.z) : new Vec3(fwd.x, 0, fwd.z);
             if (!this.sensor.headingClear(travel.normalize(), RUN_CONTACT_PROBE)) {
                 if (SewvDiag.groundPathingVerbose()) {
-                    SewvDiag.pathing("multipoint BLOCKED unit={}#{} vehicle={}#{} seg={} reverse={} — abort",
+                    SewvDiag.pathing("multipoint BLOCKED unit={}#{} vehicle={}#{} seg={} reverse={}: abort",
                             this.unit.getClass().getSimpleName(), this.unit.getId(),
                             this.vehicle.getName().getString(), this.vehicle.getId(), run.seg, reverse);
                 }
@@ -1238,7 +1238,7 @@ public final class VehicleDriver {
         }
         SewvDiag.waterEvent(
                 "bankLip reverse START unit={}#{} vehicle={}#{} pos={} inWater={} desired={} "
-                        + "threshold={} duration={} — dry bank lip, full fan blocked, no progress",
+                        + "threshold={} duration={}: dry bank lip, full fan blocked, no progress",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
                 this.vehicle.getName().getString(), this.vehicle.getId(),
                 this.vehicle.blockPosition(), this.vehicle.isInWater(), desired,
@@ -1284,7 +1284,7 @@ public final class VehicleDriver {
             SewvDiag.pathingEvent(
                     "hullFan reverse SKIP allRetreatBlocked unit={}#{} vehicle={}#{} pos={} "
                             + "desired={} reasons=[{}] trigger={} "
-                            + "probed=-desired,+25,-25 — holding, no blind reverse",
+                            + "probed=-desired,+25,-25: holding, no blind reverse",
                     this.unit.getClass().getSimpleName(), this.unit.getId(),
                     this.vehicle.getName().getString(), this.vehicle.getId(),
                     this.vehicle.blockPosition(), desired, this.sensor.lastFanReasons(), trigger);
@@ -1299,7 +1299,7 @@ public final class VehicleDriver {
         SewvDiag.pathingEvent(
                 "hullFan reverse START unit={}#{} vehicle={}#{} pos={} desired={} retreat={} face={} "
                         + "reasons=[{}] trigger={} "
-                        + "duration={} — face opposite retreat, reverse along cleared bearing",
+                        + "duration={}: face opposite retreat, reverse along cleared bearing",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
                 this.vehicle.getName().getString(), this.vehicle.getId(),
                 this.vehicle.blockPosition(), desired, chosenRetreat, this.hullFanFaceDesired,
@@ -1363,7 +1363,7 @@ public final class VehicleDriver {
             return true;
         }
         SewvDiag.waterEvent(
-                "submerged FAILSAFE unit={}#{} vehicle={}#{} pos={} escape={} — hull hitbox fully in fluid",
+                "submerged FAILSAFE unit={}#{} vehicle={}#{} pos={} escape={}: hull hitbox fully in fluid",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
                 this.vehicle.getName().getString(), this.vehicle.getId(),
                 this.vehicle.blockPosition(), escape);

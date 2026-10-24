@@ -305,7 +305,7 @@ public final class EmplacementSpawner {
             Item item = ForgeRegistries.ITEMS.getValue(key);
             if (item instanceof MortarShellItem) return item;
         }
-        LOGGER.warn("[tacz_sewv] '{}' is not a usable mortar shell — falling back to {}",
+        LOGGER.warn("[tacz_sewv] '{}' is not a usable mortar shell: falling back to {}",
                 id, ModItems.MORTAR_SHELL.getId());
         return ModItems.MORTAR_SHELL.get();
     }
@@ -316,7 +316,7 @@ public final class EmplacementSpawner {
             Item item = ForgeRegistries.ITEMS.getValue(key);
             if (item instanceof MediumRocketItem) return item;
         }
-        LOGGER.warn("[tacz_sewv] '{}' is not a usable medium rocket — falling back to {}",
+        LOGGER.warn("[tacz_sewv] '{}' is not a usable medium rocket: falling back to {}",
                 id, ModItems.MEDIUM_ROCKET_HE.getId());
         return ModItems.MEDIUM_ROCKET_HE.get();
     }

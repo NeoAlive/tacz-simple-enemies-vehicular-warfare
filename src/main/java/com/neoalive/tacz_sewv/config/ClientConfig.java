@@ -127,7 +127,7 @@ public final class ClientConfig {
                 .define("groundPathingDebug", false);
         SHIP_PATHING_DEBUG = builder.comment("Log ship pathing / depth probes.")
                 .define("shipPathingDebug", false);
-        SEWV_DIAG_DEBUG = builder.comment("General [sewv-diag] channels (targeting, scan, claim, …).")
+        SEWV_DIAG_DEBUG = builder.comment("General [sewv-diag] channels (targeting, scan, claim and so on).")
                 .define("sewvDiagDebug", false);
         HELI_COMBAT_DEBUG = builder.comment("Helicopter combat / run-phase diagnosis (logs + overlay).")
                 .define("heliCombatDebug", false);
@@ -138,9 +138,9 @@ public final class ClientConfig {
                 .define("planeCombatDebug", false);
         MORTAR_DEBUG_LOGGING = builder.comment("Log mortar / Type-63 crew gates (why a tube is holding).")
                 .define("mortarDebugLogging", false);
-        BALLISTIC_TRANSLATION_DEBUG = builder.comment("Print TaCZ→SBW ballistic translation for every translated hit.")
+        BALLISTIC_TRANSLATION_DEBUG = builder.comment("Log the TaCZ to SBW damage translation for every translated hit.")
                 .define("ballisticTranslationDebug", false);
-        ORDER_FAILURE_DEBUG = builder.comment("Log refused orders (default on — silent until something fails).")
+        ORDER_FAILURE_DEBUG = builder.comment("Log refused orders. On by default, and silent until something fails.")
                 .define("orderFailureDebug", true);
         SHOW_SPAWN_PROBES = builder.comment("Render spawn_probe blocks with the barrier placeholder texture.")
                 .define("showSpawnProbes", false);

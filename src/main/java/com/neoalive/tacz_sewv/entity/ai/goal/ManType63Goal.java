@@ -108,7 +108,7 @@ public class ManType63Goal extends Goal {
         crew().sewv$setFireMission(null);
         this.fireMission = null;
         Type63Support.releaseClaim(this.unit);
-        hold("fire mission complete — standing down off the launcher");
+        hold("fire mission complete: standing down off the launcher");
         return true;
     }
 
@@ -219,7 +219,7 @@ public class ManType63Goal extends Goal {
         }
         if (VehicleTargeting.friendlyNearPoint(
                 this.unit, aimCentre, SewvConfig.FRIENDLY_FIRE_MORTAR_RADIUS.get())) {
-            hold("holding fire — player or friendly PMC too close to aimpoint");
+            hold("holding fire: player or friendly PMC too close to aimpoint");
             return;
         }
 

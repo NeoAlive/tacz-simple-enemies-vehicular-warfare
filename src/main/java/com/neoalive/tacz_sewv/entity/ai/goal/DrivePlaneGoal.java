@@ -803,7 +803,7 @@ public class DrivePlaneGoal extends Goal {
         // is what produced the pass that never fires — see RUN_ALIGN_DEG.
         Vec3 dir = dist > 1.0E-4 ? new Vec3(dx / dist, 0, dz / dist) : this.kinematics.forwardFlat();
         if (!establishedForRun(target, dir)) {
-            SewvDiag.planeThrottled(now, "not established dist={} hdgErr={} — flying the run-in",
+            SewvDiag.planeThrottled(now, "not established dist={} hdgErr={}: flying the run-in",
                     String.format("%.0f", dist),
                     String.format("%.0f",
                             PlaneNav.headingErrorDeg(this.kinematics.forwardFlat(), dir)));
@@ -815,7 +815,7 @@ public class DrivePlaneGoal extends Goal {
         // and, on a heavy hull, a recovery that may not fit under the terrain.
         if (!runWouldBeSafe(target, dir)) {
             // The single most useful line in this whole file when a plane "just won't attack".
-            SewvDiag.planeThrottled(now, "run refused kind={} dist={} y={} floor={} — orbiting",
+            SewvDiag.planeThrottled(now, "run refused kind={} dist={} y={} floor={}: orbiting",
                     this.weapons.selectedKind(), String.format("%.0f", dist),
                     String.format("%.0f", this.vehicle.getY()),
                     String.format("%.0f", runFloorY(target)));
@@ -2371,7 +2371,7 @@ public class DrivePlaneGoal extends Goal {
         if (slot == null) {
             // Runway full: stop where it stands rather than taxi into someone. The strip is
             // blocked either way, and a hull sitting on the numbers is at least visible.
-            SewvDiag.plane("no free slot on arrival (capacity {}) — parking on the runway",
+            SewvDiag.plane("no free slot on arrival (capacity {}): parking on the runway",
                     slots.capacity());
             park(slots.headingDeg());
             settleLanded(pilot);

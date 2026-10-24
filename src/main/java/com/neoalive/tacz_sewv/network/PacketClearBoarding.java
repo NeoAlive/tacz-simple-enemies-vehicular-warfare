@@ -49,7 +49,7 @@ public class PacketClearBoarding {
             AABB area = vehicle.getBoundingBox().inflate(SCAN_RADIUS);
             int cleared = 0;
             for (PmcUnitEntity pmc : player.level().getEntitiesOfClass(PmcUnitEntity.class, area)) {
-                if (!pmc.isOwnedBy(player)) continue;
+                if (!com.neoalive.tacz_sewv.crew.OrderAuth.owns(player, pmc, "PacketClearBoarding")) continue;
                 IVehicleBoarder boarder = (IVehicleBoarder) pmc;
                 if (!boarder.tacz_sewv$isBoarding() || !boarder.tacz_sewv$isPassengerOnly()) continue;
                 if (boarder.tacz_sewv$getMountTargetId() != vehicle.getId()) continue;

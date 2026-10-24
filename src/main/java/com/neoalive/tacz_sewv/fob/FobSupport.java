@@ -211,24 +211,24 @@ public final class FobSupport {
         BlockPos routeCmd = routeCommandPos(pmc);
         if (routeCmd == null) {
             clearRoutePending(pmc);
-            FobDebug.logEntity(pmc, "cleared route — missing command pos tag");
+            FobDebug.logEntity(pmc, "cleared route: missing command pos tag");
             return true;
         }
         long deadline = pmc.getPersistentData().getLong(TAG_ROUTE_DEADLINE);
         if (deadline > 0L && level.getGameTime() > deadline) {
             clearRoutePending(pmc);
-            FobDebug.logEntity(pmc, "cleared route — timed out before reaching the parking pad");
+            FobDebug.logEntity(pmc, "cleared route: timed out before reaching the parking pad");
             return true;
         }
         FobInstance fob = FobManager.get(level).getFob(routeCmd);
         if (fob == null) {
             clearRoutePending(pmc);
-            FobDebug.logEntity(pmc, "cleared route — FOB gone");
+            FobDebug.logEntity(pmc, "cleared route: FOB gone");
             return true;
         }
         if (!fob.valid || fob.parkingPos == null) {
             clearRoutePending(pmc);
-            FobDebug.logEntity(pmc, "cleared route — invalid FOB or missing parking");
+            FobDebug.logEntity(pmc, "cleared route: invalid FOB or missing parking");
             return true;
         }
         // Either the unit is assigned, or it is driving an assigned hull home. The second case is
@@ -237,7 +237,7 @@ public final class FobSupport {
         // back — otherwise the order silently does nothing for exactly the hulls it advertises.
         if (!fob.assignedLiving.contains(pmc.getUUID()) && !drivesAssignedHull(pmc, fob)) {
             clearRoutePending(pmc);
-            FobDebug.logEntity(pmc, "cleared route — unassigned");
+            FobDebug.logEntity(pmc, "cleared route: unassigned");
             return true;
         }
         if (!pmc.isAlive()) {

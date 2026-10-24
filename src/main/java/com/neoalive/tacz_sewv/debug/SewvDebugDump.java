@@ -110,7 +110,7 @@ public final class SewvDebugDump {
         if (forgeResolved != null) {
             sb.append("serverconfig_forge_full_path=").append(forgeResolved.toAbsolutePath().normalize()).append('\n');
         } else {
-            sb.append("serverconfig_forge_full_path=(unavailable — use convention path)\n");
+            sb.append("serverconfig_forge_full_path=(unavailable: use convention path)\n");
         }
         sb.append('\n');
     }
@@ -219,7 +219,7 @@ public final class SewvDebugDump {
             }
         }
         sb.append("spawn_gates_in_live_serverconfig=").append(spawnGates)
-                .append(" (dead section — gamerules replaced it; dump-only, StartConfigFix will not rewrite live serverconfig)\n");
+                .append(" (dead section: gamerules replaced it; dump-only, StartConfigFix will not rewrite live serverconfig)\n");
 
         // Path-mismatch evidence only — do not recommend Configured on a clean dump.
         boolean pathMismatch = orphanPresent || Files.isRegularFile(misplacedServer);

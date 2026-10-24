@@ -7,7 +7,9 @@ import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
+import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 
 /**
@@ -16,6 +18,29 @@ import com.neoalive.tacz_sewv.fob.FobSupport;
 public final class OrderStandDown {
 
     private OrderStandDown() {}
+
+    /**
+     * What any new player order replaces: the standing tasks that would otherwise keep MOVE. Escort,
+     * sweep, area task and pathway goals all sit at priority 1, and at equal priority the running
+     * goal keeps the flag, so an order issued on top of one of them was silently ignored. Leaves
+     * boarding and mortar claims alone (the orders that set those manage them) and changes no SEM
+     * order, so callers set their own.
+     */
+    public static void clearForNewOrder(PmcUnitEntity pmc, String reason) {
+        if (((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
+                || ((IVehiclePatrol) pmc).sewv$hasSweepRect()
+                || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
+            PatrolSupport.clearSweepMembership(pmc, reason);
+        }
+        EntrenchSupport.clear(pmc);
+        GuardSupport.clearReach(pmc);
+        ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
+        TowRecoverySupport.clearIfTowering(pmc);
+        if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) {
+            capture.sewv$clearCaptureOrder();
+        }
+        ((IPathwayInfantry) pmc).sewv$clearPathway();
+    }
 
     public static void clearAll(PmcUnitEntity pmc, String reason) {
         pmc.setTarget(null);

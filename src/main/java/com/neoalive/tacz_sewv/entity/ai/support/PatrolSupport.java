@@ -3,10 +3,12 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 import java.util.List;
 import java.util.UUID;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -18,22 +20,25 @@ import org.jetbrains.annotations.Nullable;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveVehicleGoal;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
 
 /**
- * The area tasks a ground crew can be given, all read by whichever drive goal resolves the
- * destination ({@link VehicleTargeting#resolveDestination}). They share one state slot on the unit
- * ({@link IVehiclePatrol}) because a hull can only be doing one of them.
+ * The area tasks a unit can be given, read by whichever goal moves it: the drive goals for a crew
+ * ({@link VehicleTargeting#resolveDestination}, ground hulls and helicopters alike) and
+ * {@code AreaTaskInfantryGoal} on foot. They share one state slot on the unit
+ * ({@link IVehiclePatrol}) because a unit can only be doing one of them. Arrival is measured from
+ * the unit's body: its hull when mounted, itself on foot.
  *
  * <ul>
  * <li><b>Patrol</b> — endless: hold a waypoint inside the circle, roll a new one every
  *     {@code patrolRotateIntervalTicks}.</li>
  * <li><b>Search &amp; Destroy</b> — one-time: each hull is handed its own angular sector at order
- *     time and zig-zags across it to cover the ground, then stands down. The first hull to acquire
- *     a target alerts every other hull on the task, which ends the sweep for all of them and puts
- *     them on that target.</li>
+ *     time and zig-zags across it to cover the ground, then stands down. The first unit to acquire
+ *     a target shares it with every other unit on the task; they fight from the area and keep
+ *     sweeping.</li>
  * <li><b>Cruise</b> — endless: drive the waypoints the player plotted on the world map, in order,
  *     looping. The only task whose points are given rather than generated, which is why it is the
  *     only one that does no ground sampling.</li>
@@ -41,7 +46,8 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
  *
  * <p>Valid ground is judged with {@link GroundVehicleNodeEvaluator}'s own block classification, so a
  * waypoint is exactly the kind of node the driver's pathfinder can route to: air to sit in over
- * solid, non-hazard, dry footing ({@link BlockPathTypes#WALKABLE}).
+ * solid, non-hazard, dry footing ({@link BlockPathTypes#WALKABLE}). A helicopter only needs a
+ * surface to hover over, so its legs may also lie over water.
  */
 public final class PatrolSupport {
 
@@ -93,11 +99,12 @@ public final class PatrolSupport {
         BlockPos origin = task.sewv$getPatrolOrigin();
         if (origin == null) return null;
 
+        boolean air = vehicle != null && HullFacts.engineType(vehicle) == EngineType.HELICOPTER;
         return switch (task.sewv$getPatrolMode()) {
             case IVehiclePatrol.MODE_SEARCH, IVehiclePatrol.MODE_SWEEP ->
-                    searchWaypoint(pmc, vehicle, task, origin);
+                    searchWaypoint(pmc, vehicle, task, origin, air);
             case IVehiclePatrol.MODE_CRUISE -> cruiseWaypoint(pmc, vehicle, task);
-            default -> patrolWaypoint(pmc, task, origin);
+            default -> patrolWaypoint(pmc, task, origin, air);
         };
     }
 
@@ -326,14 +333,14 @@ public final class PatrolSupport {
     // --- Patrol: endless random wander, re-rolled on the config interval ---------------------
 
     @Nullable
-    private static BlockPos patrolWaypoint(PmcUnitEntity pmc, IVehiclePatrol task, BlockPos origin) {
+    private static BlockPos patrolWaypoint(PmcUnitEntity pmc, IVehiclePatrol task, BlockPos origin, boolean air) {
         long now = pmc.level().getGameTime();
         BlockPos waypoint = task.sewv$getPatrolWaypoint();
         if (waypoint != null && now < task.sewv$getPatrolNextRotate()) {
             return waypoint;
         }
 
-        BlockPos fresh = pickWaypoint(pmc.level(), origin, task.sewv$getPatrolRadius(), pmc.getRandom());
+        BlockPos fresh = pickWaypoint(pmc.level(), origin, task.sewv$getPatrolRadius(), pmc.getRandom(), air);
         if (fresh != null) {
             task.sewv$setPatrolWaypoint(fresh);
             task.sewv$setPatrolNextRotate(now + SewvConfig.PATROL_ROTATE_INTERVAL_TICKS.get());
@@ -351,12 +358,18 @@ public final class PatrolSupport {
     // idle hull's short drift, at a much smaller radius.
     @Nullable
     public static BlockPos pickWaypoint(Level level, BlockPos origin, int radius, RandomSource random) {
+        return pickWaypoint(level, origin, radius, random, false);
+    }
+
+    @Nullable
+    private static BlockPos pickWaypoint(Level level, BlockPos origin, int radius, RandomSource random,
+                                         boolean air) {
         for (int i = 0; i < PICK_ATTEMPTS; i++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double dist = Math.sqrt(random.nextDouble()) * radius; // sqrt → uniform over the disk, not clustered at centre
             int x = origin.getX() + (int) Math.round(Math.cos(angle) * dist);
             int z = origin.getZ() + (int) Math.round(Math.sin(angle) * dist);
-            BlockPos pos = drivableColumn(level, x, z);
+            BlockPos pos = column(level, x, z, air);
             if (pos != null) return pos;
         }
         return null;
@@ -366,7 +379,7 @@ public final class PatrolSupport {
 
     @Nullable
     private static BlockPos searchWaypoint(PmcUnitEntity pmc, @Nullable VehicleEntity vehicle,
-                                           IVehiclePatrol task, BlockPos origin) {
+                                           IVehiclePatrol task, BlockPos origin, boolean air) {
         // Contact: share with the group, but keep working the sector/rect. Returning null here
         // used to park the hull (getTargetPos null → stop) and, with the old alertGroup clear,
         // permanently ended the area task so quiet never resolved.
@@ -380,7 +393,8 @@ public final class PatrolSupport {
         int step = task.sewv$getPatrolStep();
 
         if (waypoint != null) {
-            boolean reached = vehicle != null && horizontalDistSq(vehicle, waypoint) <= SWEEP_ARRIVE_SQ;
+            Entity body = vehicle != null ? vehicle : pmc;
+            boolean reached = horizontalDistSq(body, waypoint) <= SWEEP_ARRIVE_SQ;
             // A leg it cannot reach must not stall the sweep — time out and move on.
             if (!reached && now < task.sewv$getPatrolStepDeadline()) return waypoint;
             step++;
@@ -392,9 +406,9 @@ public final class PatrolSupport {
         boolean rect = task.sewv$getPatrolMode() == IVehiclePatrol.MODE_SWEEP && task.sewv$hasSweepRect();
         while (step < SWEEP_STEPS) {
             BlockPos next = rect
-                    ? rectSweepPoint(pmc.level(), task, sector, sectorCount, step, pmc.getRandom())
+                    ? rectSweepPoint(pmc.level(), task, sector, sectorCount, step, pmc.getRandom(), air)
                     : sweepPoint(pmc.level(), origin, task.sewv$getPatrolRadius(),
-                            sector, sectorCount, step, pmc.getRandom());
+                            sector, sectorCount, step, pmc.getRandom(), air);
             if (next != null) {
                 task.sewv$setPatrolStep(step);
                 task.sewv$setPatrolWaypoint(next);
@@ -406,7 +420,7 @@ public final class PatrolSupport {
 
         int exhaustedMode = task.sewv$getPatrolMode();
         SewvDiag.sweep(
-                "sectorExhausted → areaTaskClear unit={}#{} modeWas={} — units go idle/FREE here",
+                "sectorExhausted -> areaTaskClear unit={}#{} modeWas={}: units go idle/FREE here",
                 pmc.getClass().getSimpleName(), pmc.getId(), exhaustedMode);
         clear(pmc); // sector swept — ends the area task
         return null;
@@ -415,7 +429,8 @@ public final class PatrolSupport {
     /** Zig-zag legs sampled inside the chunk rectangle (MODE_SWEEP). */
     @Nullable
     private static BlockPos rectSweepPoint(Level level, IVehiclePatrol task,
-                                           int sector, int sectorCount, int step, RandomSource random) {
+                                           int sector, int sectorCount, int step, RandomSource random,
+                                           boolean air) {
         int left = task.sewv$getSweepLeft() << 4;
         int right = (task.sewv$getSweepRight() << 4) + 15;
         int top = task.sewv$getSweepTop() << 4;
@@ -426,7 +441,7 @@ public final class PatrolSupport {
         double v = step % 2 == 0 ? 0.85 : 0.35;
         double x = left + (right - left) * u;
         double z = top + (bottom - top) * v;
-        return findDrivableNear(level, x, z, random);
+        return findDrivableNear(level, x, z, random, air);
     }
 
     /**
@@ -436,14 +451,15 @@ public final class PatrolSupport {
      */
     @Nullable
     private static BlockPos sweepPoint(Level level, BlockPos origin, int radius,
-                                       int sector, int sectorCount, int step, RandomSource random) {
+                                       int sector, int sectorCount, int step, RandomSource random,
+                                       boolean air) {
         double sectorWidth = (Math.PI * 2.0) / Math.max(1, sectorCount);
         double angle = sectorWidth * sector + sectorWidth * ((step + 0.5) / SWEEP_STEPS);
         double dist = radius * (step % 2 == 0 ? 0.9 : 0.45);
         return findDrivableNear(level,
                 origin.getX() + Math.cos(angle) * dist,
                 origin.getZ() + Math.sin(angle) * dist,
-                random);
+                random, air);
     }
 
     /** Share a contact with the rest of the search/sweep group without abandoning the area task. */
@@ -475,7 +491,7 @@ public final class PatrolSupport {
 
     // The ideal point rarely lands on drivable ground, so settle for something close to it.
     @Nullable
-    private static BlockPos findDrivableNear(Level level, double x, double z, RandomSource random) {
+    private static BlockPos findDrivableNear(Level level, double x, double z, RandomSource random, boolean air) {
         for (int i = 0; i < NEAR_ATTEMPTS; i++) {
             int bx = Mth.floor(x);
             int bz = Mth.floor(z);
@@ -483,10 +499,18 @@ public final class PatrolSupport {
                 bx += random.nextInt(NEAR_JITTER * 2 + 1) - NEAR_JITTER;
                 bz += random.nextInt(NEAR_JITTER * 2 + 1) - NEAR_JITTER;
             }
-            BlockPos pos = drivableColumn(level, bx, bz);
+            BlockPos pos = column(level, bx, bz, air);
             if (pos != null) return pos;
         }
         return null;
+    }
+
+    /** A waypoint column: drivable ground, or for a helicopter any loaded surface, water included. */
+    @Nullable
+    private static BlockPos column(Level level, int x, int z, boolean air) {
+        if (!air) return drivableColumn(level, x, z);
+        if (!level.hasChunkAt(x, z)) return null;
+        return new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
     }
 
     // The surface of this column if a ground hull could sit and be pathed to there, else null.
@@ -499,9 +523,9 @@ public final class PatrolSupport {
                 ? new BlockPos(x, y, z) : null;
     }
 
-    private static double horizontalDistSq(VehicleEntity vehicle, BlockPos pos) {
-        double dx = pos.getX() + 0.5 - vehicle.getX();
-        double dz = pos.getZ() + 0.5 - vehicle.getZ();
+    private static double horizontalDistSq(Entity body, BlockPos pos) {
+        double dx = pos.getX() + 0.5 - body.getX();
+        double dz = pos.getZ() + 0.5 - body.getZ();
         return dx * dx + dz * dz;
     }
 }

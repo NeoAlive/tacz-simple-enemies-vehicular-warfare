@@ -87,7 +87,7 @@ public class CapturePointScreen extends Screen {
     }
 
     private Component ownedLabel() {
-        String name = this.ownedTeam.isEmpty() ? "—" : this.ownedTeam;
+        String name = this.ownedTeam.isEmpty() ? "none" : this.ownedTeam;
         return Component.translatable("gui.tacz_sewv.invasion.owned_team", name);
     }
 

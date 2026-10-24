@@ -63,9 +63,9 @@ public final class LvCompat {
 
     public static void reportAvailability() {
         if (present()) {
-            LOGGER.info("Limitless Vehicles soft-compat active (mod id {}) — crews drive ground, boat and rotor hulls", MODID);
+            LOGGER.info("Limitless Vehicles soft-compat active (mod id {}): crews drive ground, boat and rotor hulls", MODID);
         } else {
-            LOGGER.info("Limitless Vehicles absent — soft-compat facade idle");
+            LOGGER.info("Limitless Vehicles absent: soft-compat facade idle");
         }
     }
 

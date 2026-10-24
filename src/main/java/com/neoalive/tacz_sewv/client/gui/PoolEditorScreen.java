@@ -363,8 +363,8 @@ public class PoolEditorScreen extends Screen {
 
     private static String assessmentText(Pack pack, Assessment a) {
         String name = Component.translatable(pack.langKey).getString();
-        return name + " · RU " + a.ru() + " / US " + a.us() + " / PMC " + a.pmc()
-                + " · " + a.live() + " live";
+        return name + " | RU " + a.ru() + " / US " + a.us() + " / PMC " + a.pmc()
+                + " | " + a.live() + " live";
     }
 
     private void applyPack(Pack pack) {

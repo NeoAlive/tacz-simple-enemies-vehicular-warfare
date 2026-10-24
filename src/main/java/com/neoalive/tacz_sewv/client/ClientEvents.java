@@ -97,7 +97,8 @@ public class ClientEvents {
         clearTow();
         clearGuard();
         clearLiveSelection();
-        List<Integer> units = snapshotOwnedUnits();
+        // Only a unit on foot can escort (EscortGoal walks it), so riders are not taken along.
+        List<Integer> units = WheelScope.units(true, WheelScope.nearbyRadius(), null);
         if (units.isEmpty()) {
             hint("message.tacz_sewv.escort.no_units");
             return false;

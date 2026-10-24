@@ -64,7 +64,7 @@ public final class SewvConfigFix {
             moved.add(new Move(from.toAbsolutePath().normalize(), to.toAbsolutePath().normalize(), reason));
 
             if (from.getFileName().toString().equals("tacz_sewv-common.toml")) {
-                notes.add("Quarantined tacz_sewv-common.toml — this file is NOT loaded for live config. "
+                notes.add("Quarantined tacz_sewv-common.toml: this file is NOT loaded for live config. "
                         + "If you relied on it for vehicle-pool seeding in NEW worlds, use /sewv pool instead. "
                         + "Existing worlds are unaffected (pools already seeded to per-world data).");
             }
@@ -96,11 +96,11 @@ public final class SewvConfigFix {
 
     private static String reasonFor(String name) {
         if (name.equals("tacz_sewv-common.toml")) {
-            return "orphan COMMON toml — SewvConfig is SERVER; file is not loaded for live knobs "
+            return "orphan COMMON toml: SewvConfig is SERVER; file is not loaded for live knobs "
                     + "(legacy vehicle-pool seed only on first WorldVehiclePools create)";
         }
         if (name.equals("tacz_sewv-server.toml")) {
-            return "misplaced SERVER toml in global config/ — live file is per-world serverconfig/";
+            return "misplaced SERVER toml in global config/: live file is per-world serverconfig/";
         }
         return "stale SEWV backup / leftover under config/";
     }

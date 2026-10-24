@@ -14,6 +14,11 @@ public final class OrderAuth {
 
     private OrderAuth() {}
 
+    /** {@link #check} for handlers typed on {@code Player}; a client-side player never owns anything here. */
+    public static boolean owns(net.minecraft.world.entity.player.Player player, PmcUnitEntity pmc, String channel) {
+        return player instanceof ServerPlayer sp && check(sp, pmc, channel);
+    }
+
     /**
      * @return true if {@code player} owns {@code pmc}
      */

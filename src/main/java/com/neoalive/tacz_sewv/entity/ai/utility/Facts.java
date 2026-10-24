@@ -516,7 +516,7 @@ public final class Facts {
                         && unit.level().getGameTime() % 40 == 0) {
                     SewvDiag.scan(
                             "Facts.forceRatio path: isNonHostile=false unit={}#{} other={}#{} "
-                                    + "(utility count only — not VehicleTargetScanGoal)",
+                                    + "(utility count only: not VehicleTargetScanGoal)",
                             unit.getClass().getSimpleName(), unit.getId(),
                             other.getClass().getSimpleName(), other.getId());
                 }

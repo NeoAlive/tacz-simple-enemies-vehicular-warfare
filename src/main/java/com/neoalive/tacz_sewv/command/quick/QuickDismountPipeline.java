@@ -5,13 +5,11 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.order.OrderGuard;
 
@@ -37,9 +35,8 @@ public final class QuickDismountPipeline implements QuickCommandPipeline {
             boarder.tacz_sewv$setBoarding(false);
             boarder.tacz_sewv$setMountTargetId(-1);
             MortarSupport.releaseClaim(pmc);
-            PatrolSupport.clearSweepMembership(pmc, "QuickDismount");
-            ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
-            TowRecoverySupport.clearIfTowering(pmc);
+            // Entrench included: a sandbag post would otherwise walk the unit straight back to its seat.
+            OrderStandDown.clearForNewOrder(pmc, "QuickDismount");
             if (wasMounted) dismounted++;
         }
         NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.dismount", dismounted,

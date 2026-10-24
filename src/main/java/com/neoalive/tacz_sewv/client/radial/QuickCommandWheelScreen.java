@@ -404,6 +404,9 @@ public final class QuickCommandWheelScreen extends Screen {
         return switch (pipelineId) {
             case QuickCommandRegistry.ID_BOARD_PASSENGER -> this.aim.entity() != null;
             case QuickCommandRegistry.ID_REACH_GUARD -> reachGuardKnown();
+            // Releases waiters into the player's own hull, so it means nothing on foot.
+            case QuickCommandRegistry.ID_BOARD_QUEUED -> this.minecraft != null && this.minecraft.player != null
+                    && this.minecraft.player.getVehicle() instanceof com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
             default -> true;
         };
     }
@@ -806,7 +809,7 @@ public final class QuickCommandWheelScreen extends Screen {
             String value = supportDelay <= 0
                     ? I18n.get("gui.tacz_sewv.support.delay.off")
                     : I18n.get("gui.tacz_sewv.support.delay.seconds", supportDelay);
-            return new ScaleCardDraw.Card("☄ " + I18n.get("gui.tacz_sewv.support.delay.label"), value,
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.support.delay.label"), value,
                     I18n.get("gui.tacz_sewv.support.delay.seconds", MAX_SUPPORT_DELAY),
                     I18n.get("gui.tacz_sewv.support.delay.mortar_only"),
                     supportDelay / (float) MAX_SUPPORT_DELAY, supportDelay > 0);
@@ -815,8 +818,8 @@ public final class QuickCommandWheelScreen extends Screen {
         if (scale == null) throw new IllegalArgumentException(pipelineId);
         boolean altitude = scale == OrderScales.Scale.ALTITUDE;
         String title = altitude
-                ? "↑ " + I18n.get("gui.tacz_sewv.wheel.scale.altitude")
-                : "◎ " + I18n.get("gui.tacz_sewv.wheel.scale.radius");
+                ? I18n.get("gui.tacz_sewv.wheel.scale.altitude")
+                : I18n.get("gui.tacz_sewv.wheel.scale.radius");
         String tag = I18n.get("gui.tacz_sewv.wheel.scale.tag." + scale.name().toLowerCase(java.util.Locale.ROOT));
         int value = OrderScales.get(scale);
         return new ScaleCardDraw.Card(title, I18n.get("gui.tacz_sewv.wheel.scale.blocks", value),

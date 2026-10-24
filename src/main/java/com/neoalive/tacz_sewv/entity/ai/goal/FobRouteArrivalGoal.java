@@ -48,7 +48,7 @@ public class FobRouteArrivalGoal extends Goal {
         if (!(this.unit.level() instanceof ServerLevel level)) return false;
 
         if (FobSupport.sanitizeRoutePending(this.unit, level)) {
-            FobDebug.logEntity(this.unit, "route goal canUse=false — stale route cleared");
+            FobDebug.logEntity(this.unit, "route goal canUse=false: stale route cleared");
             return false;
         }
 
@@ -58,7 +58,7 @@ public class FobRouteArrivalGoal extends Goal {
         // for good.
         FobInstance fob = fob(level);
         if (fob == null || fob.parkingPos == null) {
-            FobDebug.logEntity(this.unit, "route goal canUse=false — fob={}, parking={}",
+            FobDebug.logEntity(this.unit, "route goal canUse=false: fob={}, parking={}",
                     fob != null, fob != null && fob.parkingPos != null);
             return false;
         }
@@ -86,7 +86,7 @@ public class FobRouteArrivalGoal extends Goal {
         }
 
         if (atParkingStandoff(this.unit, fob, level)) {
-            FobDebug.logEntity(this.unit, "route arrival — infantry at parking standoff");
+            FobDebug.logEntity(this.unit, "route arrival: infantry at parking standoff");
             finishRoute(fob);
         }
     }
@@ -108,7 +108,7 @@ public class FobRouteArrivalGoal extends Goal {
     private void disembark(VehicleEntity hull, FobInstance fob) {
         boolean aircraft = HullFacts.isHelicopterHull(hull) || HullFacts.isPlaneHull(hull);
         if (aircraft && !hull.onGround()) return;
-        FobDebug.logEntity(this.unit, "route arrival — crew dismount at parking standoff");
+        FobDebug.logEntity(this.unit, "route arrival: crew dismount at parking standoff");
         for (Entity passenger : List.copyOf(hull.getPassengers())) {
             if (passenger instanceof Player) continue;
             passenger.stopRiding();
@@ -142,7 +142,7 @@ public class FobRouteArrivalGoal extends Goal {
         FobSupport.clearRoutePending(this.unit);
         markStoodDownIfScrambling(this.unit, fob);
         this.unit.setOrder(OrderType.FREE_FIRE);
-        FobDebug.logEntity(this.unit, "route finished — order reset to FREE_FIRE");
+        FobDebug.logEntity(this.unit, "route finished: order reset to FREE_FIRE");
     }
 
     /** Only latch during an active alarm — a peacetime arrival must not skip the next scramble. */

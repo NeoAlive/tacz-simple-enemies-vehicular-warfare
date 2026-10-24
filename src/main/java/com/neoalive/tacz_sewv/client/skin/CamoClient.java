@@ -44,7 +44,7 @@ public final class CamoClient {
     /** One WARN per distinct {@code what}: camo was asked for, the art is missing, legacy pick used. */
     static void warnMissing(String what) {
         if (WARNED.add(what)) {
-            LOGGER.warn("[sewv-camo] no art for {} — falling back to the random pick", what);
+            LOGGER.warn("[sewv-camo] no art for {}: falling back to the random pick", what);
         }
     }
 }

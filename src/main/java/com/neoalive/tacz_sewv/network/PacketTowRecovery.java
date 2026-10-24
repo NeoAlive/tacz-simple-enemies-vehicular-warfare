@@ -18,6 +18,7 @@ import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
+import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
 /**
@@ -87,10 +88,15 @@ public class PacketTowRecovery {
             }
 
             Entity driverEntity = tower.getFirstPassenger();
-            if (!(driverEntity instanceof PmcUnitEntity driver) || !driver.isOwnedBy(sp)) {
+            if (!(driverEntity instanceof PmcUnitEntity driver) || !com.neoalive.tacz_sewv.crew.OrderAuth.owns(sp, driver, "PacketTowRecovery")) {
                 OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
                 return;
             }
+            if (OrderGuard.rejectIfDowned(sp, driver)) return;
+            if (OrderGuard.rejectIfTerritory(sp, driver, "quick_wheel")) return;
+            if (com.neoalive.tacz_sewv.command.quick.QuickCommandUnits.refuseFobOrRoute(sp, driver)) return;
+            // The tower cannot be towing anything here (refused above), so this only drops its other tasks.
+            com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown.clearForNewOrder(driver, "PacketTowRecovery");
 
             // Assign the victim before clearing any prior link — avoids a tick with no order.
             int priorVictimId = TowRecoverySupport.hasTowOrder(driver)

@@ -58,7 +58,7 @@ public final class ColtanSkinBridge {
             skins.getMethod("setResolver", Function.class).invoke(null, resolver);
             LOGGER.info("Registered SEWV unit corpse skins on ColtanCorpseSkins");
         } catch (ReflectiveOperationException e) {
-            LOGGER.info("Coltan has no ColtanCorpseSkins (older build) — SEM corpses keep CorpseMod's renderer");
+            LOGGER.info("Coltan has no ColtanCorpseSkins (older build): SEM corpses keep CorpseMod's renderer");
         }
     }
 

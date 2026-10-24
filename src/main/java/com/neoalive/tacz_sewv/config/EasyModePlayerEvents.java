@@ -96,6 +96,7 @@ public final class EasyModePlayerEvents {
         float scale = 1.0f;
         if (EasyMode.playerDamageScaleEnabled()) scale *= EasyMode.playerDamageScale();
         if (EasyMode.playerSustain() && isExplosion(source)) scale *= EasyTuning.EXPLOSION_EXTRA_MULT;
+        if (!selfBlast && isVehicleFire(source)) scale *= EasyTuning.VEHICLE_TO_PLAYER_MULT;
         if (scale < 0.999F) event.setAmount(event.getAmount() * scale);
     }
 
@@ -232,9 +233,15 @@ public final class EasyModePlayerEvents {
         return until > 0L && player.level().getGameTime() < until;
     }
 
-    /** Whether {@code observer} must not proactively pick {@code player} (grace, no retaliation). */
+    /**
+     * Whether {@code observer} must not proactively pick {@code player}: respawn grace, or the player
+     * is past {@link EasyTuning#PLAYER_LOCK_RANGE}. Retaliation always passes.
+     */
     public static boolean refusesPlayer(LivingEntity observer, Player player) {
-        return inRespawnGrace(player) && observer.getLastHurtByMob() != player;
+        if (!EasyMode.playerPrioritySoft() || player == null) return false;
+        if (observer.getLastHurtByMob() == player) return false;
+        double r = EasyTuning.PLAYER_LOCK_RANGE;
+        return inRespawnGrace(player) || observer.distanceToSqr(player) > r * r;
     }
 
     /**
@@ -286,6 +293,21 @@ public final class EasyModePlayerEvents {
             }
         }
         return culprit;
+    }
+
+    /**
+     * A hit from a vehicle weapon: a hull in the source chain, a unit firing from a seat, or
+     * unattributed SBW ordnance (shells and their splash). Hand-held SBW launchers fired on foot are
+     * not vehicles and keep the plain scale.
+     */
+    private static boolean isVehicleFire(DamageSource source) {
+        Entity attacker = source.getEntity();
+        Entity direct = source.getDirectEntity();
+        if (attacker instanceof VehicleEntity || direct instanceof VehicleEntity) return true;
+        if (direct instanceof Projectile proj && proj.getOwner() instanceof VehicleEntity) return true;
+        Entity culprit = culpritOf(source);
+        if (culprit instanceof AbstractUnit unit) return unit.getVehicle() instanceof VehicleEntity;
+        return culprit == null && isUnattributedSbw(source, null);
     }
 
     private static boolean isHostileTo(DamageSource source, LivingEntity victim) {

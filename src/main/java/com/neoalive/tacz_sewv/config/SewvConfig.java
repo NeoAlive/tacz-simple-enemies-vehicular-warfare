@@ -157,6 +157,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue MEDIC_FLEE_MAX_DISTANCE;
     public static final ForgeConfigSpec.BooleanValue HEALTH_MOBILITY_ENABLED;
     public static final ForgeConfigSpec.DoubleValue HEALTH_MOBILITY_FLOOR;
+    public static final ForgeConfigSpec.DoubleValue AI_TURRET_TRAVERSE_SCALE;
     public static final ForgeConfigSpec.DoubleValue MEDIC_SPAWN_CHANCE;
     public static final ForgeConfigSpec.DoubleValue ENGINEER_SPAWN_CHANCE;
     public static final ForgeConfigSpec.DoubleValue SUPPORT_DEDUPE_RADIUS;
@@ -804,6 +805,8 @@ public final class SewvConfig {
                 .define("healthMobilityEnabled", true);
         HEALTH_MOBILITY_FLOOR = builder.comment("Slowest a wrecked hull still moves (0.4 = 40% of normal speed).")
                 .defineInRange("healthMobilityFloor", 0.4, 0.05, 1.0);
+        AI_TURRET_TRAVERSE_SCALE = builder.comment("Turret traverse speed of every AI-crewed hull (0.5 = half of SBW's rate). Easy Mode slows hostile crews further on top.")
+                .defineInRange("aiTurretTraverseScale", 0.5, 0.1, 1.0);
         MEDIC_SPAWN_CHANCE = builder.comment("Chance an RU/US group includes a medic.")
                 .defineInRange("medicSpawnChance", 0.06, 0.0, 1.0);
         ENGINEER_SPAWN_CHANCE = builder.comment("Chance an RU/US group includes an engineer.")

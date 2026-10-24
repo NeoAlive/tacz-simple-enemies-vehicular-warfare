@@ -38,8 +38,12 @@ public final class EasyTuning {
 
     // --- Mobility & cadence (hostile crews) ---
 
-    /** Turret traverse speed multiplier. */
-    public static final float TURRET_TRAVERSE_MULT = 0.35f;
+    /**
+     * Turret traverse multiplier, ON TOP of the global {@code aiTurretTraverseScale} (0.5): 0.7 keeps a
+     * hostile turret at ~0.35 of SBW's rate overall. Going much lower stops it tracking a running
+     * player at all, which is a gate, not a pace.
+     */
+    public static final float TURRET_TRAVERSE_MULT = 0.7f;
     /** Track / wheel engine thrust multiplier. */
     public static final float DRIVE_THRUST_MULT = 0.65f;
     /** Repath cooldowns / path max age multiplier. */
@@ -117,6 +121,14 @@ public final class EasyTuning {
     public static final int REGEN_DELAY_TICKS = 100;
     /** Knockback multiplier from hostile or explosive sources. */
     public static final float KNOCKBACK_MULT = 0.3f;
+    /**
+     * Extra multiplier on any hostile VEHICLE weapon hitting a player (shell, splash, MG, TOW), on
+     * top of {@code easyPlayerDamageTaken}: hull weapons are tuned for hull HP, so the base scale
+     * alone still let one shell take half the bar.
+     */
+    public static final float VEHICLE_TO_PLAYER_MULT = 0.2f;
+    /** Hostiles never proactively lock a player farther than this (blocks); retaliation still may. */
+    public static final double PLAYER_LOCK_RANGE = 32.0;
     /** Hostile damage to a hull crewed by a player or owned PMC. */
     public static final float FRIENDLY_HULL_DAMAGE_MULT = 0.5f;
     /** Respawn grace before hostiles may proactively lock the player, game ticks. */

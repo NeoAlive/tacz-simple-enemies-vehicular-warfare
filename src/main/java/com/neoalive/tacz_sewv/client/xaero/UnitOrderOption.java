@@ -283,7 +283,6 @@ public class UnitOrderOption extends RightClickOption {
             }
             Minecraft.getInstance().getSoundManager().play(
                     SimpleSoundInstance.forUI(ModSounds.ATTACK.get(), 1.0F));
-            hint("message.tacz_sewv.map.attack_that", drivers.size());
             return;
         }
 

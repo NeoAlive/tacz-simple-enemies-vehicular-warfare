@@ -25,6 +25,7 @@ import org.joml.Vector3d;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -595,6 +596,11 @@ public class DriveHelicopterGoal extends Goal {
             sit.holdX = px;
             sit.holdZ = pz;
             sit.holdY = orderAltitude(px, pz, dest, true);
+            // A patrol / S&D leg is flown as a hover point sliding across the area, not a Dubins
+            // transit: the transit's turn circles carried the hull well outside the radius. The
+            // slide crosses ground ahead of it, so it holds the leg's terrain-aware altitude too.
+            sit.areaTask = this.unit instanceof IVehiclePatrol patrol && dest.equals(patrol.sewv$getPatrolWaypoint());
+            if (sit.areaTask) sit.holdY = Math.max(sit.holdY, sit.destY);
             return;
         }
         holdHere(false);

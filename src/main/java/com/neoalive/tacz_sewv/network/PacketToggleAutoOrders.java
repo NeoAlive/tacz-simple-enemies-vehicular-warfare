@@ -52,7 +52,7 @@ public class PacketToggleAutoOrders {
                 ordered++;
             }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.platoon.auto_orders", ordered, ChatFormatting.YELLOW);
+            NetworkHandler.orderFeedback(player, "auto_orders", "message.tacz_sewv.platoon.auto_orders", ordered, ChatFormatting.YELLOW);
         });
         ctx.get().setPacketHandled(true);
     }

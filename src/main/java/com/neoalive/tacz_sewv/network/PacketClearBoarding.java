@@ -57,7 +57,7 @@ public class PacketClearBoarding {
                 cleared++;
             }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.board.cleared", cleared,
+            NetworkHandler.orderFeedback(player, "board_queued", "message.tacz_sewv.board.cleared", cleared,
                     ChatFormatting.GREEN, cleared);
         });
         ctx.get().setPacketHandled(true);

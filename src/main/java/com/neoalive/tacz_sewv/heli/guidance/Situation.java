@@ -35,6 +35,11 @@ public final class Situation {
     public TargetMotion targetMotion = TargetMotion.STATIC;
     public boolean hasDestination;
     public double destDistance;
+    /**
+     * The destination is a patrol / search leg: flown as a moving hover point (HOVER_HOLD, nose on
+     * the leg), never a TRANSIT, whose Dubins turns would leave the area.
+     */
+    public boolean areaTask;
     /** Hull health as a fraction of max, and the airframe's evade threshold (0 disables). */
     public double healthFrac = 1.0, evadeHealth;
     /** Held weapon's remaining ammunition as a fraction; 0 means depleted. */

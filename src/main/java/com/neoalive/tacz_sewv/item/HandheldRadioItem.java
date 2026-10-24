@@ -120,18 +120,8 @@ public class HandheldRadioItem extends Item {
                 player.level(), player.getUUID(), player.position(),
                 EasyMode.mortarRadioRange());
 
-        if (released == 0) {
-            hint(player, "message.tacz_sewv.radio.standdown.none", ChatFormatting.GRAY);
-            return;
-        }
-
-        Component msg = Component.translatable(
-                released == 1
-                        ? "message.tacz_sewv.radio.standdown.single"
-                        : "message.tacz_sewv.radio.standdown.multiple",
-                released);
-        com.neoalive.tacz_sewv.network.NetworkHandler.sendOrderFeedback(
-                player, msg.copy().withStyle(ChatFormatting.YELLOW));
+        com.neoalive.tacz_sewv.network.NetworkHandler.orderFeedback(player, "fire_mission",
+                "message.tacz_sewv.radio.standdown", released, ChatFormatting.YELLOW, released);
     }
 
     /**
@@ -160,10 +150,6 @@ public class HandheldRadioItem extends Item {
             }
         }
         return null;
-    }
-
-    private static void hint(Player player, String key, ChatFormatting style) {
-        player.displayClientMessage(Component.translatable(key).withStyle(style), false);
     }
 
     @Override

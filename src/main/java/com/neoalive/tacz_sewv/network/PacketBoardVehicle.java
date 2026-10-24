@@ -67,8 +67,8 @@ public class PacketBoardVehicle {
         // hear why nobody moved, not watch the squad walk over and silently give up.
         if (hull instanceof VehicleEntity vehicle && NpcVehicleOverrides.refusesNpcRiders(vehicle)) {
             OrderReport.fail(player, OrderFailure.VEHICLE_PLAYER_ONLY);
-            NetworkHandler.sendOrderFeedback(player, Component.translatable(
-                    "message.tacz_sewv.board.player_only").withStyle(ChatFormatting.GRAY));
+            NetworkHandler.sendOrderFeedback(player, NetworkHandler.orderLine("board", 0, Component.translatable(
+                    "message.tacz_sewv.board.player_only").withStyle(ChatFormatting.GRAY)));
             return;
         }
 
@@ -108,7 +108,7 @@ public class PacketBoardVehicle {
         // The ".none" this emits at zero is suppressed by OrderReport whenever one of the refusals
         // above already said something more specific — which is why the old bespoke "busy on a
         // mortar" branch is gone rather than moved.
-        NetworkHandler.orderFeedback(player, "message.tacz_sewv.board.ordered", ordered,
+        NetworkHandler.orderFeedback(player, "board", "message.tacz_sewv.board.ordered", ordered,
                 ChatFormatting.GREEN, ordered);
     });
     ctx.get().setPacketHandled(true);

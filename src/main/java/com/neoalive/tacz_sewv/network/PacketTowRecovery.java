@@ -115,9 +115,9 @@ public class PacketTowRecovery {
             boarder.tacz_sewv$setMountTargetId(-1);
             driver.setOrder(OrderType.FREE_FIRE);
 
-            OrderReport.ok(player, net.minecraft.network.chat.Component.translatable(
-                            "message.tacz_sewv.tow.ordered", tower.getDisplayName(), victim.getDisplayName())
-                    .withStyle(ChatFormatting.GREEN));
+            OrderReport.ok(player, NetworkHandler.orderLine("tow", tower.getDisplayName(),
+                    net.minecraft.network.chat.Component.translatable("message.tacz_sewv.tow.ordered",
+                            victim.getDisplayName()).withStyle(ChatFormatting.GREEN)));
         });
         ctx.get().setPacketHandled(true);
     }

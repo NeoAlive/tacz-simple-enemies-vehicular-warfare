@@ -67,7 +67,7 @@ public class PacketReachGuard {
                 ordered++;
             }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.guard.reach", ordered,
+            NetworkHandler.orderFeedback(player, "reach_guard", "message.tacz_sewv.guard.reach", ordered,
                     ChatFormatting.GREEN, ordered);
         });
         ctx.get().setPacketHandled(true);

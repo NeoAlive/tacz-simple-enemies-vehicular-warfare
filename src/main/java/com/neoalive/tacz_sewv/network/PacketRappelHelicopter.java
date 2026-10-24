@@ -72,7 +72,7 @@ public final class PacketRappelHelicopter {
                 ordered++;
             }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.heli.rappel",
+            NetworkHandler.orderFeedback(player, "rappel", "message.tacz_sewv.heli.rappel",
                     ordered, ChatFormatting.GREEN, ordered);
         });
         ctx.get().setPacketHandled(true);

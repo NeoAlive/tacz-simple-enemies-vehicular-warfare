@@ -43,12 +43,12 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
             cancelled++;
         }
         if (cancelled == 0 && !abortedRefill && !abortedEvac) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_cancel.none", 0,
+            NetworkHandler.orderFeedback(issuer, "cancel", "message.tacz_sewv.quick_cancel.none", 0,
                     ChatFormatting.RED);
             return;
         }
         int reported = Math.max(cancelled, (abortedRefill || abortedEvac) ? 1 : 0);
-        NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_cancel.started", reported,
+        NetworkHandler.orderFeedback(issuer, "cancel", "message.tacz_sewv.quick_cancel.started", reported,
                 ChatFormatting.YELLOW, reported);
     }
 

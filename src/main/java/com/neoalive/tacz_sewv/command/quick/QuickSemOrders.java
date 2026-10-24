@@ -23,6 +23,23 @@ public final class QuickSemOrders {
 
     private QuickSemOrders() {}
 
+    /**
+     * The chat feedback id of a SEM order ({@code message.tacz_sewv.order.<id>} is its label,
+     * {@code message.tacz_sewv.sem_order.<id>.done/.none} its text), shared by the wheel and SEM's
+     * own order packet so the same order reads the same from either.
+     */
+    public static String feedbackId(OrderType order) {
+        return switch (order) {
+            case FOLLOW_COMMANDER -> "follow";
+            case HOLD_POSITION -> "hold";
+            case MOVE_TO_POSITION -> "move";
+            case CEASE_FIRE -> "cease_fire";
+            case FREE_FIRE -> "free_fire";
+            case ATTACK_THAT_TARGET -> "attack";
+            default -> "formation";
+        };
+    }
+
     /** @return how many units accepted the order */
     public static int apply(ServerPlayer issuer, List<Integer> unitIds, double radius, OrderType order) {
         if (!(issuer.level() instanceof ServerLevel level)) return 0;

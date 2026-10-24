@@ -210,7 +210,9 @@ public final class FobNetworking {
             ServerPlayer owner = level.getServer().getPlayerList().getPlayer(fob.owner);
             if (owner != null) {
                 com.neoalive.tacz_sewv.order.OrderReport.ok(owner,
-                        Component.translatable("message.tacz_sewv.fob.route_sent", vehicles, infantry));
+                        com.neoalive.tacz_sewv.network.NetworkHandler.orderLine("route_fob", total,
+                                Component.translatable("message.tacz_sewv.fob.route_sent", vehicles, infantry)
+                                        .withStyle(net.minecraft.ChatFormatting.GREEN)));
             }
             FobDebug.log("route-to-FOB at {}: {} vehicles, {} infantry",
                     commandPos, vehicles, infantry);

@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.network;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -15,17 +16,41 @@ import com.neoalive.tacz_sewv.order.OrderReport;
 public class NetworkHandler {
 
     /**
-     * Result of an order: {@code base + ".none"/".single"/".multiple"} by count — GRAY when nothing
-     * took the order, {@code color} otherwise. Every caller passes the count of units the SERVER
-     * actually accepted, never the client's optimistic guess.
+     * Result of an order, as {@link #orderLine}: {@code base + ".done"} in {@code color} when units
+     * took it, {@code base + ".none"} in GRAY when nothing did. Every caller passes the count of
+     * units the SERVER actually accepted, never the client's optimistic guess. {@code args} go to
+     * both texts unchanged, so a text names the ones it needs positionally ({@code %2$s}).
      *
      * <p>The {@code .none} variant is the player's <b>only</b> notice that an order did nothing —
      * the specific reason goes to the server console, not to chat — so it is always sent.
      */
-    public static void orderFeedback(Player player, String base, int count, ChatFormatting color, Object... args) {
-        String key = base + (count == 0 ? ".none" : count == 1 ? ".single" : ".multiple");
-        OrderReport.ok(player, Component.translatable(key, args)
-                .withStyle(count == 0 ? ChatFormatting.GRAY : color));
+    public static void orderFeedback(Player player, String order, String base, int count, ChatFormatting color,
+                                     Object... args) {
+        OrderReport.ok(player, orderLine(order, count, count == 0
+                ? Component.translatable(base + ".none", args).withStyle(ChatFormatting.GRAY)
+                : Component.translatable(base + ".done", args).withStyle(color)));
+    }
+
+    /** {@link #orderLine(String, Component, Component)} with "N units" as the subject; none when 0. */
+    public static Component orderLine(String order, int count, Component what) {
+        Component subject = count <= 0 ? null : Component.translatable(
+                count == 1 ? "message.tacz_sewv.order.unit" : "message.tacz_sewv.order.units", count);
+        return orderLine(order, subject, what);
+    }
+
+    /**
+     * Every order result in chat has one shape, "[Order]: [who] [what]", each block in its own
+     * colour: the order label gold ({@code message.tacz_sewv.order.<order>}), who white, and what in
+     * the caller's colour (green taken, yellow stand-down, gray nothing happened).
+     */
+    public static Component orderLine(String order, @javax.annotation.Nullable Component subject, Component what) {
+        MutableComponent line = Component.translatable("message.tacz_sewv.order." + order)
+                .withStyle(ChatFormatting.GOLD)
+                .append(Component.literal(": ").withStyle(ChatFormatting.DARK_GRAY));
+        if (subject != null) {
+            line.append(subject.copy().withStyle(ChatFormatting.WHITE)).append(" ");
+        }
+        return line.append(what);
     }
 
     /** Buffered until the end of the tick so it comes out beside any refusals it should be read with. */

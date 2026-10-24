@@ -40,7 +40,7 @@ public final class PacketParatroop {
             int queued = BailOutSupport.requestManualBailExpanded(
                     player, this.unitIds, BailOutSupport.rappelEligible());
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.paratroop", queued,
+            NetworkHandler.orderFeedback(player, "paratroop", "message.tacz_sewv.paratroop", queued,
                     ChatFormatting.GREEN, queued);
         });
         ctx.get().setPacketHandled(true);

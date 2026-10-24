@@ -39,7 +39,7 @@ public final class QuickDismountPipeline implements QuickCommandPipeline {
             OrderStandDown.clearForNewOrder(pmc, "QuickDismount");
             if (wasMounted) dismounted++;
         }
-        NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.dismount", dismounted,
+        NetworkHandler.orderFeedback(issuer, "dismount", "message.tacz_sewv.dismount", dismounted,
                 ChatFormatting.YELLOW, dismounted);
     }
 }

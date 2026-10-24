@@ -64,9 +64,9 @@ public final class OrderReport {
      * "Order sent to 5 units" rather than the same sentence five times — which is exactly why the
      * client-side ack this replaces guessed the count instead of waiting for the server.
      */
-    public static void okEach(Player player, String base, ChatFormatting color) {
+    public static void okEach(Player player, String order, String base, ChatFormatting color) {
         if (!(player instanceof ServerPlayer server)) return;
-        pending(server).accepted.merge(base + "\u0000" + color.name(), 1, Integer::sum);
+        pending(server).accepted.merge(order + "\u0000" + base + "\u0000" + color.name(), 1, Integer::sum);
     }
 
     /** An order took. Routed here from {@code NetworkHandler} so every existing call site joins the flush. */
@@ -114,11 +114,10 @@ public final class OrderReport {
             com.neoalive.tacz_sewv.network.NetworkHandler.sendRaw(player, s);
         }
         for (Map.Entry<String, Integer> a : p.accepted.entrySet()) {
-            String[] parts = a.getKey().split("\u0000", 2);
-            int count = a.getValue();
+            String[] parts = a.getKey().split("\u0000", 3);
             com.neoalive.tacz_sewv.network.NetworkHandler.sendRaw(player,
-                    Component.translatable(parts[0] + (count == 1 ? ".single" : ".multiple"), count)
-                            .withStyle(ChatFormatting.valueOf(parts[1])));
+                    com.neoalive.tacz_sewv.network.NetworkHandler.orderLine(parts[0], a.getValue(),
+                            Component.translatable(parts[1] + ".done").withStyle(ChatFormatting.valueOf(parts[2]))));
         }
 
         // Named, not translated: the console has no player locale to translate for, and on a

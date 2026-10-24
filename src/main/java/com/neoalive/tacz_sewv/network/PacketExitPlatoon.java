@@ -59,7 +59,7 @@ public class PacketExitPlatoon {
                 ordered++;
             }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.platoon.exit", ordered, ChatFormatting.YELLOW);
+            NetworkHandler.orderFeedback(player, "platoon_exit", "message.tacz_sewv.platoon.exit", ordered, ChatFormatting.YELLOW);
         });
         ctx.get().setPacketHandled(true);
     }

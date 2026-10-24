@@ -43,14 +43,14 @@ public final class QuickBoardPipeline implements QuickCommandPipeline {
         List<PmcUnitEntity> units = QuickCommandUnits.onFootOwned(issuer, level, context.unitIds(),
                 context.unitRadius(SewvConfig.QUICK_LAND_RADIUS.get()));
         if (units.isEmpty()) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_board.no_units", 0,
+            NetworkHandler.orderFeedback(issuer, "board", "message.tacz_sewv.quick_board.no_units", 0,
                     ChatFormatting.RED);
             return;
         }
 
         List<BoardSlot> slots = collectSlots(issuer, level);
         if (slots.isEmpty()) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_board.no_vehicle", 0,
+            NetworkHandler.orderFeedback(issuer, "board", "message.tacz_sewv.quick_board.no_vehicle", 0,
                     ChatFormatting.RED);
             return;
         }
@@ -80,11 +80,11 @@ public final class QuickBoardPipeline implements QuickCommandPipeline {
         }
 
         if (ordered == 0) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_board.no_vehicle", 0,
+            NetworkHandler.orderFeedback(issuer, "board", "message.tacz_sewv.quick_board.no_vehicle", 0,
                     ChatFormatting.RED);
             return;
         }
-        NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_board.started", ordered,
+        NetworkHandler.orderFeedback(issuer, "board", "message.tacz_sewv.quick_board.started", ordered,
                 ChatFormatting.GREEN, ordered);
     }
 

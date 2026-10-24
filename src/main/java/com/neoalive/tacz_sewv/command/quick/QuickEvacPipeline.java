@@ -42,7 +42,7 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
 
         List<ResolvedHeli> helis = findEligibleHelis(issuer, level);
         if (helis.isEmpty()) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_evac.no_heli", 0,
+            NetworkHandler.orderFeedback(issuer, "evac", "message.tacz_sewv.quick_evac.no_heli", 0,
                     ChatFormatting.RED);
             return;
         }
@@ -50,7 +50,7 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
         List<PmcUnitEntity> units = QuickCommandUnits.onFootOwned(issuer, level, context.unitIds(),
                 context.unitRadius(SewvConfig.QUICK_EVAC_BOARD_RADIUS.get()));
         if (units.isEmpty()) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_evac.no_units", 0,
+            NetworkHandler.orderFeedback(issuer, "evac", "message.tacz_sewv.quick_evac.no_units", 0,
                     ChatFormatting.RED);
             return;
         }
@@ -109,13 +109,13 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
                     List.copyOf(assignees)));
         }
         if (legs.isEmpty()) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_evac.no_heli", 0,
+            NetworkHandler.orderFeedback(issuer, "evac", "message.tacz_sewv.quick_evac.no_heli", 0,
                     ChatFormatting.RED);
             return;
         }
 
         QuickEvacTracker.start(issuer.getUUID(), legs, level.getGameTime());
-        NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_evac.started",
+        NetworkHandler.orderFeedback(issuer, "evac", "message.tacz_sewv.quick_evac.started",
                 Math.max(boarded, units.size()),
                 ChatFormatting.GREEN, Math.max(boarded, units.size()));
     }

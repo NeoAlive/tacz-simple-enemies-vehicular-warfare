@@ -80,7 +80,7 @@ public class PacketEntrench {
                 units.add(pmc);
             }
             if (units.isEmpty()) {
-                NetworkHandler.orderFeedback(sp, "order.tacz_sewv.entrench", 0, ChatFormatting.GRAY);
+                NetworkHandler.orderFeedback(sp, "entrench", "order.tacz_sewv.entrench", 0, ChatFormatting.GRAY);
                 return;
             }
 
@@ -88,7 +88,7 @@ public class PacketEntrench {
             // Units were eligible and there is still nowhere to put them, so the trench itself is
             // what is missing — the one thing the aggregate line could never distinguish.
             if (accepted == 0) OrderReport.fail(sp, OrderFailure.NO_TRENCH);
-            NetworkHandler.orderFeedback(sp, "order.tacz_sewv.entrench", accepted, ChatFormatting.YELLOW);
+            NetworkHandler.orderFeedback(sp, "entrench", "order.tacz_sewv.entrench", accepted, ChatFormatting.YELLOW);
         });
         ctx.get().setPacketHandled(true);
     }

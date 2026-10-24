@@ -153,7 +153,7 @@ public class PacketPatrolVehicle {
                 liftOffIfParked(pmc);
             }
 
-            NetworkHandler.orderFeedback(player,
+            NetworkHandler.orderFeedback(player, search ? "search" : "patrol",
                     (search ? "message.tacz_sewv.search" : "message.tacz_sewv.patrol") + ".ordered",
                     crews.size(), ChatFormatting.GREEN, crews.size(), radius);
         });
@@ -190,7 +190,7 @@ public class PacketPatrolVehicle {
             ordered++;
         }
 
-        NetworkHandler.orderFeedback(player, "message.tacz_sewv.cruise.ordered", ordered,
+        NetworkHandler.orderFeedback(player, "cruise", "message.tacz_sewv.cruise.ordered", ordered,
                 ChatFormatting.GREEN, ordered, route.size());
     }
 
@@ -278,7 +278,7 @@ public class PacketPatrolVehicle {
             }
         }
 
-        NetworkHandler.orderFeedback(player, "message.tacz_sewv.dismiss", dismissed,
+        NetworkHandler.orderFeedback(player, "dismiss", "message.tacz_sewv.dismiss", dismissed,
                 ChatFormatting.YELLOW, dismissed);
     }
 }

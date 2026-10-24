@@ -22,6 +22,8 @@ package com.neoalive.tacz_sewv.heli.guidance;
  *  11   RU/US with no destination                                  -> PATROL       FREENAV
  *  12                                                              -> HOVER_HOLD   FREENAV
  * </pre>
+ * An area-task destination ({@link Situation#areaTask}) is never "far": rows 9 and 10 hover-slide
+ * to it instead of transiting, so a patrol stays inside its circle.
  * HOVER_HOLD is always feasible, so a winner always exists. "Far" has hysteresis on the active
  * procedure: a transit runs until it arrives ({@link Procedures#ARRIVE_RADIUS}), but a hover only
  * gives way to a transit past {@link #TRANSIT_MIN}; closer than that the hold point moves instead.
@@ -55,11 +57,12 @@ public final class ModeSelector {
             return new Choice(ProcedureId.EVADE, Precedence.SURVIVAL);
         }
         double threshold = s.active == ProcedureId.TRANSIT ? Procedures.ARRIVE_RADIUS : TRANSIT_MIN;
-        boolean far = s.hasDestination && s.destDistance > threshold;
+        boolean far = s.hasDestination && !s.areaTask && s.destDistance > threshold;
         if (s.underOrders) return new Choice(far ? ProcedureId.TRANSIT : ProcedureId.HOVER_HOLD, Precedence.ORDERED);
         if (s.armed && s.targetValid && s.ammoFrac > 0.0) return new Choice(attack(s), Precedence.ATTACK);
         if (s.targetValid) {
-            return new Choice(s.hasDestination ? ProcedureId.TRANSIT : ProcedureId.HOVER_HOLD, Precedence.FREENAV);
+            return new Choice(s.hasDestination && !s.areaTask ? ProcedureId.TRANSIT : ProcedureId.HOVER_HOLD,
+                    Precedence.FREENAV);
         }
         if (far) return new Choice(ProcedureId.TRANSIT, Precedence.FREENAV);
         if (s.autonomous && !s.hasDestination) return new Choice(ProcedureId.PATROL, Precedence.FREENAV);

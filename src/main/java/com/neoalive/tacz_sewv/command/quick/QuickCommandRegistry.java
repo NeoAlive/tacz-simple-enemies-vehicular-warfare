@@ -96,14 +96,10 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_ENTRENCH, new QuickEntrenchPipeline());
         register(ID_QUICK_REFILL, new QuickRefillPipeline());
         register(ID_QUICK_CANCEL, new QuickCancelPipeline());
-        register(ID_QUICK_FOLLOW, new QuickSemOrderPipeline(OrderType.FOLLOW_COMMANDER,
-                "message.tacz_sewv.quick_follow.started"));
-        register(ID_QUICK_HOLD, new QuickSemOrderPipeline(OrderType.HOLD_POSITION,
-                "message.tacz_sewv.quick_hold.started"));
-        register(ID_QUICK_CEASE_FIRE, new QuickSemOrderPipeline(OrderType.CEASE_FIRE,
-                "message.tacz_sewv.quick_cease_fire.started"));
-        register(ID_QUICK_FREE_FIRE, new QuickSemOrderPipeline(OrderType.FREE_FIRE,
-                "message.tacz_sewv.quick_free_fire.started"));
+        register(ID_QUICK_FOLLOW, new QuickSemOrderPipeline(OrderType.FOLLOW_COMMANDER));
+        register(ID_QUICK_HOLD, new QuickSemOrderPipeline(OrderType.HOLD_POSITION));
+        register(ID_QUICK_CEASE_FIRE, new QuickSemOrderPipeline(OrderType.CEASE_FIRE));
+        register(ID_QUICK_FREE_FIRE, new QuickSemOrderPipeline(OrderType.FREE_FIRE));
         register(ID_QUICK_DISMOUNT, new QuickDismountPipeline());
         register(ID_QUICK_ATTACK, (issuer, ctx) -> {}); // client-armed; server no-op
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());

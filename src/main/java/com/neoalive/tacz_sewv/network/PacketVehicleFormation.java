@@ -148,7 +148,7 @@ public class PacketVehicleFormation {
             int formed = VehicleFormation.assign(player, units, shape, axis, yaw, rowSize,
                     width, length, kind, anchorMode);
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.formation.formed", formed,
+            NetworkHandler.orderFeedback(player, "formation", "message.tacz_sewv.formation.formed", formed,
                     ChatFormatting.GREEN, formed, Component.translatable(headingKey(axis, yaw)));
         });
         ctx.get().setPacketHandled(true);

@@ -69,21 +69,21 @@ public class PacketSavePreferredPathway {
 
             if (this.delete) {
                 if (PreferredPathwayData.deletePath(player, this.dimension, id)) {
-                    NetworkHandler.orderFeedback(player, "message.tacz_sewv.pathway.deleted",
-                            1, ChatFormatting.YELLOW, id);
+                    NetworkHandler.sendOrderFeedback(player, net.minecraft.network.chat.Component.translatable(
+                            "message.tacz_sewv.pathway.deleted", id).withStyle(ChatFormatting.YELLOW));
                 } else {
-                    NetworkHandler.orderFeedback(player, "message.tacz_sewv.pathway.save_failed",
-                            0, ChatFormatting.RED);
+                    NetworkHandler.sendOrderFeedback(player, net.minecraft.network.chat.Component.translatable(
+                            "message.tacz_sewv.pathway.save_failed").withStyle(ChatFormatting.RED));
                 }
                 return;
             }
 
             if (PreferredPathwayData.savePath(player, this.dimension, id, this.nodes)) {
-                NetworkHandler.orderFeedback(player, "message.tacz_sewv.pathway.saved",
-                        this.nodes.size(), ChatFormatting.GREEN, id, this.nodes.size());
+                NetworkHandler.sendOrderFeedback(player, net.minecraft.network.chat.Component.translatable(
+                        "message.tacz_sewv.pathway.saved", id, this.nodes.size()).withStyle(ChatFormatting.GREEN));
             } else {
-                NetworkHandler.orderFeedback(player, "message.tacz_sewv.pathway.save_failed",
-                        0, ChatFormatting.RED);
+                NetworkHandler.sendOrderFeedback(player, net.minecraft.network.chat.Component.translatable(
+                            "message.tacz_sewv.pathway.save_failed").withStyle(ChatFormatting.RED));
             }
         });
         ctx.get().setPacketHandled(true);

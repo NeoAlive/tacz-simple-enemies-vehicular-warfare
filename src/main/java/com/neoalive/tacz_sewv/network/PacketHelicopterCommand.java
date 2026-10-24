@@ -239,7 +239,7 @@ public class PacketHelicopterCommand {
                             .withStyle(ChatFormatting.RED), true);
                 }
                 if (ordered > 0) {
-                    NetworkHandler.orderFeedback(player, "message.tacz_sewv.heli.land_helipad", ordered,
+                    NetworkHandler.orderFeedback(player, "land_helipad", "message.tacz_sewv.heli.land_helipad", ordered,
                             ChatFormatting.GREEN, ordered);
                 }
                 return;
@@ -248,9 +248,9 @@ public class PacketHelicopterCommand {
                 sp.displayClientMessage(Component.translatable("message.tacz_sewv.heli.land.helicopter")
                         .withStyle(ChatFormatting.RED), true);
             }
-            String base = emergency ? "message.tacz_sewv.heli.emergency_land"
-                    : landing ? "message.tacz_sewv.heli.land" : "message.tacz_sewv.heli.takeoff";
-            NetworkHandler.orderFeedback(player, base, ordered, ChatFormatting.GREEN, ordered);
+            String order = emergency ? "emergency_land" : landing ? "land" : "takeoff";
+            NetworkHandler.orderFeedback(player, order, "message.tacz_sewv.heli." + order, ordered,
+                    ChatFormatting.GREEN, ordered);
         });
         ctx.get().setPacketHandled(true);
     }

@@ -31,7 +31,7 @@ public final class QuickRefillPipeline implements QuickCommandPipeline {
         List<PmcUnitEntity> units = QuickCommandUnits.onFootOwned(issuer, level, context.unitIds(),
                 context.unitRadius(SewvConfig.QUICK_LAND_RADIUS.get()), true);
         if (units.isEmpty()) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_refill.no_units", 0,
+            NetworkHandler.orderFeedback(issuer, "refill", "message.tacz_sewv.quick_refill.no_units", 0,
                     ChatFormatting.RED);
             return;
         }
@@ -50,13 +50,13 @@ public final class QuickRefillPipeline implements QuickCommandPipeline {
         }
 
         if (legs.isEmpty()) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_refill.none", 0,
+            NetworkHandler.orderFeedback(issuer, "refill", "message.tacz_sewv.quick_refill.none", 0,
                     ChatFormatting.RED);
             return;
         }
 
         QuickRefillTracker.start(issuer.getUUID(), legs, level.getGameTime());
-        NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_refill.started", legs.size(),
+        NetworkHandler.orderFeedback(issuer, "refill", "message.tacz_sewv.quick_refill.started", legs.size(),
                 ChatFormatting.GREEN, legs.size());
     }
 }

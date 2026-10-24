@@ -7,12 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import net.minecraft.ChatFormatting;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.network.ModNetworking;
@@ -158,7 +154,6 @@ public final class OrderPreview {
                     new PacketIssueOrder(drivers.get(i), OrderType.MOVE_TO_POSITION, points.get(i), 0, -1));
         }
         MapMarkers.clearSelection();
-        hint("message.tacz_sewv.map.ordered", drivers.size());
     }
 
     /** Where along the A→B axis a unit currently stands (unknown position sorts to the front). */
@@ -173,12 +168,5 @@ public final class OrderPreview {
             map.put(m.driverId(), new Vec3(m.x(), m.y(), m.z()));
         }
         return map;
-    }
-
-    private static void hint(String key, Object... args) {
-        Player player = Minecraft.getInstance().player;
-        if (player != null) {
-            player.displayClientMessage(Component.translatable(key, args).withStyle(ChatFormatting.GREEN), false);
-        }
     }
 }

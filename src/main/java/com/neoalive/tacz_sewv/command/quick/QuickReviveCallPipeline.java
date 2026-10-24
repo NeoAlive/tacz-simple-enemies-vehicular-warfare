@@ -25,15 +25,15 @@ public final class QuickReviveCallPipeline implements QuickCommandPipeline {
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
         if (!(issuer.level() instanceof ServerLevel level)) return;
         if (!PlayerReviveCompat.isLoaded() || !SewvConfig.PMC_REVIVE_ENABLED.get()) {
-            NetworkHandler.sendOrderFeedback(issuer,
+            NetworkHandler.sendOrderFeedback(issuer, NetworkHandler.orderLine("revive_call", 0,
                     Component.translatable("message.tacz_sewv.revive_call.unavailable")
-                            .withStyle(ChatFormatting.GRAY));
+                            .withStyle(ChatFormatting.GRAY)));
             return;
         }
         if (!PlayerReviveCompat.isDowned(issuer)) {
-            NetworkHandler.sendOrderFeedback(issuer,
+            NetworkHandler.sendOrderFeedback(issuer, NetworkHandler.orderLine("revive_call", 0,
                     Component.translatable("message.tacz_sewv.revive_call.not_downed")
-                            .withStyle(ChatFormatting.GRAY));
+                            .withStyle(ChatFormatting.GRAY)));
             return;
         }
 
@@ -49,15 +49,15 @@ public final class QuickReviveCallPipeline implements QuickCommandPipeline {
                 .orElse(null);
 
         if (helper == null) {
-            NetworkHandler.sendOrderFeedback(issuer,
+            NetworkHandler.sendOrderFeedback(issuer, NetworkHandler.orderLine("revive_call", 0,
                     Component.translatable("message.tacz_sewv.revive_call.none")
-                            .withStyle(ChatFormatting.RED));
+                            .withStyle(ChatFormatting.GRAY)));
             return;
         }
 
         ReviveClaims.forceClaim(issuer.getId(), helper.getId());
-        NetworkHandler.sendOrderFeedback(issuer,
+        NetworkHandler.sendOrderFeedback(issuer, NetworkHandler.orderLine("revive_call", helper.getDisplayName(),
                 Component.translatable("message.tacz_sewv.revive_call.started")
-                        .withStyle(ChatFormatting.GREEN));
+                        .withStyle(ChatFormatting.GREEN)));
     }
 }

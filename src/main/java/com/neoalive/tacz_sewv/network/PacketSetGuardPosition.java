@@ -57,7 +57,7 @@ public class PacketSetGuardPosition {
                 set++;
             }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.guard.set", set,
+            NetworkHandler.orderFeedback(player, "set_guard", "message.tacz_sewv.guard.set", set,
                     ChatFormatting.GREEN, set);
         });
         ctx.get().setPacketHandled(true);

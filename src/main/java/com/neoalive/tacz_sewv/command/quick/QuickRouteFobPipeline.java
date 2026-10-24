@@ -20,12 +20,14 @@ public final class QuickRouteFobPipeline implements QuickCommandPipeline {
         if (!(issuer.level() instanceof ServerLevel level)) return;
         FobInstance fob = FobManager.get(level).getFobForOwner(issuer.getUUID());
         if (fob == null || fob.commandPos == null) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_route_fob.none", 0,
+            NetworkHandler.orderFeedback(issuer, "route_fob", "message.tacz_sewv.quick_route_fob.none", 0,
                     ChatFormatting.RED);
             return;
         }
-        int routed = FobNetworking.routeToFob(issuer, fob.commandPos);
-        NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_route_fob.started", routed,
-                ChatFormatting.GREEN, routed);
+        // A route that moved anyone is reported by routeToFob itself, with the vehicle/infantry split.
+        if (FobNetworking.routeToFob(issuer, fob.commandPos) == 0) {
+            NetworkHandler.orderFeedback(issuer, "route_fob", "message.tacz_sewv.quick_route_fob.started", 0,
+                    ChatFormatting.GREEN);
+        }
     }
 }

@@ -81,7 +81,7 @@ public class PacketFunnelPreferredPathway {
                 }
             }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.pathway.funnel",
+            NetworkHandler.orderFeedback(player, "funnel", "message.tacz_sewv.pathway.funnel",
                     funneled, ChatFormatting.GREEN, funneled, this.pathId);
         });
         ctx.get().setPacketHandled(true);

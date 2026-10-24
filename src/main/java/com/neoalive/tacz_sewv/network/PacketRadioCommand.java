@@ -153,12 +153,8 @@ public class PacketRadioCommand {
                     ? entityTarget.getDisplayName()
                     : Component.translatable("message.tacz_sewv.radio.position_label",
                             posTarget.getX(), posTarget.getY(), posTarget.getZ());
-            Component msg = Component.translatable(
-                    call.ordered() == 1
-                            ? "message.tacz_sewv.radio.fire_mission.single"
-                            : "message.tacz_sewv.radio.fire_mission.multiple",
-                    call.ordered(), targetLabel);
-            NetworkHandler.sendOrderFeedback(player, msg.copy().withStyle(ChatFormatting.GREEN));
+            NetworkHandler.orderFeedback(player, "fire_mission", "message.tacz_sewv.radio.fire_mission",
+                    call.ordered(), ChatFormatting.GREEN, call.ordered(), targetLabel);
         });
         ctx.get().setPacketHandled(true);
     }

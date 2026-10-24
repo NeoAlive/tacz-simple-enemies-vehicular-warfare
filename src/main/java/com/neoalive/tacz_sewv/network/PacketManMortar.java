@@ -71,14 +71,13 @@ public class PacketManMortar {
 
         PmcUnitEntity assigned = nearestFreeUnit(player, emplacement);
         if (assigned == null) {
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.mortar.ordered", 0,
+            NetworkHandler.orderFeedback(player, "man_mortar", "message.tacz_sewv.mortar.ordered", 0,
                     ChatFormatting.GRAY);
             return;
         }
         claim(assigned, emplacement);
-        NetworkHandler.sendOrderFeedback(player, Component.translatable(
-                "message.tacz_sewv.mortar.ordered.single", assigned.getDisplayName())
-                .copy().withStyle(ChatFormatting.GREEN));
+        NetworkHandler.sendOrderFeedback(player, NetworkHandler.orderLine("man_mortar", assigned.getDisplayName(),
+                Component.translatable("message.tacz_sewv.mortar.ordered.done").withStyle(ChatFormatting.GREEN)));
     }
 
     private PmcUnitEntity nearestFreeUnit(Player player, Entity emplacement) {

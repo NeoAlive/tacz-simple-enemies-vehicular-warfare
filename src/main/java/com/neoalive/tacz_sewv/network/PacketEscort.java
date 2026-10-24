@@ -94,7 +94,7 @@ public class PacketEscort {
                 ordered++;
             }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.escort.ordered", ordered,
+            NetworkHandler.orderFeedback(player, "escort", "message.tacz_sewv.escort.ordered", ordered,
                     ChatFormatting.GREEN, ordered);
         });
         ctx.get().setPacketHandled(true);

@@ -39,6 +39,8 @@ public final class Procedures {
     private static final double ALT_DEADBAND = 2.5;
     /** FireStill: line of sight lost for this long ends the station (an aspect change is FireLoop's job). */
     private static final double LOS_LOST_LIMIT = 2.0;
+    /** Hold: an area-task hold point farther than this turns the nose onto it. */
+    private static final double AREA_LEG_YAW_DIST = 8.0;
     private static final double RHO = Airframe.RHO0;
 
     private Procedures() {}
@@ -297,6 +299,12 @@ public final class Procedures {
             if (mode != Mode.SAFETY && sit.targetValid) {
                 double dx = sit.targetX - f.x.value(), dz = sit.targetZ - f.z.value();
                 if (dx * dx + dz * dz > 1.0) yaw = StrictMath.atan2(-dx, dz);
+            } else if (mode == Mode.HOLD && sit.areaTask) {
+                // A patrol leg slides the hold point a long way: fly it nose first, and keep that
+                // heading on arrival rather than swinging back to the old one.
+                double dx = tx - f.x.value(), dz = tz - f.z.value();
+                if (dx * dx + dz * dz > AREA_LEG_YAW_DIST * AREA_LEG_YAW_DIST) yawHold = StrictMath.atan2(-dx, dz);
+                yaw = yawHold;
             }
             return f.at(t, tx, ty, tz, yaw, 0.0);
         }

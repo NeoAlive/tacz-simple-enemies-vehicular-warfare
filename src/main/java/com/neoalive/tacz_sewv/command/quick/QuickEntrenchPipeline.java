@@ -32,7 +32,7 @@ public final class QuickEntrenchPipeline implements QuickCommandPipeline {
         List<AbstractUnit> units = new ArrayList<>(QuickCommandUnits.onFootOwned(issuer, level,
                 context.unitIds(), context.unitRadius(SewvConfig.QUICK_LAND_RADIUS.get())));
         if (units.isEmpty()) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_entrench.no_units", 0,
+            NetworkHandler.orderFeedback(issuer, "entrench", "message.tacz_sewv.quick_entrench.no_units", 0,
                     ChatFormatting.RED);
             return;
         }
@@ -40,7 +40,7 @@ public final class QuickEntrenchPipeline implements QuickCommandPipeline {
         if (context.aimBlock() != null) {
             int aimed = EntrenchSupport.assign(level, units, context.aimBlock());
             if (aimed > 0) {
-                NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_entrench.started", aimed,
+                NetworkHandler.orderFeedback(issuer, "entrench", "message.tacz_sewv.quick_entrench.started", aimed,
                         ChatFormatting.GREEN, aimed);
                 return;
             }
@@ -59,7 +59,7 @@ public final class QuickEntrenchPipeline implements QuickCommandPipeline {
             }
         }
         if (nearby.isEmpty()) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_entrench.no_trench", 0,
+            NetworkHandler.orderFeedback(issuer, "entrench", "message.tacz_sewv.quick_entrench.no_trench", 0,
                     ChatFormatting.RED);
             return;
         }
@@ -94,11 +94,11 @@ public final class QuickEntrenchPipeline implements QuickCommandPipeline {
         }
 
         if (accepted == 0) {
-            NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_entrench.no_trench", 0,
+            NetworkHandler.orderFeedback(issuer, "entrench", "message.tacz_sewv.quick_entrench.no_trench", 0,
                     ChatFormatting.RED);
             return;
         }
-        NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_entrench.started", accepted,
+        NetworkHandler.orderFeedback(issuer, "entrench", "message.tacz_sewv.quick_entrench.started", accepted,
                 ChatFormatting.GREEN, accepted);
     }
 

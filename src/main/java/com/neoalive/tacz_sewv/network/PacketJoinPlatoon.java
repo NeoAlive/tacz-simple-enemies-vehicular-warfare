@@ -72,7 +72,7 @@ public class PacketJoinPlatoon {
                 }
             }
 
-            NetworkHandler.orderFeedback(player, "message.tacz_sewv.platoon.join", ordered, ChatFormatting.GREEN);
+            NetworkHandler.orderFeedback(player, "platoon_join", "message.tacz_sewv.platoon.join", ordered, ChatFormatting.GREEN);
         });
         ctx.get().setPacketHandled(true);
     }

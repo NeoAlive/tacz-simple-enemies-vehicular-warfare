@@ -10,21 +10,16 @@ import com.neoalive.tacz_sewv.network.NetworkHandler;
 public final class QuickSemOrderPipeline implements QuickCommandPipeline {
 
     private final OrderType order;
-    private final String feedbackBase;
 
-    public QuickSemOrderPipeline(OrderType order, String feedbackBase) {
+    public QuickSemOrderPipeline(OrderType order) {
         this.order = order;
-        this.feedbackBase = feedbackBase;
     }
 
     @Override
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
         int ok = QuickSemOrders.apply(issuer, context.unitIds(),
                 context.unitRadius(com.neoalive.tacz_sewv.config.SewvConfig.QUICK_LAND_RADIUS.get()), this.order);
-        if (ok == 0) {
-            NetworkHandler.orderFeedback(issuer, this.feedbackBase, 0, ChatFormatting.RED);
-            return;
-        }
-        NetworkHandler.orderFeedback(issuer, this.feedbackBase, ok, ChatFormatting.GREEN, ok);
+        String id = QuickSemOrders.feedbackId(this.order);
+        NetworkHandler.orderFeedback(issuer, id, "message.tacz_sewv.sem_order." + id, ok, ChatFormatting.GREEN);
     }
 }

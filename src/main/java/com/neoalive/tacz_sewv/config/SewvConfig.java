@@ -1065,7 +1065,7 @@ public final class SewvConfig {
                 .defineInRange("coverCacheBakeCellsPerTick", 64, 8, 256);
         INDIVIDUAL_TACTICS_ENABLED = builder.comment(
                         "Per-crew tactical posture (shoot-and-scoot, covering advance, keyhole, ambush, infantry cover).",
-                        "Soft biases only under player/command orders — never freezes a push.")
+                        "Only a soft bias under player or command orders. It never stops a push.")
                 .define("individualTacticsEnabled", true);
         builder.pop();
 
@@ -1111,7 +1111,7 @@ public final class SewvConfig {
                 .define("platoonEnabled", true);
         PLATOON_COHESION_RADIUS = builder.comment("Platoons try to stay within this many blocks of each other, unless tasked into a doctrine play.")
                 .defineInRange("platoonCohesionRadius", 30.0, 8.0, 128.0);
-        PLATOON_MAX_SIZE = builder.comment("Max members in one platoon (PMC infantry, or ground-vehicle crews — never mixed).")
+        PLATOON_MAX_SIZE = builder.comment("Max members in one platoon. A platoon is either PMC infantry or ground-vehicle crews, never both.")
                 .defineInRange("platoonMaxSize", 4, 2, 12);
         PLATOON_MIN_SIZE = builder.comment("A platoon disbands once membership drops below this.")
                 .defineInRange("platoonMinSize", 2, 2, 8);
@@ -1303,8 +1303,8 @@ public final class SewvConfig {
                         "ordinary straight run-in.")
                 .defineInRange("dubinsFallbackMultiplier", 2.5, 1.5, 4.0);
         DUBINS_DEVIATION_THRESHOLD = builder.comment(
-                        "How far (blocks) an aircraft may drift off its computed turn-in arc — from a nearby",
-                        "explosion, for instance — before the arc is recomputed from where it actually is.")
+                        "How far (blocks) an aircraft may drift off its turn-in arc, for example from a nearby",
+                        "explosion, before the arc is recomputed from where it actually is.")
                 .defineInRange("dubinsDeviationThreshold", 16.0, 4.0, 64.0);
         // The three below are STARTING VALUES for a newly placed runway block, not live settings.
         // Segmentation belongs to a runway — a forward strip packing in light aircraft wants
@@ -1331,8 +1331,8 @@ public final class SewvConfig {
         DEBUG_AUTO_PLANE_DEPLOY = builder.comment(
                         "Testing shortcut: Deploy Plane spawns a fresh aircraft, fuelled, armed and with a",
                         "full PMC crew already aboard, ignoring whatever the container was holding. Off, the",
-                        "container is unpacked as it was packed — the aircraft it stored, in the state it",
-                        "stored it, with nobody in it — and you crew it yourself.")
+                        "container is unpacked as it was packed: the aircraft it stored, in the state it",
+                        "stored it, with nobody in it. You crew it yourself.")
                 .define("sewvDebugAutoPlaneDeploy", false);
         builder.pop();
 
@@ -1456,7 +1456,7 @@ public final class SewvConfig {
                 .defineInRange("quickEvacBoardRadius", 48.0, 8.0, 128.0);
         QUICK_EVAC_BOARD_TIMEOUT_TICKS = builder.comment(
                         "Absolute game-time budget (ticks) for Quick Evac: each heli takes off when",
-                        "its reserved seats are filled, or when this timeout elapses — whichever first.")
+                        "its reserved seats are filled or when this timeout elapses, whichever comes first.")
                 .defineInRange("quickEvacBoardTimeoutTicks", 350, 40, 2400);
         QUICK_REFILL_TIMEOUT_TICKS = builder.comment(
                         "Absolute game-time budget (ticks) for Quick Refill walks to a chest/stockpile",
@@ -1469,7 +1469,7 @@ public final class SewvConfig {
         EDITOR_CATALOG_MAX = builder.comment(
                         "Max registry ids sent in /sewv pool (and similar) add-catalogs.",
                         "If a pack has more guns/armor/vehicles than this, the rest are omitted from",
-                        "autofill — the editor still opens. Raise on huge packs if ids are missing.")
+                        "autofill, but the editor still opens. Raise it on huge packs if ids are missing.")
                 .defineInRange("editorCatalogMax", 16384, 64, 32768);
         builder.pop();
 
@@ -1487,7 +1487,7 @@ public final class SewvConfig {
         MAP_IDENTITY_RADIUS = builder.comment(
                         "How close (blocks) YOU must be to auto-identify a contact's class on the map.",
                         "Presence still uses mapSpotRadius (crews can radio a contact farther out as unknown).",
-                        "Must stay well below mapSpotRadius or fog never shows — 0 disables player-sight ID",
+                        "Must stay well below mapSpotRadius or fog never shows. 0 disables player-sight ID",
                         "(combat locks only).")
                 .defineInRange("mapIdentityRadius", 32.0, 0.0, 512.0);
         MAP_IDENTITY_TTL_TICKS = builder.comment(
@@ -1539,7 +1539,7 @@ public final class SewvConfig {
                         "equivalent SBW handheld weapon's Damage value, then replayed as SBW gunfire/",
                         "gunfire_absolute (or projectile_hit/custom_explosion for blast rounds) so the",
                         "hull's own DamageModifiers apply. Off restores TaCZ's native damage types",
-                        "(tacz:bullet already sits in #superbwarfare:projectile — heavy tanks often",
+                        "(tacz:bullet already sits in #superbwarfare:projectile, and heavy tanks often",
                         "zero that tag entirely).")
                 .define("tacZBallisticTranslationEnabled", true);
         TACZ_BALLISTIC_GLOBAL_SCALE = builder.comment(
@@ -1568,14 +1568,14 @@ public final class SewvConfig {
                         "vehicleTreeFellingEnabled.")
                 .defineInRange("vehicleTreeSensorDanger", 0.6, 0.0, 0.99);
         VEHICLE_TREE_FELLING_EXEMPT_GIANT_TRUNKS = builder.comment(
-                        "Multi-block trunks (2x2 or larger — every vanilla dark oak tree, and jungle mega-trees)",
+                        "Multi-block trunks (2x2 or larger: every vanilla dark oak tree, and jungle mega-trees)",
                         "are never felled and stay hard obstacles, since a vehicle should not be able to flatten",
                         "an entire dark oak forest by driving through it. Turn off to fell those too.")
                 .define("vehicleTreeFellingExemptGiantTrunks", true);
         VEHICLE_TREE_CONTACT_TICKS = builder.comment(
                         "A hull must keep touching the same tree for this many CONSECUTIVE game ticks (20 = 1s)",
-                        "before it falls — a hull that only clips a tree in passing does not fell it. Contact",
-                        "must be unbroken; losing touch even for one tick resets that tree's timer to zero.")
+                        "before it falls, so a hull that only clips a tree in passing does not fell it. Losing",
+                        "contact for even one tick resets that tree's timer to zero.")
                 .defineInRange("vehicleTreeContactTicks", 35, 0, 200);
         builder.pop();
 
@@ -1606,7 +1606,7 @@ public final class SewvConfig {
         MINECOLONIES_COMPAT_ENABLED = builder.comment(
                         "Master switch for the MineColonies compat. Does nothing when MineColonies is absent.",
                         "Turning this off leaves MineColonies' own untouched behaviour, which means colony guards",
-                        "shoot your PMC squad and US units are attackable by nothing — see the individual keys.")
+                        "shoot your PMC squad and nothing attacks US units. See the individual keys.")
                 .define("minecoloniesCompatEnabled", true);
         MINECOLONIES_PROTECT_PMC = builder.comment(
                         "Colony guards do not open fire on a PMC unit owned by someone the colony recognises.",

@@ -60,6 +60,7 @@ public final class FollowLeash {
         // Route to FOB is a forced MOVE: fire from where you stand, never chase off the route.
         if (FobSupport.hasRoutePending(pmc)) return true;
         if (((ISweepInfantry) pmc).sewv$hasInfantrySweep()) return true;
+        if (((com.neoalive.tacz_sewv.bridge.IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null) return true;
         if (((IPathwayInfantry) pmc).sewv$hasPathway()) return true;
         OrderType order = pmc.getOrder();
         if (order == null) return false;

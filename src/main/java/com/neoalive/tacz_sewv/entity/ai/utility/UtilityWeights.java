@@ -253,7 +253,7 @@ public final class UtilityWeights {
             try {
                 root = GsonHelper.convertToJsonObject(file.getValue(), "weights");
             } catch (RuntimeException e) {
-                LOGGER.error("[sewv] AI weights {} is not a JSON object — skipped: {}",
+                LOGGER.error("[sewv] AI weights {} is not a JSON object: skipped: {}",
                         file.getKey(), e.getMessage());
                 continue;
             }
@@ -273,7 +273,7 @@ public final class UtilityWeights {
                 if (entry.getKey().startsWith(PlayId.KEY_PREFIX)) {
                     PlayId play = PlayId.byFullKey(entry.getKey());
                     if (play == null) {
-                        LOGGER.warn("[sewv] AI weights {}: no such play '{}' — ignored",
+                        LOGGER.warn("[sewv] AI weights {}: no such play '{}': ignored",
                                 file.getKey(), entry.getKey());
                         continue;
                     }
@@ -285,7 +285,7 @@ public final class UtilityWeights {
                 }
                 Action action = Action.byKey(entry.getKey());
                 if (action == null) {
-                    LOGGER.warn("[sewv] AI weights {}: no such action '{}' — ignored",
+                    LOGGER.warn("[sewv] AI weights {}: no such action '{}': ignored",
                             file.getKey(), entry.getKey());
                     continue;
                 }
@@ -295,7 +295,7 @@ public final class UtilityWeights {
         }
 
         if (applied == 0) {
-            LOGGER.error("[sewv] No usable AI weights found — falling back to the built-in minimum. "
+            LOGGER.error("[sewv] No usable AI weights found: falling back to the built-in minimum. "
                     + "Vehicle crews will fight, but not well.");
             return fallback();
         }
@@ -319,7 +319,7 @@ public final class UtilityWeights {
         try {
             modifiers = GsonHelper.convertToJsonObject(element, COMMANDER_KEY);
         } catch (RuntimeException e) {
-            LOGGER.error("[sewv] AI weights {}: '{}' is not an object — skipped", source, COMMANDER_KEY);
+            LOGGER.error("[sewv] AI weights {}: '{}' is not an object: skipped", source, COMMANDER_KEY);
             return 0;
         }
         java.util.Arrays.fill(out, 0.0);
@@ -330,7 +330,7 @@ public final class UtilityWeights {
             try {
                 weight = GsonHelper.convertToDouble(modifier.getValue(), key);
             } catch (RuntimeException e) {
-                LOGGER.warn("[sewv] AI weights {}: '{}.{}' is not a number — ignored",
+                LOGGER.warn("[sewv] AI weights {}: '{}.{}' is not a number: ignored",
                         source, COMMANDER_KEY, key);
                 continue;
             }
@@ -343,7 +343,7 @@ public final class UtilityWeights {
                 default -> -1;
             };
             if (slot < 0) {
-                LOGGER.warn("[sewv] AI weights {}: '{}.{}' is not a commander factor — ignored",
+                LOGGER.warn("[sewv] AI weights {}: '{}.{}' is not a commander factor: ignored",
                         source, COMMANDER_KEY, key);
                 continue;
             }
@@ -360,7 +360,7 @@ public final class UtilityWeights {
         try {
             modifiers = GsonHelper.convertToJsonObject(element, rowKey);
         } catch (RuntimeException e) {
-            LOGGER.error("[sewv] AI weights {}: '{}' is not an object — skipped", source, rowKey);
+            LOGGER.error("[sewv] AI weights {}: '{}' is not an object: skipped", source, rowKey);
             return 0;
         }
 
@@ -376,7 +376,7 @@ public final class UtilityWeights {
             try {
                 weight = GsonHelper.convertToDouble(modifier.getValue(), key);
             } catch (RuntimeException e) {
-                LOGGER.warn("[sewv] AI weights {}: '{}.{}' is not a number — ignored",
+                LOGGER.warn("[sewv] AI weights {}: '{}.{}' is not a number: ignored",
                         source, rowKey, key);
                 continue;
             }
@@ -397,7 +397,7 @@ public final class UtilityWeights {
                 continue;
             }
             LOGGER.warn("[sewv] AI weights {}: '{}.{}' is neither a signal nor a doctrine axis "
-                    + "— ignored", source, rowKey, key);
+                    + "ignored", source, rowKey, key);
         }
         return count;
     }

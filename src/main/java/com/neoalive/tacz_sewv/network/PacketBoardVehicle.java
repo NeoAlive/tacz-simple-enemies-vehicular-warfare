@@ -79,7 +79,7 @@ public class PacketBoardVehicle {
                 OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
                 continue;
             }
-            if (!pmc.isOwnedBy(player)) {
+            if (!com.neoalive.tacz_sewv.crew.OrderAuth.owns(player, pmc, "PacketBoardVehicle")) {
                 OrderReport.fail(player, OrderFailure.NOT_OWNED);
                 continue;
             }
@@ -94,6 +94,12 @@ public class PacketBoardVehicle {
                 OrderReport.fail(player, OrderFailure.BUSY_MORTAR, pmc);
                 continue;
             }
+            // A rider's board order would sit unused until it next dismounts, then fire out of nowhere.
+            if (pmc.getVehicle() != null) {
+                OrderReport.fail(player, OrderFailure.MUST_BE_ON_FOOT, pmc);
+                continue;
+            }
+            if (com.neoalive.tacz_sewv.command.quick.QuickCommandUnits.refuseFobOrRoute((net.minecraft.server.level.ServerPlayer) player, pmc)) continue;
 
             BoardOrders.issue(pmc, this.vehicleId, this.passengerOnly);
             ordered++;

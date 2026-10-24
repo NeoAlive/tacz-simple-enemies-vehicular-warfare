@@ -899,7 +899,7 @@ public class SewvCommand {
         try {
             Path path = SewvDebugDump.write(source.getServer(), source.getLevel());
             source.sendSuccess(() -> Component.literal(
-                    "Diagnostic written to " + path + " — send this file."), false);
+                    "Diagnostic written to " + path + ". Send this file."), false);
             return 1;
         } catch (Exception e) {
             source.sendFailure(Component.literal("Dump failed: " + e.getMessage()));

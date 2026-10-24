@@ -43,7 +43,8 @@ public class BoardKeybind {
      * @return whether an order was sent
      */
     public static boolean orderBoard(Entity target, boolean passengerOnly) {
-        return withOwnedUnits(null, "message.tacz_sewv.board.no_units", (player, unitIds) -> {
+        // On foot only: a rider's board order would sit unused until it next dismounts.
+        return withOwnedUnits(true, null, "message.tacz_sewv.board.no_units", (player, unitIds) -> {
             // A mortar is a VehicleEntity too, but it has no seats to ride: crewing one means
             // standing beside it, which is a different order entirely. Check it first, since
             // the vehicle branch would otherwise swallow it and send units to board something
@@ -76,10 +77,10 @@ public class BoardKeybind {
     }
 
     /**
-     * Order owned crews onto an area task over a {@code radius}-block circle around the player —
-     * an endless patrol or a one-time search sweep ({@code mode}, see IVehiclePatrol), or
-     * {@code MODE_DISMISS} to stand them down. The server filters to ground-vehicle drivers and uses
-     * the player's own position as the origin.
+     * Order units onto an area task over a {@code radius}-block circle around the player: an
+     * endless patrol or a one-time search sweep ({@code mode}, see IVehiclePatrol), or
+     * {@code MODE_DISMISS} to stand them down. On foot a unit walks it; a crew hands it to its
+     * driver (ground hulls and helicopters). The player's position is the origin.
      */
     public static boolean orderAreaTask(int radius, int mode) {
         return withOwnedUnits(null, "message.tacz_sewv.board.no_units",
@@ -107,11 +108,16 @@ public class BoardKeybind {
      */
     public static boolean withOwnedUnits(@Nullable Predicate<PmcUnitEntity> filter, String emptyKey,
                                          BiConsumer<Player, List<Integer>> order) {
+        return withOwnedUnits(false, filter, emptyKey, order);
+    }
+
+    private static boolean withOwnedUnits(boolean onFootOnly, @Nullable Predicate<PmcUnitEntity> filter,
+                                          String emptyKey, BiConsumer<Player, List<Integer>> order) {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null || mc.level == null) return false;
 
-        List<Integer> unitIds = WheelScope.units(false, WheelScope.nearbyRadius(), filter);
+        List<Integer> unitIds = WheelScope.units(onFootOnly, WheelScope.nearbyRadius(), filter);
         if (unitIds.isEmpty()) {
             hint(player, WheelScope.emptyKey(emptyKey));
             return false;

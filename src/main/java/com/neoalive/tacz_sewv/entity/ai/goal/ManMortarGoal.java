@@ -174,7 +174,7 @@ public class ManMortarGoal extends Goal {
         crew().sewv$setFireMission(null);
         this.fireMission = null;
         MortarSupport.releaseClaim(this.unit);
-        hold("fire mission complete — standing down off the tube");
+        hold("fire mission complete: standing down off the tube");
         return true;
     }
 
@@ -323,7 +323,7 @@ public class ManMortarGoal extends Goal {
         }
         if (VehicleTargeting.friendlyNearPoint(
                 this.unit, aimCentre, SewvConfig.FRIENDLY_FIRE_MORTAR_RADIUS.get())) {
-            hold("holding fire — player or friendly PMC too close to aimpoint");
+            hold("holding fire: player or friendly PMC too close to aimpoint");
             return;
         }
 

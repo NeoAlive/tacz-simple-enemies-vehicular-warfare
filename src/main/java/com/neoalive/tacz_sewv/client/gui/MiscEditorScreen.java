@@ -332,7 +332,7 @@ public class MiscEditorScreen extends SewvScreen {
 
     private static String assessmentText(Pack pack, Assessment a) {
         String name = Component.translatable(pack.langKey).getString();
-        return name + " · cues " + a.cues() + " · armor " + a.armor() + " · " + a.live() + " live";
+        return name + " | cues " + a.cues() + " | armor " + a.armor() + " | " + a.live() + " live";
     }
 
     private void applyPack(Pack pack) {

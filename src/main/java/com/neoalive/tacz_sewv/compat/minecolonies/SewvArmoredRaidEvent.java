@@ -150,7 +150,7 @@ public class SewvArmoredRaidEvent implements IColonyRaidEvent {
         if (hulls.isEmpty()) {
             // Nothing fielded (empty pool, no room) — cancel rather than sit as a raid that never
             // arrives, which would keep isRaided() true and block the colony's next raid.
-            TaczSewv.LOGGER.debug("MineColonies armored raid fielded no vehicles at {} — cancelled", spawnPoint);
+            TaczSewv.LOGGER.debug("MineColonies armored raid fielded no vehicles at {}: cancelled", spawnPoint);
             status = EventStatus.CANCELED;
             return;
         }

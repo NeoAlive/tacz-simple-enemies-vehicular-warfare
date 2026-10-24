@@ -75,10 +75,12 @@ public abstract class MixinPacketIssueOrder {
         // the client-side "order sent" ack had to go: it was printed before either was checked.
         if (!(ordered instanceof PmcUnitEntity pmc)) {
             OrderReport.fail(sender, OrderFailure.NOT_A_UNIT);
+            ci.cancel();
             return;
         }
         if (!OrderAuth.check(sender, pmc, "PacketIssueOrder")) {
             OrderReport.fail(sender, OrderFailure.NOT_OWNED);
+            ci.cancel();
             return;
         }
         if (FobSupport.blocksOrders(pmc)) {

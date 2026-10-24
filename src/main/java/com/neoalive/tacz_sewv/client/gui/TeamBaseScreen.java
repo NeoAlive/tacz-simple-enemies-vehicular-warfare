@@ -527,12 +527,12 @@ public class TeamBaseScreen extends SewvScreen {
 
     private Component assignedLabel() {
         return Component.translatable("gui.tacz_sewv.invasion.assigned_team",
-                this.cfg.assignedTeam.isEmpty() ? "—" : this.cfg.assignedTeam);
+                this.cfg.assignedTeam.isEmpty() ? "none" : this.cfg.assignedTeam);
     }
 
     private Component ownedLabel() {
         return Component.translatable("gui.tacz_sewv.invasion.owned_team",
-                this.cfg.ownedTeam.isEmpty() ? "—" : this.cfg.ownedTeam);
+                this.cfg.ownedTeam.isEmpty() ? "none" : this.cfg.ownedTeam);
     }
 
     private Component factionLabel() {
@@ -558,7 +558,7 @@ public class TeamBaseScreen extends SewvScreen {
         for (int i = 0; i < n; i++) {
             if (this.onlinePlayerUuids.get(i).equals(uuid)) return this.onlinePlayerNames.get(i);
         }
-        return uuid.length() > 8 ? uuid.substring(0, 8) + "…" : uuid;
+        return uuid.length() > 8 ? uuid.substring(0, 8) + "..." : uuid;
     }
 
     private void cyclePmcOwner() {

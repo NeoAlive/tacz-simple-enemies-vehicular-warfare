@@ -292,7 +292,7 @@ public final class DownedUnitPose {
             String expr = el.getAsString();
             Matcher m = SIN_EXPR.matcher(expr);
             if (!m.matches()) {
-                LOGGER.warn("Downed pose: unrecognized expression at {}: '{}' — treating as 0", context, expr);
+                LOGGER.warn("Downed pose: unrecognized expression at {}: '{}': treating as 0", context, expr);
                 return new Component(0.0F, 0.0F, 0.0F);
             }
             float base = m.group(1) != null ? Float.parseFloat(m.group(1)) : 0.0F;

@@ -122,7 +122,7 @@ final class RadialWheelDraw {
             double tyOff = avgLen > 1.0e-6 ? (by / avgLen) * textR : -textR;
             int tx = cx + (int) Math.round(txOff);
             int ty = cy + (int) Math.round(tyOff);
-            String label = isChecked ? "✔ " + entry.label() : entry.label();
+            String label = isChecked ? "[x] " + entry.label() : entry.label();
             int tw = font.width(label);
             int drawX;
             if (bx < -0.2) {

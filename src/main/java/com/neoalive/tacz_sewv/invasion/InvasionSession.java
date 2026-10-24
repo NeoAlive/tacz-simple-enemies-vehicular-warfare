@@ -234,7 +234,7 @@ public final class InvasionSession {
         for (ServerLevel level : event.getServer().getAllLevels()) {
             InvasionLayout layout = InvasionLayout.get(level);
             if (!layout.isSessionActive()) continue;
-            SewvDiag.invasion("orphan session on load — force stop dim={}", level.dimension().location());
+            SewvDiag.invasion("orphan session on load: force stop dim={}", level.dimension().location());
             InvasionSession session = of(level);
             session.active = true; // so deactivate runs teardown
             deactivate(level);
@@ -461,7 +461,7 @@ public final class InvasionSession {
             if (takenFromEnemy && holder.equals(teamB)) occupiesB = true;
         }
         MatchOutcome.Verdict verdict = MatchOutcome.decide(occupiesA, occupiesB, pointsA, pointsB);
-        SewvDiag.invasion("timeUp A={} pts={} occ={} | B={} pts={} occ={} → {}",
+        SewvDiag.invasion("timeUp A={} pts={} occ={} | B={} pts={} occ={} -> {}",
                 teamA, pointsA, occupiesA, teamB, pointsB, occupiesB, verdict);
         String winner = switch (verdict.result()) {
             case TEAM_A -> teamA;
@@ -480,7 +480,7 @@ public final class InvasionSession {
                 ? Component.translatable("message.tacz_sewv.invasion.result.tie")
                 : Component.translatable("message.tacz_sewv.invasion.result.win", winner);
         for (ServerPlayer player : level.players()) {
-            player.displayClientMessage(Component.empty().append(title).append(" — ").append(reason), false);
+            player.displayClientMessage(Component.empty().append(title).append(": ").append(reason), false);
             player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 80, 20));
             player.connection.send(new ClientboundSetTitleTextPacket(title));
             player.connection.send(new ClientboundSetSubtitleTextPacket(reason));
@@ -528,7 +528,7 @@ public final class InvasionSession {
                 if (team == null || !team.getName().equals(teamName)) continue;
                 BlockPos at = scatter(level, origin, radius, i++);
                 player.teleportTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
-                SewvDiag.invasion("teleport player={} → {}", player.getGameProfile().getName(), at);
+                SewvDiag.invasion("teleport player={} -> {}", player.getGameProfile().getName(), at);
             }
         }
     }

@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 
 /**
@@ -14,8 +13,8 @@ public final class BoardOrders {
     private BoardOrders() {}
 
     /**
-     * Write a standing board order onto a PMC (clears escort / tow-recovery claims that would fight
-     * the walk-to-mount goal).
+     * Write a standing board order onto a PMC. Clears every standing task that would fight the
+     * walk-to-mount goal ({@link OrderStandDown#clearForNewOrder}).
      *
      * @param passengerOnly when true, {@link com.neoalive.tacz_sewv.entity.ai.goal.BoardVehicleGoal}
      *                      waits for {@code boardCleared} before mounting (player first-pick of seat).
@@ -28,8 +27,7 @@ public final class BoardOrders {
         boarder.tacz_sewv$setPassengerOnly(passengerOnly);
         boarder.tacz_sewv$setBoardCleared(false);
         boarder.tacz_sewv$setBoarding(true);
-        ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
-        TowRecoverySupport.clearIfTowering(pmc);
+        OrderStandDown.clearForNewOrder(pmc, "BoardOrders");
     }
 
     /**

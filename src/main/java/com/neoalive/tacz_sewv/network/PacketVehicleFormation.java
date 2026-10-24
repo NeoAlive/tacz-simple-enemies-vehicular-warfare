@@ -107,7 +107,7 @@ public class PacketVehicleFormation {
                     OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
                     continue;
                 }
-                if (!pmc.isOwnedBy(player)) {
+                if (!com.neoalive.tacz_sewv.crew.OrderAuth.owns(player, pmc, "PacketVehicleFormation")) {
                     OrderReport.fail(player, OrderFailure.NOT_OWNED);
                     continue;
                 }

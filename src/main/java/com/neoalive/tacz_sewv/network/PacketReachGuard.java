@@ -3,23 +3,17 @@ package com.neoalive.tacz_sewv.network;
 import java.util.List;
 import java.util.function.Supplier;
 
-import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
-import com.neoalive.tacz_sewv.crew.OrderAuth;
+import com.neoalive.tacz_sewv.command.quick.QuickCommandUnits;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
@@ -52,40 +46,24 @@ public class PacketReachGuard {
             if (com.neoalive.tacz_sewv.command.quick.OrderQueue.capture(sp, () -> handle(ctx))) return;
 
             int ordered = 0;
+            java.util.Set<PmcUnitEntity> done = new java.util.HashSet<>();
             for (int unitId : this.unitIds) {
-                Entity e = player.level().getEntity(unitId);
-                if (!(e instanceof PmcUnitEntity pmc)) {
-                    OrderReport.fail(sp, OrderFailure.NOT_A_UNIT);
-                    continue;
-                }
-                if (!OrderAuth.check(sp, pmc, "PacketReachGuard")) {
-                    OrderReport.fail(sp, OrderFailure.NOT_OWNED);
-                    continue;
-                }
+                PmcUnitEntity pmc = OrderGuard.orderBody(sp, unitId, "PacketReachGuard");
+                if (pmc == null || !done.add(pmc)) continue;
                 if (OrderGuard.rejectIfDowned(sp, pmc)) continue;
                 if (OrderGuard.rejectIfTerritory(sp, pmc, "reach_guard")) continue;
-                if (!(pmc.getVehicle() instanceof VehicleEntity hull)) {
-                    OrderReport.fail(sp, OrderFailure.NOT_MOUNTED, pmc);
-                    continue;
-                }
-                // A gunner from the same hull: its driver is in this list and takes the order.
-                if (hull.getFirstPassenger() != pmc) continue;
-                BlockPos guard = GuardSupport.get(hull);
+                if (QuickCommandUnits.refuseFobOrRoute(sp, pmc)) continue;
+                BlockPos guard = GuardSupport.get(GuardSupport.holder(pmc));
                 if (guard == null) {
                     OrderReport.fail(sp, OrderFailure.NO_GUARD_POST, pmc);
                     continue;
                 }
 
-                if (((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
-                        || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
-                    PatrolSupport.clearSweepMembership(pmc, "PacketReachGuard");
-                }
-
-                Vec3 target = Vec3.atCenterOf(guard);
-                ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
-                TowRecoverySupport.clearIfTowering(pmc);
-                pmc.setMoveToTarget(target); // also sets MOVE_TO_POSITION
-                GuardSupport.setReaching(pmc, true);
+                OrderStandDown.clearForNewOrder(pmc, "PacketReachGuard");
+                pmc.setMoveToTarget(Vec3.atCenterOf(guard)); // also sets MOVE_TO_POSITION
+                // Only the drive goal reads this (promote to HOLD on arrival); on foot SEM's own
+                // MOVE already stops and holds at the point.
+                if (pmc.getVehicle() != null) GuardSupport.setReaching(pmc, true);
                 ordered++;
             }
 

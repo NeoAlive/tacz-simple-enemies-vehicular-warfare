@@ -73,7 +73,7 @@ public final class InvasionDeploy {
 
     /** The offer lapsed: take its first option. */
     static void expire(ServerLevel level, ServerPlayer player, Pending pending) {
-        SewvDiag.invasion("deploy timeout player={} → {}", player.getGameProfile().getName(), pending.options().get(0));
+        SewvDiag.invasion("deploy timeout player={} -> {}", player.getGameProfile().getName(), pending.options().get(0));
         resolve(level, player, pending, pending.options().get(0));
     }
 

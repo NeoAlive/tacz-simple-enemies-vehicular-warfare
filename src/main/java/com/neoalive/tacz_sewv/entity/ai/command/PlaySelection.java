@@ -33,7 +33,7 @@ public final class PlaySelection {
                 // their role instead of re-dealing the whole group.
                 Roles next = fresh.play == incumbent ? sticky(incumbentRoles, fresh.roles) : fresh.roles;
                 return new Result(fresh.play, next, true, true,
-                        "abort:" + incumbent.key + "→" + fresh.play.key);
+                        "abort:" + incumbent.key + "->" + fresh.play.key);
             }
         }
 
@@ -54,7 +54,7 @@ public final class PlaySelection {
         double bestScore = Plays.of(best.play).score(bf, group, weights);
         if (best.play != incumbent && bestScore > incScore + switchMargin) {
             return new Result(best.play, best.roles, false, true,
-                    "switch:" + incumbent.key + "→" + best.play.key);
+                    "switch:" + incumbent.key + "->" + best.play.key);
         }
 
         Roles roles = sticky(incumbentRoles, Plays.of(incumbent).assignRoles(bf, group));

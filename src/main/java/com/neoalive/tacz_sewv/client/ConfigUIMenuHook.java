@@ -76,7 +76,7 @@ public final class ConfigUIMenuHook {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player != null) {
                 mc.player.displayClientMessage(
-                        Component.literal("Config UI failed to open — restart the client after a rebuild."),
+                        Component.literal("Config UI failed to open. Restart the client after a rebuild."),
                         false);
             }
         }

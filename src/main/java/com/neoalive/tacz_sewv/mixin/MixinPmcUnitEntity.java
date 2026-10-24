@@ -375,6 +375,8 @@ public abstract class MixinPmcUnitEntity
         // Sweep & Advance on-foot: same priority band as escort so MoveToAttackRange cannot yank
         // infantry out of the selected rectangle while the sweep is active.
         ((Mob) self).goalSelector.addGoal(1, new SweepInfantryGoal(self));
+        // Patrol / Search & Destroy on foot: the crew area task, walked. Same band and reason as the sweep.
+        ((Mob) self).goalSelector.addGoal(1, new com.neoalive.tacz_sewv.entity.ai.goal.AreaTaskInfantryGoal(self));
         // Territory Mode post (Frontline Tool). Same priority band as sweep; SweepInfantryGoal is gated
         // on the post so the two can never both claim MOVE, and posting clears every competing state.
         ((Mob) self).goalSelector.addGoal(1, new TerritoryPostGoal(self));

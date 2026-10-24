@@ -57,7 +57,7 @@ public final class CamoSupport {
                 ^ ((long) (pos.getZ() >> 6) * 0xC2B2AE3D27D4EB4FL);
         int camo = CamoTable.pick(faction.name().toLowerCase(Locale.ROOT), biome, seed);
         if (camo < 0 && WARNED_BIOMES.add(biome)) {
-            LOGGER.warn("[sewv-camo] biome {} has no camo mapping — units there keep the random pick", biome);
+            LOGGER.warn("[sewv-camo] biome {} has no camo mapping: units there keep the random pick", biome);
         }
         return camo;
     }

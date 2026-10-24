@@ -108,7 +108,7 @@ public class PacketHelicopterCommand {
                     OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
                     continue;
                 }
-                if (!pmc.isOwnedBy(player)) {
+                if (!com.neoalive.tacz_sewv.crew.OrderAuth.owns(player, pmc, "PacketHelicopterCommand")) {
                     OrderReport.fail(player, OrderFailure.NOT_OWNED);
                     continue;
                 }
@@ -116,12 +116,19 @@ public class PacketHelicopterCommand {
                     OrderReport.fail(player, OrderFailure.NOT_MOUNTED, pmc);
                     continue;
                 }
-                if (v.getFirstPassenger() instanceof PmcUnitEntity driver && driver.isOwnedBy(player)) {
+                if (v.getFirstPassenger() instanceof PmcUnitEntity driver && com.neoalive.tacz_sewv.crew.OrderAuth.owns(player, driver, "PacketHelicopterCommand")) {
                     pmc = driver;
                 }
                 // Every crew member of one aircraft is in this list, so a gunner or passenger
                 // reaching here is the normal case, not a failure worth a line of its own.
                 if (v.getFirstPassenger() != pmc) continue;
+                // The same gates every other movement order has; Emergency Land is a safety order and
+                // always goes through, like the stand-downs.
+                if (this.command != IHelicopterPilot.HELI_CMD_EMERGENCY_LAND) {
+                    if (com.neoalive.tacz_sewv.order.OrderGuard.rejectIfDowned(sp, pmc)) continue;
+                    if (com.neoalive.tacz_sewv.order.OrderGuard.rejectIfTerritory(sp, pmc, "quick_wheel")) continue;
+                    if (com.neoalive.tacz_sewv.command.quick.QuickCommandUnits.refuseFobOrRoute(sp, pmc)) continue;
+                }
                 // Fixed-wing takes the same commands: IHelicopterPilot's NONE/TAKEOFF/LANDING/
                 // LANDED is aircraft-generic despite the name, and DrivePlaneGoal consumes it.
                 // This filter used to be rotary-wing only, which is why the TDT and map Land

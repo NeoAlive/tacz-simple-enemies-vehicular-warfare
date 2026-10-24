@@ -109,7 +109,7 @@ public class FobManager extends SavedData {
                 FobSupport.clearStamp(e);
                 FobSupport.clearRoutePending(e);
                 FobSupport.clearScrambleStoodDown(e);
-                FobDebug.logEntity(e, "cleared stamp — FOB removed at {}", fob.commandPos);
+                FobDebug.logEntity(e, "cleared stamp: FOB removed at {}", fob.commandPos);
             }
         }
         for (UUID id : fob.assignedVehicles) {
@@ -118,7 +118,7 @@ public class FobManager extends SavedData {
                 FobSupport.clearStamp(e);
                 FobSupport.clearRoutePending(e);
                 FobSupport.clearScrambleStoodDown(e);
-                FobDebug.logEntity(e, "cleared vehicle stamp — FOB removed at {}", fob.commandPos);
+                FobDebug.logEntity(e, "cleared vehicle stamp: FOB removed at {}", fob.commandPos);
             }
         }
     }
@@ -194,7 +194,7 @@ public class FobManager extends SavedData {
             // Stolen: an RU/US crew took it, or another player's PMC now crews it.
             if (!FobSupport.vehicleClaimableBy(hull, fob.owner)) {
                 it.remove();
-                FobDebug.logEntity(hull, "unassigned from FOB — stolen or no longer player-owned");
+                FobDebug.logEntity(hull, "unassigned from FOB: stolen or no longer player-owned");
             }
         }
     }

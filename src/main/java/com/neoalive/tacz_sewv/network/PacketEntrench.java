@@ -70,6 +70,13 @@ public class PacketEntrench {
                 }
                 if (OrderGuard.rejectIfDowned(sp, pmc)) continue;
                 if (OrderGuard.rejectIfTerritory(sp, pmc, "entrench")) continue;
+                // Same gates as the wheel's Entrench. Mounted units stay allowed here: the map sends hull
+                // drivers, and a crew with a cell drives its hull there (resolveDestination).
+                if (com.neoalive.tacz_sewv.entity.ai.support.MortarSupport.hasMortarClaim(pmc)) {
+                    OrderReport.fail(sp, OrderFailure.BUSY_MORTAR, pmc);
+                    continue;
+                }
+                if (com.neoalive.tacz_sewv.command.quick.QuickCommandUnits.refuseFobOrRoute(sp, pmc)) continue;
                 units.add(pmc);
             }
             if (units.isEmpty()) {

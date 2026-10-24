@@ -71,7 +71,7 @@ public final class InvasionSpawn {
         for (TeamBaseBlockEntity base : bases) {
             String team = base.getAssignedTeam();
             if (team.isEmpty()) {
-                SewvDiag.invasion("spawnSkip base={} — no assignedTeam", base.getBlockPos());
+                SewvDiag.invasion("spawnSkip base={}: no assignedTeam", base.getBlockPos());
                 continue;
             }
 
@@ -89,7 +89,7 @@ public final class InvasionSpawn {
                     respawns++;
                 }
                 if (members.isEmpty()) {
-                    SewvDiag.invasion("spawnWarn base={} team={} — player-owned, no online members",
+                    SewvDiag.invasion("spawnWarn base={} team={}: player-owned, no online members",
                             base.getBlockPos(), team);
                 }
             }
@@ -333,7 +333,7 @@ public final class InvasionSpawn {
     public static void fieldPlayerAfterDelay(ServerLevel level, ServerPlayer player) {
         TeamBaseBlockEntity base = playerOwnedBaseFor(level, player);
         if (base == null) {
-            SewvDiag.invasion("fieldPlayerAfterDelay skip player={} — no base",
+            SewvDiag.invasion("fieldPlayerAfterDelay skip player={}: no base",
                     player.getGameProfile().getName());
             return;
         }
@@ -352,7 +352,7 @@ public final class InvasionSpawn {
     public static void teleportToWorldSpawn(ServerPlayer player, ServerLevel level, BlockPos at) {
         player.teleportTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5);
         pinRespawn(player, level, at);
-        SewvDiag.invasion("teleportWorldSpawn player={} → {}",
+        SewvDiag.invasion("teleportWorldSpawn player={} -> {}",
                 player.getGameProfile().getName(), at);
     }
 

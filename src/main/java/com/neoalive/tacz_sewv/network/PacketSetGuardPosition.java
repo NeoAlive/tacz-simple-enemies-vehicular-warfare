@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.network;
 import java.util.List;
 import java.util.function.Supplier;
 
-import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -12,10 +11,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
-import com.neoalive.tacz_sewv.order.OrderFailure;
-import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.platform.NetworkEvent;
 
 /**
@@ -48,24 +44,16 @@ public class PacketSetGuardPosition {
             if (com.neoalive.tacz_sewv.command.quick.OrderQueue.capture(sp, () -> handle(ctx))) return;
 
             int set = 0;
+            // A crew is one post (on its hull), however many of its seats were selected.
+            java.util.Set<Entity> holders = new java.util.HashSet<>();
             for (int unitId : this.unitIds) {
-                Entity e = player.level().getEntity(unitId);
-                if (!(e instanceof PmcUnitEntity pmc)) {
-                    OrderReport.fail(sp, OrderFailure.NOT_A_UNIT);
-                    continue;
-                }
-                if (!OrderAuth.check(sp, pmc, "PacketSetGuardPosition")) {
-                    OrderReport.fail(sp, OrderFailure.NOT_OWNED);
-                    continue;
-                }
+                PmcUnitEntity pmc = com.neoalive.tacz_sewv.order.OrderGuard.orderBody(sp, unitId,
+                        "PacketSetGuardPosition");
+                if (pmc == null) continue;
+                if (com.neoalive.tacz_sewv.order.OrderGuard.rejectIfDowned(sp, pmc)) continue;
                 if (com.neoalive.tacz_sewv.order.OrderGuard.rejectIfTerritory(sp, pmc, "set_guard")) continue;
-                if (!(pmc.getVehicle() instanceof VehicleEntity hull)) {
-                    OrderReport.fail(sp, OrderFailure.NOT_MOUNTED, pmc);
-                    continue;
-                }
-                // A gunner from the same hull: its driver is in this list and takes the order.
-                if (hull.getFirstPassenger() != pmc) continue;
-                GuardSupport.set(hull, this.pos);
+                if (!holders.add(GuardSupport.holder(pmc))) continue;
+                GuardSupport.set(GuardSupport.holder(pmc), this.pos);
                 set++;
             }
 

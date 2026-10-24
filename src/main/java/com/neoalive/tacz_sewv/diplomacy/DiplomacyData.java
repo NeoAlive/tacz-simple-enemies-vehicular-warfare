@@ -132,9 +132,9 @@ public class DiplomacyData extends SavedData {
                 // First get after create: empty ctor path logs once via identity.
                 return data;
             }
-            SewvDiag.diplomacy("get() overworld=NULL — returning EMPTY ephemeral instance");
+            SewvDiag.diplomacy("get() overworld=NULL: returning EMPTY ephemeral instance");
         } else {
-            SewvDiag.diplomacy("get() level not ServerLevel ({}) — returning EMPTY ephemeral instance",
+            SewvDiag.diplomacy("get() level not ServerLevel ({}): returning EMPTY ephemeral instance",
                     level == null ? "null" : level.getClass().getSimpleName());
         }
         return new DiplomacyData();

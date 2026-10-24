@@ -28,14 +28,14 @@ final class SelectLeaves {
             List<TdtSelection.Entry> units = e.getValue();
             if (units.isEmpty()) continue;
             boolean commander = units.stream().anyMatch(TdtSelection.Entry::isCommander);
-            leaves.add(new WedgeEntry.PipelineEntry("Platoon ×" + TdtSelection.distinctCount(units),
+            leaves.add(new WedgeEntry.PipelineEntry("Platoon x" + TdtSelection.distinctCount(units),
                     commander ? "★" : "⚑",
                     QuickCommandRegistry.SELECT_PLATOON_PREFIX + e.getKey(), e.getKey() & 0xFFFFFF));
         }
         for (Map.Entry<VehicleMarker.Kind, List<TdtSelection.Entry>> e : TdtSelection.byKind().entrySet()) {
             List<TdtSelection.Entry> units = e.getValue();
             if (units.isEmpty()) continue;
-            leaves.add(new WedgeEntry.PipelineEntry(kindLabel(e.getKey()) + " ×" + TdtSelection.distinctCount(units),
+            leaves.add(new WedgeEntry.PipelineEntry(kindLabel(e.getKey()) + " x" + TdtSelection.distinctCount(units),
                     kindGlyph(e.getKey()), QuickCommandRegistry.SELECT_KIND_PREFIX + e.getKey().name(),
                     QuickCommandRegistry.SELECT_ACCENT));
         }

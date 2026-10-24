@@ -180,7 +180,7 @@ public class TargetPriorityScreen extends SewvScreen {
             if (cat == null) continue;
             String shown = cat.toUpperCase(Locale.ROOT);
             if (this.font.width(shown) > lw - 6) {
-                shown = this.font.plainSubstrByWidth(shown, lw - 12) + "…";
+                shown = this.font.plainSubstrByWidth(shown, lw - 12) + "...";
             }
             g.drawString(this.font, shown, left, top + i * ROW_H + 6, 0xE0E0E0, false);
         }

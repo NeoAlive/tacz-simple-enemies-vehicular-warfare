@@ -173,8 +173,8 @@ public class CarrierOpsScreen extends Screen {
                 ? "gui.tacz_sewv.carrier_ops.mode_static"
                 : "gui.tacz_sewv.carrier_ops.mode_dynamic");
         g.drawString(this.font, mode, left, this.infoY, this.staticMode ? COL_GOOD : COL_BAD, false);
-        String dims = this.strip.length() + " × " + this.strip.width()
-                + "  ·  " + this.slots.capacity() + " slots";
+        String dims = this.strip.length() + " x " + this.strip.width()
+                + "  |  " + this.slots.capacity() + " slots";
         g.drawString(this.font, dims, left, this.infoY + 11, COL_MUTED, false);
 
         renderDiagram(g);

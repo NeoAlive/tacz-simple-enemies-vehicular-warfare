@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
@@ -59,6 +60,9 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
         TowRecoverySupport.clearIfTowering(pmc);
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
         ((IPathwayInfantry) pmc).sewv$clearPathway();
+        if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) {
+            capture.sewv$clearCaptureOrder();
+        }
         FobSupport.clearRoutePending(pmc);
 
 

@@ -63,7 +63,7 @@ public class PacketEscort {
                     OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
                     continue;
                 }
-                if (!pmc.isOwnedBy(player)) {
+                if (!com.neoalive.tacz_sewv.crew.OrderAuth.owns(player, pmc, "PacketEscort")) {
                     OrderReport.fail(player, OrderFailure.NOT_OWNED);
                     continue;
                 }
@@ -74,7 +74,14 @@ public class PacketEscort {
                     OrderReport.fail(player, OrderFailure.BUSY_MORTAR, pmc);
                     continue;
                 }
+                // EscortGoal only walks a unit on foot; a rider would be counted and then never move.
+                if (pmc.getVehicle() != null) {
+                    OrderReport.fail(player, OrderFailure.MUST_BE_ON_FOOT, pmc);
+                    continue;
+                }
+                if (com.neoalive.tacz_sewv.command.quick.QuickCommandUnits.refuseFobOrRoute(sp, pmc)) continue;
 
+                com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown.clearForNewOrder(pmc, "PacketEscort");
                 ((IEscort) pmc).tacz_sewv$setEscortTargetId(this.targetEntityId);
                 // Escort and board both drive the unit on foot at goal priority 1 — mutually
                 // exclusive. Escort wins the moment it's ordered.

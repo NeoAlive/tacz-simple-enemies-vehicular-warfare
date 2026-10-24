@@ -212,7 +212,7 @@ public final class FobNetworking {
                 com.neoalive.tacz_sewv.order.OrderReport.ok(owner,
                         Component.translatable("message.tacz_sewv.fob.route_sent", vehicles, infantry));
             }
-            FobDebug.log("route-to-FOB at {} — {} vehicles, {} infantry",
+            FobDebug.log("route-to-FOB at {}: {} vehicles, {} infantry",
                     commandPos, vehicles, infantry);
         }
         return total;

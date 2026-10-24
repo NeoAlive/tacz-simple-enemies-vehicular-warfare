@@ -12,10 +12,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderGuard;
@@ -94,7 +92,7 @@ public class PacketManMortar {
                 OrderReport.fail(player, OrderFailure.NOT_A_UNIT);
                 continue;
             }
-            if (!pmc.isOwnedBy(player)) {
+            if (!com.neoalive.tacz_sewv.crew.OrderAuth.owns(player, pmc, "PacketManMortar")) {
                 OrderReport.fail(player, OrderFailure.NOT_OWNED);
                 continue;
             }
@@ -110,6 +108,10 @@ public class PacketManMortar {
             }
             if (pmc.getVehicle() != null) {
                 OrderReport.fail(player, OrderFailure.BUSY_CREWING, pmc);
+                continue;
+            }
+            if (com.neoalive.tacz_sewv.command.quick.QuickCommandUnits.refuseFobOrRoute(
+                    (net.minecraft.server.level.ServerPlayer) player, pmc)) {
                 continue;
             }
 
@@ -132,7 +134,6 @@ public class PacketManMortar {
         IVehicleBoarder boarder = (IVehicleBoarder) unit;
         boarder.tacz_sewv$setBoarding(false);
         boarder.tacz_sewv$setMountTargetId(-1);
-        ((IEscort) unit).tacz_sewv$setEscortTargetId(-1);
-        TowRecoverySupport.clearIfTowering(unit);
+        com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown.clearForNewOrder(unit, "PacketManMortar");
     }
 }

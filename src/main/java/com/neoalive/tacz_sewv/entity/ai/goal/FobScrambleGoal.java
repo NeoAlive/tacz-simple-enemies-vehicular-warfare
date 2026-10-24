@@ -127,7 +127,7 @@ public class FobScrambleGoal extends Goal {
         boarder.tacz_sewv$setMountTargetId(best.getId());
         boarder.tacz_sewv$setBoarding(true);
         boarder.tacz_sewv$setPassengerOnly(false);
-        FobDebug.logEntity(this.unit, "scramble — boarding assigned hull {}", best.getId());
+        FobDebug.logEntity(this.unit, "scramble: boarding assigned hull {}", best.getId());
     }
 
     @Nullable

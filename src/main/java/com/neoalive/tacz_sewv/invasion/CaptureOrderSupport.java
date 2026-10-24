@@ -213,7 +213,7 @@ public final class CaptureOrderSupport {
         CapturableBlockEntity zone = zoneAt(level, target);
         if (zone == null) {
             // Chunk unloaded or block gone — re-pick rather than sit forever.
-            SewvDiag.invasion("captureOrder missingZone unit={} pos={} — re-pick",
+            SewvDiag.invasion("captureOrder missingZone unit={} pos={}: re-pick",
                     unit.getId(), target);
             pickObjective(level, unit, order);
             return;

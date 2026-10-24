@@ -8,17 +8,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
-import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
-import com.neoalive.tacz_sewv.bridge.IEscort;
-import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
-import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
-import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -40,7 +33,9 @@ public final class QuickSemOrders {
                 OrderReport.fail(issuer, OrderFailure.UNIT_DOWNED, pmc);
                 continue;
             }
-            clearConflicting(pmc);
+            OrderStandDown.clearForNewOrder(pmc, "QuickSemOrder");
+            // SEM's own Hold / Cease / Free drop a standing formation (setFormationIndex); match it.
+            if (order != OrderType.FOLLOW_COMMANDER) VehicleFormation.clear(pmc);
             pmc.setOrder(order);
             if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
                 CrewRadio.play(hull, CrewRadio.Line.ORDER_DISPATCH);
@@ -48,20 +43,5 @@ public final class QuickSemOrders {
             ok++;
         }
         return ok;
-    }
-
-    public static void clearConflicting(PmcUnitEntity pmc) {
-        if (((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
-                || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
-            PatrolSupport.clearSweepMembership(pmc, "QuickSemOrder");
-        }
-        EntrenchSupport.clear(pmc);
-        GuardSupport.clearReach(pmc);
-        ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
-        TowRecoverySupport.clearIfTowering(pmc);
-        if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) {
-            capture.sewv$clearCaptureOrder();
-        }
-        ((IPathwayInfantry) pmc).sewv$clearPathway();
     }
 }

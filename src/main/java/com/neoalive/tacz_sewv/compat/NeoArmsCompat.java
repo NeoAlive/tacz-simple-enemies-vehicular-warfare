@@ -32,9 +32,9 @@ public final class NeoArmsCompat {
         if (!logged) {
             logged = true;
             if (present()) {
-                LOGGER.info("Neo Arms soft-compat available — static carriers can act as airports");
+                LOGGER.info("Neo Arms soft-compat available: static carriers can act as airports");
             } else {
-                LOGGER.info("Neo Arms absent — carrier soft-compat idle");
+                LOGGER.info("Neo Arms absent: carrier soft-compat idle");
             }
         }
     }

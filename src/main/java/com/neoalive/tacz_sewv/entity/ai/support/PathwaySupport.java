@@ -105,9 +105,11 @@ public final class PathwaySupport {
                 pathway.sewv$clearPathway();
                 return false;
             }
-            // "Is this MOVE still along the path?" — the order may have moved under us.
+            // The route was chosen for one MOVE destination: if the order moved under us, drop it and
+            // let the next scan decide afresh. Re-running the geometry here instead would drop a unit
+            // that legitimately came in from off-axis on the detour rule.
             Vec3 dest = moveDest(pmc);
-            if (dest != null && coaxialExit(held, dest.x, dest.z, coaxRadius()) < 0) {
+            if (dest != null && !pathway.sewv$wasFunneledFor(BlockPos.containing(dest).asLong())) {
                 pathway.sewv$clearPathway();
                 return false;
             }
@@ -213,6 +215,10 @@ public final class PathwaySupport {
         return SewvConfig.PATHWAY_COAX_RADIUS.get();
     }
 
+    public static double detourTolerance() {
+        return SewvConfig.PATHWAY_DETOUR_TOLERANCE.get();
+    }
+
     /**
      * Passive MOVE releases when the unit leaves the path corridor or reaches its MOVE destination.
      * Parallel bearing is a join gate only — not re-checked every tick (adjacent MOVE paths rarely
@@ -226,7 +232,10 @@ public final class PathwaySupport {
         List<BlockPos> route = pathway.sewv$getPathwayRoute();
         if (route.size() < 2) return true;
 
-        if (nearestSegmentIndex(route, pmc.getX(), pmc.getZ(), MOVE_CORRIDOR_RADIUS_SQ) < 0) return true;
+        // Step 0 is the walk TO the entry, possibly from far off the path (detour rule): the corridor
+        // only applies once the unit is on it. A stuck approach is bounded by the leg timeout.
+        if (pathway.sewv$getPathwayStep() > 0
+                && nearestSegmentIndex(route, pmc.getX(), pmc.getZ(), MOVE_CORRIDOR_RADIUS_SQ) < 0) return true;
 
         Vec3 dest = pmc.getMoveToTarget();
         if (dest != null && !dest.equals(Vec3.ZERO) && pmc.distanceToSqr(dest) < ARRIVE_SQ) {
@@ -264,37 +273,56 @@ public final class PathwaySupport {
         return out;
     }
 
+    /** A route to walk (entry first, possibly truncated) and its detour ratio: lower is better. */
+    public record Match(List<BlockPos> route, double cost) {}
+
     /**
-     * Passive entry: the route to walk, oriented from whichever end node the unit is at and
-     * truncated where a MOVE destination sits on the path, or null. {@code dest} null means
-     * "no MOVE" and matches on {@code velocity} instead. When both ends qualify (a path shorter
-     * than the entry radius) the one whose axis the destination lies closer to wins.
-     * Pure (no world reads), so the self-check covers it.
+     * Passive entry, or null. A MOVE destination is matched two ways:
+     * <ul>
+     * <li><b>at the mouth</b> (within {@code entryR} of an end node): a coaxial destination always
+     * qualifies (see {@link #coaxialExit});</li>
+     * <li><b>anywhere</b>: when going unit → entry → along the path → destination is at most
+     * {@code detourTol} times the straight line. This is what makes a unit standing off to the side
+     * of a bridge walk over to it instead of wading the river; {@code detourTol <= 1} turns it off.</li>
+     * </ul>
+     * The unit leaves at the exit, or at the node nearest a destination on the path. {@code dest} null
+     * means "no MOVE": only the mouth counts, matched on {@code velocity}. Both orientations are
+     * tried and the cheaper wins. Pure (no world reads), so the self-check covers it.
      */
     @Nullable
-    public static List<BlockPos> matchEntry(double ux, double uz, @Nullable Vec3 dest, Vec3 velocity,
-                                     List<BlockPos> waypoints, double entryR, double coaxR) {
+    public static Match matchEntry(double ux, double uz, @Nullable Vec3 dest, Vec3 velocity,
+                                   List<BlockPos> waypoints, double entryR, double coaxR, double detourTol) {
         if (waypoints.size() < 2) return null;
-        List<BlockPos> fwd = orient(ux, uz, dest, velocity, waypoints, entryR, coaxR);
-        List<BlockPos> back = orient(ux, uz, dest, velocity, reversed(waypoints), entryR, coaxR);
+        Match fwd = orient(ux, uz, dest, velocity, waypoints, entryR, coaxR, detourTol);
+        Match back = orient(ux, uz, dest, velocity, reversed(waypoints), entryR, coaxR, detourTol);
         if (fwd == null || back == null) return fwd != null ? fwd : back;
-        return dest == null || axisOffset(fwd, dest) <= axisOffset(back, dest) ? fwd : back;
+        return fwd.cost() <= back.cost() ? fwd : back;
     }
 
     @Nullable
-    private static List<BlockPos> orient(double ux, double uz, @Nullable Vec3 dest, Vec3 velocity,
-                                         List<BlockPos> route, double entryR, double coaxR) {
-        if (distSq(route.get(0), ux, uz) > entryR * entryR) return null;
+    private static Match orient(double ux, double uz, @Nullable Vec3 dest, Vec3 velocity,
+                                List<BlockPos> route, double entryR, double coaxR, double detourTol) {
+        boolean atMouth = distSq(route.get(0), ux, uz) <= entryR * entryR;
 
-        if (dest != null) {
-            int exit = coaxialExit(route, dest.x, dest.z, coaxR);
-            return exit < 0 ? null : List.copyOf(route.subList(0, exit + 1));
+        if (dest == null) {
+            double[] axis = axis(route);
+            double speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+            if (!atMouth || axis == null || speed < MIN_SPEED) return null;
+            return (velocity.x * axis[0] + velocity.z * axis[1]) / speed >= PARALLEL_DOT
+                    ? new Match(route, 0.0) : null;
         }
 
-        double[] axis = axis(route);
-        double speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
-        if (axis == null || speed < MIN_SPEED) return null;
-        return (velocity.x * axis[0] + velocity.z * axis[1]) / speed >= PARALLEL_DOT ? route : null;
+        // Leave at the far end, never part-way: a path exists to get across something, and the
+        // shortest-distance node is the middle of the bridge. Only a destination ON the path stops early.
+        int exit = leaveIndex(route, dest.x, dest.z, coaxR);
+        double best = Math.sqrt(distSq(route.get(0), ux, uz)) + Math.sqrt(distSq(route.get(exit), dest.x, dest.z));
+        for (int k = 1; k <= exit; k++) {
+            best += Math.sqrt(distSq(route.get(k - 1), route.get(k).getX() + 0.5, route.get(k).getZ() + 0.5));
+        }
+        double direct = Math.max(Math.sqrt((dest.x - ux) * (dest.x - ux) + (dest.z - uz) * (dest.z - uz)), 1.0e-4);
+        double cost = best / direct;
+        boolean accepted = cost <= detourTol || (atMouth && coaxialExit(route, dest.x, dest.z, coaxR) >= 0);
+        return accepted ? new Match(List.copyOf(route.subList(0, exit + 1)), cost) : null;
     }
 
     /**
@@ -316,10 +344,7 @@ public final class PathwaySupport {
         if (along <= 0) return -1;
 
         if (along < axis[2]) {
-            int seg = nearestSegmentIndex(route, dx, dz, coaxR * coaxR);
-            if (seg < 0) return -1;
-            int node = distSq(route.get(seg), dx, dz) <= distSq(route.get(seg + 1), dx, dz) ? seg : seg + 1;
-            return Math.max(1, node);
+            return nearestSegmentIndex(route, dx, dz, coaxR * coaxR) < 0 ? -1 : leaveIndex(route, dx, dz, coaxR);
         }
         if (Math.abs(rx * axis[1] - rz * axis[0]) <= coaxR) return route.size() - 1;
         double ox = dx - (exit.getX() + 0.5);
@@ -328,12 +353,15 @@ public final class PathwaySupport {
         return ox * axis[0] + oz * axis[1] >= COAX_COS * off ? route.size() - 1 : -1;
     }
 
-    /** Perpendicular distance from the destination to this route's axis: tie-break between the two ends. */
-    private static double axisOffset(List<BlockPos> route, Vec3 dest) {
-        double[] axis = axis(route);
-        if (axis == null) return Double.MAX_VALUE;
-        BlockPos entry = route.get(0);
-        return Math.abs((dest.x - entry.getX() - 0.5) * axis[1] - (dest.z - entry.getZ() - 0.5) * axis[0]);
+    /**
+     * Node to leave the path at: the node nearest a destination lying on the path (within
+     * {@code coaxR} of a segment), else the exit. Never 0, the entry itself.
+     */
+    private static int leaveIndex(List<BlockPos> route, double dx, double dz, double coaxR) {
+        int seg = nearestSegmentIndex(route, dx, dz, coaxR * coaxR);
+        if (seg < 0) return route.size() - 1;
+        int node = distSq(route.get(seg), dx, dz) <= distSq(route.get(seg + 1), dx, dz) ? seg : seg + 1;
+        return Math.max(1, node);
     }
 
     /** {unit x, unit z, length} of the entry-to-exit chord, or null for a degenerate path. */

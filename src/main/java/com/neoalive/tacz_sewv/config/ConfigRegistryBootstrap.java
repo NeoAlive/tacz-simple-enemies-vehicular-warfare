@@ -597,6 +597,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.PATHWAY_ENTRY_RADIUS, SewvConfig.PATHWAY_ENTRY_RADIUS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "pathwayCoaxRadius", 4.0, 128.0,
                 SewvConfig.PATHWAY_COAX_RADIUS, SewvConfig.PATHWAY_COAX_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "pathwayDetourTolerance", 1.0, 4.0,
+                SewvConfig.PATHWAY_DETOUR_TOLERANCE, SewvConfig.PATHWAY_DETOUR_TOLERANCE::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "pathDestQuantum", 0, 8,
                 SewvConfig.PATH_DEST_QUANTUM, SewvConfig.PATH_DEST_QUANTUM::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "sensorColumnTtlTicks", 1, 20,

@@ -210,6 +210,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue PATH_SEARCH_RANGE;
     public static final ForgeConfigSpec.DoubleValue PATHWAY_ENTRY_RADIUS;
     public static final ForgeConfigSpec.DoubleValue PATHWAY_COAX_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue PATHWAY_DETOUR_TOLERANCE;
     public static final ForgeConfigSpec.IntValue PATH_DEST_QUANTUM;
     public static final ForgeConfigSpec.IntValue SENSOR_COLUMN_TTL_TICKS;
     public static final ForgeConfigSpec.IntValue TREE_SCAN_INTERVAL_TICKS;
@@ -957,6 +958,12 @@ public final class SewvConfig {
                         "(blocks) of the path, or of its axis extended past the exit (a 30 degree cone from the exit also",
                         "counts). Otherwise the path is ignored, or dropped mid-walk.")
                 .defineInRange("pathwayCoaxRadius", 24.0, 4.0, 128.0);
+        PATHWAY_DETOUR_TOLERANCE = builder.comment(
+                        "Preferred pathways: a unit under MOVE anywhere takes a path when walking to it, along it and on",
+                        "to the destination is at most this many times the straight line (1.5 = up to 50% longer). This is",
+                        "what sends a unit standing beside a bridge over it instead of across the river. 1.0 = off: only",
+                        "units at a path's end take it.")
+                .defineInRange("pathwayDetourTolerance", 1.5, 1.0, 4.0);
         PATH_DEST_QUANTUM = builder.comment(
                         "PERF. Snap ground-vehicle destinations to this block grid before pathing (0 = off). Stops",
                         "standoff/retreat points that move every tick from forcing repaths.")

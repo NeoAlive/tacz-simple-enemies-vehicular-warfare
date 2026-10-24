@@ -6,7 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Headless self-check for preferred pathway entry/coaxial matching and id validation.
+ * Headless self-check for preferred pathway entry (mouth + detour) matching and id validation.
  */
 public final class PathwaySupportSelfCheck {
 
@@ -53,7 +53,22 @@ public final class PathwaySupportSelfCheck {
         assert route.equals(match(-5, 0, null, new Vec3(0.2, 0, 0), route));
         assert match(-5, 0, null, new Vec3(-0.2, 0, 0), route) == null;
 
-        // Mid-walk re-check: still coaxial / no longer.
+        // The reported river case: path (20,30)->(20,-30), river along z=0, unit at (60,80) bound for
+        // (60,-60). Far from either end, so only the detour rule can send it over: ~1.24x the line.
+        List<BlockPos> bridge = List.of(new BlockPos(20, 64, 30), new BlockPos(20, 64, -30));
+        PathwaySupport.Match river = PathwaySupport.matchEntry(60.5, 80.5, dest(60, -60), still, bridge, ENTRY, COAX, 1.5);
+        assert river != null && bridge.equals(river.route()) : river;
+        assert Math.abs(river.cost() - 1.243) < 0.01 : river.cost();
+        // Tolerance below the detour, or the rule off: straight line.
+        assert PathwaySupport.matchEntry(60.5, 80.5, dest(60, -60), still, bridge, ENTRY, COAX, 1.2) == null;
+        assert PathwaySupport.matchEntry(60.5, 80.5, dest(60, -60), still, bridge, ENTRY, COAX, 1.0) == null;
+        // Destination on the unit's own bank: never worth the path.
+        assert PathwaySupport.matchEntry(60.5, 80.5, dest(60, 40), still, bridge, ENTRY, COAX, 1.5) == null;
+        // From the far bank the path is taken the other way round.
+        PathwaySupport.Match back = PathwaySupport.matchEntry(60.5, -80.5, dest(60, 60), still, bridge, ENTRY, COAX, 1.5);
+        assert back != null && PathwaySupport.reversed(bridge).equals(back.route()) : back;
+
+        // Mouth rule.
         assert PathwaySupport.coaxialExit(route, 100, 0, COAX) == 2;
         assert PathwaySupport.coaxialExit(route, 0, 80, COAX) < 0;
 
@@ -68,6 +83,8 @@ public final class PathwaySupportSelfCheck {
     }
 
     private static List<BlockPos> match(double x, double z, Vec3 dest, Vec3 velocity, List<BlockPos> route) {
-        return PathwaySupport.matchEntry(x + 0.5, z + 0.5, dest, velocity, route, ENTRY, COAX);
+        // Detour rule off (1.0): these cases pin the mouth/coaxial rule on its own.
+        PathwaySupport.Match m = PathwaySupport.matchEntry(x + 0.5, z + 0.5, dest, velocity, route, ENTRY, COAX, 1.0);
+        return m == null ? null : m.route();
     }
 }

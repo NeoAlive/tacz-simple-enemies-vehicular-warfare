@@ -54,7 +54,8 @@ public final class EasyTuningSelfCheck {
         assert inOpenUnit(EasyTuning.EXPLOSION_EXTRA_MULT) && inOpenUnit(EasyTuning.PMC_DAMAGE_TAKEN);
         assert inOpenUnit(EasyTuning.FRIENDLY_HULL_DAMAGE_MULT);
         assert EasyTuning.PMC_HEALTH_MULT > 1.0;
-        assert inOpenUnit(EasyTuning.VEHICLE_TO_PLAYER_MULT) : "vehicle to player";
+        // A vehicle hit still hurts, and never takes more than a fifth of a stock health bar.
+        assert EasyTuning.VEHICLE_HIT_CAP >= 1.0f && EasyTuning.VEHICLE_HIT_CAP <= 4.0f : "vehicle hit cap";
         // Every-crew x hostile: a hostile turret must still traverse at a usable fraction.
         assert inOpenUnit(EasyTuning.AI_TURRET_TRAVERSE_MULT) : "ai turret traverse";
         assert EasyTuning.AI_TURRET_TRAVERSE_MULT * EasyTuning.TURRET_TRAVERSE_MULT >= 0.25f : "turret too slow to track";

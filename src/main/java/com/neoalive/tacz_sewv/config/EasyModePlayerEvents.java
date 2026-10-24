@@ -81,11 +81,15 @@ public final class EasyModePlayerEvents {
         boolean selfBlast = isExplosion(source) && culpritOf(source) == player && isProjectDamage(source);
         if (!selfBlast && !isHostileTo(source, player)) return;
 
+        // Vehicle fire is capped instead of cut further: shells range from tens to hundreds of raw
+        // damage, so no single multiplier lands them all on a hit a player can take.
+        boolean vehicleFire = !selfBlast && isVehicleFire(source);
         float scale = 1.0f;
         if (EasyMode.playerDamageScaleEnabled()) scale *= EasyMode.playerDamageScale();
-        if (EasyMode.playerSustain() && isExplosion(source)) scale *= EasyTuning.EXPLOSION_EXTRA_MULT;
-        if (!selfBlast && isVehicleFire(source)) scale *= EasyTuning.VEHICLE_TO_PLAYER_MULT;
-        if (scale < 0.999F) event.setAmount(event.getAmount() * scale);
+        if (!vehicleFire && EasyMode.playerSustain() && isExplosion(source)) scale *= EasyTuning.EXPLOSION_EXTRA_MULT;
+        float amount = event.getAmount() * scale;
+        if (vehicleFire) amount = Math.min(amount, EasyTuning.VEHICLE_HIT_CAP);
+        if (amount < event.getAmount()) event.setAmount(amount);
     }
 
     private static void onPmcHurt(PmcUnitEntity pmc, LivingIncomingDamageEvent event) {

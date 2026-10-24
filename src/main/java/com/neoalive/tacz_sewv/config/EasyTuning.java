@@ -114,11 +114,11 @@ public final class EasyTuning {
     /** Owned PMC: max-health multiplier. */
     public static final double PMC_HEALTH_MULT = 1.5;
     /**
-     * Extra multiplier on any hostile VEHICLE weapon hitting a player (shell, splash, MG, TOW), on
-     * top of {@code easyPlayerDamageTaken}: hull weapons are tuned for hull HP, so the base scale
-     * alone still let one shell take half the bar.
+     * Most a single hostile VEHICLE weapon hit (shell, splash, MG, TOW) may deal a player, after
+     * {@code easyPlayerDamageTaken}: 4 = two hearts. Hull weapons are tuned for hull HP, so the base
+     * scale alone let one shell take half the bar, and a flat x0.2 on top left it under half a heart.
      */
-    public static final float VEHICLE_TO_PLAYER_MULT = 0.2f;
+    public static final float VEHICLE_HIT_CAP = 4.0f;
     /** Hostile damage to a hull crewed by a player or owned PMC. */
     public static final float FRIENDLY_HULL_DAMAGE_MULT = 0.5f;
     /** Respawn grace before hostiles may proactively lock the player, game ticks. */

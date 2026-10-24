@@ -6,7 +6,6 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.tacz.guns.api.event.common.EntityHurtByGunEvent;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.DamageTypeTags;
@@ -15,9 +14,6 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.attributes.AttributeInstance;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
@@ -27,7 +23,6 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.LogicalSide;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
-import net.neoforged.neoforge.event.entity.living.LivingKnockBackEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
@@ -36,24 +31,17 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 
 /**
  * Easy Mode's player-side half: hostile damage scaling for the player and their PMC, the
- * TaCZ bullet backstop, knockback, bonus hearts, regeneration, the respawn grace and the threat
- * highlight. Everything reads through {@link EasyMode}, which is already off during an invasion.
+ * TaCZ bullet backstop, the respawn grace and the threat highlight. Everything reads through
+ * {@link EasyMode}, which is already off during an invasion.
+ *
+ * <p>Only this mod's and SEM's sources and entities are touched: no player attribute, no healing,
+ * no knockback, nothing a vanilla or other-mod hit would feel.
  */
 @EventBusSubscriber(modid = TaczSewv.MODID)
 public final class EasyModePlayerEvents {
 
     public static final String TAG_RESPAWN_GRACE_UNTIL = "sewv:easy_grace_until";
-    /** Game time of the player's last hostile hit, so regeneration waits for the fight to end. */
-    private static final String TAG_LAST_HURT = "sewv:easy_last_hurt";
 
-    // NeoForge port: 1.21 modifiers are keyed by id, not UUID + name.
-    private static final ResourceLocation BONUS_HEALTH_UUID =
-            ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "easy_mode_hearts");
-    private static final AttributeModifier BONUS_HEALTH = new AttributeModifier(
-            BONUS_HEALTH_UUID, EasyTuning.PLAYER_BONUS_HEALTH, AttributeModifier.Operation.ADD_VALUE);
-
-    /** Bonus-hearts reconcile cadence, so a toggled config takes effect without a relog. */
-    private static final int HEALTH_CHECK_TICKS = 100;
     private static final int HIGHLIGHT_INTERVAL_TICKS = 20;
 
     private EasyModePlayerEvents() {}
@@ -88,10 +76,9 @@ public final class EasyModePlayerEvents {
     private static void onPlayerHurt(Player player, LivingIncomingDamageEvent event) {
         if (!EasyMode.active()) return;
         if (player.isCreative() || player.isSpectator()) return;
-        // Any hit at all pauses regeneration, not just a hostile one.
-        player.getPersistentData().putLong(TAG_LAST_HURT, player.level().getGameTime());
         DamageSource source = event.getSource();
-        boolean selfBlast = isExplosion(source) && culpritOf(source) == player;
+        // The player's own SBW/TaCZ ordnance only: their TNT or bed is vanilla's business.
+        boolean selfBlast = isExplosion(source) && culpritOf(source) == player && isProjectDamage(source);
         if (!selfBlast && !isHostileTo(source, player)) return;
 
         float scale = 1.0f;
@@ -123,14 +110,6 @@ public final class EasyModePlayerEvents {
         event.setHeadshotMultiplier(1.0f);
     }
 
-    @SubscribeEvent
-    public static void onKnockback(LivingKnockBackEvent event) {
-        if (!(event.getEntity() instanceof Player player)) return;
-        if (player.level().isClientSide()) return;
-        if (!EasyMode.playerSustain()) return;
-        event.setStrength(event.getStrength() * EasyTuning.KNOCKBACK_MULT);
-    }
-
     /**
      * Hostile damage to a hull crewed by the player's side, for {@code MixinVehicleEasyDamage}.
      * Shooting a hostile-crewed hull also ends that player's respawn grace, the same as hitting a
@@ -156,56 +135,15 @@ public final class EasyModePlayerEvents {
         // tickCount is per-entity and advances every tick, so a modulo on it is a real cadence
         // (unlike a goal-tick parity).
         int t = player.tickCount;
-        if (t % HEALTH_CHECK_TICKS == 0) reconcileBonusHealth(player);
-        if (t % EasyTuning.REGEN_INTERVAL_TICKS == 0) regenerate(player);
         if (t % HIGHLIGHT_INTERVAL_TICKS == 0) highlightThreats(player);
-    }
-
-    @SubscribeEvent
-    public static void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) reconcileBonusHealth(player);
-    }
-
-    @SubscribeEvent
-    public static void onDimensionChange(PlayerEvent.PlayerChangedDimensionEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) reconcileBonusHealth(player);
     }
 
     @SubscribeEvent
     public static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        reconcileBonusHealth(player);
         if (!EasyMode.playerPrioritySoft()) return;
         long until = player.level().getGameTime() + EasyMode.PLAYER_RESPAWN_GRACE_TICKS;
         player.getPersistentData().putLong(TAG_RESPAWN_GRACE_UNTIL, until);
-    }
-
-    /**
-     * Transient, so it is never saved: removing the mod or turning Easy off leaves no stray hearts.
-     * The cost is that a saved health above 20 is clamped on load before this runs, hence the heal
-     * when the modifier goes on.
-     */
-    private static void reconcileBonusHealth(ServerPlayer player) {
-        AttributeInstance max = player.getAttribute(Attributes.MAX_HEALTH);
-        if (max == null) return;
-        boolean want = EasyMode.playerSustain();
-        boolean has = max.getModifier(BONUS_HEALTH_UUID) != null;
-        if (want && !has) {
-            max.addTransientModifier(BONUS_HEALTH);
-            player.heal((float) EasyTuning.PLAYER_BONUS_HEALTH);
-        } else if (!want && has) {
-            max.removeModifier(BONUS_HEALTH_UUID);
-            if (player.getHealth() > player.getMaxHealth()) player.setHealth(player.getMaxHealth());
-        }
-    }
-
-    private static void regenerate(ServerPlayer player) {
-        if (!EasyMode.playerSustain()) return;
-        if (player.isCreative() || player.isSpectator() || player.isDeadOrDying()) return;
-        if (player.getHealth() >= player.getMaxHealth()) return;
-        long lastHurt = player.getPersistentData().getLong(TAG_LAST_HURT);
-        if (player.level().getGameTime() - lastHurt < EasyTuning.REGEN_DELAY_TICKS) return;
-        player.heal(EasyTuning.REGEN_AMOUNT);
     }
 
     /**
@@ -270,6 +208,13 @@ public final class EasyModePlayerEvents {
     }
 
     // --- Source classification ---
+
+    private static boolean isProjectDamage(DamageSource source) {
+        var key = source.typeHolder().unwrapKey();
+        if (key.isEmpty()) return false;
+        String ns = key.get().location().getNamespace();
+        return ns.equals("superbwarfare") || ns.equals("tacz");
+    }
 
     private static boolean isExplosion(DamageSource source) {
         return source.is(DamageTypeTags.IS_EXPLOSION);

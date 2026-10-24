@@ -1704,8 +1704,8 @@ public final class SewvConfig {
                         "delay, throw grenades rarely and loosely, have 70% health and deal 60% bullet damage.")
                 .define("easySoftInfantry", true);
         EASY_PLAYER_SUSTAIN = builder.comment(
-                        "Easy Mode: the player gets 10 extra hearts, regenerates out of combat and takes much less",
-                        "knockback from hostile and explosive hits.")
+                        "Easy Mode: explosions from hostile SBW/SEM fire (and the player's own SBW/TaCZ ordnance)",
+                        "hurt the player half as much again. Never touches vanilla health, healing or knockback.")
                 .define("easyPlayerSustain", true);
         EASY_PROTECT_VEHICLES = builder.comment(
                         "Easy Mode: hulls crewed by a player or their own PMC take half damage from hostiles.")

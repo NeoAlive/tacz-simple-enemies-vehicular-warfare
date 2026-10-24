@@ -113,16 +113,6 @@ public final class EasyTuning {
     public static final float PMC_DAMAGE_TAKEN = 0.6f;
     /** Owned PMC: max-health multiplier. */
     public static final double PMC_HEALTH_MULT = 1.5;
-    /** Player: extra max health (half-hearts). */
-    public static final double PLAYER_BONUS_HEALTH = 20.0;
-    /** Player regen: heal this much ... */
-    public static final float REGEN_AMOUNT = 1.0f;
-    /** ... every this many ticks ... */
-    public static final int REGEN_INTERVAL_TICKS = 40;
-    /** ... once unhurt for this long. */
-    public static final int REGEN_DELAY_TICKS = 100;
-    /** Knockback multiplier from hostile or explosive sources. */
-    public static final float KNOCKBACK_MULT = 0.3f;
     /**
      * Extra multiplier on any hostile VEHICLE weapon hitting a player (shell, splash, MG, TOW), on
      * top of {@code easyPlayerDamageTaken}: hull weapons are tuned for hull HP, so the base scale

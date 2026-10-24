@@ -1254,7 +1254,7 @@
   "config.tacz_sewv.easyPlayerDamageTaken": "Player damage taken",
   "config.tacz_sewv.easyPlayerDamageTaken.tooltip": "Hostile damage multiplier while the scale option is on (0.25 = a quarter). Explosions are halved again.",
   "config.tacz_sewv.easyPlayerSustain": "Player sustain",
-  "config.tacz_sewv.easyPlayerSustain.tooltip": "10 extra hearts, regeneration out of combat, and much less knockback from hostile and explosive hits.",
+  "config.tacz_sewv.easyPlayerSustain.tooltip": "Explosions from hostile SBW/SEM fire hurt the player half as much again. No vanilla health, healing or knockback changes.",
   "config.tacz_sewv.easyProtectVehicles": "Protect friendly vehicles",
   "config.tacz_sewv.easyProtectVehicles.tooltip": "Vehicles crewed by you or your own PMC take half damage from hostiles.",
   "config.tacz_sewv.easyBuffPmc": "Stronger PMC army",

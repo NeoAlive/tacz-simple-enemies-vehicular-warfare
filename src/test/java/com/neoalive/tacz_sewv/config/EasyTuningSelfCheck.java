@@ -52,8 +52,8 @@ public final class EasyTuningSelfCheck {
         assert inOpenUnit(EasyTuning.SQUAD_SIZE_MULT) : "squad size";
         // Damage the player's side takes shrinks; its health grows.
         assert inOpenUnit(EasyTuning.EXPLOSION_EXTRA_MULT) && inOpenUnit(EasyTuning.PMC_DAMAGE_TAKEN);
-        assert inOpenUnit(EasyTuning.KNOCKBACK_MULT) && inOpenUnit(EasyTuning.FRIENDLY_HULL_DAMAGE_MULT);
-        assert EasyTuning.PMC_HEALTH_MULT > 1.0 && EasyTuning.PLAYER_BONUS_HEALTH > 0.0;
+        assert inOpenUnit(EasyTuning.FRIENDLY_HULL_DAMAGE_MULT);
+        assert EasyTuning.PMC_HEALTH_MULT > 1.0;
         assert inOpenUnit(EasyTuning.VEHICLE_TO_PLAYER_MULT) : "vehicle to player";
         // Lock range below SEM's 96-block FOLLOW_RANGE, but past grenade/melee reach.
         assert EasyTuning.PLAYER_LOCK_RANGE > EasyTuning.GRENADE_MIN_RANGE && EasyTuning.PLAYER_LOCK_RANGE < 96.0;

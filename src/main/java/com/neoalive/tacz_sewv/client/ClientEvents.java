@@ -29,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
+import com.neoalive.tacz_sewv.client.radial.WheelScope;
 import com.neoalive.tacz_sewv.client.skin.CamoClient;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinClient;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
@@ -36,14 +37,14 @@ import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.item.RadioSettings;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketEntrench;
 import com.neoalive.tacz_sewv.network.PacketEscort;
 import com.neoalive.tacz_sewv.network.PacketJoinPlatoon;
 import com.neoalive.tacz_sewv.network.PacketRadioCommand;
 import com.neoalive.tacz_sewv.network.PacketSetGuardPosition;
 import com.neoalive.tacz_sewv.network.PacketTowRecovery;
 
-// FORGE bus, client dist: opens the Tactical Data Terminal, and runs Escort / Guard selection modes.
+// FORGE bus, client dist: opens the Tactical Data Terminal (identity), and runs the in-world pick
+// modes the Quick Wheel arms (Escort / Tow / Guard / Join Platoon / Live Selection).
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public class ClientEvents {
 
@@ -51,7 +52,11 @@ public class ClientEvents {
     private static final double ESCORT_PICK_RANGE = 50.0;
     /** Live Selection / escort entity pick — same as SEM commander reach. */
     private static final double LIVE_PICK_RANGE = 50.0;
-    private static final double CLIENT_DISCOVERY_RADIUS = 512.0;
+    /**
+     * Long-range block pick for Set Guard and the wheel's crosshair aim. {@code mc.hitResult} only
+     * covers the player's ~5-block interaction range, useless for designating a spot across a field.
+     */
+    public static final double BLOCK_PICK_RANGE = 128.0;
     /** Re-show the selection prompt this often (goal-agnostic client ticks) so it doesn't fade mid-mode. */
     private static final int PROMPT_REFRESH_TICKS = 40;
 
@@ -70,12 +75,8 @@ public class ClientEvents {
     private static boolean pendingGuard = false;
     private static List<Integer> pendingGuardUnits = List.of();
 
-    // ENTRENCHED pick: left-click a trench / foxhole / emplacement / sandbag; server resolves.
-    private static boolean pendingEntrench = false;
-    private static List<Integer> pendingEntrenchUnits = List.of();
-
-    // Live Selection: left-click toggles owned PMC / vehicle crew into the TDT ribbon; right-click
-    // confirms (≥1) or cancels (empty). Armed from the ribbon — no units needed up front.
+    // Live Selection: left-click toggles owned PMC / vehicle crew into the wheel selection;
+    // right-click confirms (≥1) or cancels (empty). Armed from the wheel's Live key.
     private static boolean pendingLiveSelection = false;
 
     // Join Platoon pick: same arm pattern as escort, but the target is a PmcCommanderEntity —
@@ -86,81 +87,63 @@ public class ClientEvents {
     private static int promptCooldown = 0;
 
     /**
-     * Arm escort selection mode. Called by the TDT's Escort button, which then closes the screen.
-     * Units are SEM's commander-menu selection if there is one (the flow the feature is built
-     * around), otherwise the owned units near the player, so it still does something without a
-     * selection. Refuses to arm with no units.
+     * Arm escort selection mode (wheel Escort, which then closes). Units are the wheel's scope —
+     * the selection, otherwise owned units near the player — captured now, so the click only has
+     * to supply the vehicle. Refuses to arm with no units.
+     *
+     * @return whether the mode armed
      */
-    public static void armEscort() {
+    public static boolean armEscort() {
         clearTow();
         clearGuard();
-        clearEntrench();
         clearLiveSelection();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.escort.no_units");
-            return;
+            return false;
         }
         pendingEscort = true;
         pendingEscortUnits = units;
         promptCooldown = 0;
+        return true;
     }
 
     /** Two-click vehicle tow: victim hull first, tower hull second. */
-    public static void armTowRecovery() {
+    public static boolean armTowRecovery() {
         clearEscort();
         clearGuard();
-        clearEntrench();
         clearLiveSelection();
         clearJoinPlatoon();
         pendingTow = true;
         pendingTowPhase = TowPickPhase.VICTIM;
         pendingTowVictimId = -1;
         promptCooldown = 0;
+        return true;
     }
 
     /**
-     * Arm GUARD_POSITION block pick (TDT, Xaero-free). Left-click a block to set; right-click cancels.
+     * Arm GUARD_POSITION block pick (wheel Set Guard). Left-click a block to set; right-click cancels.
      */
-    public static void armGuardPosition() {
+    public static boolean armGuardPosition() {
         clearTow();
         clearEscort();
-        clearEntrench();
         clearLiveSelection();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.guard.no_units");
-            return;
+            return false;
         }
         pendingGuard = true;
         pendingGuardUnits = units;
         promptCooldown = 0;
+        return true;
     }
 
-    /**
-     * Arm ENTRENCHED block pick. Left-click a trench/emplacement/sandbag; server resolves.
-     */
-    public static void armEntrench() {
-        clearTow();
-        clearEscort();
-        clearGuard();
-        clearLiveSelection();
-        List<Integer> units = snapshotOwnedUnits();
-        if (units.isEmpty()) {
-            hint("message.tacz_sewv.entrench.no_units");
-            return;
-        }
-        pendingEntrench = true;
-        pendingEntrenchUnits = units;
-        promptCooldown = 0;
-    }
-
-    /** Arm in-world Live Selection (TDT ribbon). Screen closes; left-click toggles, right-click finishes. */
+    /** Arm in-world Live Selection (wheel Live key). Left-click toggles, right-click finishes. */
     public static void armLiveSelection() {
         clearTow();
         clearEscort();
         clearGuard();
-        clearEntrench();
         pendingLiveSelection = true;
         promptCooldown = 0;
     }
@@ -178,29 +161,46 @@ public class ClientEvents {
     }
 
     /**
-     * Arm Join Platoon selection mode. Called by the TDT's Join Platoon button, which then closes
-     * the screen. The next left-click on an owned Commander sends the selected units to join its
+     * Arm Join Platoon selection mode (wheel Join Platoon, which then closes). The next left-click on an owned Commander sends the selected units to join its
      * platoon; the server re-validates ownership, type match and capacity per unit and reports
      * whichever ones did not take.
      */
-    public static void armJoinPlatoon() {
+    public static boolean armJoinPlatoon() {
         clearTow();
         clearEscort();
         clearGuard();
-        clearEntrench();
         clearLiveSelection();
         List<Integer> units = snapshotOwnedUnits();
         if (units.isEmpty()) {
             hint("message.tacz_sewv.platoon.no_units");
-            return;
+            return false;
         }
         pendingJoinPlatoon = true;
         pendingJoinPlatoonUnits = units;
         promptCooldown = 0;
+        return true;
     }
 
+    /** The wheel's scope ({@link WheelScope}): the selection, else owned units nearby. */
     private static List<Integer> snapshotOwnedUnits() {
-        return TdtSelection.resolve(CLIENT_DISCOVERY_RADIUS);
+        return WheelScope.units(false, WheelScope.nearbyRadius(), null);
+    }
+
+    public static boolean isLiveSelecting() {
+        return pendingLiveSelection;
+    }
+
+    /**
+     * An armed pick that will send a unit order on its click (Escort, Set Guard). The wheel's queue
+     * bracket stays open across it, the same way it does for SEM's Move To pick.
+     */
+    public static boolean hasPendingOrderPick() {
+        return pendingEscort || pendingGuard;
+    }
+
+    /** Opening the wheel mid Live Selection ends it, keeping whatever was picked. */
+    public static void endLiveSelectionQuietly() {
+        clearLiveSelection();
     }
 
     /**
@@ -255,7 +255,7 @@ public class ClientEvents {
 
         if (pendingGuard) {
             if (event.isAttack()) {
-                HitResult hit = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
+                HitResult hit = mc.player.pick(BLOCK_PICK_RANGE, 0.0F, false);
                 if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
                     BlockPos pos = bhr.getBlockPos();
                     NetworkHandler.CHANNEL.sendToServer(new PacketSetGuardPosition(pendingGuardUnits, pos));
@@ -267,25 +267,6 @@ public class ClientEvents {
             } else if (event.isUseItem()) {
                 clearGuard();
                 hint("message.tacz_sewv.guard.cancelled");
-                event.setCanceled(true);
-            }
-            return;
-        }
-
-        if (pendingEntrench) {
-            if (event.isAttack()) {
-                HitResult hit = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
-                if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
-                    NetworkHandler.CHANNEL.sendToServer(new PacketEntrench(
-                            pendingEntrenchUnits, PacketEntrench.MODE_ASSIGN, bhr.getBlockPos()));
-                    clearEntrench();
-                } else {
-                    hint("message.tacz_sewv.entrench.no_block");
-                }
-                event.setCanceled(true);
-            } else if (event.isUseItem()) {
-                clearEntrench();
-                hint("message.tacz_sewv.entrench.cancelled");
                 event.setCanceled(true);
             }
             return;
@@ -332,7 +313,7 @@ public class ClientEvents {
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        if (!pendingEscort && !pendingTow && !pendingGuard && !pendingEntrench && !pendingLiveSelection
+        if (!pendingEscort && !pendingTow && !pendingGuard && !pendingLiveSelection
                 && !pendingJoinPlatoon) {
             return;
         }
@@ -343,7 +324,6 @@ public class ClientEvents {
                 clearEscort();
                 clearTow();
                 clearGuard();
-                clearEntrench();
                 clearLiveSelection();
                 clearJoinPlatoon();
             }
@@ -374,8 +354,6 @@ public class ClientEvents {
                 hint("message.tacz_sewv.guard.select");
             } else if (pendingJoinPlatoon) {
                 hint("message.tacz_sewv.platoon.join.select");
-            } else {
-                hint("message.tacz_sewv.entrench.select");
             }
         }
     }
@@ -401,23 +379,12 @@ public class ClientEvents {
             return;
         }
         if (pendingGuard) {
-            HitResult hit = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
+            HitResult hit = mc.player.pick(BLOCK_PICK_RANGE, 0.0F, false);
             if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
                 NetworkHandler.CHANNEL.sendToServer(new PacketSetGuardPosition(pendingGuardUnits, bhr.getBlockPos()));
                 clearGuard();
             } else {
                 hint("message.tacz_sewv.guard.no_block");
-            }
-            return;
-        }
-        if (pendingEntrench) {
-            HitResult hit = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
-            if (hit instanceof BlockHitResult bhr && hit.getType() == HitResult.Type.BLOCK) {
-                NetworkHandler.CHANNEL.sendToServer(new PacketEntrench(
-                        pendingEntrenchUnits, PacketEntrench.MODE_ASSIGN, bhr.getBlockPos()));
-                clearEntrench();
-            } else {
-                hint("message.tacz_sewv.entrench.no_block");
             }
             return;
         }
@@ -438,9 +405,6 @@ public class ClientEvents {
         } else if (pendingGuard) {
             clearGuard();
             hint("message.tacz_sewv.guard.cancelled");
-        } else if (pendingEntrench) {
-            clearEntrench();
-            hint("message.tacz_sewv.entrench.cancelled");
         } else if (pendingJoinPlatoon) {
             clearJoinPlatoon();
             hint("message.tacz_sewv.platoon.join.cancelled");
@@ -497,18 +461,22 @@ public class ClientEvents {
     }
 
     /**
-     * Right-click finish: keep the selection and reopen the TDT when at least one unit is
-     * selected; otherwise cancel. Selection is already live in {@link TdtSelection}.
+     * Right-click finish: the selection is already live in {@link TdtSelection}, so this only ends
+     * the mode and says how to use it. Every wheel order now goes to the selection.
      */
     private static void finishLiveSelection() {
         int n = TdtSelection.selectedCount();
         clearLiveSelection();
+        TdtSelection.clearGlow();
         if (n < 1) {
             hint("message.tacz_sewv.tdt.live_sel.cancelled");
             return;
         }
-        TdtSelection.writeSnapshot();
-        TdtScreen.open();
+        Player player = Minecraft.getInstance().player;
+        if (player != null) {
+            player.displayClientMessage(Component.translatable("message.tacz_sewv.wheel.live_sel.done", n,
+                    QuickCommandKeybind.OPEN_WHEEL.getTranslatedKeyMessage()).withStyle(ChatFormatting.GRAY), true);
+        }
     }
 
     /** Toggle an owned PMC, or the owned crew of a vehicle (group select / deselect). */
@@ -616,12 +584,6 @@ public class ClientEvents {
         promptCooldown = 0;
     }
 
-    private static void clearEntrench() {
-        pendingEntrench = false;
-        pendingEntrenchUnits = List.of();
-        promptCooldown = 0;
-    }
-
     private static void clearLiveSelection() {
         pendingLiveSelection = false;
         promptCooldown = 0;
@@ -667,9 +629,10 @@ public class ClientEvents {
         clearEscort();
         clearTow();
         clearGuard();
-        clearEntrench();
         clearLiveSelection();
         clearJoinPlatoon();
+        // Network ids mean nothing in the next session.
+        TdtSelection.deselectAll();
     }
 
     private static void hint(String key) {

@@ -59,9 +59,6 @@ final class ConfigRegistryBootstrap {
     private static void registerClient(ConfigRegistry.Builder b) {
         b.bool(ConfigScope.CLIENT, "interaction", "showOrderFeedback",
                 ClientConfig.SHOW_ORDER_FEEDBACK, ClientConfig.SHOW_ORDER_FEEDBACK::set);
-        b.bool(ConfigScope.CLIENT, "interaction", "quickEvacPullSelectedFromRibbon",
-                ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON,
-                ClientConfig.QUICK_EVAC_PULL_SELECTED_FROM_RIBBON::set);
 
         b.bool(ConfigScope.CLIENT, "overlay", "factionColorsEnabled",
                 ClientConfig.FACTION_COLORS_ENABLED, ClientConfig.FACTION_COLORS_ENABLED::set);

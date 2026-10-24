@@ -6,7 +6,6 @@ import java.util.List;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.crew.OrderAuth;
@@ -41,12 +40,6 @@ public final class QuickCommandUnits {
 
     /** Owned on-foot PMCs (downed / mortar-claimed / FOB-command / route-pending skipped). */
     public static List<PmcUnitEntity> onFootOwned(ServerPlayer issuer, ServerLevel level,
-                                                  List<Integer> unitIds) {
-        return onFootOwned(issuer, level, unitIds,
-                com.neoalive.tacz_sewv.config.SewvConfig.QUICK_LAND_RADIUS.get());
-    }
-
-    public static List<PmcUnitEntity> onFootOwned(ServerPlayer issuer, ServerLevel level,
                                                   List<Integer> unitIds, double radius) {
         return onFootOwned(issuer, level, unitIds, radius, false);
     }
@@ -67,12 +60,6 @@ public final class QuickCommandUnits {
             out.add(pmc);
         }
         return out;
-    }
-
-    /** Same as {@link #onFootOwned} but as {@link AbstractUnit} for EntrenchSupport. */
-    public static List<AbstractUnit> onFootOwnedAsUnits(ServerPlayer issuer, ServerLevel level,
-                                                        List<Integer> unitIds) {
-        return new ArrayList<>(onFootOwned(issuer, level, unitIds));
     }
 
     /**

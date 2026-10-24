@@ -135,6 +135,10 @@ public final class OrderQueue {
     private static boolean done(ServerPlayer player, Entry e) {
         switch (e.pipelineId) {
             case QuickCommandRegistry.ID_QUICK_DISMOUNT:
+            case QuickCommandRegistry.ID_BAIL_OUT:
+            case QuickCommandRegistry.ID_PARATROOP:
+            case QuickCommandRegistry.ID_DISMISS:
+            case QuickCommandRegistry.ID_SET_GUARD:
                 return true;
             case QuickCommandRegistry.ID_QUICK_REFILL:
                 return !QuickRefillTracker.isActive(player.getUUID());
@@ -143,6 +147,7 @@ public final class OrderQueue {
             case QuickCommandRegistry.ID_QUICK_MOVE:
             case QuickCommandRegistry.ID_QUICK_ATTACK:
             case QuickCommandRegistry.ID_QUICK_BOARD:
+            case QuickCommandRegistry.ID_BOARD_PASSENGER:
             case QuickCommandRegistry.ID_QUICK_TAKEOFF:
             case QuickCommandRegistry.ID_QUICK_LANDING:
             case QuickCommandRegistry.ID_QUICK_LAND_HELIPAD:
@@ -205,6 +210,7 @@ public final class OrderQueue {
                 return target == null || !target.isAlive();
             }
             case QuickCommandRegistry.ID_QUICK_BOARD:
+            case QuickCommandRegistry.ID_BOARD_PASSENGER:
                 return !((IVehicleBoarder) pmc).tacz_sewv$isBoarding();
             default: {
                 // Air: TAKEOFF clears itself at cruise altitude, LANDING becomes LANDED on touchdown.

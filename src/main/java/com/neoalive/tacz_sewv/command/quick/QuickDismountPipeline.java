@@ -20,7 +20,7 @@ public final class QuickDismountPipeline implements QuickCommandPipeline {
 
     @Override
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
-        double radius = SewvConfig.QUICK_LAND_RADIUS.get();
+        double radius = context.unitRadius(SewvConfig.QUICK_LAND_RADIUS.get());
         double r2 = radius * radius;
         int dismounted = 0;
         for (int unitId : context.unitIds()) {

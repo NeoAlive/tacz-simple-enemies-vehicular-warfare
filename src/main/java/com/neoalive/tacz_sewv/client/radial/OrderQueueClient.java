@@ -4,6 +4,7 @@ import java.util.List;
 
 import net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer;
 
+import com.neoalive.tacz_sewv.client.ClientEvents;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOrderQueue;
@@ -58,6 +59,7 @@ public final class OrderQueueClient {
      * in queue mode.
      */
     public static boolean queueable(String pipelineId) {
+        if (QuickCommandRegistry.isSelectLeaf(pipelineId)) return false;
         return switch (pipelineId) {
             case QuickCommandRegistry.ID_QUICK_CANCEL,
                  QuickCommandRegistry.ID_BOARD_QUEUED,
@@ -67,6 +69,8 @@ public final class OrderQueueClient {
                  QuickCommandRegistry.ID_REVIVE_CALL,
                  QuickCommandRegistry.ID_RAPPEL_SELF,
                  QuickCommandRegistry.ID_RAPPEL_CREW,
+                 // Names two hulls, no units: nothing to hold for later.
+                 QuickCommandRegistry.ID_TOW,
                  // A crosshair shot fired now; replaying it later would aim wherever the view went.
                  QuickCommandRegistry.ID_SUPPORT_CARPET_BOMB,
                  QuickCommandRegistry.ID_SUPPORT_AGM,
@@ -83,15 +87,21 @@ public final class OrderQueueClient {
     }
 
     /**
-     * Close the bracket — unless the order armed a SEM pick (Move To / Attack That), whose packets
-     * are sent on the pick click; then the bracket stays open until the pick resolves.
+     * Close the bracket — unless the order armed a pick whose packets are sent on the pick click
+     * (SEM's Move To / Attack That, or our Escort / Set Guard); then the bracket stays open until
+     * the pick resolves. A cancelled pick sends nothing, and an empty bracket queues nothing.
      */
     public static void endOrAwaitPick() {
-        if (CommanderOverlayRenderer.isSelectingPosition || CommanderOverlayRenderer.isSelectingTarget) {
+        if (picking()) {
             pickPending = true;
         } else {
             end();
         }
+    }
+
+    private static boolean picking() {
+        return CommanderOverlayRenderer.isSelectingPosition || CommanderOverlayRenderer.isSelectingTarget
+                || ClientEvents.hasPendingOrderPick();
     }
 
     private static void end() {
@@ -100,8 +110,7 @@ public final class OrderQueueClient {
 
     /** Client tick: SEM sends the pick's orders and clears its flag in the same click. */
     public static void tick() {
-        if (pickPending && !CommanderOverlayRenderer.isSelectingPosition
-                && !CommanderOverlayRenderer.isSelectingTarget) {
+        if (pickPending && !picking()) {
             pickPending = false;
             end();
         }

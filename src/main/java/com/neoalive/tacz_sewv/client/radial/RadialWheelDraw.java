@@ -27,10 +27,11 @@ final class RadialWheelDraw {
      * @param innerR current wheel inner radius
      * @param hotStrengths 0..1 per wedge (fade toward selection); length must match wedges
      * @param menuAlpha 0..1 whole-ring opacity (open / submenu fade)
+     * @param checked per wedge, a toggle that is currently on (Select leaves); null for none
      */
     static void renderRing(GuiGraphics g, Font font, int cx, int cy, int innerR, int outerR,
                            java.util.List<WedgeEntry> wedges, float[] hotStrengths, float menuAlpha,
-                           int labelArgb, int labelHotArgb, boolean[] enabled,
+                           int labelArgb, int labelHotArgb, boolean[] enabled, boolean[] checked,
                            double pointerX, double pointerY) {
         int n = wedges.size();
         float ringA = Mth.clamp(menuAlpha, 0.0f, 1.0f);
@@ -90,7 +91,9 @@ final class RadialWheelDraw {
             double x2m3 = Math.cos(rRad - innerGap) * categoryOuter;
             double y1m3 = Math.sin(lRad + innerGap) * categoryOuter;
             double y2m3 = Math.sin(rRad - innerGap) * categoryOuter;
-            int strip = scaleAlpha(lerpArgb(stripCold, stripHot, hot), ringA);
+            boolean isChecked = checked != null && i < checked.length && checked[i];
+            // A checked toggle keeps its band lit, so the on-state reads without hovering it.
+            int strip = scaleAlpha(isChecked ? stripHot : lerpArgb(stripCold, stripHot, hot), ringA);
             renderQuad(g,
                     (float) (cx + x1m1), (float) (cy + y1m1),
                     (float) (cx + x2m1), (float) (cy + y2m1),
@@ -119,7 +122,7 @@ final class RadialWheelDraw {
             double tyOff = avgLen > 1.0e-6 ? (by / avgLen) * textR : -textR;
             int tx = cx + (int) Math.round(txOff);
             int ty = cy + (int) Math.round(tyOff);
-            String label = entry.label();
+            String label = isChecked ? "✔ " + entry.label() : entry.label();
             int tw = font.width(label);
             int drawX;
             if (bx < -0.2) {

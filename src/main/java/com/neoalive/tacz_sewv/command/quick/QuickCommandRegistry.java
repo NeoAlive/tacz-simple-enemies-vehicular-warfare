@@ -58,6 +58,19 @@ public final class QuickCommandRegistry {
     public static final String ID_SUPPORT_CANNON = "support_cannon";
     public static final String ID_SUPPORT_ARTILLERY = "support_artillery";
     public static final String ID_SUPPORT_MORTAR = "support_mortar";
+    // Ported from the old TDT order grid; all client-routed onto their existing packets.
+    public static final String ID_BOARD_PASSENGER = "board_passenger";
+    public static final String ID_BAIL_OUT = "bail_out";
+    public static final String ID_TOW = "tow";
+    public static final String ID_ESCORT = "escort";
+    public static final String ID_SET_GUARD = "set_guard";
+    public static final String ID_REACH_GUARD = "reach_guard";
+    public static final String ID_PARATROOP = "paratroop";
+    public static final String ID_DISMISS = "dismiss";
+    /** Select-category leaves: {@code select_kind:<VehicleMarker.Kind>} / {@code select_platoon:<rgb>}. */
+    public static final String SELECT_KIND_PREFIX = "select_kind:";
+    public static final String SELECT_PLATOON_PREFIX = "select_platoon:";
+    public static final int SELECT_ACCENT = 0x9AA7B4;
 
     /** Handheld-radio fire missions. Signal orange; every aircraft order shares the airplane glyph. */
     public static final int SUPPORT_ACCENT = 0xF08A24;
@@ -98,36 +111,45 @@ public final class QuickCommandRegistry {
         // Formation leaves are client-committed via PacketVehicleFormation (not PacketQuickCommand).
 
         List<WedgeEntry> general = new ArrayList<>();
-        general.add(leaf("Quick Board", "\u2399", ID_QUICK_BOARD, 0xE8B84A));
-        general.add(leaf("Board Queued", "\u21A7", ID_BOARD_QUEUED, 0xE8B84A));
-        general.add(leaf("Quick Follow", "\u21AA", ID_QUICK_FOLLOW, 0xE8B84A));
-        general.add(leaf("Quick Dismount", "\u2193", ID_QUICK_DISMOUNT, 0xE8B84A));
-        general.add(leaf("Quick Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A));
+        general.add(leaf("Follow", "\u21AA", ID_QUICK_FOLLOW, 0xE8B84A));
+        general.add(leaf("Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A));
         general.add(leaf("Move To", "\u27A4", ID_QUICK_MOVE, 0xE8B84A));
         general.add(leaf("Attack That", "\u2694", ID_QUICK_ATTACK, 0xE8B84A));
         general.add(leaf("Cease Fire", "\u2298", ID_QUICK_CEASE_FIRE, 0xE8B84A));
         general.add(leaf("Free Fire", "\u26A1", ID_QUICK_FREE_FIRE, 0xE8B84A));
+        general.add(leaf("Escort", "\u25C6", ID_ESCORT, 0xE8B84A));
+        general.add(leaf("Set Guard", "\u2691", ID_SET_GUARD, 0xE8B84A));
+        general.add(leaf("Reach Guard", "\u2192", ID_REACH_GUARD, 0xE8B84A));
         if (PlayerReviveCompat.isLoaded()) {
             general.add(leaf("Revive Call", "\u271A", ID_REVIVE_CALL, 0xE8B84A));
         }
 
         ROOT = List.of(
                 new WedgeEntry.CategoryEntry("General", "\u2605", 0xE8B84A, List.copyOf(general)),
+                new WedgeEntry.CategoryEntry("Crew", "\u2399", 0xD98A4A, List.of(
+                        leaf("Board", "\u2399", ID_QUICK_BOARD, 0xD98A4A),
+                        leaf("Board as Passenger", "\u25AD", ID_BOARD_PASSENGER, 0xD98A4A),
+                        leaf("Board Queued", "\u21A7", ID_BOARD_QUEUED, 0xD98A4A),
+                        leaf("Dismount", "\u2193", ID_QUICK_DISMOUNT, 0xD98A4A),
+                        leaf("Bail Out", "\u2602", ID_BAIL_OUT, 0xD98A4A),
+                        leaf("Tow", "\u26D3", ID_TOW, 0xD98A4A))),
                 new WedgeEntry.CategoryEntry("Land", "\u26F0", 0x6BA84A, List.of(
-                        leaf("Quick Entrench", "\u26F0", ID_QUICK_ENTRENCH, 0x6BA84A),
-                        leaf("Quick Refill", "\u21BB", ID_QUICK_REFILL, 0x6BA84A),
+                        leaf("Entrench", "\u26F0", ID_QUICK_ENTRENCH, 0x6BA84A),
+                        leaf("Refill", "\u21BB", ID_QUICK_REFILL, 0x6BA84A),
                         leaf("Route to FOB", "\u2302", ID_QUICK_ROUTE_FOB, 0x6BA84A))),
                 new WedgeEntry.CategoryEntry("Air", "\u2708", 0x4AB8E8, List.of(
-                        leaf("Quick Takeoff", "\u2191", ID_QUICK_TAKEOFF, 0x4AB8E8),
-                        leaf("Quick Landing", "\u2193", ID_QUICK_LANDING, 0x4AB8E8),
-                        leaf("Land at Helipad", "▣", ID_QUICK_LAND_HELIPAD, 0x4AB8E8),
+                        leaf("Takeoff / Retrim", "\u2191", ID_QUICK_TAKEOFF, 0x4AB8E8),
+                        leaf("Landing", "\u2193", ID_QUICK_LANDING, 0x4AB8E8),
+                        leaf("Land at Helipad", "\u25A3", ID_QUICK_LAND_HELIPAD, 0x4AB8E8),
                         leaf("Emergency Land", "\u26A0", ID_QUICK_EMERGENCY_LAND, 0x4AB8E8),
                         leaf("Rappel Crew", "\u21CA", ID_RAPPEL_CREW, 0x4AB8E8),
-                        leaf("Rappel Self", "\u21F3", ID_RAPPEL_SELF, 0x4AB8E8))),
+                        leaf("Rappel Self", "\u21F3", ID_RAPPEL_SELF, 0x4AB8E8),
+                        leaf("Paratroop", "\u2602", ID_PARATROOP, 0x4AB8E8))),
                 new WedgeEntry.CategoryEntry("Procedures", "\u2699", 0x5AB8A0, List.of(
-                        leaf("Quick Evacuation", "\u21E7", ID_QUICK_EVAC, 0x5AB8A0),
+                        leaf("Evacuation", "\u21E7", ID_QUICK_EVAC, 0x5AB8A0),
                         leaf("Search & Destroy", "\u25CE", ID_QUICK_SEARCH, 0x5AB8A0),
-                        leaf("Patrol", "\u27F3", ID_QUICK_PATROL, 0x5AB8A0))),
+                        leaf("Patrol", "\u27F3", ID_QUICK_PATROL, 0x5AB8A0),
+                        leaf("Dismiss", "\u2715", ID_DISMISS, 0x5AB8A0))),
                 new WedgeEntry.CategoryEntry("Formation", "\u25C8", 0xA06BD4, List.of(
                         leaf("Wedge", "\u25B2", ID_FORM_WEDGE, 0xA06BD4),
                         leaf("Column", "\u25B3", ID_FORM_COLUMN, 0xA06BD4),
@@ -173,6 +195,11 @@ public final class QuickCommandRegistry {
             case ID_SUPPORT_MORTAR -> new RadioSettings.State(RadioFrequency.MORTAR, delaySeconds, PlaneAttackMode.AUTO);
             default -> null;
         };
+    }
+
+    /** True for a Select-category leaf (client-only selection toggle, never an order). */
+    public static boolean isSelectLeaf(String pipelineId) {
+        return pipelineId.startsWith(SELECT_KIND_PREFIX) || pipelineId.startsWith(SELECT_PLATOON_PREFIX);
     }
 
     /** True when the pipeline needs on-foot PMCs only (board / mortar / refill walks). */

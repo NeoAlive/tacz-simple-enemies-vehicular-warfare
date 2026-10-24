@@ -19,7 +19,8 @@ public final class QuickSemOrderPipeline implements QuickCommandPipeline {
 
     @Override
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
-        int ok = QuickSemOrders.apply(issuer, context.unitIds(), this.order);
+        int ok = QuickSemOrders.apply(issuer, context.unitIds(),
+                context.unitRadius(com.neoalive.tacz_sewv.config.SewvConfig.QUICK_LAND_RADIUS.get()), this.order);
         if (ok == 0) {
             NetworkHandler.orderFeedback(issuer, this.feedbackBase, 0, ChatFormatting.RED);
             return;

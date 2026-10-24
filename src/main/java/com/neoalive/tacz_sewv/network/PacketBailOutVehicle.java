@@ -35,6 +35,7 @@ public class PacketBailOutVehicle {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
             if (player == null) return;
+            if (com.neoalive.tacz_sewv.command.quick.OrderQueue.capture(player, () -> handle(ctx))) return;
 
             int queued = BailOutSupport.requestManualBailExpanded(
                     player, this.unitIds, BailOutSupport.everyone());

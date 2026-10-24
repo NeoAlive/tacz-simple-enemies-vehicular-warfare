@@ -130,7 +130,9 @@ public class NetworkHandler {
     //      counts, infantry, player deploy options); open packet carries world pools per kind;
     //      PacketInvasionDeployPrompt (S->C) + PacketInvasionDeployChoice (C->S).
     // 107: InvasionHud.Snapshot carries the match clock (secondsLeft).
-    private static final String PROTOCOL_VERSION = "107";
+    // 108: PacketQuickCommand carries explicit-selection + crosshair block; PacketDismountVehicle
+    //      removed (the wheel's Dismount pipeline replaced the TDT button).
+    private static final String PROTOCOL_VERSION = "108";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -152,14 +154,6 @@ public class NetworkHandler {
                 PacketBoardVehicle::encode,
                 PacketBoardVehicle::new,
                 PacketBoardVehicle::handle
-        );
-
-        CHANNEL.registerMessage(
-        nextId(),
-        PacketDismountVehicle.class,
-        PacketDismountVehicle::encode,
-        PacketDismountVehicle::new,
-        PacketDismountVehicle::handle
         );
 
         CHANNEL.registerMessage(

@@ -45,6 +45,7 @@ public class PacketSetGuardPosition {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (!(player instanceof ServerPlayer sp)) return;
+            if (com.neoalive.tacz_sewv.command.quick.OrderQueue.capture(sp, () -> handle(ctx))) return;
 
             int set = 0;
             for (int unitId : this.unitIds) {

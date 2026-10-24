@@ -1,93 +1,53 @@
 package com.neoalive.tacz_sewv.client;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.IntConsumer;
-import java.util.function.IntSupplier;
 
-import com.atsuishio.superbwarfare.entity.vehicle.MortarEntity;
-import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.EntityHitResult;
-import net.minecraft.world.phys.HitResult;
 import org.jetbrains.annotations.Nullable;
 
-import com.neoalive.tacz_sewv.TaczSewv;
-import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
+import com.neoalive.tacz_sewv.client.gui.GuiFit;
 import com.neoalive.tacz_sewv.client.skin.LogoPoolRegistry;
 import com.neoalive.tacz_sewv.crew.NamePools;
 import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
-import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
-import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketApplyPmcIdentity;
-import com.neoalive.tacz_sewv.network.PacketExitPlatoon;
-import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
-import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
-import com.neoalive.tacz_sewv.network.PacketReachGuard;
 import com.neoalive.tacz_sewv.network.PacketRequestPmcIdentity;
 import com.neoalive.tacz_sewv.network.PacketSetNameCategory;
-import com.neoalive.tacz_sewv.network.PacketToggleAutoOrders;
 
 /**
- * Tactical Data Terminal: left-docked C2 overlay (no world dim) with a category-filtered
- * order grid and unit-selection ribbon. Cruise and Sweep stay on the world map only.
+ * Tactical Data Terminal: the player's PMC identity — unit name pool, company name and helmet logo.
+ * Orders moved to the Quick Wheel (held key); carrying the terminal is still what enables it.
+ * A centred modal with five fixed rows; nothing scrolls.
  */
 public class TdtScreen extends Screen {
 
-    private static final EnumMap<VehicleMarker.Kind, ResourceLocation> KIND_TEX = new EnumMap<>(VehicleMarker.Kind.class);
-
-    static {
-        for (VehicleMarker.Kind kind : VehicleMarker.Kind.values()) {
-            KIND_TEX.put(kind, ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID,
-                    "textures/map/xaeros_icon_" + kind.textureName() + ".png"));
-        }
-    }
-
-    // Docked left ~40% of screen; clamped so a 2-col grid stays readable. Widened slightly (was
-    // 0.38f/400) to fit the Identity category's "Full Names" cycle row (category name + arrows).
-    private static final float PANEL_WIDTH_FRAC = 0.40f;
-    private static final int PANEL_W_MIN = 260;
-    private static final int PANEL_W_MAX = 440;
+    private static final float PANEL_WIDTH_FRAC = 0.45f;
+    private static final int PANEL_W_MIN = 280;
+    private static final int PANEL_W_MAX = 380;
     private static final int PAD = 10;
-    private static final int TAB_H = 18;
-    private static final int TAB_GAP = 10;
+    private static final int HEADER_H = 24;
     private static final int CELL_H = 22;
     private static final int CELL_GAP = 4;
-    private static final int GRID_COLS = 2;
-    private static final int STRIPE_W = 2;
+    private static final int ROWS = 5;
     private static final int STEP_BTN = 18;
-    private static final int SCROLLBAR_W = 5;
-    private static final int RIBBON_H = 54;
-    private static final int ICON_SIZE = 24;
     private static final int FLOAT_ICON = 22;
-    /** All/None select buttons, top ribbon row. */
-    private static final int BTN_W = 40;
-    private static final int BTN_H = 14;
-    /** Where the icon row starts, clear of the stacked All/None/Live-Sel button column. */
-    private static final int RIBBON_ICONS_X = BTN_W * 2 + 2 + 6;
+    private static final int FOOTER_BTN_W = 52;
 
-    private static final int RADIUS_STEP = 16;
-    private static final int DEFAULT_RADIUS = 256;
-    private static final int RADIUS_FLOOR = RADIUS_STEP;
-    private static final int ALT_STEP = 5;
+    private static final int ROW_NAMES = 0;
+    private static final int ROW_COMPANY = 1;
+    private static final int ROW_POOL = 2;
+    private static final int ROW_ICON = 3;
+    private static final int ROW_FOOTER = 4;
 
     // C2 palette — single accent; fills stay neutral.
     private static final int COL_BASE = 0xFF12161C;
@@ -97,35 +57,7 @@ public class TdtScreen extends Screen {
     private static final int COL_TEXT = 0xFFE8ECF0;
     private static final int COL_MUTED = 0xFF8B98A5;
     private static final int COL_ACCENT = 0xFF4FD1C5;
-    private static final int COL_STRIPE = 0x404FD1C5; // accent @ ~25%
 
-    private static final int HEADER_H = 14;
-    private static final int SECTION_GAP = 8;
-    private static final int GROUP_STRIPE_W = 3;
-
-    // Muted category block stripes (~30% alpha) — All-view grouping only.
-    private static final int STRIPE_CREW = 0x4D8FAA6B;
-    private static final int STRIPE_AREA = 0x4DC9A15A;
-    private static final int STRIPE_AIR = 0x4DB57ED1;
-    private static final int STRIPE_PLATOON = 0x4DD9C96B;
-    private static final int STRIPE_IDENTITY = 0x4D6BD9A1;
-
-    enum Category {
-        ALL, CREW, AREA, AIR, PLATOON, IDENTITY
-    }
-
-    private enum StepperKind { PATROL, SEARCH, ALTITUDE }
-
-    private enum CycleKind { NAME_CATEGORY }
-
-    @Nullable
-    private final Entity boardTarget;
-    @Nullable
-    private final BlockPos landPad;
-
-    private static int patrolRadius = DEFAULT_RADIUS;
-    private static int searchRadius = DEFAULT_RADIUS;
-    private static int heliAltitude = IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
     private static String selectedNameCategory = NamePools.RANDOM;
 
     private static String draftCompanyName = "";
@@ -134,18 +66,6 @@ public class TdtScreen extends Screen {
     private static String savedCompanyName = "";
     private static String savedLogoPool = PmcIdentityPreference.DEFAULT_POOL;
     private static String savedLogoId = PmcIdentityPreference.DEFAULT_LOGO;
-
-    public static int patrolRadius() {
-        return patrolRadius;
-    }
-
-    public static int searchRadius() {
-        return searchRadius;
-    }
-
-    public static int heliAltitude() {
-        return heliAltitude;
-    }
 
     /** Last server-synced logo pool — used by helmet DogTag compositing. */
     public static String savedLogoPool() {
@@ -157,45 +77,19 @@ public class TdtScreen extends Screen {
         return savedLogoId;
     }
 
-    private Category category = Category.ALL;
-    private int scroll;
-    private boolean draggingScroll;
-
     private int panelW;
     private int panelLeft;
     private int panelTop;
-    private int panelBottom;
-    private int listTop;
-    private int listBottom;
-    private int listHeight;
-    private int contentHeight;
-    private int contentInnerW;
-    private int ribbonTop;
-
-    private final List<OrderEntry> catalog = new ArrayList<>();
-    private final List<Cell> cells = new ArrayList<>();
-    private final List<Section> sections = new ArrayList<>();
-
+    private int rowsTop;
     @Nullable
-    private VehicleMarker.Kind floatKind;
-    /** Set instead of {@code floatKind} when the expanded flyout is a platoon group, not a Kind bucket. */
-    @Nullable
-    private Integer floatPlatoonColor;
-    /** Logo-picker flyout — which pool's icons are shown. */
-    @Nullable
-    private String floatLogoPool;
+    private EditBox companyField;
+    /** Logo picker flyout open, anchored at the click. */
+    private boolean logoFloat;
     private float floatAnim;
     private int floatX;
     private int floatY;
-    private final EnumMap<VehicleMarker.Kind, Float> ribbonAlpha = new EnumMap<>(VehicleMarker.Kind.class);
-    private final Map<Integer, Float> platoonRibbonAlpha = new HashMap<>();
     @Nullable
     private String pendingTip;
-
-    @Nullable
-    private EditBox companyField;
-    private int identityExtrasY = -1;
-    private int identityExtrasH;
 
     /** Server snapshot applied — refreshes draft fields and the company EditBox. */
     public static void receiveIdentitySync(String company, String pool, String logo, String nameCategory) {
@@ -214,143 +108,66 @@ public class TdtScreen extends Screen {
         }
     }
 
-    private record OrderEntry(Category cat, String labelKey, @Nullable String tipKey,
-                              boolean closes, Runnable action, @Nullable StepperKind stepper,
-                              @Nullable CycleKind cycle) {}
-
-    /** Content-space rect for one order (grid cell or full-width stepper row). */
-    private record Cell(OrderEntry entry, int x, int y, int w, int h) {}
-
-    /** Painted category block in All view (header + continuous left stripe). */
-    private record Section(Category cat, int y0, int y1) {}
-
-    private TdtScreen(@Nullable Entity boardTarget, @Nullable BlockPos landPad) {
+    private TdtScreen() {
         super(Component.translatable("gui.tacz_sewv.tdt.title"));
-        this.boardTarget = boardTarget;
-        this.landPad = landPad;
     }
 
     public static void open() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
-
-        Entity target = mc.hitResult instanceof EntityHitResult ehr
-                && (ehr.getEntity() instanceof MortarEntity || ehr.getEntity() instanceof VehicleEntity)
-                ? ehr.getEntity() : null;
-
-        HitResult block = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
-        BlockPos pad = block instanceof BlockHitResult bhr && block.getType() == HitResult.Type.BLOCK
-                ? bhr.getBlockPos() : null;
-
-        mc.setScreen(new TdtScreen(target, pad));
+        mc.setScreen(new TdtScreen());
     }
 
     @Override
     protected void init() {
-        TdtSelection.scan();
-        buildCatalog();
+        this.panelW = GuiFit.panelW(this.width, PANEL_WIDTH_FRAC, PANEL_W_MIN, PANEL_W_MAX);
+        int panelH = HEADER_H + ROWS * (CELL_H + CELL_GAP) - CELL_GAP + PAD;
+        this.panelLeft = (this.width - this.panelW) / 2;
+        this.panelTop = (this.height - panelH) / 2;
+        this.rowsTop = this.panelTop + HEADER_H;
+        this.logoFloat = false;
 
-        this.panelW = com.neoalive.tacz_sewv.client.gui.GuiFit.panelW(
-                this.width, PANEL_WIDTH_FRAC, PANEL_W_MIN, PANEL_W_MAX);
-        this.panelLeft = 0;
-        this.panelTop = 0;
-        this.panelBottom = this.height;
-        this.ribbonTop = this.panelBottom - RIBBON_H;
-        this.listTop = PAD + 14 + TAB_H + 10; // title + tabs
-        this.listBottom = this.ribbonTop - 6;
-        this.listHeight = Math.max(40, this.listBottom - this.listTop);
-        this.contentInnerW = this.panelW - PAD * 2 - SCROLLBAR_W - 4;
+        int labelW = this.font.width(I18n.get("gui.tacz_sewv.tdt.pmc_company"));
+        int fieldX = rowLeft() + PAD + labelW + 6;
+        this.companyField = new EditBox(this.font, fieldX, rowY(ROW_COMPANY) + (CELL_H - 16) / 2,
+                Math.max(40, rowRight() - PAD - fieldX), 16,
+                Component.translatable("gui.tacz_sewv.tdt.pmc_company"));
+        this.companyField.setMaxLength(30);
+        this.companyField.setValue(draftCompanyName);
+        this.companyField.setResponder(val -> draftCompanyName = val);
+        addRenderableWidget(this.companyField);
 
-        rebuildCells();
-        this.scroll = Mth.clamp(this.scroll, 0, maxScroll());
-        clearFloat();
-
-        setupIdentityWidgets();
         NetworkHandler.CHANNEL.sendToServer(new PacketRequestPmcIdentity());
     }
 
-    private void setupIdentityWidgets() {
-        this.companyField = null;
-        clearWidgets();
-        if (showIdentityExtras() && this.identityExtrasY >= 0) {
-            int inset = this.category == Category.ALL ? 6 : STRIPE_W + 4;
-            this.companyField = new EditBox(this.font, 0, 0,
-                    this.contentInnerW - inset - 80, 16,
-                    Component.translatable("gui.tacz_sewv.tdt.pmc_company"));
-            this.companyField.setMaxLength(30);
-            this.companyField.setValue(draftCompanyName);
-            this.companyField.setResponder(val -> draftCompanyName = val);
-            addRenderableWidget(this.companyField);
-        }
+    private int rowLeft() {
+        return this.panelLeft + PAD;
     }
 
-    private static boolean showIdentityExtras() {
-        return true; // rendered whenever identity section is built (ALL + IDENTITY tabs)
+    private int rowRight() {
+        return this.panelLeft + this.panelW - PAD;
     }
 
-    private void buildCatalog() {
-        this.catalog.clear();
-        add(Category.CREW, "gui.tacz_sewv.tdt.board", "gui.tacz_sewv.tdt.board.tip", true,
-                () -> BoardKeybind.orderBoard(liveBoardTarget(), false));
-        add(Category.CREW, "gui.tacz_sewv.tdt.board_passenger", "gui.tacz_sewv.tdt.board_passenger.tip", true,
-                () -> BoardKeybind.orderBoard(liveBoardTarget(), true));
-        add(Category.CREW, "gui.tacz_sewv.tdt.dismount", null, true, BoardKeybind::orderDismount);
-        add(Category.CREW, "gui.tacz_sewv.tdt.bail_out", "gui.tacz_sewv.tdt.bail_out.tip", true,
-                BoardKeybind::orderBailOut);
-        add(Category.CREW, "gui.tacz_sewv.tdt.escort", "gui.tacz_sewv.tdt.escort.tip", true, ClientEvents::armEscort);
-        add(Category.CREW, "gui.tacz_sewv.tdt.tow", "gui.tacz_sewv.tdt.tow.tip", true, ClientEvents::armTowRecovery);
-        add(Category.CREW, "gui.tacz_sewv.tdt.set_guard", "gui.tacz_sewv.tdt.set_guard.tip", true, ClientEvents::armGuardPosition);
-        add(Category.CREW, "gui.tacz_sewv.tdt.reach_guard", "gui.tacz_sewv.tdt.reach_guard.tip", true, this::orderReachGuard);
-
-        add(Category.AREA, "gui.tacz_sewv.tdt.patrol", "gui.tacz_sewv.tdt.patrol.tip", false,
-                () -> orderAreaTask(patrolRadius, IVehiclePatrol.MODE_PATROL), StepperKind.PATROL);
-        add(Category.AREA, "gui.tacz_sewv.tdt.search", "gui.tacz_sewv.tdt.search.tip", false,
-                () -> orderAreaTask(searchRadius, IVehiclePatrol.MODE_SEARCH), StepperKind.SEARCH);
-        add(Category.AREA, "gui.tacz_sewv.tdt.entrench", "gui.tacz_sewv.tdt.entrench.tip", true,
-                ClientEvents::armEntrench);
-        add(Category.AREA, "gui.tacz_sewv.tdt.dismiss", "gui.tacz_sewv.tdt.dismiss.tip", true,
-                () -> BoardKeybind.orderAreaTask(0, PacketPatrolVehicle.MODE_DISMISS));
-
-        add(Category.AIR, "gui.tacz_sewv.tdt.takeoff", "gui.tacz_sewv.tdt.altitude.tip", true,
-                () -> HelicopterKeybind.orderTakeoff(heliAltitude), StepperKind.ALTITUDE);
-        add(Category.AIR, "gui.tacz_sewv.tdt.land", "gui.tacz_sewv.tdt.land.tip", true,
-                () -> HelicopterKeybind.orderLand(liveLandPad()));
-        add(Category.AIR, "gui.tacz_sewv.tdt.land_helipad", "gui.tacz_sewv.tdt.land_helipad.tip", true,
-                HelicopterKeybind::orderLandHelipad);
-        add(Category.AIR, "gui.tacz_sewv.tdt.emergency_land", "gui.tacz_sewv.tdt.emergency_land.tip",
-                true, HelicopterKeybind::orderEmergencyLand);
-        add(Category.AIR, "gui.tacz_sewv.tdt.rappel", "gui.tacz_sewv.tdt.rappel.tip", true, HelicopterKeybind::orderRappel);
-        add(Category.AIR, "gui.tacz_sewv.tdt.paratroop", "gui.tacz_sewv.tdt.paratroop.tip", true,
-                BoardKeybind::orderParatroop);
-
-        add(Category.PLATOON, "gui.tacz_sewv.tdt.join_platoon", "gui.tacz_sewv.tdt.join_platoon.tip",
-                true, ClientEvents::armJoinPlatoon);
-        add(Category.PLATOON, "gui.tacz_sewv.tdt.exit_platoon", "gui.tacz_sewv.tdt.exit_platoon.tip",
-                true, this::orderExitPlatoon);
-        add(Category.PLATOON, "gui.tacz_sewv.tdt.toggle_auto_orders", "gui.tacz_sewv.tdt.toggle_auto_orders.tip",
-                true, this::orderToggleAutoOrders);
-
-        add(Category.IDENTITY, "gui.tacz_sewv.tdt.full_names", "gui.tacz_sewv.tdt.full_names.tip",
-                false, this::applyNameCategory, CycleKind.NAME_CATEGORY);
+    private int rowY(int row) {
+        return this.rowsTop + row * (CELL_H + CELL_GAP);
     }
 
-    /** Cycle values for {@link CycleKind#NAME_CATEGORY}: every configured category, plus RANDOM. */
+    // --- Identity state ------------------------------------------------------
+
+    /** Cycle values for the name pool: every configured category, plus RANDOM. */
     private static List<String> nameCategoryOptions() {
         List<String> options = new ArrayList<>(NamePools.active().categoryKeys());
         options.add(NamePools.RANDOM);
         return options;
     }
 
-    private void applyNameCategory() {
-        NetworkHandler.CHANNEL.sendToServer(new PacketSetNameCategory(selectedNameCategory));
-    }
-
+    /** A sticky preference, not a fire-once order: every step applies at once. */
     private static void stepNameCategory(int dir) {
         List<String> options = nameCategoryOptions();
         int idx = options.indexOf(selectedNameCategory);
         if (idx < 0) idx = options.indexOf(NamePools.RANDOM);
-        idx = Math.floorMod(idx + dir, options.size());
-        selectedNameCategory = options.get(idx);
+        selectedNameCategory = options.get(Math.floorMod(idx + dir, options.size()));
+        NetworkHandler.CHANNEL.sendToServer(new PacketSetNameCategory(selectedNameCategory));
     }
 
     private static List<String> logoPoolOptions() {
@@ -360,28 +177,17 @@ public class TdtScreen extends Screen {
                 pools.add(id);
             }
         }
-        if (pools.isEmpty()) {
-            return List.of(PmcIdentityPreference.DEFAULT_POOL);
-        }
-        return pools;
+        return pools.isEmpty() ? List.of(PmcIdentityPreference.DEFAULT_POOL) : pools;
     }
 
     private static void stepLogoPool(int dir) {
         List<String> options = logoPoolOptions();
-        int idx = options.indexOf(draftLogoPool);
-        if (idx < 0) idx = 0;
-        idx = Math.floorMod(idx + dir, options.size());
-        draftLogoPool = options.get(idx);
+        int idx = Math.max(0, options.indexOf(draftLogoPool));
+        draftLogoPool = options.get(Math.floorMod(idx + dir, options.size()));
         List<String> icons = LogoPoolRegistry.iconsIn(draftLogoPool);
         if (!icons.contains(draftLogoId) && !icons.isEmpty()) {
             draftLogoId = icons.get(0);
         }
-    }
-
-    private static void resetIdentityDraft() {
-        draftCompanyName = "";
-        draftLogoPool = PmcIdentityPreference.DEFAULT_POOL;
-        draftLogoId = PmcIdentityPreference.DEFAULT_LOGO;
     }
 
     private static boolean identityDirty() {
@@ -398,640 +204,128 @@ public class TdtScreen extends Screen {
                 new PacketApplyPmcIdentity(draftCompanyName, draftLogoPool, draftLogoId));
     }
 
-    private void add(Category cat, String label, @Nullable String tip, boolean closes, Runnable action) {
-        add(cat, label, tip, closes, action, (StepperKind) null);
-    }
-
-    private void add(Category cat, String label, @Nullable String tip, boolean closes,
-                     Runnable action, @Nullable StepperKind stepper) {
-        this.catalog.add(new OrderEntry(cat, label, tip, closes, action, stepper, null));
-    }
-
-    private void add(Category cat, String label, @Nullable String tip, boolean closes,
-                     Runnable action, CycleKind cycle) {
-        this.catalog.add(new OrderEntry(cat, label, tip, closes, action, null, cycle));
-    }
-
-    private void rebuildCells() {
-        this.cells.clear();
-        this.sections.clear();
-        this.identityExtrasY = -1;
-        this.identityExtrasH = 0;
-        boolean allView = this.category == Category.ALL;
-        int y = 0;
-        int inset = allView ? GROUP_STRIPE_W + 2 : 0;
-        int innerW = this.contentInnerW - inset;
-        int cellW = (innerW - CELL_GAP * (GRID_COLS - 1)) / GRID_COLS;
-
-        Category[] order = allView
-                ? new Category[]{Category.CREW, Category.AREA, Category.AIR,
-                    Category.PLATOON, Category.IDENTITY}
-                : new Category[]{this.category};
-
-        for (Category cat : order) {
-            if (cat == Category.ALL) continue;
-            List<OrderEntry> group = new ArrayList<>();
-            for (OrderEntry e : this.catalog) {
-                if (e.cat == cat) group.add(e);
-            }
-            if (group.isEmpty()) continue;
-
-            int sectionTop = y;
-            if (allView) {
-                y += HEADER_H;
-            }
-
-            int col = 0;
-            for (OrderEntry e : group) {
-                if (e.stepper != null || e.cycle != null) {
-                    if (col != 0) {
-                        y += CELL_H + CELL_GAP;
-                        col = 0;
-                    }
-                    this.cells.add(new Cell(e, inset, y, innerW, CELL_H));
-                    y += CELL_H + CELL_GAP;
-                    continue;
-                }
-                int x = inset + col * (cellW + CELL_GAP);
-                this.cells.add(new Cell(e, x, y, cellW, CELL_H));
-                col++;
-                if (col >= GRID_COLS) {
-                    col = 0;
-                    y += CELL_H + CELL_GAP;
-                }
-            }
-            if (col != 0) {
-                y += CELL_H + CELL_GAP;
-            }
-            if (cat == Category.IDENTITY) {
-                this.identityExtrasY = y;
-                this.identityExtrasH = 4 * (CELL_H + CELL_GAP);
-                y += this.identityExtrasH;
-            }
-            // Drop trailing cell gap inside the section.
-            int sectionBottom = Math.max(sectionTop + (allView ? HEADER_H : 0), y - CELL_GAP);
-            if (allView) {
-                this.sections.add(new Section(cat, sectionTop, sectionBottom));
-                y = sectionBottom + SECTION_GAP;
-            } else {
-                y = sectionBottom;
-            }
-        }
-        this.contentHeight = Math.max(y - (allView ? SECTION_GAP : 0), 0);
-        if (this.identityExtrasY < 0) {
-            this.identityExtrasH = 0;
+    private void resetIdentityDraft() {
+        draftCompanyName = "";
+        draftLogoPool = PmcIdentityPreference.DEFAULT_POOL;
+        draftLogoId = PmcIdentityPreference.DEFAULT_LOGO;
+        if (this.companyField != null) {
+            this.companyField.setValue(draftCompanyName);
         }
     }
 
-    private static int stripeFor(Category cat) {
-        return switch (cat) {
-            case CREW -> STRIPE_CREW;
-            case AREA -> STRIPE_AREA;
-            case AIR -> STRIPE_AIR;
-            case PLATOON -> STRIPE_PLATOON;
-            case IDENTITY -> STRIPE_IDENTITY;
-            default -> COL_STRIPE;
-        };
-    }
-
-    private int maxScroll() {
-        return Math.max(0, this.contentHeight - this.listHeight);
-    }
-
-    // --- SEM / area helpers -------------------------------------------------
-
-    private boolean ensureUnitsSelected() {
-        if (!TdtSelection.resolve(TdtSelection.SCAN_RADIUS).isEmpty()) return true;
-        if (this.minecraft != null && this.minecraft.player != null) {
-            BoardKeybind.hint(this.minecraft.player, "message.tacz_sewv.tdt.need_selection");
-        }
-        return false;
-    }
-
-    @Nullable
-    private Entity liveBoardTarget() {
-        Minecraft mc = this.minecraft;
-        if (mc == null || mc.hitResult == null) return this.boardTarget;
-        if (mc.hitResult instanceof EntityHitResult ehr
-                && (ehr.getEntity() instanceof MortarEntity || ehr.getEntity() instanceof VehicleEntity)) {
-            return ehr.getEntity();
-        }
-        return this.boardTarget;
-    }
-
-    @Nullable
-    private BlockPos liveLandPad() {
-        Minecraft mc = this.minecraft;
-        if (mc == null || mc.player == null) return this.landPad;
-        HitResult block = mc.player.pick(HelicopterKeybind.LAND_PICK_RANGE, 0.0F, false);
-        if (block instanceof BlockHitResult bhr && block.getType() == HitResult.Type.BLOCK) {
-            return bhr.getBlockPos();
-        }
-        return this.landPad;
-    }
-
-    private void orderReachGuard() {
-        BoardKeybind.withOwnedUnits(pmc -> true, "message.tacz_sewv.guard.reach.none",
-                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketReachGuard(unitIds)));
-    }
-
-    private void orderExitPlatoon() {
-        BoardKeybind.withOwnedUnits(pmc -> true, "message.tacz_sewv.platoon.exit.none",
-                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketExitPlatoon(unitIds)));
-    }
-
-    private void orderToggleAutoOrders() {
-        BoardKeybind.withOwnedUnits(pmc -> pmc instanceof PmcCommanderEntity, "message.tacz_sewv.platoon.auto_orders.none",
-                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketToggleAutoOrders(unitIds)));
-    }
-
-    private void orderAreaTask(int radius, int mode) {
-        if (radius < PacketPatrolVehicle.MIN_RADIUS) {
-            if (this.minecraft != null && this.minecraft.player != null) {
-                this.minecraft.player.displayClientMessage(
-                        Component.translatable("message.tacz_sewv.patrol.min_radius", PacketPatrolVehicle.MIN_RADIUS)
-                                .withStyle(ChatFormatting.GRAY), true);
-            }
-            return;
-        }
-        BoardKeybind.orderAreaTask(radius, mode);
-        onClose();
-    }
-
-    // --- Input --------------------------------------------------------------
+    // --- Input ---------------------------------------------------------------
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        repositionCompanyField();
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
 
-        // Float menus sit above the identity EditBox — handle them first or the company
-        // field steals clicks through the popup.
-        boolean floatOpen = this.floatKind != null || this.floatPlatoonColor != null || this.floatLogoPool != null;
-        if (floatOpen && this.floatLogoPool != null && clickLogoFloat(mouseX, mouseY)) {
-            clickSound();
+        // The flyout sits above the company EditBox — handle it first or the field steals clicks
+        // through the popup.
+        if (this.logoFloat) {
+            if (clickLogoFloat(mouseX, mouseY)) clickSound();
+            this.logoFloat = false;
             return true;
         }
-        if (floatOpen && clickFloat(mouseX, mouseY)) {
-            clickSound();
-            return true;
-        }
-        if (floatOpen) {
-            clearFloat();
-            return true;
-        }
-
         if (this.companyField != null && this.companyField.mouseClicked(mouseX, mouseY, button)) {
             setFocused(this.companyField);
             return true;
         }
-
-        // Clicks outside the docked panel are swallowed (world stays non-interactive).
-        if (mouseX > this.panelLeft + this.panelW) {
-            return true;
+        if (this.companyField != null) {
+            this.companyField.setFocused(false);
         }
-
-        if (clickTabs(mouseX, mouseY)) {
+        if (clickRows(mouseX, mouseY)) {
             clickSound();
-            return true;
-        }
-        if (clickScrollbar(mouseX, mouseY)) return true;
-        if (clickList(mouseX, mouseY)) {
-            clickSound();
-            return true;
-        }
-        if (clickRibbon(mouseX, mouseY)) {
-            clickSound();
-            return true;
         }
         return true;
     }
 
-    @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        this.draggingScroll = false;
-        return super.mouseReleased(mouseX, mouseY, button);
-    }
-
-    @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (this.draggingScroll && maxScroll() > 0) {
-            this.scroll = Mth.clamp((int) ((mouseY - this.listTop) / (double) this.listHeight * maxScroll()),
-                    0, maxScroll());
-            return true;
-        }
-        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double delta) {
-        if (mouseX <= this.panelLeft + this.panelW
-                && mouseY >= this.listTop && mouseY <= this.listBottom) {
-            this.scroll = Mth.clamp(this.scroll - (int) (delta * CELL_H), 0, maxScroll());
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, delta);
-    }
-
-    private boolean clickTabs(double mx, double my) {
-        int y = PAD + 14;
-        if (my < y || my > y + TAB_H) return false;
-        int x = this.panelLeft + PAD;
-        boolean useShort = tabsOverflow();
-        for (Category c : Category.values()) {
-            String label = tabLabel(c, useShort);
-            int tw = this.font.width(label);
-            if (mx >= x && mx < x + tw && my >= y && my < y + TAB_H) {
-                this.category = c;
-                this.scroll = 0;
-                rebuildCells();
-                setupIdentityWidgets();
-                return true;
-            }
-            x += tw + TAB_GAP;
-        }
-        return false;
-    }
-
-    private static String tabLabel(Category c, boolean useShort) {
-        return I18n.get("gui.tacz_sewv.tdt.cat." + c.name().toLowerCase() + (useShort ? ".short" : ""));
-    }
-
-    /** The tab row has no wrapping — once the category count outgrows the panel at full labels,
-     * fall back to the (already-shipped, previously unused) ".short" abbreviations instead of
-     * letting text spill past the panel edge into the world view. */
-    private boolean tabsOverflow() {
-        int total = 0;
-        for (Category c : Category.values()) {
-            total += this.font.width(tabLabel(c, false)) + TAB_GAP;
-        }
-        return total > this.panelW - PAD * 2;
-    }
-
-    private boolean clickScrollbar(double mx, double my) {
-        if (maxScroll() <= 0) return false;
-        int sx = this.panelLeft + this.panelW - PAD - SCROLLBAR_W;
-        if (mx >= sx && mx < sx + SCROLLBAR_W && my >= this.listTop && my <= this.listBottom) {
-            this.draggingScroll = true;
-            this.scroll = Mth.clamp((int) ((my - this.listTop) / (double) this.listHeight * maxScroll()),
-                    0, maxScroll());
-            return true;
-        }
-        return false;
-    }
-
-    private boolean clickList(double mx, double my) {
-        if (my < this.listTop || my > this.listBottom) return false;
-        int originX = this.panelLeft + PAD;
-        int contentX = (int) mx - originX;
-        int contentY = (int) my - this.listTop + this.scroll;
-
-        for (Cell cell : this.cells) {
-            if (contentX < cell.x() || contentX >= cell.x() + cell.w()
-                    || contentY < cell.y() || contentY >= cell.y() + cell.h()) {
-                continue;
-            }
-
-            if (cell.entry().stepper != null) {
-                int relX = contentX - cell.x();
-                StepperSpec spec = stepperSpec(cell.entry().stepper);
-                int plusLeft = cell.w() - STEP_BTN;
-                int minusLeft = stepperMinusLeft(cell);
-                if (relX >= plusLeft) {
-                    spec.set.accept(Math.min(spec.max, spec.get.getAsInt() + spec.step));
-                    return true;
-                }
-                if (relX >= minusLeft && relX < minusLeft + STEP_BTN) {
-                    spec.set.accept(Math.max(spec.min, spec.get.getAsInt() - spec.step));
-                    return true;
-                }
-                // Label / left side fires the order
-                cell.entry().action.run();
-                if (cell.entry().closes) onClose();
-                return true;
-            }
-
-            if (cell.entry().cycle != null) {
-                int relX = contentX - cell.x();
-                int nextLeft = cell.w() - STEP_BTN;
-                int prevLeft = nextLeft - 4 - this.font.width(selectedNameCategory) - 4 - STEP_BTN;
-                // Every zone applies immediately — this sets a sticky preference, not a fire-once
-                // order like the other stepper rows, so there is no separate "confirm" step to miss.
-                if (relX >= nextLeft) {
-                    stepNameCategory(1);
-                    cell.entry().action.run();
-                    return true;
-                }
-                if (relX >= prevLeft && relX < prevLeft + STEP_BTN) {
-                    stepNameCategory(-1);
-                    cell.entry().action.run();
-                    return true;
-                }
-                // Label / left side re-sends the current selection (harmless if unchanged)
-                cell.entry().action.run();
-                if (cell.entry().closes) onClose();
-                return true;
-            }
-
-            if (isInactive(cell.entry())) {
-                return true;
-            }
-            cell.entry().action.run();
-            if (cell.entry().closes) onClose();
-            return true;
-        }
-        return clickIdentityExtras(mx, my);
-    }
-
-    private boolean clickIdentityExtras(double mx, double my) {
-        if (this.identityExtrasY < 0) return false;
-        if (my < this.listTop || my > this.listBottom) return false;
-        int originX = this.panelLeft + PAD;
-        int contentX = (int) mx - originX;
-        int contentY = (int) my - this.listTop + this.scroll;
-        int y0 = this.identityExtrasY;
-        if (contentY < y0 || contentY >= y0 + this.identityExtrasH) return false;
-
-        boolean allView = this.category == Category.ALL;
-        int inset = allView ? 6 : STRIPE_W + 4;
-        int innerW = this.contentInnerW - inset;
-        int row = (contentY - y0) / (CELL_H + CELL_GAP);
-        int rowY = y0 + row * (CELL_H + CELL_GAP);
-        if (contentY < rowY || contentY >= rowY + CELL_H) return false;
-
-        int relX = contentX - inset;
-        return switch (row) {
-            case 0 -> {
-                repositionCompanyField();
-                if (this.companyField != null && this.companyField.mouseClicked(mx, my, 0)) {
-                    setFocused(this.companyField);
+    private boolean clickRows(double mx, double my) {
+        if (mx < rowLeft() || mx >= rowRight()) return false;
+        for (int row = 0; row < ROWS; row++) {
+            int y = rowY(row);
+            if (my < y || my >= y + CELL_H) continue;
+            int relX = (int) mx - rowLeft();
+            int w = rowRight() - rowLeft();
+            return switch (row) {
+                case ROW_NAMES -> clickCycle(relX, w, selectedNameCategory, TdtScreen::stepNameCategory);
+                case ROW_POOL -> clickCycle(relX, w, draftLogoPool, TdtScreen::stepLogoPool);
+                case ROW_ICON -> {
+                    this.logoFloat = true;
+                    this.floatX = (int) mx;
+                    this.floatY = (int) my;
+                    this.floatAnim = 0.0F;
                     yield true;
                 }
-                yield false;
-            }
-            case 1 -> clickLogoPoolRow(relX, innerW);
-            case 2 -> clickLogoPreviewRow(relX, innerW, mx, my);
-            case 3 -> clickIdentityFooter(relX, innerW);
-            default -> false;
-        };
+                case ROW_FOOTER -> clickFooter(relX, w);
+                default -> false;
+            };
+        }
+        return false;
     }
 
-    private boolean clickLogoPoolRow(int relX, int innerW) {
-        int nextLeft = innerW - STEP_BTN;
-        int valueW = this.font.width(draftLogoPool);
-        int prevLeft = nextLeft - 4 - valueW - 4 - STEP_BTN;
+    private boolean clickCycle(int relX, int w, String value, java.util.function.IntConsumer step) {
+        int nextLeft = w - STEP_BTN;
+        int prevLeft = nextLeft - 4 - this.font.width(value) - 4 - STEP_BTN;
         if (relX >= nextLeft) {
-            stepLogoPool(1);
+            step.accept(1);
             return true;
         }
         if (relX >= prevLeft && relX < prevLeft + STEP_BTN) {
-            stepLogoPool(-1);
+            step.accept(-1);
             return true;
         }
-        return true;
+        return false;
     }
 
-    private boolean clickLogoPreviewRow(int relX, int innerW, double mx, double my) {
-        int iconX = relX;
-        if (relX >= iconX && relX < iconX + FLOAT_ICON) {
-            this.floatLogoPool = draftLogoPool;
-            this.floatKind = null;
-            this.floatPlatoonColor = null;
-            setFocused(null);
-            if (this.companyField != null) {
-                this.companyField.setFocused(false);
-            }
-            this.floatX = (int) mx;
-            this.floatY = (int) my;
-            this.floatAnim = 0.0F;
-            return true;
-        }
-        return true;
-    }
-
-    private boolean clickIdentityFooter(int relX, int innerW) {
-        int btnW = 52;
-        int gap = 6;
-        int resetLeft = innerW - btnW;
-        int applyLeft = resetLeft - gap - btnW;
-        if (relX >= applyLeft && relX < applyLeft + btnW && identityDirty()) {
+    private boolean clickFooter(int relX, int w) {
+        int resetLeft = w - FOOTER_BTN_W;
+        int applyLeft = resetLeft - 6 - FOOTER_BTN_W;
+        if (relX >= applyLeft && relX < applyLeft + FOOTER_BTN_W && identityDirty()) {
             applyIdentityDraft();
             return true;
         }
-        if (relX >= resetLeft && relX < resetLeft + btnW) {
+        if (relX >= resetLeft) {
             resetIdentityDraft();
-            if (this.companyField != null) {
-                this.companyField.setValue(draftCompanyName);
-            }
             return true;
         }
-        return true;
+        return false;
     }
 
     private boolean clickLogoFloat(double mx, double my) {
-        if (this.floatLogoPool == null) return false;
-        List<String> icons = LogoPoolRegistry.iconsIn(this.floatLogoPool);
-        if (icons.isEmpty()) {
-            clearFloat();
+        List<String> icons = LogoPoolRegistry.iconsIn(draftLogoPool);
+        int[] box = logoFloatBox(icons.size());
+        if (box == null || mx < box[0] || mx > box[0] + box[2] || my < box[1] || my > box[1] + box[3]) {
             return false;
         }
-        int cols = Math.min(icons.size(), 5);
-        int rows = (icons.size() + cols - 1) / cols;
+        int pad = 6;
+        int ix = box[0] + pad;
+        int iy = box[1] + pad + 16;
+        for (String icon : icons) {
+            if (mx >= ix && mx < ix + FLOAT_ICON && my >= iy && my < iy + FLOAT_ICON) {
+                draftLogoId = icon;
+                return true;
+            }
+            ix += FLOAT_ICON + 4;
+            if (ix + FLOAT_ICON > box[0] + box[2] - pad) {
+                ix = box[0] + pad;
+                iy += FLOAT_ICON + 4;
+            }
+        }
+        return false;
+    }
+
+    /** {x, y, w, h} of the logo picker for {@code count} icons, or null when there are none. */
+    @Nullable
+    private int[] logoFloatBox(int count) {
+        if (count <= 0) return null;
+        int cols = Math.min(count, 5);
+        int rows = (count + cols - 1) / cols;
         int pad = 6;
         int fw = Math.max(cols * (FLOAT_ICON + 4) + pad * 2, 90);
         int fh = (1 + rows) * (FLOAT_ICON + 4) + pad * 2;
         int fx = Mth.clamp(this.floatX - fw / 2, 4, this.width - fw - 4);
         int fy = Mth.clamp(this.floatY - fh, 4, this.height - fh - 4);
-        if (mx < fx || mx > fx + fw || my < fy || my > fy + fh) {
-            return false;
-        }
-        int ix = fx + pad;
-        int iy = fy + pad + 16;
-        for (String icon : icons) {
-            if (mx >= ix && mx < ix + FLOAT_ICON && my >= iy && my < iy + FLOAT_ICON) {
-                draftLogoId = icon;
-                clearFloat();
-                return true;
-            }
-            ix += FLOAT_ICON + 4;
-            if (ix + FLOAT_ICON > fx + fw - pad) {
-                ix = fx + pad;
-                iy += FLOAT_ICON + 4;
-            }
-        }
-        return true;
-    }
-
-    private int stepperMinusLeft(Cell cell) {
-        StepperSpec spec = stepperSpec(cell.entry().stepper);
-        String value = spec.get.getAsInt() + I18n.get("gui.tacz_sewv.tdt.unit.blocks");
-        int plusLeft = cell.w() - STEP_BTN;
-        int valueW = this.font.width(value);
-        return plusLeft - 4 - valueW - 4 - STEP_BTN;
-    }
-
-    private boolean clickRibbon(double mx, double my) {
-        if (my < this.ribbonTop || my > this.ribbonTop + RIBBON_H) return false;
-        if (mx > this.panelLeft + this.panelW) return false;
-
-        int allX = this.panelLeft + PAD;
-        int allY = this.ribbonTop + 4;
-        if (mx >= allX && mx < allX + BTN_W && my >= allY && my < allY + BTN_H) {
-            TdtSelection.toggleSelectAll();
-            return true;
-        }
-
-        int noneX = allX + BTN_W + 2;
-        if (mx >= noneX && mx < noneX + BTN_W && my >= allY && my < allY + BTN_H) {
-            TdtSelection.deselectAll();
-            return true;
-        }
-
-        int liveY = allY + BTN_H + 2;
-        int liveW = 48;
-        if (mx >= allX && mx < allX + liveW && my >= liveY && my < liveY + BTN_H) {
-            ClientEvents.armLiveSelection();
-            onClose();
-            return true;
-        }
-
-        int x = allX + RIBBON_ICONS_X;
-        int y = this.ribbonTop + 6;
-
-        Map<Integer, List<TdtSelection.Entry>> byPlatoon = TdtSelection.byPlatoon();
-        for (Map.Entry<Integer, List<TdtSelection.Entry>> e : byPlatoon.entrySet()) {
-            List<TdtSelection.Entry> units = e.getValue();
-            if (units.isEmpty()) continue;
-            if (mx >= x && mx < x + ICON_SIZE && my >= y && my < y + ICON_SIZE) {
-                if (TdtSelection.distinctCount(units) == 1) {
-                    toggleGroup(units);
-                } else {
-                    this.floatKind = null;
-                    this.floatPlatoonColor = e.getKey();
-                    this.floatX = x;
-                    this.floatY = this.ribbonTop - 8;
-                    this.floatAnim = 0.0F;
-                }
-                return true;
-            }
-            x += ICON_SIZE + 6;
-            if (x + ICON_SIZE > this.panelLeft + this.panelW - PAD) return false;
-        }
-
-        Map<VehicleMarker.Kind, List<TdtSelection.Entry>> byKind = TdtSelection.byKind();
-        for (Map.Entry<VehicleMarker.Kind, List<TdtSelection.Entry>> e : byKind.entrySet()) {
-            List<TdtSelection.Entry> units = e.getValue();
-            if (units.isEmpty()) continue;
-            if (mx >= x && mx < x + ICON_SIZE && my >= y && my < y + ICON_SIZE) {
-                if (TdtSelection.distinctCount(units) == 1) {
-                    toggleGroup(units);
-                } else {
-                    this.floatPlatoonColor = null;
-                    this.floatKind = e.getKey();
-                    this.floatX = x;
-                    this.floatY = this.ribbonTop - 8;
-                    this.floatAnim = 0.0F;
-                }
-                return true;
-            }
-            x += ICON_SIZE + 6;
-            if (x + ICON_SIZE > this.panelLeft + this.panelW - PAD) break;
-        }
-        return false;
-    }
-
-    private boolean clickFloat(double mx, double my) {
-        if (this.floatKind == null && this.floatPlatoonColor == null) return false;
-        List<TdtSelection.Entry> units = currentFloatUnits();
-        if (units.isEmpty()) {
-            clearFloat();
-            return false;
-        }
-
-        int cols = Math.min(units.size(), 5);
-        int unitRows = (units.size() + cols - 1) / cols;
-        int pad = 6;
-        int fw = Math.max(cols * (FLOAT_ICON + 4) + pad * 2, 90);
-        int fh = (1 + unitRows) * (FLOAT_ICON + 4) + pad * 2;
-        int fx = Mth.clamp(this.floatX - fw / 2 + ICON_SIZE / 2, 4, this.width - fw - 4);
-        int fy = Mth.clamp(this.floatY - fh, 4, this.height - fh - 4);
-
-        if (mx < fx || mx > fx + fw || my < fy || my > fy + fh) {
-            return false;
-        }
-
-        if (my >= fy + pad && my < fy + pad + 14 && mx >= fx + pad && mx < fx + fw - pad) {
-            for (TdtSelection.Entry unit : units) {
-                TdtSelection.select(unit.id());
-            }
-            clearFloat();
-            return true;
-        }
-
-        int ix = fx + pad;
-        int iy = fy + pad + 16;
-        for (TdtSelection.Entry unit : units) {
-            if (mx >= ix && mx < ix + FLOAT_ICON && my >= iy && my < iy + FLOAT_ICON) {
-                TdtSelection.toggle(unit.id());
-                return true;
-            }
-            ix += FLOAT_ICON + 4;
-            if (ix + FLOAT_ICON > fx + fw - pad) {
-                ix = fx + pad;
-                iy += FLOAT_ICON + 4;
-            }
-        }
-        return true;
-    }
-
-    private void clearFloat() {
-        this.floatKind = null;
-        this.floatPlatoonColor = null;
-        this.floatLogoPool = null;
-        this.floatAnim = 0.0F;
-    }
-
-    /** Whichever bucket is currently expanded — a platoon group, or a plain Kind bucket. */
-    private List<TdtSelection.Entry> currentFloatUnits() {
-        if (this.floatPlatoonColor != null) {
-            return TdtSelection.byPlatoon().getOrDefault(this.floatPlatoonColor, List.of());
-        }
-        if (this.floatKind != null) {
-            return TdtSelection.byKind().getOrDefault(this.floatKind, List.of());
-        }
-        return List.of();
-    }
-
-    /** Select all if none of the group is selected yet, otherwise deselect all of it. */
-    private static void toggleGroup(List<TdtSelection.Entry> entries) {
-        boolean anySelected = false;
-        for (TdtSelection.Entry e : entries) {
-            if (TdtSelection.isSelected(e.id())) {
-                anySelected = true;
-                break;
-            }
-        }
-        for (TdtSelection.Entry e : entries) {
-            if (anySelected) {
-                TdtSelection.deselect(e.id());
-            } else {
-                TdtSelection.select(e.id());
-            }
-        }
-    }
-
-    private static boolean unitsAnySelected(List<TdtSelection.Entry> units) {
-        for (TdtSelection.Entry u : units) {
-            if (TdtSelection.isSelected(u.id())) return true;
-        }
-        return false;
-    }
-
-    private static boolean unitsAnyCommander(List<TdtSelection.Entry> units) {
-        for (TdtSelection.Entry u : units) {
-            if (u.isCommander()) return true;
-        }
-        return false;
+        return new int[]{fx, fy, fw, fh};
     }
 
     private static void clickSound() {
@@ -1039,175 +333,115 @@ public class TdtScreen extends Screen {
                 SimpleSoundInstance.forUI(ModSounds.INTERACT_BEEP.get(), 1.0F));
     }
 
-    private boolean reachGuardActive() {
-        boolean knownOwn = false;
-        boolean anyGuard = false;
-        for (VehicleMarker m : MapMarkers.markers()) {
-            if (m.allegiance() != VehicleMarker.Allegiance.OWN) continue;
-            knownOwn = true;
-            if (m.hasGuard()) {
-                anyGuard = true;
-                break;
-            }
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (this.logoFloat && keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+            this.logoFloat = false;
+            return true;
         }
-        return !knownOwn || anyGuard;
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    private boolean isInactive(OrderEntry entry) {
-        if ("gui.tacz_sewv.tdt.reach_guard".equals(entry.labelKey())) {
-            return !reachGuardActive();
-        }
-        return false;
-    }
+    // --- Render --------------------------------------------------------------
 
-    // --- Render -------------------------------------------------------------
-
-    /** No world dim — the battlefield stays visible beside the docked panel. */
+    /**
+     * NeoForge port: 1.21 {@code Screen.render} draws the background itself, after this screen's
+     * panel has been drawn; {@link #render} draws it first instead, exactly once (a second blur throws).
+     */
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        super.renderBackground(g, mouseX, mouseY, partialTick);
         this.floatAnim = Math.min(1.0F, this.floatAnim + partialTick * 0.25F);
         this.pendingTip = null;
 
-        // Panel chrome
-        g.fill(this.panelLeft, this.panelTop, this.panelLeft + this.panelW, this.panelBottom, COL_BASE);
-        g.fill(this.panelLeft + this.panelW - 1, this.panelTop, this.panelLeft + this.panelW, this.panelBottom, COL_BORDER);
+        int panelBottom = rowY(ROWS - 1) + CELL_H + PAD;
+        g.fill(this.panelLeft, this.panelTop, this.panelLeft + this.panelW, panelBottom, COL_BASE);
+        g.fill(this.panelLeft, this.panelTop, this.panelLeft + this.panelW, this.panelTop + 1, COL_ACCENT);
+        g.drawString(this.font, this.title, this.panelLeft + PAD, this.panelTop + 8, COL_TEXT, false);
 
-        g.drawString(this.font, this.title, this.panelLeft + PAD, PAD, COL_TEXT, false);
-        if (!net.neoforged.fml.ModList.get().isLoaded("xaeroworldmap")) {
-            g.drawString(this.font, Component.translatable("gui.tacz_sewv.tdt.xaero_hint"),
-                    this.panelLeft + PAD + this.font.width(this.title) + 8, PAD, COL_MUTED, false);
+        for (int row = 0; row < ROWS; row++) {
+            renderRow(g, row, mouseX, mouseY);
         }
-        renderTabs(g);
-        renderList(g, mouseX, mouseY);
-        renderRibbon(g);
+        if (this.companyField != null) {
+            this.companyField.setVisible(!this.logoFloat);
+        }
+        super.render(g, mouseX, mouseY, partialTick);
 
-        boolean logoFloat = this.floatLogoPool != null;
-        if (this.companyField != null && !logoFloat) {
-            this.companyField.render(g, mouseX, mouseY, partialTick);
-        }
-        // Floats last so identity chrome (EditBox, steppers) cannot paint over them.
-        if (logoFloat) {
+        // Last, so neither the EditBox nor the steppers can paint over it.
+        if (this.logoFloat) {
             renderLogoFloat(g, mouseX, mouseY);
-        } else if (this.floatKind != null || this.floatPlatoonColor != null) {
-            renderFloat(g, mouseX, mouseY);
-        }
-
-        if (this.pendingTip != null) {
+        } else if (this.pendingTip != null) {
             g.renderTooltip(this.font, Component.translatable(this.pendingTip), mouseX, mouseY);
         }
     }
 
-    private void renderTabs(GuiGraphics g) {
-        int y = PAD + 14;
-        int x = this.panelLeft + PAD;
-        boolean useShort = tabsOverflow();
-        for (Category c : Category.values()) {
-            String label = tabLabel(c, useShort);
-            int tw = this.font.width(label);
-            boolean active = c == this.category;
-            int color = active ? COL_ACCENT : COL_MUTED;
-            g.drawString(this.font, label, x, y + 4, color, false);
-            if (active) {
-                g.fill(x, y + TAB_H - 2, x + tw, y + TAB_H, COL_ACCENT);
+    private void renderRow(GuiGraphics g, int row, int mouseX, int mouseY) {
+        int x = rowLeft();
+        int right = rowRight();
+        int y = rowY(row);
+        boolean hover = !this.logoFloat && mouseX >= x && mouseX < right && mouseY >= y && mouseY < y + CELL_H;
+        int textY = y + (CELL_H - 8) / 2;
+
+        if (row == ROW_FOOTER) {
+            int resetLeft = right - FOOTER_BTN_W;
+            int applyLeft = resetLeft - 6 - FOOTER_BTN_W;
+            g.fill(applyLeft, y + 2, applyLeft + FOOTER_BTN_W, y + CELL_H - 2,
+                    identityDirty() ? COL_ACCENT : COL_MUTED);
+            g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.identity_apply"),
+                    applyLeft + FOOTER_BTN_W / 2, textY, COL_BASE);
+            g.fill(resetLeft, y + 2, right, y + CELL_H - 2, COL_SURFACE);
+            g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.identity_reset"),
+                    resetLeft + FOOTER_BTN_W / 2, textY, COL_TEXT);
+            return;
+        }
+
+        g.fill(x, y, right, y + CELL_H, hover ? COL_HOVER : COL_SURFACE);
+        g.fill(x, y + CELL_H - 1, right, y + CELL_H, COL_BORDER);
+        int textX = x + PAD;
+        switch (row) {
+            case ROW_NAMES -> {
+                g.drawString(this.font, Component.translatable("gui.tacz_sewv.tdt.full_names"), textX, textY,
+                        COL_TEXT, false);
+                drawCycle(g, right, y, selectedNameCategory, hover);
+                if (hover) this.pendingTip = "gui.tacz_sewv.tdt.full_names.tip";
             }
-            x += tw + TAB_GAP;
+            case ROW_COMPANY -> {
+                g.drawString(this.font, Component.translatable("gui.tacz_sewv.tdt.pmc_company"), textX, textY,
+                        COL_TEXT, false);
+                if (hover) this.pendingTip = "gui.tacz_sewv.tdt.pmc_company.tip";
+            }
+            case ROW_POOL -> {
+                g.drawString(this.font, Component.translatable("gui.tacz_sewv.tdt.logo_pool"), textX, textY,
+                        COL_TEXT, false);
+                drawCycle(g, right, y, draftLogoPool, hover);
+            }
+            case ROW_ICON -> {
+                g.drawString(this.font, Component.translatable("gui.tacz_sewv.tdt.logo_icon"), textX, textY,
+                        COL_TEXT, false);
+                int iconX = right - PAD - FLOAT_ICON;
+                drawLogoIcon(g, draftLogoPool, draftLogoId, iconX, y + (CELL_H - FLOAT_ICON) / 2, true);
+                g.drawString(this.font, draftLogoId, iconX - 4 - this.font.width(draftLogoId), textY,
+                        COL_MUTED, false);
+                if (hover) this.pendingTip = "gui.tacz_sewv.tdt.logo_icon.tip";
+            }
+            default -> {
+            }
         }
     }
 
-    private void renderList(GuiGraphics g, int mouseX, int mouseY) {
-        int originX = this.panelLeft + PAD;
-        g.enableScissor(originX, this.listTop, this.panelLeft + this.panelW - PAD, this.listBottom);
-
-        String unitBlocks = I18n.get("gui.tacz_sewv.tdt.unit.blocks");
-        boolean allView = this.category == Category.ALL;
-        int labelInset = allView ? 6 : STRIPE_W + 4;
-
-        for (Section section : this.sections) {
-            int sy0 = this.listTop + section.y0() - this.scroll;
-            int sy1 = this.listTop + section.y1() - this.scroll;
-            if (sy1 < this.listTop || sy0 > this.listBottom) continue;
-            g.fill(originX, sy0, originX + GROUP_STRIPE_W, sy1, stripeFor(section.cat()));
-            // Hairline under the section
-            g.fill(originX + GROUP_STRIPE_W, sy1 - 1, originX + this.contentInnerW, sy1, COL_BORDER);
-            String header = I18n.get("gui.tacz_sewv.tdt.section." + section.cat().name().toLowerCase());
-            g.drawString(this.font, header, originX + GROUP_STRIPE_W + 4, sy0 + 2, COL_MUTED, false);
-        }
-
-        for (Cell cell : this.cells) {
-            int sx = originX + cell.x();
-            int sy = this.listTop + cell.y() - this.scroll;
-            if (sy + cell.h() < this.listTop || sy > this.listBottom) continue;
-
-            boolean inactive = isInactive(cell.entry());
-            boolean hover = mouseX >= sx && mouseX < sx + cell.w()
-                    && mouseY >= sy && mouseY < sy + cell.h()
-                    && mouseY >= this.listTop && mouseY <= this.listBottom;
-
-            int fill = hover && !inactive ? COL_HOVER : COL_SURFACE;
-            g.fill(sx, sy, sx + cell.w(), sy + cell.h(), fill);
-            if (!allView) {
-                g.fill(sx, sy, sx + STRIPE_W, sy + cell.h(), COL_STRIPE);
-            }
-            // Hairline bottom
-            g.fill(sx, sy + cell.h() - 1, sx + cell.w(), sy + cell.h(), COL_BORDER);
-
-            int textColor = inactive ? COL_MUTED : COL_TEXT;
-            Component label = Component.translatable(cell.entry().labelKey);
-            int textX = sx + labelInset;
-
-            if (cell.entry().stepper != null) {
-                StepperSpec spec = stepperSpec(cell.entry().stepper);
-                String value = spec.get.getAsInt() + unitBlocks;
-                int plusLeft = sx + cell.w() - STEP_BTN;
-                int valueW = this.font.width(value);
-                int minusLeft = plusLeft - 4 - valueW - 4 - STEP_BTN;
-
-                g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
-
-                drawStepBtn(g, minusLeft, sy + 2, "-", hover);
-                int valueColor = spec.get.getAsInt() < spec.redBelow ? 0xFFE07070 : COL_MUTED;
-                g.drawCenteredString(this.font, value, minusLeft + STEP_BTN + 4 + valueW / 2,
-                        sy + (CELL_H - 8) / 2, valueColor);
-                drawStepBtn(g, plusLeft, sy + 2, "+", hover);
-            } else if (cell.entry().cycle != null) {
-                String value = selectedNameCategory;
-                int nextLeft = sx + cell.w() - STEP_BTN;
-                int valueW = this.font.width(value);
-                int prevLeft = nextLeft - 4 - valueW - 4 - STEP_BTN;
-
-                g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
-
-                drawStepBtn(g, prevLeft, sy + 2, "<", hover);
-                g.drawCenteredString(this.font, value, prevLeft + STEP_BTN + 4 + valueW / 2,
-                        sy + (CELL_H - 8) / 2, COL_MUTED);
-                drawStepBtn(g, nextLeft, sy + 2, ">", hover);
-            } else {
-                g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
-            }
-
-            if (hover && cell.entry().tipKey != null) {
-                this.pendingTip = cell.entry().tipKey;
-            }
-        }
-
-        if (this.identityExtrasY >= 0) {
-            renderIdentityExtras(g, mouseX, mouseY, allView, labelInset);
-        }
-        g.disableScissor();
-
-        repositionCompanyField();
-
-        if (maxScroll() > 0) {
-            int sx = this.panelLeft + this.panelW - PAD - SCROLLBAR_W;
-            g.fill(sx, this.listTop, sx + SCROLLBAR_W, this.listBottom, 0x66000000);
-            int thumbH = Math.max(16, (int) ((float) this.listHeight / this.contentHeight * this.listHeight));
-            int thumbY = this.listTop + (int) ((float) this.scroll / maxScroll() * (this.listHeight - thumbH));
-            g.fill(sx, thumbY, sx + SCROLLBAR_W, thumbY + thumbH, COL_ACCENT);
-        }
+    /** "< value >" stepper flush right in a row. */
+    private void drawCycle(GuiGraphics g, int right, int y, String value, boolean hover) {
+        int nextLeft = right - STEP_BTN;
+        int valueW = this.font.width(value);
+        int prevLeft = nextLeft - 4 - valueW - 4 - STEP_BTN;
+        drawStepBtn(g, prevLeft, y + 2, "<", hover);
+        g.drawCenteredString(this.font, value, prevLeft + STEP_BTN + 4 + valueW / 2, y + (CELL_H - 8) / 2,
+                COL_MUTED);
+        drawStepBtn(g, nextLeft, y + 2, ">", hover);
     }
 
     private void drawStepBtn(GuiGraphics g, int x, int y, String glyph, boolean parentHover) {
@@ -1215,80 +449,6 @@ public class TdtScreen extends Screen {
         g.fill(x, y, x + STEP_BTN, y + 1, COL_BORDER);
         g.fill(x, y + CELL_H - 5, x + STEP_BTN, y + CELL_H - 4, COL_BORDER);
         g.drawCenteredString(this.font, glyph, x + STEP_BTN / 2, y + (CELL_H - 4 - 8) / 2, COL_ACCENT);
-    }
-
-    private void renderIdentityExtras(GuiGraphics g, int mouseX, int mouseY, boolean allView, int labelInset) {
-        int originX = this.panelLeft + PAD;
-        int inset = allView ? 6 : STRIPE_W + 4;
-        int innerW = this.contentInnerW - inset;
-        int y0 = this.identityExtrasY;
-
-        for (int row = 0; row < 4; row++) {
-            int sy = this.listTop + y0 + row * (CELL_H + CELL_GAP) - this.scroll;
-            if (sy + CELL_H < this.listTop || sy > this.listBottom) continue;
-
-            int sx = originX + inset;
-            g.fill(sx, sy, sx + innerW, sy + CELL_H, COL_SURFACE);
-            if (!allView) {
-                g.fill(sx, sy, sx + STRIPE_W, sy + CELL_H, COL_STRIPE);
-            }
-            g.fill(sx, sy + CELL_H - 1, sx + innerW, sy + CELL_H, COL_BORDER);
-
-            boolean hover = mouseX >= sx && mouseX < sx + innerW
-                    && mouseY >= sy && mouseY < sy + CELL_H
-                    && mouseY >= this.listTop && mouseY <= this.listBottom;
-            int textX = sx + labelInset;
-            int textColor = COL_TEXT;
-
-            switch (row) {
-                case 0 -> {
-                    Component label = Component.translatable("gui.tacz_sewv.tdt.pmc_company");
-                    g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
-                    if (hover) {
-                        this.pendingTip = "gui.tacz_sewv.tdt.pmc_company.tip";
-                    }
-                }
-                case 1 -> {
-                    Component label = Component.translatable("gui.tacz_sewv.tdt.logo_pool");
-                    String value = draftLogoPool;
-                    int nextLeft = sx + innerW - inset - STEP_BTN;
-                    int valueW = this.font.width(value);
-                    int prevLeft = nextLeft - 4 - valueW - 4 - STEP_BTN;
-                    g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
-                    drawStepBtn(g, prevLeft, sy + 2, "<", hover);
-                    g.drawCenteredString(this.font, value, prevLeft + STEP_BTN + 4 + valueW / 2,
-                            sy + (CELL_H - 8) / 2, COL_MUTED);
-                    drawStepBtn(g, nextLeft, sy + 2, ">", hover);
-                }
-                case 2 -> {
-                    Component label = Component.translatable("gui.tacz_sewv.tdt.logo_icon");
-                    g.drawString(this.font, label, textX, sy + (CELL_H - 8) / 2, textColor, false);
-                    int iconX = sx + innerW - inset - FLOAT_ICON - 4;
-                    drawLogoIcon(g, draftLogoPool, draftLogoId, iconX, sy + (CELL_H - FLOAT_ICON) / 2, true);
-                    g.drawString(this.font, draftLogoId, iconX - 4 - this.font.width(draftLogoId),
-                            sy + (CELL_H - 8) / 2, COL_MUTED, false);
-                    if (hover) {
-                        this.pendingTip = "gui.tacz_sewv.tdt.logo_icon.tip";
-                    }
-                }
-                case 3 -> {
-                    int btnW = 52;
-                    int gap = 6;
-                    int resetLeft = sx + innerW - inset - btnW;
-                    int applyLeft = resetLeft - gap - btnW;
-                    boolean dirty = identityDirty();
-                    g.fill(applyLeft, sy + 2, applyLeft + btnW, sy + CELL_H - 2,
-                            dirty ? COL_ACCENT : COL_MUTED);
-                    g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.identity_apply"),
-                            applyLeft + btnW / 2, sy + (CELL_H - 8) / 2, COL_BASE);
-                    g.fill(resetLeft, sy + 2, resetLeft + btnW, sy + CELL_H - 2, COL_SURFACE);
-                    g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.identity_reset"),
-                            resetLeft + btnW / 2, sy + (CELL_H - 8) / 2, COL_TEXT);
-                }
-                default -> {
-                }
-            }
-        }
     }
 
     private void drawLogoIcon(GuiGraphics g, String pool, String icon, int x, int y, boolean selected) {
@@ -1300,26 +460,22 @@ public class TdtScreen extends Screen {
         if (selected) {
             g.fill(x - 1, y - 1, x + FLOAT_ICON + 1, y + FLOAT_ICON + 1, COL_ACCENT);
         }
-        // Light plate so black-on-transparent logos stay readable on the dark TDT panel.
+        // Light plate so black-on-transparent logos stay readable on the dark panel.
         g.fill(x, y, x + FLOAT_ICON, y + FLOAT_ICON, COL_TEXT);
         g.setColor(1.0F, 1.0F, 1.0F, 1.0F);
         g.blit(tex, x, y, 0, 0, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON);
     }
 
     private void renderLogoFloat(GuiGraphics g, int mouseX, int mouseY) {
-        if (this.floatLogoPool == null) return;
-        List<String> icons = LogoPoolRegistry.iconsIn(this.floatLogoPool);
-        if (icons.isEmpty()) return;
-
-        int cols = Math.min(icons.size(), 5);
-        int rows = (icons.size() + cols - 1) / cols;
+        List<String> icons = LogoPoolRegistry.iconsIn(draftLogoPool);
+        int[] box = logoFloatBox(icons.size());
+        if (box == null) return;
         int pad = 6;
-        int fw = Math.max(cols * (FLOAT_ICON + 4) + pad * 2, 90);
-        int fh = (1 + rows) * (FLOAT_ICON + 4) + pad * 2;
-        int fx = Mth.clamp(this.floatX - fw / 2, 4, this.width - fw - 4);
-        int fy = Mth.clamp(this.floatY - fh - (int) ((1.0F - this.floatAnim) * 12.0F), 4, this.height - fh - 4);
-        // Opaque — a translucent plate let the identity row (RANDOM / pmc_default / EditBox)
-        // read through the picker and look like clipping.
+        int fx = box[0];
+        int fw = box[2];
+        int fh = box[3];
+        int fy = box[1] - (int) ((1.0F - this.floatAnim) * 12.0F);
+        // Opaque — a translucent plate let the rows read through the picker and look like clipping.
         g.fill(fx, fy, fx + fw, fy + fh, COL_BASE);
         g.fill(fx, fy, fx + fw, fy + 1, COL_ACCENT);
         g.fill(fx, fy, fx + 1, fy + fh, COL_BORDER);
@@ -1331,8 +487,7 @@ public class TdtScreen extends Screen {
         int iy = fy + pad + 16;
         for (String icon : icons) {
             boolean hover = mouseX >= ix && mouseX < ix + FLOAT_ICON && mouseY >= iy && mouseY < iy + FLOAT_ICON;
-            boolean selected = icon.equals(draftLogoId);
-            drawLogoIcon(g, this.floatLogoPool, icon, ix, iy, selected || hover);
+            drawLogoIcon(g, draftLogoPool, icon, ix, iy, icon.equals(draftLogoId) || hover);
             if (hover) {
                 g.drawString(this.font, icon, fx + pad, fy + fh - 12, COL_MUTED, false);
             }
@@ -1342,216 +497,6 @@ public class TdtScreen extends Screen {
                 iy += FLOAT_ICON + 4;
             }
         }
-    }
-
-    private void repositionCompanyField() {
-        if (this.companyField == null || this.identityExtrasY < 0) return;
-        boolean allView = this.category == Category.ALL;
-        int inset = allView ? 6 : STRIPE_W + 4;
-        int labelInset = inset;
-        int originX = this.panelLeft + PAD;
-        String label = I18n.get("gui.tacz_sewv.tdt.pmc_company");
-        int labelW = this.font.width(label);
-        int rowY = this.listTop + this.identityExtrasY - this.scroll;
-        int fieldX = originX + inset + labelInset + labelW + 4;
-        int fieldW = Math.max(40, this.contentInnerW - inset - labelInset - labelW - 8);
-        this.companyField.setX(fieldX);
-        this.companyField.setY(rowY + (CELL_H - 16) / 2);
-        this.companyField.setWidth(fieldW);
-        boolean rowVisible = rowY + CELL_H >= this.listTop && rowY <= this.listBottom;
-        this.companyField.setVisible(rowVisible && this.floatLogoPool == null);
-    }
-
-    @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        repositionCompanyField();
-        if (this.companyField != null && this.companyField.charTyped(codePoint, modifiers)) {
-            return true;
-        }
-        return super.charTyped(codePoint, modifiers);
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        repositionCompanyField();
-        if (this.companyField != null && this.companyField.keyPressed(keyCode, scanCode, modifiers)) {
-            return true;
-        }
-        return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    private void renderRibbon(GuiGraphics g) {
-        g.fill(this.panelLeft, this.ribbonTop, this.panelLeft + this.panelW, this.panelBottom, COL_BASE);
-        g.fill(this.panelLeft + PAD, this.ribbonTop, this.panelLeft + this.panelW - PAD, this.ribbonTop + 1, COL_BORDER);
-
-        boolean all = TdtSelection.allSelected();
-        String allLabel = I18n.get(all ? "gui.tacz_sewv.tdt.deselect_all" : "gui.tacz_sewv.tdt.select_all");
-        int allX = this.panelLeft + PAD;
-        int allY = this.ribbonTop + 4;
-        g.fill(allX, allY, allX + BTN_W, allY + BTN_H, COL_SURFACE);
-        if (all) {
-            g.fill(allX, allY + BTN_H - 1, allX + BTN_W, allY + BTN_H, COL_ACCENT);
-        }
-        g.drawCenteredString(this.font, allLabel, allX + BTN_W / 2, allY + 3, COL_TEXT);
-
-        int noneX = allX + BTN_W + 2;
-        g.fill(noneX, allY, noneX + BTN_W, allY + BTN_H, COL_SURFACE);
-        g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.select_none"), noneX + BTN_W / 2, allY + 3, COL_TEXT);
-
-        int liveY = allY + BTN_H + 2;
-        int liveW = 48;
-        g.fill(allX, liveY, allX + liveW, liveY + BTN_H, COL_SURFACE);
-        g.drawCenteredString(this.font, I18n.get("gui.tacz_sewv.tdt.live_sel"),
-                allX + liveW / 2, liveY + 3, COL_TEXT);
-
-        int x = allX + RIBBON_ICONS_X;
-        int y = this.ribbonTop + 6;
-
-        // Platoons get their own expandable entry, separate from the plain Kind buckets below —
-        // one icon per platoon (armor/infantry generic, per representativeKind), vehicles counted
-        // once each regardless of crew size (TdtSelection.distinctCount).
-        Map<Integer, List<TdtSelection.Entry>> byPlatoon = TdtSelection.byPlatoon();
-        for (Map.Entry<Integer, List<TdtSelection.Entry>> e : byPlatoon.entrySet()) {
-            List<TdtSelection.Entry> units = e.getValue();
-            if (units.isEmpty()) continue;
-            int color = e.getKey();
-            boolean anySelected = unitsAnySelected(units);
-            float target = anySelected ? 1.0f : 0.5f;
-            float cur = this.platoonRibbonAlpha.getOrDefault(color, 0.0f);
-            cur = cur + (target - cur) * 0.2f;
-            this.platoonRibbonAlpha.put(color, cur);
-
-            if (anySelected) {
-                g.fill(x - 1, y - 1, x + ICON_SIZE + 1, y + ICON_SIZE + 1, COL_ACCENT);
-            }
-            g.fill(x - 2, y - 2, x + ICON_SIZE + 2, y + ICON_SIZE + 3, 0xFF000000 | color);
-            ResourceLocation tex = KIND_TEX.get(TdtSelection.representativeKind(units));
-            g.setColor(1.0f, 1.0f, 1.0f, cur);
-            g.blit(tex, x, y, 0, 0, ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE);
-            g.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-            String badge = "x" + TdtSelection.distinctCount(units);
-            g.drawString(this.font, badge, x + ICON_SIZE - this.font.width(badge), y + ICON_SIZE - 8, COL_TEXT, true);
-            if (unitsAnyCommander(units)) {
-                g.drawString(this.font, "★", x - 1, y - 1, starColor(color), true);
-            }
-            x += ICON_SIZE + 6;
-            if (x + ICON_SIZE > this.panelLeft + this.panelW - PAD) break;
-        }
-        this.platoonRibbonAlpha.keySet().removeIf(k -> !byPlatoon.containsKey(k) || byPlatoon.get(k).isEmpty());
-
-        Map<VehicleMarker.Kind, List<TdtSelection.Entry>> byKind = TdtSelection.byKind();
-        for (Map.Entry<VehicleMarker.Kind, List<TdtSelection.Entry>> e : byKind.entrySet()) {
-            List<TdtSelection.Entry> units = e.getValue();
-            if (units.isEmpty()) continue;
-            boolean anySelected = unitsAnySelected(units);
-            float target = anySelected ? 1.0f : 0.5f;
-            float cur = this.ribbonAlpha.getOrDefault(e.getKey(), 0.0f);
-            cur = cur + (target - cur) * 0.2f;
-            this.ribbonAlpha.put(e.getKey(), cur);
-
-            if (anySelected) {
-                g.fill(x - 1, y - 1, x + ICON_SIZE + 1, y + ICON_SIZE + 1, COL_ACCENT);
-            }
-            ResourceLocation tex = KIND_TEX.get(e.getKey());
-            g.setColor(1.0f, 1.0f, 1.0f, cur);
-            g.blit(tex, x, y, 0, 0, ICON_SIZE, ICON_SIZE, ICON_SIZE, ICON_SIZE);
-            g.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-            // A vehicle's whole crew still counts as one — "x3" for a 3-man tank was misleading.
-            String badge = "x" + TdtSelection.distinctCount(units);
-            g.drawString(this.font, badge, x + ICON_SIZE - this.font.width(badge), y + ICON_SIZE - 8, COL_TEXT, true);
-            if (unitsAnyCommander(units)) {
-                g.drawString(this.font, "★", x - 1, y - 1, 0xFFFFD700, true);
-            }
-            x += ICON_SIZE + 6;
-            if (x + ICON_SIZE > this.panelLeft + this.panelW - PAD) break;
-        }
-        this.ribbonAlpha.keySet().removeIf(k -> !byKind.containsKey(k) || byKind.get(k).isEmpty());
-
-        String count = I18n.get("gui.tacz_sewv.tdt.selection_count",
-                TdtSelection.selectedCount(), TdtSelection.scanned().size());
-        g.drawCenteredString(this.font, count,
-                this.panelLeft + this.panelW / 2, this.ribbonTop + RIBBON_H - 12, COL_MUTED);
-    }
-
-    private void renderFloat(GuiGraphics g, int mouseX, int mouseY) {
-        List<TdtSelection.Entry> units = currentFloatUnits();
-        if (units.isEmpty()) return;
-
-        int cols = Math.min(units.size(), 5);
-        int unitRows = (units.size() + cols - 1) / cols;
-        int pad = 6;
-        int fw = Math.max(cols * (FLOAT_ICON + 4) + pad * 2, 90);
-        int fh = (1 + unitRows) * (FLOAT_ICON + 4) + pad * 2;
-        int fx = Mth.clamp(this.floatX - fw / 2 + ICON_SIZE / 2, 4, this.width - fw - 4);
-        int fyBase = Mth.clamp(this.floatY - fh, 4, this.height - fh - 4);
-        int fy = fyBase + (int) ((1.0f - this.floatAnim) * 10);
-
-        int a = (int) (this.floatAnim * 0xF0) << 24;
-        g.fill(fx, fy, fx + fw, fy + fh, a | (COL_BASE & 0xFFFFFF));
-        g.fill(fx, fy, fx + fw, fy + 1, COL_ACCENT);
-
-        // Icons first, tracking whichever one the cursor is over — the header line above them
-        // then shows that unit's name instead of the default "Select All" prompt.
-        int ix = fx + pad;
-        int iy = fy + pad + 16;
-        String hoveredName = null;
-        for (TdtSelection.Entry unit : units) {
-            boolean sel = TdtSelection.isSelected(unit.id());
-            boolean hover = mouseX >= ix && mouseX < ix + FLOAT_ICON && mouseY >= iy && mouseY < iy + FLOAT_ICON;
-            if (hover && !unit.name().isEmpty()) hoveredName = unit.name();
-            if (sel) {
-                g.fill(ix - 1, iy - 1, ix + FLOAT_ICON + 1, iy + FLOAT_ICON + 1, COL_ACCENT);
-            }
-            g.setColor(1.0f, 1.0f, 1.0f, sel ? 1.0f : 0.45f);
-            g.blit(KIND_TEX.get(unit.kind()), ix, iy, 0, 0, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON, FLOAT_ICON);
-            g.setColor(1.0f, 1.0f, 1.0f, 1.0f);
-            if (unit.platoonColorRgb() != 0) {
-                g.fill(ix, iy + FLOAT_ICON + 1, ix + FLOAT_ICON, iy + FLOAT_ICON + 2,
-                        0xFF000000 | unit.platoonColorRgb());
-            }
-            if (unit.isCommander()) {
-                g.drawString(this.font, "★", ix - 1, iy - 1, starColor(unit.platoonColorRgb()), true);
-            }
-            ix += FLOAT_ICON + 4;
-            if (ix + FLOAT_ICON > fx + fw - pad) {
-                ix = fx + pad;
-                iy += FLOAT_ICON + 4;
-            }
-        }
-
-        String header = hoveredName != null ? hoveredName : I18n.get("gui.tacz_sewv.tdt.float_select_all");
-        int headerColor = hoveredName != null ? COL_TEXT : COL_ACCENT;
-        int headerW = this.font.width(header);
-        // A full name can run wider than the flyout at small unit counts - clip rather than
-        // overflow the box the way the unpatched tab bar did.
-        if (headerW > fw - pad * 2) {
-            header = this.font.plainSubstrByWidth(header, fw - pad * 2 - this.font.width("…")) + "…";
-        }
-        g.drawCenteredString(this.font, header, fx + fw / 2, fy + pad + 2, headerColor);
-    }
-
-    /** The commander star tints with its platoon's colour when it has one; gold otherwise. */
-    private static int starColor(int platoonColorRgb) {
-        return platoonColorRgb != 0 ? (0xFF000000 | platoonColorRgb) : 0xFFFFD700;
-    }
-
-    private record StepperSpec(IntSupplier get, IntConsumer set, int min, int max, int step, int redBelow) {}
-
-    private StepperSpec stepperSpec(StepperKind kind) {
-        return switch (kind) {
-            case PATROL -> new StepperSpec(() -> patrolRadius, v -> patrolRadius = v,
-                    RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, PacketPatrolVehicle.MIN_RADIUS);
-            case SEARCH -> new StepperSpec(() -> searchRadius, v -> searchRadius = v,
-                    RADIUS_FLOOR, PacketPatrolVehicle.MAX_RADIUS, RADIUS_STEP, PacketPatrolVehicle.MIN_RADIUS);
-            case ALTITUDE -> new StepperSpec(() -> heliAltitude, v -> heliAltitude = v,
-                    PacketHelicopterCommand.MIN_ALTITUDE, PacketHelicopterCommand.MAX_ALTITUDE, ALT_STEP, 0);
-        };
-    }
-
-    @Override
-    public void removed() {
-        TdtSelection.clearGlow();
-        super.removed();
     }
 
     @Override

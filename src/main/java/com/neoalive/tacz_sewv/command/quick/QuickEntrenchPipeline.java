@@ -18,8 +18,10 @@ import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 
 /**
- * Quick Entrench: radius PMCs dig in. Multiple nearby trench networks split units by nearest
- * network so each trench fills from its local cluster.
+ * Entrench: the trench / sandbag / emplacement under the crosshair when the wheel opened, if it is
+ * one; otherwise every trench network near the issuer, units split by nearest network so each
+ * trench fills from its local cluster. The aim is resolved here, not on the client, because trench
+ * networks are server SavedData and almost every crosshair lands on <i>some</i> block.
  */
 public final class QuickEntrenchPipeline implements QuickCommandPipeline {
 
@@ -27,11 +29,21 @@ public final class QuickEntrenchPipeline implements QuickCommandPipeline {
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
         if (!(issuer.level() instanceof ServerLevel level)) return;
 
-        List<AbstractUnit> units = QuickCommandUnits.onFootOwnedAsUnits(issuer, level, context.unitIds());
+        List<AbstractUnit> units = new ArrayList<>(QuickCommandUnits.onFootOwned(issuer, level,
+                context.unitIds(), context.unitRadius(SewvConfig.QUICK_LAND_RADIUS.get())));
         if (units.isEmpty()) {
             NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_entrench.no_units", 0,
                     ChatFormatting.RED);
             return;
+        }
+
+        if (context.aimBlock() != null) {
+            int aimed = EntrenchSupport.assign(level, units, context.aimBlock());
+            if (aimed > 0) {
+                NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_entrench.started", aimed,
+                        ChatFormatting.GREEN, aimed);
+                return;
+            }
         }
 
         double radius = SewvConfig.QUICK_LAND_RADIUS.get();

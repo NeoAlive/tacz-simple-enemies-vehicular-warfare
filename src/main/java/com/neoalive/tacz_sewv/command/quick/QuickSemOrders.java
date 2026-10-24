@@ -14,7 +14,6 @@ import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
@@ -32,9 +31,8 @@ public final class QuickSemOrders {
     private QuickSemOrders() {}
 
     /** @return how many units accepted the order */
-    public static int apply(ServerPlayer issuer, List<Integer> unitIds, OrderType order) {
+    public static int apply(ServerPlayer issuer, List<Integer> unitIds, double radius, OrderType order) {
         if (!(issuer.level() instanceof ServerLevel level)) return 0;
-        double radius = SewvConfig.QUICK_LAND_RADIUS.get();
         int ok = 0;
         for (PmcUnitEntity pmc : QuickCommandUnits.owned(issuer, level, unitIds, radius)) {
             if (QuickCommandUnits.refuseFobOrRoute(issuer, pmc)) continue;

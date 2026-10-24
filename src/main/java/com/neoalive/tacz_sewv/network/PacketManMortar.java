@@ -50,6 +50,8 @@ public class PacketManMortar {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             if (player == null) return;
+            if (player instanceof net.minecraft.server.level.ServerPlayer sp
+                    && com.neoalive.tacz_sewv.command.quick.OrderQueue.capture(sp, () -> handle(ctx))) return;
 
             Entity target = player.level().getEntity(this.emplacementId);
             if (target instanceof MortarEntity mortar && mortar.isAlive()) {

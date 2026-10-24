@@ -49,7 +49,8 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
             return;
         }
 
-        List<PmcUnitEntity> units = resolveBoarders(issuer, level, context.unitIds());
+        List<PmcUnitEntity> units = resolveBoarders(issuer, level, context.unitIds(),
+                context.unitRadius(SewvConfig.QUICK_EVAC_BOARD_RADIUS.get()));
         if (units.isEmpty()) {
             NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_evac.no_units", 0,
                     ChatFormatting.RED);
@@ -186,8 +187,7 @@ public final class QuickEvacPipeline implements QuickCommandPipeline {
     }
 
     private static List<PmcUnitEntity> resolveBoarders(ServerPlayer issuer, ServerLevel level,
-                                                       List<Integer> unitIds) {
-        double radius = SewvConfig.QUICK_EVAC_BOARD_RADIUS.get();
+                                                       List<Integer> unitIds, double radius) {
         List<PmcUnitEntity> out = new ArrayList<>();
         for (PmcUnitEntity pmc : QuickCommandUnits.owned(issuer, level, unitIds, radius)) {
             if (pmc.getVehicle() != null) continue;

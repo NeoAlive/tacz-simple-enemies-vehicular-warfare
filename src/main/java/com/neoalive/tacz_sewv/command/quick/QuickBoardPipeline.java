@@ -40,7 +40,8 @@ public final class QuickBoardPipeline implements QuickCommandPipeline {
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
         if (!(issuer.level() instanceof ServerLevel level)) return;
 
-        List<PmcUnitEntity> units = QuickCommandUnits.onFootOwned(issuer, level, context.unitIds());
+        List<PmcUnitEntity> units = QuickCommandUnits.onFootOwned(issuer, level, context.unitIds(),
+                context.unitRadius(SewvConfig.QUICK_LAND_RADIUS.get()));
         if (units.isEmpty()) {
             NetworkHandler.orderFeedback(issuer, "message.tacz_sewv.quick_board.no_units", 0,
                     ChatFormatting.RED);

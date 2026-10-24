@@ -7,12 +7,10 @@ import java.util.List;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.client.PlayerRappelClient;
-import com.neoalive.tacz_sewv.client.TdtScreen;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -22,10 +20,15 @@ import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPlayerCrewRappel;
 import com.neoalive.tacz_sewv.network.PacketPlayerSelfRappel;
 import com.neoalive.tacz_sewv.network.PacketPlayerSelfRappelLock;
+import com.neoalive.tacz_sewv.network.PacketRappelHelicopter;
 
 /**
- * Client-side Air quick commands: player rappel + radius takeoff/landing/emergency land
- * (TDT reinvoke). Eligibility is evaluated live so the wheel can gray wedges that cannot fire.
+ * Client-side Air wheel orders: player rappel + takeoff / landing / emergency land / AI rappel.
+ * Eligibility is evaluated live so the wheel can gray wedges that cannot fire.
+ *
+ * <p>Pilots follow the wheel's scope ({@link WheelScope}): the selection mapped onto each hull's
+ * stick (seat 0), else owned pilots within the Evacuation heli radius. A selected gunner or
+ * passenger therefore orders the aircraft it rides in.
  */
 public final class QuickAirClient {
 
@@ -46,12 +49,13 @@ public final class QuickAirClient {
         if (QuickCommandRegistry.ID_RAPPEL_SELF.equals(pipelineId)) {
             return canSelfRappel(mc);
         }
+        // Rappel Crew: your own helicopter if you fly one, otherwise owned AI helicopter pilots.
         if (QuickCommandRegistry.ID_RAPPEL_CREW.equals(pipelineId)) {
-            return canCrewRappel(mc);
+            return flyingHelicopter(mc) || !findPilots(mc, false).isEmpty();
         }
         if (QuickCommandRegistry.ID_QUICK_TAKEOFF.equals(pipelineId)
                 || QuickCommandRegistry.ID_QUICK_EMERGENCY_LAND.equals(pipelineId)) {
-            return !findAircraftPilots(mc).isEmpty();
+            return !findPilots(mc, null).isEmpty();
         }
         // Runway landing is fixed-wing only, helipad landing rotary-wing only.
         if (QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)) {
@@ -74,31 +78,32 @@ public final class QuickAirClient {
             return true;
         }
         if (QuickCommandRegistry.ID_RAPPEL_CREW.equals(pipelineId)) {
-            NetworkHandler.CHANNEL.sendToServer(new PacketPlayerCrewRappel());
+            if (flyingHelicopter(mc)) {
+                NetworkHandler.CHANNEL.sendToServer(new PacketPlayerCrewRappel());
+            } else {
+                NetworkHandler.CHANNEL.sendToServer(new PacketRappelHelicopter(findPilots(mc, false)));
+            }
             return true;
         }
+        List<Integer> pilots = pilotsFor(pipelineId);
+        if (pilots.isEmpty()) return false;
         if (QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)) {
-            List<Integer> planes = findPilots(mc, true);
-            if (planes.isEmpty()) return false;
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
-                    planes, IHelicopterPilot.HELI_CMD_LANDING, mc.player.blockPosition(), 0));
+                    pilots, IHelicopterPilot.HELI_CMD_LANDING, mc.player.blockPosition(), 0));
             return true;
         }
         if (QuickCommandRegistry.ID_QUICK_LAND_HELIPAD.equals(pipelineId)) {
-            List<Integer> helis = findPilots(mc, false);
-            if (helis.isEmpty()) return false;
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
-                    helis, IHelicopterPilot.HELI_CMD_LAND_HELIPAD, null, 0));
+                    pilots, IHelicopterPilot.HELI_CMD_LAND_HELIPAD, null, 0));
             return true;
         }
-        List<Integer> pilots = findAircraftPilots(mc);
-        if (pilots.isEmpty()) return false;
+        // Takeoff on an aircraft already flying retrims it to the new cruise altitude.
         if (QuickCommandRegistry.ID_QUICK_TAKEOFF.equals(pipelineId)) {
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
-                    pilots, IHelicopterPilot.HELI_CMD_TAKEOFF, null, TdtScreen.heliAltitude()));
+                    pilots, IHelicopterPilot.HELI_CMD_TAKEOFF, null, OrderScales.heliAltitude()));
             return true;
         }
-        // Same as TDT: no pad — server picks flat ground next to each aircraft.
+        // No pad — server picks flat ground next to each aircraft.
         if (QuickCommandRegistry.ID_QUICK_EMERGENCY_LAND.equals(pipelineId)) {
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
                     pilots, IHelicopterPilot.HELI_CMD_EMERGENCY_LAND, null, 0));
@@ -112,8 +117,11 @@ public final class QuickAirClient {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return List.of();
         if (QuickCommandRegistry.ID_QUICK_LANDING.equals(pipelineId)) return findPilots(mc, true);
-        if (QuickCommandRegistry.ID_QUICK_LAND_HELIPAD.equals(pipelineId)) return findPilots(mc, false);
-        return findAircraftPilots(mc);
+        if (QuickCommandRegistry.ID_QUICK_LAND_HELIPAD.equals(pipelineId)
+                || QuickCommandRegistry.ID_RAPPEL_CREW.equals(pipelineId)) {
+            return findPilots(mc, false);
+        }
+        return findPilots(mc, null);
     }
 
     private static boolean canSelfRappel(Minecraft mc) {
@@ -124,38 +132,34 @@ public final class QuickAirClient {
         return PlayerRappelClient.lockMode() == PacketPlayerSelfRappelLock.MODE_OFF;
     }
 
-    private static boolean canCrewRappel(Minecraft mc) {
-        if (!(mc.player.getVehicle() instanceof VehicleEntity hull)
-                || !HullFacts.isHelicopterHull(hull)) {
-            return false;
-        }
-        return hull.getFirstPassenger() == mc.player;
-    }
-
-    private static List<Integer> findAircraftPilots(Minecraft mc) {
-        return findPilots(mc, null);
+    /** The player is a helicopter's stick — Rappel Crew then drops the player's own passengers. */
+    private static boolean flyingHelicopter(Minecraft mc) {
+        return mc.player.getVehicle() instanceof VehicleEntity hull
+                && HullFacts.isHelicopterHull(hull)
+                && hull.getFirstPassenger() == mc.player;
     }
 
     /**
-     * Owned aircraft drivers within the Quick Evac heli search radius.
+     * Owned aircraft pilots in the wheel's scope.
      *
      * @param planes {@code true} for fixed-wing only, {@code false} for rotary-wing only, null for both
      */
     private static List<Integer> findPilots(Minecraft mc, @javax.annotation.Nullable Boolean planes) {
         Player player = mc.player;
-        double radius = SewvConfig.QUICK_EVAC_HELI_SEARCH_RADIUS.get();
-        double r2 = radius * radius;
-        AABB box = player.getBoundingBox().inflate(radius);
         LinkedHashSet<Integer> out = new LinkedHashSet<>();
-        for (PmcUnitEntity pmc : mc.level.getEntitiesOfClass(PmcUnitEntity.class, box,
-                u -> u.isAlive() && PmcOwnerSupport.isOwner(player, u))) {
-            if (pmc.distanceToSqr(player) > r2) continue;
+        // Any crew member stands for its stick; the radius is the horizontal heli search reach.
+        for (int id : WheelScope.units(false, SewvConfig.QUICK_EVAC_HELI_SEARCH_RADIUS.get(),
+                pmc -> pmc.getVehicle() instanceof VehicleEntity)) {
+            if (!(mc.level.getEntity(id) instanceof PmcUnitEntity pmc)) continue;
             if (!(pmc.getVehicle() instanceof VehicleEntity hull)) continue;
-            if (hull.getFirstPassenger() != pmc) continue;
+            if (!(hull.getFirstPassenger() instanceof PmcUnitEntity pilot)
+                    || !PmcOwnerSupport.isOwner(player, pilot)) {
+                continue;
+            }
             boolean plane = HullFacts.isPlaneHull(hull);
             if (!plane && !HullFacts.isHelicopterHull(hull)) continue;
             if (planes != null && planes != plane) continue;
-            out.add(pmc.getId());
+            out.add(pilot.getId());
         }
         return new ArrayList<>(out);
     }

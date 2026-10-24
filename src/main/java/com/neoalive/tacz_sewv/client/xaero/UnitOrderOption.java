@@ -25,7 +25,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.FobClientRoute;
 import com.neoalive.tacz_sewv.client.MapMarkers;
-import com.neoalive.tacz_sewv.client.TdtScreen;
+import com.neoalive.tacz_sewv.client.radial.OrderScales;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -235,7 +235,7 @@ public class UnitOrderOption extends RightClickOption {
             // The area centres on the CLICKED point, which is the whole reason these are map orders.
             boolean search = this.action == Action.SAD_HERE;
             NetworkHandler.CHANNEL.sendToServer(new PacketPatrolVehicle(new ArrayList<>(drivers),
-                    search ? TdtScreen.searchRadius() : TdtScreen.patrolRadius(),
+                    search ? OrderScales.searchRadius() : OrderScales.patrolRadius(),
                     search ? IVehiclePatrol.MODE_SEARCH : IVehiclePatrol.MODE_PATROL,
                     mapPos(player)));
             return;
@@ -252,7 +252,7 @@ public class UnitOrderOption extends RightClickOption {
             // filters the selection down to actual aircraft pilots and reports the count itself.
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
                     new ArrayList<>(drivers), IHelicopterPilot.HELI_CMD_TAKEOFF, null,
-                    TdtScreen.heliAltitude()));
+                    OrderScales.heliAltitude()));
             return;
         }
 

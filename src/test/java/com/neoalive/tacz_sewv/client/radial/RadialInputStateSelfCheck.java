@@ -22,6 +22,7 @@ public final class RadialInputStateSelfCheck {
         commitInDeadzoneIsNoOp();
         popAtRootCloses();
         popFromSubmenuResetsHot();
+        orderScalesClampAndStep();
 
         System.out.println("radial input self-check: OK");
     }
@@ -100,5 +101,18 @@ public final class RadialInputStateSelfCheck {
         assert !state.popMenu();
         assert state.depth() == 1;
         assert state.hotIndex() == -1 : "pop must clear hot";
+    }
+
+    private static void orderScalesClampAndStep() {
+        OrderScales.Scale r = OrderScales.Scale.PATROL;
+        assert OrderScales.stepped(r, 256, 1, false) == 272 : "fine step";
+        assert OrderScales.stepped(r, 256, -1, true) == 256 - 16 * OrderScales.COARSE : "coarse step";
+        assert OrderScales.stepped(r, r.min, -1, true) == r.min : "floor holds";
+        assert OrderScales.stepped(r, r.max, 1, false) == r.max : "ceiling holds";
+        assert OrderScales.clamp(r, 0) == 48 : "never below the packet minimum";
+        OrderScales.Scale alt = OrderScales.Scale.ALTITUDE;
+        assert OrderScales.get(alt) >= alt.min && OrderScales.get(alt) <= alt.max : "initial in range";
+        assert OrderScales.forPipeline("quick_takeoff") == alt : "takeoff carries altitude";
+        assert OrderScales.forPipeline("quick_hold") == null : "plain orders carry none";
     }
 }

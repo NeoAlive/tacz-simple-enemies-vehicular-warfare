@@ -43,6 +43,21 @@ public final class QuickCommandKeybind {
             GLFW.GLFW_KEY_COMMA,
             CATEGORY);
 
+    /**
+     * Selection keys, read only while the wheel is held (the wheel owns the mouse, so selection can
+     * not be wedges of its own). GUI context: they never compete with in-game bindings, and the wheel
+     * polls them through GLFW exactly like Tab.
+     */
+    public static final KeyMapping SELECT_ALL = new KeyMapping(
+            "key." + TaczSewv.MODID + ".wheel_select_all",
+            KeyConflictContext.GUI, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_A, CATEGORY);
+    public static final KeyMapping SELECT_NONE = new KeyMapping(
+            "key." + TaczSewv.MODID + ".wheel_select_none",
+            KeyConflictContext.GUI, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_N, CATEGORY);
+    public static final KeyMapping LIVE_SELECT = new KeyMapping(
+            "key." + TaczSewv.MODID + ".wheel_live_select",
+            KeyConflictContext.GUI, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_L, CATEGORY);
+
     private static boolean wasDown;
 
     private QuickCommandKeybind() {}
@@ -97,7 +112,12 @@ public final class QuickCommandKeybind {
 
     /** Whether the bound wheel key is physically held (Screen-safe). */
     public static boolean isBoundKeyPhysicallyDown(Minecraft mc) {
-        InputConstants.Key key = OPEN_WHEEL.getKey();
+        return isPhysicallyDown(mc, OPEN_WHEEL);
+    }
+
+    /** Whether {@code mapping}'s bound key is physically held — readable while a Screen is open. */
+    public static boolean isPhysicallyDown(Minecraft mc, KeyMapping mapping) {
+        InputConstants.Key key = mapping.getKey();
         long window = mc.getWindow().getWindow();
         if (key.getType() == InputConstants.Type.MOUSE) {
             return GLFW.glfwGetMouseButton(window, key.getValue()) == GLFW.GLFW_PRESS;
@@ -105,7 +125,7 @@ public final class QuickCommandKeybind {
         if (key.getType() == InputConstants.Type.KEYSYM) {
             return GLFW.glfwGetKey(window, key.getValue()) == GLFW.GLFW_PRESS;
         }
-        return OPEN_WHEEL.isDown();
+        return mapping.isDown();
     }
 
     /** TDT anywhere in the player's inventory (including offhand / hotbar), not only held. */

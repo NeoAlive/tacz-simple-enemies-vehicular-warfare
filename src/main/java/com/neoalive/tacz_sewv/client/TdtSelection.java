@@ -27,9 +27,9 @@ import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
- * Client-side unit selection for the Tactical Data Terminal ribbon. Scan matches
- * {@link BoardKeybind}'s owned-PMC cylinder; {@link #resolve} prefers an explicit ribbon
- * selection, then SEM's pick-mode snapshot, then every owned unit in range.
+ * Client-side unit selection the Quick Wheel orders (A / N / Live Select / the Select category).
+ * The name predates the wheel: it was the Tactical Data Terminal's ribbon. Who an order reaches is
+ * decided by {@link com.neoalive.tacz_sewv.client.radial.WheelScope}, not here.
  */
 public final class TdtSelection {
 
@@ -92,22 +92,6 @@ public final class TdtSelection {
         });
     }
 
-    /**
-     * Unit ids an order should hit: ribbon selection if any, else SEM pick snapshot if any.
-     * Empty when neither is set — never fall through to every owned unit in range (that caused
-     * accidental mass orders from the TDT).
-     */
-    public static List<Integer> resolve(double radius) {
-        if (!SELECTED.isEmpty()) {
-            return List.copyOf(SELECTED);
-        }
-        Set<Integer> snap = CommanderOverlayRenderer.selectedUnitsSnapshot;
-        if (snap != null && !snap.isEmpty()) {
-            return new ArrayList<>(snap);
-        }
-        return List.of();
-    }
-
     public static void toggle(int id) {
         if (!SELECTED.add(id)) {
             SELECTED.remove(id);
@@ -145,6 +129,26 @@ public final class TdtSelection {
         } else {
             selectAll();
         }
+    }
+
+    /** Select the whole group if none of it is selected yet, otherwise deselect all of it. */
+    public static void toggleGroup(List<Entry> entries) {
+        boolean anySelected = anySelected(entries);
+        for (Entry e : entries) {
+            if (anySelected) {
+                SELECTED.remove(e.id());
+            } else {
+                SELECTED.add(e.id());
+            }
+        }
+        syncGlow();
+    }
+
+    public static boolean anySelected(List<Entry> entries) {
+        for (Entry e : entries) {
+            if (SELECTED.contains(e.id())) return true;
+        }
+        return false;
     }
 
     public static boolean allSelected() {
@@ -197,11 +201,6 @@ public final class TdtSelection {
 
     public static void clearGlow() {
         ClientGlowManager.clear();
-    }
-
-    /** Copy selection into SEM's pick-mode snapshot (Move To / Attack that). */
-    public static void writeSnapshot() {
-        CommanderOverlayRenderer.selectedUnitsSnapshot = new LinkedHashSet<>(SELECTED);
     }
 
     /** Seed SEM's pick-mode snapshot from an explicit id list (Quick Attack). */

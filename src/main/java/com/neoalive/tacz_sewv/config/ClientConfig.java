@@ -18,7 +18,6 @@ public final class ClientConfig {
     public static final ModConfigSpec SPEC;
 
     public static final ModConfigSpec.BooleanValue SHOW_ORDER_FEEDBACK;
-    public static final ModConfigSpec.BooleanValue QUICK_EVAC_PULL_SELECTED_FROM_RIBBON;
     public static final ModConfigSpec.BooleanValue FACTION_COLORS_ENABLED;
     public static final ModConfigSpec.ConfigValue<String> COLOR_RU;
     public static final ModConfigSpec.ConfigValue<String> COLOR_US;
@@ -63,11 +62,6 @@ public final class ClientConfig {
         SHOW_ORDER_FEEDBACK = builder
                 .comment("Show a short message above the hotbar when an order succeeds.")
                 .define("showOrderFeedback", true);
-        QUICK_EVAC_PULL_SELECTED_FROM_RIBBON = builder
-                .comment("Quick Evac unit pick only: off (default) = all owned on-foot PMCs within",
-                        "quickEvacBoardRadius of the player. On = ribbon/SEM selection only.",
-                        "Does not affect Board / Follow / Formation / other pipelines.")
-                .define("quickEvacPullSelectedFromRibbon", false);
         builder.pop();
 
         builder.push("overlay");

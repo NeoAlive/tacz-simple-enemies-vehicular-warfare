@@ -70,6 +70,9 @@ public final class TdtKeybind {
             event.register(MapMarkersKeybind.TOGGLE_MAP_MARKERS);
             event.register(NotificationDismissKeybind.DISMISS);
             event.register(QuickCommandKeybind.OPEN_WHEEL);
+            event.register(QuickCommandKeybind.SELECT_ALL);
+            event.register(QuickCommandKeybind.SELECT_NONE);
+            event.register(QuickCommandKeybind.LIVE_SELECT);
         }
     }
 

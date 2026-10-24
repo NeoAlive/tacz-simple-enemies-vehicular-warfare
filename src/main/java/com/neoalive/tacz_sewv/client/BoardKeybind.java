@@ -1,6 +1,5 @@
 package com.neoalive.tacz_sewv.client;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -13,63 +12,57 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.nekoyuni.SimpleEnemyMod.client.gui.overlay.CommanderOverlayRenderer;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.client.radial.WheelScope;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketBailOutVehicle;
 import com.neoalive.tacz_sewv.network.PacketBoardVehicle;
-import com.neoalive.tacz_sewv.network.PacketDismountVehicle;
 import com.neoalive.tacz_sewv.network.PacketManMortar;
 import com.neoalive.tacz_sewv.network.PacketParatroop;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
 
-/** Board/dismount orders sent from the Tactical Data Terminal ({@link TdtScreen}). */
+/** Unit orders the Quick Wheel sends on packets of their own (not {@code PacketQuickCommand}). */
 public class BoardKeybind {
 
-    private static final double CLIENT_DISCOVERY_RADIUS = 512.0;
+    /** True for anything a Board order can crew: a hull to ride, or a mortar / Type63 to stand beside. */
+    public static boolean isBoardable(@Nullable Entity target) {
+        return target instanceof VehicleEntity || LvCompat.isCrewableHull(target);
+    }
 
     /**
-     * Order owned units to crew {@code target} — a vehicle to ride or a mortar to stand
-     * beside. The TDT captures the aim when its screen opens and passes it here; a
-     * null/non-vehicle target hints to look at one. With {@code passengerOnly} the units fill
-     * non-driver seats only (ignored for a mortar, which has no seats at all).
+     * Order the wheel's units to crew {@code target} — a vehicle to ride or a mortar to stand
+     * beside. With {@code passengerOnly} the units fill non-driver seats only (ignored for a mortar,
+     * which has no seats at all).
+     *
+     * @return whether an order was sent
      */
-    public static void orderBoard(@Nullable Entity target, boolean passengerOnly) {
-        withOwnedUnits(pmc -> true, "message.tacz_sewv.board.no_units", (player, unitIds) -> {
+    public static boolean orderBoard(Entity target, boolean passengerOnly) {
+        return withOwnedUnits(null, "message.tacz_sewv.board.no_units", (player, unitIds) -> {
             // A mortar is a VehicleEntity too, but it has no seats to ride: crewing one means
             // standing beside it, which is a different order entirely. Check it first, since
             // the vehicle branch would otherwise swallow it and send units to board something
             // they can never sit in.
             if (target instanceof MortarEntity || target instanceof Type63Entity) {
                 NetworkHandler.CHANNEL.sendToServer(new PacketManMortar(unitIds, target.getId()));
-            } else if (target instanceof VehicleEntity vehicle) {
-                NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, vehicle.getId(), passengerOnly));
-            } else if (LvCompat.isCrewableHull(target)) {
-                // A Limitless Vehicles hull: same order, same packet; the server routes it.
-                NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, target.getId(), passengerOnly));
             } else {
-                hint(player, "message.tacz_sewv.board.no_vehicle");
+                // A Limitless Vehicles hull takes the same order and packet; the server routes it.
+                NetworkHandler.CHANNEL.sendToServer(new PacketBoardVehicle(unitIds, target.getId(), passengerOnly));
             }
         });
-    }
-
-    public static void orderDismount() {
-        withOwnedUnits(pmc -> true, "message.tacz_sewv.board.no_units",
-                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketDismountVehicle(unitIds)));
     }
 
     /**
      * Emergency bail — server expands to every owned PMC on those hulls (parachute / scramble /
      * full stand-down). Not a simple dismount.
      */
-    public static void orderBailOut() {
-        withOwnedUnits(pmc -> pmc.getVehicle() != null, "message.tacz_sewv.board.no_units",
+    public static boolean orderBailOut() {
+        return withOwnedUnits(pmc -> pmc.getVehicle() != null, "message.tacz_sewv.board.no_units",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketBailOutVehicle(unitIds)));
     }
 
@@ -77,39 +70,23 @@ public class BoardKeybind {
      * Air assault drop — server expands to weaponless cargo only (same seat filter as rappel),
      * then queues the parachute bail pathway. Pilot / gunners stay aboard.
      */
-    public static void orderParatroop() {
-        withOwnedUnits(pmc -> pmc.getVehicle() != null, "message.tacz_sewv.paratroop.none",
+    public static boolean orderParatroop() {
+        return withOwnedUnits(pmc -> pmc.getVehicle() != null, "message.tacz_sewv.paratroop.none",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketParatroop(unitIds)));
     }
 
     /**
      * Order owned crews onto an area task over a {@code radius}-block circle around the player —
-     * an endless patrol or a one-time search sweep ({@code mode}, see IVehiclePatrol). The server
-     * filters to ground-vehicle drivers and uses the player's own position as the origin; the TDT
-     * has already checked the radius floor before calling this.
+     * an endless patrol or a one-time search sweep ({@code mode}, see IVehiclePatrol), or
+     * {@code MODE_DISMISS} to stand them down. The server filters to ground-vehicle drivers and uses
+     * the player's own position as the origin.
      */
-    public static void orderAreaTask(int radius, int mode) {
-        withOwnedUnits(pmc -> true, "message.tacz_sewv.board.no_units",
+    public static boolean orderAreaTask(int radius, int mode) {
+        return withOwnedUnits(null, "message.tacz_sewv.board.no_units",
                 (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(new PacketPatrolVehicle(unitIds, radius, mode)));
     }
 
-    /**
-     * Form owned crews into {@code shape} along {@code axisInt} with WIDTH/LENGTH stretch.
-     * {@code rowSize} is the LINE units-per-row (internal default). {@code anchorMode} picks
-     * whether the slots re-centre on the commander every tick or hold a frozen world point — see
-     * {@link com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode}. The server numbers
-     * the slots and re-checks ownership / composition.
-     */
-    public static void orderFormation(FormationShape shape, int axisInt, int rowSize,
-                                      float widthStretch, float lengthStretch,
-                                      FormationAnchorMode anchorMode) {
-        withOwnedUnits(pmc -> true, "message.tacz_sewv.board.no_units",
-                (player, unitIds) -> NetworkHandler.CHANNEL.sendToServer(
-                        new PacketVehicleFormation(unitIds, shape, axisInt, Float.NaN, rowSize,
-                                widthStretch, lengthStretch, anchorMode)));
-    }
-
-    /** Quick-wheel path: explicit unit ids already resolved by the wheel. */
+    /** Explicit unit ids already resolved by the wheel. */
     public static void orderFormation(List<Integer> unitIds, FormationShape shape, int axisInt, float yaw,
                                       int rowSize, float widthStretch, float lengthStretch,
                                       FormationAnchorMode anchorMode) {
@@ -120,51 +97,27 @@ public class BoardKeybind {
     }
 
     /**
-     * The shared preamble of every TDT order: this player's owned units within the configured
-     * radius that pass {@code filter}, handed to {@code order} — or a GRAY hint when there are
-     * none. The server re-checks ownership per unit before acting on whatever the order sends,
-     * so a stale client list can never command another player's units.
+     * The shared preamble of every such order: the wheel's units ({@link WheelScope} — the
+     * selection, else owned units nearby) that pass {@code filter}, handed to {@code order} — or a
+     * GRAY hint when there are none. The server re-checks ownership per unit before acting on
+     * whatever the order sends, so a stale client list can never command another player's units.
+     *
+     * @param filter null when the order needs no client-side test (see {@link WheelScope#units})
+     * @return whether {@code order} ran
      */
-    public static void withOwnedUnits(Predicate<PmcUnitEntity> filter, String emptyKey,
-                               BiConsumer<Player, List<Integer>> order) {
-        withOwnedUnits(CLIENT_DISCOVERY_RADIUS, filter, emptyKey, order);
-    }
-
-    /**
-     * As above, but with an explicit {@code radius} — the aircraft command path passes a larger one
-     * (planeCommandRadius) since planes fly high and far. The reach is HORIZONTAL and the query box is
-     * made tall, so a plane cruising overhead is not dropped by a vertical extent the way a symmetric
-     * box would drop it — the same fix the fire-mission scan uses.
-     */
-    static void withOwnedUnits(double radius, Predicate<PmcUnitEntity> filter, String emptyKey,
-                               BiConsumer<Player, List<Integer>> order) {
+    public static boolean withOwnedUnits(@Nullable Predicate<PmcUnitEntity> filter, String emptyKey,
+                                         BiConsumer<Player, List<Integer>> order) {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
-        if (player == null || mc.level == null) return;
+        if (player == null || mc.level == null) return false;
 
-        // Ribbon / SEM snapshot first; otherwise the same owned-PMC cylinder as before.
-        List<Integer> unitIds = new ArrayList<>();
-        for (int id : TdtSelection.resolve(radius)) {
-            if (!(mc.level.getEntity(id) instanceof PmcUnitEntity pmc)) continue;
-            if (!pmc.isOwnedBy(player) || !filter.test(pmc)) continue;
-            // A posted unit is commandable only through the RTS panel (the server refuses it anyway).
-            if (com.neoalive.tacz_sewv.client.territory.TerritoryClient.inTerritory(id)) continue;
-            unitIds.add(id);
-        }
-
+        List<Integer> unitIds = WheelScope.units(false, WheelScope.nearbyRadius(), filter);
         if (unitIds.isEmpty()) {
-            // Prefer the selection refuse when the ribbon/snapshot is empty — emptyKey is for
-            // "filter matched nobody", not "forgot to pick units".
-            if (TdtSelection.selected().isEmpty()
-                    && (CommanderOverlayRenderer.selectedUnitsSnapshot == null
-                    || CommanderOverlayRenderer.selectedUnitsSnapshot.isEmpty())) {
-                hint(player, "message.tacz_sewv.tdt.need_selection");
-            } else {
-                hint(player, emptyKey);
-            }
-            return;
+            hint(player, WheelScope.emptyKey(emptyKey));
+            return false;
         }
         order.accept(player, unitIds);
+        return true;
     }
 
     /** An order's outcome, so chat rather than the bar — see {@code PacketOrderFeedback.show}. */

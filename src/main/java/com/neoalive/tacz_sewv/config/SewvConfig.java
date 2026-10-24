@@ -227,6 +227,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PATH_TARGET_DRIFT_BLOCKS;
     // groundPathingDebug/shipPathingDebug/sewvDiagDebug → ClientConfig (Config UI Client → Debug).
     public static final ForgeConfigSpec.BooleanValue KOMODO_RENDER_FIX_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue TRIPOD_STANDOFF_DISTANCE;
     public static final ForgeConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
     public static final ForgeConfigSpec.IntValue IDLE_WANDER_RADIUS;
@@ -1017,6 +1018,11 @@ public final class SewvConfig {
                         "replay. This makes that fallback no-op for that one frame instead of crashing when it is",
                         "not safely on the render thread. No known downside; turn off only to isolate a Komodo bug report.")
                 .define("komodoRenderFixEnabled", true);
+        TRIPOD_STANDOFF_DISTANCE = builder.comment(
+                        "Tripod Invasion only. RU/US units (on foot, ground hulls, boats) back off when a tripod",
+                        "is closer than this many blocks (horizontal), and fight it from beyond it. Fixed weapons",
+                        "inside it are abandoned. The tripod's heat ray reaches 96 blocks by default.")
+                .defineInRange("tripodStandoffDistance", 70.0, 16.0, 256.0);
         PATROL_ROTATE_INTERVAL_TICKS = builder.comment("How long (game ticks) a patrol holds one spot before moving on.")
                 .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
         IDLE_WANDER_ENABLED = builder.comment(

@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.FollowLeash;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleCrew;
 import com.neoalive.tacz_sewv.fob.FobSupport;
@@ -32,6 +33,9 @@ import com.neoalive.tacz_sewv.fob.FobSupport;
  * the other SEM on-foot tactical goals use): a seated unit cannot walk, yet the goal's
  * {@code start} still ran SEM's ground path and ladder-route search toward its target every time
  * it fired — measured at ~2.35% of the server thread in a large battle.
+ *
+ * <p>An RU/US unit fighting a tripod is gated off inside the standoff ({@link TripodCompat#holdsStandoff}),
+ * or the chase would walk it straight back into the ring {@code TripodStandoffGoal} just took it out of.
  */
 @Mixin(MoveToAttackRangeGoal.class)
 public abstract class MixinMoveToAttackRangeGoal {
@@ -44,7 +48,8 @@ public abstract class MixinMoveToAttackRangeGoal {
     @Inject(method = "canUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$holdWhenLeashed(CallbackInfoReturnable<Boolean> cir) {
         if (VehicleCrew.suppressOnFootAi(this.mob)
-                || FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)) {
+                || FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)
+                || TripodCompat.holdsStandoff(this.mob)) {
             cir.setReturnValue(false);
         }
     }
@@ -52,7 +57,8 @@ public abstract class MixinMoveToAttackRangeGoal {
     @Inject(method = "canContinueToUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$stopWhenLeashed(CallbackInfoReturnable<Boolean> cir) {
         if (VehicleCrew.suppressOnFootAi(this.mob)
-                || FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)) {
+                || FollowLeash.leashed(this.mob) || FobSupport.hasRoutePending(this.mob)
+                || TripodCompat.holdsStandoff(this.mob)) {
             cir.setReturnValue(false);
         }
     }

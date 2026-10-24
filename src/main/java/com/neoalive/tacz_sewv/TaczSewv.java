@@ -94,6 +94,9 @@ public class TaczSewv {
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.ChunkTicketCoverage.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.core.ObbHitIndex.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.support.UnitLod.class);
+        if (com.neoalive.tacz_sewv.compat.TripodCompat.present()) {
+            MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.compat.TripodCompat.Events.class);
+        }
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.crew.UnitJoinBudget.class);
         // Server-side half of the map markers: it only ever SENDS, so it is registered
         // unconditionally — a client with no map mod simply ignores the packet.

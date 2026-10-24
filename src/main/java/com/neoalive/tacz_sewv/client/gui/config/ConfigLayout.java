@@ -96,6 +96,7 @@ public final class ConfigLayout {
         rule("compat", "trees", "vehicleTree");
         rule("compat", "minecolonies", "minecolonies");
         rule("compat", "rendering", "komodo");
+        rule("compat", "tripod", "tripod");
     }
 
     private static boolean checked;

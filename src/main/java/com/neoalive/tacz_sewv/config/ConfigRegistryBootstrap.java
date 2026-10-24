@@ -971,5 +971,7 @@ final class ConfigRegistryBootstrap {
         // Komodo (client mixin, value lives in server/common toml)
         b.bool(ConfigScope.SERVER, "compat", "komodoRenderFixEnabled",
                 SewvConfig.KOMODO_RENDER_FIX_ENABLED, SewvConfig.KOMODO_RENDER_FIX_ENABLED::set);
+        b.doubleRange(ConfigScope.SERVER, "compat", "tripodStandoffDistance", 16.0, 256.0,
+                SewvConfig.TRIPOD_STANDOFF_DISTANCE, SewvConfig.TRIPOD_STANDOFF_DISTANCE::set);
     }
 }

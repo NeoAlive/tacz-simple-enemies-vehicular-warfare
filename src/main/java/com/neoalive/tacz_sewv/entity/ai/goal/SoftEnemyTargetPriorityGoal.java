@@ -1,8 +1,11 @@
 package com.neoalive.tacz_sewv.entity.ai.goal;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Predicate;
 
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -11,6 +14,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.compat.SoftEnemyTargeting;
 import com.neoalive.tacz_sewv.compat.SoftEnemyTargeting.Tier;
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -32,6 +36,12 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
  * unit, mounted or not — so its very first gate is {@link SoftEnemyTargeting#anyPresent()}: with
  * neither mod installed this returns false before touching the world at all, exactly the
  * "implemented only if present" softcompat this is.
+ *
+ * <p>A second instance with {@code minTier = APEX} sits at priority 0 when Tripod Invasion is
+ * present ({@link TripodCompat}): strictly above retaliation and every priority-1 pick, so a tripod
+ * is the top target for PMC/RU/US. It ties only with SEM's ATTACK_THAT_TARGET goal, which runs
+ * exactly when {@link VehicleTargeting#ordersAllowAutoTargets} switches this one off. Its candidates
+ * are the tripod list, never a world scan.
  */
 public class SoftEnemyTargetPriorityGoal extends Goal {
 
@@ -39,18 +49,25 @@ public class SoftEnemyTargetPriorityGoal extends Goal {
     private static final double DROP_MULT = 1.5;
 
     private final AbstractUnit unit;
+    /** Lowest tier this instance picks or holds; NONE = the original priority-1 behaviour. */
+    private final Tier minTier;
     private LivingEntity pendingTarget;
     private int scanCooldown;
 
     public SoftEnemyTargetPriorityGoal(AbstractUnit unit) {
+        this(unit, Tier.NONE);
+    }
+
+    public SoftEnemyTargetPriorityGoal(AbstractUnit unit, Tier minTier) {
         this.unit = unit;
+        this.minTier = minTier;
         this.setFlags(EnumSet.of(Flag.TARGET));
     }
 
     @Override
     public boolean canUse() {
         if (this.unit.level().isClientSide()) return false;
-        if (!SoftEnemyTargeting.anyPresent()) return false;
+        if (this.minTier == Tier.APEX ? !TripodCompat.present() : !SoftEnemyTargeting.anyPresent()) return false;
         if (!VehicleTargeting.ordersAllowAutoTargets(this.unit)) return false;
 
         LivingEntity current = this.unit.getTarget();
@@ -58,7 +75,7 @@ public class SoftEnemyTargetPriorityGoal extends Goal {
                 ? SoftEnemyTargeting.classify(current)
                 : Tier.NONE;
         // Already on the top tier — nothing can outrank it, so don't pay for a scan.
-        if (currentTier == Tier.PRIME) return false;
+        if (currentTier == Tier.APEX || (this.minTier != Tier.APEX && currentTier == Tier.PRIME)) return false;
 
         if (this.scanCooldown > 0) {
             this.scanCooldown--;
@@ -84,7 +101,8 @@ public class SoftEnemyTargetPriorityGoal extends Goal {
         if (target == null || !target.isAlive()) return false;
         // The crew moved on to something else (retaliation, an order) — let it go rather than
         // drag it back; this goal's job is the pick, not custody.
-        if (SoftEnemyTargeting.classify(target) == Tier.NONE) return false;
+        Tier tier = SoftEnemyTargeting.classify(target);
+        if (tier == Tier.NONE || tier.ordinal() < this.minTier.ordinal()) return false;
 
         double drop = scanRadius() * DROP_MULT;
         return this.unit.distanceToSqr(target) <= drop * drop;
@@ -103,11 +121,19 @@ public class SoftEnemyTargetPriorityGoal extends Goal {
         double radius = scanRadius();
         double radiusSq = radius * radius;
 
-        List<LivingEntity> candidates = this.unit.level().getEntitiesOfClass(
-                LivingEntity.class, new AABB(this.unit.blockPosition()).inflate(radius),
-                e -> SoftEnemyTargeting.classify(e).ordinal() > currentTier.ordinal()
-                        && VehicleTargeting.isValidHostileTarget(this.unit, e)
-                        && this.unit.distanceToSqr(e) <= radiusSq);
+        Predicate<LivingEntity> wanted = e -> SoftEnemyTargeting.classify(e).ordinal() > currentTier.ordinal()
+                && SoftEnemyTargeting.classify(e).ordinal() >= this.minTier.ordinal()
+                && VehicleTargeting.isValidHostileTarget(this.unit, e)
+                && this.unit.distanceToSqr(e) <= radiusSq;
+        List<LivingEntity> candidates = new ArrayList<>();
+        if (this.minTier == Tier.APEX) {
+            for (Entity e : TripodCompat.tripods(this.unit.level())) {
+                if (e instanceof LivingEntity living && wanted.test(living)) candidates.add(living);
+            }
+        } else {
+            candidates = this.unit.level().getEntitiesOfClass(
+                    LivingEntity.class, new AABB(this.unit.blockPosition()).inflate(radius), wanted);
+        }
 
         LivingEntity best = null;
         Tier bestTier = currentTier;

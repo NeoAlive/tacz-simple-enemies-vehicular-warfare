@@ -15,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
@@ -103,6 +104,7 @@ public class SeekAbandonedMortarGoal extends Goal {
 
     private boolean isAbandonedMortar(MortarEntity mortar) {
         if (!mortar.isAlive() || mortar.isWreck()) return false;
+        if (TripodCompat.blocksClaim(this.unit, mortar.position())) return false;
         if (LockItem.isLocked(mortar)) return false;
         if (MortarSupport.isMortarClaimed(mortar, this.unit)) return false;
         return healthyEnough(mortar);
@@ -110,6 +112,7 @@ public class SeekAbandonedMortarGoal extends Goal {
 
     private boolean isAbandonedType63(Type63Entity launcher) {
         if (!launcher.isAlive() || launcher.isWreck()) return false;
+        if (TripodCompat.blocksClaim(this.unit, launcher.position())) return false;
         if (LockItem.isLocked(launcher)) return false;
         if (Type63Support.isClaimed(launcher, this.unit)) return false;
         return healthyEnough(launcher);

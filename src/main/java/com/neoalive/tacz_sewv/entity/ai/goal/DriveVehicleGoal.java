@@ -4,6 +4,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -18,6 +19,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
@@ -37,6 +39,7 @@ import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DismountSequence;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
@@ -138,6 +141,8 @@ public class DriveVehicleGoal extends Goal {
     private int selectedRole = VehicleWeapons.UNCLASSIFIED;
     /** Standoff Schmitt state: 0 hold, 1 closing, -1 opening. See {@link #maintainVehicleStandoff}. */
     private byte standoffPhase;
+    /** Backing off a tripod: released only past standoff + margin, so an idle hull can't hover on the line. */
+    private boolean tripodRetreat;
     /** Throttle for posture override logs (game time of last line). */
     private long lastPostureSteerLog = Long.MIN_VALUE;
     /** Previous scored/idle plan — edge-detect RU/US order_dispatch. */
@@ -289,6 +294,10 @@ public class DriveVehicleGoal extends Goal {
         HudNotify.watchPmcVehicle(this.unit, this.vehicle);
 
         LivingEntity target = this.unit.getTarget();
+
+        // Tripod Invasion: RU/US never sit inside a tripod's standoff. Ahead of the scorer and every
+        // posture steer, like the stalemate breaker: no datapack weight may park a hull under a heat ray.
+        if (tripodStandoffTick(target)) return;
 
         // An IFV halts and puts its squad out against ARMOUR. Ahead of the posture steers on
         // purpose: once the halt has started, nothing may drive the hull off until the last man
@@ -569,7 +578,7 @@ public class DriveVehicleGoal extends Goal {
         TargetCategory category = VehicleWeapons.classifyTarget(target);
         // The ring this crew wants to hold against this kind of target — the same number the
         // scorer measured its too-close/too-far signals against.
-        double ring = Facts.preferredRange(category);
+        double ring = Facts.preferredRange(this.unit, target, category);
 
         selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
         fireAssistIfSpecial(target);
@@ -943,6 +952,35 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
+     * RU/US hull inside a tripod's standoff ({@link TripodCompat}): drive out to standoff + margin,
+     * fighting on the way. An emplacement cannot drive, so its crew bails and walks out
+     * ({@code TripodStandoffGoal}); the scavenge goals will not send them back to it.
+     */
+    private boolean tripodStandoffTick(LivingEntity target) {
+        double radius = TripodCompat.standoff() + (this.tripodRetreat ? TripodCompat.MARGIN : 0.0);
+        Entity tripod = TripodCompat.threatening(this.unit, this.vehicle, radius);
+        this.tripodRetreat = tripod != null;
+        if (tripod == null) return false;
+
+        if (HullFacts.engineType(this.vehicle) == EngineType.FIXED) {
+            for (Entity rider : List.copyOf(this.vehicle.getPassengers())) {
+                if (rider instanceof AbstractUnit crew && TripodCompat.appliesStandoff(crew)) {
+                    BailOutSupport.triggerVehicleBail(crew, this.vehicle);
+                }
+            }
+            return true;
+        }
+        if (target != null) {
+            selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
+            fireAssistIfSpecial(target);
+        }
+        BlockPos from = tripod.blockPosition();
+        this.driver.retreatFrom(from, TripodCompat.standoff() + TripodCompat.MARGIN,
+                this.vehicle.distanceToSqr(from.getX() + 0.5, from.getY(), from.getZ() + 0.5));
+        return true;
+    }
+
+    /**
      * Hold an armored target at the far standoff ring: close in when beyond it, open the
      * distance back out when inside it, and hold when on it. This is what stops two hulls from
      * creeping into a point-blank standstill where the cannon/TOW can't be brought to bear —
@@ -954,7 +992,7 @@ public class DriveVehicleGoal extends Goal {
      */
     private void maintainVehicleStandoff(BlockPos targetPos, double distanceSq, double dist,
                                          TargetCategory category) {
-        double ring = Facts.preferredRange(category);
+        double ring = Facts.preferredRange(this.unit, this.unit.getTarget(), category);
         double band = Facts.rangeDeadband(category);
         double leave = category == TargetCategory.VEHICLE ? band + 4.0 : band;
 
@@ -1013,7 +1051,7 @@ public class DriveVehicleGoal extends Goal {
 
         BlockPos threatPos = threat.blockPosition();
         double distanceSq = this.vehicle.distanceToSqr(threatPos.getX(), threatPos.getY(), threatPos.getZ());
-        double breakDistance = Facts.preferredRange(category) + TacticalScale.of(PRESERVE_RETREAT_MARGIN);
+        double breakDistance = Facts.preferredRange(this.unit, threat, category) + TacticalScale.of(PRESERVE_RETREAT_MARGIN);
 
         if (Math.sqrt(distanceSq) > breakDistance) {
             // Clear of the ring — far enough to be safe. Hold here (still smoking) so we

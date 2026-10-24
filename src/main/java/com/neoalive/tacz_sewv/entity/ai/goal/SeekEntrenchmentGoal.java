@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
@@ -17,6 +18,7 @@ import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEntrenched;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SandbagSupport;
@@ -92,6 +94,7 @@ public class SeekEntrenchmentGoal extends Goal {
 
         BlockPos hit = nearer(here, sandbag, trenchHit);
         if (hit == null) return false;
+        if (TripodCompat.blocksClaim(this.unit, Vec3.atCenterOf(hit))) return false;
         if (EntrenchSupport.assign(level, List.of(this.unit), hit) <= 0) return false;
         EntrenchSupport.scheduleAutoLeave(this.unit, level.getGameTime());
         return true;

@@ -10,6 +10,7 @@ import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.roles.utils.UnitRole;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
@@ -105,6 +106,8 @@ public final class SupportUnitGoals {
         // On-foot frag scramble. Support units never call VehicleAiGoals, so without this
         // they stand in the blast. Seated crews are ignored by the grenade path.
         goals.addGoal(0, new BailOutVehicleGoal(unit));
+        // Same reason: support units never call VehicleAiGoals.
+        if (TripodCompat.present()) goals.addGoal(0, new TripodStandoffGoal(unit));
     }
 
     private static void idle(AbstractUnit unit, GoalSelector goals) {

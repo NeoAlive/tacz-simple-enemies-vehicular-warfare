@@ -18,12 +18,14 @@ public final class SoftEnemyTargeting {
      * anything neither compat recognises) is {@link #NONE}; Spore's {@code infected} and any
      * Phayriosis mob are a slight nudge above that at {@link #MINOR}; Spore's {@code organoid}
      * / {@code experiments} — "important targets that define a gameplay" — outrank both at
-     * {@link #PRIME}.
+     * {@link #PRIME}. A Tripod Invasion tripod ({@link TripodCompat}) is {@link #APEX}, above all
+     * of them, and is picked by its own priority-0 goal instance rather than {@link #anyPresent()}.
      */
     public enum Tier {
         NONE,
         MINOR,
-        PRIME
+        PRIME,
+        APEX
     }
 
     /** Cheap early-out so the priority goal never scans when neither mod is installed. */
@@ -32,6 +34,7 @@ public final class SoftEnemyTargeting {
     }
 
     public static Tier classify(LivingEntity target) {
+        if (TripodCompat.isTripod(target)) return Tier.APEX;
         Tier spore = SporeCompat.tierOf(target);
         if (spore == Tier.PRIME) return Tier.PRIME;
         Tier phayriosis = PhayriosisCompat.tierOf(target);

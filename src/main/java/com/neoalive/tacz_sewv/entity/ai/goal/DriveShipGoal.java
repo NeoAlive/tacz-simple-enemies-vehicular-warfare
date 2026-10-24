@@ -4,10 +4,12 @@ import java.util.EnumSet;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.ShipHelm;
@@ -65,6 +67,8 @@ public class DriveShipGoal extends Goal {
 
     private int weaponSwitchCooldown;
     private int selectedRole = VehicleWeapons.UNCLASSIFIED;
+    /** Opening distance from a tripod; released only past standoff + margin (see DriveVehicleGoal). */
+    private boolean tripodRetreat;
 
     public DriveShipGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -125,6 +129,16 @@ public class DriveShipGoal extends Goal {
             this.vehicle.setDecoyInputDown(false);
         }
 
+        // Tripod Invasion: RU/US boats keep the standoff ring, ahead of every order and fight.
+        double radius = TripodCompat.standoff() + (this.tripodRetreat ? TripodCompat.MARGIN : 0.0);
+        Entity tripod = TripodCompat.threatening(this.unit, this.vehicle, radius);
+        this.tripodRetreat = tripod != null;
+        if (tripod != null) {
+            if (target != null) selectWeaponForTarget(target);
+            this.helm.openDistance(tripod.blockPosition(), TripodCompat.standoff() + TripodCompat.MARGIN);
+            return;
+        }
+
         BlockPos dest = getTargetPos();
         if (dest == null) {
             this.helm.stopEngines();
@@ -180,7 +194,7 @@ public class DriveShipGoal extends Goal {
 
         TargetCategory category = VehicleWeapons.classifyTarget(target);
         boolean armour = category == TargetCategory.VEHICLE;
-        double ring = armour ? VEHICLE_RING : TOO_FAR;
+        double ring = TripodCompat.standoffRing(this.unit, target, armour ? VEHICLE_RING : TOO_FAR);
 
         selectWeaponForTarget(target);
         if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL) {

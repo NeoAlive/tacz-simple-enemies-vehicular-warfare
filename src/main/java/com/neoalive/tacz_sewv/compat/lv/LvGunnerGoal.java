@@ -133,7 +133,7 @@ final class LvGunnerGoal extends Goal {
             firing.getRootParentWeaponUnit().setLockedEntity(lockTarget(target));
         }
         this.station.shoot(index, contexts, this.unit);
-        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.aiFireCooldownTicks();
+        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.aiFireCooldownTicks(this.unit);
     }
 
     /** The best ready weapon on the station for this kind of target, as an index into its list, or -1. */

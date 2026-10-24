@@ -650,10 +650,10 @@ public final class PlaneWeapons {
      * that quietly drops one. {@link #MIN_BOMB_SPACING_TICKS} is the separation the impacts need
      * to read as a carpet rather than one overlapping blast.
      */
-    private static int stickSpacing() {
+    private int stickSpacing() {
         return Math.max(MIN_BOMB_SPACING_TICKS,
                 Math.max(SewvConfig.PLANE_BOMB_STICK_INTERVAL.get(),
-                        EasyMode.aiFireCooldownTicks()));
+                        EasyMode.aiFireIntervalTicks(this.vehicle, this.unit)));
     }
 
     /** Grid-mark release: same stick / sight against a fixed aimpoint. */

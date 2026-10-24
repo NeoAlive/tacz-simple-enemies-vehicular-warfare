@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.spawn.utils.SpawnHelper;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.entity.ai.support.InfantrySquads;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
@@ -58,6 +59,8 @@ final class EventSpawns {
      */
     static List<AbstractUnit> squad(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction,
                                     int scatter, int count) {
+        // Easy Mode fields smaller squads; every event's infantry comes through here.
+        count = EasyMode.squadSize(count);
         List<AbstractUnit> spawned = new ArrayList<>(Math.max(0, count));
         for (int i = 0; i < count; i++) {
             AbstractUnit unit = infantry(level, anchor, faction, scatter);

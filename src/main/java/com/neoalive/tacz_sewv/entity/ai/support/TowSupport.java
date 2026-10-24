@@ -10,6 +10,7 @@ import com.atsuishio.superbwarfare.data.gun.GunProp;
 import com.atsuishio.superbwarfare.entity.vehicle.TowEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.atsuishio.superbwarfare.init.ModSounds;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
@@ -20,6 +21,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import com.neoalive.tacz_sewv.block.EmplacementSupport;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.compat.FcpEmplacementCompat;
+import com.neoalive.tacz_sewv.config.EasyMode;
 
 /**
  * TOW / FCP-emplacement reload logic used by {@link com.neoalive.tacz_sewv.entity.ai.goal.ManTowGoal}.
@@ -74,6 +76,7 @@ public final class TowSupport {
 
             if (loaded) return false;
             if (tow.getReloadCooldown() != 0) return false;
+            if (easyReloadHold(unit)) return false;
 
             boolean issued = hasIssuedAmmo(gun, unit);
             boolean fromPad = false;
@@ -111,6 +114,7 @@ public final class TowSupport {
             syncLoaded(hull, loaded);
             if (loaded) return false;
             if (manual && reloadCooldown(hull) != 0) return false;
+            if (easyReloadHold(unit)) return false;
 
             boolean issued = hasIssuedAmmo(gun, unit);
             if (!issued && gun.countBackupAmmo(unit) <= 0) {
@@ -128,6 +132,33 @@ public final class TowSupport {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /** Persistent game-time stamp of when an Easy Mode crew may reload (absolute, survives a save). */
+    private static final String TAG_EASY_RELOAD_AT = "sewv:easy_reload_at";
+    /** Roughly SBW's own TOW reload, the base Easy Mode's multiplier stretches. */
+    private static final int EASY_RELOAD_BASE_TICKS = 150;
+
+    /**
+     * Easy Mode's extra reload time for a hostile crew: the first empty check arms a deadline,
+     * and the crew reloads once it has passed. Not a gate that can stick — the stamp is consumed
+     * by the reload it delays, and a crew Easy no longer slows reloads at once.
+     */
+    private static boolean easyReloadHold(AbstractUnit unit) {
+        CompoundTag data = unit.getPersistentData();
+        int extra = EasyMode.crewServedTicks(unit, EASY_RELOAD_BASE_TICKS) - EASY_RELOAD_BASE_TICKS;
+        if (extra <= 0) {
+            data.remove(TAG_EASY_RELOAD_AT);
+            return false;
+        }
+        long now = unit.level().getGameTime();
+        if (!data.contains(TAG_EASY_RELOAD_AT)) {
+            data.putLong(TAG_EASY_RELOAD_AT, now + extra);
+            return true;
+        }
+        if (now < data.getLong(TAG_EASY_RELOAD_AT)) return true;
+        data.remove(TAG_EASY_RELOAD_AT);
+        return false;
     }
 
     private static void notifyDry(AbstractUnit unit, VehicleEntity weapon) {

@@ -27,6 +27,8 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
+import com.neoalive.tacz_sewv.config.EasyTuning;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
@@ -464,6 +466,16 @@ public final class CommandCoordinator {
         }
     }
 
+    /** Easy Mode morale applies to this group — judged off its first live member (one faction per group). */
+    private static boolean timidGroup(ServerLevel level, BattleGroup group) {
+        if (!EasyMode.active()) return false;
+        for (int id : group.memberIds()) {
+            var e = level.getEntity(id);
+            if (e != null) return EasyMode.timid(e);
+        }
+        return false;
+    }
+
     private static void selectPlayOne(ServerLevel level, BattleGroup group, int nowTick,
                                       int minTicks, double margin, UtilityWeights weights) {
         if (!group.battleField().populated) {
@@ -488,7 +500,8 @@ public final class CommandCoordinator {
                 group.battleField(), snap,
                 group.currentPlay(), group.playStartedTick(), nowTick,
                 group.currentRoles(),
-                minTicks, margin, weights);
+                timidGroup(level, group) ? EasyTuning.scaleTicks(minTicks, EasyTuning.MIN_PLAY_TICKS_MULT) : minTicks,
+                margin, weights);
         Roles roles = applyTactics(level, group, snap, result);
         roles = withFocusFire(level, group, roles);
         boolean playChanged = result.switched() || group.currentPlay() == null
@@ -647,6 +660,9 @@ public final class CommandCoordinator {
                 bf.friendlyInfantry = (int) weights[2];
                 bf.infantrySupport = Math.min(1.0, weights[2] / (2.0 * Math.max(1, group.memberIds().length)));
                 bf.forceBalance = weights[0] / Math.max(weights[1], 1.0);
+                // Easy Mode: a hostile group reads its odds as worse than they are, which is what
+                // tilts play selection towards withdrawal and holding and away from envelopment.
+                if (timidGroup(level, group)) bf.forceBalance *= EasyTuning.FORCE_BALANCE_MULT;
                 bf.peakEnemyWeight = group.notePeakEnemy(weights[1]);
                 group.markInfluenceRebuilt(nowTick);
             } catch (Throwable t) {

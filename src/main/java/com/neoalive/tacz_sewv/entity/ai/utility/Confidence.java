@@ -37,7 +37,15 @@ public final class Confidence {
      * it there rather than letting it read a stale value from the previous second.
      */
     public static double evaluate(double[] signals, Doctrine doctrine, UtilityWeights weights) {
-        return Mth.clamp(NEUTRAL + weights.scoreConfidence(signals, doctrine), 0.0, 100.0);
+        return evaluate(signals, doctrine, weights, 0.0);
+    }
+
+    /**
+     * As above with a flat malus subtracted before the clamp — Easy Mode's morale penalty for a
+     * hostile crew. It is a shift of the same score, not a second scoring system.
+     */
+    public static double evaluate(double[] signals, Doctrine doctrine, UtilityWeights weights, double malus) {
+        return Mth.clamp(NEUTRAL + weights.scoreConfidence(signals, doctrine) - malus, 0.0, 100.0);
     }
 
     /**

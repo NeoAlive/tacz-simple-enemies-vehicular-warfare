@@ -16,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.UnitInventory;
 
@@ -145,7 +146,12 @@ public final class MortarSupport {
 
     /** A random point within the dispersion radius of {@code target}, on its own level. */
     public static Vec3 scatter(Vec3 target, RandomSource random) {
-        int radius = SewvConfig.MORTAR_DISPERSION_RADIUS.get();
+        return scatter(target, random, null);
+    }
+
+    /** As above, widened by Easy Mode when {@code shooter} is a hostile crew. */
+    public static Vec3 scatter(Vec3 target, RandomSource random, @Nullable Entity shooter) {
+        double radius = EasyMode.indirectDispersion(shooter, SewvConfig.MORTAR_DISPERSION_RADIUS.get());
         if (radius <= 0) return target;
         double bearing = random.nextDouble() * Math.PI * 2.0;
         double distance = random.nextDouble() * radius;

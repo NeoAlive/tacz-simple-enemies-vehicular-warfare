@@ -279,14 +279,8 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
      */
     @Unique
     private static int tacz_sewv$effectiveCooldown(VehicleEntity self, LivingEntity living) {
-        int configured = EasyMode.aiFireCooldownTicks();
-        try {
-            int rpm = self.vehicleWeaponRpm(living);
-            if (rpm <= 0) return configured;
-            return Math.min(configured, Math.max(1, (int) Math.ceil(1200.0 / rpm)));
-        } catch (Exception e) {
-            return configured;
-        }
+        // Easy Mode stretches the weapon's own interval for a hostile crew instead of taking the min.
+        return EasyMode.aiFireIntervalTicks(self, living);
     }
 
     // Blocked only when BOTH the target's center and its eyes are behind blocks:

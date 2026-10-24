@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.mixin;
 
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,6 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.bridge.IFireHesitation;
 import com.neoalive.tacz_sewv.bridge.ILodUnit;
+import com.neoalive.tacz_sewv.config.EasyModePlayerEvents;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
@@ -151,6 +153,13 @@ public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation
         // would sit neither fighting nor supporting. isFriendly/isMedic already pass a null through.
         if (target == null) return;
         AbstractUnit self = (AbstractUnit) (Object) this;
+
+        // Easy Mode respawn grace, at the source so it covers on-foot infantry too (every SEM scan
+        // funnels through here); a unit the player has just hurt may still answer.
+        if (target instanceof Player player && EasyModePlayerEvents.refusesPlayer(self, player)) {
+            ci.cancel();
+            return;
+        }
 
         boolean diplEnemy = VehicleTargeting.isDiplomacyEnemy(self, target);
         boolean sameClassFriendly = VehicleTargeting.isFriendly(self, target);

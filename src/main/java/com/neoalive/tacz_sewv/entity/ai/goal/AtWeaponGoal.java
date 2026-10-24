@@ -51,6 +51,8 @@ public class AtWeaponGoal extends Goal {
     private final AbstractUnit unit;
     /** Goal ticks the target has been tracked for. Reset whenever the target is lost. */
     private int aimTicks;
+    /** Easy Mode: a reload started, and the post-reload pause has yet to be applied. */
+    private boolean awaitingReload;
     /** Ticks banked toward the next shot; NaN = not firing, so the next shot goes out at once. */
     private double shotClock = Double.NaN;
 
@@ -119,8 +121,18 @@ public class AtWeaponGoal extends Goal {
         // Mobs get no inventoryTick, so nothing else in the game advances this gun's reload,
         // bolt and heat timers. Without this call the gun fires once and never reloads.
         gun.tick(this.unit, true);
-        if (gun.shouldStartReloading(this.unit)) gun.startReload();
+        if (gun.shouldStartReloading(this.unit)) {
+            gun.startReload();
+            this.awaitingReload = EasyMode.atPostReloadTicks(this.unit) > 0;
+        }
         if (gun.shouldStartBolt()) gun.startBolt();
+        // Easy Mode: once the reload is done, re-aim from scratch plus a pause, rather than
+        // firing the instant the tube is full.
+        if (this.awaitingReload) {
+            if (!gun.canShoot(this.unit)) return;
+            this.awaitingReload = false;
+            this.aimTicks = -EasyMode.atPostReloadTicks(this.unit);
+        }
 
         // Line of sight is what the aim delay is actually measuring; a target behind a wall
         // resets it rather than counting down toward a shot into the wall.
@@ -129,7 +141,7 @@ public class AtWeaponGoal extends Goal {
             this.shotClock = Double.NaN;
             return;
         }
-        if (this.aimTicks < AIM_TICKS) {
+        if (this.aimTicks < EasyMode.atAimTicks(this.unit, AIM_TICKS)) {
             this.aimTicks++;
             return;
         }

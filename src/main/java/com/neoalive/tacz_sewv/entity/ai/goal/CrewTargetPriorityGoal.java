@@ -8,9 +8,11 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.EasyMode;
+import com.neoalive.tacz_sewv.config.EasyModePlayerEvents;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -107,7 +109,7 @@ public class CrewTargetPriorityGoal extends Goal {
             this.scanCooldown--;
             return false;
         }
-        this.scanCooldown = SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get();
+        this.scanCooldown = EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get());
 
         this.pendingTarget = scan(doctrine);
         return this.pendingTarget != null;
@@ -167,13 +169,18 @@ public class CrewTargetPriorityGoal extends Goal {
         }
         // A mounted crew also considers what its side already knows out to wideScanRadius, the same
         // reach VehicleTargetScanGoal gives board contacts. Same filters as a scan-found candidate.
-        if (this.unit.getVehicle() != null) {
+        if (this.unit.getVehicle() != null && EasyMode.wideScanAllowed(this.unit)) {
             double wide = wideRadius(radius);
             for (LivingEntity e : ContactBoard.contactsFor(this.unit, minSource(doctrine))) {
                 if (candidates.contains(e) || !preferred(doctrine, e) || !isValidTarget(e)) continue;
                 if (this.unit.distanceToSqr(e) <= wide * wide) candidates.add(e);
             }
         }
+
+        // Easy Mode: the same player grace and soft priority VehicleTargetScanGoal applies — this
+        // goal outranks that one, so without it a player-driven tank was still the preferred pick.
+        candidates.removeIf(e -> e instanceof Player p && EasyModePlayerEvents.refusesPlayer(this.unit, p));
+        EasyModePlayerEvents.preferNonPlayers(this.unit, candidates);
 
         LivingEntity best = null;
         double bestDistSq = Double.MAX_VALUE;
@@ -183,7 +190,8 @@ public class CrewTargetPriorityGoal extends Goal {
             // LOS last and only on the running best: the raycast is the expensive part and
             // most candidates never become the best.
             if (EasyMode.vehicleTargetRequireLos()
-                    && !ContactBoard.waivesLos(this.unit, candidate, minSource(doctrine))
+                    && !(EasyMode.wideScanAllowed(this.unit)
+                            && ContactBoard.waivesLos(this.unit, candidate, minSource(doctrine)))
                     && !this.unit.getSensing().hasLineOfSight(candidate)) {
                 continue;
             }
@@ -246,9 +254,9 @@ public class CrewTargetPriorityGoal extends Goal {
      * why the radio exists at all — see {@link FireMissionSupport}).
      */
     private double scanRadius() {
-        return this.unit.getVehicle() != null
+        return EasyMode.scanRadius(this.unit, this.unit.getVehicle() != null
                 ? SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get()
-                : this.unit.getAttributeValue(Attributes.FOLLOW_RANGE);
+                : this.unit.getAttributeValue(Attributes.FOLLOW_RANGE));
     }
 
 }

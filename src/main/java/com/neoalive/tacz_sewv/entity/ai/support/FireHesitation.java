@@ -44,15 +44,19 @@ public final class FireHesitation {
         int base;
         double jitter;
         try {
-            base = EasyMode.aiFireHesitationTicks();
+            base = EasyMode.aiFireHesitationTicks(shooter);
             jitter = SewvConfig.AI_FIRE_HESITATION_JITTER.get();
         } catch (Throwable ignored) {
             return 0; // unbaked config (client before sync): never block on it
         }
         if (base <= 0) return 0;
-        EngineType type = HullFacts.engineType(hull);
-        if (type == EngineType.HELICOPTER || type == EngineType.AIRCRAFT || type == EngineType.AIRSHIP) return 0;
-        if (HullFacts.isArtilleryHull(hull) || FcpMortarCompat.isMortarHull(hull)) return 0;
+        // Easy Mode's reaction delay is for every hostile crew; the exemptions below exist so
+        // normal play keeps fast-passing aircraft and lobbed rounds from wasting their window.
+        if (!EasyMode.softAim(shooter)) {
+            EngineType type = HullFacts.engineType(hull);
+            if (type == EngineType.HELICOPTER || type == EngineType.AIRCRAFT || type == EngineType.AIRSHIP) return 0;
+            if (HullFacts.isArtilleryHull(hull) || FcpMortarCompat.isMortarHull(hull)) return 0;
+        }
         return base + (int) Math.round(base * jitter * spread(shooter.getId()));
     }
 

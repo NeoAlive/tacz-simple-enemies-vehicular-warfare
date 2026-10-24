@@ -289,7 +289,7 @@ public class ManMortarGoal extends Goal {
         if (this.laidOn == null) {
             // Scatter is rolled here, once per shot, so the barrel has a fixed angle to
             // settle onto instead of being nudged every tick.
-            Vec3 impact = MortarSupport.scatter(aimCentre, this.unit.getRandom());
+            Vec3 impact = MortarSupport.scatter(aimCentre, this.unit.getRandom(), this.unit);
             float[] aim = MortarSupport.solveAim(this.mortar, impact);
             if (aim == null) {
                 // Inside minimum range or beyond maximum: hold rather than spend a shell
@@ -370,7 +370,7 @@ public class ManMortarGoal extends Goal {
                 : "vehicleShoot REFUSED the shot (tube loaded=" + !this.mortar.getItems()
                         .get(MortarSupport.TUBE_SLOT).isEmpty() + ", shell=" + shell + ")");
 
-        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.mortarFireCooldownTicks();
+        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.mortarFireCooldownTicks(this.unit);
         this.laidOn = null;
     }
 
@@ -388,7 +388,7 @@ public class ManMortarGoal extends Goal {
                 ? "recovered a shell left loaded by an interrupted launch"
                 : "could not recover a shell left loaded by an interrupted launch");
 
-        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.mortarFireCooldownTicks();
+        this.nextShotTime = this.unit.level().getGameTime() + EasyMode.mortarFireCooldownTicks(this.unit);
         this.laidOn = null;
     }
 

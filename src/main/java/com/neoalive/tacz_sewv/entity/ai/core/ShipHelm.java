@@ -13,6 +13,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.joml.Vector3f;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.entity.ai.navigation.ShipVehicleNodeEvaluator;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ShipTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.WaterSupport;
@@ -255,14 +256,15 @@ public final class ShipHelm {
         double drift = this.lastPathTarget == null ? Double.MAX_VALUE : this.lastPathTarget.distSqr(dest);
         boolean stale = this.currentPath == null
                 || this.currentPath.isDone()
-                || this.pathAge > MAX_PATH_AGE_TICKS
+                || this.pathAge > EasyMode.pathCadence(this.unit, MAX_PATH_AGE_TICKS)
                 || drift > PATH_TARGET_DRIFT_SQ;
 
         if (stale && this.pathRecalcCooldown <= 0) {
             recomputePath(dest);
             this.lastPathTarget = dest;
             this.pathAge = 0;
-            this.pathRecalcCooldown = this.currentPath == null ? PATH_FAIL_COOLDOWN : PATH_RECALC_COOLDOWN;
+            this.pathRecalcCooldown = EasyMode.pathCadence(this.unit,
+                    this.currentPath == null ? PATH_FAIL_COOLDOWN : PATH_RECALC_COOLDOWN);
         }
 
         while (this.currentPath != null && !this.currentPath.isDone()) {

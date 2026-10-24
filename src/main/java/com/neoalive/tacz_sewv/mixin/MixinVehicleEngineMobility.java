@@ -25,13 +25,13 @@ public abstract class MixinVehicleEngineMobility {
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/world/phys/Vec3;scale(D)Lnet/minecraft/world/phys/Vec3;"))
     private static Vec3 tacz_sewv$slowTrack(Vec3 view, double factor, VehicleEntity vehicle, EngineInfo.Track engine) {
-        return view.scale(factor * NpcMobility.multiplier(vehicle));
+        return view.scale(factor * NpcMobility.driveMultiplier(vehicle));
     }
 
     @Redirect(method = "wheelEngine",
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/world/phys/Vec3;scale(D)Lnet/minecraft/world/phys/Vec3;"))
     private static Vec3 tacz_sewv$slowWheel(Vec3 view, double factor, VehicleEntity vehicle, EngineInfo.Wheel engine) {
-        return view.scale(factor * NpcMobility.multiplier(vehicle));
+        return view.scale(factor * NpcMobility.driveMultiplier(vehicle));
     }
 }

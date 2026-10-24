@@ -7,9 +7,13 @@ import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
+import com.neoalive.tacz_sewv.config.EasyTuning;
 import com.neoalive.tacz_sewv.entity.ai.support.FollowLeash;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleCrew;
 
@@ -47,5 +51,14 @@ public abstract class MixinTacticalManagerGoal {
             this.unit.setSoldierState(SoldierState.IDLE);
         }
         ci.cancel();
+    }
+
+    /**
+     * Easy Mode: a timid hostile unit breaks off to cover at 60% health instead of SEM's 35%. SEM
+     * compares against a literal in {@code tick}, not its own {@code RETREAT_HEALTH_PCT} field.
+     */
+    @ModifyConstant(method = "tick", constant = @Constant(floatValue = 0.35f), require = 0)
+    private float tacz_sewv$easyRetreatThreshold(float original) {
+        return EasyMode.timid(this.unit) ? (float) EasyTuning.RETREAT_HEALTH_FRACTION : original;
     }
 }

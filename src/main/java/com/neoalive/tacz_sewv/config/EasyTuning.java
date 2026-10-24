@@ -119,8 +119,6 @@ public final class EasyTuning {
      * alone still let one shell take half the bar.
      */
     public static final float VEHICLE_TO_PLAYER_MULT = 0.2f;
-    /** Hostiles never proactively lock a player farther than this (blocks); retaliation still may. */
-    public static final double PLAYER_LOCK_RANGE = 32.0;
     /** Hostile damage to a hull crewed by a player or owned PMC. */
     public static final float FRIENDLY_HULL_DAMAGE_MULT = 0.5f;
     /** Respawn grace before hostiles may proactively lock the player, game ticks. */

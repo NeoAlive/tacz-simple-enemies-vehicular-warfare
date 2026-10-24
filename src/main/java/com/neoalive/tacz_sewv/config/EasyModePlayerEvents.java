@@ -172,15 +172,9 @@ public final class EasyModePlayerEvents {
         return until > 0L && player.level().getGameTime() < until;
     }
 
-    /**
-     * Whether {@code observer} must not proactively pick {@code player}: respawn grace, or the player
-     * is past {@link EasyTuning#PLAYER_LOCK_RANGE}. Retaliation always passes.
-     */
+    /** Whether {@code observer} must not proactively pick {@code player} (grace, no retaliation). */
     public static boolean refusesPlayer(LivingEntity observer, Player player) {
-        if (!EasyMode.playerPrioritySoft() || player == null) return false;
-        if (observer.getLastHurtByMob() == player) return false;
-        double r = EasyTuning.PLAYER_LOCK_RANGE;
-        return inRespawnGrace(player) || observer.distanceToSqr(player) > r * r;
+        return inRespawnGrace(player) && observer.getLastHurtByMob() != player;
     }
 
     /**

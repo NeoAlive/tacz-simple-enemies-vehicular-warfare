@@ -55,8 +55,6 @@ public final class EasyTuningSelfCheck {
         assert inOpenUnit(EasyTuning.FRIENDLY_HULL_DAMAGE_MULT);
         assert EasyTuning.PMC_HEALTH_MULT > 1.0;
         assert inOpenUnit(EasyTuning.VEHICLE_TO_PLAYER_MULT) : "vehicle to player";
-        // Lock range below SEM's 96-block FOLLOW_RANGE, but past grenade/melee reach.
-        assert EasyTuning.PLAYER_LOCK_RANGE > EasyTuning.GRENADE_MIN_RANGE && EasyTuning.PLAYER_LOCK_RANGE < 96.0;
         // Every-crew x hostile: a hostile turret must still traverse at a usable fraction.
         assert inOpenUnit(EasyTuning.AI_TURRET_TRAVERSE_MULT) : "ai turret traverse";
         assert EasyTuning.AI_TURRET_TRAVERSE_MULT * EasyTuning.TURRET_TRAVERSE_MULT >= 0.25f : "turret too slow to track";

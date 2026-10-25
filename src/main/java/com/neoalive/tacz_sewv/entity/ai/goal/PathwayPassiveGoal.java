@@ -3,19 +3,23 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 import java.util.List;
 import java.util.Map;
 
-import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.entity.ai.support.PathwaySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.map.PreferredPathwayData;
 
 /**
- * Autonomous passive funnel: idle on-foot PMCs near a saved pathway join it when moving parallel,
- * or when a MOVE destination lies on the path. Flagless — only scans and assigns;
- * {@link PathwayGoal} owns movement.
+ * Autonomous passive funnel: an owned PMC (on foot, or driving a ground hull) at either end of a
+ * saved pathway takes it when its MOVE destination is coaxial with the path; an idle on-foot
+ * FREE_FIRE unit takes it when walking along it. Flagless: it only scans and assigns.
+ * {@link PathwayGoal} walks infantry; a driver gets a one-shot cruise, which outranks MOVE in
+ * {@code VehicleTargeting.resolveDestination} and hands back to the still-standing MOVE at the exit.
  */
 public class PathwayPassiveGoal extends Goal {
 
@@ -33,7 +37,8 @@ public class PathwayPassiveGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return this.unit.getOwnerUUID() != null && !this.unit.isPassenger();
+        return this.unit.getOwnerUUID() != null
+                && (!this.unit.isPassenger() || PathwaySupport.isGroundFunnelUnit(this.unit));
     }
 
     @Override
@@ -50,28 +55,31 @@ public class PathwayPassiveGoal extends Goal {
         this.nextScan = now + PathwaySupport.PASSIVE_INTERVAL;
 
         if (!PathwaySupport.canPassiveTrigger(this.unit)) return;
-        if (this.unit.getOwnerUUID() == null) return;
-
-        Vec3 vel = smoothedVelocity();
-        Vec3 dir = PathwaySupport.movementDirection(this.unit, vel);
-        ResourceKey<Level> dim = this.unit.level().dimension();
         PreferredPathwayData.PathCatalog catalog = PreferredPathwayData.forOwner(
-                this.unit.level(), this.unit.getOwnerUUID(), dim);
+                this.unit.level(), this.unit.getOwnerUUID(), this.unit.level().dimension());
         if (catalog.isEmpty()) return;
 
-        double ex = this.unit.getX();
-        double ez = this.unit.getZ();
-        double margin = 24.0;
+        Entity body = this.unit.getVehicle() != null ? this.unit.getVehicle() : this.unit;
+        // A hull's centre can never reach a node as closely as a soldier can.
+        double entryR = PathwaySupport.entryRadius() + (body == this.unit ? 0.0 : body.getBbWidth());
+        Vec3 dest = PathwaySupport.moveDest(this.unit);
+        Vec3 vel = smoothedVelocity();
 
-        for (Map.Entry<String, List<net.minecraft.core.BlockPos>> entry : catalog.paths().entrySet()) {
-            List<net.minecraft.core.BlockPos> waypoints = entry.getValue();
-            if (!PathwaySupport.pathBboxNear(ex, ez, waypoints, margin)) continue;
+        for (Map.Entry<String, List<BlockPos>> entry : catalog.paths().entrySet()) {
+            if (!PathwaySupport.pathBboxNear(body.getX(), body.getZ(), entry.getValue(), entryR)) continue;
+            List<BlockPos> route = PathwaySupport.matchEntry(body.getX(), body.getZ(), dest, vel,
+                    entry.getValue(), entryR, PathwaySupport.coaxRadius());
+            if (route == null) continue;
 
-            int step = PathwaySupport.matchPassive(this.unit, waypoints, dir);
-            if (step >= 0) {
-                PathwaySupport.begin(this.unit, waypoints, step, entry.getKey(), true);
-                return;
+            if (dest != null) {
+                ((IPathwayInfantry) this.unit).sewv$markFunneledFor(BlockPos.containing(dest).asLong());
             }
+            if (body == this.unit) {
+                PathwaySupport.begin(this.unit, route, 0, entry.getKey(), true);
+            } else {
+                PatrolSupport.beginFunnelRoute(this.unit, route);
+            }
+            return;
         }
     }
 

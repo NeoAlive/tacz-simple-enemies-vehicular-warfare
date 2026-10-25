@@ -1,9 +1,17 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
+import java.util.List;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
+
 /**
- * Headless self-check for preferred pathway proximity math and id validation.
+ * Headless self-check for preferred pathway entry/coaxial matching and id validation.
  */
 public final class PathwaySupportSelfCheck {
+
+    private static final double ENTRY = 16.0;
+    private static final double COAX = 24.0;
 
     public static void main(String[] args) {
         assert PathwaySupport.isValidPathId("path_1");
@@ -11,8 +19,8 @@ public final class PathwaySupportSelfCheck {
         assert !PathwaySupport.isValidPathId("Bad Path");
         assert !PathwaySupport.isValidPathId("");
 
-        var a = new net.minecraft.core.BlockPos(0, 64, 0);
-        var b = new net.minecraft.core.BlockPos(10, 64, 0);
+        var a = new BlockPos(0, 64, 0);
+        var b = new BlockPos(10, 64, 0);
         // On segment centreline (block centres + 0.5)
         double mid = PathwaySupport.distanceToSegmentSq(5.5, 64, 0.5, a, b);
         assert mid < 0.01 : mid;
@@ -20,14 +28,46 @@ public final class PathwaySupportSelfCheck {
         double off = PathwaySupport.distanceToSegmentSq(5.5, 64, 3.5, a, b);
         assert Math.abs(off - 9.0) < 0.01 : off;
 
-        var route = java.util.List.of(
-                new net.minecraft.core.BlockPos(0, 64, 0),
-                new net.minecraft.core.BlockPos(20, 64, 0),
-                new net.minecraft.core.BlockPos(40, 64, 0));
-        // Adjacent MOVE dest on path, unit offset beside corridor
-        assert PathwaySupport.pathBboxNear(5, 5, route, 24);
-        assert PathwaySupport.distanceToNearestSegmentSq(5, 5, route) <= PathwaySupport.MOVE_CORRIDOR_RADIUS_SQ;
+        // A bridge: entry (0,0), mid (20,0), exit (40,0) along +X.
+        List<BlockPos> route = List.of(new BlockPos(0, 64, 0), new BlockPos(20, 64, 0), new BlockPos(40, 64, 0));
+        List<BlockPos> reversed = PathwaySupport.reversed(route);
+        Vec3 still = Vec3.ZERO;
+
+        // Unit at the entry, destination on the far bank along the axis: full route, forward.
+        assert route.equals(match(-5, 0, dest(100, 0), still, route));
+        // Same spot, destination off to the side: not coaxial.
+        assert match(-5, 0, dest(0, 80), still, route) == null;
+        // Destination behind the entry: not coaxial.
+        assert match(-5, 0, dest(-60, 0), still, route) == null;
+        // Unit at the exit heading back over: the reversed route.
+        assert reversed.equals(match(45, 0, dest(-100, 0), still, route));
+        // Unit mid-path: no entry, whatever the destination.
+        assert match(20, 5, dest(100, 0), still, route) == null;
+        // Destination on the path itself: walk stops at the nearest node.
+        assert List.of(route.get(0), route.get(1)).equals(match(-5, 0, dest(22, 3), still, route));
+        // Far destination slightly off-axis: outside the cylinder, inside the 30° cone.
+        assert route.equals(match(-5, 0, dest(1000, 100), still, route));
+        // Far destination well off-axis: neither.
+        assert match(-5, 0, dest(200, 200), still, route) == null;
+        // FREE_FIRE: walking along the axis joins, walking against it does not.
+        assert route.equals(match(-5, 0, null, new Vec3(0.2, 0, 0), route));
+        assert match(-5, 0, null, new Vec3(-0.2, 0, 0), route) == null;
+
+        // Mid-walk re-check: still coaxial / no longer.
+        assert PathwaySupport.coaxialExit(route, 100, 0, COAX) == 2;
+        assert PathwaySupport.coaxialExit(route, 0, 80, COAX) < 0;
+
+        assert PathwaySupport.isPrefix(List.of(route.get(0), route.get(1)), route);
+        assert !PathwaySupport.isPrefix(List.of(route.get(1)), route);
 
         System.out.println("PathwaySupportSelfCheck passed.");
+    }
+
+    private static Vec3 dest(double x, double z) {
+        return new Vec3(x + 0.5, 64, z + 0.5);
+    }
+
+    private static List<BlockPos> match(double x, double z, Vec3 dest, Vec3 velocity, List<BlockPos> route) {
+        return PathwaySupport.matchEntry(x + 0.5, z + 0.5, dest, velocity, route, ENTRY, COAX);
     }
 }

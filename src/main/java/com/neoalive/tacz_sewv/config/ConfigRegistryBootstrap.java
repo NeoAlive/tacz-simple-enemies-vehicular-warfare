@@ -593,6 +593,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.PATH_MAX_VISITED_NODES, SewvConfig.PATH_MAX_VISITED_NODES::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "pathSearchRange", 16, 48,
                 SewvConfig.PATH_SEARCH_RANGE, SewvConfig.PATH_SEARCH_RANGE::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "pathwayEntryRadius", 4.0, 64.0,
+                SewvConfig.PATHWAY_ENTRY_RADIUS, SewvConfig.PATHWAY_ENTRY_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "pathwayCoaxRadius", 4.0, 128.0,
+                SewvConfig.PATHWAY_COAX_RADIUS, SewvConfig.PATHWAY_COAX_RADIUS::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "pathDestQuantum", 0, 8,
                 SewvConfig.PATH_DEST_QUANTUM, SewvConfig.PATH_DEST_QUANTUM::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "sensorColumnTtlTicks", 1, 20,

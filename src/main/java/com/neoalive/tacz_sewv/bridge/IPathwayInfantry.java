@@ -19,10 +19,12 @@ public interface IPathwayInfantry {
     String TAG_STEP = "tacz_sewv_pathway_step";
     String TAG_STEP_DEADLINE = "tacz_sewv_pathway_step_deadline";
     String TAG_SOURCE_ID = "tacz_sewv_pathway_source";
-    /** True when joined from passive MOVE parallel matching — may auto-abandon. */
+    /** True when joined by passive entry matching: may auto-abandon. */
     String TAG_PASSIVE = "tacz_sewv_pathway_passive";
-    /** After a manual funnel completes, passive matching stays off until this game time. */
+    /** After a route completes, FREE_FIRE velocity matching stays off until this game time. */
     String TAG_PASSIVE_COOLDOWN = "tacz_sewv_pathway_passive_cooldown";
+    /** Packed BlockPos of the last MOVE destination a path was taken for: a MOVE funnels once. */
+    String TAG_FUNNELED_DEST = "tacz_sewv_pathway_funneled_dest";
     String TAG_STALE_CHECK = "tacz_sewv_pathway_stale_next";
 
     default boolean sewv$hasPathway() {
@@ -50,9 +52,9 @@ public interface IPathwayInfantry {
         }
     }
 
+    /** Drops the route with no cooldown: a clear caused by a new order must not stop that order using a path. */
     default void sewv$clearPathway() {
         CompoundTag tag = ((Entity) this).getPersistentData();
-        boolean manual = tag.getBoolean(TAG_ACTIVE) && !tag.getBoolean(TAG_PASSIVE);
         tag.remove(TAG_ACTIVE);
         tag.remove(TAG_ROUTE);
         tag.remove(TAG_STEP);
@@ -60,10 +62,23 @@ public interface IPathwayInfantry {
         tag.remove(TAG_SOURCE_ID);
         tag.remove(TAG_PASSIVE);
         tag.remove(TAG_STALE_CHECK);
-        if (manual) {
-            tag.putLong(TAG_PASSIVE_COOLDOWN,
-                    ((Entity) this).level().getGameTime() + PathwaySupport.PASSIVE_COOLDOWN);
-        }
+    }
+
+    /** Route walked to its end: clear, and keep FREE_FIRE velocity matching off for a while. */
+    default void sewv$finishPathway() {
+        sewv$clearPathway();
+        ((Entity) this).getPersistentData().putLong(TAG_PASSIVE_COOLDOWN,
+                ((Entity) this).level().getGameTime() + PathwaySupport.PASSIVE_COOLDOWN);
+    }
+
+    /** Records that a MOVE to this destination (packed BlockPos) has already been funnelled once. */
+    default void sewv$markFunneledFor(long dest) {
+        ((Entity) this).getPersistentData().putLong(TAG_FUNNELED_DEST, dest);
+    }
+
+    default boolean sewv$wasFunneledFor(long dest) {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        return tag.contains(TAG_FUNNELED_DEST) && tag.getLong(TAG_FUNNELED_DEST) == dest;
     }
 
     default boolean sewv$isPathwayPassiveBlocked() {

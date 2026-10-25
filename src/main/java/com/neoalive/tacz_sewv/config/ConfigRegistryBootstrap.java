@@ -91,6 +91,16 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.MAP_SHOW_HEALTH_BAR, ClientConfig.MAP_SHOW_HEALTH_BAR::set);
         b.bool(ConfigScope.CLIENT, "map", "mapShowEnergyBar",
                 ClientConfig.MAP_SHOW_ENERGY_BAR, ClientConfig.MAP_SHOW_ENERGY_BAR::set);
+        b.bool(ConfigScope.CLIENT, "map", "minimapMarkersEnabled",
+                ClientConfig.MINIMAP_MARKERS_ENABLED, ClientConfig.MINIMAP_MARKERS_ENABLED::set);
+        b.doubleRange(ConfigScope.CLIENT, "map", "minimapIconScale", 0.2, 2.0,
+                ClientConfig.MINIMAP_ICON_SCALE, ClientConfig.MINIMAP_ICON_SCALE::set);
+        b.bool(ConfigScope.CLIENT, "map", "minimapShowOverlays",
+                ClientConfig.MINIMAP_SHOW_OVERLAYS, ClientConfig.MINIMAP_SHOW_OVERLAYS::set);
+        b.bool(ConfigScope.CLIENT, "map", "minimapEdgePins",
+                ClientConfig.MINIMAP_EDGE_PINS, ClientConfig.MINIMAP_EDGE_PINS::set);
+        b.bool(ConfigScope.CLIENT, "map", "minimapHideRadarForMarked",
+                ClientConfig.MINIMAP_HIDE_RADAR_FOR_MARKED, ClientConfig.MINIMAP_HIDE_RADAR_FOR_MARKED::set);
 
         b.bool(ConfigScope.CLIENT, "debug", "groundPathingDebug",
                 ClientConfig.GROUND_PATHING_DEBUG, ClientConfig.GROUND_PATHING_DEBUG::set);

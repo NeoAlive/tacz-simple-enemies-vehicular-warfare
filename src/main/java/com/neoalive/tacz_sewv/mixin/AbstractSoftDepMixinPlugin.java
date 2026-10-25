@@ -28,9 +28,17 @@ public abstract class AbstractSoftDepMixinPlugin implements IMixinConfigPlugin {
     /** The gated mod's id, exactly as it appears in mods.toml. */
     protected abstract String modId();
 
+    /**
+     * Every id that ships the targeted classes; the mixins apply if any one is loaded. Defaults to
+     * {@link #modId()} alone — override only when one codebase ships under several ids.
+     */
+    protected List<String> modIds() {
+        return List.of(modId());
+    }
+
     private boolean loaded() {
         if (this.loaded == null) {
-            this.loaded = LoadingModList.get().getModFileById(modId()) != null;
+            this.loaded = modIds().stream().anyMatch(id -> LoadingModList.get().getModFileById(id) != null);
         }
         return this.loaded;
     }

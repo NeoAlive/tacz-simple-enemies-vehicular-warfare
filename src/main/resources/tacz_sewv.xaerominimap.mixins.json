@@ -1,0 +1,17 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.neoalive.tacz_sewv.mixin.client",
+  "plugin": "com.neoalive.tacz_sewv.mixin.XaeroMinimapMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+    "MixinMinimapFBORenderer",
+    "MixinMinimapMapRendererHandler",
+    "MixinMinimapRadarHide"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

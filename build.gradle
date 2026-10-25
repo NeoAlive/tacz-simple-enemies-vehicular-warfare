@@ -127,13 +127,14 @@ tasks.register('syncPortDeps') {
             eachFile { it.path = it.name }
             includeEmptyDirs = false
         }
-        // Soft-compat release jars. Xaero's World Map jar-in-jars xaerolib, whose types its element
-        // API exposes; that copy is compile-only — FML unpacks it at runtime, like SBW's.
+        // Soft-compat release jars. Xaero's World Map and Minimap both jar-in-jar xaerolib (the same
+        // 1.7.3), whose types their element APIs expose; that copy is compile-only — FML unpacks it
+        // at runtime, like SBW's.
         def compatSrc = file("${projectDir}/${softcompat_neo_dir}")
         delete libsNeoCompat
         if (compatSrc.isDirectory()) {
             copy { from(compatSrc) { include '*.jar' }; into libsNeoCompat }
-            fileTree(libsNeoCompat) { include 'xaeroworldmap-*.jar' }.files.each { xwm ->
+            fileTree(libsNeoCompat) { include 'xaeroworldmap-*.jar', 'xaerominimap-*.jar' }.files.each { xwm ->
                 copy {
                     from(zipTree(xwm)) { include 'META-INF/jarjar/xaerolib-*.jar' }
                     into libsNeoCompatCompile
@@ -339,6 +340,14 @@ dependencies {
     }
     if (!project.hasProperty('noXaero')) {
         compatJars('xaeroworldmap-').each { localRuntime files(it) }
+    }
+    // Xaero's Minimap (26.6.0 NeoForge release): markers and overlays drawn into the minimap.
+    // Compile only; off the run classpath unless asked for (same as main):
+    //   ./gradlew runClient -PwithMinimap
+    // XaeroMinimapMixinPlugin refuses MixinMinimap* when neither minimap mod id is loaded.
+    compatJars('xaerominimap-').each { compileOnly files(it) }
+    if (project.hasProperty('withMinimap')) {
+        compatJars('xaerominimap-').each { localRuntime files(it) }
     }
     compatJars('open-parties-and-claims-').each { compileOnly files(it) }
     def gameTestRun = gradle.startParameter.taskNames.any { it.toLowerCase().contains('gametest') }
@@ -773,6 +782,15 @@ tasks.register('selfCheckDiplomacy', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckMinimap', JavaExec) {
+    group = 'verification'
+    description = 'Runs the shared map-drawing / minimap projection and isolation self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.map.MinimapSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckTerritory', JavaExec) {
     group = 'verification'
     description = 'Runs the Territory Mode frontline-assignment self-check.'
@@ -848,7 +866,7 @@ tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
     // selfCheckLv is dormant on this branch (Limitless Vehicles is not ported).
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckDormantStubs'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckDormantStubs', 'selfCheckMinimap'
 }
 
 // Average-modpack jars live in modpack/ (gitignored). syncModpack pulls from Prism.

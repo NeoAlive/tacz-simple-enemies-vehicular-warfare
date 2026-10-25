@@ -23,6 +23,11 @@ config="tacz_sewv.loadouts.mixins.json"
 [[mixins]]
 config="tacz_sewv.xaero.mixins.json"
 
+# Xaero's Minimap compat. Separate config ("required": false) + XaeroMinimapMixinPlugin (LoadingModList
+# gate on mod ids xaerominimap / xaerobetterpvp) so an absent Minimap never queues MixinMinimap*.
+[[mixins]]
+config="tacz_sewv.xaerominimap.mixins.json"
+
 # PlayerReviveMod compat. Separate config ("required": false) + PlayerReviveMixinPlugin
 # (LoadingModList gate on mod id playerrevive) so an absent PlayerReviveMod never queues
 # MixinReviveEventServer.
@@ -104,5 +109,13 @@ config="tacz_sewv.playerrevive.mixins.json"
     modId="xaeroworldmap"
     type="optional"
     versionRange="[1.47.0,)"
+    ordering="AFTER"
+    side="CLIENT"
+
+# Soft compat: the same markers and overlays, drawn into the minimap.
+[[dependencies.${mod_id}]]
+    modId="xaerominimap"
+    type="optional"
+    versionRange="[26.6.0,)"
     ordering="AFTER"
     side="CLIENT"

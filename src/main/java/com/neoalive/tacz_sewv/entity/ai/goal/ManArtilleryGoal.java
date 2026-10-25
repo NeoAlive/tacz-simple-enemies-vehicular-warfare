@@ -4,8 +4,11 @@ import java.util.EnumSet;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.ArtilleryEntity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
@@ -13,6 +16,7 @@ import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
+import com.neoalive.tacz_sewv.util.ImpactTickets;
 
 /**
  * Fires an artillery-class hull ({@link ArtilleryEntity}) on a fire-mission / radio designation,
@@ -24,6 +28,8 @@ public class ManArtilleryGoal extends Goal {
 
     private static final int CHUNK_REFRESH_TICKS = 60;
     private static final int SHOT_COOLDOWN_TICKS = 40;
+    /** Past each shot; a 45° lob at 1000 blocks flies ~183 ticks. */
+    private static final long IMPACT_HOLD_TICKS = 400L;
 
     private final AbstractUnit unit;
     private final ChunkTicket hullChunk = new ChunkTicket(ChunkTicket.Kind.ARTILLERY);
@@ -96,12 +102,24 @@ public class ManArtilleryGoal extends Goal {
             }
             // Third argument is a target POSITION (missile guidance), not a direction.
             hull.vehicleShoot(shooter, ArtillerySupport.weaponOf(hull, shooter), aim);
+            holdImpactChunk(aim, now);
             this.nextShotTime = now + EasyMode.crewServedTicks(this.unit, SHOT_COOLDOWN_TICKS);
             ArtillerySupport.debugLine(hull, this.unit, aim, launch, "Y");
         } catch (Throwable ignored) {
             // Gun/ammo path unavailable — wait and retry.
             ArtillerySupport.debugLine(hull, this.unit, aim, launch, "N:error");
         }
+    }
+
+    /**
+     * Keeps the far end ticking for as long as the gun fires, not just for the radio call's window:
+     * a shell flying into an unloaded chunk freezes there, and after a reboot the call's own hold
+     * is gone while the (persisted) mission is not.
+     */
+    private void holdImpactChunk(Vec3 aim, long now) {
+        if (!SewvConfig.ARTILLERY_CHUNK_LOADING.get()) return;
+        if (!(this.unit.level() instanceof ServerLevel level)) return;
+        ImpactTickets.hold(level, new ChunkPos(BlockPos.containing(aim)), now + IMPACT_HOLD_TICKS);
     }
 
     private void maybeHoldChunk(VehicleEntity hull) {

@@ -24,6 +24,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitLod;
 import com.neoalive.tacz_sewv.map.MapIdentity;
 import com.neoalive.tacz_sewv.notify.HudNotify;
+import com.neoalive.tacz_sewv.order.AttackOrderRestore;
 
 /**
  * Hard friendly-fire gate, applied at the source. SEM's retaliation goal
@@ -133,6 +134,12 @@ public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation
         if (UnitHolster.THROWING_GRENADE == null) {
             throw new ExceptionInInitializerError("UnitHolster.THROWING_GRENADE");
         }
+    }
+
+    // tick is vanilla's (SEM overrides it), so remapped like setTarget below.
+    @Inject(method = "tick", at = @At("HEAD"))
+    private void tacz_sewv$restoreAttackOrder(CallbackInfo ci) {
+        if ((Object) this instanceof PmcUnitEntity pmc) AttackOrderRestore.tick(pmc);
     }
 
     @Inject(method = "defineSynchedData", at = @At("TAIL"))

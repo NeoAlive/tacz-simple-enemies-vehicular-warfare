@@ -8,12 +8,16 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
+import com.neoalive.tacz_sewv.bridge.IDelayedFire;
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
@@ -42,6 +46,12 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
             dismissToFreeFire(pmc);
             cancelled++;
         }
+        // A battery is usually out past the nearby radius, so with no selection Cancel also stands
+        // down every fire mission in radio range — the same reach the call had.
+        if (!context.explicit()) {
+            cancelled += FireMissionSupport.standDown(level, issuer.getUUID(), issuer.position(),
+                    EasyMode.mortarRadioRange());
+        }
         if (cancelled == 0 && !abortedRefill && !abortedEvac) {
             NetworkHandler.orderFeedback(issuer, "cancel", "message.tacz_sewv.quick_cancel.none", 0,
                     ChatFormatting.RED);
@@ -57,6 +67,9 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
         EntrenchSupport.clear(pmc);
         GuardSupport.clearReach(pmc);
         MortarSupport.releaseClaim(pmc);
+        // FREE_FIRE alone leaves a grid mark live: artillery lays on it under FREE_FIRE.
+        ((IMortarCrew) pmc).sewv$setFireMission(null);
+        ((IDelayedFire) pmc).sewv$setFireDelayUntil(0L);
         TowRecoverySupport.clearIfTowering(pmc);
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
         ((IPathwayInfantry) pmc).sewv$clearPathway();

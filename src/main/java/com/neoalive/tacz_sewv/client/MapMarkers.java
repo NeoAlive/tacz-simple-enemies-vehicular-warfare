@@ -98,6 +98,11 @@ public final class MapMarkers {
         return BY_VEHICLE_ID.get(vehicleId);
     }
 
+    /** Whether an entity id has a marker of its own — O(1), for per-entity render hooks. */
+    public static boolean isMarked(int entityId) {
+        return BY_VEHICLE_ID.containsKey(entityId);
+    }
+
     /** Same marker, looked up by the commanding unit's own id rather than the hull's. */
     @Nullable
     public static VehicleMarker markerForDriver(int driverId) {

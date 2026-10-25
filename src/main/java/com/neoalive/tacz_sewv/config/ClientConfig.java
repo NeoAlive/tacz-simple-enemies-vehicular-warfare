@@ -28,6 +28,11 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_HEALTH_BAR;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_ENERGY_BAR;
     public static final ForgeConfigSpec.BooleanValue MAP_SHOW_COMMAND_DEBUG;
+    public static final ForgeConfigSpec.BooleanValue MINIMAP_MARKERS_ENABLED;
+    public static final ForgeConfigSpec.DoubleValue MINIMAP_ICON_SCALE;
+    public static final ForgeConfigSpec.BooleanValue MINIMAP_SHOW_OVERLAYS;
+    public static final ForgeConfigSpec.BooleanValue MINIMAP_EDGE_PINS;
+    public static final ForgeConfigSpec.BooleanValue MINIMAP_HIDE_RADAR_FOR_MARKED;
     public static final ForgeConfigSpec.BooleanValue HELI_SHOW_RUN_PHASE;
     public static final ForgeConfigSpec.BooleanValue NOTIFICATIONS_ENABLED;
     public static final ForgeConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
@@ -120,6 +125,22 @@ public final class ClientConfig {
                 .comment("Developer overlay: battle-group commander marks, play names, and per-tank role tags.",
                         "Leave off unless you are debugging AI command.")
                 .define("mapShowCommandDebug", false);
+        MINIMAP_MARKERS_ENABLED = builder
+                .comment("Also draw the map markers on Xaero's Minimap. Off still hides them all when",
+                        "mapMarkersEnabled (or its keybind) is off.")
+                .define("minimapMarkersEnabled", true);
+        MINIMAP_ICON_SCALE = builder
+                .comment("Size of markers on the minimap, relative to the World Map.")
+                .defineInRange("minimapIconScale", 0.6, 0.2, 2.0);
+        MINIMAP_SHOW_OVERLAYS = builder
+                .comment("Draw standing orders, saved pathways and runways on the minimap.")
+                .define("minimapShowOverlays", true);
+        MINIMAP_EDGE_PINS = builder
+                .comment("Pin your own units to the minimap's rim when they are out of range.")
+                .define("minimapEdgePins", true);
+        MINIMAP_HIDE_RADAR_FOR_MARKED = builder
+                .comment("Hide Xaero's own radar icon for units that already have a marker (and their crews).")
+                .define("minimapHideRadarForMarked", true);
         builder.pop();
 
         builder.push("debug");
@@ -178,6 +199,11 @@ public final class ClientConfig {
     public static boolean mapMarkersEnabled() {
         Boolean override = MAP_MARKERS_SESSION_OVERRIDE;
         return override != null ? override : MAP_MARKERS_ENABLED.get();
+    }
+
+    /** Whether markers are drawn on the minimap right now: the master switch and the minimap's own. */
+    public static boolean minimapMarkersEnabled() {
+        return mapMarkersEnabled() && MINIMAP_MARKERS_ENABLED.get();
     }
 
     /** Flip markers on/off for this session; returns whether they are now visible. */

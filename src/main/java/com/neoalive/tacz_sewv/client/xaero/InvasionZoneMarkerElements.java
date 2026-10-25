@@ -1,13 +1,10 @@
 package com.neoalive.tacz_sewv.client.xaero;
 
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
 import net.minecraft.resources.ResourceKey;
@@ -20,21 +17,20 @@ import xaero.map.element.render.ElementRenderer;
 import xaero.map.graphics.renderer.multitexture.MultiTextureRenderTypeRendererProvider;
 
 import com.neoalive.tacz_sewv.client.invasion.InvasionHudClient;
+import com.neoalive.tacz_sewv.client.map.MarkerStyle;
+import com.neoalive.tacz_sewv.client.map.ZoneMarkerPainter;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.invasion.InvasionHud;
 import com.neoalive.tacz_sewv.map.InvasionZoneMarker;
 
 /**
- * Team bases and capture points on Xaero's World Map during an active invasion.
- * Positions and capture state come from {@link InvasionHudClient} (same S→C snapshot as the HUD).
+ * Team bases and capture points on Xaero's World Map during an active invasion. The pixels are
+ * {@link ZoneMarkerPainter}'s, shared with the minimap; this class is the World Map's adapter.
  */
 public final class InvasionZoneMarkerElements {
 
-    private static final int HIT_BOX = 14;
-    private static final int RENDER_BOX = 22;
-    private static final int ICON = 16;
-    private static final int BAR_H = 3;
-    private static final String HOUSE = "\u2302";
+    private static final int HIT_BOX = ZoneMarkerPainter.HIT_BOX;
+    private static final int RENDER_BOX = ZoneMarkerPainter.RENDER_BOX;
 
     public static final Renderer INSTANCE = new Renderer();
 
@@ -78,67 +74,9 @@ public final class InvasionZoneMarkerElements {
             pose.pushPose();
             pose.translate(partialX, partialY, optionalDepth);
             pose.scale(optionalScale, optionalScale, 1.0F);
-
-            long flashPhase = System.currentTimeMillis() / 250L;
-            boolean flashOn = (flashPhase & 1L) == 0L;
-            int fill = marker.capturing()
-                    ? (flashOn ? 0xFFFFFFFF : marker.conquerArgb())
-                    : marker.ownerArgb();
-
-            if (hovered) {
-                guiGraphics.fill(-HIT_BOX, -HIT_BOX, HIT_BOX, HIT_BOX, 0x60000000);
-            }
-
-            drawIcon(guiGraphics, marker, fill);
-
-            if (marker.capturing()) {
-                int barW = ICON + 6;
-                int bx = -barW / 2;
-                int by = ICON / 2 + 2;
-                guiGraphics.fill(bx, by, bx + barW, by + BAR_H, 0x88000000);
-                int filled = Math.max(1, Math.round(barW * Math.max(0f, Math.min(1f, marker.progress()))));
-                guiGraphics.fill(bx, by, bx + filled, by + BAR_H, marker.conquerArgb());
-            }
-
-            if (hovered || ClientConfig.MAP_SHOW_ICONS.get()) {
-                Font font = Minecraft.getInstance().font;
-                String label = marker.isBase() ? HOUSE : Integer.toString(pointLabel(marker));
-                int lw = font.width(label);
-                guiGraphics.drawString(font, label, -lw / 2, -HIT_BOX - font.lineHeight, 0xFFFFFFFF, true);
-            }
-
+            ZoneMarkerPainter.paint(guiGraphics, marker, hovered, MarkerStyle.WORLD_MAP);
             pose.popPose();
             return true;
-        }
-
-        private static int pointLabel(InvasionZoneMarker marker) {
-            // 1-based among KIND_POINT only — rebuilt each begin(), index is layout order.
-            InvasionHud.Snapshot snap = InvasionHudClient.snapshot();
-            if (snap == null) return marker.index() + 1;
-            int n = 0;
-            for (int i = 0; i <= marker.index() && i < snap.slots().size(); i++) {
-                if (snap.slots().get(i).kind() == InvasionHud.KIND_POINT) n++;
-            }
-            return Math.max(1, n);
-        }
-
-        private static void drawIcon(GuiGraphics g, InvasionZoneMarker marker, int argb) {
-            int half = ICON / 2;
-            if (marker.isBase()) {
-                // House-ish: filled square + roof triangle (two fills).
-                g.fill(-half, -half + 3, half, half, argb);
-                g.fill(-half - 1, -half + 3, half + 1, -half + 5, argb);
-                g.fill(-2, -half - 1, 2, -half + 3, argb);
-            } else {
-                g.fill(-half + 2, -half + 2, half - 2, half - 2, argb);
-                g.fill(-half, -2, half, 2, argb);
-                g.fill(-2, -half, 2, half, argb);
-            }
-            // Dark outline
-            g.fill(-half - 1, -half - 1, half + 1, -half, 0xFF000000);
-            g.fill(-half - 1, half, half + 1, half + 1, 0xFF000000);
-            g.fill(-half - 1, -half, -half, half, 0xFF000000);
-            g.fill(half, -half, half + 1, half, 0xFF000000);
         }
 
         @Override
@@ -157,21 +95,7 @@ public final class InvasionZoneMarkerElements {
 
         @Override
         public void begin(ElementRenderLocation location, Ctx context) {
-            List<InvasionZoneMarker> list = new ArrayList<>();
-            InvasionHud.Snapshot snap = InvasionHudClient.snapshot();
-            if (snap != null) {
-                int n = snap.slots().size();
-                for (int i = 0; i < n; i++) {
-                    InvasionHud.Slot slot = snap.slots().get(i);
-                    InvasionHud.SlotState state = snap.states().get(i);
-                    list.add(new InvasionZoneMarker(
-                            i, slot.kind(), slot.pos(),
-                            state.ownerSide(), state.conquerSide(), state.progress(), state.capturing(),
-                            snap.colorA(), snap.colorB(), snap.colorNeutral(),
-                            snap.teamA(), snap.teamB()));
-                }
-            }
-            this.iterator = list.iterator();
+            this.iterator = ZoneMarkerPainter.markers().iterator();
         }
 
         @Override

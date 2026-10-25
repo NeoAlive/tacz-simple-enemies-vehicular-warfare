@@ -627,10 +627,19 @@ tasks.register('selfCheckLv', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckMinimap', JavaExec) {
+    group = 'verification'
+    description = 'Runs the shared map-drawing / minimap projection and isolation self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.map.MinimapSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckLv'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckLv', 'selfCheckMinimap'
 }
 
 mixin {
@@ -641,6 +650,8 @@ mixin {
     config "tacz_sewv.loadouts.mixins.json"
     // Separate config + XaeroMixinPlugin gate — World Map is optional; main config is required.
     config "tacz_sewv.xaero.mixins.json"
+    // Separate config + XaeroMinimapMixinPlugin gate — Minimap (or Better PvP) is optional too.
+    config "tacz_sewv.xaerominimap.mixins.json"
     // Separate config + KomodoMixinPlugin gate — Komodo is optional and targeted by string name
     // (no compile-time Komodo dependency needed at all, unlike Xaero).
     config "tacz_sewv.komodo.mixins.json"
@@ -778,6 +789,15 @@ dependencies {
     compileOnly "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
     if (!project.hasProperty('noXaero')) {
         runtimeOnly "xaero.map:xaeroworldmap-forge-1.20.1:1.44.2:dev"
+    }
+    // Soft: compile against Xaero's Minimap (markers + overlays drawn into the minimap). Off the run
+    // classpath by default — opt in with ./gradlew runClient -PwithMinimap. Minimap 26.x needs
+    // xaerolib, which its release jar jar-in-jars; the dev classpath gets it from the same repo.
+    // XaeroMinimapMixinPlugin refuses MixinMinimap* when neither minimap mod id is loaded.
+    compileOnly "xaero.minimap:xaerominimap-forge-1.20.1:26.6.0:dev"
+    if (project.hasProperty('withMinimap')) {
+        runtimeOnly "xaero.minimap:xaerominimap-forge-1.20.1:26.6.0:dev"
+        runtimeOnly "xaero.lib:xaerolib-forge-1.20.1:1.7.3:dev"
     }
     // Soft: compile against Komodo (client-only SBW vehicle renderer); keep it off installs that
     // omit it. libs/komodo.jar is the official Forge 1.20.1 release jar (github.com/

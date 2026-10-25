@@ -97,7 +97,8 @@ public final class VehiclePackPresetsSelfCheck {
         check(Pack.ULTIMA_RATIO.modId.equals("ultimaratio"), "ur modId");
         check(Pack.NEO_ARMS.modId.equals("neoarms"), "neoarms modId");
         check(Pack.LIMITLESS_VEHICLES.modId.equals("ywzj_vehicle"), "limitless modId");
-        check(VehiclePackPresets.packs().length == 6, "six packs");
+        check(Pack.DRAGONRISE_HISTORICAL.modId.equals("dragonrise_reforge"), "dr historical modId");
+        check(VehiclePackPresets.packs().length == 7, "seven packs");
         // LV ids go in the ground / surface / rotor pools only — never plane, TOW or mortar.
         Map<TankFaction, Map<Category, List<String>>> lv = VehiclePackPresets.tables(Pack.LIMITLESS_VEHICLES);
         for (TankFaction f : TankFaction.values()) {

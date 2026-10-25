@@ -197,6 +197,9 @@ public final class FireMissionSupport {
     /** Shell-flight compensation subtracted from the player-chosen delay before stamping crews. */
     private static final int DELAY_FLIGHT_COMPENSATION_SEC = 10;
 
+    /** How long a radio grid mission keeps an artillery battery firing. Game time, so it survives a reboot. */
+    private static final long ARTILLERY_MISSION_TICKS = 90L * 20L;
+
     /**
      * Radio GUI call: filtered by {@code frequency}, optional coordinated delay on mortar crews,
      * entity or grid designation.
@@ -232,7 +235,12 @@ public final class FireMissionSupport {
                 if (!(support.unit instanceof IMortarCrew crew)) continue;
                 triggered.add(support.kind);
                 ordered++;
-                crew.sewv$setFireMission(FireMission.standing(posTarget));
+                // Artillery gets a deadline: a standing mark would shell the spot for the rest of the
+                // world's life. Mortars keep theirs — an expired mission makes a mortar crew leave
+                // the tube for good (ManMortarGoal), which is not what a player's call means.
+                crew.sewv$setFireMission(support.kind == Kind.ARTILLERY
+                        ? new FireMission(posTarget, level.getGameTime() + ARTILLERY_MISSION_TICKS)
+                        : FireMission.standing(posTarget));
                 if (support.unit instanceof PmcUnitEntity pmc) {
                     pmc.setOrder(OrderType.FREE_FIRE);
                     pmc.setAttackTargetId(-1);

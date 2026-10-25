@@ -63,6 +63,7 @@ import com.neoalive.tacz_sewv.entity.ai.goal.TerritoryPostGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.VehicleAiGoals;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
+import com.neoalive.tacz_sewv.order.AttackOrderRestore;
 
 // IHelicopterPilot, IFormationMember and IVehiclePatrol need no method bodies here — their
 // default methods store the flight state, the formation axis and the patrol order in the
@@ -313,6 +314,11 @@ public abstract class MixinPmcUnitEntity
         if (self.isAddedToLevel() && !self.level().isClientSide) {
             EasyModeUnitEvents.refresh((PmcUnitEntity) self);
         }
+    }
+
+    @Inject(method = "setAttackTargetId", at = @At("HEAD"), remap = false)
+    private void tacz_sewv$rememberAttackTarget(int entityId, CallbackInfo ci) {
+        AttackOrderRestore.remember((PmcUnitEntity) (Object) this, entityId);
     }
 
     @Inject(method = "setupRoleGoals", at = @At("TAIL"), remap = false)

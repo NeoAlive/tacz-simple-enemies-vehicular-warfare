@@ -61,6 +61,9 @@ public final class TripodCompat {
     public static final double MARGIN = 16.0;
     /** How far from a tripod a shield block can be: the shell is ~19 x 30 blocks (scaled) round the body. */
     private static final double SHELL_REACH = 64.0;
+    /** Room under the elevation stop: SBW's ballistic solution lofts a little above the straight line. */
+    private static final double PITCH_SLACK_DEG = 3.0;
+    private static final Map<VehicleEntity, Float> MAX_PITCH = new WeakHashMap<>();
 
     private static final ResourceLocation TRIPOD_ID = new ResourceLocation(MODID, "tripod");
     private static final ResourceLocation SHIELD_ID = new ResourceLocation(MODID, "tripod_shield");
@@ -154,10 +157,49 @@ public final class TripodCompat {
         return present() && appliesStandoff(unit) && nearestWithin(unit.level(), pos, standoff()) != null;
     }
 
-    /** Fight ring against a tripod: never inside the standoff for RU/US. */
+    /**
+     * Fight ring against a tripod. RU/US never hold inside the standoff. Any crew in a hull also
+     * holds far enough out that its own gun can elevate onto the body ({@link #elevationRange}):
+     * SBW's AI turret aims at the bounding-box centre, which on a standing tripod is the body ~45
+     * blocks up, and an MBT's +20° stop needs ~125 blocks for that. Closer in, the turret clamps
+     * short, the aim never settles and nothing fires.
+     */
     public static double standoffRing(Entity unit, @Nullable LivingEntity target, double ring) {
-        if (!appliesStandoff(unit) || !isTripod(target)) return ring;
-        return Math.max(ring, standoff() + MARGIN);
+        if (!isTripod(target)) return ring;
+        double floor = appliesStandoff(unit) ? standoff() + MARGIN : 0.0;
+        if (unit.getVehicle() instanceof VehicleEntity hull) floor = Math.max(floor, elevationRange(hull, target));
+        return Math.max(ring, floor);
+    }
+
+    /**
+     * Horizontal distance at which {@code hull}'s turret, at its elevation stop less
+     * {@link #PITCH_SLACK_DEG}, points at {@code tripod}'s bounding-box centre. 0 when the gun
+     * elevates near-vertically or the hull carries no turret data. Capped at three quarters of the
+     * wide radius, so a crew never backs out of the range it can still see from.
+     */
+    static double elevationRange(VehicleEntity hull, LivingEntity tripod) {
+        double usable = MAX_PITCH.computeIfAbsent(hull, TripodCompat::readMaxPitch) - PITCH_SLACK_DEG;
+        if (usable <= 1.0 || usable >= 80.0) return 0.0;
+        double rise = tripod.getBoundingBox().getCenter().y - (hull.getY() + hull.getBbHeight());
+        if (rise <= 0.0) return 0.0;
+        return Math.min(rise / Math.tan(Math.toRadians(usable)), reachCap());
+    }
+
+    private static float readMaxPitch(VehicleEntity hull) {
+        // Through computed(): read once per hull, a hull's turret cannot change.
+        try {
+            return hull.getTurretMaxPitch();
+        } catch (Throwable unreadable) {
+            return 0.0F;
+        }
+    }
+
+    private static double reachCap() {
+        try {
+            return SewvConfig.WIDE_SCAN_RADIUS.get() * 0.75;
+        } catch (Throwable unbaked) {
+            return 192.0;
+        }
     }
 
     /** SEM's chase must not walk an RU/US unit back inside the ring it just fled. */

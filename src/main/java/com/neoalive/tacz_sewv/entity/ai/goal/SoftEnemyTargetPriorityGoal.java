@@ -146,8 +146,11 @@ public class SoftEnemyTargetPriorityGoal extends Goal {
             if (tier == bestTier && distSq >= bestDistSq) continue;
             // LOS last and only on the running best: the raycast is the expensive part and
             // most candidates never become the best.
-            if (EasyMode.vehicleTargetRequireLos()
-                    && !this.unit.getSensing().hasLineOfSight(candidate)) {
+            // A tripod uses the shield-transparent ray: the mod's own hasLineOfSight patch stops at
+            // 128 blocks, and a tank holding its elevation ring sits farther out than that.
+            if (EasyMode.vehicleTargetRequireLos() && !(tier == Tier.APEX
+                    ? TripodCompat.clearShot(this.unit, candidate)
+                    : this.unit.getSensing().hasLineOfSight(candidate))) {
                 continue;
             }
             best = candidate;
@@ -159,11 +162,17 @@ public class SoftEnemyTargetPriorityGoal extends Goal {
 
     /**
      * Mirrors {@link CrewTargetPriorityGoal#scanRadius()}: a mounted crew scans the vehicle
-     * cylinder's radius, an unmounted unit is bounded by SEM's own follow range.
+     * cylinder's radius, an unmounted unit is bounded by SEM's own follow range. The tripod
+     * instance reaches the wide radius when mounted: a hull whose gun cannot elevate onto the
+     * body holds back past the scan radius ({@link TripodCompat#standoffRing}), and dropping
+     * the lock there would leave it nothing to shoot from the ring it drove to.
      */
     private double scanRadius() {
-        return EasyMode.scanRadius(this.unit, this.unit.getVehicle() != null
-                ? SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get()
-                : this.unit.getAttributeValue(Attributes.FOLLOW_RANGE));
+        if (this.unit.getVehicle() == null) {
+            return EasyMode.scanRadius(this.unit, this.unit.getAttributeValue(Attributes.FOLLOW_RANGE));
+        }
+        double radius = SewvConfig.VEHICLE_TARGET_SCAN_RADIUS.get();
+        if (this.minTier == Tier.APEX) radius = Math.max(radius, SewvConfig.WIDE_SCAN_RADIUS.get());
+        return EasyMode.scanRadius(this.unit, radius);
     }
 }

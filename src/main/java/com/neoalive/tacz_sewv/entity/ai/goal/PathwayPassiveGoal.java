@@ -65,21 +65,30 @@ public class PathwayPassiveGoal extends Goal {
         Vec3 dest = PathwaySupport.moveDest(this.unit);
         Vec3 vel = smoothedVelocity();
 
+        // Cheapest detour across every path wins. A MOVE may take a path from well off it (detour
+        // rule), so the bbox prefilter only applies to velocity matching, which needs the mouth.
+        PathwaySupport.Match best = null;
+        String bestId = null;
         for (Map.Entry<String, List<BlockPos>> entry : catalog.paths().entrySet()) {
-            if (!PathwaySupport.pathBboxNear(body.getX(), body.getZ(), entry.getValue(), entryR)) continue;
-            List<BlockPos> route = PathwaySupport.matchEntry(body.getX(), body.getZ(), dest, vel,
-                    entry.getValue(), entryR, PathwaySupport.coaxRadius());
-            if (route == null) continue;
+            if (dest == null && !PathwaySupport.pathBboxNear(body.getX(), body.getZ(), entry.getValue(), entryR)) {
+                continue;
+            }
+            PathwaySupport.Match match = PathwaySupport.matchEntry(body.getX(), body.getZ(), dest, vel,
+                    entry.getValue(), entryR, PathwaySupport.coaxRadius(), PathwaySupport.detourTolerance());
+            if (match != null && (best == null || match.cost() < best.cost())) {
+                best = match;
+                bestId = entry.getKey();
+            }
+        }
+        if (best == null) return;
 
-            if (dest != null) {
-                ((IPathwayInfantry) this.unit).sewv$markFunneledFor(BlockPos.containing(dest).asLong());
-            }
-            if (body == this.unit) {
-                PathwaySupport.begin(this.unit, route, 0, entry.getKey(), true);
-            } else {
-                PatrolSupport.beginFunnelRoute(this.unit, route);
-            }
-            return;
+        if (dest != null) {
+            ((IPathwayInfantry) this.unit).sewv$markFunneledFor(BlockPos.containing(dest).asLong());
+        }
+        if (body == this.unit) {
+            PathwaySupport.begin(this.unit, best.route(), 0, bestId, true);
+        } else {
+            PatrolSupport.beginFunnelRoute(this.unit, best.route());
         }
     }
 

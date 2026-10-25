@@ -652,6 +652,9 @@ mixin {
     config "tacz_sewv.corpse.mixins.json"
     // Separate config + MineColoniesMixinPlugin gate — MineColonies is optional and compileOnly.
     config "tacz_sewv.minecolonies.mixins.json"
+    // Separate config + TripodMixinPlugin gate — Tripod Invasion is optional and targeted by class
+    // name (no compile-time dependency); the shield block's one-way wall for the AI.
+    config "tacz_sewv.tripod.mixins.json"
 }
 
 repositories {

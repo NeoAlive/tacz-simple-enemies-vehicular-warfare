@@ -1,5 +1,8 @@
 package com.neoalive.tacz_sewv.client.radial;
 
+import java.util.List;
+import java.util.Map;
+
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -14,11 +17,47 @@ import org.joml.Matrix4f;
 
 final class RadialWheelDraw {
 
+    /** The shared translucent plate: every wedge, the hub, and every panel around the wheel. */
+    static final int PLATE = 0xB80F1317;
+
     /** Unicode icon scale relative to the default font size. */
     private static final float ICON_SCALE = 1.85f;
 
+    /**
+     * Per-glyph correction on {@link #ICON_SCALE}. A glyph's advance width is not its ink size, so
+     * some read tiny and some huge at one scale; this is keyed on the glyph, not the entry, because
+     * one glyph serves several entries (the airplane is on five).
+     */
+    private static final Map<String, Float> GLYPH_SCALE = Map.of(
+            "☎", 1.3f,
+            "◆", 1.35f,
+            "◈", 1.2f,
+            "□", 1.15f,
+            "✈", 0.85f,
+            "⚑", 0.85f,
+            "⛰", 0.85f);
+
     /** How far the hot wedge's outer edge pushes out, as a fraction of the wheel radius. */
     private static final double HOT_GROW = 0.05;
+
+    /** Clearance between a wedge's outer edge and the nearest edge of its label. */
+    private static final int LABEL_GAP_MIN = 4;
+    private static final double LABEL_GAP_FRAC = 0.08;
+
+    /** How much category colour bleeds into the neutral plate; raise the hot mix, not the alpha, for more lift. */
+    private static final float COLD_ACCENT_MIX = 0.08f;
+    private static final float HOT_ACCENT_MIX = 0.18f;
+    private static final int COLD_FILL_ALPHA = 0xB8;
+    private static final int HOT_FILL_ALPHA = 0xE0;
+    private static final int STRIP_COLD_ALPHA = 0x80;
+    private static final int HOT_PLATE_RGB = 0x1C232B;
+    private static final int DISABLED_ACCENT = 0x6A7380;
+    private static final int DISABLED_LABEL = 0xFF7A828C;
+
+    /** Screen-space extent of the labels, for UI placed clear of them. */
+    record LabelBounds(int top, int bottom, int right) {}
+
+    private record Box(int x, int y, int w, int h) {}
 
     private RadialWheelDraw() {}
 
@@ -30,14 +69,14 @@ final class RadialWheelDraw {
      * @param checked per wedge, a toggle that is currently on (Select leaves); null for none
      */
     static void renderRing(GuiGraphics g, Font font, int cx, int cy, int innerR, int outerR,
-                           java.util.List<WedgeEntry> wedges, float[] hotStrengths, float menuAlpha,
+                           List<WedgeEntry> wedges, float[] hotStrengths, float menuAlpha,
                            int labelArgb, int labelHotArgb, boolean[] enabled, boolean[] checked,
                            double pointerX, double pointerY) {
         int n = wedges.size();
         float ringA = Mth.clamp(menuAlpha, 0.0f, 1.0f);
         if (n <= 0) {
-            drawHub(g, cx, cy, innerR, pointerX, pointerY,
-                    scaleAlpha(labelArgb, ringA), scaleAlpha(labelHotArgb, ringA));
+            drawHub(g, cx, cy, innerR, pointerX, pointerY, scaleAlpha(PLATE, ringA),
+                    scaleAlpha(labelArgb, ringA * 0.6f), scaleAlpha(labelHotArgb, ringA));
             return;
         }
 
@@ -49,13 +88,25 @@ final class RadialWheelDraw {
         for (int i = 0; i < n; i++) {
             WedgeEntry entry = wedges.get(i);
             boolean on = enabled == null || i >= enabled.length || enabled[i];
-            int accent = on ? entry.accentRgb() : 0x888888;
-            int fillArgb = fillFromAccent(accent);
-            int hotArgb = hotFromAccent(accent);
-            int stripCold = stripFromAccent(accent, false);
-            int stripHot = stripFromAccent(accent, true);
-            int coldLabel = on ? labelArgb : 0xFF888888;
-            int hotLabel = on ? labelHotArgb : 0xFFAAAAAA;
+            int accent = entry.accentRgb();
+            int fillArgb;
+            int hotArgb;
+            int stripCold;
+            int stripHot;
+            if (on) {
+                fillArgb = withAlpha(lerpArgb(0xFF000000 | PLATE, 0xFF000000 | accent, COLD_ACCENT_MIX),
+                        COLD_FILL_ALPHA);
+                hotArgb = withAlpha(lerpArgb(0xFF000000 | HOT_PLATE_RGB, 0xFF000000 | accent, HOT_ACCENT_MIX),
+                        HOT_FILL_ALPHA);
+                stripCold = withAlpha(accent, STRIP_COLD_ALPHA);
+                stripHot = withAlpha(accent, 0xFF);
+            } else {
+                fillArgb = hotArgb = PLATE;
+                stripCold = stripHot = withAlpha(DISABLED_ACCENT, STRIP_COLD_ALPHA);
+            }
+            int coldLabel = on ? labelArgb : DISABLED_LABEL;
+            int hotLabel = on ? labelHotArgb : DISABLED_LABEL;
+            int hotIcon = on ? withAccentTint(labelHotArgb, accent) : DISABLED_LABEL;
 
             // The hot wedge pushes its outer edge outward, eased off the same lerped strength that
             // colours it, so it grows and settles back with the fade. The angular gap is rescaled
@@ -91,7 +142,7 @@ final class RadialWheelDraw {
             double x2m3 = Math.cos(rRad - innerGap) * categoryOuter;
             double y1m3 = Math.sin(lRad + innerGap) * categoryOuter;
             double y2m3 = Math.sin(rRad - innerGap) * categoryOuter;
-            boolean isChecked = checked != null && i < checked.length && checked[i];
+            boolean isChecked = isChecked(checked, i);
             // A checked toggle keeps its band lit, so the on-state reads without hovering it.
             int strip = scaleAlpha(isChecked ? stripHot : lerpArgb(stripCold, stripHot, hot), ringA);
             renderQuad(g,
@@ -110,57 +161,88 @@ final class RadialWheelDraw {
             double iconY = (y1 + y2) * 0.5 * iconR;
             int ix = cx + (int) Math.round(iconX);
             int iy = cy + (int) Math.round(iconY);
-            int iconColor = scaleAlpha(lerpArgb(coldLabel, withAccentTint(hotLabel, accent), hot),
-                    ringA);
+            int iconColor = scaleAlpha(lerpArgb(coldLabel, hotIcon, hot), ringA);
             drawScaledIcon(g, font, entry.icon(), ix, iy, iconColor);
 
-            double bx = (x1 + x2) * 0.5;
-            double by = (y1 + y2) * 0.5;
-            double textR = wedgeOuter + labelGap(outerR);
-            double avgLen = Math.hypot(bx, by);
-            double txOff = avgLen > 1.0e-6 ? (bx / avgLen) * textR : 0;
-            double tyOff = avgLen > 1.0e-6 ? (by / avgLen) * textR : -textR;
-            int tx = cx + (int) Math.round(txOff);
-            int ty = cy + (int) Math.round(tyOff);
-            String label = isChecked ? "[x] " + entry.label() : entry.label();
-            int tw = font.width(label);
-            int drawX;
-            if (bx < -0.2) {
-                drawX = tx - tw;
-            } else if (bx > 0.2) {
-                drawX = tx;
-            } else {
-                drawX = tx - tw / 2;
-            }
-            g.drawString(font, label, drawX, ty - 4,
-                    scaleAlpha(lerpArgb(coldLabel, hotLabel, hot), ringA), false);
+            String label = labelText(entry, isChecked);
+            Box box = labelBox(font, label, i, denom, cx, cy, wedgeOuter, outerR);
+            g.drawString(font, label, box.x(), box.y(),
+                    scaleAlpha(lerpArgb(coldLabel, hotLabel, hot), ringA), true);
         }
 
-        // The dot takes the hot wedge's tint once it leaves the deadzone.
+        // The ring and dot take the hot wedge's tint once the pointer leaves the deadzone.
         float hubHot = 0.0f;
         for (float h : hotStrengths) hubHot = Math.max(hubHot, h);
         int hotIdx = hottestIndex(hotStrengths, n);
         boolean hubOn = enabled == null || hotIdx >= enabled.length || enabled[hotIdx];
-        int dot = hubHot > 0.35f
-                ? (hubOn ? withAccentTint(labelHotArgb, wedges.get(hotIdx).accentRgb()) : 0xFFAAAAAA)
-                : labelHotArgb;
-        drawHub(g, cx, cy, innerR, pointerX, pointerY,
-                scaleAlpha(labelArgb, ringA), scaleAlpha(dot, ringA));
+        int hubAccent = wedges.get(hotIdx).accentRgb();
+        boolean lit = hubHot > 0.35f;
+        int ring = lit ? (hubOn ? 0xFF000000 | hubAccent : DISABLED_LABEL) : scaleAlpha(labelArgb, 0.6f);
+        int dot = lit ? (hubOn ? withAccentTint(labelHotArgb, hubAccent) : DISABLED_LABEL) : labelHotArgb;
+        drawHub(g, cx, cy, innerR, pointerX, pointerY, scaleAlpha(PLATE, ringA),
+                scaleAlpha(ring, ringA), scaleAlpha(dot, ringA));
     }
 
-    /** Gap between a wedge's outer edge and its label. */
+    /**
+     * Where the labels reach, measured with every wedge fully grown so hovering never moves the UI
+     * placed around them. Top and bottom are floored at a label sitting on the vertical axis, so that
+     * UI holds still between sparse and dense menus and only moves for a label that needs the room.
+     * Pass the same {@code checked} array as {@link #renderRing}: it changes label widths.
+     */
+    static LabelBounds computeLabelBounds(Font font, int cx, int cy, int outerR,
+                                          List<WedgeEntry> wedges, boolean[] checked) {
+        double grownR = outerR * (1.0 + HOT_GROW);
+        int axis = (int) Math.ceil(grownR + labelGap(outerR)) + font.lineHeight - 1;
+        int top = cy - axis;
+        int bottom = cy + axis;
+        int right = cx + (int) Math.ceil(grownR);
+        int n = wedges.size();
+        int denom = Math.max(n, 3);
+        for (int i = 0; i < n; i++) {
+            Box box = labelBox(font, labelText(wedges.get(i), isChecked(checked, i)), i, denom,
+                    cx, cy, grownR, outerR);
+            top = Math.min(top, box.y());
+            bottom = Math.max(bottom, box.y() + box.h());
+            right = Math.max(right, box.x() + box.w());
+        }
+        return new LabelBounds(top, bottom, right);
+    }
+
+    /**
+     * A label's text box, pushed out along its wedge's bisector by the box's own extent toward the
+     * centre ({@code hw|ux| + hh|uy|}), so the box's nearest supporting line clears the wedge edge by
+     * the same gap at every angle, with no alignment thresholds to snap between.
+     * ponytail: exact on the axes, slightly loose on diagonals for wide labels (the nearest corner sits
+     * past the supporting line); solve d for the Euclidean centre-to-rect distance if that shows.
+     */
+    private static Box labelBox(Font font, String label, int i, int denom, int cx, int cy,
+                                double edgeR, int outerR) {
+        double mid = (Math.PI * 2.0) * i / denom - Math.PI / 2.0;
+        double ux = Math.cos(mid);
+        double uy = Math.sin(mid);
+        int w = font.width(label);
+        int h = font.lineHeight - 1;
+        double hw = w / 2.0;
+        double hh = h / 2.0;
+        double d = edgeR + labelGap(outerR) + hw * Math.abs(ux) + hh * Math.abs(uy);
+        return new Box(cx + (int) Math.round(ux * d - hw), cy + (int) Math.round(uy * d - hh), w, h);
+    }
+
+    private static String labelText(WedgeEntry entry, boolean checked) {
+        return checked ? "[x] " + entry.label() : entry.label();
+    }
+
+    private static boolean isChecked(boolean[] checked, int i) {
+        return checked != null && i < checked.length && checked[i];
+    }
+
     private static double labelGap(int outerR) {
-        return Math.max(10, outerR * 0.22);
-    }
-
-    /** Distance from the centre to the furthest label (hot wedge fully grown), for text placed clear of them. */
-    static int labelReach(int outerR) {
-        return (int) Math.ceil(outerR * (1.0 + HOT_GROW) + labelGap(outerR));
+        return Math.max(LABEL_GAP_MIN, outerR * LABEL_GAP_FRAC);
     }
 
     private static void drawScaledIcon(GuiGraphics g, Font font, String icon, int cx, int cy,
                                        int argb) {
-        float scale = ICON_SCALE;
+        float scale = ICON_SCALE * GLYPH_SCALE.getOrDefault(icon.replace("️", ""), 1.0f);
         g.pose().pushPose();
         g.pose().translate(cx, cy, 0);
         g.pose().scale(scale, scale, 1.0f);
@@ -169,31 +251,11 @@ final class RadialWheelDraw {
         g.pose().popPose();
     }
 
-    /** Dark translucent fill from a category accent. */
-    private static int fillFromAccent(int rgb) {
-        return pack(0xAA, darken(rgb, 0.22f));
-    }
-
-    private static int hotFromAccent(int rgb) {
-        return pack(0xDD, darken(rgb, 0.45f));
-    }
-
-    private static int stripFromAccent(int rgb, boolean hot) {
-        return pack(hot ? 0xEE : 0x88, darken(rgb, hot ? 0.70f : 0.40f));
-    }
-
     private static int withAccentTint(int labelArgb, int accentRgb) {
         return lerpArgb(labelArgb, 0xFF000000 | (accentRgb & 0xFFFFFF), 0.35f);
     }
 
-    private static int darken(int rgb, float factor) {
-        int r = Math.round(((rgb >> 16) & 0xFF) * factor);
-        int g = Math.round(((rgb >> 8) & 0xFF) * factor);
-        int b = Math.round((rgb & 0xFF) * factor);
-        return (r << 16) | (g << 8) | b;
-    }
-
-    private static int pack(int alpha, int rgb) {
+    private static int withAlpha(int rgb, int alpha) {
         return (alpha << 24) | (rgb & 0xFFFFFF);
     }
 
@@ -225,11 +287,13 @@ final class RadialWheelDraw {
     }
 
     /**
-     * A thin ring and a dot showing the pointer delta to scale: the ring's edge is
-     * {@link RadialInputState#MAX_RADIUS}, so the dot touches it at full deflection.
+     * A plate disc filling the hub out to the wedges, then a thin ring and a dot showing the pointer
+     * delta to scale: the ring's edge is {@link RadialInputState#MAX_RADIUS}, so the dot touches it at
+     * full deflection.
      */
-    private static void drawHub(GuiGraphics g, int cx, int cy, int innerR,
-                                double pointerX, double pointerY, int ringArgb, int dotArgb) {
+    private static void drawHub(GuiGraphics g, int cx, int cy, int innerR, double pointerX, double pointerY,
+                                int plateArgb, int ringArgb, int dotArgb) {
+        fillAnnulus(g, cx, cy, 0.0f, innerR - 1.0f, plateArgb);
         float ringR = Math.max(4.0f, innerR * 0.42f);
         fillAnnulus(g, cx, cy, ringR - 1.0f, ringR, ringArgb);
         float dotR = Math.max(1.25f, innerR * 0.08f);

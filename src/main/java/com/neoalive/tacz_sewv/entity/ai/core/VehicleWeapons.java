@@ -228,6 +228,8 @@ public final class VehicleWeapons {
         // A VehicleEntity isn't a LivingEntity, so it can never be the target itself
         // the AI targets the crew riding inside; armor makes the MG useless against them.
         if (target.getVehicle() instanceof VehicleEntity) return TargetCategory.VEHICLE;
+        // A Tripod Invasion walker is armour in everything but class: IFV dismount, AT, rings.
+        if (com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target)) return TargetCategory.VEHICLE;
         // Riding an armoured Limitless Vehicles hull reads the same: false when LV is absent.
         if (com.neoalive.tacz_sewv.compat.lv.LvCompat.isArmouredHull(target.getVehicle())) return TargetCategory.VEHICLE;
         if (target instanceof RUunitEntity || target instanceof USunitEntity) return TargetCategory.FACTION_UNIT;
@@ -303,6 +305,7 @@ public final class VehicleWeapons {
         } else {
             List<WeaponCandidate> candidates = target.getVehicle() instanceof VehicleEntity hull
                     ? (hull.getMaxHealth() >= ARMORED_HEALTH ? VS_ARMORED : VS_LIGHT_VEHICLE)
+                    : com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target) ? VS_ARMORED
                     : (target.getMaxHealth() < SOFT_HEALTH ? VS_SOFT_MOB : VS_INFANTRY);
 
             chosen = -1;

@@ -1,0 +1,16 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.neoalive.tacz_sewv.mixin.tripod",
+  "plugin": "com.neoalive.tacz_sewv.mixin.TripodMixinPlugin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "tacz_sewv.refmap.json",
+  "mixins": [
+    "MixinTripodShieldBlock"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

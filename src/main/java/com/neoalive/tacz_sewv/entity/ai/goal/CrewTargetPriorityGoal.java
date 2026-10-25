@@ -226,7 +226,8 @@ public class CrewTargetPriorityGoal extends Goal {
             // A VehicleEntity is not a LivingEntity and can never be the target itself —
             // the AI targets the crew riding it, so "is armor" means "is riding a hull".
             case ARMOR -> target.getVehicle() instanceof VehicleEntity
-                    || com.neoalive.tacz_sewv.compat.lv.LvCompat.isArmouredHull(target.getVehicle());
+                    || com.neoalive.tacz_sewv.compat.lv.LvCompat.isArmouredHull(target.getVehicle())
+                    || com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target);
             case TROOPS -> target instanceof AbstractUnit;
             case AIR -> isAirborneRider(target);
         };

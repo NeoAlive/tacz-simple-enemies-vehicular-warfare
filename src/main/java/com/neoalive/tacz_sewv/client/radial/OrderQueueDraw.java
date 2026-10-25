@@ -59,17 +59,16 @@ final class OrderQueueDraw {
     }
 
     /**
-     * "Queue Mode: ON/OFF", always shown above the top wedge label ({@code labelReach} out from the
-     * centre); fades in with the wheel and again on each toggle.
+     * "Queue Mode: ON/OFF", always shown above the top wedge label ({@code labelTop}, the labels'
+     * top edge); fades in with the wheel and again on each toggle.
      */
-    static void renderModeText(GuiGraphics g, Font font, int cx, int cy, int labelReach,
+    static void renderModeText(GuiGraphics g, Font font, int cx, int labelTop,
                                float menuAlpha, boolean on, long toggledAtMs) {
         float a = Mth.clamp(menuAlpha, 0.0f, 1.0f)
                 * Mth.clamp((System.currentTimeMillis() - toggledAtMs) / (float) FADE_MS, 0.0f, 1.0f);
         // Text with an alpha under ~4 is drawn opaque by vanilla, so stop before that.
         if (a < 0.05f) return;
         String text = I18n.get(on ? "gui.tacz_sewv.queue.on" : "gui.tacz_sewv.queue.off");
-        int labelTop = cy - labelReach - 4;
         g.drawCenteredString(font, text, cx, labelTop - font.lineHeight - 6,
                 FormationPreviewDraw.scaleAlpha(on ? CURRENT : MUTED, a));
     }

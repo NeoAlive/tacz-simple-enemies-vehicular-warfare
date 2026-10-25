@@ -63,7 +63,7 @@ import com.neoalive.tacz_sewv.network.PacketVehicleFormation;
  */
 public final class QuickCommandWheelScreen extends Screen {
 
-    private static final int HUB_FILL = 0xCC0E1218;
+    private static final int HUB_FILL = RadialWheelDraw.PLATE;
     private static final int LABEL = 0xFFE8ECF0;
     private static final int LABEL_HOT = 0xFFFFFFFF;
 
@@ -750,6 +750,8 @@ public final class QuickCommandWheelScreen extends Screen {
                 enabled[i] = true;
             }
         }
+        RadialWheelDraw.LabelBounds labels = RadialWheelDraw.computeLabelBounds(this.font, cx, cy, outer,
+                wedges, checked);
         RadialWheelDraw.renderRing(g, this.font, cx, cy, inner, outer, wedges, this.wedgeHot,
                 this.menuAlpha, LABEL, LABEL_HOT, enabled, checked,
                 this.input.accumX(), this.input.accumY());
@@ -768,18 +770,17 @@ public final class QuickCommandWheelScreen extends Screen {
                     HUB_FILL, LABEL_HOT);
         }
 
-        renderScaleCard(g, cx, cy, outer, wedges);
+        renderScaleCard(g, cy, labels.right(), wedges);
 
         if (OrderQueueClient.isOn()) {
             OrderQueueDraw.renderBox(g, this.font, cx, cy, outer, this.menuAlpha,
                     OrderQueueClient.labels(), HUB_FILL, LABEL);
         }
-        int labelReach = RadialWheelDraw.labelReach(outer);
-        OrderQueueDraw.renderModeText(g, this.font, cx, cy, labelReach,
+        OrderQueueDraw.renderModeText(g, this.font, cx, labels.top(),
                 this.menuAlpha, OrderQueueClient.isOn(), OrderQueueClient.toggledAtMs());
-        SelectionBarDraw.render(g, this.font, cx, cy, labelReach, this.menuAlpha,
+        SelectionBarDraw.render(g, this.font, cx, labels.bottom(), this.menuAlpha,
                 TdtSelection.selectedCount(), this.nearbyCount, QuickCommandKeybind.SELECT_ALL,
-                QuickCommandKeybind.SELECT_NONE, QuickCommandKeybind.LIVE_SELECT, HUB_FILL, LABEL);
+                QuickCommandKeybind.SELECT_NONE, QuickCommandKeybind.LIVE_SELECT, HUB_FILL);
 
         super.render(g, mouseX, mouseY, partialTick);
     }
@@ -788,7 +789,7 @@ public final class QuickCommandWheelScreen extends Screen {
      * The value card for this submenu: the hovered leaf's when it carries one, otherwise the
      * first value leaf's, dimmed — so a value is never shown as if it belonged to the hovered order.
      */
-    private void renderScaleCard(GuiGraphics g, int cx, int cy, int outer, List<WedgeEntry> wedges) {
+    private void renderScaleCard(GuiGraphics g, int cy, int labelRight, List<WedgeEntry> wedges) {
         WedgeEntry.PipelineEntry shown = scaleLeafIn(wedges);
         if (shown == null) return;
         String hot = hotPipelineId();
@@ -798,9 +799,7 @@ public final class QuickCommandWheelScreen extends Screen {
                 if (e instanceof WedgeEntry.PipelineEntry leaf && leaf.pipelineId().equals(hot)) shown = leaf;
             }
         }
-        int widest = 0;
-        for (WedgeEntry e : wedges) widest = Math.max(widest, this.font.width(e.label()));
-        ScaleCardDraw.render(g, this.font, cx, cy, this.width, outer, widest, this.menuAlpha,
+        ScaleCardDraw.render(g, this.font, cy, this.width, labelRight, this.menuAlpha,
                 cardFor(shown.pipelineId()), live, shown.accentRgb(), HUB_FILL, LABEL_HOT);
     }
 

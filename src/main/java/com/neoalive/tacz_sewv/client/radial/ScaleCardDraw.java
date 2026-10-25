@@ -16,7 +16,7 @@ import net.minecraft.util.Mth;
  *   Ctrl+Scroll
  * </pre>
  *
- * Placed past the WIDEST label on screen, not at a fixed gap: labels like "Anti Ground Missile"
+ * Placed past the labels' measured right edge, not at a fixed gap: labels like "Anti Ground Missile"
  * run far wider than Formation's, and a fixed offset sat the card on top of them. A value only
  * applies to its own leaf, so the card fades whenever another leaf is hovered and its accent stripe
  * and tag go grey — it never looks like a live setting of the hovered order.
@@ -42,9 +42,12 @@ final class ScaleCardDraw {
 
     private ScaleCardDraw() {}
 
-    /** @param hot whether the card's own leaf is the hovered one */
-    static void render(GuiGraphics g, Font font, int cx, int cy, int screenW, int outerR,
-                       int widestLabel, float menuAlpha, Card card, boolean hot,
+    /**
+     * @param labelRight the right edge of the wheel's labels
+     * @param hot whether the card's own leaf is the hovered one
+     */
+    static void render(GuiGraphics g, Font font, int cy, int screenW, int labelRight,
+                       float menuAlpha, Card card, boolean hot,
                        int accentRgb, int panelArgb, int labelArgb) {
         float a = Mth.clamp(menuAlpha, 0.0f, 1.0f) * (hot ? 1.0f : INACTIVE_ALPHA);
         if (a <= 0.01f) return;
@@ -54,8 +57,7 @@ final class ScaleCardDraw {
         int w = STRIPE + PAD * 2 + innerW;
         int h = PAD + LINE + 2 + LINE + PAD;
 
-        int left = Math.min(cx + RadialWheelDraw.labelReach(outerR) + widestLabel + LABEL_CLEARANCE,
-                screenW - w - SCREEN_MARGIN);
+        int left = Math.min(labelRight + LABEL_CLEARANCE, screenW - w - SCREEN_MARGIN);
         int top = cy - h / 2;
         int accent = hot ? 0xFF000000 | accentRgb : GREY;
 

@@ -49,6 +49,12 @@ config="tacz_sewv.corpse.mixins.json"
 [[mixins]]
 config="tacz_sewv.minecolonies.mixins.json"
 
+# Tripod Invasion compat. Separate config ("required": false) + TripodMixinPlugin (LoadingModList
+# gate on mod id xx_tripod_invasion) so an absent Tripod Invasion never queues MixinTripodShieldBlock.
+# Targeted by class name; no compile-time dependency.
+[[mixins]]
+config="tacz_sewv.tripod.mixins.json"
+
 [[dependencies.tacz_sewv]] #optional
     modId="forge" #mandatory
     mandatory=true #mandatory

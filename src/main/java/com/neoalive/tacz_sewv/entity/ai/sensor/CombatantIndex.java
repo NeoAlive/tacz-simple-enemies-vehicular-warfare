@@ -12,6 +12,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.animal.IronGolem;
@@ -28,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
@@ -330,6 +332,15 @@ public final class CombatantIndex {
             AbstractUnit observer = first instanceof AbstractUnit u ? u : null;
             hulls.add(new Entry(hull.getId(), Kind.HULL, hull.getX(), hull.getY(), hull.getZ(), first,
                     observer, observer != null, altitudeSlack(level, hull)));
+        }
+        // Tripod Invasion walkers are hull subjects (seen by the wide pass out to wideScanRadius, never
+        // observers). Taken from TripodCompat's join/leave list, not the entity scan above: the mod has
+        // to patch Level.getEntities to make one findable at all. Empty without the mod.
+        for (Entity e : TripodCompat.tripods(level)) {
+            if (e instanceof LivingEntity tripod && tripod.isAlive()) {
+                hulls.add(new Entry(tripod.getId(), Kind.HULL, tripod.getX(), tripod.getY(), tripod.getZ(),
+                        tripod, null, false, 0.0));
+            }
         }
 
         // Unit AI LOD rides this pass: it has every live unit in hand already.

@@ -217,6 +217,8 @@ public final class SmallArmsSupport {
         SbwClass cls = launcherClass(unit);
         if (cls == null) return false;
 
+        // A tripod is a ground hull to a launcher: AT may lock it, AA may not.
+        if (com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target)) return cls == SbwClass.AA;
         if (!(target.getVehicle() instanceof VehicleEntity hull)) return true;
         EngineType engine = HullFacts.engineType(hull);
         if (cls == SbwClass.AA) return engine != EngineType.HELICOPTER && engine != EngineType.AIRCRAFT;

@@ -21,6 +21,7 @@ public final class VehiclePackPresets {
         SUPERB_WARFARE("superbwarfare", "gui.tacz_sewv.pool.preset.pack.sbw"),
         FCP("fcp", "gui.tacz_sewv.pool.preset.pack.fcp"),
         DRAGONRISE("dragonrise_reforge", "gui.tacz_sewv.pool.preset.pack.dragonrise"),
+        DRAGONRISE_HISTORICAL("dragonrise_reforge", "gui.tacz_sewv.pool.preset.pack.dragonrise_historical"),
         ULTIMA_RATIO("ultimaratio", "gui.tacz_sewv.pool.preset.pack.ultimaratio"),
         NEO_ARMS("neoarms", "gui.tacz_sewv.pool.preset.pack.neoarms"),
         LIMITLESS_VEHICLES("ywzj_vehicle", "gui.tacz_sewv.pool.preset.pack.limitless");
@@ -74,6 +75,7 @@ public final class VehiclePackPresets {
         out.put(Pack.SUPERB_WARFARE, sbw());
         out.put(Pack.FCP, fcp());
         out.put(Pack.DRAGONRISE, dragonrise());
+        out.put(Pack.DRAGONRISE_HISTORICAL, dragonriseHistorical());
         out.put(Pack.ULTIMA_RATIO, ultima());
         out.put(Pack.NEO_ARMS, neoarms());
         out.put(Pack.LIMITLESS_VEHICLES, limitless());
@@ -191,12 +193,13 @@ public final class VehiclePackPresets {
 
     // ---------------------------------------------------------------- DragonRise
 
+    /** Modern (post-war) DragonRise hulls; WWI/WWII ones are {@link #dragonriseHistorical}. */
     private static Map<TankFaction, Map<Category, List<String>>> dragonrise() {
         String ns = "dragonrise_reforge";
         return new Builder()
                 .put(TankFaction.RU, Category.GROUND, ns,
-                        "2s25m", "2s38", "625e", "bmd4m", "bmp3", "bmpt72", "csk181", "darkbear", "is2", "kv1",
-                        "pzbjy", "sd905", "syy651", "t3476", "t3485", "t72b3", "t80", "t80b", "t90mh", "tjgc",
+                        "2s25m", "2s38", "625e", "bmd4m", "bmp3", "bmpt72", "csk181", "darkbear",
+                        "pzbjy", "sd905", "syy651", "t72b3", "t80", "t80b", "t90mh", "tjgc",
                         "tunguska", "ural4320", "ural4320_supply", "ural4320_zu23", "vt4a1", "vt4b", "wlsc",
                         "zbd04a", "zbd05", "zbl08", "zlt11", "zsl10", "zsu234", "ztd05", "ztq15", "ztz59a",
                         "ztz96a", "ztz99a", "ztz99ah")
@@ -205,21 +208,36 @@ public final class VehiclePackPresets {
                         "j8", "j10", "j10c", "j11", "j15t", "j16", "j20", "j20vtol", "j35", "jf17", "q5", "su24m")
                 .put(TankFaction.RU, Category.TOW, ns, "9m133", "hj8", "dshk", "zu23", "wlhgzu23", "akm")
                 .put(TankFaction.US, Category.GROUND, ns,
-                        "aav7a1", "aavc7c1", "amx56", "challenger_ds", "churchill_vii", "cm34", "comet", "cv90",
-                        "flarakpz1", "humvee", "humveetow", "l1a2", "leopard2a4", "lvt", "m10booker", "m113",
-                        "m1a1hc", "m1a2sepv2", "m2", "m270", "m3a3", "m3stuart", "m4a2", "m4a2_105", "markv",
-                        "mv3", "mv3_armed", "mv3_supply", "pershing", "strv103", "type100", "type3", "type97",
-                        "type97q")
+                        "aav7a1", "aavc7c1", "amx56", "challenger_ds", "cm34", "cv90",
+                        "flarakpz1", "humvee", "humveetow", "l1a2", "leopard2a4", "m10booker", "m113",
+                        "m1a1hc", "m1a2sepv2", "m2", "m270", "m3a3",
+                        "mv3", "mv3_armed", "mv3_supply", "strv103", "type100")
                 .put(TankFaction.US, Category.ROTOR, ns, "ah1f", "ah64", "ec665", "nh90", "uh60")
                 .put(TankFaction.US, Category.PLANE, ns,
-                        "ac130", "av8b", "f14", "f15e", "f16c", "f4u", "fa18e", "jas39e", "refale", "refaleaa")
-                .put(TankFaction.US, Category.TOW, ns, "mk19", "pak40", "npds114", "npds514", "npds810")
+                        "ac130", "av8b", "f14", "f15e", "f16c", "fa18e", "jas39e", "refale", "refaleaa")
+                .put(TankFaction.US, Category.TOW, ns, "mk19", "npds114", "npds514", "npds810")
                 .put(TankFaction.PMC, Category.GROUND, ns,
                         "t72b3", "bmp3", "bmd4m", "cv90", "m2", "m113", "humvee", "humveetow", "mv3_armed",
-                        "ural4320_zu23", "zbl08", "amx56", "type97", "panzer4", "tiger")
+                        "ural4320_zu23", "zbl08", "amx56")
                 .put(TankFaction.PMC, Category.ROTOR, ns, "uh60", "mi24v", "ah1f", "z9")
                 .put(TankFaction.PMC, Category.PLANE, ns, "f16c", "jas39e", "jf17", "su24m", "av8b")
                 .put(TankFaction.PMC, Category.TOW, ns, "dshk", "mk19", "hj8", "9m133")
+                .freeze();
+    }
+
+    /** WWI/WWII DragonRise hulls. DShK / M2HB are period guns still in service, so they sit in both. */
+    private static Map<TankFaction, Map<Category, List<String>>> dragonriseHistorical() {
+        String ns = "dragonrise_reforge";
+        return new Builder()
+                .put(TankFaction.RU, Category.GROUND, ns, "is2", "kv1", "t3476", "t3485")
+                .put(TankFaction.RU, Category.TOW, ns, "dshk")
+                .put(TankFaction.US, Category.GROUND, ns,
+                        "churchill_vii", "comet", "lvt", "m2", "m3stuart", "m4a2", "m4a2_105", "markv",
+                        "pershing", "type3", "type97", "type97q")
+                .put(TankFaction.US, Category.PLANE, ns, "f4u")
+                .put(TankFaction.US, Category.TOW, ns, "pak40")
+                .put(TankFaction.PMC, Category.GROUND, ns, "m2", "type97", "panzer4", "tiger")
+                .put(TankFaction.PMC, Category.TOW, ns, "dshk")
                 .freeze();
     }
 

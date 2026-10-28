@@ -101,7 +101,8 @@ public final class ManeuverPlanner {
 
         double theta = StrictMath.atan2(in.tl, in.ta);
         if (Math.abs(theta) < in.straightThreshold) return new Decision(State.STRAIGHT, false);
-        boolean reachable = !finalPoint || in.tracked || arcReachable(d, in.tl, in.rMin);
+        boolean reachable = !finalPoint || in.tracked || arcReachable(d, in.tl, in.rMin)
+                || passesWithin(in.ta, in.tl, in.rMin, in.arriveRadius);
         if (Math.abs(theta) <= ARC_MAX_BEARING_RAD && reachable) return new Decision(State.ARC, false);
         return new Decision(State.MULTI_POINT, !in.tracked && finalPoint);
     }
@@ -111,6 +112,23 @@ public final class ManeuverPlanner {
     static boolean arcReachable(double d, double l, double rMin) {
         if (l == 0.0) return false; // dead ahead is STRAIGHT already; dead astern has no arc
         return d * d / (2.0 * Math.abs(l)) >= rMin;
+    }
+
+    /**
+     * Does rolling on bring the hull within {@code arrive} of a target AHEAD of it, even though no
+     * arc ends exactly on it? Straight on, when the sideways miss is inside the radius; or round the
+     * full-lock circle on the target's side, when that circle's nearest approach is. Without this a
+     * slot 4 blocks ahead and 1.6 to the side read as unreachable ({@code 18.6 / 3.2 < r_min}) and got
+     * a three-point turn, though rolling past it lands inside a 3-block formation radius. A target
+     * abeam or behind is left to the planner: looping most of a circle back to it is worse than a
+     * three-point turn. {@code arrive <= 0} (no radius known) answers false, the old rule.
+     */
+    static boolean passesWithin(double a, double l, double rMin, double arrive) {
+        if (!(arrive > 0.0) || !(a > 0.0)) return false;
+        double side = Math.abs(l);
+        if (side <= arrive) return true;
+        double toCentre = StrictMath.sqrt(a * a + (side - rMin) * (side - rMin));
+        return Math.abs(toCentre - rMin) <= arrive;
     }
 
     // ---------------------------------------------------------------- multi-point search

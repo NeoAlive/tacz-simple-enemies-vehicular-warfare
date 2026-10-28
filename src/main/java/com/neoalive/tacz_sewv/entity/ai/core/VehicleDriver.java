@@ -818,8 +818,11 @@ public final class VehicleDriver {
         // at the target's distance, so an intermediate steer point lands in exactly the bands the
         // old 110-degree test had; only the final point brings in the radius test.
         double dist = Math.sqrt(horizontalDistSq(targetPos));
+        // The final point is judged against the radius the goal will call "arrived": a slot the hull
+        // rolls past inside it is reached, not a reason for a three-point turn (ManeuverPlanner#passesWithin).
+        double arrive = this.steerIsFinal ? VehicleTargeting.arrivalDistance(this.unit, hullWidth()) : -1.0;
         ManeuverPlanner.Decision decision = ManeuverPlanner.classify(maneuverInput(forward,
-                dist * Math.cos(angle), dist * Math.sin(angle), Double.NaN, -1.0,
+                dist * Math.cos(angle), dist * Math.sin(angle), Double.NaN, arrive,
                 this.steerIsFinal, !this.hull.isWheeled(), angleThreshold));
         if (decision.state() == ManeuverPlanner.State.MULTI_POINT) {
             if (decision.plan() && sternClearOrNoSensor(forward) && tryRoutePlan(forward, targetPos, distanceSq)) {

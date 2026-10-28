@@ -220,6 +220,8 @@ final class ConfigRegistryBootstrap {
     }
 
     private static void registerWorldRules(ConfigRegistry.Builder b) {
+        b.bool(ConfigScope.SERVER, "world_rules", "diplomacyRequiresOp",
+                SewvConfig.DIPLOMACY_REQUIRES_OP, SewvConfig.DIPLOMACY_REQUIRES_OP::set);
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.ambient_spawns", ModGameRules.AMBIENT_SPAWNS);
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.ru_spawns", ModGameRules.RU_SPAWNS);
         b.gamerule(ConfigScope.SERVER, "world_rules", "world_rules.us_spawns", ModGameRules.US_SPAWNS);

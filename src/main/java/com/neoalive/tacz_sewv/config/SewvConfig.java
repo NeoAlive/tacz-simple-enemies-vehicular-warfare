@@ -105,6 +105,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_STRUCTURES;
     // Limitless Vehicles (ywzj_vehicle, optional) — read only when that mod is loaded.
     public static final ForgeConfigSpec.BooleanValue LV_AI_ENABLED;
+    /** When true, {@code /sewv diplomacy} needs permission level 2. Default false: any player. */
+    public static final ForgeConfigSpec.BooleanValue DIPLOMACY_REQUIRES_OP;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_STRUCTURES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_STRUCTURES;
 
@@ -1751,6 +1753,13 @@ public final class SewvConfig {
                         "Crews drive, fly and gun Limitless Vehicles hulls (ground, boats, rotorcraft). Needs ywzj_vehicle.",
                         "LV vehicle ids go in the ordinary ground / surface / rotor pools (pool editor preset: Limitless Vehicles).")
                 .define("lvAiEnabled", true);
+        builder.pop();
+
+        builder.push("diplomacy");
+        DIPLOMACY_REQUIRES_OP = builder.comment(
+                        "When true, /sewv diplomacy requires operator (permission level 2).",
+                        "When false, any player can set and list diplomacy.")
+                .define("diplomacyRequiresOp", false);
         builder.pop();
 
         SPEC = builder.build();

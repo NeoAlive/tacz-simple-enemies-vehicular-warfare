@@ -1851,6 +1851,8 @@
   "config.tacz_sewv.vehicleTreeSensorDanger.tooltip": "How strongly (0 to 1) a fellable tree pushes steering away from it. Must stay below 1, or trees become walls again.",
   "config.tacz_sewv.vehicleVoicelinesEnabled": "Vehicle Voicelines Enabled",
   "config.tacz_sewv.vehicleVoicelinesEnabled.tooltip": "Play radio chatter from crews inside vehicles.",
+  "config.tacz_sewv.diplomacyRequiresOp": "Diplomacy command requires OP",
+  "config.tacz_sewv.diplomacyRequiresOp.tooltip": "On: /sewv diplomacy needs operator. Off: any player can set and list diplomacy.",
   "config.tacz_sewv.world_rules.can_mobs_damage_vehicles": "Mobs damage vehicles",
   "config.tacz_sewv.world_rules.can_mobs_damage_vehicles.tooltip": "Let mob melee use SEWV's score-based damage against vehicle hulls.",
   "config.tacz_sewv.farEventSpawns": "Far event spawns",

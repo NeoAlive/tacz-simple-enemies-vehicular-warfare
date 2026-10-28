@@ -226,8 +226,10 @@ public class SewvCommand {
                                         .executes(ctx -> EntityCleanup.run(ctx.getSource(), false)))
                                 .then(Commands.literal("target")
                                         .executes(ctx -> EntityCleanup.target(ctx.getSource())))))
+                // World rules → diplomacyRequiresOp. Off: any player. On: permission level 2.
                 .then(Commands.literal("diplomacy")
-                        .requires(source -> source.hasPermission(2))
+                        .requires(source -> !SewvConfig.DIPLOMACY_REQUIRES_OP.get()
+                                || source.hasPermission(2))
                         .then(Commands.literal("add")
                                 .then(Commands.argument("relation", StringArgumentType.word())
                                         .suggests((ctx, b) -> SharedSuggestionProvider.suggest(

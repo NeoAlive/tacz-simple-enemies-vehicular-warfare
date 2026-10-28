@@ -41,6 +41,7 @@ import com.neoalive.tacz_sewv.entity.ai.march.March;
 import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
 import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
+import com.neoalive.tacz_sewv.entity.ai.support.HeliFollowSlots;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
@@ -104,6 +105,7 @@ public final class CommandCoordinator {
         IdleMarches.clear();
         SEATED_DRIVERS.clear();
         COHESIVE_LINES.clear();
+        HeliFollowSlots.clear();
     }
 
     @SubscribeEvent
@@ -118,6 +120,7 @@ public final class CommandCoordinator {
         IdleMarches.clear();
         SEATED_DRIVERS.clear();
         COHESIVE_LINES.clear();
+        HeliFollowSlots.clear();
     }
 
     @SubscribeEvent

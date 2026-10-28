@@ -28,8 +28,10 @@ import com.neoalive.tacz_sewv.heli.guidance.HeliReference;
  * <ul>
  * <li><b>Airframes:</b> every helicopter and plane hull except this one: any faction, any pilot
  *     or none, wrecks too. Each is a box with its own velocity. No faction or pilot filter: a
- *     collision with an enemy or a player helicopter is still a collision. Wingmen at matched
- *     velocity are not pushed apart, because the band is sized from the closing speed.</li>
+ *     collision with an enemy or a player helicopter is still a collision. A crewed airframe in
+ *     flight also carries {@link AvoidForce#AIRFRAME_GAP}: the band is sized from closing speed, so
+ *     without it wingmen at matched velocity held station a block apart. Not while this hull is
+ *     being put on the ground, and not against a parked hull or a wreck.</li>
  * <li><b>Terrain:</b> the first solid block along a short fan of rays from mid-hull: along the
  *     velocity (and +-20, +-45 degrees) when moving, the eight compass points when hovering. Rays
  *     reach the band this speed needs plus a margin, never past the detect radius, and stop at
@@ -59,14 +61,19 @@ public final class WorldObstacleField {
         List<ObstacleSet.Box> boxes = new ArrayList<>();
         Set<Long> keys = new HashSet<>();
 
-        AABB search = hull.getBoundingBox().inflate(reach + halfWidth);
+        // Far enough that a hovering hull still sees the airframe gap's band (r0 + gap) coming.
+        double airReach = groundBarrier ? Math.max(reach, barrier.floorBand(AvoidForce.AIRFRAME_GAP) + 2.0) : reach;
+        AABB search = hull.getBoundingBox().inflate(airReach + halfWidth);
         for (VehicleEntity o : level.getEntitiesOfClass(VehicleEntity.class, search, o -> o != hull && isAirframe(o))) {
             AABB b = o.getBoundingBox();
             Vec3 dm = o.getDeltaMovement();
             long key = ENTITY_KEY_BASE + o.getId();
             keys.add(key);
+            // The gap is for traffic, not for pad work: none while this hull is being put down (a
+            // neighbouring helipad is ~3 blocks off), and none against a parked hull or a wreck.
+            double gap = groundBarrier && keepsAirframeGap(o) ? AvoidForce.AIRFRAME_GAP : 0.0;
             boxes.add(new ObstacleSet.Box(key, b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ,
-                    dm.x * 20.0, dm.y * 20.0, dm.z * 20.0));
+                    dm.x * 20.0, dm.y * 20.0, dm.z * 20.0, gap));
         }
 
         double ox = p.x(), oy = p.y() + height / 2.0, oz = p.z();
@@ -143,6 +150,11 @@ public final class WorldObstacleField {
 
     private static boolean isEntityKey(long key) {
         return key >= ENTITY_KEY_BASE && key < ENTITY_KEY_BASE + (1L << 32);
+    }
+
+    /** Crewed and off the ground: traffic the airframe gap applies to. */
+    private static boolean keepsAirframeGap(VehicleEntity o) {
+        return !o.isWreck() && o.getFirstPassenger() != null && !o.onGround();
     }
 
     private static boolean isAirframe(VehicleEntity o) {

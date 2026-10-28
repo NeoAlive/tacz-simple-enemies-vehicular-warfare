@@ -20,7 +20,25 @@ public final class PlayerFormationSelfCheck {
         cardinalYawLaysLegacySlots();
         diagonalIsBetweenItsCardinals();
         headingNames();
+        heliFollowRing();
         System.out.println("PlayerFormationSelfCheck OK");
+    }
+
+    /** FOLLOW_ME helicopter ring: neighbours exactly one separation apart, slot 0 north, a lone follower stays put. */
+    private static void heliFollowRing() {
+        double sep = 14.0;
+        assert HeliFollowSlots.ringRadius(1, sep) == 0.0 : "a lone follower has no ring";
+        double[] lone = HeliFollowSlots.offset(0, 1, sep);
+        assert lone[0] == 0.0 && lone[1] == 0.0 : "a lone follower must hold over the commander";
+        for (int n = 2; n <= 8; n++) {
+            for (int i = 0; i < n; i++) {
+                double[] a = HeliFollowSlots.offset(i, n, sep);
+                double[] b = HeliFollowSlots.offset((i + 1) % n, n, sep);
+                assert near(Math.hypot(a[0] - b[0], a[1] - b[1]), sep) : n + " followers: neighbours not " + sep + " apart";
+            }
+        }
+        double[] north = HeliFollowSlots.offset(0, 4, sep);
+        assert near(north[0], 0.0) && north[1] < 0.0 : "slot 0 must be due north (-Z)";
     }
 
     private static final Object[][] CARDINALS = {

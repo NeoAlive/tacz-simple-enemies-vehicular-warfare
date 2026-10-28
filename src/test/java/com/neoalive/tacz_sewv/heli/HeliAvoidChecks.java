@@ -25,6 +25,7 @@ final class HeliAvoidChecks {
         noPenetration();
         latch();
         fastDescentProbe();
+        airframeGap();
     }
 
     static AvoidForce barrierFor(Airframe af) {
@@ -163,6 +164,39 @@ final class HeliAvoidChecks {
         g.update(both, new Vector3d(-100, 2.0, 0), new Vector3d(-5, -3, 0));
         assert Double.isNaN(g.bandOf(7L)) && g.bandOf(ObstacleSet.GROUND) == gb
                 : "A5: dropping the wall changed the ground band";
+    }
+
+    // A6 -------------------------------------------------------------------------------------------
+    /**
+     * Wingmen holding station: zero closing speed. A crewed airframe in flight (gap set) is pushed off
+     * out to r0 + gap; terrain or a parked hull (no gap) is still only r0, so pad work is unchanged.
+     */
+    private static void airframeGap() {
+        double gap = AvoidForce.AIRFRAME_GAP;
+        AvoidForce f = new AvoidForce(10.0, 25.0, 5.0, 2.0, 2.0, 3.0, 1.0, 0.05);
+        double r0 = f.band(0.0, Double.POSITIVE_INFINITY);
+        assert f.floorBand(gap) == r0 + gap : "A6: floor is not r0 + gap";
+        ObstacleSet.Box wingman = new ObstacleSet.Box(9L, 100, -100, -100, 101, 100, 100, 0, 0, 0, gap);
+        ObstacleSet.Box parked = new ObstacleSet.Box(9L, 100, -100, -100, 101, 100, 100, 0, 0, 0);
+        ObstacleSet withGap = new ObstacleSet(List.of(wingman), Double.NaN);
+        ObstacleSet noGap = new ObstacleSet(List.of(parked), Double.NaN);
+        Vector3d still = new Vector3d();
+        double d = r0 + gap * 0.5; // past the old floor, inside the new one
+
+        f.update(withGap, at(d), still);
+        assert f.bandOf(9L) == r0 + gap : "A6: hovering wingman's band is not r0 + gap: " + f.bandOf(9L);
+        assert f.force(withGap, at(d), still, 1000, new Vector3d()).x < 0.0 : "A6: no push from a hovering wingman";
+
+        AvoidForce g = new AvoidForce(10.0, 25.0, 5.0, 2.0, 2.0, 3.0, 1.0, 0.05);
+        g.update(noGap, at(d), still);
+        assert g.bandOf(9L) == r0 : "A6: a gap-less box's band moved off r0";
+        assert g.force(noGap, at(d), still, 1000, new Vector3d()).lengthSquared() == 0.0
+                : "A6: a parked hull pushes past r0";
+
+        // The floor never caps a faster closure: closing speed still sizes the band above it.
+        f.update(withGap, at(30), toward(15));
+        assert f.bandOf(9L) == Math.max(f.band(15, Double.POSITIVE_INFINITY), r0 + gap)
+                : "A6: the floor overrode the closing-speed band";
     }
 
     private static Vector3d toward(double speed) {

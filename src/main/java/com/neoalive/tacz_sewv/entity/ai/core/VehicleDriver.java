@@ -977,6 +977,8 @@ public final class VehicleDriver {
      * only has to catch what moved into them, or a hull off the planning speed band. A full
      * lookahead straight ahead would abort every forward leg of a turn made next to a wall. */
     private static final double RUN_CONTACT_PROBE = 2.0;
+    /** A running maneuver yields to a peer it would touch within this many ticks (see VehicleOrca#yieldsTo). */
+    private static final double RUN_YIELD_TICKS = 20.0;
 
     /** One planned maneuver being driven: segment cursor plus the measured net yaw of the segment. */
     private static final class ManeuverRun {
@@ -1028,6 +1030,17 @@ public final class VehicleDriver {
             if (!this.sensor.headingClear(travel.normalize(), RUN_CONTACT_PROBE)) {
                 if (SewvDiag.groundPathingVerbose()) {
                     SewvDiag.pathing("multipoint BLOCKED unit={}#{} vehicle={}#{} seg={} reverse={}: abort",
+                            this.unit.getClass().getSimpleName(), this.unit.getId(),
+                            this.vehicle.getName().getString(), this.vehicle.getId(), run.seg, reverse);
+                }
+                return RUN_ABORTED;
+            }
+            // The keys are pressed directly here, past the whisker fan, so ORCA's spacing never
+            // applies while a plan runs; give way when a peer is about to meet us. The abort's
+            // cooldown hands steering back to the fan, which does keep the soft distance.
+            if (this.sensor.maneuverMustYield(RUN_YIELD_TICKS)) {
+                if (SewvDiag.groundPathingVerbose()) {
+                    SewvDiag.pathing("multipoint YIELD unit={}#{} vehicle={}#{} seg={} reverse={}: abort",
                             this.unit.getClass().getSimpleName(), this.unit.getId(),
                             this.vehicle.getName().getString(), this.vehicle.getId(), run.seg, reverse);
                 }

@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleMissileAim;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
@@ -37,6 +38,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
 import com.neoalive.tacz_sewv.entity.ai.support.HeliArmament;
+import com.neoalive.tacz_sewv.entity.ai.support.HeliFollowSlots;
 import com.neoalive.tacz_sewv.entity.ai.support.RappelSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.heli.HeliFlight;
@@ -237,6 +239,8 @@ public class DriveHelicopterGoal extends Goal {
     private RunPhase runPhase = RunPhase.IDLE;
     /** Where an idle or fighting hull holds station; NaN = take the current position next tick. */
     private double holdX = Double.NaN, holdZ = Double.NaN;
+    /** Last FOLLOW_ME ring slot logged ({@link #noteFollowSlot}). */
+    private String lastFollowSlot;
     private boolean holdForCombat;
     /** Cached groundRef around the current target. */
     private double groundRef = Double.NaN;
@@ -581,6 +585,11 @@ public class DriveHelicopterGoal extends Goal {
         }
 
         BlockPos dest = VehicleTargeting.resolveDestination(this.unit, this.vehicle, this.allyAssist);
+        // A plain FOLLOW_ME sends every follower to the commander's own block; spread them on a ring.
+        if (dest != null && this.unit instanceof PmcUnitEntity follower) {
+            dest = HeliFollowSlots.adjust(follower, this.vehicle, dest);
+            noteFollowSlot(follower);
+        }
         // resolveDestination answers an RU/US crew's own target as its destination; a carrying hull
         // patrols instead of flying to it (an objective ahead of the target, e.g. a capture, stays).
         LivingEntity seen = this.unit.getTarget();
@@ -607,6 +616,16 @@ public class DriveHelicopterGoal extends Goal {
         sit.holdX = this.holdX;
         sit.holdZ = this.holdZ;
         sit.holdY = cruiseAltitudeHere();
+    }
+
+    /** heliFlightDebug: one line whenever this hull's FOLLOW_ME ring slot changes. */
+    private void noteFollowSlot(PmcUnitEntity follower) {
+        if (!SewvDiag.heliFlightVerbose() || follower.getOwnerUUID() == null) return;
+        String slot = HeliFollowSlots.describe(follower.getOwnerUUID(), this.vehicle.getId());
+        if (java.util.Objects.equals(slot, this.lastFollowSlot)) return;
+        this.lastFollowSlot = slot;
+        SewvDiag.flight("{}#{} follow-slot {}", this.vehicle.getName().getString(), this.vehicle.getId(),
+                slot == null ? "none (on the commander)" : slot);
     }
 
     /** Latch the station on first use, so a hold is a fixed point rather than wherever the hull drifted. */

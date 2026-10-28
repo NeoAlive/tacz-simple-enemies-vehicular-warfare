@@ -53,6 +53,50 @@ public final class VehicleOrca {
         return (halfA + halfB) * RADIUS_PAD;
     }
 
+    /**
+     * Blocks a PLANNED maneuver keeps from a peer on top of {@link #contactRadius}. A plan bypasses the
+     * whisker fan, so the soft {@link #radius} never reaches it; at bare contact the planner happily laid
+     * three-point turns that grazed the next hull. Not the soft radius either: two tanks' soft disc is
+     * ~10 blocks, inside a 0.5-stretch LINE formation's 6, and every plan there would be refused.
+     */
+    public static final double SWEEP_MARGIN = 2.0;
+
+    /** Peer clearance a planned maneuver's swept centres must keep. */
+    public static double sweepRadius(double halfA, double halfB) {
+        return contactRadius(halfA, halfB) + SWEEP_MARGIN;
+    }
+
+    /**
+     * Do the swept hull centres {@code x/z} keep {@code clearance} from a peer at {@code (peerX, peerZ)}?
+     * A hull already inside it may still plan, as long as no sample ends up closer than it starts — the
+     * same "veto only what deepens it" rule the hard ORCA veto uses for an overlapping pair, without which
+     * a hull parked too close to a neighbour could never plan its way out.
+     */
+    public static boolean sweepKeepsClear(double selfX, double selfZ, double[] x, double[] z,
+                                          double peerX, double peerZ, double clearance) {
+        double sx = selfX - peerX;
+        double sz = selfZ - peerZ;
+        double startSq = sx * sx + sz * sz;
+        double floorSq = Math.min(clearance * clearance, startSq) - EPS;
+        for (int i = 0; i < x.length; i++) {
+            double dx = x[i] - peerX;
+            double dz = z[i] - peerZ;
+            if (dx * dx + dz * dz < floorSq) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Of a pair whose planned maneuvers are about to meet, does {@code selfId} give way to {@code peer}?
+     * The higher id yields, so exactly one of any two does: both yielding is the packed-pair lock again
+     * (abort, cool down, replan the same turn, abort). A peer slower than {@code movingSpeed} cannot make
+     * way, so anyone yields to it.
+     */
+    public static boolean yieldsTo(int selfId, Peer peer, double movingSpeed) {
+        if (peer.vx() * peer.vx() + peer.vz() * peer.vz() < movingSpeed * movingSpeed) return true;
+        return selfId > peer.id();
+    }
+
     /** One hull to steer around: position, current velocity, half-width, entity id. The id is
      * carried only so a caller can break the exact-head-on tie deterministically and
      * reciprocally — see {@link #halfPlane}'s {@code sideBias} parameter. */

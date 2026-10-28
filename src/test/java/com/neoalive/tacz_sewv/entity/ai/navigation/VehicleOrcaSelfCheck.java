@@ -49,6 +49,9 @@ public final class VehicleOrcaSelfCheck {
         imminentStaysClearForMundaneParallelTraffic();
         imminentDivergesUnlikeMargin();
         packedSoftClearanceEscapeStaysOpen();
+        sweepKeepsPlanMargin();
+        sweepLetsATooCloseHullBackAway();
+        exactlyOneOfAPairYields();
 
         System.out.println("ORCA geometry self-check: OK");
     }
@@ -211,6 +214,41 @@ public final class VehicleOrcaSelfCheck {
         boolean overlapEscape = VehicleOrca.overlappingAndClosing(
                 0, 2, 0, -0.4, 0, 0, 0, 0, CONTACT_R);
         assert !overlapEscape : "backing out of real clip must not read as closing";
+    }
+
+    /** A planned turn may not pass a peer closer than contact + SWEEP_MARGIN; one that stays out is fine. */
+    private static void sweepKeepsPlanMargin() {
+        double clear = VehicleOrca.sweepRadius(2.0, 2.0);
+        assertClose(CONTACT_R + VehicleOrca.SWEEP_MARGIN, clear, "sweep radius");
+        // Peer at (0, 10); the hull starts at the origin, well outside.
+        double[] grazeX = {0.0, 0.0, 0.0};
+        double[] grazeZ = {0.0, 2.0, 4.0}; // ends 6 from the peer: outside contact (4.4), inside 6.4
+        assert !VehicleOrca.sweepKeepsClear(0, 0, grazeX, grazeZ, 0, 10, clear) : "a grazing plan must be refused";
+        double[] wideX = {0.0, -3.0, -6.0};
+        double[] wideZ = {0.0, 1.0, 2.0};
+        assert VehicleOrca.sweepKeepsClear(0, 0, wideX, wideZ, 0, 10, clear) : "a plan that stays clear must pass";
+    }
+
+    /** Parked too close: a plan that opens the gap is allowed, one that closes it is not. */
+    private static void sweepLetsATooCloseHullBackAway() {
+        double clear = VehicleOrca.sweepRadius(2.0, 2.0);
+        // Peer at (0, 5): the hull starts 5 off, inside 6.4.
+        assert VehicleOrca.sweepKeepsClear(0, 0, new double[] {0.0, 0.0}, new double[] {-1.0, -2.0}, 0, 5, clear)
+                : "backing away from a too-close peer must be allowed";
+        assert !VehicleOrca.sweepKeepsClear(0, 0, new double[] {0.0, 0.0}, new double[] {0.5, 1.0}, 0, 5, clear)
+                : "closing on a too-close peer must be refused";
+    }
+
+    /** The yield rule is antisymmetric for two moving hulls, and everyone yields to a parked one. */
+    private static void exactlyOneOfAPairYields() {
+        VehicleOrca.Peer a = new VehicleOrca.Peer(7, 0, 0, 0.3, 0, 2.0);
+        VehicleOrca.Peer b = new VehicleOrca.Peer(12, 10, 0, -0.3, 0, 2.0);
+        boolean aYields = VehicleOrca.yieldsTo(a.id(), b, 0.02);
+        boolean bYields = VehicleOrca.yieldsTo(b.id(), a, 0.02);
+        assert aYields != bYields : "exactly one of a moving pair must yield";
+        VehicleOrca.Peer parked = new VehicleOrca.Peer(3, 10, 0, 0.0, 0.0, 2.0);
+        assert VehicleOrca.yieldsTo(99, parked, 0.02) && VehicleOrca.yieldsTo(1, parked, 0.02)
+                : "a parked peer cannot make way, so everyone yields to it";
     }
 
     private static void assertClose(double expected, double actual, String label) {

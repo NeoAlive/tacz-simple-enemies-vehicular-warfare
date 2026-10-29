@@ -17,4 +17,7 @@ public interface AccessorPacketIssueOrder {
 
     @Accessor(value = "targetPos", remap = false)
     Vec3 tacz_sewv$targetPos();
+
+    @Accessor(value = "targetEntityId", remap = false)
+    int tacz_sewv$targetEntityId();
 }

@@ -18,6 +18,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEntrenched;
@@ -290,6 +291,18 @@ public abstract class MixinPmcUnitEntity
         if (!((Entity) (Object) this).isAddedToWorld()) return;
         if (((IFormationMember) this).sewv$consumeFormationCarry()) return;
         VehicleFormation.clear((PmcUnitEntity) (Object) this);
+    }
+
+    /**
+     * SEM's target filter reads {@code isFireAllowed()} ({@code order != CEASE_FIRE}). A UNIT formation
+     * follower keeps its FORM_* order while its leader is under a cease-fire, so the posture it heard from the
+     * leader is folded in here — the same filter then stops it picking anyone.
+     */
+    @Inject(method = "isFireAllowed", at = @At("RETURN"), cancellable = true, remap = false)
+    private void tacz_sewv$formationHoldFire(CallbackInfoReturnable<Boolean> cir) {
+        if (cir.getReturnValueZ() && ((IFormationMember) this).sewv$getFormationHoldFire()) {
+            cir.setReturnValue(false);
+        }
     }
 
     /**

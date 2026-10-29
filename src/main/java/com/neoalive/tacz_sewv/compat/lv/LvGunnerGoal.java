@@ -13,7 +13,6 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.ywzj.vehicle.custom.part.data.WeaponUnitData;
@@ -33,6 +32,7 @@ import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 
 /**
  * Lays and fires the weapon station of whichever LV seat this unit sits in — the turret on seat 0
@@ -189,7 +189,7 @@ final class LvGunnerGoal extends Goal {
 
     private boolean mayFire() {
         if (this.unit.level().getGameTime() < this.nextShotTime) return false;
-        return !(this.unit instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE);
+        return !(this.unit instanceof PmcUnitEntity pmc && FormationSubjects.ceaseFire(pmc));
     }
 
     private static boolean laid(WeaponUnit unit) {

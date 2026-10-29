@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.bridge;
 
+import java.util.UUID;
+
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.Mth;
@@ -54,6 +56,12 @@ public interface IFormationMember {
     String TAG_FORMATION_GROUP = "tacz_sewv_formation_group";
     /** Free heading in degrees (Minecraft yaw); absent means "face the axis", which old saves always do. */
     String TAG_FORMATION_YAW = "tacz_sewv_formation_yaw";
+    /** A UNIT-subject follower's leader. A UUID is stable across sessions, so unlike a network id it persists. */
+    String TAG_FORMATION_LEADER = "tacz_sewv_formation_leader";
+    /** A UNIT-subject follower told to cease fire through its leader; its own SEM order stays the formation's. */
+    String TAG_FORMATION_HOLD_FIRE = "tacz_sewv_formation_hold_fire";
+    /** On the leader only: the group it leads. Deliberately not dropped by {@code VehicleFormation.clear}. */
+    String TAG_FORMATION_LEADS = "tacz_sewv_formation_leads";
 
     float DEFAULT_STRETCH = 1.0f;
 
@@ -169,6 +177,41 @@ public interface IFormationMember {
     default float sewv$getFormationYaw() {
         CompoundTag tag = ((Entity) this).getPersistentData();
         return tag.contains(TAG_FORMATION_YAW) ? tag.getFloat(TAG_FORMATION_YAW) : Float.NaN;
+    }
+
+    // UNIT subject (FormationSubjects is the only writer). A follower carries its leader's UUID and its
+    // hold-fire posture; the leader carries only the group id it leads, and has no slot of its own.
+    default void sewv$setFormationLeader(@Nullable UUID leader) {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        if (leader != null) tag.putUUID(TAG_FORMATION_LEADER, leader);
+        else tag.remove(TAG_FORMATION_LEADER);
+    }
+
+    @Nullable
+    default UUID sewv$getFormationLeader() {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        return tag.hasUUID(TAG_FORMATION_LEADER) ? tag.getUUID(TAG_FORMATION_LEADER) : null;
+    }
+
+    default void sewv$setFormationHoldFire(boolean hold) {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        if (hold) tag.putBoolean(TAG_FORMATION_HOLD_FIRE, true);
+        else tag.remove(TAG_FORMATION_HOLD_FIRE);
+    }
+
+    default boolean sewv$getFormationHoldFire() {
+        return ((Entity) this).getPersistentData().getBoolean(TAG_FORMATION_HOLD_FIRE);
+    }
+
+    default void sewv$setFormationLeads(long group) {
+        CompoundTag tag = ((Entity) this).getPersistentData();
+        if (group != 0L) tag.putLong(TAG_FORMATION_LEADS, group);
+        else tag.remove(TAG_FORMATION_LEADS);
+    }
+
+    /** 0 when this unit leads no formation. */
+    default long sewv$getFormationLeads() {
+        return ((Entity) this).getPersistentData().getLong(TAG_FORMATION_LEADS);
     }
 
     /**

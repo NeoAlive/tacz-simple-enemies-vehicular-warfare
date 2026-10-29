@@ -36,6 +36,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MarchObjective;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
@@ -228,9 +229,12 @@ public final class VehicleTargeting {
                 Player leader = commander(pmc);
                 // No axis means this order did not come through our gate — it is a plain SEM
                 // infantry formation that happens to have caught a mounted crew. There is no
-                // hull geometry to drive to, so hold.
-                if (leader == null) return null;
-                return VehicleFormation.formationSlotPos(unit.level(), pmc, leader.position());
+                // hull geometry to drive to, so hold. A UNIT formation is laid on its leader
+                // instead (resolveAnchor ignores the position passed here), so it needs no player
+                // online; with its leader out of reach the slot is null and the crew holds.
+                if (leader == null && !VehicleFormation.isUnitFollower(pmc)) return null;
+                return VehicleFormation.formationSlotPos(unit.level(), pmc,
+                        leader != null ? leader.position() : unit.position());
             }
 
             default:
@@ -1015,8 +1019,8 @@ public final class VehicleTargeting {
      */
     public static boolean ordersAllowAutoTargets(AbstractUnit unit) {
         if (!(unit instanceof PmcUnitEntity pmc)) return true;
-        OrderType order = pmc.getOrder();
-        return order != OrderType.CEASE_FIRE && order != OrderType.ATTACK_THAT_TARGET;
+        // A UNIT formation follower hears its leader's cease-fire as a posture, not an order.
+        return !FormationSubjects.ceaseFire(pmc) && pmc.getOrder() != OrderType.ATTACK_THAT_TARGET;
     }
 
     /**

@@ -11,7 +11,6 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -32,6 +31,7 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 import com.neoalive.tacz_sewv.entity.ai.sensor.Acquisition;
 import com.neoalive.tacz_sewv.entity.ai.support.FireHesitation;
 import com.neoalive.tacz_sewv.entity.ai.support.FireRhythm;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionBus;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
@@ -112,7 +112,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             return true;
         }
 
-        if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
+        if (living instanceof PmcUnitEntity pmc && FormationSubjects.ceaseFire(pmc)) {
             return true;
         }
 
@@ -252,7 +252,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             return;
         }
 
-        if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
+        if (living instanceof PmcUnitEntity pmc && FormationSubjects.ceaseFire(pmc)) {
             ci.cancel();
             return;
         }

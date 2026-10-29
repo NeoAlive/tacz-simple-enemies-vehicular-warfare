@@ -157,7 +157,8 @@ public class NetworkHandler {
     // 107: InvasionHud.Snapshot carries the match clock (secondsLeft).
     // 108: PacketQuickCommand carries explicit-selection + crosshair block; PacketDismountVehicle
     //      removed (the wheel's Dismount pipeline replaced the TDT button).
-    private static final String PROTOCOL_VERSION = "108";
+    // 109: PacketVehicleFormation's anchor mode may be UNIT (a formation laid on an elected unit).
+    private static final String PROTOCOL_VERSION = "109";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

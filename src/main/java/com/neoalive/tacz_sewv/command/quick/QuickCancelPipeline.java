@@ -19,11 +19,11 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
-import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 
@@ -83,8 +83,9 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
         boarder.tacz_sewv$setBoarding(false);
         boarder.tacz_sewv$setMountTargetId(-1);
 
-        // Clear vehicle-formation NBT so FREE_FIRE doesn't leave a stale slot axis/anchor.
-        VehicleFormation.clear(pmc);
+        // Cancel is what ends a formation. A leader takes its whole formation with it; a follower leaves alone
+        // and the rest close up. Also clears the slot axis/anchor so FREE_FIRE leaves nothing stale behind.
+        FormationSubjects.release(pmc);
 
         if (pmc instanceof IHelicopterPilot
                 && pmc.getVehicle() instanceof VehicleEntity hull

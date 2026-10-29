@@ -264,6 +264,15 @@ tasks.register('selfCheckPlayerFormation', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckFormationSubject', JavaExec) {
+    group = 'verification'
+    description = 'Runs the formation-subject self-check (order policy table, leader election, re-head bearing).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.support.FormationSubjectSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckInfantryFormation', JavaExec) {
     group = 'verification'
     description = 'Runs the on-foot formation self-check (squad splits, squad wedge/column, escort files).'

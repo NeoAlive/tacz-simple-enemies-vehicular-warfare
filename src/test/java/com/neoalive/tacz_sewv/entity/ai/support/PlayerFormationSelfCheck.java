@@ -94,7 +94,7 @@ public final class PlayerFormationSelfCheck {
 
     private static VehicleFormation.Layout layout(Direction axis, float yaw, FormationShape shape) {
         return new VehicleFormation.Layout(axis, yaw, shape, 3, 1.0f, 1.0f, FormationAnchorMode.PLAYER, null,
-                FormationComposition.SPACING_VEHICLE, FormationComposition.Kind.GROUND, 0L);
+                FormationComposition.SPACING_VEHICLE, FormationComposition.Kind.GROUND, 0L, null);
     }
 
     private static boolean near(double a, double b) {

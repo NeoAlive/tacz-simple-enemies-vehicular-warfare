@@ -44,6 +44,12 @@ import com.neoalive.tacz_sewv.debug.SewvDiag;
  * cleared and it falls back to SEM's own formation, rather than standing on a hull-scale slot as a rifleman.
  * Riders follow their hull's slot. A group whose owner is offline stays dirty and is retried — its anchor is
  * the owner. Server thread only.
+ *
+ * <p>A UNIT-anchored group ({@link FormationSubjects}) is anchored on its leader instead, so the owner does
+ * not matter to it. A leader that dies, or stops being the kind its formation was ordered as, is succeeded
+ * here by one of the survivors; a leader that is merely unloaded is waited for. These groups also get the
+ * rejoin pass every interval, which puts a follower back on its formation order once a task that borrowed
+ * it has ended — that pass, not an event, is what "pause, then rejoin" rests on.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID)
 public final class FormationReform {
@@ -52,14 +58,33 @@ public final class FormationReform {
 
     private static final Map<Long, Set<Integer>> GROUPS = new HashMap<>();
     private static final Set<Long> DIRTY = new HashSet<>();
+    /** The tracked groups that are UNIT-anchored — the only ones the rejoin pass walks. */
+    private static final Set<Long> UNIT_GROUPS = new HashSet<>();
     private static int nextPass;
 
     private FormationReform() {}
 
     /** Note {@code pmc} as a member of {@code group}. Idempotent. */
-    static void track(long group, PmcUnitEntity pmc) {
+    static void track(long group, PmcUnitEntity pmc, boolean unitAnchored) {
         if (group == 0L) return;
         GROUPS.computeIfAbsent(group, g -> new HashSet<>()).add(pmc.getId());
+        if (unitAnchored) UNIT_GROUPS.add(group);
+    }
+
+    /** The unit ids currently known to be in {@code group} (a copy). */
+    static List<Integer> members(long group) {
+        Set<Integer> ids = GROUPS.get(group);
+        return ids == null ? List.of() : new ArrayList<>(ids);
+    }
+
+    /** Re-examine {@code group} on the next pass. */
+    static void markDirty(long group) {
+        if (group != 0L && GROUPS.containsKey(group)) DIRTY.add(group);
+    }
+
+    private static void forget(long group) {
+        GROUPS.remove(group);
+        if (UNIT_GROUPS.remove(group)) FormationSubjects.forgetGroup(group);
     }
 
     /** {@code unitId} has left {@code group}; its neighbours close up on the next pass. */
@@ -75,6 +100,11 @@ public final class FormationReform {
         if (event.getEntity() instanceof PmcUnitEntity pmc && !pmc.level().isClientSide) {
             long group = ((IFormationMember) pmc).sewv$getFormationGroup();
             if (group != 0L) departed(group, pmc.getId());
+            long leads = ((IFormationMember) pmc).sewv$getFormationLeads();
+            if (leads != 0L) {
+                FormationSubjects.noteLeaderLost(leads, pmc);
+                markDirty(leads);
+            }
         }
     }
 
@@ -82,8 +112,8 @@ public final class FormationReform {
     @SubscribeEvent
     public static void onMount(EntityMountEvent event) {
         if (event.getEntityMounting() instanceof PmcUnitEntity pmc && !pmc.level().isClientSide) {
-            long group = ((IFormationMember) pmc).sewv$getFormationGroup();
-            if (group != 0L && GROUPS.containsKey(group)) DIRTY.add(group);
+            markDirty(((IFormationMember) pmc).sewv$getFormationGroup());
+            markDirty(((IFormationMember) pmc).sewv$getFormationLeads());
         }
     }
 
@@ -100,12 +130,14 @@ public final class FormationReform {
     private static void reset() {
         GROUPS.clear();
         DIRTY.clear();
+        UNIT_GROUPS.clear();
+        FormationSubjects.reset();
         nextPass = 0;
     }
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || DIRTY.isEmpty()) return;
+        if (event.phase != TickEvent.Phase.END || (DIRTY.isEmpty() && UNIT_GROUPS.isEmpty())) return;
         MinecraftServer server = event.getServer();
         int now = server.getTickCount();
         if (now < nextPass) return;
@@ -113,13 +145,19 @@ public final class FormationReform {
         for (Long group : new ArrayList<>(DIRTY)) {
             if (reform(server, group)) DIRTY.remove(group);
         }
+        for (Long group : new ArrayList<>(UNIT_GROUPS)) {
+            for (int id : members(group)) {
+                PmcUnitEntity pmc = find(server, id);
+                if (pmc != null) FormationSubjects.rejoin(pmc);
+            }
+        }
     }
 
     /** @return true when the group is settled (re-formed, intact or gone); false to retry next pass */
     private static boolean reform(MinecraftServer server, long group) {
         Set<Integer> ids = GROUPS.get(group);
         if (ids == null || ids.isEmpty()) {
-            GROUPS.remove(group);
+            forget(group);
             return true;
         }
         List<PmcUnitEntity> survivors = new ArrayList<>();
@@ -152,8 +190,23 @@ public final class FormationReform {
             if (hull instanceof VehicleEntity && hull.getFirstPassenger() != pmc) riders.add(pmc);
             else holders.add(pmc);
         }
+        // A UNIT group's anchor is its leader. Settle who that is before anything is matched: a successor
+        // leaves the slots for the anchor, which changes how many there are.
+        Vec3 unitAnchor = null;
+        if (UNIT_GROUPS.contains(group) && !survivors.isEmpty()) {
+            PmcUnitEntity leader = FormationSubjects.settleLeader(group, survivors, holders, riders);
+            if (leader == null) {
+                // Not loaded and not known to be lost: wait for it. A group left with nobody to lead is gone.
+                if (survivors.isEmpty()) {
+                    forget(group);
+                    return true;
+                }
+                return false;
+            }
+            unitAnchor = leader.getRootVehicle().position();
+        }
         if (holders.isEmpty()) {
-            if (survivors.isEmpty()) GROUPS.remove(group);
+            if (survivors.isEmpty()) forget(group);
             return true;
         }
         holders.sort(Comparator.comparingInt(PmcUnitEntity::getId));
@@ -170,11 +223,15 @@ public final class FormationReform {
         if (contiguous) return true;
 
         PmcUnitEntity first = holders.get(0);
-        ServerPlayer owner = first.getOwnerUUID() == null ? null
-                : server.getPlayerList().getPlayer(first.getOwnerUUID());
-        if (owner == null) return false;
         VehicleFormation.Layout layout = VehicleFormation.layoutFor(first);
-        Vec3 anchor = VehicleFormation.resolveAnchor(first, owner.position());
+        Vec3 anchor = unitAnchor;
+        if (anchor == null) {
+            ServerPlayer owner = first.getOwnerUUID() == null ? null
+                    : server.getPlayerList().getPlayer(first.getOwnerUUID());
+            if (owner == null) return false;
+            anchor = VehicleFormation.resolveAnchor(first, owner.position());
+            if (anchor == null) return false;
+        }
         int[] slotOf = VehicleFormation.match(layout, anchor, holders, prev);
         SewvDiag.command("player formation {} re-forms: {} holders, slots {} -> {}", group, k,
                 java.util.Arrays.toString(prev), java.util.Arrays.toString(slotOf));
@@ -183,25 +240,17 @@ public final class FormationReform {
         for (int i = 0; i < k; i++) {
             PmcUnitEntity pmc = holders.get(i);
             if (pmc.getVehicle() instanceof VehicleEntity hull) hullSlots.put(hull, slotOf[i]);
-            reslot(pmc, slotOf[i]);
+            VehicleFormation.reslot(pmc, slotOf[i]);
         }
         for (PmcUnitEntity rider : riders) {
             Integer slot = hullSlots.get(rider.getVehicle());
-            if (slot != null) reslot(rider, slot);
+            if (slot != null) VehicleFormation.reslot(rider, slot);
         }
         return true;
     }
 
-    /** Move a member to another slot of the same formation. SEM's setter would otherwise wipe the formation. */
-    private static void reslot(PmcUnitEntity pmc, int slot) {
-        if (pmc.getFormationIndex() == slot) return;
-        ((IFormationMember) pmc).sewv$armFormationCarry();
-        pmc.setFormationIndex(slot);
-        pmc.resetCommanderGoalCooldown();
-    }
-
     @Nullable
-    private static PmcUnitEntity find(MinecraftServer server, int id) {
+    static PmcUnitEntity find(MinecraftServer server, int id) {
         for (ServerLevel level : server.getAllLevels()) {
             if (level.getEntity(id) instanceof PmcUnitEntity pmc) return pmc;
         }

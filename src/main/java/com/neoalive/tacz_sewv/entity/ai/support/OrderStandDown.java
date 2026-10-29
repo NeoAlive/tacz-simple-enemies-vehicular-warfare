@@ -43,7 +43,30 @@ public final class OrderStandDown {
         SuppressOrders.clear(pmc);
     }
 
+    /**
+     * Whether a task this mod gave the unit still holds it — the counterpart of {@link #clearForNewOrder}, kept
+     * beside it so the two lists stay one. Read by the formation rejoin ({@link FormationSubjects#rejoin}): a
+     * follower borrowed by any of these is left to finish before it goes back on its slot.
+     */
+    public static boolean hasStandingTask(PmcUnitEntity pmc) {
+        if (((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
+                || ((IVehiclePatrol) pmc).sewv$hasSweepRect()
+                || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
+            return true;
+        }
+        if (((IEscort) pmc).tacz_sewv$isEscorting()) return true;
+        if (EntrenchSupport.isEntrenched(pmc)) return true;
+        if (GuardSupport.isReaching(pmc) || TowRecoverySupport.hasTowOrder(pmc)) return true;
+        if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) return true;
+        if (((IPathwayInfantry) pmc).sewv$hasPathway()) return true;
+        IVehicleBoarder boarder = (IVehicleBoarder) pmc;
+        if (boarder.tacz_sewv$isBoarding() || boarder.tacz_sewv$getMountTargetId() >= 0) return true;
+        return MortarSupport.hasMortarClaim(pmc) || FobSupport.hasRoutePending(pmc);
+    }
+
     public static void clearAll(PmcUnitEntity pmc, String reason) {
+        // A downed unit cannot stand on a slot or lead one.
+        FormationSubjects.onDowned(pmc);
         pmc.setTarget(null);
         SuppressOrders.clear(pmc);
         pmc.setOrder(OrderType.CEASE_FIRE);

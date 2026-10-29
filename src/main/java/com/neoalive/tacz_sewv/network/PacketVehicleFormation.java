@@ -19,6 +19,7 @@ import com.neoalive.tacz_sewv.command.quick.QuickCommandUnits;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
@@ -30,7 +31,8 @@ import com.neoalive.tacz_sewv.order.OrderReport;
  * axis still travels because it is the "this unit is formed up" marker everything downstream reads.
  *
  * <p>The wire carries no slot index — the server derives numbering in
- * {@link VehicleFormation#assign}.
+ * {@link VehicleFormation#assign}. An anchor mode of UNIT lays the formation on a unit the server elects
+ * from the selection instead of on the player ({@link FormationSubjects#assignLed}).
  */
 public class PacketVehicleFormation {
 
@@ -134,7 +136,7 @@ public class PacketVehicleFormation {
                 return;
             }
 
-            int slots = VehicleFormation.slotCountFor(units);
+            int slots = VehicleFormation.slotCountFor(units, anchorMode);
             double baseline = FormationComposition.baselineSpacing(kind);
             if (VehicleFormation.slotsOverlap(player.position(), axis, shape, slots, rowSize,
                     baseline, width, length)) {
@@ -145,6 +147,15 @@ public class PacketVehicleFormation {
                 return;
             }
 
+            if (anchorMode == FormationAnchorMode.UNIT) {
+                FormationSubjects.Led led = FormationSubjects.assignLed(sp, units, shape, axis, yaw, rowSize,
+                        width, length, kind);
+                if (led == null) return;
+                NetworkHandler.orderFeedback(player, "formation", "message.tacz_sewv.formation.formed_led",
+                        led.formed(), ChatFormatting.GREEN, led.formed(),
+                        Component.translatable(headingKey(axis, yaw)), led.leader().getDisplayName());
+                return;
+            }
             int formed = VehicleFormation.assign(player, units, shape, axis, yaw, rowSize,
                     width, length, kind, anchorMode);
 

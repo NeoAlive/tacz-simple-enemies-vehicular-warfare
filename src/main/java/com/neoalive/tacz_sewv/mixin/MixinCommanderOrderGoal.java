@@ -71,8 +71,26 @@ public abstract class MixinCommanderOrderGoal {
     private void tacz_sewv$vehicleSpacedSlot(LivingEntity owner, OrderType order, int index,
                                              CallbackInfoReturnable<Vec3> cir) {
         if (tacz_sewv$formationAxis() == null) return;
-        Vec3 slot = VehicleFormation.formationSlotCenter((PmcUnitEntity) this.mob, owner.position());
-        if (slot != null) cir.setReturnValue(slot);
+        PmcUnitEntity pmc = (PmcUnitEntity) this.mob;
+        Vec3 slot = VehicleFormation.formationSlotCenter(pmc, owner.position());
+        if (slot != null) {
+            cir.setReturnValue(slot);
+        } else if (VehicleFormation.isUnitFollower(pmc)) {
+            // A UNIT follower whose leader is out of reach holds where it stands — SEM's own answer would be
+            // a slot on the player, who is not what this formation is laid on.
+            cir.setReturnValue(this.mob.position());
+        }
+    }
+
+    /**
+     * SEM sends slot 0 to the OWNER when its slot is inside a block. In a UNIT formation slot 0 is a follower
+     * of the leader, not of the player, so that fallback would walk it off to the player; answering "safe"
+     * leaves it to its navigation, which already routes round what it cannot stand in. This is the method's
+     * only caller.
+     */
+    @Inject(method = "isPositionSafe", at = @At("HEAD"), cancellable = true, remap = false)
+    private void tacz_sewv$unitSlotNeverFallsBackToOwner(Vec3 pos, CallbackInfoReturnable<Boolean> cir) {
+        if (this.mob instanceof PmcUnitEntity pmc && VehicleFormation.isUnitFollower(pmc)) cir.setReturnValue(true);
     }
 
     /**

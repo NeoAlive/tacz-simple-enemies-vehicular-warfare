@@ -28,11 +28,11 @@ import com.neoalive.tacz_sewv.crew.OrderAuth;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 import com.neoalive.tacz_sewv.entity.ai.support.PathwaySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
-import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderGuard;
 import com.neoalive.tacz_sewv.order.OrderReport;
@@ -267,10 +267,12 @@ public class PacketPatrolVehicle {
                     || ((IEscort) pmc).tacz_sewv$getEscortTargetId() != -1
                     || GuardSupport.isReaching(pmc)
                     || (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder())
-                    || ((IFormationMember) pmc).sewv$getFormationDirection() != null;
+                    || ((IFormationMember) pmc).sewv$getFormationDirection() != null
+                    || ((IFormationMember) pmc).sewv$getFormationLeads() != 0L;
             if (had) {
                 OrderStandDown.clearForNewOrder(pmc, "PacketPatrolVehicle.dismiss");
-                VehicleFormation.clear(pmc);
+                // Dismiss is a stand-down, like Cancel: it ends a formation, and a leader takes its with it.
+                FormationSubjects.release(pmc);
                 if (pmc.getVehicle() == null) {
                     pmc.getNavigation().stop();
                 }

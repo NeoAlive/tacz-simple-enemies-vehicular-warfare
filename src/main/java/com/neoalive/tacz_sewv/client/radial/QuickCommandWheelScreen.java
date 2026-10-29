@@ -37,6 +37,7 @@ import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
@@ -72,6 +73,8 @@ public final class QuickCommandWheelScreen extends Screen {
     private static float formationWidth = IFormationMember.DEFAULT_STRETCH;
     private static float formationLength = IFormationMember.DEFAULT_STRETCH;
     private static FormationComposition.Kind formationFilter = FormationComposition.Kind.GROUND;
+    /** What a formation is laid on: the player (Alt on click still freezes it in place) or an elected unit. */
+    private static FormationAnchorMode formationSubject = FormationAnchorMode.PLAYER;
     /** Mortar Shelling delay (s, 0 = off); seeded from the carried radio on every open. */
     private static int supportDelay = 0;
     private static final int MAX_SUPPORT_DELAY = 120;
@@ -112,6 +115,8 @@ public final class QuickCommandWheelScreen extends Screen {
     private float menuAlpha = 0.0f;
     /** Continuous highlight index for the INFY/GRND/SHIP filter strip. */
     private float filterLerp = FormationComposition.Kind.GROUND.ordinal();
+    /** Continuous highlight index for the PLYR./UNIT. subject ribbon. */
+    private float subjectLerp = subjectIndex();
 
     public QuickCommandWheelScreen() {
         super(Component.translatable("gui.tacz_sewv.quick_command_wheel"));
@@ -329,6 +334,8 @@ public final class QuickCommandWheelScreen extends Screen {
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RCONTROL));
         boolean shift = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LSHIFT)
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RSHIFT));
+        boolean alt = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LALT)
+                || InputConstants.isKeyDown(window, InputConstants.KEY_RALT));
         int dir = delta > 0.0 ? 1 : -1;
         // Ctrl+scroll steps the hovered leaf's value — and only that leaf's, so it can never move
         // a setting the player is not looking at. In a submenu that has values, Ctrl+scroll over
@@ -353,7 +360,11 @@ public final class QuickCommandWheelScreen extends Screen {
             return super.mouseScrolled(mouseX, mouseY, delta);
         }
 
-        if (ctrl) {
+        if (alt) {
+            // Two subjects, so either direction flips it.
+            formationSubject = formationSubject == FormationAnchorMode.UNIT
+                    ? FormationAnchorMode.PLAYER : FormationAnchorMode.UNIT;
+        } else if (ctrl) {
             formationFilter = formationFilter.cycle(dir);
         } else {
             float step = dir * STRETCH_STEP;
@@ -619,14 +630,26 @@ public final class QuickCommandWheelScreen extends Screen {
         // compass points; the axis is that heading's nearest cardinal and still marks the unit as formed.
         float yaw = Mth.wrapDegrees(Math.round(mc.player.getYRot() / 45.0f) * 45.0f);
         Direction axis = Direction.fromYRot(yaw);
-        // Alt anchors the formation where the player stands now instead of following them.
+        // A UNIT formation is laid on a unit the server elects. Under the player, Alt anchors the formation
+        // where the player stands now instead of following them.
         long window = mc.getWindow().getWindow();
-        FormationAnchorMode anchorMode = InputConstants.isKeyDown(window, InputConstants.KEY_LALT)
-                || InputConstants.isKeyDown(window, InputConstants.KEY_RALT)
-                ? FormationAnchorMode.POSITION : FormationAnchorMode.PLAYER;
+        FormationAnchorMode anchorMode;
+        if (formationSubject == FormationAnchorMode.UNIT) {
+            anchorMode = FormationAnchorMode.UNIT;
+            if (VehicleFormation.slotCountFor(units) < 2) {
+                mc.player.displayClientMessage(
+                        Component.translatable(FormationSubjects.MSG_TOO_FEW).withStyle(ChatFormatting.GRAY),
+                        true);
+                return false;
+            }
+        } else {
+            anchorMode = InputConstants.isKeyDown(window, InputConstants.KEY_LALT)
+                    || InputConstants.isKeyDown(window, InputConstants.KEY_RALT)
+                    ? FormationAnchorMode.POSITION : FormationAnchorMode.PLAYER;
+        }
         int rowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
         double baseline = FormationComposition.baselineSpacing(kind);
-        int slots = VehicleFormation.slotCountFor(units);
+        int slots = VehicleFormation.slotCountFor(units, anchorMode);
         if (VehicleFormation.slotsOverlap(mc.player.position(), axis, shape, slots, rowSize,
                 baseline, formationWidth, formationLength)) {
             mc.player.displayClientMessage(
@@ -728,6 +751,12 @@ public final class QuickCommandWheelScreen extends Screen {
         }
         this.filterLerp = Mth.lerp(FILTER_LERP_SPEED, this.filterLerp,
                 (float) formationFilter.ordinal());
+        this.subjectLerp = Mth.lerp(FILTER_LERP_SPEED, this.subjectLerp, (float) subjectIndex());
+    }
+
+    /** The subject ribbon's cell: 0 PLYR., 1 UNIT. */
+    private static int subjectIndex() {
+        return formationSubject == FormationAnchorMode.UNIT ? 1 : 0;
     }
 
     @Override
@@ -764,12 +793,12 @@ public final class QuickCommandWheelScreen extends Screen {
             List<Integer> ids = WheelScope.units(QuickCommandRegistry.ID_FORM_WEDGE, null);
             List<PmcUnitEntity> filtered = FormationComposition.filter(
                     resolvePmcList(this.minecraft, ids), formationFilter);
-            int slots = VehicleFormation.slotCountFor(filtered);
+            int slots = VehicleFormation.slotCountFor(filtered, formationSubject);
             double baseline = FormationComposition.baselineSpacing(formationFilter);
             FormationPreviewDraw.render(g, this.font, cx, cy, outer, this.menuAlpha,
                     previewShape, slots, baseline, formationWidth, formationLength,
                     PacketVehicleFormation.DEFAULT_ROW_SIZE, formationFilter, this.filterLerp,
-                    HUB_FILL, LABEL_HOT);
+                    subjectIndex(), this.subjectLerp, HUB_FILL, LABEL_HOT);
         }
 
         renderScaleCard(g, cy, labels.right(), wedges);

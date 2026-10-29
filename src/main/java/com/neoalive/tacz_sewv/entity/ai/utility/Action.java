@@ -56,6 +56,13 @@ public enum Action {
     SEARCH_LAST_KNOWN("searchLastKnown"),
     /** Fall back on the nearest friendly. Also the answer to being out of ammo. */
     REGROUP("regroup"),
+    /**
+     * Hold and rake the spot a target just vanished from with a machine gun, for a few seconds after
+     * losing sight (Steve's Army's last-known-position suppression). Out of contact by definition:
+     * the target is gone, which is the whole point. One hull per lost contact (see
+     * {@code SuppressiveFire}).
+     */
+    SUPPRESS("suppress"),
 
     /**
      * Out-of-contact polygon formation with nearby friendly idle ground vehicles.
@@ -94,7 +101,7 @@ public enum Action {
 
     public boolean needsTarget() {
         return switch (this) {
-            case HOLD, PATROL, SEARCH_LAST_KNOWN, REGROUP, IDLE_HOLD, IDLE_TRAVEL -> false;
+            case HOLD, PATROL, SEARCH_LAST_KNOWN, REGROUP, SUPPRESS, IDLE_HOLD, IDLE_TRAVEL -> false;
             default -> true;
         };
     }

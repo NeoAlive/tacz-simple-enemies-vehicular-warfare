@@ -39,6 +39,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire;
 import com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.util.SmokeVision;
@@ -168,6 +169,11 @@ public final class Facts {
     public double speed;
     /** 0..1, fire the hull is taking ({@link com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure}). */
     public double pressure;
+    /**
+     * The seat that could rake a just-lost contact ({@link SuppressiveFire#machineGunSeat}), or -1. Only
+     * looked up while such a contact exists, since the slot lookup reads gun data.
+     */
+    public int suppressSeat = -1;
 
     // ---- local battlefield ----
     @Nullable
@@ -305,8 +311,17 @@ public final class Facts {
         readIdleGroup(unit, hull);
         readEnvironment(unit, hull);
         readComms(unit, now);
+        readSuppression(unit, hull, now);
         this.populated = true;
         return true;
+    }
+
+    private void readSuppression(AbstractUnit unit, VehicleEntity hull, long now) {
+        boolean lostFresh = this.target == null && this.memory.lastEnemyPos != null
+                && ticksSince(this.memory.lastContactTick, now) <= SuppressiveFire.WINDOW_TICKS
+                && SuppressiveFire.enabled()
+                && SuppressiveFire.claimable(unit, hull, this.memory.lastEnemyPos, now);
+        this.suppressSeat = lostFresh ? SuppressiveFire.machineGunSeat(hull) : -1;
     }
 
     /**

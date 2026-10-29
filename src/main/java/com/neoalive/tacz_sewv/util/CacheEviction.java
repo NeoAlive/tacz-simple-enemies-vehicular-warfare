@@ -74,6 +74,7 @@ public final class CacheEviction {
         clearTreeTypeCache();
         HullLocalScan.clearAll();
         ContactBoard.clearAll();
+        com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire.clearAll();
         VehicleDarknessAccuracy.clearAll();
         VehicleTargeting.clearDiagThrottle();
         Facts.clearAll();

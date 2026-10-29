@@ -379,6 +379,8 @@ public final class TacticalBrain {
             case SEARCH_LAST_KNOWN -> !this.facts.underOrders && !this.facts.idleTravelActive
                     && this.facts.memory.hasFreshContact(this.lastSampledTick);
             case REGROUP -> !this.facts.underOrders && !this.facts.idleTravelActive && this.facts.nearestAlly != null;
+            // Moves nothing, so a standing order does not forbid it; the window, the gun and the claim do.
+            case SUPPRESS -> this.facts.suppressSeat >= 0;
 
             case IDLE_HOLD -> {
                 boolean taskedHold = this.signals[Signal.TASKED_IDLE_HOLD.ordinal()] > 0.0;

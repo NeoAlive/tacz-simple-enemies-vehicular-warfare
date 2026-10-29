@@ -10,6 +10,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 
 /**
@@ -45,6 +46,8 @@ public class IdleCrewGoal extends Goal {
         if (v.getFirstPassenger() != this.unit && !isTurretController(v)) return false;
         // One turret writer: while the gun is being laid, MixinVehicleMissileAim owns it.
         if (ArtillerySupport.isLaying(v)) return false;
+        // Likewise while the crew rakes a lost contact: SuppressiveFire is laying the turret.
+        if (SuppressiveFire.isSuppressing(v, this.unit.level().getGameTime())) return false;
         this.vehicle = v;
         return true;
     }
@@ -55,7 +58,8 @@ public class IdleCrewGoal extends Goal {
                 && this.unit.getVehicle() == this.vehicle
                 && !this.vehicle.isWreck()
                 && this.unit.getTarget() == null
-                && !ArtillerySupport.isLaying(this.vehicle);
+                && !ArtillerySupport.isLaying(this.vehicle)
+                && !SuppressiveFire.isSuppressing(this.vehicle, this.unit.level().getGameTime());
     }
 
     @Override

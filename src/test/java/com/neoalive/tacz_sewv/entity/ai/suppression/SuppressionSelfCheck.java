@@ -29,6 +29,7 @@ public final class SuppressionSelfCheck {
         packOverride();
         shippedTable();
         hullPressure();
+        com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFireProbe.check();
 
         System.out.println("suppression self-check: OK");
     }

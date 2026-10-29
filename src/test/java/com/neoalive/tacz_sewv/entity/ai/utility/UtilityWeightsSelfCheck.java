@@ -32,6 +32,7 @@ public final class UtilityWeightsSelfCheck {
         pairedActionsAreSymmetric();
         healthDecidesWhetherToFight();
         pressureShakesButDoesNotRout();
+        suppressBeforeSearching();
         confidenceDoesNotSaturate();
         everyActionIsDispatchable();
         idleCrewsDoNotJustSit();
@@ -280,6 +281,30 @@ public final class UtilityWeightsSelfCheck {
         double conf = Confidence.evaluate(pressed, Doctrine.NEUTRAL, weights);
         assert conf < Confidence.NEUTRAL && conf > 0.0
                 : "fire alone should shake a crew, not bottom it out, was " + conf;
+    }
+
+    /**
+     * Just after a target breaks contact, a crew with a machine gun rakes the spot before it goes
+     * looking (Steve's Army's last-known suppression), but a dry gun goes home instead of firing.
+     * SUPPRESS must sit in the stand-down set: by construction the target is gone.
+     */
+    private static void suppressBeforeSearching() {
+        assert !Action.SUPPRESS.needsTarget() : "SUPPRESS runs with the target gone";
+        UtilityWeights weights = UtilityWeights.parse(
+                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+
+        double[] lost = zeroSignals();
+        lost[Signal.BASE.ordinal()] = 1.0;
+        lost[Signal.LOST_CONTACT.ordinal()] = 1.0;
+        double suppress = weights.score(Action.SUPPRESS, lost, Doctrine.NEUTRAL);
+        double search = weights.score(Action.SEARCH_LAST_KNOWN, lost, Doctrine.NEUTRAL);
+        assert suppress > search : "rake the spot before going to look: suppress=" + suppress + " search=" + search;
+
+        lost[Signal.LOW_AMMO.ordinal()] = 1.0;
+        double drySuppress = weights.score(Action.SUPPRESS, lost, Doctrine.NEUTRAL);
+        double regroup = weights.score(Action.REGROUP, lost, Doctrine.NEUTRAL);
+        assert regroup > drySuppress : "a dry gun does not empty itself into a bush: suppress=" + drySuppress
+                + " regroup=" + regroup;
     }
 
     /** A crew in contact on its preferred ring at the given health, with everything else neutral. */

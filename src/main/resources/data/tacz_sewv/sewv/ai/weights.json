@@ -226,6 +226,17 @@
     "alone": -15
   },
 
+  "suppress": {
+    "lostContact": 60,
+    "aggression": 15,
+    "riskTolerance": 5,
+    "allyInfantryNear": 10,
+    "lowAmmo": -45,
+    "lowHealth": -25,
+    "underFire": -10,
+    "initiative": -10
+  },
+
   "regroup": {
     "lowAmmo": 50,
     "lowHealth": 40,

@@ -1319,6 +1319,8 @@
   "config.tacz_sewv.infantryArmorAwareness.tooltip": "SEM riflemen take cover from a target riding a vehicle; anti-armour gunners close in on it.",
   "config.tacz_sewv.acquisitionDelayEnabled": "Gradual Target Acquisition",
   "config.tacz_sewv.acquisitionDelayEnabled.tooltip": "Infantry and crews take time to notice a new target: longer at range, in the dark, against a still or sneaking target.",
+  "config.tacz_sewv.suppressiveFireEnabled": "Suppressive Fire",
+  "config.tacz_sewv.suppressiveFireEnabled.tooltip": "A crew machine gun rakes the spot an enemy just vanished from, one gun per lost enemy. Also gates the Suppress Area order.",
   "config.tacz_sewv.boardScanRadius": "Board Scan Radius",
   "config.tacz_sewv.boardScanRadius.tooltip": "How far (blocks) nearby units can be selected for boarding and similar orders.",
   "config.tacz_sewv.colorPmc": "Color PMC",

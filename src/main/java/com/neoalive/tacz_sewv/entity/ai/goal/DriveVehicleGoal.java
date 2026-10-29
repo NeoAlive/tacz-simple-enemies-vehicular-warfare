@@ -46,6 +46,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TreeFellingSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
@@ -408,10 +409,13 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
         if (idlePlan() == Action.IDLE_TRAVEL && marchTick()) return;
+        if (idlePlan() == Action.SUPPRESS && suppressTick()) return;
         // A line crew with nothing in its sights yet still walks the line: the advance is the group's decision.
         if (inCohesiveLine() && marchTick()) return;
         BlockPos destination = switch (idlePlan()) {
-            case SEARCH_LAST_KNOWN -> {
+            // SUPPRESS lands here only when the gun cannot rake the spot after all (claim lost, gunner
+            // gone): go and look instead, rather than sit out the plan.
+            case SEARCH_LAST_KNOWN, SUPPRESS -> {
                 BlockPos seen = this.brain.facts().memory.lastEnemyPos;
                 yield seen != null ? seen : standing;
             }
@@ -433,6 +437,24 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
         driveTo(destination);
+    }
+
+    /**
+     * Hold and rake the spot the target vanished from ({@link SuppressiveFire}). The hold is a real
+     * instruction every tick, like every other branch. False once the window has passed or the gun
+     * cannot rake it, which hands the tick to the search fallback.
+     */
+    private boolean suppressTick() {
+        Facts facts = this.brain.facts();
+        BlockPos spot = facts.memory.lastEnemyPos;
+        long now = this.unit.level().getGameTime();
+        if (spot == null || Facts.ticksSince(facts.memory.lastContactTick, now) > SuppressiveFire.WINDOW_TICKS) {
+            return false;
+        }
+        if (!SuppressiveFire.tick(this.unit, this.vehicle, facts.suppressSeat, spot, now)) return false;
+        this.driver.stop();
+        this.driver.clearRecovery(); // holding on purpose — not stuck
+        return true;
     }
 
     /**

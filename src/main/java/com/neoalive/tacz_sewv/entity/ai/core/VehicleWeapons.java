@@ -339,6 +339,15 @@ public final class VehicleWeapons {
         return new WeaponSelection(roleOf(slot, chosen), switchedAmmo);
     }
 
+    /** The physical slot filling {@code role} (WEAPON_CANNON / _MG / _SPECIAL) on this seat, or -1. */
+    public static int slotForRole(VehicleEntity vehicle, int seatIndex, int role) {
+        if (seatIndex < 0 || role < 0 || role >= WEAPON_COUNT) return -1;
+        SeatInfo seat = vehicle.getSeat(seatIndex);
+        int weaponCount = seat == null ? 0 : seat.weapons().size();
+        if (weaponCount <= 0) return -1;
+        return resolveRoleSlots(vehicle, seatIndex, weaponCount)[role];
+    }
+
     // Which role does this physical slot fill? UNCLASSIFIED if it fills none.
     private static int roleOf(int[] roleToSlot, int slotIndex) {
         for (int r = 0; r < WEAPON_COUNT; r++) {

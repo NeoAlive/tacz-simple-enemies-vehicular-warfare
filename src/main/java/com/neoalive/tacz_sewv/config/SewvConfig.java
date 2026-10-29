@@ -255,6 +255,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue SUPPRESSION_BUS_ENABLED;
     public static final ForgeConfigSpec.BooleanValue INFANTRY_ARMOR_AWARENESS;
     public static final ForgeConfigSpec.BooleanValue ACQUISITION_DELAY_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue SUPPRESSIVE_FIRE_ENABLED;
 
     public static final ForgeConfigSpec.BooleanValue COVER_CACHE_ENABLED;
     public static final ForgeConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
@@ -1097,6 +1098,10 @@ public final class SewvConfig {
                         "SEM infantry and AI crews take time to notice a new target: longer at range, in the dark,",
                         "against a still or sneaking target; near-instant against a hull or someone who just fired.")
                 .define("acquisitionDelayEnabled", true);
+        SUPPRESSIVE_FIRE_ENABLED = builder.comment(
+                        "For a few seconds after losing sight of an enemy, a crew machine gun may rake the spot it",
+                        "vanished from (one gun per lost enemy). Also gates the player's Suppress Area order.")
+                .define("suppressiveFireEnabled", true);
         COVER_CACHE_ENABLED = builder.comment(
                         "Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).",
                         "Used by individual tactics for exposure / keyhole / scoot without per-tick raycasts.")

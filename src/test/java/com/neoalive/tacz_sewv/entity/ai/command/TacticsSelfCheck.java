@@ -59,6 +59,26 @@ public final class TacticsSelfCheck {
                 a(1, Role.OVERWATCH, null, 0, 10), a(2, Role.WITHDRAW, null, 0, 90)});
         Roles wSwapped = TacticPostProcess.leapfrog(PlayId.FIGHTING_WITHDRAWAL, withdraw, withdraw, wFresh, g, 8);
         assert find(wSwapped, 2).role == Role.WITHDRAW && find(wSwapped, 2).destZ == 90 : "withdrawal leapfrogs too";
+
+        coveringFire(g, previous, fresh, withdraw, wFresh);
+    }
+
+    /** In contact, a bound waits for real covering fire, but never longer than the timeout. */
+    private static void coveringFire(GroupSnapshot g, Roles previous, Roles fresh, Roles withdraw, Roles wFresh) {
+        PlayId bound = PlayId.BOUNDING_OVERWATCH_ADVANCE;
+        long early = TacticPostProcess.SWAP_TIMEOUT_TICKS - 1;
+        assert TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, true, id -> false, early)
+                == previous : "in contact, a silent overwatch holds the bound";
+        assert find(TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, true, id -> id == 2, early), 2)
+                .role == Role.MANEUVER : "overwatch firing: the bound goes";
+        assert TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, true, id -> id == 1, early)
+                == previous : "only the OVERWATCH's fire counts, not the mover's";
+        assert find(TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, true, id -> false,
+                TacticPostProcess.SWAP_TIMEOUT_TICKS), 2).role == Role.MANEUVER : "the timeout keeps a group moving";
+        assert find(TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, false, id -> false, 0), 2)
+                .role == Role.MANEUVER : "out of contact, arrival alone swaps";
+        assert TacticPostProcess.leapfrog(PlayId.FIGHTING_WITHDRAWAL, withdraw, withdraw, wFresh, g, 8, true,
+                id -> false, early) == withdraw : "a withdrawal waits for cover too";
     }
 
     /**

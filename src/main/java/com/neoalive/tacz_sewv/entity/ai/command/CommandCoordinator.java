@@ -27,6 +27,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.EasyTuning;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -506,7 +507,7 @@ public final class CommandCoordinator {
                 group.currentRoles(),
                 timidGroup(level, group) ? EasyTuning.scaleTicks(minTicks, EasyTuning.MIN_PLAY_TICKS_MULT) : minTicks,
                 margin, weights);
-        Roles roles = applyTactics(level, group, snap, result);
+        Roles roles = applyTactics(level, group, snap, result, nowTick);
         roles = withFocusFire(level, group, roles);
         boolean playChanged = result.switched() || group.currentPlay() == null
                 || group.currentPlay() != result.play();
@@ -529,21 +530,37 @@ public final class CommandCoordinator {
         }
     }
 
+    /** Whether the hull {@code unitId} crews fired an AI shot within {@code window} game ticks. */
+    private static boolean hullFiredWithin(ServerLevel level, int unitId, long gameTime, long window) {
+        if (!(level.getEntity(unitId) instanceof AbstractUnit unit)) return false;
+        if (!(unit.getVehicle() instanceof IAiFireTracker hull)) return false;
+        long last = hull.tacz_sewv$getLastAiShotTick();
+        return last != IAiFireTracker.NEVER && gameTime - last <= window;
+    }
+
     /**
      * Group tactics on top of the selected roles, in order: leapfrog (same play only — it reads the previous pass's
      * committed roles), formation slots, commander back, cover points. See {@link TacticPostProcess} and
      * {@link PlayFormations}.
      */
     private static Roles applyTactics(ServerLevel level, BattleGroup group, GroupSnapshot snap,
-                                      PlaySelection.Result result) {
+                                      PlaySelection.Result result, int nowTick) {
         BattleField bf = group.battleField();
         Roles roles = result.roles();
         if (roles == null) return null;
         if (group.currentPlay() == result.play()) {
             Roles fresh = Plays.of(result.play()).assignRoles(bf, snap);
+            // The bound waits for real covering fire, not just an OVERWATCH role (see TacticPostProcess).
+            // No swap yet this play: the bound has been waiting since the play began.
+            long swapClock = group.lastLeapfrogTick() != Long.MIN_VALUE ? group.lastLeapfrogTick()
+                    : group.playStartedTick();
+            long sinceSwap = swapClock == Long.MIN_VALUE ? Long.MAX_VALUE : nowTick - swapClock;
+            long gameTime = level.getGameTime();
             Roles swapped = TacticPostProcess.leapfrog(result.play(), group.currentRoles(), roles, fresh, snap,
-                    TacticalScale.of(TaskedDestination.ARRIVE));
+                    TacticalScale.of(TaskedDestination.ARRIVE), bf.enemyCount > 0,
+                    id -> hullFiredWithin(level, id, gameTime, TacticPostProcess.COVER_FIRE_TICKS), sinceSwap);
             if (swapped != roles) {
+                group.noteLeapfrog(nowTick);
                 SewvDiag.command("tactic leapfrog group={} play={}: movers on their points, halves swap",
                         group.groupId(), result.play().key);
             }

@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.DoubleBinaryOperator;
+import java.util.function.IntPredicate;
 
 import javax.annotation.Nullable;
 
@@ -37,6 +38,22 @@ final class TacticPostProcess {
      */
     static Roles leapfrog(PlayId play, @Nullable Roles previous, Roles roles, Roles fresh,
                           GroupSnapshot g, double arrive) {
+        return leapfrog(play, previous, roles, fresh, g, arrive, false, id -> true, 0L);
+    }
+
+    /** An overwatch member that fired within this many ticks is covering the bound. */
+    static final long COVER_FIRE_TICKS = 60;
+    /** With nobody firing, the next bound goes anyway after this long: a gate that never opens stalls the group. */
+    static final long SWAP_TIMEOUT_TICKS = 160;
+
+    /**
+     * Leapfrog with Steve's Army's covering-fire rule: in contact, the movers wait on their points until a member of
+     * the overwatch has actually fired recently ({@code firedRecently}, by unit id) — muzzle flash, not the role
+     * flag — or until {@link #SWAP_TIMEOUT_TICKS} since the last swap. Out of contact the arrival rule alone applies.
+     */
+    static Roles leapfrog(PlayId play, @Nullable Roles previous, Roles roles, Roles fresh,
+                          GroupSnapshot g, double arrive, boolean inContact, IntPredicate firedRecently,
+                          long ticksSinceSwap) {
         Assignment.Role mover = switch (play) {
             case BOUNDING_OVERWATCH_ADVANCE -> Assignment.Role.MANEUVER;
             case FIGHTING_WITHDRAWAL -> Assignment.Role.WITHDRAW;
@@ -52,6 +69,9 @@ final class TacticPostProcess {
             if (Math.hypot(g.x[i] - a.destX, g.z[i] - a.destZ) > arrive) return roles;
         }
         if (movers == 0 || roles.count(Assignment.Role.OVERWATCH) == 0) return roles;
+        if (inContact && ticksSinceSwap < SWAP_TIMEOUT_TICKS && !overwatchFiring(previous, firedRecently)) {
+            return roles;
+        }
 
         Assignment moverTemplate = firstWith(fresh, mover);
         Assignment overwatchTemplate = firstWith(fresh, Assignment.Role.OVERWATCH);
@@ -64,6 +84,13 @@ final class TacticPostProcess {
             out[k] = t == null ? a : new Assignment(a.unitId, t.role, a.priorityTargetId, null, t.destX, t.destZ);
         }
         return new Roles(out);
+    }
+
+    private static boolean overwatchFiring(Roles previous, IntPredicate firedRecently) {
+        for (Assignment a : previous.assignments) {
+            if (a.role == Assignment.Role.OVERWATCH && firedRecently.test(a.unitId)) return true;
+        }
+        return false;
     }
 
     /**

@@ -148,15 +148,28 @@ public final class BattleGroup {
     }
 
     void commitPlay(PlayId play, Roles roles, long nowTick) {
+        if (play != this.currentPlay) this.lastLeapfrogTick = Long.MIN_VALUE;
         this.currentPlay = play;
         this.currentRoles = roles;
         this.playStartedTick = nowTick;
+    }
+
+    /** Server tick of the last leapfrog swap; {@link Long#MIN_VALUE} = none this play. */
+    private long lastLeapfrogTick = Long.MIN_VALUE;
+
+    long lastLeapfrogTick() {
+        return this.lastLeapfrogTick;
+    }
+
+    void noteLeapfrog(long nowTick) {
+        this.lastLeapfrogTick = nowTick;
     }
 
     void clearPlay() {
         this.currentPlay = null;
         this.currentRoles = null;
         this.playStartedTick = Long.MIN_VALUE;
+        this.lastLeapfrogTick = Long.MIN_VALUE;
         this.hasInfluenceStamp = false;
     }
 

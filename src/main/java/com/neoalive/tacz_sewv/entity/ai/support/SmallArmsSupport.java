@@ -230,6 +230,12 @@ public final class SmallArmsSupport {
         return launcherClass(unit) != null;
     }
 
+    /** An SBW anti-armour launcher (not AA) in either hand, for any holder — a player included. */
+    public static boolean holdsAntiArmor(LivingEntity holder) {
+        return launcherClass(holder.getMainHandItem()) == SbwClass.AT
+                || launcherClass(holder.getOffhandItem()) == SbwClass.AT;
+    }
+
     @Nullable
     private static SbwClass launcherClass(AbstractUnit unit) {
         SbwClass main = launcherClass(unit.getMainHandItem());

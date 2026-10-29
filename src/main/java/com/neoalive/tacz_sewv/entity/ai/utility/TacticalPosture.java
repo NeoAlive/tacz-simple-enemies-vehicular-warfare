@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,7 +23,10 @@ import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.cover.CoverQuery;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
+import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
+import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
+import com.neoalive.tacz_sewv.entity.ai.suppression.InfantryArmorDoctrine;
 
 /**
  * Per-crew individual tactics posture. Soft biases only — never replaces {@code TASKED_*} /
@@ -165,14 +170,52 @@ public final class TacticalPosture {
         return unit.distanceTo(target) > maxDist;
     }
 
-    /** Soft cover path malus toward the published threat, or 0. Never BLOCKED. */
+    /**
+     * Soft cover path malus, or 0. Never BLOCKED. The published threats are the crew's own bearing plus up to
+     * {@link #MAX_EXTRA_THREATS} anti-armour contacts off the board, and a node costs its WORST exposure among
+     * them: a route that hides from the tank ahead but crosses the open in front of a TOW on the flank is not a
+     * covered route. Danger stays a cost, so a crew with no safe way still arrives.
+     */
     public static float coverPathMalus(int unitId, double nodeX, double nodeZ, ServerLevel level) {
         long[] threat = COVER_THREAT.get(unitId);
         if (threat == null) return 0.0F;
-        double tx = Double.longBitsToDouble(threat[0]);
-        double tz = Double.longBitsToDouble(threat[1]);
-        double exp = CoverQuery.exposure(level, nodeX, nodeZ, tx, tz);
-        return COVER_PATH_PENALTY * (float) exp;
+        double worst = 0.0;
+        for (int i = 0; i + 1 < threat.length && worst < 1.0; i += 2) {
+            double tx = Double.longBitsToDouble(threat[i]);
+            double tz = Double.longBitsToDouble(threat[i + 1]);
+            worst = Math.max(worst, CoverQuery.exposure(level, nodeX, nodeZ, tx, tz));
+        }
+        return COVER_PATH_PENALTY * (float) worst;
+    }
+
+    /** Anti-armour contacts routed around in addition to the crew's own threat bearing. */
+    static final int MAX_EXTRA_THREATS = 3;
+    /** Contacts farther than this from the hull cannot shape its next few hundred path nodes. */
+    private static final double EXTRA_THREAT_RANGE = 160.0;
+
+    /**
+     * The crew's threat bearing, then the nearest other contacts that can kill armour (a crewed hull, a TOW, a
+     * launcher in someone's hands), packed as x,z pairs for {@link #coverPathMalus}.
+     */
+    private static long[] packThreats(AbstractUnit unit, VehicleEntity hull, @Nullable LivingEntity primary,
+                                      double threatX, double threatZ) {
+        List<LivingEntity> extra = new ArrayList<>(MAX_EXTRA_THREATS);
+        double rangeSq = EXTRA_THREAT_RANGE * EXTRA_THREAT_RANGE;
+        for (LivingEntity c : ContactBoard.contactsFor(unit, ContactBoard.Source.RELAYED)) {
+            if (c == primary || c.distanceToSqr(hull) > rangeSq) continue;
+            if (InfantryArmorDoctrine.tierOf(c) < 0.5f && !SmallArmsSupport.holdsAntiArmor(c)) continue;
+            extra.add(c);
+        }
+        extra.sort(Comparator.comparingDouble(c -> c.distanceToSqr(hull)));
+        int n = Math.min(extra.size(), MAX_EXTRA_THREATS);
+        long[] out = new long[2 + 2 * n];
+        out[0] = Double.doubleToRawLongBits(threatX);
+        out[1] = Double.doubleToRawLongBits(threatZ);
+        for (int i = 0; i < n; i++) {
+            out[2 + 2 * i] = Double.doubleToRawLongBits(extra.get(i).getX());
+            out[3 + 2 * i] = Double.doubleToRawLongBits(extra.get(i).getZ());
+        }
+        return out;
     }
 
     /** Blend published cover interest into the terrain fan (soft). */
@@ -275,10 +318,7 @@ public final class TacticalPosture {
         if (hasThreatBearing) {
             this.active.add(Tactic.COVERING_ADVANCE);
             this.coveringAdvance = true;
-            COVER_THREAT.put(unitId, new long[] {
-                    Double.doubleToRawLongBits(threatX),
-                    Double.doubleToRawLongBits(threatZ)
-            });
+            COVER_THREAT.put(unitId, packThreats(unit, hull, target, threatX, threatZ));
             CoverQuery.fillCoverInterest(level, hull.getX(), hull.getZ(), hull.getYRot(),
                     threatX, threatZ, this.coverInterest, GroundMobility.SLOTS_DEG);
         }

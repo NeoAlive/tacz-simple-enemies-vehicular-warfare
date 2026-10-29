@@ -43,6 +43,7 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_FREE_FIRE = "quick_free_fire";
     public static final String ID_QUICK_ATTACK = "quick_attack";
     public static final String ID_QUICK_MOVE = "quick_move";
+    public static final String ID_QUICK_SUPPRESS = "quick_suppress";
     public static final String ID_PLATOON_JOIN = "platoon_join";
     public static final String ID_PLATOON_EXIT = "platoon_exit";
     public static final String ID_PLATOON_AUTO_ORDERS = "platoon_auto_orders";
@@ -104,6 +105,7 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_ATTACK, (issuer, ctx) -> {}); // client-armed; server no-op
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());
         register(ID_REVIVE_CALL, new QuickReviveCallPipeline());
+        register(ID_QUICK_SUPPRESS, new QuickSuppressPipeline());
         // Formation leaves are client-committed via PacketVehicleFormation (not PacketQuickCommand).
 
         List<WedgeEntry> general = new ArrayList<>();
@@ -111,6 +113,7 @@ public final class QuickCommandRegistry {
         general.add(leaf("Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A));
         general.add(leaf("Move To", "\u27A4", ID_QUICK_MOVE, 0xE8B84A));
         general.add(leaf("Attack That", "\u2694", ID_QUICK_ATTACK, 0xE8B84A));
+        general.add(leaf("Suppress There", "\u2738", ID_QUICK_SUPPRESS, 0xE8B84A));
         general.add(leaf("Cease Fire", "\u2298", ID_QUICK_CEASE_FIRE, 0xE8B84A));
         general.add(leaf("Free Fire", "\u26A1", ID_QUICK_FREE_FIRE, 0xE8B84A));
         general.add(leaf("Escort", "\u25C6", ID_ESCORT, 0xE8B84A));

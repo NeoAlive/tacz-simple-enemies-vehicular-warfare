@@ -585,8 +585,10 @@ public final class QuickCommandWheelScreen extends Screen {
             return fireFormation(mc, pipelineId, units);
         }
 
-        // Entrench resolves the aimed block server-side (trench networks are server data).
-        BlockPos aimBlock = QuickCommandRegistry.ID_QUICK_ENTRENCH.equals(pipelineId) ? this.aim.block() : null;
+        // Entrench resolves the aimed block server-side (trench networks are server data); Suppress
+        // puts its fire on it.
+        BlockPos aimBlock = QuickCommandRegistry.ID_QUICK_ENTRENCH.equals(pipelineId)
+                || QuickCommandRegistry.ID_QUICK_SUPPRESS.equals(pipelineId) ? this.aim.block() : null;
         NetworkHandler.CHANNEL.sendToServer(
                 new PacketQuickCommand(pipelineId, units, WheelScope.explicit(), aimBlock));
         return true;

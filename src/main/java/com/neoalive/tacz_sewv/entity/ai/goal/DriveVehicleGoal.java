@@ -46,6 +46,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TreeFellingSupport;
@@ -184,6 +185,7 @@ public class DriveVehicleGoal extends Goal {
         this.breaker.attach(v);
         if (TowRecoverySupport.hasTowOrder(this.unit)) return true;
         if (seekCoverWantsDrive()) return true;
+        if (SuppressOrders.active(this.unit, this.unit.level().getGameTime()) != null) return true;
         return getTargetPos() != null; // only drive if there's somewhere to go
     }
 
@@ -201,6 +203,7 @@ public class DriveVehicleGoal extends Goal {
                 && (this.dismount.active()
                         || TowRecoverySupport.hasTowOrder(this.unit)
                         || seekCoverWantsDrive()
+                        || SuppressOrders.active(this.unit, this.unit.level().getGameTime()) != null
                         || getTargetPos() != null);
     }
 
@@ -308,6 +311,10 @@ public class DriveVehicleGoal extends Goal {
             dismountTick(target);
             return;
         }
+
+        // The player's Suppress Area order outranks the crew's own posture and plan, short of
+        // self-defence (see SuppressOrders).
+        if (orderedSuppressTick()) return;
 
         // Posture hard steers on the main tick so area-hold / lost-target still honour them.
         if (trySteerSeekCover()) return;
@@ -440,6 +447,23 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
+     * Put fire on the player's ordered point: hold the hull and work the machine gun on it. False with
+     * no live order, in self-defence, or when no seat can fire on it, so the tick goes on as normal.
+     */
+    private boolean orderedSuppressTick() {
+        long now = this.unit.level().getGameTime();
+        BlockPos point = SuppressOrders.active(this.unit, now);
+        if (point == null || SuppressOrders.selfDefence(this.unit, SuppressOrders.CREW_SELF_DEFENCE)) return false;
+        int seat = SuppressiveFire.machineGunSeat(this.vehicle);
+        if (!SuppressiveFire.tick(this.unit, this.vehicle, seat, point, now, true)) return false;
+        // This early return skips the per-tick decoy release below.
+        if (now >= this.smokeUntil) this.vehicle.setDecoyInputDown(false);
+        this.driver.stop();
+        this.driver.clearRecovery(); // holding on purpose — not stuck
+        return true;
+    }
+
+    /**
      * Hold and rake the spot the target vanished from ({@link SuppressiveFire}). The hold is a real
      * instruction every tick, like every other branch. False once the window has passed or the gun
      * cannot rake it, which hands the tick to the search fallback.
@@ -451,7 +475,7 @@ public class DriveVehicleGoal extends Goal {
         if (spot == null || Facts.ticksSince(facts.memory.lastContactTick, now) > SuppressiveFire.WINDOW_TICKS) {
             return false;
         }
-        if (!SuppressiveFire.tick(this.unit, this.vehicle, facts.suppressSeat, spot, now)) return false;
+        if (!SuppressiveFire.tick(this.unit, this.vehicle, facts.suppressSeat, spot, now, false)) return false;
         this.driver.stop();
         this.driver.clearRecovery(); // holding on purpose — not stuck
         return true;

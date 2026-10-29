@@ -346,6 +346,8 @@ public abstract class MixinPmcUnitEntity
         // gives an inventory to — RU/US have no ITEM_HANDLER to hold one. Priority 2 keeps
         // first aid below anything crew-served: it only runs out of contact anyway.
         ((Mob) self).goalSelector.addGoal(2, new MedicGoal(self));
+        // The player's Suppress Area order on foot. Idle without an order: one map lookup.
+        ((Mob) self).goalSelector.addGoal(2, new com.neoalive.tacz_sewv.entity.ai.goal.SuppressAreaGoal(self));
         // Soft-compat: PlayerReviveMod. Any friendly PMC — no medical kit required, unlike
         // MedicGoal — revives a downed player automatically; see PlayerReviveCompat/PlayerReviveGoal.
         // Gated at goal-add time rather than inside canUse() so the goal simply doesn't exist

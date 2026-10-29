@@ -100,10 +100,12 @@ public final class SuppressiveFire {
     /**
      * One tick of raking {@code spot} from {@code seat}. Takes or renews the claim; movement is the caller's.
      * False when this hull cannot rake it (claim lost, gunner gone, no machine gun), so the caller can fall back.
+     * An {@code ordered} spot (the player's Suppress Area) takes the claim regardless and counts its rounds.
      */
-    public static boolean tick(AbstractUnit crew, VehicleEntity hull, int seat, BlockPos spot, long now) {
+    public static boolean tick(AbstractUnit crew, VehicleEntity hull, int seat, BlockPos spot, long now,
+                               boolean ordered) {
         if (seat < 0 || !(hull.getNthEntity(seat) instanceof AbstractUnit gunner)) return false;
-        if (!claimable(crew, hull, spot, now)) return false;
+        if (!ordered && !claimable(crew, hull, spot, now)) return false;
         int mg = VehicleWeapons.slotForRole(hull, seat, VehicleWeapons.WEAPON_MG);
         if (mg < 0) return false;
         CLAIMS.put(key(crew, spot), new Claim(hull.getId(), now));
@@ -133,6 +135,7 @@ public final class SuppressiveFire {
         if (VehicleTargeting.friendlyNearPoint(gunner, aim, SewvConfig.FRIENDLY_FIRE_VEHICLE_RADIUS.get())) return true;
         if (!hull.canShoot(gunner)) return true;
         hull.vehicleShoot(gunner, (UUID) null, aim);
+        if (ordered) SuppressOrders.noteRound(crew);
         return true;
     }
 
@@ -140,7 +143,7 @@ public final class SuppressiveFire {
      * A point inside the beaten zone around {@code center}, walking deterministically every half
      * second so the fire covers the spot rather than drilling one block.
      */
-    static Vec3 beatenZone(Vec3 from, Vec3 center, int gunnerId, long now) {
+    public static Vec3 beatenZone(Vec3 from, Vec3 center, int gunnerId, long now) {
         double r = spreadRadius(from.distanceTo(center));
         long step = now / 10;
         double a = hash01(gunnerId, step) * Math.PI * 2.0;

@@ -26,6 +26,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.FobClientRoute;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.radial.OrderScales;
+import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -34,6 +35,7 @@ import com.neoalive.tacz_sewv.network.PacketEntrench;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketParatroop;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
+import com.neoalive.tacz_sewv.network.PacketQuickCommand;
 import com.neoalive.tacz_sewv.network.PacketReachGuard;
 
 /**
@@ -111,6 +113,7 @@ public class UnitOrderOption extends RightClickOption {
         EMERGENCY_LAND("emergency_land", false, Category.AIR),
         PATROL_HERE("patrol_here", true, Category.AREA_TASK),
         SAD_HERE("sad_here", true, Category.AREA_TASK),
+        SUPPRESS_HERE("suppress_here", true, Category.AREA_TASK),
         ENTRENCH_HERE("entrench_here", true, Category.AREA_TASK),
         CRUISE("cruise", false, Category.MOVEMENT),
         SET_GUARD("set_guard", false, Category.MOVEMENT),
@@ -241,6 +244,14 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
+        if (this.action == Action.SUPPRESS_HERE) {
+            // The radial's own pipeline, with the clicked point standing in for the crosshair block:
+            // one server path for both, so the map needs no packet of its own.
+            NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(QuickCommandRegistry.ID_QUICK_SUPPRESS,
+                    new ArrayList<>(drivers), true, mapPos(player)));
+            return;
+        }
+
         if (this.action == Action.ENTRENCH_HERE) {
             NetworkHandler.CHANNEL.sendToServer(new PacketEntrench(
                     new ArrayList<>(drivers), PacketEntrench.MODE_ASSIGN, mapPos(player)));
@@ -302,7 +313,7 @@ public class UnitOrderOption extends RightClickOption {
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
             case ATTACK_THAT -> OrderType.ATTACK_THAT_TARGET;
-            case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE,
+            case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE, SUPPRESS_HERE,
                     ENTRENCH_HERE, CRUISE, SET_GUARD, REACH_GUARD, ROUTE_TO_FOB, DISMISS, BAIL_OUT,
                     PARATROOP, PREFERRED_PATHWAYS ->
                     throw new IllegalStateException(this.action + " is not a SEM order");

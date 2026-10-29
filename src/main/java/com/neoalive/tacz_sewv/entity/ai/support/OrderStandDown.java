@@ -40,10 +40,12 @@ public final class OrderStandDown {
             capture.sewv$clearCaptureOrder();
         }
         ((IPathwayInfantry) pmc).sewv$clearPathway();
+        SuppressOrders.clear(pmc);
     }
 
     public static void clearAll(PmcUnitEntity pmc, String reason) {
         pmc.setTarget(null);
+        SuppressOrders.clear(pmc);
         pmc.setOrder(OrderType.CEASE_FIRE);
 
         PatrolSupport.clearSweepMembership(pmc, reason);
@@ -85,6 +87,7 @@ public final class OrderStandDown {
      */
     public static void clearForVehicleBail(PmcUnitEntity pmc) {
         pmc.setTarget(null);
+        SuppressOrders.clear(pmc);
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
         PatrolSupport.clearSweepMembership(pmc, "BailOutSupport");
         TerritorySupport.dropPost(pmc);

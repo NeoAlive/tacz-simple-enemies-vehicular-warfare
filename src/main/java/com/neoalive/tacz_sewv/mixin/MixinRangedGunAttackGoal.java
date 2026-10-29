@@ -15,6 +15,7 @@ import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 import com.neoalive.tacz_sewv.entity.ai.support.GrenadeSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.UnitHolster;
 
 /**
@@ -47,7 +48,10 @@ public abstract class MixinRangedGunAttackGoal {
         }
         if (UnitHolster.isThrowingGrenade(this.mob) || GrenadeSupport.isGrenadeItem(this.mob.getMainHandItem())) {
             cir.setReturnValue(false);
+            return;
         }
+        // A Suppress Area order owns the gun (SuppressAreaGoal), short of self-defence.
+        if (SuppressOrders.preemptsRifle(this.mob)) cir.setReturnValue(false);
     }
 
     @Inject(method = "canContinueToUse", at = @At("HEAD"), cancellable = true)
@@ -58,7 +62,10 @@ public abstract class MixinRangedGunAttackGoal {
         }
         if (UnitHolster.isThrowingGrenade(this.mob) || GrenadeSupport.isGrenadeItem(this.mob.getMainHandItem())) {
             cir.setReturnValue(false);
+            return;
         }
+        // A Suppress Area order owns the gun (SuppressAreaGoal), short of self-defence.
+        if (SuppressOrders.preemptsRifle(this.mob)) cir.setReturnValue(false);
     }
 
     @Inject(method = "hasLineOfSightToTarget", at = @At("RETURN"), cancellable = true, remap = false)

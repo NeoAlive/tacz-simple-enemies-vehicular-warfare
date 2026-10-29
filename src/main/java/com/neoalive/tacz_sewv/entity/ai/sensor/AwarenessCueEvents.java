@@ -33,6 +33,8 @@ public final class AwarenessCueEvents {
         if (shooter == null || !shooter.isAlive()) return;
         if (!(shooter.level() instanceof ServerLevel level)) return;
 
+        // A muzzle flash gives the shooter away to anyone acquiring targets (see Acquisition).
+        Acquisition.noteFired(shooter.getId(), level.getGameTime());
         // SEM's own units already emit suppression for their shots; a player's do not.
         if (shooter instanceof Player player) SuppressionBus.onPlayerGunFire(level, player);
         if (SewvConfig.AWARENESS_CUES_ENABLED.get()) AwarenessCues.registerTaczFire(level, shooter);

@@ -97,6 +97,8 @@ public final class EasyTuning {
     public static final float SUPPRESSION_HOSTILE_MULT = 1.5f;
     /** Suppression one of the player's own units takes, as a multiple of the normal amount. */
     public static final float SUPPRESSION_FRIENDLY_MULT = 0.5f;
+    /** Target-acquisition delay for a hostile, as a multiple of the normal delay. */
+    public static final double ACQUISITION_MULT = 2.0;
 
     // --- Grenades (hostile units) ---
 

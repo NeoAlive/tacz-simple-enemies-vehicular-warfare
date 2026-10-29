@@ -7,6 +7,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -28,7 +29,9 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.LineOfFireCache;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
+import com.neoalive.tacz_sewv.entity.ai.sensor.Acquisition;
 import com.neoalive.tacz_sewv.entity.ai.support.FireHesitation;
+import com.neoalive.tacz_sewv.entity.ai.support.FireRhythm;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionBus;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
@@ -268,6 +271,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             return;
         }
         this.tacz_sewv$lastAiShotTick = now;
+        Acquisition.noteFired(unit.getId(), now);
 
         if (this.tacz_sewv$lastSuppressEmitTick == Long.MIN_VALUE
                 || now - this.tacz_sewv$lastSuppressEmitTick >= TACZ_SEWV$SUPPRESS_EMIT_TICKS) {
@@ -295,7 +299,9 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     @Unique
     private static int tacz_sewv$effectiveCooldown(VehicleEntity self, LivingEntity living) {
         // Easy Mode stretches the weapon's own interval for a hostile crew instead of taking the min.
-        return EasyMode.aiFireIntervalTicks(self, living);
+        int interval = EasyMode.aiFireIntervalTicks(self, living);
+        LivingEntity target = living instanceof Mob mob ? mob.getTarget() : null;
+        return target == null ? interval : FireRhythm.stretch(interval, living.getId(), target.getId());
     }
 
     // Blocked only when BOTH the target's center and its eyes are behind blocks:

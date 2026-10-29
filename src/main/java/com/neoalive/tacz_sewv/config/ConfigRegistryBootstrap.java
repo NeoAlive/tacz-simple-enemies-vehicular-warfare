@@ -683,6 +683,12 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.SUPPORT_CALL_INTERVAL_TICKS, SewvConfig.SUPPORT_CALL_INTERVAL_TICKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "awarenessCuesEnabled",
                 SewvConfig.AWARENESS_CUES_ENABLED, SewvConfig.AWARENESS_CUES_ENABLED::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "suppressionBusEnabled",
+                SewvConfig.SUPPRESSION_BUS_ENABLED, SewvConfig.SUPPRESSION_BUS_ENABLED::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "infantryArmorAwareness",
+                SewvConfig.INFANTRY_ARMOR_AWARENESS, SewvConfig.INFANTRY_ARMOR_AWARENESS::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "acquisitionDelayEnabled",
+                SewvConfig.ACQUISITION_DELAY_ENABLED, SewvConfig.ACQUISITION_DELAY_ENABLED::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "coverCacheEnabled",
                 SewvConfig.COVER_CACHE_ENABLED, SewvConfig.COVER_CACHE_ENABLED::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "coverCacheBakeCellsPerTick", 8, 256,

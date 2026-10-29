@@ -11,6 +11,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.bridge.IAcquisition;
 import com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure;
 
 /**
@@ -53,9 +54,13 @@ public final class PressureProbe {
             // A SEM build without the 0.1.6 tactical layer.
             supp = pressure = tactical = "n/a";
         }
-        return String.format(Locale.ROOT, "#%d %s %s %.0fm state=%s tac=%s supp=%s press=%s target=%s",
+        IAcquisition acq = (IAcquisition) u;
+        long left = acq.sewv$getAcqReadyAt() - u.level().getGameTime();
+        String acquiring = acq.sewv$getAcqTargetId() < 0 ? "-"
+                : "#" + acq.sewv$getAcqTargetId() + (left > 0 ? "(" + left + "t)" : "(ready)");
+        return String.format(Locale.ROOT, "#%d %s %s %.0fm state=%s tac=%s supp=%s press=%s acq=%s target=%s",
                 u.getId(), u.getType().toShortString(), where, Math.sqrt(u.distanceToSqr(at)),
-                u.getSoldierState(), tactical, supp, pressure,
+                u.getSoldierState(), tactical, supp, pressure, acquiring,
                 u.getTarget() == null ? "-" : u.getTarget().getType().toShortString());
     }
 }

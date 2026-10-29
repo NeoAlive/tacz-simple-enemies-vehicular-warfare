@@ -253,6 +253,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue AWARENESS_CUES_ENABLED;
     public static final ForgeConfigSpec.BooleanValue SUPPRESSION_BUS_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue INFANTRY_ARMOR_AWARENESS;
+    public static final ForgeConfigSpec.BooleanValue ACQUISITION_DELAY_ENABLED;
 
     public static final ForgeConfigSpec.BooleanValue COVER_CACHE_ENABLED;
     public static final ForgeConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
@@ -1087,6 +1089,14 @@ public final class SewvConfig {
                         "Let vehicle fire, SBW bullet impacts, explosions and players' near misses suppress SEM infantry",
                         "(SEM itself only counts TaCZ impacts and its own rifles). Amounts: data/tacz_sewv/sewv/suppression.")
                 .define("suppressionBusEnabled", true);
+        INFANTRY_ARMOR_AWARENESS = builder.comment(
+                        "Teach SEM infantry that a target riding a vehicle is armour: riflemen take cover from it,",
+                        "anti-armour gunners close in on it. (SEM rates a target only by the item in its hand.)")
+                .define("infantryArmorAwareness", true);
+        ACQUISITION_DELAY_ENABLED = builder.comment(
+                        "SEM infantry and AI crews take time to notice a new target: longer at range, in the dark,",
+                        "against a still or sneaking target; near-instant against a hull or someone who just fired.")
+                .define("acquisitionDelayEnabled", true);
         COVER_CACHE_ENABLED = builder.comment(
                         "Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).",
                         "Used by individual tactics for exposure / keyhole / scoot without per-tick raycasts.")

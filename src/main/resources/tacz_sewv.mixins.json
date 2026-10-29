@@ -25,6 +25,7 @@
     "MixinVillageGarrisonHandler",
     "MixinVehicleFireCooldown",
     "MixinSbwBulletSuppression",
+    "MixinVehicleHullPressure",
     "MixinAnnihilatorFireGate",
     "MixinVehicleTurretMobility",
     "MixinVehicleEngineMobility",

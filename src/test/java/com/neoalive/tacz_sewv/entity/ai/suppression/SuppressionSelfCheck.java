@@ -28,6 +28,7 @@ public final class SuppressionSelfCheck {
         clamps();
         packOverride();
         shippedTable();
+        hullPressure();
 
         System.out.println("suppression self-check: OK");
     }
@@ -109,6 +110,21 @@ public final class SuppressionSelfCheck {
         assert t.row(Kind.SMALL_ARMS).amount() <= t.row(Kind.MG).amount();
         assert t.row(Kind.MG).amount() <= t.row(Kind.CANNON).amount();
         assert t.row(Kind.MG).radius() <= t.row(Kind.CANNON).radius();
+    }
+
+    private static void hullPressure() {
+        assert HullPressure.decayed(0.0f, 100) == 0.0f;
+        assert HullPressure.decayed(0.8f, 0) == 0.8f : "no time passed, no decay";
+        assert Math.abs(HullPressure.decayed(0.8f, (long) HullPressure.HALF_LIFE_TICKS) - 0.4f) < 1.0e-4
+                : "halves over one half-life";
+        assert HullPressure.decayed(1.0f, 2000) < 0.001f : "long quiet empties it";
+        // A rifle round off a 500 HP tank: a nudge, not a rout.
+        float plink = HullPressure.hitAmount(8.0f, 500.0f);
+        assert plink >= HullPressure.HIT_FLOOR && plink < 0.15f : "plink=" + plink;
+        // A shell taking a third of the hull: capped, so one hit is never the whole story.
+        assert HullPressure.hitAmount(170.0f, 500.0f) == HullPressure.HIT_CAP;
+        assert HullPressure.hitAmount(0.0f, 500.0f) == 0.0f;
+        assert HullPressure.hitAmount(5.0f, 0.0f) == HullPressure.HIT_FLOOR : "unknown max health still counts";
     }
 
     private static SuppressionTable parse(String name, String json) {

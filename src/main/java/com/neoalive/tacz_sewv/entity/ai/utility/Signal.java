@@ -50,6 +50,12 @@ public enum Signal {
     SCREENED("screened"),
     /** 1 shortly after taking a hit, decaying to 0. */
     RECENTLY_HIT("recentlyHit"),
+    /**
+     * 0..1, how much fire the HULL is taking: hits on it (raw, before armour) and detonations
+     * nearby, decaying over a few seconds. {@link #RECENTLY_HIT} reads the crewman's own hurt
+     * record, which a shell striking the hull never touches.
+     */
+    UNDER_FIRE("underFire"),
 
     // ---- everyone else ----
     /** 0..1 by how badly the local force ratio is against us. */

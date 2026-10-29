@@ -31,6 +31,7 @@ public final class UtilityWeightsSelfCheck {
         shippedWeightsLoad();
         pairedActionsAreSymmetric();
         healthDecidesWhetherToFight();
+        pressureShakesButDoesNotRout();
         confidenceDoesNotSaturate();
         everyActionIsDispatchable();
         idleCrewsDoNotJustSit();
@@ -246,6 +247,39 @@ public final class UtilityWeightsSelfCheck {
         double hurtRetreat = weights.score(Action.RETREAT, engagement(0.15), Doctrine.NEUTRAL);
         assert hurtRetreat > hurtAttack
                 : "a badly hurt crew must break off: attack=" + hurtAttack + " retreat=" + hurtRetreat;
+    }
+
+    /**
+     * Incoming fire ({@code underFire}) must not rout a healthy crew (a tank that runs from rifle
+     * fire is useless), but must tip a damaged one under heavy fire into smoke or breaking contact.
+     * It is a confidence penalty like any other, never a floor or a ceiling.
+     */
+    private static void pressureShakesButDoesNotRout() {
+        UtilityWeights weights = UtilityWeights.parse(
+                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+
+        double[] healthyUnderFire = engagement(1.0);
+        healthyUnderFire[Signal.UNDER_FIRE.ordinal()] = 0.6;
+        double attack = weights.score(Action.ATTACK, healthyUnderFire, Doctrine.NEUTRAL);
+        double retreat = weights.score(Action.RETREAT, healthyUnderFire, Doctrine.NEUTRAL);
+        assert attack > retreat
+                : "a healthy crew under fire must keep fighting: attack=" + attack + " retreat=" + retreat;
+
+        double[] hurtUnderFire = engagement(0.4);
+        hurtUnderFire[Signal.UNDER_FIRE.ordinal()] = 1.0;
+        hurtUnderFire[Signal.SMOKE_READY.ordinal()] = 1.0;
+        double hurtAttack = weights.score(Action.ATTACK, hurtUnderFire, Doctrine.NEUTRAL);
+        double breakOff = Math.max(weights.score(Action.RETREAT, hurtUnderFire, Doctrine.NEUTRAL),
+                weights.score(Action.DEPLOY_SMOKE, hurtUnderFire, Doctrine.NEUTRAL));
+        assert breakOff > hurtAttack
+                : "a damaged crew under heavy fire must smoke or break off: attack=" + hurtAttack
+                        + " breakOff=" + breakOff;
+
+        double[] pressed = zeroSignals();
+        pressed[Signal.UNDER_FIRE.ordinal()] = 1.0;
+        double conf = Confidence.evaluate(pressed, Doctrine.NEUTRAL, weights);
+        assert conf < Confidence.NEUTRAL && conf > 0.0
+                : "fire alone should shake a crew, not bottom it out, was " + conf;
     }
 
     /** A crew in contact on its preferred ring at the given health, with everything else neutral. */

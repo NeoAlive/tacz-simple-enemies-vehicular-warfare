@@ -215,6 +215,8 @@ public final class TacticalBrain {
         s[Signal.RECENTLY_HIT.ordinal()] = sinceHit >= RECENT_HIT_TICKS
                 ? 0.0 : 1.0 - (double) sinceHit / RECENT_HIT_TICKS;
 
+        s[Signal.UNDER_FIRE.ordinal()] = Mth.clamp(f.pressure, 0.0, 1.0);
+
         s[Signal.SMOKE_READY.ordinal()] = f.smokeReady ? 1.0 : 0.0;
         s[Signal.SCREENED.ordinal()] = f.screened ? 1.0 : 0.0;
         s[Signal.CANNOT_SHOOT.ordinal()] = f.canShoot ? 0.0 : 1.0;
@@ -446,12 +448,13 @@ public final class TacticalBrain {
         }
 
         CrewAssignment.Snapshot task = CrewAssignment.of(unit.getId());
-        SewvDiag.crew("{}#{} plan={} task={} conf={} hp={} ammo={} allies={} enemies={} range={}"
+        SewvDiag.crew("{}#{} plan={} task={} conf={} hp={} fire={} ammo={} allies={} enemies={} range={}"
                         + " | best: {} | blocked: {} | {}",
                 unit.getType().toShortString(), unit.getId(), this.plan.key,
                 task == null ? "-" : task.role() + (task.flankSide() == null ? "" : "/" + task.flankSide()),
                 String.format("%.0f", this.facts.confidence),
                 String.format("%.2f", this.facts.health),
+                String.format("%.2f", this.facts.pressure),
                 this.facts.ammo + "(" + this.facts.ammoCount + ")",
                 this.facts.allies, this.facts.enemies,
                 String.format("%.1f", this.facts.targetDist == Double.MAX_VALUE ? -1.0 : this.facts.targetDist),

@@ -142,8 +142,18 @@ public final class SuppressionBus {
         Vec3 at = event.getExplosion().getPosition();
         Entity source = event.getExplosion().getIndirectSourceEntity();
         if (source == null) source = event.getExplosion().getDirectSourceEntity();
+        long now = event.getLevel().getGameTime();
         // The event already carries everything within twice the blast radius: no query needed.
         for (Entity e : event.getAffectedEntities()) {
+            if (e instanceof VehicleEntity hull) {
+                // A near miss rattles a crew even when the hit itself lands on someone else.
+                if (source != null && source.getRootVehicle() == hull) continue;
+                double f = falloff(hull.position().distanceTo(at), radius);
+                if (f > 0.0) {
+                    HullPressure.add(hull, (float) (row.amount() * f) * EasyMode.suppressionScale(hull), now);
+                }
+                continue;
+            }
             if (!(e instanceof AbstractUnit unit) || !eligible(unit)) continue;
             double f = falloff(unit.position().distanceTo(at), radius);
             if (f > 0.0) apply(unit, source, at, (float) (row.amount() * f));

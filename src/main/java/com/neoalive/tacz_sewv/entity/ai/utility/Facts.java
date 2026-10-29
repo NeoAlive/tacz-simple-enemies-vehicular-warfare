@@ -39,6 +39,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
+import com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.util.SmokeVision;
 
@@ -165,6 +166,8 @@ public final class Facts {
     public boolean screened;
     /** Blocks per tick. */
     public double speed;
+    /** 0..1, fire the hull is taking ({@link com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure}). */
+    public double pressure;
 
     // ---- local battlefield ----
     @Nullable
@@ -368,6 +371,7 @@ public final class Facts {
         this.canShoot = this.ammoCount > 0;
         this.smokeReady = this.hasDecoy && safeDecoyReady(hull);
         this.speed = hull.getLastTickSpeed();
+        this.pressure = HullPressure.read(hull, unit.level().getGameTime());
     }
 
     /** Rounds available to this seat's selected weapon, or -1 when the seat has no weapon. */

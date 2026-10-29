@@ -11,10 +11,12 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure;
+
 /**
  * {@code /sewv debug pressure}: what each nearby unit is feeling — SEM's suppression level, its
- * tactical state and threat pressure. The in-game check for the suppression bus; SEM keeps all three
- * itself, this only reads them.
+ * tactical state and threat pressure, plus the hull's own pressure for a crewman. The in-game check
+ * for the suppression bus; SEM keeps its three itself, this only reads them.
  */
 public final class PressureProbe {
 
@@ -37,7 +39,9 @@ public final class PressureProbe {
     }
 
     private static String line(AbstractUnit u, Vec3 at) {
-        String where = u.getVehicle() instanceof VehicleEntity ? "crew" : "foot";
+        String where = u.getVehicle() instanceof VehicleEntity hull
+                ? String.format(Locale.ROOT, "crew(fire=%.2f)", HullPressure.read(hull, u.level().getGameTime()))
+                : "foot";
         String tactical;
         String pressure;
         String supp;

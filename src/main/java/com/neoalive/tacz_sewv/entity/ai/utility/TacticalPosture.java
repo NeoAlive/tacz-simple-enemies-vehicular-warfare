@@ -179,11 +179,14 @@ public final class TacticalPosture {
     public static float coverPathMalus(int unitId, double nodeX, double nodeZ, ServerLevel level) {
         long[] threat = COVER_THREAT.get(unitId);
         if (threat == null) return 0.0F;
-        double worst = 0.0;
-        for (int i = 0; i + 1 < threat.length && worst < 1.0; i += 2) {
+        // The primary threat gets the full read (wrecks included); the extras one table read each, so
+        // their cost per node stays a lookup rather than a walk over every wreck in the level.
+        double worst = CoverQuery.exposure(level, nodeX, nodeZ,
+                Double.longBitsToDouble(threat[0]), Double.longBitsToDouble(threat[1]));
+        for (int i = 2; i + 1 < threat.length && worst < 1.0; i += 2) {
             double tx = Double.longBitsToDouble(threat[i]);
             double tz = Double.longBitsToDouble(threat[i + 1]);
-            worst = Math.max(worst, CoverQuery.exposure(level, nodeX, nodeZ, tx, tz));
+            worst = Math.max(worst, CoverQuery.terrainExposure(level, nodeX, nodeZ, tx, tz));
         }
         return COVER_PATH_PENALTY * (float) worst;
     }

@@ -54,6 +54,15 @@ public final class SuppressiveFire {
     private record Claim(int hullId, long heartbeat) {}
 
     private static final Map<String, Claim> CLAIMS = new HashMap<>();
+
+    /**
+     * Seat and slot of a hull's machine gun, re-resolved every {@link #MG_CACHE_TICKS}: the slot lookup
+     * classifies every weapon on the seat from gun data, and a raking hull asks every tick.
+     */
+    private record MgCache(int seat, int slot, long until) {}
+
+    static final long MG_CACHE_TICKS = 40;
+    private static final Map<Integer, MgCache> MG = new HashMap<>();
     private static long nextSweep = Long.MIN_VALUE;
 
     private SuppressiveFire() {}
@@ -81,6 +90,22 @@ public final class SuppressiveFire {
         return -1;
     }
 
+    /** {@link #machineGunSeat(VehicleEntity)} through the per-hull cache; for per-tick callers. */
+    public static int machineGunSeat(VehicleEntity hull, long now) {
+        return mg(hull, now).seat;
+    }
+
+    private static MgCache mg(VehicleEntity hull, long now) {
+        MgCache c = MG.get(hull.getId());
+        if (c == null || now >= c.until) {
+            int seat = machineGunSeat(hull);
+            int slot = seat < 0 ? -1 : VehicleWeapons.slotForRole(hull, seat, VehicleWeapons.WEAPON_MG);
+            c = new MgCache(seat, slot, now + MG_CACHE_TICKS);
+            MG.put(hull.getId(), c);
+        }
+        return c;
+    }
+
     /** True if {@code hull} could hold the claim on {@code spot} right now. */
     public static boolean claimable(AbstractUnit crew, VehicleEntity hull, BlockPos spot, long now) {
         Claim c = CLAIMS.get(key(crew, spot));
@@ -106,7 +131,8 @@ public final class SuppressiveFire {
                                boolean ordered) {
         if (seat < 0 || !(hull.getNthEntity(seat) instanceof AbstractUnit gunner)) return false;
         if (!ordered && !claimable(crew, hull, spot, now)) return false;
-        int mg = VehicleWeapons.slotForRole(hull, seat, VehicleWeapons.WEAPON_MG);
+        MgCache cached = mg(hull, now);
+        int mg = cached.seat == seat ? cached.slot : VehicleWeapons.slotForRole(hull, seat, VehicleWeapons.WEAPON_MG);
         if (mg < 0) return false;
         CLAIMS.put(key(crew, spot), new Claim(hull.getId(), now));
         sweep(now);
@@ -183,11 +209,13 @@ public final class SuppressiveFire {
         while (it.hasNext()) {
             if (now - it.next().heartbeat > HEARTBEAT_TICKS) it.remove();
         }
+        MG.values().removeIf(c -> now >= c.until);
     }
 
     /** Server stop / self-check reset. */
     public static void clearAll() {
         CLAIMS.clear();
+        MG.clear();
         nextSweep = Long.MIN_VALUE;
     }
 }

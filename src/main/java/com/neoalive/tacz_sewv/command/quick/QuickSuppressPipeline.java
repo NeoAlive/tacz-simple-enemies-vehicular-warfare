@@ -59,10 +59,8 @@ public final class QuickSuppressPipeline implements QuickCommandPipeline {
             }
         }
 
-        long now = level.getGameTime();
-        for (AbstractUnit unit : takers) {
-            SuppressOrders.assign(unit, point, issuer.getUUID(), now);
-        }
+        // One batch: the whole group reports back in a single line when the budget is spent.
+        SuppressOrders.assign(takers, point, issuer.getUUID(), level.getGameTime(), issuer.server.getTickCount());
         NetworkHandler.orderFeedback(issuer, "suppress", "message.tacz_sewv.suppress.ordered",
                 takers.size(), ChatFormatting.GREEN, takers.size(), SuppressOrders.BUDGET_TICKS / 20);
     }

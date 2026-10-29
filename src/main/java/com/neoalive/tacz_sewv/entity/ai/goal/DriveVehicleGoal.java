@@ -454,7 +454,7 @@ public class DriveVehicleGoal extends Goal {
         long now = this.unit.level().getGameTime();
         BlockPos point = SuppressOrders.active(this.unit, now);
         if (point == null || SuppressOrders.selfDefence(this.unit, SuppressOrders.CREW_SELF_DEFENCE)) return false;
-        int seat = SuppressiveFire.machineGunSeat(this.vehicle);
+        int seat = SuppressiveFire.machineGunSeat(this.vehicle, now);
         if (!SuppressiveFire.tick(this.unit, this.vehicle, seat, point, now, true)) return false;
         // This early return skips the per-tick decoy release below.
         if (now >= this.smokeUntil) this.vehicle.setDecoyInputDown(false);

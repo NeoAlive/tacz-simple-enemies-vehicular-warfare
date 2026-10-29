@@ -41,6 +41,21 @@ public final class CoverQuery {
     }
 
     /**
+     * {@link #exposure} without the wreck overlay: one table read. For callers that ask many times per
+     * path node (secondary threats), where the overlay's linear walk over every wreck would multiply.
+     */
+    public static double terrainExposure(ServerLevel level, double x, double z, double threatX, double threatZ) {
+        double dx = threatX - x;
+        double dz = threatZ - z;
+        double D = Math.sqrt(dx * dx + dz * dz);
+        if (D < 1.0E-3) return 0.0;
+        int dTerrain = CoverVisibilityCache.distance(level, Mth.floor(x), Mth.floor(z),
+                CoverVisibilityCache.compass8(dx, dz));
+        if (dTerrain >= CoverVisibilityCache.MAX_RANGE) return 1.0;
+        return Mth.clamp(dTerrain / D, 0.0, 1.0);
+    }
+
+    /**
      * Distance to the first wreck on the line to the threat, or {@code MAX_RANGE}. Wrecks are entities, so the
      * block-baked table never sees them; this is an overlay read from {@link CombatantIndex}'s last rebuild
      * (boxes up to {@code combatantIndexIntervalTicks} stale — wrecks barely move).

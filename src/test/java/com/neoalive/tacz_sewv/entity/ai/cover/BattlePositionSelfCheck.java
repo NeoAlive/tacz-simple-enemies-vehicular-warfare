@@ -1,0 +1,96 @@
+package com.neoalive.tacz_sewv.entity.ai.cover;
+
+import net.minecraft.world.phys.Vec3;
+
+import com.neoalive.tacz_sewv.entity.ai.cover.BattlePosition.Verdict;
+
+/**
+ * Headless check of the battle-position lifecycle: the keep/swap/drop verdict, lease renewal, and
+ * the breaker hand-off. Run via {@code ./gradlew selfCheckBattlePosition}.
+ */
+public final class BattlePositionSelfCheck {
+
+    private static final long NOW = 10_000;
+
+    public static void main(String[] args) {
+        verdicts();
+        lease();
+        bearings();
+        breaker();
+        cooldown();
+        System.out.println("BattlePositionSelfCheck OK");
+    }
+
+    /** A crew working comfortably from its position. */
+    private static Verdict calm(boolean engaged, boolean blocked, double drift, double dist, long lease,
+                                long onStation, double pressure, boolean alt) {
+        return BattlePosition.decide(engaged, blocked, drift, dist, 70.0, NOW, lease, onStation, pressure, alt);
+    }
+
+    private static void verdicts() {
+        long lease = NOW + 100;
+        assert calm(true, false, 0.1, 80, lease, 100, 0.0, true) == Verdict.KEEP;
+        assert calm(false, false, 0.1, 80, lease, 100, 0.0, true) == Verdict.DROP : "engagement over";
+        assert calm(true, true, 0.1, 80, lease, 100, 0.0, true) == Verdict.DROP : "ordered away";
+        assert calm(true, false, 0.1, 60, lease, 100, 0.0, true) == Verdict.DROP : "target inside the band";
+        assert calm(true, false, Math.toRadians(50), 80, lease, 100, 0.0, true) == Verdict.DROP : "fight moved";
+        assert calm(true, false, Math.toRadians(40), 80, lease, 100, 0.0, true) == Verdict.KEEP;
+        assert calm(true, false, 0.1, 80, NOW - 1, 100, 0.0, true) == Verdict.DROP : "lease expired";
+        assert calm(true, false, 0.1, 80, lease, 100, 0.6, true) == Verdict.SWAP : "under fire, has alternate";
+        assert calm(true, false, 0.1, 80, lease, 100, 0.6, false) == Verdict.DROP : "under fire, none left";
+        assert calm(true, false, 0.1, 80, lease, 10, 0.6, true) == Verdict.KEEP
+                : "pressure carried in from the last position does not count before settling";
+        assert calm(true, false, 0.1, 80, lease, -1, 0.9, true) == Verdict.KEEP : "en route: pressure ignored";
+    }
+
+    private static void lease() {
+        long t = 600;
+        assert BattlePosition.renewLease(NOW, Long.MIN_VALUE, NOW - 5, t) == NOW : "not arrived: no renew";
+        assert BattlePosition.renewLease(NOW, NOW - 50, NOW - 60, t) == NOW : "shot before arrival: no renew";
+        assert BattlePosition.renewLease(NOW, NOW - 50, NOW - 10, t) == NOW - 10 + t : "shot from station renews";
+        assert BattlePosition.renewLease(NOW + 5000, NOW - 50, NOW - 10, t) == NOW + 5000 : "never shortens";
+        assert BattlePosition.renewLease(NOW, NOW - 50, Long.MIN_VALUE, t) == NOW : "never fired";
+    }
+
+    private static void bearings() {
+        assert Math.abs(BattlePosition.bearingDelta(Math.PI - 0.1, -Math.PI + 0.1) - 0.2) < 1.0E-9 : "wraps";
+        assert Math.abs(BattlePosition.bearingDelta(0.3, -0.3) - 0.6) < 1.0E-9;
+        assert BattlePosition.bearingDelta(1.0, 1.0) == 0.0;
+    }
+
+    private static void breaker() {
+        Vec3 a = new Vec3(0, 64, 0);
+        Vec3 b = new Vec3(20, 64, 0);
+
+        BattlePosition withAlt = new BattlePosition();
+        withAlt.latch(new CoverQuery.BattlePick(a, b, true), 0.0, NOW);
+        assert withAlt.onBreaker(NOW) : "first breaker swaps";
+        assert withAlt.point() == b && !withAlt.hasAlternate();
+        assert withAlt.onBreaker(NOW + 100) : "same episode keeps the swap";
+        assert !withAlt.onBreaker(NOW + BattlePosition.BREAKER_SWAP_WINDOW + 1) : "later episode gives it up";
+        assert !withAlt.latched();
+
+        BattlePosition alone = new BattlePosition();
+        alone.latch(new CoverQuery.BattlePick(a, null, false), 0.0, NOW);
+        assert !alone.onBreaker(NOW) : "no alternate: the orbit runs";
+        assert !alone.latched() : "and the silent spot is not driven back to";
+
+        BattlePosition pressed = new BattlePosition();
+        pressed.latch(new CoverQuery.BattlePick(a, b, true), 0.0, NOW);
+        assert pressed.swap(NOW) && !pressed.swap(NOW + 1) : "one alternate, used once";
+    }
+
+    private static void cooldown() {
+        BattlePosition bp = new BattlePosition();
+        assert bp.mayPick(NOW);
+        bp.latch(null, 0.0, NOW);
+        assert !bp.latched() : "nothing worth taking";
+        assert !bp.mayPick(NOW + BattlePosition.PICK_COOLDOWN - 1) : "open ground is not re-raycast every refresh";
+        assert bp.mayPick(NOW + BattlePosition.PICK_COOLDOWN);
+
+        bp.latch(new CoverQuery.BattlePick(new Vec3(0, 64, 0), null, false), 0.0, NOW);
+        bp.drop(NOW + 50);
+        assert !bp.mayPick(NOW + 50 + BattlePosition.PICK_COOLDOWN - 1) : "a drop starts the cooldown";
+        assert bp.mayPick(NOW + 50 + BattlePosition.PICK_COOLDOWN);
+    }
+}

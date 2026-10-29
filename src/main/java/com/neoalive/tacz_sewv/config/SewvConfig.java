@@ -260,6 +260,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue COVER_CACHE_ENABLED;
     public static final ForgeConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
     public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_TACTICS_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue BATTLE_POSITIONS_ENABLED;
+    public static final ForgeConfigSpec.IntValue BATTLE_POSITION_LEASE_TICKS;
 
     public static final ForgeConfigSpec.BooleanValue COMMAND_SYSTEM_ENABLED;
     public static final ForgeConfigSpec.DoubleValue COMMAND_GROUP_JOIN_RADIUS;
@@ -1113,6 +1115,15 @@ public final class SewvConfig {
                         "Per-crew tactical posture (shoot-and-scoot, covering advance, keyhole, ambush, infantry cover).",
                         "Only a soft bias under player or command orders. It never stops a push.")
                 .define("individualTacticsEnabled", true);
+        BATTLE_POSITIONS_ENABLED = builder.comment(
+                        "Ground crews in contact pick a battle position on their engagement band (hull-down where the",
+                        "terrain allows), hold it while they are firing from it, and move to a pre-picked alternate when",
+                        "they come under fire or cannot shoot. Needs individualTacticsEnabled.")
+                .define("battlePositionsEnabled", true);
+        BATTLE_POSITION_LEASE_TICKS = builder.comment(
+                        "Game ticks a battle position is held without a shot fired from it before the crew gives it up.",
+                        "Every shot from the position renews it.")
+                .defineInRange("battlePositionLeaseTicks", 600, 100, 6000);
         builder.pop();
 
         builder.push("command");

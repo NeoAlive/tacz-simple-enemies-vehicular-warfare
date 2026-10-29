@@ -1,17 +1,23 @@
 package com.neoalive.tacz_sewv.entity.ai.cover;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
+import com.neoalive.tacz_sewv.entity.ai.sensor.ContactSight;
 
 /**
  * O(1) cover queries over {@link CoverVisibilityCache}. No raycasts — validation is the caller's
@@ -266,5 +272,101 @@ public final class CoverQuery {
             double next = exposure(level, nx, nz, threatX, threatZ);
             out7[i] = (float) Mth.clamp(cur - next, 0.0, 1.0);
         }
+    }
+
+    /** A picked battle position: where to fight from, where to go next, and whether the hull sits hull-down. */
+    public record BattlePick(Vec3 primary, @Nullable Vec3 alternate, boolean hullDown) {}
+
+    private static final double BP_ARC_RAD = Math.toRadians(60.0);
+    private static final int BP_BEARINGS = 8;
+    /** Candidates that get raycast, best cheap score first. Two rays each at most. */
+    private static final int BP_RAYCAST = 12;
+    private static final double BP_ALTERNATE_SPACING = 10.0;
+    private static final double BP_MAX_RISE = 16.0;
+
+    /**
+     * Battle position candidates on the engagement band around {@code target}, inside 60 degrees either side of
+     * the hull's current bearing so the crew never crosses the field to reach one. {@code threats} is the packed
+     * x,z array {@code TacticalPosture} already publishes for the path malus (primary first, then anti-armour
+     * contacts); a candidate open to any of them ranks lower.
+     *
+     * <p>The cache bakes one height, so it cannot tell hull-down from fully masked: it only ranks. The verdict is
+     * two {@link ContactSight} rays per candidate from its surface — the turret height must see the target, and
+     * the hull's own height being blocked is the hull-down bonus. Rays never load a chunk; a candidate whose
+     * chunk is not loaded is skipped.
+     *
+     * @return null when nothing on the band is hull-down or at least partly covered and able to shoot
+     */
+    @Nullable
+    public static BattlePick suggestBattlePositions(ServerLevel level, VehicleEntity hull, LivingEntity target,
+                                                    long[] threats, double ring, double band) {
+        double tx = target.getX();
+        double tz = target.getZ();
+        double base = Math.atan2(hull.getZ() - tz, hull.getX() - tx);
+        double[] radii = {Math.max(4.0, ring - band * 0.5), ring, ring + band * 0.5};
+        double turretRise = Math.max(1.5, hull.getBbHeight() - 0.3);
+        Vec3 aim = target.getEyePosition();
+
+        List<double[]> cands = new ArrayList<>(BP_BEARINGS * radii.length);
+        for (int b = 0; b < BP_BEARINGS; b++) {
+            double ang = base - BP_ARC_RAD + 2.0 * BP_ARC_RAD * b / (BP_BEARINGS - 1);
+            double cx = Math.cos(ang);
+            double cz = Math.sin(ang);
+            for (double r : radii) {
+                double px = tx + cx * r;
+                double pz = tz + cz * r;
+                double ground = surfaceY(level, px, pz);
+                if (Double.isNaN(ground) || Math.abs(ground - hull.getY()) > BP_MAX_RISE) continue;
+                double expPrimary = exposure(level, px, pz, Double.longBitsToDouble(threats[0]),
+                        Double.longBitsToDouble(threats[1]));
+                double worstExtra = 0.0;
+                for (int i = 2; i + 1 < threats.length; i += 2) {
+                    worstExtra = Math.max(worstExtra, exposure(level, px, pz,
+                            Double.longBitsToDouble(threats[i]), Double.longBitsToDouble(threats[i + 1])));
+                }
+                double travel = Math.sqrt((px - hull.getX()) * (px - hull.getX()) + (pz - hull.getZ()) * (pz - hull.getZ()));
+                double cheap = (1.0 - worstExtra) * 3.0 + (1.0 - expPrimary)
+                        + keyholeQuality(level, px, pz, tx, tz) - travel * 0.05;
+                cands.add(new double[] {px, pz, ground, cheap, expPrimary, b});
+            }
+        }
+        // Ties fall to the bearing index, so mirrored terrain gives a stable answer.
+        cands.sort(Comparator.<double[]>comparingDouble(c -> -c[3]).thenComparingDouble(c -> c[5]));
+
+        List<double[]> ok = new ArrayList<>();
+        for (int i = 0; i < cands.size() && i < BP_RAYCAST; i++) {
+            double[] c = cands.get(i);
+            Vec3 turret = new Vec3(c[0], c[2] + turretRise, c[1]);
+            if (ContactSight.between(level, turret, aim, null) != ContactSight.Kind.CLEAR) continue;
+            Vec3 body = new Vec3(c[0], c[2] + 1.0, c[1]);
+            boolean hullDown = ContactSight.between(level, body, aim, null) == ContactSight.Kind.BLOCKED;
+            if (!hullDown && c[4] >= 0.9) continue; // open ground: nothing to hold
+            ok.add(new double[] {c[0], c[1], c[2], c[3] + (hullDown ? 6.0 : 0.0), hullDown ? 1 : 0});
+        }
+        if (ok.isEmpty()) return null;
+        ok.sort(Comparator.comparingDouble(c -> -c[3]));
+        double[] best = ok.get(0);
+        Vec3 alternate = null;
+        for (int i = 1; i < ok.size(); i++) {
+            double[] c = ok.get(i);
+            double dx = c[0] - best[0];
+            double dz = c[1] - best[1];
+            if (dx * dx + dz * dz >= BP_ALTERNATE_SPACING * BP_ALTERNATE_SPACING) {
+                alternate = new Vec3(c[0], c[2], c[1]);
+                break;
+            }
+        }
+        return new BattlePick(new Vec3(best[0], best[2], best[1]), alternate, best[4] > 0);
+    }
+
+    /** Surface Y at a column, NaN when its chunk is not loaded or the surface is a fluid. Never loads a chunk. */
+    private static double surfaceY(ServerLevel level, double x, double z) {
+        int bx = Mth.floor(x);
+        int bz = Mth.floor(z);
+        LevelChunk chunk = level.getChunkSource().getChunkNow(bx >> 4, bz >> 4);
+        if (chunk == null) return Double.NaN;
+        int y = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx & 15, bz & 15) + 1;
+        if (!chunk.getFluidState(new BlockPos(bx, y - 1, bz)).isEmpty()) return Double.NaN;
+        return y;
     }
 }

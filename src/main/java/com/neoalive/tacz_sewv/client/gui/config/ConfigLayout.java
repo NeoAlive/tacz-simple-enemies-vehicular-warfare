@@ -71,7 +71,7 @@ public final class ConfigLayout {
                 "supportCall", "factionOrganicComms");
         rule("crew_ai", "boarding", "autoBoard", "tow", "autoManMortar", "autoEntrench");
         rule("crew_ai", "awareness", "vehicleTarget", "contactBoard", "wideScan", "combatantIndex",
-                "awarenessCues", "individualTactics", "utilityRefresh");
+                "awarenessCues", "individualTactics", "battlePosition", "utilityRefresh");
         rule("crew_ai", "movement", "path", "sensor", "tree", "cover", "groundFarLod", "vehicleTerrain",
                 "patrol");
         rule("crew_ai", "idle", "idle");

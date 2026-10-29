@@ -697,6 +697,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.COVER_CACHE_BAKE_CELLS_PER_TICK, SewvConfig.COVER_CACHE_BAKE_CELLS_PER_TICK::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "individualTacticsEnabled",
                 SewvConfig.INDIVIDUAL_TACTICS_ENABLED, SewvConfig.INDIVIDUAL_TACTICS_ENABLED::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "battlePositionsEnabled",
+                SewvConfig.BATTLE_POSITIONS_ENABLED, SewvConfig.BATTLE_POSITIONS_ENABLED::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "battlePositionLeaseTicks", 100, 6000,
+                SewvConfig.BATTLE_POSITION_LEASE_TICKS, SewvConfig.BATTLE_POSITION_LEASE_TICKS::set);
     }
 
     private static void registerCommand(ConfigRegistry.Builder b) {

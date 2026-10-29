@@ -120,6 +120,7 @@ public final class TacticalBrain {
         s[Signal.POSTURE_SCOOT.ordinal()] = f.postureScoot ? 1.0 : 0.0;
         s[Signal.POSTURE_AMBUSH.ordinal()] = f.postureAmbush ? 1.0 : 0.0;
         s[Signal.POSTURE_SEEK_COVER.ordinal()] = f.postureSeekCover ? 1.0 : 0.0;
+        s[Signal.IN_BATTLE_POSITION.ordinal()] = f.inBattlePosition ? 1.0 : 0.0;
     }
 
     public Action plan() {
@@ -258,6 +259,7 @@ public final class TacticalBrain {
         s[Signal.POSTURE_SCOOT.ordinal()] = f.postureScoot ? 1.0 : 0.0;
         s[Signal.POSTURE_AMBUSH.ordinal()] = f.postureAmbush ? 1.0 : 0.0;
         s[Signal.POSTURE_SEEK_COVER.ordinal()] = f.postureSeekCover ? 1.0 : 0.0;
+        s[Signal.IN_BATTLE_POSITION.ordinal()] = f.inBattlePosition ? 1.0 : 0.0;
     }
 
     private void decide(AbstractUnit unit, Doctrine doctrine, UtilityWeights weights, long now) {

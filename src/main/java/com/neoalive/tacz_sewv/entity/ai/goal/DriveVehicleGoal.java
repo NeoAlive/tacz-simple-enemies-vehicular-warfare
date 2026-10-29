@@ -33,6 +33,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleDriver;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.entity.ai.cover.BattlePosition;
 import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
 import com.neoalive.tacz_sewv.entity.ai.march.March;
 import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
@@ -638,6 +639,12 @@ public class DriveVehicleGoal extends Goal {
 
         if (plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
             BlockPos orbit = this.breaker.update(target, combatPos, ring);
+            // A crew on a battle position answers the breaker by moving to its alternate, not by orbiting into the
+            // open; with no alternate left the orbit runs exactly as before, so the watchdog still always wins.
+            if (orbit != null && this.posture.answerBreaker(this.unit.level().getGameTime())
+                    && occupyBattlePosition(target)) {
+                return;
+            }
             if (orbit != null) {
                 this.brain.force(breakerGoesLeft() ? Action.FLANK_LEFT : Action.FLANK_RIGHT,
                         this.unit.level().getGameTime());
@@ -682,7 +689,7 @@ public class DriveVehicleGoal extends Goal {
                     distanceSq);
 
             case HOLD -> {
-                holdTaskedStation();
+                if (!occupyBattlePosition(target)) holdTaskedStation();
                 this.driver.clearRecovery(); // holding on purpose — not stuck
             }
 
@@ -691,25 +698,48 @@ public class DriveVehicleGoal extends Goal {
             // standing still in the middle of a tank battle.
             case CALL_MORTARS -> {
                 requestSupport(target, FireMissionSupport.Kind.MORTAR);
-                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
             }
             case CALL_TOW -> {
                 requestSupport(target, FireMissionSupport.Kind.TOW);
-                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
             }
             case CALL_CAS -> {
                 requestSupport(target, FireMissionSupport.Kind.CAS);
-                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
             }
             case DELEGATE_TARGET -> {
                 delegateTarget(target);
-                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
             }
 
             // Hold the standoff band for the target's type: close when beyond it, open when
             // inside it, sit still on it and let the turret work.
-            case ATTACK -> maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+            case ATTACK -> {
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+            }
         }
+    }
+
+    /**
+     * Fight from the latched battle position ({@link TacticalPosture#battlePosition}): drive there, then hold it with
+     * the front armour on the target while the turret works. False when there is none, and the caller keeps its own
+     * geometry. Every branch issues input, like the rest of the dispatch.
+     */
+    private boolean occupyBattlePosition(LivingEntity target) {
+        Vec3 bp = this.posture.battlePosition();
+        if (bp == null) return false;
+        double dx = bp.x - this.vehicle.getX();
+        double dz = bp.z - this.vehicle.getZ();
+        double arrive = BattlePosition.arriveRadius(this.vehicle);
+        if (dx * dx + dz * dz > arrive * arrive) {
+            this.driver.navigateTo(BlockPos.containing(bp), this.vehicle.distanceToSqr(bp));
+            return true;
+        }
+        Vec3 facing = new Vec3(target.getX() - this.vehicle.getX(), 0.0, target.getZ() - this.vehicle.getZ());
+        this.driver.holdStation(facing.lengthSqr() > 1.0E-4 ? facing.normalize() : null);
+        this.driver.clearRecovery(); // on station — not stuck
+        return true;
     }
 
     /**

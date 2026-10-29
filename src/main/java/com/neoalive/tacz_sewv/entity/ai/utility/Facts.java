@@ -281,6 +281,8 @@ public final class Facts {
     public boolean postureAmbush;
     /** SEEK_COVER waypoint live (smoke+low-conf or debug). */
     public boolean postureSeekCover;
+    /** On station at a latched battle position. */
+    public boolean inBattlePosition;
 
     public final Memory memory = new Memory();
 
@@ -717,6 +719,7 @@ public final class Facts {
         this.postureScoot = false;
         this.postureAmbush = false;
         this.postureSeekCover = false;
+        this.inBattlePosition = false;
         this.memory.clear();
     }
 

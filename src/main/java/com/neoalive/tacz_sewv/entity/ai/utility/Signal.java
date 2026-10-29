@@ -163,7 +163,9 @@ public enum Signal {
     /** Ambush posture armed (orders-gated). */
     POSTURE_AMBUSH("postureAmbush"),
     /** Seeking hard cover under retreat/smoke (or debug force). */
-    POSTURE_SEEK_COVER("postureSeekCover");
+    POSTURE_SEEK_COVER("postureSeekCover"),
+    /** 1 while the hull sits on its latched battle position ({@code cover.BattlePosition}). */
+    IN_BATTLE_POSITION("inBattlePosition");
 
     /** The key naming this signal in the weights file. */
     public final String key;

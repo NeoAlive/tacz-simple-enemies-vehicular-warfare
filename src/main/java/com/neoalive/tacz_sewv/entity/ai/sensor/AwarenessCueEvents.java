@@ -3,12 +3,14 @@ package com.neoalive.tacz_sewv.entity.ai.sensor;
 import com.tacz.guns.api.event.common.GunFireEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.LogicalSide;
 import net.minecraftforge.fml.common.Mod;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionBus;
 
 /**
  * Event-driven awareness cue producers that do not go through {@code Level.playSound}.
@@ -25,12 +27,14 @@ public final class AwarenessCueEvents {
     @SubscribeEvent
     public static void onGunFire(GunFireEvent event) {
         if (event.getLogicalSide() != LogicalSide.SERVER) return;
-        if (!SewvConfig.SPEC.isLoaded() || !SewvConfig.AWARENESS_CUES_ENABLED.get()) return;
+        if (!SewvConfig.SPEC.isLoaded()) return;
 
         LivingEntity shooter = event.getShooter();
         if (shooter == null || !shooter.isAlive()) return;
         if (!(shooter.level() instanceof ServerLevel level)) return;
 
-        AwarenessCues.registerTaczFire(level, shooter);
+        // SEM's own units already emit suppression for their shots; a player's do not.
+        if (shooter instanceof Player player) SuppressionBus.onPlayerGunFire(level, player);
+        if (SewvConfig.AWARENESS_CUES_ENABLED.get()) AwarenessCues.registerTaczFire(level, shooter);
     }
 }

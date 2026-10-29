@@ -180,6 +180,8 @@ public class TaczSewv {
         event.addListener(new com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates.Loader());
         // See com.neoalive.tacz_sewv.ballistics.TranslationTable.
         event.addListener(new com.neoalive.tacz_sewv.ballistics.TranslationTable.Loader());
+        // See com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionTable.
+        event.addListener(new com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionTable.Loader());
         // See com.neoalive.tacz_sewv.crew.NamePools.
         event.addListener(new com.neoalive.tacz_sewv.crew.NamePools.Loader());
         event.addListener(new com.neoalive.tacz_sewv.crew.LogoPoolIndex.Loader());

@@ -24,6 +24,7 @@
     "MixinGrenadeBail",
     "MixinVillageGarrisonHandler",
     "MixinVehicleFireCooldown",
+    "MixinSbwBulletSuppression",
     "MixinAnnihilatorFireGate",
     "MixinVehicleTurretMobility",
     "MixinVehicleEngineMobility",

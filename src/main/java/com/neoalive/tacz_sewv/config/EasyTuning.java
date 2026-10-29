@@ -93,6 +93,10 @@ public final class EasyTuning {
     public static final double HOSTILE_HEALTH_MULT = 0.7;
     /** TaCZ bullet damage multiplier from a hostile unit into a friendly victim. */
     public static final float INFANTRY_BULLET_MULT = 0.6f;
+    /** Suppression a timid hostile unit takes, as a multiple of the normal amount. */
+    public static final float SUPPRESSION_HOSTILE_MULT = 1.5f;
+    /** Suppression one of the player's own units takes, as a multiple of the normal amount. */
+    public static final float SUPPRESSION_FRIENDLY_MULT = 0.5f;
 
     // --- Grenades (hostile units) ---
 

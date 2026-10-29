@@ -252,6 +252,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue AWARENESS_CUES_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue SUPPRESSION_BUS_ENABLED;
 
     public static final ForgeConfigSpec.BooleanValue COVER_CACHE_ENABLED;
     public static final ForgeConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
@@ -1082,6 +1083,10 @@ public final class SewvConfig {
         AWARENESS_CUES_ENABLED = builder.comment(
                         "Let idle crews investigate gunfire and cannon fire they hear, and contacts seen only through leaves.")
                 .define("awarenessCuesEnabled", true);
+        SUPPRESSION_BUS_ENABLED = builder.comment(
+                        "Let vehicle fire, SBW bullet impacts, explosions and players' near misses suppress SEM infantry",
+                        "(SEM itself only counts TaCZ impacts and its own rifles). Amounts: data/tacz_sewv/sewv/suppression.")
+                .define("suppressionBusEnabled", true);
         COVER_CACHE_ENABLED = builder.comment(
                         "Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).",
                         "Used by individual tactics for exposure / keyhole / scoot without per-tick raycasts.")

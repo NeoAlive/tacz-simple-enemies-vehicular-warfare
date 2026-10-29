@@ -30,6 +30,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
 import com.neoalive.tacz_sewv.entity.ai.support.FireHesitation;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionBus;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.util.LoadedClip;
 import com.neoalive.tacz_sewv.util.SmokeVision;
@@ -63,6 +64,14 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     // stale verdict.
     @Unique
     private LineOfFireCache tacz_sewv$lofCache = new LineOfFireCache();
+
+    // Throttle for SuppressionBus.onVehicleShot. SEM debounces suppression per source anyway, so a
+    // 1200 RPM gun emitting every round would only pay for the weapon lookup and the index query.
+    @Unique
+    private static final int TACZ_SEWV$SUPPRESS_EMIT_TICKS = 10;
+
+    @Unique
+    private long tacz_sewv$lastSuppressEmitTick = Long.MIN_VALUE;
 
     // The AI-crew gate lives on canShoot: SBW's AI fire loop (VehicleEntity.baseTick
     // and each tank's muzzle-flash override) checks it before every shot, for every
@@ -259,6 +268,12 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             return;
         }
         this.tacz_sewv$lastAiShotTick = now;
+
+        if (this.tacz_sewv$lastSuppressEmitTick == Long.MIN_VALUE
+                || now - this.tacz_sewv$lastSuppressEmitTick >= TACZ_SEWV$SUPPRESS_EMIT_TICKS) {
+            this.tacz_sewv$lastSuppressEmitTick = now;
+            SuppressionBus.onVehicleShot(self, unit);
+        }
     }
 
     /**

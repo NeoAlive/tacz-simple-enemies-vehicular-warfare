@@ -172,6 +172,8 @@ public class SewvCommand {
                                 .executes(ctx -> debugDump(ctx.getSource())))
                         .then(Commands.literal("perf")
                                 .executes(ctx -> debugPerf(ctx.getSource())))
+                        .then(Commands.literal("pressure")
+                                .executes(ctx -> debugPressure(ctx.getSource())))
                         .then(Commands.literal("artillery")
                                 .executes(ctx -> debugArtillery(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
@@ -886,6 +888,13 @@ public class SewvCommand {
         boolean on = com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport.toggleDebug();
         source.sendSuccess(() -> Component.literal("Artillery trace " + (on ? "ON" : "OFF")
                 + " ([sewv-artillery] lines in the server log)"), true);
+        return 1;
+    }
+
+    private static int debugPressure(CommandSourceStack source) {
+        for (String line : com.neoalive.tacz_sewv.debug.PressureProbe.report(source.getLevel(), source.getPosition())) {
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
         return 1;
     }
 

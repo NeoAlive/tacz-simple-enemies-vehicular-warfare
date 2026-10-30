@@ -27,6 +27,7 @@ import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire;
 import com.neoalive.tacz_sewv.entity.ai.suppression.InfantryArmorDoctrine;
 
 /**
@@ -432,7 +433,9 @@ public final class TacticalPosture {
 
         // ---- Ambush (2A gated) ----
         boolean ambush = false;
-        if (ambushAllowed && inCover > 0.55 && (target != null || facts.memory.hasFreshContact(now))
+        // Never on a battle position: it was picked to shoot from, and ambush holds the gun until the enemy closes to
+        // 0.6 of the ring the position sits on. Two sides on facing positions then each waited for the other forever.
+        if (!battleLatched && ambushAllowed && inCover > 0.55 && (target != null || facts.memory.hasFreshContact(now))
                 && facts.confidence >= Confidence.NEUTRAL - 15.0) {
             double closeBand = facts.preferredRange * 0.6;
             double dist;
@@ -479,7 +482,9 @@ public final class TacticalPosture {
         facts.postureScoot = this.scootWaypoint != null && now <= this.scootUntil;
         facts.postureAmbush = ambush;
         facts.postureSeekCover = this.seekCoverWaypoint != null && now <= this.seekCoverUntil;
-        facts.inBattlePosition = battleLatched && this.battle.onStation();
+        long lastShot = hull instanceof IAiFireTracker tracker ? tracker.tacz_sewv$getLastAiShotTick() : Long.MIN_VALUE;
+        facts.inBattlePosition = battleLatched && target != null
+                && BattlePosition.working(now, this.battle.arrivedAt(), lastShot);
 
         float[] published = FAN_BIAS.computeIfAbsent(unitId, id -> new float[GroundMobility.SLOT_COUNT]);
         System.arraycopy(this.coverInterest, 0, published, 0, this.coverInterest.length);
@@ -518,7 +523,10 @@ public final class TacticalPosture {
             this.battle.clear();
             return;
         }
-        boolean engaged = hasThreatBearing && facts.memory.hasFreshContact(now);
+        // Past the suppress window a lost contact releases the position: the crew should go and look, not hold a
+        // spot facing nothing for the rest of the 30 s contact memory.
+        boolean engaged = target != null
+                || (hasThreatBearing && Facts.ticksSince(facts.memory.lastContactTick, now) <= SuppressiveFire.WINDOW_TICKS);
         if (this.battle.latched()) {
             this.battle.markArrival(hull, now);
             if (hull instanceof IAiFireTracker tracker) this.battle.renew(tracker.tacz_sewv$getLastAiShotTick());

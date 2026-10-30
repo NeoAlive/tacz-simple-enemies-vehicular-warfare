@@ -15,6 +15,7 @@ public final class BattlePositionSelfCheck {
     public static void main(String[] args) {
         verdicts();
         lease();
+        working();
         bearings();
         breaker();
         cooldown();
@@ -50,6 +51,17 @@ public final class BattlePositionSelfCheck {
         assert BattlePosition.renewLease(NOW, NOW - 50, NOW - 10, t) == NOW - 10 + t : "shot from station renews";
         assert BattlePosition.renewLease(NOW + 5000, NOW - 50, NOW - 10, t) == NOW + 5000 : "never shortens";
         assert BattlePosition.renewLease(NOW, NOW - 50, Long.MIN_VALUE, t) == NOW : "never fired";
+    }
+
+    /** A silent crew must stop being told to stay, or two facing positions wait each other out. */
+    private static void working() {
+        long w = BattlePosition.WORK_TICKS;
+        assert !BattlePosition.working(NOW, Long.MIN_VALUE, NOW) : "en route is not working the position";
+        assert BattlePosition.working(NOW, NOW - w, Long.MIN_VALUE) : "just arrived";
+        assert !BattlePosition.working(NOW, NOW - w - 1, Long.MIN_VALUE) : "arrived long ago, never fired";
+        assert BattlePosition.working(NOW, NOW - 1000, NOW - w) : "firing from it";
+        assert !BattlePosition.working(NOW, NOW - 1000, NOW - w - 1) : "gone quiet";
+        assert !BattlePosition.working(NOW, NOW - 1000, NOW - 1001) : "a shot from before arriving does not count";
     }
 
     private static void bearings() {

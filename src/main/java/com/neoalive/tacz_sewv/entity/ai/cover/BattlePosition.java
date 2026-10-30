@@ -44,6 +44,12 @@ public final class BattlePosition {
     public static final long SETTLE_TICKS = 40;
     /** How long a breaker-driven swap shields the crew from the breaker's own orbit. */
     public static final long BREAKER_SWAP_WINDOW = 160;
+    /**
+     * How long a position counts as working ({@link #working}) after arriving or after the last shot from it. Past
+     * this a silent crew loses the hold bias, so doctrine (aggression, initiative, range) can move it on. Without
+     * that, two sides on facing positions each held for the other to make the first move.
+     */
+    public static final long WORK_TICKS = 200;
     /** Same pad {@code DriveVehicleGoal} arrives at posture waypoints with. */
     public static final double ARRIVE_PAD = 3.0;
 
@@ -80,6 +86,13 @@ public final class BattlePosition {
         boolean pressed = onStationTicks >= SETTLE_TICKS && pressure >= SWAP_PRESSURE;
         if (pressed) return hasAlternate ? Verdict.SWAP : Verdict.DROP;
         return Verdict.KEEP;
+    }
+
+    /** On station and either just arrived or firing from it: the only time the scorer should favour staying. */
+    public static boolean working(long now, long arrivedAt, long lastShot) {
+        if (arrivedAt == Long.MIN_VALUE) return false;
+        if (now - arrivedAt <= WORK_TICKS) return true;
+        return lastShot != Long.MIN_VALUE && lastShot >= arrivedAt && now - lastShot <= WORK_TICKS;
     }
 
     /** Lease renewed by a shot fired from station; never shortened. */

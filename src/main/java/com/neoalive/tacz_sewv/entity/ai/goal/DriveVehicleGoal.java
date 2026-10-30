@@ -899,7 +899,11 @@ public class DriveVehicleGoal extends Goal {
         }
 
         Vec3 shield = this.posture.infantryShieldPoint(now);
-        if (shield != null
+        // Never over a decision to move: the scorer chose to close or work round the flank, and parking the hull
+        // in front of its own squad instead glued every tank to its infantry at walking pace (the playtest showed
+        // the shield steering over FLANK_* more than a hundred times in five minutes).
+        boolean planMoves = plan == Action.ADVANCE || plan == Action.FLANK_LEFT || plan == Action.FLANK_RIGHT;
+        if (shield != null && !planMoves
                 && this.posture.active().contains(TacticalPosture.Tactic.INFANTRY_COVER)
                 && !taskedToMove()) {
             this.driver.setInfantryPace(this.posture.throttleInfantryPace());

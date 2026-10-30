@@ -17,4 +17,14 @@ public interface IHullPressure {
     long sewv$getPressureStamp();
 
     void sewv$setPressureStamp(long gameTime);
+
+    /**
+     * Network id of the last living attacker whose hit counted as heavy, or -1; and when. Transient, like every
+     * network-id order in {@code bridge/}: an id means nothing across a reload.
+     */
+    int sewv$getHeavyAttackerId();
+
+    long sewv$getHeavyAttackStamp();
+
+    void sewv$setHeavyAttacker(int entityId, long gameTime);
 }

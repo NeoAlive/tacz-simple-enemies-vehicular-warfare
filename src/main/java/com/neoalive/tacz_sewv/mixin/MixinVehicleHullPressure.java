@@ -4,6 +4,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -32,6 +33,28 @@ public abstract class MixinVehicleHullPressure implements IHullPressure {
 
     @Unique
     private long tacz_sewv$pressureStamp = Long.MIN_VALUE;
+
+    @Unique
+    private int tacz_sewv$heavyAttackerId = -1;
+
+    @Unique
+    private long tacz_sewv$heavyAttackStamp = Long.MIN_VALUE;
+
+    @Override
+    public int sewv$getHeavyAttackerId() {
+        return this.tacz_sewv$heavyAttackerId;
+    }
+
+    @Override
+    public long sewv$getHeavyAttackStamp() {
+        return this.tacz_sewv$heavyAttackStamp;
+    }
+
+    @Override
+    public void sewv$setHeavyAttacker(int entityId, long gameTime) {
+        this.tacz_sewv$heavyAttackerId = entityId;
+        this.tacz_sewv$heavyAttackStamp = gameTime;
+    }
 
     @Override
     public float sewv$getPressureRaw() {
@@ -62,5 +85,10 @@ public abstract class MixinVehicleHullPressure implements IHullPressure {
         if (attacker != null && attacker.getRootVehicle() == hull) return;
         float add = HullPressure.hitAmount(amount, hull.getMaxHealth()) * EasyMode.suppressionScale(hull);
         HullPressure.add(hull, add, hull.level().getGameTime());
+        // A hit that hurts names its shooter, so the crew can turn on it (VehicleTargetScanGoal.retaliate). A rocket
+        // on the hull never reaches the crew's own hurt-by goal: the hull takes the damage, not the riders.
+        if (attacker instanceof LivingEntity && HullPressure.isHeavy(amount, hull.getMaxHealth())) {
+            this.sewv$setHeavyAttacker(attacker.getId(), hull.level().getGameTime());
+        }
     }
 }

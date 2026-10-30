@@ -14,6 +14,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
+import com.neoalive.tacz_sewv.crew.VehicleAccess.Verdict;
+import com.neoalive.tacz_sewv.crew.VehicleAccessLive;
 import com.neoalive.tacz_sewv.entity.ai.support.BoardOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
@@ -69,6 +71,16 @@ public class PacketBoardVehicle {
             OrderReport.fail(player, OrderFailure.VEHICLE_PLAYER_ONLY);
             NetworkHandler.sendOrderFeedback(player, NetworkHandler.orderLine("board", 0, Component.translatable(
                     "message.tacz_sewv.board.player_only").withStyle(ChatFormatting.GRAY)));
+            return;
+        }
+        Verdict access = VehicleAccessLive.verdict(player, hull);
+        if (access != Verdict.ALLOW) {
+            OrderReport.fail(player, OrderFailure.VEHICLE_NOT_OWNED);
+            String key = access == Verdict.HOSTILE
+                    ? "message.tacz_sewv.interact.enemy_crew"
+                    : "message.tacz_sewv.interact.not_owner";
+            NetworkHandler.sendOrderFeedback(player, NetworkHandler.orderLine("board", 0, Component.translatable(key)
+                    .withStyle(ChatFormatting.GRAY)));
             return;
         }
 

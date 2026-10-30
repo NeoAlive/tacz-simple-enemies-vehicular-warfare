@@ -164,6 +164,8 @@ public enum Signal {
     POSTURE_AMBUSH("postureAmbush"),
     /** Seeking hard cover under retreat/smoke (or debug force). */
     POSTURE_SEEK_COVER("postureSeekCover"),
+    /** Per-crew temperament, -1 (bold) to +1 (cautious), 0 at the middle ({@link Doctrine#caution}). */
+    CAUTION("caution"),
     /** 1 while the hull sits on its latched battle position ({@code cover.BattlePosition}). */
     IN_BATTLE_POSITION("inBattlePosition");
 

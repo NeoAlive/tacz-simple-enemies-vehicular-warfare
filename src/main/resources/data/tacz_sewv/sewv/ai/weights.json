@@ -22,6 +22,7 @@
   },
 
   "advance": {
+    "caution": -20,
     "inBattlePosition": -40,
     "underFire": -20,
     "tooFar": 50,
@@ -47,6 +48,7 @@
   },
 
   "hold": {
+    "caution": 10,
     "inBattlePosition": 20,
     "underFire": -10,
     "base": 20,
@@ -71,6 +73,7 @@
   },
 
   "retreat": {
+    "caution": 15,
     "inBattlePosition": -15,
     "underFire": 20,
     "lowHealth": 85,
@@ -100,6 +103,7 @@
   },
 
   "flankLeft": {
+    "caution": -10,
     "inBattlePosition": -30,
     "underFire": 10,
     "enemyArmor": 25,
@@ -124,6 +128,7 @@
   },
 
   "flankRight": {
+    "caution": -10,
     "inBattlePosition": -30,
     "underFire": 10,
     "enemyArmor": 25,

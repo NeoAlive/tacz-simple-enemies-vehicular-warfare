@@ -20,7 +20,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
 import com.neoalive.tacz_sewv.network.PacketReviveProgress;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 
@@ -109,15 +109,14 @@ public final class PmcDownedSupport {
     }
 
     /**
-     * A downed friendly PMC can never be melee'd — including by accident from holding the same
-     * attack key used to revive them. Only the friendly/downed case is blocked; an enemy or an
-     * un-downed PMC is untouched.
+     * A downed PMC the attacker owns can never be melee'd — including by accident from holding the
+     * same attack key used to revive them. Anyone else, and any PMC who is not downed, is untouched.
      */
     @SubscribeEvent
     public static void onAttack(AttackEntityEvent event) {
         if (!(event.getTarget() instanceof PmcUnitEntity pmc)) return;
         if (!(pmc instanceof IPmcDowned downed) || !downed.sewv$isDowned()) return;
-        if (!VehicleTargeting.isFriendlyPlayer(pmc, event.getEntity())) return;
+        if (!PmcOwnerSupport.isOwner(event.getEntity(), pmc)) return;
         event.setCanceled(true);
     }
 
@@ -140,7 +139,7 @@ public final class PmcDownedSupport {
                 || !downed.sewv$isDowned()
                 || !pmc.isAlive()
                 || player.distanceToSqr(pmc) > CHANNEL_MAX_DISTANCE_SQ
-                || !VehicleTargeting.isFriendlyPlayer(pmc, player)) {
+                || !PmcOwnerSupport.isOwner(player, pmc)) {
             CHANNELS.remove(player.getUUID());
             PacketReviveProgress.sendTo(player, 0.0F, false);
             return;

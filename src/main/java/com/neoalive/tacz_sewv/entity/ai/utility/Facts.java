@@ -281,6 +281,8 @@ public final class Facts {
     public boolean postureAmbush;
     /** SEEK_COVER waypoint live (smoke+low-conf or debug). */
     public boolean postureSeekCover;
+    /** 0 (bold) to 1 (cautious), {@link Doctrine#caution}; written by the brain before sampling. */
+    public double caution = 0.5;
     /** On station at a latched battle position. */
     public boolean inBattlePosition;
 
@@ -720,6 +722,7 @@ public final class Facts {
         this.postureAmbush = false;
         this.postureSeekCover = false;
         this.inBattlePosition = false;
+        this.caution = 0.5;
         this.memory.clear();
     }
 

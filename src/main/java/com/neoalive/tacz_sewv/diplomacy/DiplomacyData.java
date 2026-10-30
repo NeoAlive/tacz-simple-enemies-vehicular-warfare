@@ -18,9 +18,11 @@ import net.minecraft.world.level.saveddata.SavedData;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 
 /**
- * SEWV-only diplomacy between <b>subjects</b>: OpenPAC party names ({@link Kind#FACTION}) or
- * player names ({@link Kind#PLAYER}, the scoreboard/profile name {@code /team} holds). Relationships
- * are never written back to OpenPAC. Absence of a pair = {@link Relation#NEUTRAL} (not stored).
+ * SEWV-only diplomacy between <b>subjects</b>: OpenPAC party names ({@link Kind#FACTION}),
+ * player names ({@link Kind#PLAYER}, the scoreboard/profile name {@code /team} holds), or a SEM
+ * side ({@link Kind#SIDE}, {@code ru} / {@code us}). A side is not a party, so a party literally
+ * named RU cannot collide with it. Relationships are never written back to OpenPAC. Absence of a
+ * pair = {@link Relation#NEUTRAL} (not stored).
  *
  * <p>Two layers. {@link #pairs} is the saved, manual layer ({@code /sewv diplomacy}). {@link #invasion}
  * is a transient overlay owned by {@code InvasionDiplomacy}: it is never saved and wins over the manual
@@ -39,10 +41,14 @@ public class DiplomacyData extends SavedData {
     }
 
     public enum Kind {
-        FACTION, PLAYER;
+        FACTION, PLAYER, SIDE;
 
         String prefix() {
-            return this == FACTION ? "f:" : "p:";
+            return switch (this) {
+                case FACTION -> "f:";
+                case PLAYER -> "p:";
+                case SIDE -> "s:";
+            };
         }
     }
 
@@ -54,6 +60,11 @@ public class DiplomacyData extends SavedData {
 
         public static Subject player(String name) {
             return new Subject(Kind.PLAYER, name);
+        }
+
+        /** A SEM side. Canonical names are {@code ru} and {@code us}; comparison is case-insensitive. */
+        public static Subject side(String name) {
+            return new Subject(Kind.SIDE, name);
         }
 
         String key() {
@@ -158,8 +169,11 @@ public class DiplomacyData extends SavedData {
 
     /**
      * First stored relation between any subject of {@code self} and any of {@code other}, most
-     * specific first: player↔player, player↔faction, faction↔player, faction↔faction. Each side's
-     * list carries at most one subject of each kind. Null when nothing is stored for any pairing.
+     * specific first: player↔player, then player↔side, then player↔faction, and the faction/side
+     * mirrors of those. A personal pair beats a party treaty, and a party treaty beats nothing.
+     * Each list carries at most one subject of each kind. Null when nothing is stored — that is
+     * not {@link Relation#ALLY}. {@link #relation(Subject, Subject)} is the one that collapses
+     * absence to {@link Relation#NEUTRAL}.
      */
     @Nullable
     public Relation resolve(List<Subject> self, List<Subject> other) {
@@ -175,8 +189,10 @@ public class DiplomacyData extends SavedData {
     }
 
     private static final Kind[][] RESOLVE_ORDER = {
-            {Kind.PLAYER, Kind.PLAYER}, {Kind.PLAYER, Kind.FACTION},
-            {Kind.FACTION, Kind.PLAYER}, {Kind.FACTION, Kind.FACTION}};
+            {Kind.PLAYER, Kind.PLAYER}, {Kind.PLAYER, Kind.SIDE}, {Kind.PLAYER, Kind.FACTION},
+            {Kind.SIDE, Kind.PLAYER}, {Kind.FACTION, Kind.PLAYER},
+            {Kind.FACTION, Kind.SIDE}, {Kind.SIDE, Kind.FACTION},
+            {Kind.FACTION, Kind.FACTION}};
 
     /** No manual pairs and no invasion overlay — the one-check gate in front of entity scans. */
     public boolean isEmpty() {
@@ -271,6 +287,8 @@ public class DiplomacyData extends SavedData {
     }
 
     private static Kind kindOf(String stored) {
-        return "PLAYER".equals(stored) ? Kind.PLAYER : Kind.FACTION;
+        if ("PLAYER".equals(stored)) return Kind.PLAYER;
+        if ("SIDE".equals(stored)) return Kind.SIDE;
+        return Kind.FACTION;
     }
 }

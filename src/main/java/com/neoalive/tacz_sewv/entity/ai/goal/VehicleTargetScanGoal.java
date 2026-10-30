@@ -32,6 +32,7 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.sensor.VehicleScanBand;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowSupport;
+import com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure;
 
 /**
  * Target acquisition for mounted crews: a flat cylinder scan around the VEHICLE
@@ -92,6 +93,14 @@ public class VehicleTargetScanGoal extends Goal {
 
         LivingEntity current = this.unit.getTarget();
         if (current != null && current.isAlive()) return false; // already engaged — don't retarget every scan
+
+        // No lock, but something just hurt the hull: answer it before (and regardless of) the scan throttle.
+        LivingEntity shooter = retaliationTarget(v);
+        if (shooter != null) {
+            this.vehicle = v;
+            this.pendingTarget = shooter;
+            return true;
+        }
 
         // Throttle: the AABB query + sort is the expensive part, so it only runs
         // every N ticks; the cheap mounted/target checks above still run per tick.
@@ -215,6 +224,42 @@ if (EasyMode.vehicleTargetRequireLos()
         return horizontalDistSq(this.vehicle, target) <= dropRadius * dropRadius
                 && target.getY() - this.vehicle.getY() <= up
                 && this.vehicle.getY() - target.getY() <= down;
+    }
+
+    /** While holding a lock: turn on a shooter that just landed a heavy hit, if it is the better target. */
+    @Override
+    public void tick() {
+        if (this.vehicle == null) return;
+        LivingEntity shooter = retaliationTarget(this.vehicle);
+        if (shooter == null) return;
+        SewvDiag.scan("VehicleTargetScanGoal.retaliate unit={}#{} from={}#{} to={}#{}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.unit.getTarget() == null ? "null" : this.unit.getTarget().getClass().getSimpleName(),
+                this.unit.getTarget() == null ? -1 : this.unit.getTarget().getId(),
+                shooter.getClass().getSimpleName(), shooter.getId());
+        this.unit.setTarget(shooter);
+        this.ticksWithoutLos = 0;
+    }
+
+    /**
+     * The shooter that just landed a heavy hit on this hull, if the crew should turn on it
+     * ({@link HullPressure#shouldRetaliate}); else null. A rocket on the hull never reaches the crew's own
+     * hurt-by goal, since the hull takes the damage, so without this a crew under AT fire felt the hits (and
+     * backed off on the pressure they raise) while its gun stayed on whatever it had locked before.
+     */
+    @Nullable
+    private LivingEntity retaliationTarget(VehicleEntity v) {
+        LivingEntity shooter = HullPressure.recentHeavyAttacker(v, this.unit.level().getGameTime());
+        if (shooter == null || !isValidTarget(v, shooter)) return null;
+        LivingEntity current = this.unit.getTarget();
+        boolean hasCurrent = current != null && current.isAlive();
+        boolean currentVisible = hasCurrent && this.unit.getSensing().hasLineOfSight(current);
+        boolean currentArmour = hasCurrent
+                && VehicleWeapons.classifyTarget(current) == VehicleWeapons.TargetCategory.VEHICLE;
+        boolean closer = !hasCurrent || v.distanceToSqr(shooter) < v.distanceToSqr(current);
+        boolean act = HullPressure.shouldRetaliate(this.unit.getSensing().hasLineOfSight(shooter), shooter == current,
+                currentVisible, currentArmour, closer);
+        return act ? shooter : null;
     }
 
     @Override

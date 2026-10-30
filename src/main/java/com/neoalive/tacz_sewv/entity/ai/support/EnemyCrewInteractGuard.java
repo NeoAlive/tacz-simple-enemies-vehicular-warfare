@@ -1,8 +1,6 @@
 package com.neoalive.tacz_sewv.entity.ai.support;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -14,15 +12,18 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
+import com.neoalive.tacz_sewv.crew.VehicleAccess.Verdict;
+import com.neoalive.tacz_sewv.crew.VehicleAccessLive;
 import com.neoalive.tacz_sewv.mixin.MixinVehicleInteractLock;
 import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
 
 /**
- * Blocks player interaction with RU/US-crewed hulls at the Forge event bus — the seam addons
- * that short-circuit {@code VehicleEntity.interact} (FCP shift-open hold, emplacement hand-load,
- * leg rotate) never reach {@link MixinVehicleInteractLock}.
+ * Blocks a refused hull click at the Forge event bus — the seam addons that short-circuit
+ * {@code VehicleEntity.interact} (FCP shift-open hold, emplacement hand-load, leg rotate) never
+ * reach {@link MixinVehicleInteractLock}. Same {@link VehicleAccessLive} decision as the mixin.
  *
- * <p>Same passenger test as the mixin; both stay. Also runs unlock loot when the hull is clear.
+ * <p>{@link #hasEnemyCrew} stays the loot gate: an alliance that lets a player click does not
+ * fill the container while the RU/US crew is still aboard.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID)
 public final class EnemyCrewInteractGuard {
@@ -45,12 +46,11 @@ public final class EnemyCrewInteractGuard {
         Player player = event.getEntity();
         if (player.level().isClientSide()) return;
 
-        if (hasEnemyCrew(target)) {
+        Verdict verdict = VehicleAccessLive.verdict(player, target);
+        if (verdict != Verdict.ALLOW) {
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.FAIL);
-            player.displayClientMessage(
-                    Component.translatable("message.tacz_sewv.interact.enemy_crew")
-                            .withStyle(ChatFormatting.GRAY), true);
+            VehicleAccessLive.tell(player, verdict);
             return;
         }
         if (target instanceof VehicleEntity hull) VehicleEngineLoot.tryApplyOnUnlock(hull);

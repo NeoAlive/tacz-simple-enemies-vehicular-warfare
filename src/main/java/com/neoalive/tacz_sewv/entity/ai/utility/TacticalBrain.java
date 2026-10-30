@@ -73,6 +73,7 @@ public final class TacticalBrain {
         this.facts.bind(unit);
         Doctrine doctrine = Doctrine.forCrew(unit);
         if (!this.facts.refresh(unit, hull)) return false;
+        this.facts.caution = Doctrine.caution(doctrine, hullSeed(hull));
 
         long now = unit.level().getGameTime();
         UtilityWeights weights = UtilityWeights.active();
@@ -95,6 +96,7 @@ public final class TacticalBrain {
         this.facts.bind(unit);
         Doctrine doctrine = Doctrine.forCrew(unit);
         if (!this.facts.refresh(unit, hull)) return false;
+        this.facts.caution = Doctrine.caution(doctrine, hullSeed(hull));
 
         long now = unit.level().getGameTime();
         UtilityWeights weights = UtilityWeights.active();
@@ -121,6 +123,11 @@ public final class TacticalBrain {
         s[Signal.POSTURE_AMBUSH.ordinal()] = f.postureAmbush ? 1.0 : 0.0;
         s[Signal.POSTURE_SEEK_COVER.ordinal()] = f.postureSeekCover ? 1.0 : 0.0;
         s[Signal.IN_BATTLE_POSITION.ordinal()] = f.inBattlePosition ? 1.0 : 0.0;
+    }
+
+    private static long hullSeed(VehicleEntity hull) {
+        java.util.UUID id = hull.getUUID();
+        return id.getMostSignificantBits() ^ id.getLeastSignificantBits();
     }
 
     public Action plan() {
@@ -166,6 +173,7 @@ public final class TacticalBrain {
         this.lastSampledTick = now;
 
         s[Signal.BASE.ordinal()] = 1.0;
+        s[Signal.CAUTION.ordinal()] = Mth.clamp(f.caution * 2.0 - 1.0, -1.0, 1.0);
 
         boolean hasTarget = f.target != null;
         s[Signal.ENEMY_VISIBLE.ordinal()] = hasTarget ? 1.0 : 0.0;
@@ -452,10 +460,11 @@ public final class TacticalBrain {
         }
 
         CrewAssignment.Snapshot task = CrewAssignment.of(unit.getId());
-        SewvDiag.crew("{}#{} plan={} task={} conf={} hp={} fire={} ammo={} allies={} enemies={} range={}"
+        SewvDiag.crew("{}#{} plan={} task={} temper={}({}) conf={} hp={} fire={} ammo={} allies={} enemies={} range={}"
                         + " | best: {} | blocked: {} | {}",
                 unit.getType().toShortString(), unit.getId(), this.plan.key,
                 task == null ? "-" : task.role() + (task.flankSide() == null ? "" : "/" + task.flankSide()),
+                Doctrine.Temperament.of(this.facts.caution), String.format("%.2f", this.facts.caution),
                 String.format("%.0f", this.facts.confidence),
                 String.format("%.2f", this.facts.health),
                 String.format("%.2f", this.facts.pressure),

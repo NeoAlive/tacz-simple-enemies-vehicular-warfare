@@ -119,6 +119,54 @@ public final class Doctrine {
         }
     }
 
+    /**
+     * A crew's temperament on the bold-to-cautious scale, from {@link #caution}. Doctrine is one value per faction
+     * (or per PMC owner), so without a per-crew spread every hull of a side reads the battlefield identically: they
+     * all take cover together, wait together, and stalemate together.
+     */
+    public enum Temperament {
+        /** Never digs in: no battle position, no babysitting its infantry. */
+        BOLD,
+        /** Takes a position only when the moment calls for it (under fire, outnumbered, hurt, rattled). */
+        STEADY,
+        /** Takes a position on every contact and holds it longer. */
+        CAUTIOUS;
+
+        public static final double BOLD_BELOW = 0.35;
+        public static final double CAUTIOUS_ABOVE = 0.7;
+
+        public static Temperament of(double caution) {
+            if (caution < BOLD_BELOW) return BOLD;
+            return caution > CAUTIOUS_ABOVE ? CAUTIOUS : STEADY;
+        }
+    }
+
+    /** Half-width of the per-crew spread around the doctrine's lean. */
+    public static final double CAUTION_SPREAD = 0.35;
+    /** How far the doctrine's lean moves the centre off 0.5. */
+    public static final double CAUTION_LEAN = 0.3;
+
+    /**
+     * 0 (bold) to 1 (cautious). The doctrine sets the centre (preservation pulls up, aggression and risk tolerance
+     * pull down); the hull's UUID sets where in a ±{@link #CAUTION_SPREAD} band this crew sits. Deterministic and
+     * stable across sessions (UUIDs persist), like the flank parity, so a reported behaviour is reproducible.
+     */
+    public static double caution(Doctrine doctrine, long hullSeed) {
+        double lean = (doctrine.get(Axis.PRESERVATION) - doctrine.get(Axis.AGGRESSION)
+                - doctrine.get(Axis.RISK_TOLERANCE)) / 3.0;
+        double c = 0.5 + CAUTION_LEAN * lean + CAUTION_SPREAD * spread(hullSeed);
+        return Math.max(0.0, Math.min(1.0, c));
+    }
+
+    /** SplitMix64 of the seed, mapped to -1..+1. */
+    static double spread(long seed) {
+        long z = seed + 0x9E3779B97F4A7C15L;
+        z = (z ^ (z >>> 30)) * 0xBF58476D1CE4E5B9L;
+        z = (z ^ (z >>> 27)) * 0x94D049BB133111EBL;
+        z = z ^ (z >>> 31);
+        return ((z >>> 11) * 0x1.0p-53) * 2.0 - 1.0;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

@@ -21,6 +21,7 @@ public final class DiplomacySelfCheck {
         playerAndFactionDoNotCollide();
         overlayWinsAndClears();
         resolveOrder();
+        sideBeatsPartyAndDoesNotCollide();
         saveRoundTrip();
         System.out.println("DiplomacySelfCheck OK");
     }
@@ -95,12 +96,42 @@ public final class DiplomacySelfCheck {
         check(data.resolve(alice, carol) == Relation.ALLY, "player↔faction must beat faction↔faction");
     }
 
+    /**
+     * A SEM side is its own subject. A personal pair beats the party's treaty, an unset pair is
+     * not an alliance, and a party named "ru" is not the RU side.
+     */
+    private static void sideBeatsPartyAndDoesNotCollide() {
+        DiplomacyData data = new DiplomacyData();
+        check(data.resolve(List.of(Subject.player("Alice")), List.of(Subject.side("ru"))) == null,
+                "an unset side pair must resolve to nothing stored, not ALLY");
+        check(data.relation(Subject.player("Alice"), Subject.side("ru")) == Relation.NEUTRAL,
+                "absence still reads as neutral");
+
+        data.set(Subject.faction("Reds"), Subject.side("ru"), Relation.ALLY);
+        data.set(Subject.player("Alice"), Subject.side("RU"), Relation.ENEMY);
+        List<Subject> alice = List.of(Subject.player("Alice"), Subject.faction("Reds"));
+        List<Subject> bob = List.of(Subject.player("Bob"), Subject.faction("Reds"));
+        check(data.resolve(alice, List.of(Subject.side("ru"))) == Relation.ENEMY,
+                "a personal side pair must beat the party treaty");
+        check(data.resolve(bob, List.of(Subject.side("ru"))) == Relation.ALLY,
+                "the party treaty must cover a member with no personal pair");
+
+        data.set(Subject.faction("ru"), Subject.faction("us"), Relation.ENEMY);
+        check(data.relation(Subject.side("ru"), Subject.side("us")) == Relation.NEUTRAL,
+                "a party named ru collided with the SEM side");
+        check(data.resolve(alice, List.of(Subject.side("ru"))) == Relation.ENEMY,
+                "adding a party pair changed the side resolve");
+    }
+
     private static void saveRoundTrip() {
         DiplomacyData data = new DiplomacyData();
         data.set(Subject.player("Alice"), Subject.faction("Blues"), Relation.ENEMY);
+        data.set(Subject.player("Alice"), Subject.side("us"), Relation.ALLY);
         DiplomacyData loaded = DiplomacyData.load(data.save(new CompoundTag()));
         check(loaded.relation(Subject.player("alice"), Subject.faction("BLUES")) == Relation.ENEMY,
                 "kinds did not survive a save/load");
+        check(loaded.relation(Subject.player("Alice"), Subject.side("US")) == Relation.ALLY,
+                "a side pair did not survive a save/load");
     }
 
     private static void check(boolean ok, String what) {

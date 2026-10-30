@@ -12,6 +12,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.ywzj.vehicle.entity.vehicle.AbstractVehicle;
 
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.crew.VehicleAccessLive;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
@@ -85,6 +86,10 @@ final class LvBoardGoal extends Goal {
     @Override
     public void tick() {
         if (this.target == null) return;
+        if (VehicleAccessLive.deniesMount(this.unit, this.target)) {
+            cancel(OrderFailure.VEHICLE_NOT_OWNED);
+            return;
+        }
         if (++this.boardingTicks > MAX_BOARDING_TICKS) {
             cancel(OrderFailure.UNREACHABLE);
             return;

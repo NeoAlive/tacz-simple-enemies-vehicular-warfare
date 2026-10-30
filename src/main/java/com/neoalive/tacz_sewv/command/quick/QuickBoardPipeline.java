@@ -12,18 +12,14 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.SewvConfig;
-import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.crew.VehicleAccessLive;
 import com.neoalive.tacz_sewv.entity.ai.support.BoardOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
@@ -32,7 +28,7 @@ import com.neoalive.tacz_sewv.network.NetworkHandler;
 
 /**
  * Quick Board: radius PMCs split across free seats / unclaimed mortars & Type63s and walk to mount.
- * Enemy (RU/US) hulls are ignored; other players' owned PMC crews are ignored.
+ * Hulls {@link com.neoalive.tacz_sewv.crew.VehicleAccessLive} refuses for this player are ignored.
  */
 public final class QuickBoardPipeline implements QuickCommandPipeline {
 
@@ -107,33 +103,13 @@ public final class QuickBoardPipeline implements QuickCommandPipeline {
                 out.add(BoardSlot.type63(type63));
                 continue;
             }
-            if (isEnemyCrew(hull)) continue;
-            if (isForeignPmc(hull, issuer)) continue;
+            if (VehicleAccessLive.denies(issuer, hull)) continue;
             int free = freeSeats(hull);
             if (free <= 0) continue;
             boolean empty = hull.getPassengers().isEmpty();
-            // Same player-hull lock as RU/US auto-board: lastDriver Player means off-limits unless
-            // the steal toggle is on (issuer's own lastDriver still counts as "player-driven").
-            if (empty && !SewvConfig.AUTO_BOARD_STEALS_PLAYER_VEHICLES.get()
-                    && hull.getLastDriver() instanceof Player) {
-                continue;
-            }
             out.add(BoardSlot.vehicle(hull, free, empty));
         }
         return out;
-    }
-
-    private static boolean isEnemyCrew(VehicleEntity hull) {
-        for (Entity p : hull.getPassengers()) {
-            if (p instanceof RUunitEntity || p instanceof USunitEntity) return true;
-        }
-        CrewFacts.Faction f = CrewFacts.factionOf(hull);
-        return f == CrewFacts.Faction.RU || f == CrewFacts.Faction.US;
-    }
-
-    private static boolean isForeignPmc(VehicleEntity hull, Player issuer) {
-        java.util.UUID owner = CrewFacts.pmcOwner(hull);
-        return owner != null && !owner.equals(issuer.getUUID());
     }
 
     private static int freeSeats(VehicleEntity hull) {

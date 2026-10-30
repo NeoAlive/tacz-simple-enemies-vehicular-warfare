@@ -27,7 +27,22 @@ public final class HullPressure {
     /** Most one hit can add, so a single lucky shot does not read as a sustained barrage. */
     public static final float HIT_CAP = 0.6f;
 
+    /** A hit taking at least this share of the hull's health is a real threat, not small arms on armour. */
+    public static final float HEAVY_SHARE = 0.03f;
+    /** How long after a heavy hit its shooter stays the crew's preferred retaliation target. */
+    public static final long RETALIATE_WINDOW = 100;
+
     private HullPressure() {}
+
+    /** The last heavy hitter still alive and within {@link #RETALIATE_WINDOW}, or null. */
+    @javax.annotation.Nullable
+    public static net.minecraft.world.entity.LivingEntity recentHeavyAttacker(VehicleEntity hull, long now) {
+        IHullPressure p = (IHullPressure) hull;
+        long stamp = p.sewv$getHeavyAttackStamp();
+        if (stamp == Long.MIN_VALUE || now - stamp > RETALIATE_WINDOW) return null;
+        return hull.level().getEntity(p.sewv$getHeavyAttackerId())
+                instanceof net.minecraft.world.entity.LivingEntity e && e.isAlive() ? e : null;
+    }
 
     /** Current pressure on {@code hull}, decayed to {@code now}. */
     public static float read(VehicleEntity hull, long now) {
@@ -51,6 +66,23 @@ public final class HullPressure {
         if (value <= 0.0f) return 0.0f;
         if (ticks <= 0) return value;
         return (float) (value * Math.pow(0.5, ticks / HALF_LIFE_TICKS));
+    }
+
+    /** A hit worth turning the gun for: at least {@link #HEAVY_SHARE} of the hull, raw. Unknown max health never is. */
+    public static boolean isHeavy(float rawDamage, float maxHealth) {
+        return maxHealth > 0.0f && rawDamage >= maxHealth * HEAVY_SHARE;
+    }
+
+    /**
+     * Should a crew drop its current lock for the shooter that just landed a heavy hit on it? Only a visible shooter,
+     * and only if the current lock is not a better use of the gun: a target it cannot see, a target that is not
+     * armour, or one farther away than the shooter. The last rule is what stops two tanks trading hits from flipping
+     * the turret back and forth: only a CLOSER shooter takes the gun. Rifle fire is never heavy, so it never gets here.
+     */
+    public static boolean shouldRetaliate(boolean attackerVisible, boolean attackerIsCurrent, boolean currentVisible,
+                                          boolean currentIsArmour, boolean attackerCloser) {
+        if (!attackerVisible || attackerIsCurrent) return false;
+        return !currentVisible || !currentIsArmour || attackerCloser;
     }
 
     /** What one hit adds, from its raw (pre-armour) damage and the hull's max health. */

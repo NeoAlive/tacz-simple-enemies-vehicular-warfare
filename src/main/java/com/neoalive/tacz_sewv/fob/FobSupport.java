@@ -20,6 +20,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.crew.VehicleAccessLive;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 
@@ -318,6 +319,7 @@ public final class FobSupport {
      * unanimous all-PMC crew and would otherwise miss a mixed boarding (other-player PMC + empty
      * seat noise, or another player sharing a seat with anything) and let the hull through.
      * Empty hulls, own-PMC crews, and hulls the player themselves are riding stay claimable.
+     * An empty hull whose stamp (or last-driver backfill) names someone else does not.
      */
     public static boolean vehicleClaimableBy(VehicleEntity hull, UUID playerId) {
         if (isVehicleLocked(hull)) return false;
@@ -331,7 +333,8 @@ public final class FobSupport {
                 if (owner != null && !owner.equals(playerId)) return false;
             }
         }
-        return true;
+        VehicleAccessLive.ensureStamp(hull);
+        return VehicleAccessLive.stampAllows(hull, playerId);
     }
 
     /**

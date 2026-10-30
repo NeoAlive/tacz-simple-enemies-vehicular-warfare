@@ -126,6 +126,20 @@ public final class SuppressionSelfCheck {
         assert HullPressure.hitAmount(170.0f, 500.0f) == HullPressure.HIT_CAP;
         assert HullPressure.hitAmount(0.0f, 500.0f) == 0.0f;
         assert HullPressure.hitAmount(5.0f, 0.0f) == HullPressure.HIT_FLOOR : "unknown max health still counts";
+
+        // Heavy = worth turning the gun for. A rifle round is not; a rocket is.
+        assert !HullPressure.isHeavy(8.0f, 500.0f);
+        assert HullPressure.isHeavy(120.0f, 500.0f);
+        assert !HullPressure.isHeavy(120.0f, 0.0f) : "unknown max health is never heavy";
+
+        // shouldRetaliate(attackerVisible, attackerIsCurrent, currentVisible, currentIsArmour, attackerCloser)
+        assert HullPressure.shouldRetaliate(true, false, false, false, false) : "no usable lock: turn on the shooter";
+        assert HullPressure.shouldRetaliate(true, false, true, false, false) : "lock is infantry: the shooter matters more";
+        assert HullPressure.shouldRetaliate(true, false, true, true, true) : "a closer shooter beats a tank in sight";
+        assert !HullPressure.shouldRetaliate(true, false, true, true, false)
+                : "a farther shooter never pulls the gun off a tank in sight (no flip-flop)";
+        assert !HullPressure.shouldRetaliate(false, false, false, false, true) : "cannot see it, cannot shoot it";
+        assert !HullPressure.shouldRetaliate(true, true, true, true, true) : "already on it";
     }
 
     private static SuppressionTable parse(String name, String json) {

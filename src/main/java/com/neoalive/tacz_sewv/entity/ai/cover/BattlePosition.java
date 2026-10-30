@@ -11,6 +11,7 @@ import net.minecraft.world.phys.Vec3;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.PathBudget;
+import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.Temperament;
 
 /**
  * A ground crew's battle position: a hull-down-where-possible spot on its engagement band, picked
@@ -67,6 +68,7 @@ public final class BattlePosition {
     private long swappedAt = Long.MIN_VALUE;
     private long nextPickAt = Long.MIN_VALUE;
     private long refusedSince = Long.MIN_VALUE;
+    private double leaseScale = 1.0;
 
     /**
      * Keep, swap or drop a latched position. Pure: every input is a number, so the self-check runs
@@ -93,6 +95,35 @@ public final class BattlePosition {
         if (arrivedAt == Long.MIN_VALUE) return false;
         if (now - arrivedAt <= WORK_TICKS) return true;
         return lastShot != Long.MIN_VALUE && lastShot >= arrivedAt && now - lastShot <= WORK_TICKS;
+    }
+
+    /** A STEADY crew takes a position only above this pressure, ... */
+    public static final double OPPORTUNE_PRESSURE = 0.3;
+    /** ... below this force ratio, ... */
+    public static final double OPPORTUNE_FORCE_RATIO = 0.8;
+    /** ... below this hull health, ... */
+    public static final double OPPORTUNE_HEALTH = 0.6;
+    /** ... or below this confidence (neutral is 50). */
+    public static final double OPPORTUNE_CONFIDENCE = 40.0;
+
+    /**
+     * Should this crew take a position at all right now? Cover is not the default: a BOLD crew never digs in, a
+     * STEADY one only when the fight is going against it (under fire, outnumbered, hurt, rattled), and only a
+     * CAUTIOUS one on every contact. The spread is what keeps a battle moving: someone always pushes.
+     */
+    public static boolean wantsPosition(double caution, double pressure, double forceRatio, double health,
+                                        double confidence) {
+        return switch (Temperament.of(caution)) {
+            case BOLD -> false;
+            case CAUTIOUS -> true;
+            case STEADY -> pressure >= OPPORTUNE_PRESSURE || forceRatio < OPPORTUNE_FORCE_RATIO
+                    || health < OPPORTUNE_HEALTH || confidence < OPPORTUNE_CONFIDENCE;
+        };
+    }
+
+    /** Lease multiplier: a cautious crew sits longer on a quiet position than a steady one (0.5x .. 1.5x). */
+    public static double leaseScale(double caution) {
+        return 0.5 + Math.max(0.0, Math.min(1.0, caution));
     }
 
     /** Lease renewed by a shot fired from station; never shortened. */
@@ -154,7 +185,7 @@ public final class BattlePosition {
     }
 
     public void renew(long lastShot) {
-        this.leaseUntil = renewLease(this.leaseUntil, this.arrivedAt, lastShot, leaseTicks());
+        this.leaseUntil = renewLease(this.leaseUntil, this.arrivedAt, lastShot, scaledLease());
     }
 
     public boolean mayPick(long now) {
@@ -182,7 +213,7 @@ public final class BattlePosition {
     }
 
     /** Latch a fresh pick, or just start the cooldown when there was nothing worth taking. */
-    public void latch(@Nullable CoverQuery.BattlePick pick, double bearing, long now) {
+    public void latch(@Nullable CoverQuery.BattlePick pick, double bearing, long now, double leaseScale) {
         this.nextPickAt = now + PICK_COOLDOWN;
         if (pick == null) return;
         this.primary = pick.primary();
@@ -190,7 +221,8 @@ public final class BattlePosition {
         this.hullDown = pick.hullDown();
         this.swapped = false;
         this.pickedBearing = bearing;
-        this.leaseUntil = now + leaseTicks();
+        this.leaseScale = leaseScale;
+        this.leaseUntil = now + scaledLease();
         this.arrivedAt = Long.MIN_VALUE;
         this.swappedAt = Long.MIN_VALUE;
     }
@@ -204,7 +236,7 @@ public final class BattlePosition {
         this.swapped = true;
         this.swappedAt = now;
         this.arrivedAt = Long.MIN_VALUE;
-        this.leaseUntil = now + leaseTicks();
+        this.leaseUntil = now + scaledLease();
         return true;
     }
 
@@ -243,6 +275,10 @@ public final class BattlePosition {
         } catch (Throwable unbaked) {
             return true;
         }
+    }
+
+    private long scaledLease() {
+        return Math.round(leaseTicks() * this.leaseScale);
     }
 
     static long leaseTicks() {

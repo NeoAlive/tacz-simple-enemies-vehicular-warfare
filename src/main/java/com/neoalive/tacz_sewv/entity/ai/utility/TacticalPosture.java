@@ -454,7 +454,9 @@ public final class TacticalPosture {
         }
 
         // ---- Infantry cover ----
-        if (!battleLatched && allyInfantry > 0.25
+        // A BOLD crew does not babysit its infantry; it fights its own fight.
+        if (!battleLatched && Doctrine.Temperament.of(facts.caution) != Doctrine.Temperament.BOLD
+                && allyInfantry > 0.25
                 && facts.targetCategory == com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory.VEHICLE
                 && target != null
                 && this.infantryShieldPoint == null) {
@@ -491,7 +493,7 @@ public final class TacticalPosture {
 
         if (SewvDiag.individualTacticsVerbose() && !this.active.isEmpty()) {
             SewvDiag.posture(
-                    "unit={}#{} hull={}#{} tactics={} exp={} cover={} keyhole={} shot={} allies={} scoot={} ambush={} seekCover={} conf={} bp={} alt={} hullDown={} pressure={}",
+                    "unit={}#{} hull={}#{} tactics={} exp={} cover={} keyhole={} shot={} allies={} scoot={} ambush={} seekCover={} conf={} bp={} alt={} hullDown={} pressure={} temper={}",
                     unit.getClass().getSimpleName(), unitId,
                     hull.getName().getString(), hull.getId(),
                     this.active,
@@ -507,7 +509,8 @@ public final class TacticalPosture {
                     !battleLatched ? "NONE" : this.battle.onStation() ? "ON_STATION" : "EN_ROUTE",
                     this.battle.hasAlternate(),
                     this.battle.hullDown(),
-                    String.format("%.2f", facts.pressure));
+                    String.format("%.2f", facts.pressure),
+                    Doctrine.Temperament.of(facts.caution));
         }
     }
 
@@ -545,13 +548,18 @@ public final class TacticalPosture {
             return;
         }
         if (!allowed || !engaged || target == null || !this.battle.mayPick(now)) return;
+        if (!BattlePosition.wantsPosition(facts.caution, facts.pressure, facts.forceRatio, facts.health,
+                facts.confidence)) return;
+        // Already inside the band: the release below would drop any pick on the next refresh, so a pick here only
+        // churned (pick, drop, cooldown, pick) and spent its raycasts for nothing.
+        if (hull.distanceTo(target) < facts.preferredRange - Facts.rangeDeadband(facts.targetCategory)) return;
         long[] threats = COVER_THREAT.get(unit.getId());
         if (threats == null || !this.battle.acquirePickSlot(level, now)) return;
         CoverQuery.BattlePick pick = CoverQuery.suggestBattlePositions(level, hull, target, threats,
                 facts.preferredRange, Facts.rangeDeadband(facts.targetCategory));
         double bearing = pick == null ? 0.0
                 : Math.atan2(threatZ - pick.primary().z, threatX - pick.primary().x);
-        this.battle.latch(pick, bearing, now);
+        this.battle.latch(pick, bearing, now, BattlePosition.leaseScale(facts.caution));
         if (pick != null) {
             // Whatever the old tactics had armed would pull the hull off the position it just chose.
             this.scootWaypoint = null;

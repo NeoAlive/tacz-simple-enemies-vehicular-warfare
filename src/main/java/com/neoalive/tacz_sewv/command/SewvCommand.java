@@ -524,6 +524,7 @@ public class SewvCommand {
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.added",
                 relation.name().toLowerCase(), resolved), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -552,6 +553,7 @@ public class SewvCommand {
             return 0;
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.removed", name), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -576,6 +578,7 @@ public class SewvCommand {
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.added",
                 relation.name().toLowerCase(Locale.ROOT), other), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -593,6 +596,7 @@ public class SewvCommand {
             return 0;
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.removed", other), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -615,6 +619,7 @@ public class SewvCommand {
             }
             source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.pair_cleared",
                     sa.toString(), sb.toString()), true);
+            syncDiplomacy(source);
             return 1;
         }
         if (!data.set(sa, sb, relation)) {
@@ -623,6 +628,7 @@ public class SewvCommand {
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.pair_set",
                 sa.toString(), sb.toString(), relation.name().toLowerCase(Locale.ROOT)), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -639,7 +645,7 @@ public class SewvCommand {
         return entries.size();
     }
 
-    private static final String[] SUBJECT_KINDS = {"player", "faction"};
+    private static final String[] SUBJECT_KINDS = {"player", "faction", "side"};
 
     @Nullable
     private static DiplomacyData.Relation parseRelation(String word, boolean allowNeutral) {
@@ -649,11 +655,26 @@ public class SewvCommand {
         return null;
     }
 
-    /** A pair-command subject; a faction must be a known OpenPAC party, a player any name. */
+    /** Online players get their two side relations again after a pair changes. */
+    private static void syncDiplomacy(CommandSourceStack source) {
+        if (source.getServer() != null) {
+            com.neoalive.tacz_sewv.diplomacy.SideRelations.syncAll(source.getServer());
+        }
+    }
+
+    /** A pair-command subject. A faction must be a known OpenPAC party; a side is {@code ru} or {@code us}. */
     @Nullable
     private static DiplomacyData.Subject parseSubject(CommandSourceStack source, String kind, String name) {
         if ("player".equalsIgnoreCase(kind)) {
             return DiplomacyData.Subject.player(resolvePlayerName(source.getServer(), name));
+        }
+        if ("side".equalsIgnoreCase(kind)) {
+            String side = "ru".equalsIgnoreCase(name) ? "ru" : "us".equalsIgnoreCase(name) ? "us" : null;
+            if (side == null) {
+                source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.unknown_side", name));
+                return null;
+            }
+            return DiplomacyData.Subject.side(side);
         }
         if ("faction".equalsIgnoreCase(kind)) {
             if (!OpenPacCompat.isLoaded()) {
@@ -680,9 +701,24 @@ public class SewvCommand {
 
     private static CompletableFuture<Suggestions> suggestSubjectNames(
             com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        String kind = subjectKind(ctx, "kindB");
+        if (kind == null) kind = subjectKind(ctx, "kindA");
+        if ("side".equalsIgnoreCase(kind)) {
+            return SharedSuggestionProvider.suggest(new String[]{"ru", "us"}, builder);
+        }
         List<String> names = new java.util.ArrayList<>(ctx.getSource().getOnlinePlayerNames());
         names.addAll(OpenPacCompat.factionNames(ctx.getSource().getServer()));
         return SharedSuggestionProvider.suggest(names.stream().map(StringArgumentType::escapeIfRequired), builder);
+    }
+
+    @Nullable
+    private static String subjectKind(
+            com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, String argument) {
+        try {
+            return StringArgumentType.getString(ctx, argument);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     @Nullable

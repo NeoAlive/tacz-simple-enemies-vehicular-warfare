@@ -66,6 +66,12 @@ public class VehicleTargetScanGoal extends Goal {
     // so nothing leaks through the wall while the lock lingers.
     // 60 goal ticks ≈ 6 s wall clock: goals tick every other game tick.
     private static final int LOS_GRACE_TICKS = 60;
+    /**
+     * A lock this crew cannot see is re-examined this often (goal ticks, ~2 s): if anything valid is in plain view,
+     * the gun goes to it. Without this a board-held lock (refreshed by the wide scan, so it never expires) kept an
+     * Abrams staring at a T-90 behind a ridge while another T-90 and a BMP flanked it in the open.
+     */
+    private static final int BLIND_RECHECK_TICKS = 20;
 
     /** Board contacts a direct-fire crew will acquire: heard-and-relayed hearsay is for indirect fire. */
     private static final ContactBoard.Source DIRECT_FIRE_MIN = ContactBoard.Source.PROXIMITY;
@@ -76,6 +82,8 @@ public class VehicleTargetScanGoal extends Goal {
     private LivingEntity pendingTarget;
     private int scanCooldown;
     private int ticksWithoutLos;
+    /** Goal ticks the held lock has gone unseen, for {@link #BLIND_RECHECK_TICKS}. */
+    private int blindTicks;
     /** Game time before this crew next re-reports a target it is watching to the contact board. */
     private long nextPublishTime;
 
@@ -171,6 +179,7 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
                 after == this.pendingTarget);
         this.pendingTarget = null;
         this.ticksWithoutLos = 0;
+        this.blindTicks = 0;
     }
 
     @Override
@@ -231,13 +240,36 @@ if (EasyMode.vehicleTargetRequireLos()
     public void tick() {
         if (this.vehicle == null) return;
         LivingEntity shooter = retaliationTarget(this.vehicle);
-        if (shooter == null) return;
+        if (shooter == null) {
+            switchOffBlindLock(this.vehicle);
+            return;
+        }
         SewvDiag.scan("VehicleTargetScanGoal.retaliate unit={}#{} from={}#{} to={}#{}",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
                 this.unit.getTarget() == null ? "null" : this.unit.getTarget().getClass().getSimpleName(),
                 this.unit.getTarget() == null ? -1 : this.unit.getTarget().getId(),
                 shooter.getClass().getSimpleName(), shooter.getId());
         this.unit.setTarget(shooter);
+        this.ticksWithoutLos = 0;
+    }
+
+    /** Every {@link #BLIND_RECHECK_TICKS} the lock goes unseen, move the gun to the nearest target in plain view. */
+    private void switchOffBlindLock(VehicleEntity v) {
+        LivingEntity current = this.unit.getTarget();
+        if (current == null || !EasyMode.vehicleTargetRequireLos() || DriveHelicopterGoal.inFiringRun(v)
+                || this.unit.getSensing().hasLineOfSight(current)) {
+            this.blindTicks = 0;
+            return;
+        }
+        if (++this.blindTicks < BLIND_RECHECK_TICKS) return;
+        this.blindTicks = 0;
+        LivingEntity seen = scanCylinder(v);
+        if (seen == null || seen == current || !this.unit.getSensing().hasLineOfSight(seen)) return;
+        SewvDiag.scan("VehicleTargetScanGoal.blindSwitch unit={}#{} from={}#{} to={}#{}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                current.getClass().getSimpleName(), current.getId(),
+                seen.getClass().getSimpleName(), seen.getId());
+        this.unit.setTarget(seen);
         this.ticksWithoutLos = 0;
     }
 
@@ -299,14 +331,21 @@ if (EasyMode.vehicleTargetRequireLos()
 boolean needLos = EasyMode.vehicleTargetRequireLos()
                 && !DriveHelicopterGoal.inFiringRun(v);
         LivingEntity foliageOnly = null;
+        // A board contact beyond the close band may be locked without a raycast, but only as a last resort: the
+        // nearest-first order used to hand the gun to a closer hull hiding behind a ridge (board-known, so "seen")
+        // over a farther one standing in the open, and the fire gate then refused every shot at it.
+        LivingEntity blindKnown = null;
         for (LivingEntity candidate : candidates) {
-            boolean los = !needLos || waivesLos(candidate)
-                    || this.unit.getSensing().hasLineOfSight(candidate);
+            boolean los = !needLos || this.unit.getSensing().hasLineOfSight(candidate);
             if (los) {
                 SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK unit={}#{} candidate={}#{} needLos={}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         candidate.getClass().getSimpleName(), candidate.getId(), needLos);
                 return candidate;
+            }
+            if (blindKnown == null && waivesLos(candidate)) {
+                blindKnown = candidate;
+                continue;
             }
             // Leaves only: presence without a lock → DISTANT_CONTACT via AwarenessCues, keep looking
             // for a clear engageable candidate further down the list.
@@ -320,6 +359,12 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         candidate.getClass().getSimpleName(), candidate.getId());
             }
+        }
+        if (blindKnown != null) {
+            SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK_BLIND unit={}#{} candidate={}#{} (board, no LOS)",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    blindKnown.getClass().getSimpleName(), blindKnown.getId());
+            return blindKnown;
         }
         if (foliageOnly != null) {
             AwarenessCues.offerFoliageContact(v, foliageOnly);
